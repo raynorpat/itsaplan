@@ -22,14 +22,14 @@ const CHART_CONFIG: ChartConfig = {
 // window is a configured setting (edited from the header settings popover, see
 // ThroughputWidgetSettings), not a live control.
 export default function ThroughputWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const weeks = config.weeks ?? 12;
-  const { data, isLoading } = useThroughputQuery(projectKey, weeks);
+  const { data, isLoading } = useThroughputQuery(teamKey, weeks);
 
   const chartData = (data ?? []).map((w) => ({ ...w, label: format(parseISO(w.week), 'MMM d') }));
 

@@ -18,19 +18,19 @@ export function useIssueQuery(id: string | null) {
   });
 }
 
-// Resolves an issue by its project-scoped number (the identifier-based URL). Seeds
+// Resolves an issue by its team-scoped number (the identifier-based URL). Seeds
 // the by-id cache from the result so the detail's useIssueQuery(id) is instant and
 // shares one fetch. Enabled only when a number is present.
-export function useIssueBySeqQuery(projectKey: string | null, seq: number | null) {
+export function useIssueBySeqQuery(teamKey: string | null, seq: number | null) {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: qk.issueBySeq(projectKey ?? '', seq ?? -1),
+    queryKey: qk.issueBySeq(teamKey ?? '', seq ?? -1),
     queryFn: async () => {
-      const issue = await api.getIssueBySeq(projectKey!, seq!);
+      const issue = await api.getIssueBySeq(teamKey!, seq!);
       qc.setQueryData(qk.issue(issue.id), issue);
       return issue;
     },
-    enabled: projectKey != null && seq != null,
+    enabled: teamKey != null && seq != null,
   });
 }
 
@@ -38,31 +38,27 @@ export function useIssueBySeqQuery(projectKey: string | null, seq: number | null
 // is open and the term is non-empty; includes archived issues (the board payload
 // never carries them). keepPreviousData holds the last list while the next query
 // runs, so results do not blank out between keystrokes.
-export function useIssueSearchQuery(
-  projectKey: string | null,
-  q: string,
-  opts: { enabled: boolean },
-) {
+export function useIssueSearchQuery(teamKey: string | null, q: string, opts: { enabled: boolean }) {
   const term = q.trim();
   return useQuery({
-    queryKey: qk.issueSearch(projectKey ?? '', term),
-    queryFn: () => api.searchIssues(projectKey!, { q: term, limit: 50 }),
-    enabled: opts.enabled && projectKey != null && term.length > 0,
+    queryKey: qk.issueSearch(teamKey ?? '', term),
+    queryFn: () => api.searchIssues(teamKey!, { q: term, limit: 50 }),
+    enabled: opts.enabled && teamKey != null && term.length > 0,
     placeholderData: keepPreviousData,
   });
 }
 
-// Updating an issue (drag/drop move, or an inline field edit). When `projectKey` is
-// given the project detail is patched optimistically so the change shows before the
+// Updating an issue (drag/drop move, or an inline field edit). When `teamKey` is
+// given the team detail is patched optimistically so the change shows before the
 // request resolves, then reconciled on settle. Issue detail, comments and
 // activity are invalidated too, since an edit produces new activity events.
-export function useUpdateIssue(projectKey: string | null) {
+export function useUpdateIssue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: IssuePatch }) => api.updateIssue(id, patch),
     onMutate: async ({ id, patch }) => {
-      if (!projectKey) return {};
-      const key = qk.boardIssues(projectKey);
+      if (!teamKey) return {};
+      const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<BoardIssues>(key);
       if (prev) {
@@ -77,95 +73,95 @@ export function useUpdateIssue(projectKey: string | null) {
       if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: (_data, _err, { id }) => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateInitiatives(qc);
+      invalidateProjects(qc);
     },
   });
 }
 
-// An issue write changes its initiative's progress/health and activity, and the
-// initiatives list shows that progress. The mutations do not know the initiative
+// An issue write changes its project's progress/health and activity, and the
+// projects list shows that progress. The mutations do not know the project
 // id, so they invalidate by prefix; only active queries refetch.
-function invalidateInitiatives(qc: ReturnType<typeof useQueryClient>) {
-  void qc.invalidateQueries({ queryKey: qk.anyInitiative });
-  void qc.invalidateQueries({ queryKey: qk.anyInitiativeFeed });
-  void qc.invalidateQueries({ queryKey: qk.anyInitiatives });
+function invalidateProjects(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: qk.anyProject });
+  void qc.invalidateQueries({ queryKey: qk.anyProjectFeed });
+  void qc.invalidateQueries({ queryKey: qk.anyProjects });
 }
 
-// Deletes an issue. Drops it from the project detail immediately and discards its
-// per-issue caches, then refetches the project to reconcile.
-export function useDeleteIssue(projectKey: string | null) {
+// Deletes an issue. Drops it from the team detail immediately and discards its
+// per-issue caches, then refetches the team to reconcile.
+export function useDeleteIssue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteIssue(id),
     onSuccess: async (_data, id) => {
-      if (projectKey) {
-        // Cancel any project fetch already in flight before removing the issue
+      if (teamKey) {
+        // Cancel any team fetch already in flight before removing the issue
         // from the cache. Such a fetch was issued before the delete (e.g. an
         // earlier edit's onSettled refetch) and still lists the deleted issue;
         // if it resolved after this removal it would re-add the issue until the
         // next refetch. Cancelling discards it so the optimistic removal sticks.
-        await qc.cancelQueries({ queryKey: qk.boardIssues(projectKey) });
-        qc.setQueryData<BoardIssues>(qk.boardIssues(projectKey), (prev) =>
+        await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
+        qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
           prev ? { ...prev, issues: prev.issues.filter((t) => t.id !== id) } : prev,
         );
-        void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
+        void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
       }
       qc.removeQueries({ queryKey: qk.issue(id) });
       qc.removeQueries({ queryKey: qk.feed(id) });
       qc.removeQueries({ queryKey: qk.attachments(id) });
-      invalidateInitiatives(qc);
+      invalidateProjects(qc);
     },
   });
 }
 
 // Archives an issue. Like delete, it leaves the board immediately (dropped from the
-// project detail), but the row is kept: the archived-issues list and the issue's own
+// team detail), but the row is kept: the archived-issues list and the issue's own
 // caches are invalidated so a reopened detail shows the archived state.
-export function useArchiveIssue(projectKey: string | null) {
+export function useArchiveIssue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.archiveIssue(id),
     onSuccess: async (_data, id) => {
-      if (projectKey) {
-        await qc.cancelQueries({ queryKey: qk.boardIssues(projectKey) });
-        qc.setQueryData<BoardIssues>(qk.boardIssues(projectKey), (prev) =>
+      if (teamKey) {
+        await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
+        qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
           prev ? { ...prev, issues: prev.issues.filter((t) => t.id !== id) } : prev,
         );
-        void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-        void qc.invalidateQueries({ queryKey: qk.archivedIssues(projectKey) });
+        void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+        void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateInitiatives(qc);
+      invalidateProjects(qc);
     },
   });
 }
 
 // Restores an archived issue back onto the board. Invalidates the board (it
 // reappears), the archived list (it leaves), and the issue's caches.
-export function useRestoreIssue(projectKey: string | null) {
+export function useRestoreIssue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.restoreIssue(id),
     onSuccess: (_data, id) => {
-      if (projectKey) {
-        void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-        void qc.invalidateQueries({ queryKey: qk.archivedIssues(projectKey) });
+      if (teamKey) {
+        void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+        void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateInitiatives(qc);
+      invalidateProjects(qc);
     },
   });
 }
 
 // Setting a custom field value. Invalidates the issue (the value lives on it),
-// its activity feed, and — since the project's issues carry field values for
-// filtering — the project detail.
-export function useSetFieldValue(projectKey: string | null) {
+// its activity feed, and — since the team's issues carry field values for
+// filtering — the team detail.
+export function useSetFieldValue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -180,24 +176,24 @@ export function useSetFieldValue(projectKey: string | null) {
     onSettled: (_data, _err, { issueId }) => {
       void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
       void qc.invalidateQueries({ queryKey: qk.feed(issueId) });
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
     },
   });
 }
 
 // --- Bulk actions (board multi-select) -------------------------------------------
-// One request changes many issues. Each optimistically patches the project cache
+// One request changes many issues. Each optimistically patches the team cache
 // the same way its single-issue counterpart does, then invalidates the board and
-// initiatives on settle. The project detail is patched by id set so the board
+// projects on settle. The team detail is patched by id set so the board
 // reflects the change before the request resolves.
 
-export function useBulkUpdateIssues(projectKey: string) {
+export function useBulkUpdateIssues(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ ids, patch }: { ids: string[]; patch: BulkIssuePatch }) =>
-      api.bulkUpdateIssues(projectKey, ids, patch),
+      api.bulkUpdateIssues(teamKey, ids, patch),
     onMutate: async ({ ids, patch }) => {
-      const key = qk.boardIssues(projectKey);
+      const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<BoardIssues>(key);
       if (prev) {
@@ -213,19 +209,19 @@ export function useBulkUpdateIssues(projectKey: string) {
       if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-      invalidateInitiatives(qc);
+      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      invalidateProjects(qc);
     },
   });
 }
 
-export function useBulkAddLabels(projectKey: string) {
+export function useBulkAddLabels(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ ids, add }: { ids: string[]; add: string[] }) =>
-      api.bulkAddLabels(projectKey, ids, add),
+      api.bulkAddLabels(teamKey, ids, add),
     onMutate: async ({ ids, add }) => {
-      const key = qk.boardIssues(projectKey);
+      const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<BoardIssues>(key);
       if (prev) {
@@ -243,52 +239,52 @@ export function useBulkAddLabels(projectKey: string) {
       if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-      invalidateInitiatives(qc);
+      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      invalidateProjects(qc);
     },
   });
 }
 
 // Archive and delete both drop the issues from the board immediately, then
-// reconcile. A project fetch already in flight is cancelled first so it cannot
+// reconcile. A team fetch already in flight is cancelled first so it cannot
 // re-add the removed issues (see the single-issue delete for the same reasoning).
-function useBulkRemoval(projectKey: string, run: (ids: string[]) => Promise<unknown>) {
+function useBulkRemoval(teamKey: string, run: (ids: string[]) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) => run(ids),
     onSuccess: async (_data, ids) => {
       const idSet = new Set(ids);
-      await qc.cancelQueries({ queryKey: qk.boardIssues(projectKey) });
-      qc.setQueryData<BoardIssues>(qk.boardIssues(projectKey), (prev) =>
+      await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
+      qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
         prev ? { ...prev, issues: prev.issues.filter((t) => !idSet.has(t.id)) } : prev,
       );
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-      void qc.invalidateQueries({ queryKey: qk.archivedIssues(projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       for (const id of ids) {
         qc.removeQueries({ queryKey: qk.issue(id) });
         qc.removeQueries({ queryKey: qk.feed(id) });
       }
-      invalidateInitiatives(qc);
+      invalidateProjects(qc);
     },
   });
 }
 
-export function useBulkArchiveIssues(projectKey: string) {
-  return useBulkRemoval(projectKey, (ids) => api.bulkArchiveIssues(projectKey, ids));
+export function useBulkArchiveIssues(teamKey: string) {
+  return useBulkRemoval(teamKey, (ids) => api.bulkArchiveIssues(teamKey, ids));
 }
 
-export function useBulkDeleteIssues(projectKey: string) {
-  return useBulkRemoval(projectKey, (ids) => api.bulkDeleteIssues(projectKey, ids));
+export function useBulkDeleteIssues(teamKey: string) {
+  return useBulkRemoval(teamKey, (ids) => api.bulkDeleteIssues(teamKey, ids));
 }
 
 export function useCreateIssue() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ projectKey, input }: { projectKey: string; input: NewIssueInput }) =>
-      api.createIssue(projectKey, input),
-    onSuccess: (_data, { projectKey }) => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
-      invalidateInitiatives(qc);
+    mutationFn: ({ teamKey, input }: { teamKey: string; input: NewIssueInput }) =>
+      api.createIssue(teamKey, input),
+    onSuccess: (_data, { teamKey }) => {
+      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      invalidateProjects(qc);
     },
   });
 }

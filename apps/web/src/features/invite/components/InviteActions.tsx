@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { projectPath } from '@/utils/paths';
+import { teamPath } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 
 // Accept or reject a pending invite when the signed-in session already matches
-// the invited email. Accept opens the project; reject re-queries the invite so
+// the invited email. Accept opens the team; reject re-queries the invite so
 // the page shows the declined state.
 export default function InviteActions({ token }: { token: string }) {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function InviteActions({ token }: { token: string }) {
     setBusy('accept');
     try {
       const result = await api.acceptInvite(token);
-      router.push(projectPath(result.projectKey));
+      router.push(teamPath(result.teamKey));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not accept the invite.');

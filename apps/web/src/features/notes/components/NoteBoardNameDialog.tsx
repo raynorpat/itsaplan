@@ -11,7 +11,7 @@ export default function NoteBoardNameDialog({
   open,
   title,
   description,
-  projectKey,
+  teamKey,
   initial,
   withVisibility = false,
   onClose,
@@ -20,7 +20,7 @@ export default function NoteBoardNameDialog({
   open: boolean;
   title: string;
   description?: string;
-  projectKey?: string;
+  teamKey?: string;
   initial: string;
   withVisibility?: boolean;
   onClose: () => void;
@@ -34,7 +34,7 @@ export default function NoteBoardNameDialog({
   const isValid = name.trim().length > 0;
 
   return (
-    <Modal title={title} description={description} projectKey={projectKey} onClose={onClose}>
+    <Modal title={title} description={description} teamKey={teamKey} onClose={onClose}>
       <form
         className="space-y-5"
         onSubmit={(e) => {
@@ -72,9 +72,7 @@ export default function NoteBoardNameDialog({
 
         {withVisibility && (
           <p className="text-sm text-muted-foreground">
-            {personal
-              ? 'Only you can see this board.'
-              : 'Everyone in the project can see this board.'}
+            {personal ? 'Only you can see this board.' : 'Everyone in the team can see this board.'}
           </p>
         )}
 

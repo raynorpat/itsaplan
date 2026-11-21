@@ -13,7 +13,7 @@ import { useAiChatSelection } from '../../hooks/useAiChatSelection';
 
 // The floating AI chat: a launcher button anchored to the corner and a chat window
 // above it. It is mounted by the Shell while the header toggle is on, so the whole
-// widget (and the conversation inside it) survives navigation between project pages.
+// widget (and the conversation inside it) survives navigation between team pages.
 // The window is hidden rather than unmounted when minimized, so a chat in progress is
 // kept.
 export function FloatingChat({
@@ -23,7 +23,7 @@ export function FloatingChat({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { project } = useShell();
+  const { team } = useShell();
   const { can } = usePermissions();
   const {
     agents,
@@ -37,7 +37,7 @@ export function FloatingChat({
     startNewChat,
     handleThreadCreated,
     handleThreadDeleted,
-  } = useAiChatSelection(project?.project.key ?? null);
+  } = useAiChatSelection(team?.team.key ?? null);
 
   const [view, setView] = useState<'chat' | 'history'>('chat');
 
@@ -57,7 +57,7 @@ export function FloatingChat({
     setView('chat');
   };
 
-  if (!project || !can('ai_agents', 'read')) return null;
+  if (!team || !can('ai_agents', 'read')) return null;
 
   return (
     <div className="fixed right-4 bottom-4 z-40 flex flex-col items-end gap-3">
@@ -85,7 +85,7 @@ export function FloatingChat({
           ) : selected ? (
             <AiChatThread
               key={`${selected.id}:${newChatNonce}`}
-              projectKey={project.project.key}
+              teamKey={team.team.key}
               agent={selected}
               threadId={selectedThreadId}
               onThreadCreated={handleThreadCreated}
@@ -101,7 +101,7 @@ export function FloatingChat({
           {view === 'history' && selected && (
             <div className="absolute inset-0 bg-background">
               <FloatingChatHistory
-                projectKey={project.project.key}
+                teamKey={team.team.key}
                 agentId={selected.id}
                 selectedThreadId={selectedThreadId}
                 onSelect={handleSelectThread}

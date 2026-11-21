@@ -10,10 +10,10 @@ import SettingsCustomFields from './components/custom-fields/SettingsCustomField
 
 const section = settingsSection('custom-fields');
 
-// The Custom fields settings page (/project/:projectKey/settings/custom-fields).
+// The Custom fields settings page (/team/:teamKey/settings/custom-fields).
 export default function SettingsCustomFieldsPage() {
-  const { project } = useShell();
-  if (!project) return null;
+  const { team } = useShell();
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
@@ -22,16 +22,16 @@ export default function SettingsCustomFieldsPage() {
       widthClassName="min-w-[600px] max-w-[60%]"
       actions={
         <CustomFieldsToolbar
-          projectKey={project.project.key}
+          teamKey={team.team.key}
           resource={section.resource}
-          fields={project.customFields}
-          types={project.issueTypes}
+          fields={team.customFields}
+          types={team.issueTypes}
         />
       }
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsCustomFields project={project} />
+          <SettingsCustomFields team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

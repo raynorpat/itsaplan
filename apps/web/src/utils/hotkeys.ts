@@ -9,15 +9,15 @@
 
 export type HotkeyId =
   | 'palette.toggle'
-  | 'project.switch'
+  | 'team.switch'
   | 'sidebar.toggle'
   | 'view.kanban'
   | 'view.table'
   | 'view.timeline'
   | 'view.calendar'
   | 'issue.new'
-  | 'project.new'
-  | 'project.settings'
+  | 'team.new'
+  | 'team.settings'
   | 'board.select-all';
 
 // `scope` decides when the binding is live. A 'global' one fires even while the
@@ -36,7 +36,7 @@ export type HotkeyDef = {
 
 // A combo is written as lowercase tokens joined by '+': the modifiers 'mod'
 // (⌘ on macOS, Ctrl elsewhere), 'shift' and 'alt', then the key. The key 'digit'
-// stands for the digits 1–9 and is only used by the positional project switch.
+// stands for the digits 1–9 and is only used by the positional team switch.
 export const HOTKEYS: HotkeyDef[] = [
   {
     id: 'palette.toggle',
@@ -46,8 +46,8 @@ export const HOTKEYS: HotkeyDef[] = [
     scope: 'global',
   },
   {
-    id: 'project.switch',
-    label: 'Switch to project 1–9',
+    id: 'team.switch',
+    label: 'Switch to team 1–9',
     group: 'General',
     combo: 'mod+digit',
     scope: 'global',
@@ -65,10 +65,10 @@ export const HOTKEYS: HotkeyDef[] = [
     fixed: true,
   },
   { id: 'issue.new', label: 'New issue', group: 'General', combo: 'n', scope: 'app' },
-  { id: 'project.new', label: 'New project', group: 'General', combo: 'b', scope: 'app' },
+  { id: 'team.new', label: 'New team', group: 'General', combo: 'b', scope: 'app' },
   {
-    id: 'project.settings',
-    label: 'Open project settings',
+    id: 'team.settings',
+    label: 'Open team settings',
     group: 'General',
     combo: 's',
     scope: 'app',
@@ -139,7 +139,7 @@ export function matchesCombo(e: KeyEventLike, combo: string): boolean {
 }
 
 // The digit 1–9 a positional combination was pressed with, or null. Used by the
-// project switch, which has no fixed key.
+// team switch, which has no fixed key.
 export function matchedDigit(e: KeyEventLike, combo: string): number | null {
   const c = parseCombo(combo);
   if (c.key !== 'digit' || !matchesParsed(e, c)) return null;

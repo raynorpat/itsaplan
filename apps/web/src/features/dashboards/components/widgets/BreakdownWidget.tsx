@@ -29,14 +29,14 @@ const PALETTE = [
 // per-widget config choice, edited from the header settings popover (see
 // BreakdownWidgetSettings) and persisted on save.
 export default function BreakdownWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const by = config.by ?? 'status';
-  const { data, isLoading } = useBreakdownQuery(projectKey, by);
+  const { data, isLoading } = useBreakdownQuery(teamKey, by);
   // An empty status bucket is still a board column, so keep it; other dimensions drop zeros.
   const items = (data ?? []).filter((i) => by === 'status' || i.count > 0);
   const total = items.reduce((sum, i) => sum + i.count, 0);

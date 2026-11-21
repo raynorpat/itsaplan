@@ -11,21 +11,21 @@ import SettingsIssueTypes from './components/issue-types/SettingsIssueTypes';
 
 const section = settingsSection('issue-types');
 
-// The Issue types settings page (/project/:projectKey/settings/issue-types).
+// The Issue types settings page (/team/:teamKey/settings/issue-types).
 export default function SettingsIssueTypesPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   // The add form is inline in the list; the header button opens it via this flag.
   const [adding, setAdding] = useState(false);
-  if (!project) return null;
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
       description={section.description}
       actions={
         <IssueTypesToolbar
-          projectKey={project.project.key}
+          teamKey={team.team.key}
           resource={section.resource}
-          types={project.issueTypes}
+          types={team.issueTypes}
           onAdd={() => setAdding(true)}
         />
       }
@@ -33,7 +33,7 @@ export default function SettingsIssueTypesPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsIssueTypes project={project} adding={adding} onAddingChange={setAdding} />
+          <SettingsIssueTypes team={team} adding={adding} onAddingChange={setAdding} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

@@ -7,48 +7,48 @@ import {
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-// One project's inbox, keyset-paged and scoped by the active filters. The filters
+// One team's inbox, keyset-paged and scoped by the active filters. The filters
 // object is part of the query key so switching filters is a distinct cache entry.
 export function useNotificationsQuery(
-  projectKey: string,
-  projectId: string,
+  teamKey: string,
+  teamId: string,
   filters: NotificationFilters,
 ) {
   return useInfiniteQuery({
-    queryKey: qk.notifications(projectKey, filters),
+    queryKey: qk.notifications(teamKey, filters),
     queryFn: ({ pageParam }) =>
-      api.listNotifications(projectId, { cursor: pageParam, limit: 30, filters }),
+      api.listNotifications(teamId, { cursor: pageParam, limit: 30, filters }),
     initialPageParam: null as NotificationCursor | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 }
 
-function useInvalidateInbox(projectKey: string) {
+function useInvalidateInbox(teamKey: string) {
   const qc = useQueryClient();
   return () => {
-    void qc.invalidateQueries({ queryKey: ['notifications', projectKey] });
-    void qc.invalidateQueries({ queryKey: qk.notificationsUnread(projectKey) });
+    void qc.invalidateQueries({ queryKey: ['notifications', teamKey] });
+    void qc.invalidateQueries({ queryKey: qk.notificationsUnread(teamKey) });
   };
 }
 
-export function useSetNotificationRead(projectKey: string) {
-  const invalidate = useInvalidateInbox(projectKey);
+export function useSetNotificationRead(teamKey: string) {
+  const invalidate = useInvalidateInbox(teamKey);
   return useMutation({
     mutationFn: ({ id, read }: { id: string; read: boolean }) => api.setNotificationRead(id, read),
     onSuccess: invalidate,
   });
 }
 
-export function useMarkAllRead(projectKey: string, projectId: string) {
-  const invalidate = useInvalidateInbox(projectKey);
+export function useMarkAllRead(teamKey: string, teamId: string) {
+  const invalidate = useInvalidateInbox(teamKey);
   return useMutation({
-    mutationFn: () => api.markAllNotificationsRead(projectId),
+    mutationFn: () => api.markAllNotificationsRead(teamId),
     onSuccess: invalidate,
   });
 }
 
-export function useSnoozeNotification(projectKey: string) {
-  const invalidate = useInvalidateInbox(projectKey);
+export function useSnoozeNotification(teamKey: string) {
+  const invalidate = useInvalidateInbox(teamKey);
   return useMutation({
     mutationFn: ({ id, until }: { id: string; until: string | null }) =>
       api.snoozeNotification(id, until),
@@ -56,18 +56,18 @@ export function useSnoozeNotification(projectKey: string) {
   });
 }
 
-export function useDeleteNotification(projectKey: string) {
-  const invalidate = useInvalidateInbox(projectKey);
+export function useDeleteNotification(teamKey: string) {
+  const invalidate = useInvalidateInbox(teamKey);
   return useMutation({
     mutationFn: (id: string) => api.deleteNotification(id),
     onSuccess: invalidate,
   });
 }
 
-export function useDeleteNotifications(projectKey: string, projectId: string) {
-  const invalidate = useInvalidateInbox(projectKey);
+export function useDeleteNotifications(teamKey: string, teamId: string) {
+  const invalidate = useInvalidateInbox(teamKey);
   return useMutation({
-    mutationFn: (scope: NotificationDeleteScope) => api.deleteNotifications(scope, projectId),
+    mutationFn: (scope: NotificationDeleteScope) => api.deleteNotifications(scope, teamId),
     onSuccess: invalidate,
   });
 }

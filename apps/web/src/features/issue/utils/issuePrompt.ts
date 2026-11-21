@@ -1,5 +1,5 @@
-import type { Issue, ProjectDetail } from '@/lib/api';
-import { priorityLabel, priorityKey } from '@/utils/fieldOptions';
+import type { Issue, TeamDetail } from '@/lib/api';
+import { priorityLabel } from '@/utils/fieldOptions';
 import { issuePath } from '@/utils/paths';
 
 // A git-branch-safe handle from the current user: the email local part (or name)
@@ -24,26 +24,26 @@ function titleSlug(title: string): string {
 // Builds the prompt copied by "Copy Prompt", matching Linear's format: a lead
 // instruction, a suggested branch name, then the issue as XML-like tags with the
 // full Markdown description inside <description>. IDs (status, assignee, labels,
-// ...) are resolved to human-readable names via the project. Called in the
+// ...) are resolved to human-readable names via the team. Called in the
 // browser, so window.location.origin gives the absolute issue URL.
 export function buildIssuePrompt(
   issue: Issue,
-  project: ProjectDetail,
+  team: TeamDetail,
   user?: { name?: string | null; email?: string | null },
 ): string {
-  const status = project.columns.find((c) => c.id === issue.columnId)?.name;
+  const status = team.states.find((c) => c.id === issue.stateId)?.name;
   const type =
-    issue.typeId != null ? project.issueTypes.find((t) => t.id === issue.typeId)?.name : undefined;
+    issue.typeId != null ? team.issueTypes.find((t) => t.id === issue.typeId)?.name : undefined;
   const assignee = issue.assigneeUserId
-    ? project.assignees.find((a) => a.userId === issue.assigneeUserId)?.name
+    ? team.assignees.find((a) => a.userId === issue.assigneeUserId)?.name
     : undefined;
   const delegate = issue.delegateUserId
-    ? project.assignees.find((a) => a.userId === issue.delegateUserId)?.name
+    ? team.assignees.find((a) => a.userId === issue.delegateUserId)?.name
     : undefined;
   const labels = issue.labelIds
-    .map((id) => project.labels.find((l) => l.id === id)?.name)
+    .map((id) => team.labels.find((l) => l.id === id)?.name)
     .filter((name): name is string => Boolean(name));
-  const url = `${window.location.origin}${issuePath(project.project.key, issue.sequenceNumber)}`;
+  const url = `${window.location.origin}${issuePath(team.team.key, issue.sequenceNumber)}`;
 
   const handle = userHandle(user?.name, user?.email);
   const slug = titleSlug(issue.title);
@@ -56,15 +56,14 @@ export function buildIssuePrompt(
   ];
   tags.push('<description>', issue.description.trim(), '</description>');
   if (status) tags.push(`<status>${status}</status>`);
-  if (issue.priority)
-    tags.push(`<priority>${priorityLabel(priorityKey(issue.priority))}</priority>`);
+  if (issue.priority) tags.push(`<priority>${priorityLabel(issue.priority)}</priority>`);
   if (type) tags.push(`<type>${type}</type>`);
   if (assignee) tags.push(`<assignee>${assignee}</assignee>`);
   if (delegate) tags.push(`<delegate>${delegate}</delegate>`);
   if (issue.startDate) tags.push(`<startDate>${issue.startDate}</startDate>`);
   if (issue.dueDate) tags.push(`<dueDate>${issue.dueDate}</dueDate>`);
   for (const label of labels) tags.push(`<label>${label}</label>`);
-  tags.push(`<project name="${project.project.name}"/>`);
+  tags.push(`<team name="${team.team.name}"/>`);
   tags.push(`<url>${url}</url>`);
   tags.push('</issue>');
 

@@ -1,5 +1,5 @@
 import { type SharedIssueBundle } from '@/lib/api';
-import { toPublicProjectDetail } from '@/utils/publicProject';
+import { toPublicTeamDetail } from '@/utils/publicTeam';
 import { fieldDefsForType } from '../../utils/fieldDefs';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
 import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
@@ -21,8 +21,8 @@ export default function ReadOnlyIssueDetail({
   // 'page' puts the Properties in a right column; 'panel' stacks everything.
   layout?: 'page' | 'panel';
 }) {
-  const { project: scaffold, issue, feed } = bundle;
-  const project = toPublicProjectDetail(scaffold);
+  const { team: scaffold, issue, feed } = bundle;
+  const team = toPublicTeamDetail(scaffold);
   const imageByUserId = new Map(scaffold.assignees.map((a) => [a.userId, a.image]));
 
   const fieldDefs = fieldDefsForType(scaffold.customFields, issue.typeId);
@@ -60,7 +60,7 @@ export default function ReadOnlyIssueDetail({
 
   const properties = (
     <IssueProperties
-      project={project}
+      team={team}
       issue={issue}
       fieldDefs={fieldDefs}
       onPatch={noop}

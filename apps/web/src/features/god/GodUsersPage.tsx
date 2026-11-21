@@ -12,7 +12,7 @@ import { useInstanceUsersQuery } from './services/god.service';
 import { withOffsetReset } from './utils/paging';
 
 // The instance user directory: one row per account, with a side panel showing the
-// projects a user can reach and the permissions their membership resolves to. The
+// teams a user can reach and the permissions their membership resolves to. The
 // table is wide, so the page spans the whole shell instead of the centered settings
 // column the other sections use.
 //

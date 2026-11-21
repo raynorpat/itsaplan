@@ -1,40 +1,40 @@
 import { usePathname } from 'next/navigation';
 import { Inbox, LayoutDashboard, SquareKanban, StickyNote, Target } from 'lucide-react';
-import { dashboardsPath, inboxPath, initiativesPath, notesPath, projectPath } from '@/utils/paths';
+import { dashboardsPath, inboxPath, projectsPath, notesPath, teamPath } from '@/utils/paths';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useInboxUnread } from '@/hooks/useInboxUnread';
 import { SidebarGroup, SidebarGroupContent, SidebarMenu } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
-// The top sidebar group: Inbox, Dashboards, Work items, Initiatives.
+// The top sidebar group: Inbox, Dashboards, Work items, Projects.
 export default function SidebarWorkNav({
-  projectKey,
-  projectId,
+  teamKey,
+  teamId,
 }: {
-  projectKey: string | null;
-  projectId: string | null;
+  teamKey: string | null;
+  teamId: string | null;
 }) {
   const pathname = usePathname();
   const { can } = usePermissions();
-  const features = useProjectFeatures();
-  const disabled = !projectKey;
-  const { data: inboxUnread } = useInboxUnread(projectKey, projectId);
+  const features = useTeamFeatures();
+  const disabled = !teamKey;
+  const { data: inboxUnread } = useInboxUnread(teamKey, teamId);
 
-  // "Work items" is the default view: active on the project root and any segment
+  // "Work items" is the default view: active on the team root and any segment
   // that is not one of the other top-level destinations.
   const onWorkItems =
-    !!projectKey &&
-    (pathname === projectPath(projectKey) ||
-      pathname.startsWith(`${projectPath(projectKey)}/view`) ||
-      pathname.startsWith(`${projectPath(projectKey)}/issue`));
+    !!teamKey &&
+    (pathname === teamPath(teamKey) ||
+      pathname.startsWith(`${teamPath(teamKey)}/view`) ||
+      pathname.startsWith(`${teamPath(teamKey)}/issue`));
 
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarNavItem
-            href={projectKey ? inboxPath(projectKey) : '#'}
+            href={teamKey ? inboxPath(teamKey) : '#'}
             icon={Inbox}
             label="Inbox"
             active={pathname.endsWith('/inbox')}
@@ -43,7 +43,7 @@ export default function SidebarWorkNav({
           />
           {features.dashboards && can('dashboards', 'read') && (
             <SidebarNavItem
-              href={projectKey ? dashboardsPath(projectKey) : '#'}
+              href={teamKey ? dashboardsPath(teamKey) : '#'}
               icon={LayoutDashboard}
               label="Dashboards"
               active={pathname.includes('/dashboard')}
@@ -51,24 +51,24 @@ export default function SidebarWorkNav({
             />
           )}
           <SidebarNavItem
-            href={projectKey ? projectPath(projectKey) : '#'}
+            href={teamKey ? teamPath(teamKey) : '#'}
             icon={SquareKanban}
             label="Work items"
             active={onWorkItems}
             disabled={disabled}
           />
-          {features.initiatives && can('initiatives', 'read') && (
+          {features.projects && can('projects', 'read') && (
             <SidebarNavItem
-              href={projectKey ? initiativesPath(projectKey) : '#'}
+              href={teamKey ? projectsPath(teamKey) : '#'}
               icon={Target}
-              label="Initiatives"
-              active={pathname.includes('/initiatives')}
+              label="Projects"
+              active={pathname.includes('/projects')}
               disabled={disabled}
             />
           )}
           {features.notes && (
             <SidebarNavItem
-              href={projectKey ? notesPath(projectKey) : '#'}
+              href={teamKey ? notesPath(teamKey) : '#'}
               icon={StickyNote}
               label="Notes"
               active={pathname.includes('/notes')}

@@ -15,18 +15,18 @@ import type { CustomFieldsImportPlan } from '../../utils/customFieldsTransfer';
 // or skipped (a same-name field already exists there). On confirm, missing types are
 // created first, then the fields.
 export default function CustomFieldsImportDialog({
-  projectKey,
+  teamKey,
   plan,
   existingTypes,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   plan: CustomFieldsImportPlan;
   existingTypes: IssueType[];
   onClose: () => void;
 }) {
-  const createIssueType = useCreateIssueType(projectKey);
-  const createCustomField = useCreateCustomField(projectKey);
+  const createIssueType = useCreateIssueType(teamKey);
+  const createCustomField = useCreateCustomField(teamKey);
   const [busy, setBusy] = useState(false);
 
   const toCreate = plan.fields.filter((f) => f.action === 'create');

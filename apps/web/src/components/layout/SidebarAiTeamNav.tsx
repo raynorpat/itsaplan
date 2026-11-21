@@ -13,10 +13,10 @@ import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
 // The AI Team sidebar group: the chat plus the AI Team sections the viewer may
 // read. Renders nothing when none of them are readable.
-export default function SidebarAiTeamNav({ projectKey }: { projectKey: string | null }) {
+export default function SidebarAiTeamNav({ teamKey }: { teamKey: string | null }) {
   const pathname = usePathname();
   const { can } = usePermissions();
-  const disabled = !projectKey;
+  const disabled = !teamKey;
 
   const sections = AI_TEAM_SECTIONS.filter((s) => can(s.resource, 'read'));
   const canChat = can('ai_agents', 'read');
@@ -29,7 +29,7 @@ export default function SidebarAiTeamNav({ projectKey }: { projectKey: string | 
         <SidebarMenu>
           {canChat && (
             <SidebarNavItem
-              href={projectKey ? aiChatPath(projectKey) : '#'}
+              href={teamKey ? aiChatPath(teamKey) : '#'}
               icon={MessagesSquare}
               label="Chat"
               active={pathname.endsWith('/ai-team/chat')}
@@ -39,7 +39,7 @@ export default function SidebarAiTeamNav({ projectKey }: { projectKey: string | 
           {sections.map((s) => (
             <SidebarNavItem
               key={s.slug}
-              href={projectKey ? aiTeamPath(projectKey, s.slug) : '#'}
+              href={teamKey ? aiTeamPath(teamKey, s.slug) : '#'}
               icon={s.icon}
               label={s.label}
               active={pathname.endsWith(`/ai-team/${s.slug}`)}

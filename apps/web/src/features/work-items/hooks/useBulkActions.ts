@@ -1,4 +1,4 @@
-import { type BulkIssuePatch, type ProjectDetail } from '@/lib/api';
+import { type BulkIssuePatch, type TeamDetail } from '@/lib/api';
 import {
   useBulkAddLabels,
   useBulkArchiveIssues,
@@ -9,8 +9,8 @@ import {
 // Bulk operations over the selected issues, each a single request to the batch
 // endpoints. The bar calls these with the current id set; cache updates and
 // invalidation live in the mutations.
-export function useBulkActions(project: ProjectDetail) {
-  const key = project.project.key;
+export function useBulkActions(team: TeamDetail) {
+  const key = team.team.key;
   const update = useBulkUpdateIssues(key);
   const addLabels = useBulkAddLabels(key);
   const archive = useBulkArchiveIssues(key);

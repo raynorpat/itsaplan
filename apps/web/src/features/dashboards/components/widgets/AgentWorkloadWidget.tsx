@@ -3,9 +3,9 @@ import { useAgentWorkloadQuery } from '../../services/analytics.service';
 
 // Per-agent workload: how many open issues each agent is currently delegated and its
 // lifetime run outcomes (success over total). Rows are ordered by delegated load. No
-// per-widget config; it always shows every agent in the project.
-export default function AgentWorkloadWidget({ projectKey }: { projectKey: string }) {
-  const { data, isLoading } = useAgentWorkloadQuery(projectKey);
+// per-widget config; it always shows every agent in the team.
+export default function AgentWorkloadWidget({ teamKey }: { teamKey: string }) {
+  const { data, isLoading } = useAgentWorkloadQuery(teamKey);
   const items = data ?? [];
 
   if (isLoading) {
@@ -20,7 +20,7 @@ export default function AgentWorkloadWidget({ projectKey }: { projectKey: string
 
   if (items.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">No agents in this project.</p>
+      <p className="py-6 text-center text-sm text-muted-foreground">No agents in this team.</p>
     );
   }
 

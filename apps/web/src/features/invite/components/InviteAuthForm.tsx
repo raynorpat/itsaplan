@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { projectPath } from '@/utils/paths';
+import { teamPath } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ type Mode = 'register' | 'signin';
 
 // Authentication step for the invitee. The email is fixed to the invited address
 // (the API only lets that email accept), so it is shown read-only. A new invitee
-// registers and joins in one step, opening the project. An existing invitee only
+// registers and joins in one step, opening the team. An existing invitee only
 // signs in — the page then shows the accept/reject step so they can decide.
 export default function InviteAuthForm({
   token,
@@ -57,7 +57,7 @@ export default function InviteAuthForm({
     try {
       if (isRegister) {
         const result = await registerAndAccept({ email, password, token });
-        router.push(projectPath(result.projectKey));
+        router.push(teamPath(result.teamKey));
         router.refresh();
       } else {
         await signInForInvite({ email, password });

@@ -5,51 +5,50 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type NewConfiguredToolInput } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useConfiguredToolsQuery(projectKey: string | null) {
+export function useConfiguredToolsQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.configuredTools(projectKey ?? ''),
-    queryFn: () => api.listConfiguredTools(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.configuredTools(teamKey ?? ''),
+    queryFn: () => api.listConfiguredTools(teamKey!),
+    enabled: teamKey != null,
   });
 }
 
-export function useCreateConfiguredTool(projectKey: string | null) {
+export function useCreateConfiguredTool(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NewConfiguredToolInput) => api.createConfiguredTool(projectKey!, input),
+    mutationFn: (input: NewConfiguredToolInput) => api.createConfiguredTool(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.configuredTools(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.configuredTools(teamKey) });
     },
   });
 }
 
-export function useDeleteConfiguredTool(projectKey: string | null) {
+export function useDeleteConfiguredTool(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteConfiguredTool(projectKey!, id),
+    mutationFn: (id: string) => api.deleteConfiguredTool(teamKey!, id),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.configuredTools(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.configuredTools(teamKey) });
     },
   });
 }
 
 // The configured tools enabled on one agent (the agent editor's Tools section).
-export function useAgentToolLinksQuery(projectKey: string | null, agentId: string | null) {
+export function useAgentToolLinksQuery(teamKey: string | null, agentId: string | null) {
   return useQuery({
-    queryKey: qk.agentToolLinks(projectKey ?? '', agentId ?? ''),
-    queryFn: () => api.listAgentToolLinks(projectKey!, agentId!),
-    enabled: projectKey != null && agentId != null,
+    queryKey: qk.agentToolLinks(teamKey ?? '', agentId ?? ''),
+    queryFn: () => api.listAgentToolLinks(teamKey!, agentId!),
+    enabled: teamKey != null && agentId != null,
   });
 }
 
-export function useSetAgentTools(projectKey: string | null) {
+export function useSetAgentTools(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ agentId, agentToolIds }: { agentId: string; agentToolIds: string[] }) =>
-      api.setAgentTools(projectKey!, agentId, agentToolIds),
+      api.setAgentTools(teamKey!, agentId, agentToolIds),
     onSuccess: (_data, { agentId }) => {
-      if (projectKey)
-        void qc.invalidateQueries({ queryKey: qk.agentToolLinks(projectKey, agentId) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.agentToolLinks(teamKey, agentId) });
     },
   });
 }

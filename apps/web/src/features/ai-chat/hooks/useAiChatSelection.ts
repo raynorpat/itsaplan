@@ -14,11 +14,11 @@ import { qk } from '@/services/queryKeys';
 // `selectedThreadId` is a past thread, or null for a fresh chat. `newChatNonce` bumps on
 // "New chat" so the host can key the conversation by it and remount into a fresh session
 // without changing agents.
-export function useAiChatSelection(projectKey: string | null) {
+export function useAiChatSelection(teamKey: string | null) {
   const qc = useQueryClient();
-  const agentsQuery = useAiAgentsQuery(projectKey);
+  const agentsQuery = useAiAgentsQuery(teamKey);
   const agents = (agentsQuery.data ?? []).filter((agent) => agent.kind === 'internal');
-  const catalog = useIntegrationCatalogQuery(projectKey).data ?? [];
+  const catalog = useIntegrationCatalogQuery(teamKey).data ?? [];
   const providerLabel = (key: string) => catalog.find((entry) => entry.key === key)?.label ?? key;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -40,8 +40,8 @@ export function useAiChatSelection(projectKey: string | null) {
   // the history list, which now holds it.
   const handleThreadCreated = (threadId: string) => {
     setSelectedThreadId(threadId);
-    if (projectKey && selected)
-      void qc.invalidateQueries({ queryKey: qk.agentThreads(projectKey, selected.id) });
+    if (teamKey && selected)
+      void qc.invalidateQueries({ queryKey: qk.agentThreads(teamKey, selected.id) });
   };
 
   // A deleted conversation cannot be shown: if it was the open one, fall back to a

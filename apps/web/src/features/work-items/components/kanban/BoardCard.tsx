@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { DRAG_ACTIVATION_DISTANCE } from '@/lib/dnd';
-import { type ProjectDetail, type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type TeamDetail, type Issue } from '@/lib/api';
+import { type Maps } from '@/utils/team';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
@@ -16,14 +16,14 @@ import { IssueCardBody } from './IssueCardBody';
 // selection active (or a Shift/Cmd-click) the click toggles the card's selection
 // instead — the board's multi-select for bulk actions.
 export function BoardCard({
-  project,
+  team,
   issue,
   maps,
   properties,
   onOpen,
   readOnly,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   maps: Maps;
   properties: PropertyKey[];
@@ -55,7 +55,7 @@ export function BoardCard({
   };
 
   return (
-    <IssueContextMenu project={project} issue={issue}>
+    <IssueContextMenu team={team} issue={issue}>
       <div
         ref={setNodeRef}
         {...attributes}

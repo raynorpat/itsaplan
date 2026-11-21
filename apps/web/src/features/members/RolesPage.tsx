@@ -5,20 +5,20 @@ import SectionPageView from '@/components/common/page/SectionPageView';
 import RolesManager from './components/roles/RolesManager';
 import RolesToolbar from './components/roles/RolesToolbar';
 
-// The Roles page (/project/:projectKey/members/roles): the project's custom roles
+// The Roles page (/team/:teamKey/members/roles): the team's custom roles
 // and their permissions. Assigning a role to a member is done from the Members list.
 export default function RolesPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  const projectKey = project.project.key;
+  const { team } = useShell();
+  if (!team) return null;
+  const teamKey = team.team.key;
   return (
     <SectionPageView
       title="Roles"
       description="Custom roles and the permissions each grants. Assign a role to a member from the Members list."
-      actions={<RolesToolbar projectKey={projectKey} />}
+      actions={<RolesToolbar teamKey={teamKey} />}
       wide
     >
-      <RolesManager projectKey={projectKey} />
+      <RolesManager teamKey={teamKey} />
     </SectionPageView>
   );
 }

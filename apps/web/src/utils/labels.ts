@@ -8,7 +8,7 @@ export interface LabelSection {
   labels: Label[];
 }
 
-// Splits a project's labels into their groups plus a trailing ungrouped section,
+// Splits a team's labels into their groups plus a trailing ungrouped section,
 // the single source both label pickers read. Groups keep their listing order
 // (name-sorted from the API); ungrouped labels come last. A group with no labels
 // is dropped; the ungrouped section is included only when it has labels.

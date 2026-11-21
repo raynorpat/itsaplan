@@ -18,7 +18,7 @@ export type ChatStatus = 'ready' | 'streaming';
 // and it is surfaced as `threadId` so the host can reflect the new thread in the
 // history list. loadThread() restores a past conversation; newChat() starts a fresh
 // one. threadId is null while a new conversation has not produced its first reply.
-export function useAgentChat(projectKey: string, agentId: string) {
+export function useAgentChat(teamKey: string, agentId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>('ready');
   const [activeTool, setActiveTool] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function useAgentChat(projectKey: string, agentId: string) {
         );
 
       try {
-        for await (const event of streamAiAgentRun(projectKey, agentId, {
+        for await (const event of streamAiAgentRun(teamKey, agentId, {
           prompt: text,
           threadId: threadRef.current,
         })) {
@@ -83,7 +83,7 @@ export function useAgentChat(projectKey: string, agentId: string) {
         setMessages((m) => m.filter((msg) => !(msg.id === assistantId && msg.text === '')));
       }
     },
-    [projectKey, agentId, status],
+    [teamKey, agentId, status],
   );
 
   // Restores a past conversation: shows its transcript and continues its thread.

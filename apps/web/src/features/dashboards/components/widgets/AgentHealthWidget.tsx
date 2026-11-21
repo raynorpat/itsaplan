@@ -7,14 +7,14 @@ import { useAgentRunStatsQuery } from '../../services/analytics.service';
 // configured from the header popover. The success rate is over finished runs
 // (success + failed), so pending runs do not drag it down.
 export default function AgentHealthWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const days = config.days ?? 30;
-  const { data, isLoading } = useAgentRunStatsQuery(projectKey, days);
+  const { data, isLoading } = useAgentRunStatsQuery(teamKey, days);
 
   if (isLoading || !data) return <Skeleton className="h-10 w-20" />;
 

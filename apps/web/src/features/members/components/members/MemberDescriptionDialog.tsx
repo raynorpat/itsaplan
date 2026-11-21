@@ -9,19 +9,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSetMemberDescription } from '@/services/members.service';
 
-// The "Edit" action for a member's project description: a button that opens a
+// The "Edit" action for a member's team description: a button that opens a
 // centered dialog with a textarea. A member edits their own; an owner edits
 // anyone's (the API enforces it). Rendered in the member row's actions.
 export default function MemberDescriptionDialog({
-  projectKey,
+  teamKey,
   member,
   self,
 }: {
-  projectKey: string;
+  teamKey: string;
   member: MemberRow;
   self: boolean;
 }) {
-  const setDescription = useSetMemberDescription(projectKey);
+  const setDescription = useSetMemberDescription(teamKey);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(member.description);
 
@@ -40,8 +40,8 @@ export default function MemberDescriptionDialog({
   }
 
   const question = self
-    ? 'What do you do and what are you responsible for in this project?'
-    : 'What does this member do and what are they responsible for in this project?';
+    ? 'What do you do and what are you responsible for in this team?'
+    : 'What does this member do and what are they responsible for in this team?';
 
   return (
     <>

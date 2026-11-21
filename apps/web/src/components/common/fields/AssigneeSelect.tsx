@@ -5,7 +5,7 @@ import Avatar from '@/components/common/Avatar';
 import { Pill } from './Pill';
 import PopoverPick, { type PickItem } from './PopoverPick';
 
-// The assignee of an issue is a project member. `assignees` is the project's full
+// The assignee of an issue is a team member. `assignees` is the team's full
 // candidate list (members and agents); this control filters it to members. Agents
 // are set through DelegateSelect instead. The signed-in member is pulled out into a
 // "Team me" group at the top; everyone else falls under "Members".

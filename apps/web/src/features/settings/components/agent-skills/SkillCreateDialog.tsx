@@ -32,13 +32,7 @@ function countOccurrences(haystack: string, needle: string): number {
 // optional (the server fills them from the SKILL.md frontmatter). GitHub import is
 // two steps: discover the skills at a URL, then pick which ones to import. Each
 // picked skill is imported as its own row (SKILL.md plus its markdown references).
-export function SkillCreateDialog({
-  projectKey,
-  onClose,
-}: {
-  projectKey: string;
-  onClose: () => void;
-}) {
+export function SkillCreateDialog({ teamKey, onClose }: { teamKey: string; onClose: () => void }) {
   const [source, setSource] = useState<Source>('inline');
   const [markdown, setMarkdown] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
@@ -76,8 +70,8 @@ export function SkillCreateDialog({
       .map((r) => r.c);
   }, [candidates, query]);
 
-  const create = useCreateSkill(projectKey);
-  const discover = useDiscoverGithubSkills(projectKey);
+  const create = useCreateSkill(teamKey);
+  const discover = useDiscoverGithubSkills(teamKey);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -171,7 +165,7 @@ export function SkillCreateDialog({
   // The GitHub selection step replaces the rest of the form once skills are found.
   if (source === 'github' && candidates) {
     return (
-      <Modal title="Import skills from GitHub" projectKey={projectKey} onClose={onClose} wide>
+      <Modal title="Import skills from GitHub" teamKey={teamKey} onClose={onClose} wide>
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
@@ -269,7 +263,7 @@ export function SkillCreateDialog({
   }
 
   return (
-    <Modal title="New skill" projectKey={projectKey} onClose={onClose} wide>
+    <Modal title="New skill" teamKey={teamKey} onClose={onClose} wide>
       <Tabs value={source} onValueChange={(v) => setSource(v as Source)}>
         <TabsList variant="line">
           <TabsTrigger value="inline">Write markdown</TabsTrigger>

@@ -11,8 +11,8 @@ import { type DropData } from '../utils/dnd';
 // carried by the drop target's data (see DropData); onDragEnd just invokes it
 // with the dragged issue id. In a read-only share the board keeps its DndContext
 // but gets inert sensors, so no drag can ever start (see useDndSensors).
-export function useBoardDnd(projectKey: string, readOnly = false) {
-  const updateIssue = useUpdateIssue(projectKey);
+export function useBoardDnd(teamKey: string, readOnly = false) {
+  const updateIssue = useUpdateIssue(teamKey);
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
 

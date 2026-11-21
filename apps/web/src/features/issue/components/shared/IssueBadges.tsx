@@ -5,8 +5,9 @@ import Avatar from '@/components/common/Avatar';
 import { PriorityIcon } from './IssueIcons';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { priorityLabel } from '@/utils/fieldOptions';
 
-// Small issue display badges shared by the project card (KanbanBoard) and the
+// Small issue display badges shared by the team card (KanbanBoard) and the
 // table cells (TableView) so both render the same pill/icon/avatar.
 
 // Outline pill styling shared by the label and date badges.
@@ -17,7 +18,7 @@ export function PriorityBadge({
   priority,
   className = 'size-3.5',
 }: {
-  priority: string;
+  priority: number;
   className?: string;
 }) {
   return (
@@ -27,7 +28,7 @@ export function PriorityBadge({
           <PriorityIcon priority={priority} className={className} />
         </span>
       </TooltipTrigger>
-      <TooltipContent className="capitalize">{priority} priority</TooltipContent>
+      <TooltipContent>{priorityLabel(priority)}</TooltipContent>
     </Tooltip>
   );
 }

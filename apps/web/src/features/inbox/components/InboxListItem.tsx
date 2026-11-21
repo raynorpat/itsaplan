@@ -133,7 +133,7 @@ export default function InboxListItem({
                 unread ? 'font-medium text-foreground' : 'text-muted-foreground',
               )}
             >
-              {n.projectKey}-{n.issueSeq} {n.issueTitle}
+              {n.teamKey}-{n.issueSeq} {n.issueTitle}
             </span>
             <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
               {snoozed && <Clock className="size-3 shrink-0" />}

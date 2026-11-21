@@ -1,5 +1,5 @@
 import { type CustomField, type Issue, type IssuePatch } from '@/lib/api';
-import { groupIssues, mergeAssign, nestIssues, type IssueGroup } from '@/utils/project';
+import { groupIssues, mergeAssign, nestIssues, type IssueGroup } from '@/utils/team';
 import {
   customFieldId,
   isCustomFieldKey,
@@ -18,7 +18,7 @@ export const COLUMN_META: Record<TableColumn, { label: string; width: string }> 
   type: { label: 'Type', width: '120px' },
   assignee: { label: '', width: '56px' },
   delegate: { label: '', width: '56px' },
-  initiative: { label: 'Initiative', width: 'minmax(140px,220px)' },
+  project: { label: 'Project', width: 'minmax(140px,220px)' },
   labels: { label: 'Labels', width: 'minmax(120px,220px)' },
   startDate: { label: 'Start', width: '96px' },
   dueDate: { label: 'Due', width: '96px' },
@@ -26,12 +26,12 @@ export const COLUMN_META: Record<TableColumn, { label: string; width: string }> 
   updated: { label: 'Updated', width: '96px' },
 };
 
-// Collapsed sections are a per-project, per-grouping client-only preference,
-// persisted so it survives reloads (same pattern as the project's hidden groups).
+// Collapsed sections are a per-team, per-grouping client-only preference,
+// persisted so it survives reloads (same pattern as the team's hidden groups).
 // The sub-grouping field is part of the key so a different sub-grouping keeps its
 // own collapse set.
-export function collapsedKey(projectId: string, group: string, subgroup: string): string {
-  return `kanban-table-collapsed:${projectId}:${group}:${subgroup}`;
+export function collapsedKey(teamId: string, group: string, subgroup: string): string {
+  return `kanban-table-collapsed:${teamId}:${group}:${subgroup}`;
 }
 
 // Collapse key for a sub-section: primary group key + sub-group key, so the same

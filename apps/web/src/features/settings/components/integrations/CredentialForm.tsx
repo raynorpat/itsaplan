@@ -40,13 +40,13 @@ function seedValues(
 // a chosen integration, built from its credentialSchema. Secret fields left blank on
 // edit keep their stored value. `onBack` returns to the picker (create only).
 export function CredentialForm({
-  projectKey,
+  teamKey,
   meta,
   existing,
   onBack,
   onDone,
 }: {
-  projectKey: string;
+  teamKey: string;
   meta: IntegrationMeta;
   existing: IntegrationCredential | null;
   onBack?: () => void;
@@ -59,8 +59,8 @@ export function CredentialForm({
   );
   const [busy, setBusy] = useState(false);
 
-  const create = useCreateCredential(projectKey);
-  const update = useUpdateCredential(projectKey);
+  const create = useCreateCredential(teamKey);
+  const update = useUpdateCredential(teamKey);
 
   function setField(key: string, v: FieldValue) {
     setValues((prev) => ({ ...prev, [key]: v }));

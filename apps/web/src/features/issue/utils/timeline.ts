@@ -6,7 +6,7 @@ import { formatDuration, formatShortDate } from '@/utils/dates';
 // time axis. Percentages, so the lanes scale with whatever width the surrounding
 // layout gives them.
 
-// The default project_column color, used when a segment's status no longer matches
+// The default workflow_state color, used when a segment's status no longer matches
 // a live column (renamed or deleted since the change was logged).
 const FALLBACK_COLOR = '#6b7280';
 
@@ -29,8 +29,8 @@ export interface TimelineLane {
   label: string;
   color: string;
   stateType: StateType | undefined;
-  // Where the status sits among the project's columns, for the views that show the
-  // statuses in the project's own order rather than in the order the issue met them.
+  // Where the status sits among the team's columns, for the views that show the
+  // statuses in the team's own order rather than in the order the issue met them.
   // Statuses whose column is gone come last.
   order: number;
   // Time spent in this status across all its stretches.
@@ -65,9 +65,9 @@ export function durationLabel(ms: number | null): string {
 }
 
 // A status carries the column name it was logged with, so it is matched against the
-// project's live columns by that name; a status whose column was renamed or deleted
+// team's live columns by that name; a status whose column was renamed or deleted
 // matches nothing and counts as no state type at all. The index is the column's place
-// in the project's own order.
+// in the team's own order.
 function columnResolver(columns: Column[]) {
   const byName = new Map(columns.map((column, index) => [column.name, { column, index }]));
   return (segment: TimelineSegment) => (segment.status ? byName.get(segment.status) : undefined);

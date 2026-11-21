@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Target } from 'lucide-react';
 import {
   type CustomField,
-  type ProjectDetail,
+  type TeamDetail,
   type IssueDetail as IssueDetailRow,
   type IssueFieldValueInput,
   type IssuePatch,
@@ -16,11 +16,10 @@ import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
 import TypeSelect from '@/components/common/fields/TypeSelect';
-import InitiativeSelect from '../fields/InitiativeSelect';
+import ProjectSelect from '../fields/ProjectSelect';
 import IssueCustomFieldControl from '../fields/IssueCustomFieldControl';
 import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
 import { type Embeddable } from '../../utils/attachmentEmbed';
-import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // One property row in the two-column list: name on the left, control on the right.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
@@ -36,7 +35,7 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
 // priority, type, dates, labels) and non-markdown custom fields, each editable
 // inline. In the page layout it is a bordered card; in the panel a plain block.
 export default function IssueProperties({
-  project,
+  team,
   issue,
   fieldDefs,
   onPatch,
@@ -47,7 +46,7 @@ export default function IssueProperties({
   hasSidebar,
   readOnly,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: IssueDetailRow;
   fieldDefs: CustomField[];
   onPatch: (fields: IssuePatch) => void;
@@ -60,15 +59,15 @@ export default function IssueProperties({
   // shared page). The onPatch/onSetField/onToggleLabel callbacks are never called.
   readOnly?: boolean;
 }) {
-  const hasMembers = project.assignees.some((a) => a.kind === 'member');
-  const hasAgents = project.assignees.some((a) => a.kind === 'agent');
+  const hasMembers = team.assignees.some((a) => a.kind === 'member');
+  const hasAgents = team.assignees.some((a) => a.kind === 'agent');
   const rows = (
     <>
       <PropertyRow label="State">
         <StatusSelect
-          columns={project.columns}
-          value={issue.columnId}
-          onChange={(id) => onPatch({ columnId: id })}
+          columns={team.states}
+          value={issue.stateId}
+          onChange={(id) => onPatch({ stateId: id })}
           readOnly={readOnly}
         />
       </PropertyRow>
@@ -76,7 +75,7 @@ export default function IssueProperties({
       {hasMembers && (
         <PropertyRow label="Assignee">
           <AssigneeSelect
-            assignees={project.assignees}
+            assignees={team.assignees}
             value={issue.assigneeUserId}
             onChange={(userId) => onPatch({ assigneeUserId: userId })}
             readOnly={readOnly}
@@ -87,7 +86,7 @@ export default function IssueProperties({
       {hasAgents && (
         <PropertyRow label="Delegate">
           <DelegateSelect
-            assignees={project.assignees}
+            assignees={team.assignees}
             value={issue.delegateUserId}
             onChange={(userId) => onPatch({ delegateUserId: userId })}
             readOnly={readOnly}
@@ -97,16 +96,16 @@ export default function IssueProperties({
 
       <PropertyRow label="Priority">
         <PrioritySelect
-          value={priorityKey(issue.priority)}
-          onChange={(v) => onPatch({ priority: priorityLevel(v) })}
+          value={issue.priority}
+          onChange={(v) => onPatch({ priority: v })}
           readOnly={readOnly}
         />
       </PropertyRow>
 
-      {project.issueTypes.length > 0 && (
+      {team.issueTypes.length > 0 && (
         <PropertyRow label="Type">
           <TypeSelect
-            issueTypes={project.issueTypes}
+            issueTypes={team.issueTypes}
             value={issue.typeId}
             onChange={(id) => onPatch({ typeId: id })}
             readOnly={readOnly}
@@ -114,22 +113,22 @@ export default function IssueProperties({
         </PropertyRow>
       )}
 
-      {project.project.initiativesEnabled && (
-        <PropertyRow label="Initiative">
+      {team.team.projectsEnabled && (
+        <PropertyRow label="Project">
           {readOnly ? (
-            // Read-only shows the linked initiative from the issue itself, avoiding
-            // the authenticated initiatives query the editable select runs.
+            // Read-only shows the linked project from the issue itself, avoiding
+            // the authenticated projects query the editable select runs.
             <ReadOnlyPill>
-              <Pill active={!!issue.initiative}>
+              <Pill active={!!issue.project}>
                 <Target />
-                {issue.initiative?.title ?? 'Initiative'}
+                {issue.project?.title ?? 'Project'}
               </Pill>
             </ReadOnlyPill>
           ) : (
-            <InitiativeSelect
-              projectKey={project.project.key}
-              value={issue.initiative?.id ?? null}
-              onChange={(id) => onPatch({ initiativeId: id })}
+            <ProjectSelect
+              teamKey={team.team.key}
+              value={issue.project?.id ?? null}
+              onChange={(id) => onPatch({ projectId: id })}
             />
           )}
         </PropertyRow>
@@ -153,11 +152,11 @@ export default function IssueProperties({
         />
       </PropertyRow>
 
-      {project.labels.length > 0 && (
+      {team.labels.length > 0 && (
         <PropertyRow label="Labels">
           <LabelsSelect
-            labels={project.labels}
-            groups={project.labelGroups}
+            labels={team.labels}
+            groups={team.labelGroups}
             value={issue.labelIds}
             onToggle={onToggleLabel}
             readOnly={readOnly}

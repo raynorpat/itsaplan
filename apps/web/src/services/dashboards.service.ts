@@ -3,49 +3,48 @@ import { api, type Dashboard } from '@/lib/api';
 import { useOptimisticReorder } from '@/services/optimisticReorder';
 import { qk } from '@/services/queryKeys';
 
-export function useDashboardsQuery(projectKey: string | null) {
+export function useDashboardsQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.dashboards(projectKey ?? ''),
-    queryFn: () => api.listDashboards(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.dashboards(teamKey ?? ''),
+    queryFn: () => api.listDashboards(teamKey!),
+    enabled: teamKey != null,
   });
 }
 
-export function useCreateDashboard(projectKey: string | null) {
+export function useCreateDashboard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ input }: { input: Parameters<typeof api.createDashboard>[1] }) =>
-      api.createDashboard(projectKey!, input),
+      api.createDashboard(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.dashboards(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.dashboards(teamKey) });
     },
   });
 }
 
-export function useUpdateDashboard(projectKey: string | null) {
+export function useUpdateDashboard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateDashboard>[1] }) =>
       api.updateDashboard(id, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.dashboards(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.dashboards(teamKey) });
     },
   });
 }
 
-export function useDeleteDashboard(projectKey: string | null) {
+export function useDeleteDashboard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteDashboard(id),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.dashboards(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.dashboards(teamKey) });
     },
   });
 }
 
-export function useReorderDashboards(projectKey: string | null) {
-  return useOptimisticReorder<Dashboard>(
-    projectKey ? qk.dashboards(projectKey) : null,
-    (orderedIds) => api.reorderDashboards(projectKey!, orderedIds),
+export function useReorderDashboards(teamKey: string | null) {
+  return useOptimisticReorder<Dashboard>(teamKey ? qk.dashboards(teamKey) : null, (orderedIds) =>
+    api.reorderDashboards(teamKey!, orderedIds),
   );
 }

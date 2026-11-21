@@ -41,7 +41,7 @@ export default function GodUsersTable({
           <TableHead className="text-xs font-medium text-muted-foreground">Account</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Role</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Sign-in</TableHead>
-          <TableHead className="text-xs font-medium text-muted-foreground">Projects</TableHead>
+          <TableHead className="text-xs font-medium text-muted-foreground">Teams</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Last seen</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Email</TableHead>
           <TableHead className="text-right text-xs font-medium text-muted-foreground">
@@ -55,7 +55,7 @@ export default function GodUsersTable({
             key={u.id}
             className="cursor-pointer"
             onClick={() => onSelect(u.id)}
-            title="Show project access"
+            title="Show team access"
           >
             <TableCell className="px-3 py-3 align-top whitespace-normal">
               <div className="flex min-w-0 items-start gap-2.5">
@@ -99,7 +99,7 @@ export default function GodUsersTable({
               {u.providers.length ? providerList(u.providers) : 'none'}
             </TableCell>
 
-            <TableCell className="px-3 py-3 align-top text-sm">{u.projectCount}</TableCell>
+            <TableCell className="px-3 py-3 align-top text-sm">{u.teamCount}</TableCell>
 
             <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
               {u.lastSeenAt ? formatShortDate(u.lastSeenAt) : 'never'}

@@ -1,7 +1,7 @@
 import { CalendarDays, Columns3, GanttChart, Table2, type LucideIcon } from 'lucide-react';
 import type { HotkeyId } from '@/utils/hotkeys';
 
-// Shared view-domain types used by both project.ts (sorting) and viewSettings.ts
+// Shared view-domain types used by both team.ts (sorting) and viewSettings.ts
 // (stored settings). Kept in their own module so those two do not import each
 // other's types in a cycle.
 
@@ -27,8 +27,8 @@ export interface Sort {
   dir: 'asc' | 'desc';
 }
 
-// The project's four display modes. Which mode is active is a global preference
-// (see App); each mode's settings are stored per project (see viewSettings).
+// The team's four display modes. Which mode is active is a global preference
+// (see App); each mode's settings are stored per team (see viewSettings).
 export type WorkItemsView = 'kanban' | 'table' | 'timeline' | 'calendar';
 
 // Each layout names its hotkey id rather than a key, so the switcher, the global
@@ -41,7 +41,7 @@ export const VIEWS: { value: WorkItemsView; label: string; icon: LucideIcon; hot
     { value: 'calendar', label: 'Calendar', icon: CalendarDays, hotkey: 'view.calendar' },
   ];
 
-// Fields the project can be ordered by, in the order shown in the menu.
+// Fields the team can be ordered by, in the order shown in the menu.
 export const SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'manual', label: 'Manual' },
   { value: 'title', label: 'Title' },

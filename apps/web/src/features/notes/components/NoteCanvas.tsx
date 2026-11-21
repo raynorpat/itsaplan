@@ -33,13 +33,7 @@ const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
 // space (or the Add note button) drops a sticker; dragging between node handles
 // connects them. Changes autosave (see useCanvasAutosave). Keyed by board id by
 // the host, so the state resets when the board changes.
-export default function NoteCanvas({
-  projectKey,
-  board,
-}: {
-  projectKey: string;
-  board: NoteBoard;
-}) {
+export default function NoteCanvas({ teamKey, board }: { teamKey: string; board: NoteBoard }) {
   const nodeTypes = useMemo(() => ({ sticker: StickerNode }), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<StickerNodeType>(
     toFlowNodes(board.canvas),
@@ -60,12 +54,12 @@ export default function NoteCanvas({
   const { screenToFlowPosition } = useReactFlow();
   const { resolvedTheme } = useTheme();
 
-  const setVisibility = useSetNoteBoardVisibility(projectKey);
+  const setVisibility = useSetNoteBoardVisibility(teamKey);
   const personal = board.ownerUserId != null;
 
   // The canvas autosave and the visibility toggle report through one status line
   // after the board name, so toggling public/personal shows Saving…/Saved too.
-  const canvasStatus = useCanvasAutosave(projectKey, board.id, nodes, edges);
+  const canvasStatus = useCanvasAutosave(teamKey, board.id, nodes, edges);
   let saveStatus: SaveStatus = 'saved';
   if (canvasStatus === 'saving' || setVisibility.isPending) saveStatus = 'saving';
   else if (canvasStatus === 'error' || setVisibility.isError) saveStatus = 'error';
@@ -118,7 +112,7 @@ export default function NoteCanvas({
           </TooltipTrigger>
           <TooltipContent>
             {personal
-              ? 'Make public — visible to every project member'
+              ? 'Make public — visible to every team member'
               : 'Make private — visible only to you'}
           </TooltipContent>
         </Tooltip>

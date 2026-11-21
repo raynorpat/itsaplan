@@ -1,6 +1,6 @@
 'use client';
 
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import { useShell } from '@/context/shellContext';
 import { settingsSection } from '@/utils/settingsSections';
 import { Button } from '@/components/ui/button';
@@ -14,18 +14,18 @@ import { useFeatureToggles } from './hooks/useFeatureToggles';
 
 const section = settingsSection('general');
 
-// The General settings page (/project/:projectKey/settings/general). Edits the
-// project name and description; the key is shown read-only. Save lives in the page
+// The General settings page (/team/:teamKey/settings/general). Edits the
+// team name and description; the key is shown read-only. Save lives in the page
 // header.
 export default function SettingsGeneralPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  return <GeneralPage project={project} />;
+  const { team } = useShell();
+  if (!team) return null;
+  return <GeneralPage team={team} />;
 }
 
-function GeneralPage({ project }: { project: ProjectDetail }) {
-  const form = useGeneralForm(project);
-  const features = useFeatureToggles(project);
+function GeneralPage({ team }: { team: TeamDetail }) {
+  const form = useGeneralForm(team);
+  const features = useFeatureToggles(team);
   return (
     <SectionPageView
       title={section.label}

@@ -17,49 +17,49 @@ export function normalizeView(v: View): View {
   };
 }
 
-export function useViewsQuery(projectKey: string | null) {
+export function useViewsQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.views(projectKey ?? ''),
-    queryFn: () => api.listViews(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.views(teamKey ?? ''),
+    queryFn: () => api.listViews(teamKey!),
+    enabled: teamKey != null,
     select: (rows) => rows.map(normalizeView),
   });
 }
 
-export function useCreateView(projectKey: string | null) {
+export function useCreateView(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ input }: { input: Parameters<typeof api.createView>[1] }) =>
-      api.createView(projectKey!, input),
+      api.createView(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.views(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
     },
   });
 }
 
-export function useUpdateView(projectKey: string | null) {
+export function useUpdateView(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateView>[1] }) =>
       api.updateView(id, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.views(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
     },
   });
 }
 
-export function useDeleteView(projectKey: string | null) {
+export function useDeleteView(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteView(id),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.views(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
     },
   });
 }
 
-export function useReorderViews(projectKey: string | null) {
-  return useOptimisticReorder<View>(projectKey ? qk.views(projectKey) : null, (orderedIds) =>
-    api.reorderViews(projectKey!, orderedIds),
+export function useReorderViews(teamKey: string | null) {
+  return useOptimisticReorder<View>(teamKey ? qk.views(teamKey) : null, (orderedIds) =>
+    api.reorderViews(teamKey!, orderedIds),
   );
 }

@@ -16,12 +16,12 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { ActionDef, ProjectDetail, Issue, IssuePatch } from '@/lib/api';
+import type { ActionDef, TeamDetail, Issue, IssuePatch } from '@/lib/api';
 import { actionIcon } from '@/utils/actionIcons';
 import { useActionsQuery } from '@/services/actions.service';
 import { useArchiveIssue, useRestoreIssue, useUpdateIssue } from '@/services/issues.service';
-import { useInitiativesQuery } from '@/services/initiatives.service';
-import { LINKABLE_STATUSES, STATUS_META } from '@/utils/initiativeMeta';
+import { useProjectsQuery } from '@/services/projects.service';
+import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ShellCtx } from '@/context/shellContext';
 import { ApplyActionDialog, DeleteIssueDialog, matchedActions } from './IssueActions';
@@ -43,7 +43,6 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // Trailing check on the currently-selected row in a single-select submenu.
 function SelectedCheck({ selected }: { selected: boolean }) {
@@ -51,18 +50,18 @@ function SelectedCheck({ selected }: { selected: boolean }) {
 }
 
 // Wraps a issue card/row (any single element) so a right-click opens a context
-// menu that changes its status, priority, assignee, initiative, labels or due
-// date, or deletes it. Shared by every project view (Kanban, Table, Calendar, Timeline).
+// menu that changes its status, priority, assignee, project, labels or due
+// date, or deletes it. Shared by every team view (Kanban, Table, Calendar, Timeline).
 // onDeleted lets a host that is showing this one issue (the detail panel/page)
-// leave after deletion; the project views leave it unset — the card just
-// disappears when the project cache updates.
+// leave after deletion; the team views leave it unset — the card just
+// disappears when the team cache updates.
 export default function IssueContextMenu({
-  project,
+  team,
   issue,
   onDeleted,
   children,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   onDeleted?: () => void;
   children: ReactNode;
@@ -74,25 +73,25 @@ export default function IssueContextMenu({
   const { data: session } = useSession();
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const updateIssue = useUpdateIssue(project.project.key);
-  const archiveIssue = useArchiveIssue(project.project.key);
-  const restoreIssue = useRestoreIssue(project.project.key);
-  const actionsQuery = useActionsQuery(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
+  const archiveIssue = useArchiveIssue(team.team.key);
+  const restoreIssue = useRestoreIssue(team.team.key);
+  const actionsQuery = useActionsQuery(team.team.key);
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
-  // Initiatives are not in the board scaffold, so they are fetched here — only
+  // Projects are not in the board scaffold, so they are fetched here — only
   // while this menu is open, as every card on the board mounts one.
-  const initiativesQuery = useInitiativesQuery(
-    open && project.project.initiativesEnabled ? project.project.key : null,
-    { statuses: LINKABLE_STATUSES, pageSize: 50 },
-  );
+  const projectsQuery = useProjectsQuery(open && team.team.projectsEnabled ? team.team.key : null, {
+    statuses: LINKABLE_STATUSES,
+    pageSize: 50,
+  });
 
   // No Shell (public share): render the card as-is, without the right-click menu.
   if (!shell) return <>{children}</>;
   const onOpenIssue = shell.onOpenIssue;
 
-  const actions = matchedActions(actionsQuery.data ?? [], project, issue);
+  const actions = matchedActions(actionsQuery.data ?? [], team, issue);
 
   function patch(fields: IssuePatch) {
     updateIssue.mutate({ id: issue.id, patch: fields });
@@ -106,16 +105,16 @@ export default function IssueContextMenu({
   }
 
   async function copyPrompt() {
-    await navigator.clipboard.writeText(buildIssuePrompt(issue, project, session?.user));
+    await navigator.clipboard.writeText(buildIssuePrompt(issue, team, session?.user));
     toast.success('Prompt copied to clipboard');
   }
 
-  const currentColumn = project.columns.find((c) => c.id === issue.columnId);
+  const currentColumn = team.states.find((c) => c.id === issue.stateId);
   const currentPriority =
-    PRIORITY_FIELDS.find((p) => p.value === priorityKey(issue.priority)) ?? PRIORITY_FIELDS[0];
-  const members = project.assignees.filter((a) => a.kind === 'member');
-  const agents = project.assignees.filter((a) => a.kind === 'agent');
-  const initiatives = initiativesQuery.data?.items ?? [];
+    PRIORITY_FIELDS.find((p) => p.value === issue.priority) ?? PRIORITY_FIELDS[0];
+  const members = team.assignees.filter((a) => a.kind === 'member');
+  const agents = team.assignees.filter((a) => a.kind === 'agent');
+  const projects = projectsQuery.data?.items ?? [];
 
   return (
     <>
@@ -151,11 +150,11 @@ export default function IssueContextMenu({
                   Status
                 </ContextMenuSubTrigger>
                 <ContextMenuSubContent className="w-56">
-                  {project.columns.map((c) => (
-                    <ContextMenuItem key={c.id} onSelect={() => patch({ columnId: c.id })}>
+                  {team.states.map((c) => (
+                    <ContextMenuItem key={c.id} onSelect={() => patch({ stateId: c.id })}>
                       <StateIcon stateType={c.stateType} color={c.color} className="size-3.5" />
                       <span className="truncate">{c.name}</span>
-                      <SelectedCheck selected={c.id === issue.columnId} />
+                      <SelectedCheck selected={c.id === issue.stateId} />
                     </ContextMenuItem>
                   ))}
                 </ContextMenuSubContent>
@@ -170,11 +169,11 @@ export default function IssueContextMenu({
                   {PRIORITY_FIELDS.map((p) => (
                     <ContextMenuItem
                       key={p.value || 'none'}
-                      onSelect={() => patch({ priority: priorityLevel(p.value) })}
+                      onSelect={() => patch({ priority: p.value })}
                     >
                       {p.icon}
                       <span className="flex-1">{p.label}</span>
-                      <SelectedCheck selected={p.value === priorityKey(issue.priority)} />
+                      <SelectedCheck selected={p.value === issue.priority} />
                     </ContextMenuItem>
                   ))}
                 </ContextMenuSubContent>
@@ -232,23 +231,23 @@ export default function IssueContextMenu({
                 </ContextMenuSub>
               )}
 
-              {project.project.initiativesEnabled && (
+              {team.team.projectsEnabled && (
                 <ContextMenuSub>
                   <ContextMenuSubTrigger>
-                    {issue.initiative ? <Target /> : <CircleDashed />}
-                    Initiative
+                    {issue.project ? <Target /> : <CircleDashed />}
+                    Project
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-56">
-                    <ContextMenuItem onSelect={() => patch({ initiativeId: null })}>
+                    <ContextMenuItem onSelect={() => patch({ projectId: null })}>
                       <CircleDashed />
-                      <span className="flex-1">No initiative</span>
-                      <SelectedCheck selected={issue.initiative == null} />
+                      <span className="flex-1">No project</span>
+                      <SelectedCheck selected={issue.project == null} />
                     </ContextMenuItem>
-                    {initiatives.map((it) => (
-                      <ContextMenuItem key={it.id} onSelect={() => patch({ initiativeId: it.id })}>
+                    {projects.map((it) => (
+                      <ContextMenuItem key={it.id} onSelect={() => patch({ projectId: it.id })}>
                         {colorDot(STATUS_META[it.status].color)}
-                        <span className="flex-1 truncate">{it.title}</span>
-                        <SelectedCheck selected={it.id === issue.initiative?.id} />
+                        <span className="flex-1 truncate">{it.name}</span>
+                        <SelectedCheck selected={it.id === issue.project?.id} />
                       </ContextMenuItem>
                     ))}
                   </ContextMenuSubContent>
@@ -285,14 +284,14 @@ export default function IssueContextMenu({
                 </ContextMenuSubContent>
               </ContextMenuSub>
 
-              {project.labels.length > 0 && (
+              {team.labels.length > 0 && (
                 <ContextMenuSub>
                   <ContextMenuSubTrigger>
                     <Tag />
                     Labels
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-56">
-                    {project.labels.map((l) => (
+                    {team.labels.map((l) => (
                       <ContextMenuItem
                         key={l.id}
                         // Keep the menu open so several labels can be toggled in one pass.
@@ -370,7 +369,7 @@ export default function IssueContextMenu({
 
       {confirmingDelete && (
         <DeleteIssueDialog
-          project={project}
+          team={team}
           issue={issue}
           onClose={() => setConfirmingDelete(false)}
           onDeleted={onDeleted}
@@ -379,7 +378,7 @@ export default function IssueContextMenu({
 
       {confirmingAction && (
         <ApplyActionDialog
-          project={project}
+          team={team}
           issue={issue}
           action={confirmingAction}
           onClose={() => setConfirmingAction(null)}

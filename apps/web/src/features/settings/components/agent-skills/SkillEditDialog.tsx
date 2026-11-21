@@ -26,12 +26,12 @@ const SKILL_MD = 'SKILL.md';
 // for the selected file. Each file's content is loaded on demand from the object
 // store and cached; edits are held per file until Save writes them all.
 export function SkillEditDialog({
-  projectKey,
+  teamKey,
   skill: initialSkill,
   canEdit,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   skill: AgentSkill;
   canEdit: boolean;
   onClose: () => void;
@@ -39,7 +39,7 @@ export function SkillEditDialog({
   const skillId = initialSkill.id;
   // Read the live skill from the list so the file explorer reflects add/delete
   // immediately; fall back to the snapshot passed in.
-  const skillsQuery = useSkillsQuery(projectKey);
+  const skillsQuery = useSkillsQuery(teamKey);
   const skill = skillsQuery.data?.find((s) => s.id === skillId) ?? initialSkill;
 
   const [name, setName] = useState(skill.name);
@@ -49,18 +49,18 @@ export function SkillEditDialog({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const update = useUpdateSkill(projectKey);
-  const updateRef = useUpdateSkillReference(projectKey);
-  const addRef = useAddSkillReference(projectKey);
-  const deleteRef = useDeleteSkillReference(projectKey);
+  const update = useUpdateSkill(teamKey);
+  const updateRef = useUpdateSkillReference(teamKey);
+  const addRef = useAddSkillReference(teamKey);
+  const deleteRef = useDeleteSkillReference(teamKey);
 
   // The selected file's saved content, cached per file by React Query.
   const contentQuery = useQuery({
-    queryKey: [...qk.agentSkills(projectKey), skillId, 'file', selected],
+    queryKey: [...qk.agentSkills(teamKey), skillId, 'file', selected],
     queryFn: () =>
       selected === SKILL_MD
-        ? api.getSkillMarkdown(projectKey, skillId).then((r) => r.markdown)
-        : api.getSkillReferenceContent(projectKey, skillId, selected).then((r) => r.content),
+        ? api.getSkillMarkdown(teamKey, skillId).then((r) => r.markdown)
+        : api.getSkillReferenceContent(teamKey, skillId, selected).then((r) => r.content),
   });
 
   const draft = drafts[selected];
@@ -122,7 +122,7 @@ export function SkillEditDialog({
       >
         <header className="flex items-center gap-3 border-b border-border/60 px-5 py-3">
           <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-            {projectKey}
+            {teamKey}
           </span>
           <span className="shrink-0 text-muted-foreground">›</span>
           <DialogTitle className="min-w-0 flex-1 truncate text-sm font-medium">

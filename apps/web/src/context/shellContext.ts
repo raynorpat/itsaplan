@@ -1,15 +1,15 @@
 import { createContext, useContext } from 'react';
-import type { CustomField, IssueOpenMode, ProjectDetail, View } from '@/lib/api';
-import type { NewIssueDefaults } from '@/utils/project';
+import type { CustomField, IssueOpenMode, TeamDetail, View } from '@/lib/api';
+import type { NewIssueDefaults } from '@/utils/team';
 import type { useViewEditor } from '@/hooks/useViewEditor';
 
 // What the Shell layout provides to its child pages (the work items view and the
-// settings pages) through React context. The Shell owns the project data, the
-// view editor and the project-level overlays; children read them here instead of
+// settings pages) through React context. The Shell owns the team data, the
+// view editor and the team-level overlays; children read them here instead of
 // re-querying.
 export type ShellContext = {
-  project: ProjectDetail | null;
-  filteredProject: ProjectDetail | null;
+  team: TeamDetail | null;
+  filteredTeam: TeamDetail | null;
   views: View[];
   editor: ReturnType<typeof useViewEditor>;
   customFields: CustomField[];
@@ -23,6 +23,6 @@ export const ShellCtx = createContext<ShellContext | null>(null);
 
 export function useShell(): ShellContext {
   const ctx = useContext(ShellCtx);
-  if (!ctx) throw new Error('useShell must be used within the project Shell');
+  if (!ctx) throw new Error('useShell must be used within the team Shell');
   return ctx;
 }

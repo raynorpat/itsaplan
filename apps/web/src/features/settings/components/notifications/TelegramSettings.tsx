@@ -4,8 +4,8 @@ import EnabledSwitch from '@/components/common/inputs/EnabledSwitch';
 import SecretInput from '@/components/common/inputs/SecretInput';
 import type { TelegramForm } from '../../hooks/useTelegramForm';
 
-// The bot this project delivers through. The token is optional: left empty, the
-// project sends through the instance bot that members connect their Telegram account
+// The bot this team delivers through. The token is optional: left empty, the
+// team sends through the instance bot that members connect their Telegram account
 // to. Members do not enter a chat anywhere, it comes from that connected account.
 // The token is sent only when changed.
 export default function TelegramSettings({ form }: { form: TelegramForm }) {

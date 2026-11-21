@@ -17,12 +17,12 @@ const AUTOSAVE_DELAY = 2000;
 // board does not save it (the initial canvas matches the saved snapshot). The host
 // keys the canvas by board id, so one hook instance covers one board.
 export function useCanvasAutosave(
-  projectKey: string,
+  teamKey: string,
   boardId: string,
   nodes: StickerNodeType[],
   edges: Edge[],
 ): SaveStatus {
-  const save = useSaveNoteCanvas(projectKey);
+  const save = useSaveNoteCanvas(teamKey);
   const saveRef = useRef(save);
   saveRef.current = save;
 

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import GridLayout, { useContainerWidth, verticalCompactor, type Layout } from 'react-grid-layout';
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   COL_GAP,
@@ -20,13 +20,13 @@ import WidgetSettings, { hasWidgetSettings } from './WidgetSettings';
 // corner, with vertical compaction so short widgets stack to fill gaps. Drag and
 // resize write back through editor.applyGrid; the layout persists on save.
 export default function WidgetGrid({
-  projectKey,
-  project,
+  teamKey,
+  team,
   editor,
   editing,
 }: {
-  projectKey: string;
-  project: ProjectDetail;
+  teamKey: string;
+  team: TeamDetail;
   editor: DashboardEditor;
   editing: boolean;
 }) {
@@ -93,7 +93,7 @@ export default function WidgetGrid({
                 onRename={(title) => editor.updateWidget(widget.id, { title })}
                 onRemove={() => editor.removeWidget(widget.id)}
               >
-                <WidgetBody widget={widget} projectKey={projectKey} project={project} />
+                <WidgetBody widget={widget} teamKey={teamKey} team={team} />
               </WidgetFrame>
             </div>
           ))}

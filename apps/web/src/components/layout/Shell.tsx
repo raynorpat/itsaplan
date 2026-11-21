@@ -8,10 +8,10 @@ import type { IssueOpenMode } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useOverlays } from '@/hooks/useOverlays';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
-import { useShellProject } from '@/hooks/useShellProject';
+import { useShellTeam } from '@/hooks/useShellTeam';
 import { useShellRoute } from '@/hooks/useShellRoute';
-import { useProjectRouteSync } from '@/hooks/useProjectRouteSync';
-import { projectPath, issuePath } from '@/utils/paths';
+import { useTeamRouteSync } from '@/hooks/useTeamRouteSync';
+import { teamPath, issuePath } from '@/utils/paths';
 import { ShellCtx, type ShellContext } from '@/context/shellContext';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/AppSidebar';
@@ -21,10 +21,10 @@ import ShellBody from '@/components/layout/ShellBody';
 import ShellHeaderTitle from '@/components/layout/ShellHeaderTitle';
 import ShellOverlays from '@/components/layout/ShellOverlays';
 
-// The layout for /project/:projectKey and its children (the work items view and the
-// settings pages). It owns the project data, the view editor and the
-// project-level overlays, renders the sidebar + header chrome, and passes the
-// project state to the active child through React context (see lib/shellContext).
+// The layout for /team/:teamKey and its children (the work items view and the
+// settings pages). It owns the team data, the view editor and the
+// team-level overlays, renders the sidebar + header chrome, and passes the
+// team state to the active child through React context (see lib/shellContext).
 export default function Shell({
   children,
   defaultSidebarOpen = true,
@@ -34,33 +34,33 @@ export default function Shell({
 }) {
   const router = useRouter();
   const route = useShellRoute();
-  const { projectKey, routeIssueSeq } = route;
+  const { teamKey, routeIssueSeq } = route;
 
   const {
-    projects,
-    projectsLoaded,
-    project,
-    filteredProject,
+    teams,
+    teamsLoaded,
+    team,
+    filteredTeam,
     views,
     editor,
     customFields,
     canCreateIssue,
     errorMsg,
     forbidden,
-  } = useShellProject(projectKey, route.activeViewId);
+  } = useShellTeam(teamKey, route.activeViewId);
 
   const { issueOpenMode, showChatByDefault } = useAccountPreferences();
   const overlays = useOverlays(showChatByDefault);
-  const issueQuery = useIssueBySeqQuery(projectKey, routeIssueSeq);
+  const issueQuery = useIssueBySeqQuery(teamKey, routeIssueSeq);
 
-  useProjectRouteSync({ projects, projectsLoaded, projectKey });
+  useTeamRouteSync({ teams, teamsLoaded, teamKey });
 
   // The settings sections the member may open; the hotkey lands on the first of
   // them, the same entry the sidebar links to.
-  const { firstHref: firstSettingsHref } = useSettingsNavGroups(projectKey, project);
+  const { firstHref: firstSettingsHref } = useSettingsNavGroups(teamKey, team);
 
   const openNewIssue = () =>
-    project && overlays.setNewIssueDefaults({ columnId: project.columns[0]?.id ?? '' });
+    team && overlays.setNewIssueDefaults({ stateId: team.states[0]?.id ?? '' });
 
   // The issue the palette builds its issue commands for: the open detail panel
   // takes precedence over the issue page behind it.
@@ -69,18 +69,18 @@ export default function Shell({
   // issue page it was run from.
   const onIssueDeleted = () => {
     if (overlays.openIssueId != null) overlays.setOpenIssueId(null);
-    else if (projectKey && routeIssueSeq != null) router.push(projectPath(projectKey));
+    else if (teamKey && routeIssueSeq != null) router.push(teamPath(teamKey));
   };
 
   useKeyboardShortcuts({
-    hasProject: !!project,
-    projects,
+    hasTeam: !!team,
+    teams,
     overlayOpen: overlays.anyOpen,
     onToggleCommand: () => overlays.setShowCommand((v) => !v),
-    onSelectProject: (key) => router.push(projectPath(key)),
+    onSelectTeam: (key) => router.push(teamPath(key)),
     onChangeView: editor.changeView,
     onNewIssue: () => canCreateIssue && openNewIssue(),
-    onNewProject: () => overlays.setShowNewProject(true),
+    onNewTeam: () => overlays.setShowNewTeam(true),
     onSettings: () => firstSettingsHref && router.push(firstSettingsHref),
   });
 
@@ -88,14 +88,14 @@ export default function Shell({
   // between the side panel and a full page is applied here rather than at each call
   // site. `mode` overrides that choice for a call site that means one of them (the
   // context menu's Preview / Go to issue). The views pass the internal issue id
-  // while the URL addresses an issue by its project-scoped number, so the page route
+  // while the URL addresses an issue by its team-scoped number, so the page route
   // resolves the number first and falls back to the panel when the issue is not on
   // the loaded board.
   const openIssue = (id: string, mode: IssueOpenMode = issueOpenMode) => {
-    if (mode === 'page' && projectKey) {
-      const seq = project?.issues.find((i) => i.id === id)?.sequenceNumber;
+    if (mode === 'page' && teamKey) {
+      const seq = team?.issues.find((i) => i.id === id)?.sequenceNumber;
       if (seq != null) {
-        router.push(issuePath(projectKey, seq));
+        router.push(issuePath(teamKey, seq));
         return;
       }
     }
@@ -103,8 +103,8 @@ export default function Shell({
   };
 
   const context: ShellContext = {
-    project,
-    filteredProject,
+    team,
+    filteredTeam,
     views,
     editor,
     customFields,
@@ -116,21 +116,21 @@ export default function Shell({
     <ShellCtx.Provider value={context}>
       <SidebarProvider defaultOpen={defaultSidebarOpen} className="h-svh overflow-hidden">
         <AppSidebar
-          projects={projects}
-          currentProjectKey={projectKey}
-          onSelectProject={(key) => router.push(projectPath(key))}
-          onNewProject={() => overlays.setShowNewProject(true)}
+          teams={teams}
+          currentTeamKey={teamKey}
+          onSelectTeam={(key) => router.push(teamPath(key))}
+          onNewTeam={() => overlays.setShowNewTeam(true)}
         />
         <SidebarInset className="min-w-0">
           <AppHeader
             title={
               <ShellHeaderTitle
                 route={route}
-                projectName={project?.project.name ?? 'Project'}
+                teamName={team?.team.name ?? 'Team'}
                 issueIdentifier={issueQuery.data?.identifier ?? null}
               />
             }
-            hasProject={!!project}
+            hasTeam={!!team}
             onOpenCommand={() => overlays.setShowCommand(true)}
             onNewIssue={openNewIssue}
             chatActive={overlays.chatEnabled}
@@ -146,10 +146,10 @@ export default function Shell({
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <ShellBody
               forbidden={forbidden}
-              hasProject={!!project}
+              hasTeam={!!team}
               hasError={!!errorMsg}
-              projectsLoaded={projectsLoaded}
-              projectCount={projects.length}
+              teamsLoaded={teamsLoaded}
+              teamCount={teams.length}
             >
               {children}
             </ShellBody>
@@ -159,8 +159,8 @@ export default function Shell({
         <CommandLayer
           open={overlays.showCommand}
           onOpenChange={overlays.setShowCommand}
-          projects={projects}
-          currentProjectKey={projectKey}
+          teams={teams}
+          currentTeamKey={teamKey}
           onBoard={route.onBoard}
           view={editor.view}
           currentIssueId={currentIssueId}
@@ -169,13 +169,13 @@ export default function Shell({
           // Handled by the kanban board's selection provider (mounted only on the
           // board); the constant matches BOARD_SELECT_ALL_EVENT in useSelection.
           onSelectAll={() => window.dispatchEvent(new Event('board:select-all'))}
-          onNewProject={() => overlays.setShowNewProject(true)}
-          onSelectProject={(key) => router.push(projectPath(key))}
-          onOpenIssue={(seq) => projectKey && router.push(issuePath(projectKey, seq))}
+          onNewTeam={() => overlays.setShowNewTeam(true)}
+          onSelectTeam={(key) => router.push(teamPath(key))}
+          onOpenIssue={(seq) => teamKey && router.push(issuePath(teamKey, seq))}
           onIssueDeleted={onIssueDeleted}
         />
 
-        <ShellOverlays project={project} projectKey={projectKey} overlays={overlays} />
+        <ShellOverlays team={team} teamKey={teamKey} overlays={overlays} />
       </SidebarProvider>
     </ShellCtx.Provider>
   );

@@ -7,10 +7,10 @@ import { useSession } from '@/lib/auth-client';
 // Everything cached in this tab belongs to one account. Signing in as somebody else
 // without a full page load (sign out and back in, a magic link opened in the same
 // tab) keeps the previous account's queries in memory, so the app would show
-// projects the new account cannot even read — the API already answers correctly, it
+// teams the new account cannot even read — the API already answers correctly, it
 // is the client cache that is stale.
 //
-// Clearing on a changed user id fixes that. The remembered "last project" needs no
+// Clearing on a changed user id fixes that. The remembered "last team" needs no
 // cleanup: it is stored on the account, so the new session reads its own value.
 export default function SessionScope() {
   const queryClient = useQueryClient();

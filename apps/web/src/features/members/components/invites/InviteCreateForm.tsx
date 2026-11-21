@@ -18,18 +18,18 @@ import { useRolesQuery } from '@/services/roles.service';
 const OWNER_VALUE = 'owner';
 
 // The "invite someone" form: an email and a role, then create. The role options
-// are the project's custom roles plus Owner. A custom role sends role=member with
+// are the team's custom roles plus Owner. A custom role sends role=member with
 // its roleId; Owner sends role=owner. A duplicate pending invite for the same
 // email is a 409, toasted by the global handler. On success the form clears so
 // the owner can add another.
-export default function InviteCreateForm({ projectKey }: { projectKey: string }) {
+export default function InviteCreateForm({ teamKey }: { teamKey: string }) {
   const [email, setEmail] = useState('');
   const [roleValue, setRoleValue] = useState('');
-  const rolesQuery = useRolesQuery(projectKey);
-  const createInvite = useCreateInvite(projectKey);
+  const rolesQuery = useRolesQuery(teamKey);
+  const createInvite = useCreateInvite(teamKey);
 
   const roles = rolesQuery.data ?? [];
-  // Default to the project's default role until the owner picks another option.
+  // Default to the team's default role until the owner picks another option.
   // Empty until the roles load, so a submit before that cannot fall back to Owner.
   const defaultRoleId = roles.find((r) => r.isDefault)?.id ?? roles[0]?.id;
   const selected = roleValue || (defaultRoleId != null ? String(defaultRoleId) : '');

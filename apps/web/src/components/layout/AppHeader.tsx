@@ -8,18 +8,18 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
 import UserMenu from '@/components/layout/UserMenu';
 
-// The slim header inside the sidebar inset, shared by the project view and the
+// The slim header inside the sidebar inset, shared by the team view and the
 // settings pages.
 export default function AppHeader({
   title,
-  hasProject,
+  hasTeam,
   onOpenCommand,
   onNewIssue,
   chatActive,
   onToggleChat,
 }: {
   title: ReactNode;
-  hasProject: boolean;
+  hasTeam: boolean;
   onOpenCommand: () => void;
   onNewIssue: () => void;
   chatActive: boolean;
@@ -28,8 +28,8 @@ export default function AppHeader({
   const { can } = usePermissions();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const newIssueKey = useHotkeyLabel('issue.new');
-  const canCreateIssue = hasProject && can('work_items', 'create');
-  const canUseChat = hasProject && can('ai_agents', 'read');
+  const canCreateIssue = hasTeam && can('work_items', 'create');
+  const canUseChat = hasTeam && can('ai_agents', 'read');
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-4">
       <SidebarTrigger />

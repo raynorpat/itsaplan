@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import type { NotificationSettings, ProjectDetail } from '@/lib/api';
+import type { NotificationSettings, TeamDetail } from '@/lib/api';
 import { useShell } from '@/context/shellContext';
 import { settingsSection } from '@/utils/settingsSections';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -19,14 +19,14 @@ import { useTelegramForm } from './hooks/useTelegramForm';
 const section = settingsSection('notifications');
 
 // The Notification providers settings page
-// (/project/:projectKey/settings/notifications). Admin-only (danger_zone): the email
-// and Telegram credentials the project delivers through. Members set their own
+// (/team/:teamKey/settings/notifications). Admin-only (danger_zone): the email
+// and Telegram credentials the team delivers through. Members set their own
 // delivery preferences on the main-nav Notifications page. Save lives in the page
 // header and acts on the active tab.
 export default function SettingsNotificationsPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  return <NotificationsPage project={project} />;
+  const { team } = useShell();
+  if (!team) return null;
+  return <NotificationsPage team={team} />;
 }
 
 function Chrome({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
@@ -47,8 +47,8 @@ function Chrome({ actions, children }: { actions?: ReactNode; children: ReactNod
   );
 }
 
-function NotificationsPage({ project }: { project: ProjectDetail }) {
-  const query = useNotificationSettingsQuery(project.project.key);
+function NotificationsPage({ team }: { team: TeamDetail }) {
+  const query = useNotificationSettingsQuery(team.team.key);
   if (!query.data) {
     return (
       <Chrome>
@@ -56,21 +56,21 @@ function NotificationsPage({ project }: { project: ProjectDetail }) {
       </Chrome>
     );
   }
-  return <NotificationsLoaded projectKey={project.project.key} settings={query.data} />;
+  return <NotificationsLoaded teamKey={team.team.key} settings={query.data} />;
 }
 
 function NotificationsLoaded({
-  projectKey,
+  teamKey,
   settings,
 }: {
-  projectKey: string;
+  teamKey: string;
   settings: NotificationSettings;
 }) {
   const { can } = usePermissions();
   const editable = can(section.resource, 'edit');
   const [tab, setTab] = useState<NotificationTab>('email');
-  const emailForm = useEmailForm(projectKey, settings, editable);
-  const telegramForm = useTelegramForm(projectKey, settings, editable);
+  const emailForm = useEmailForm(teamKey, settings, editable);
+  const telegramForm = useTelegramForm(teamKey, settings, editable);
   const active = tab === 'email' ? emailForm : telegramForm;
 
   return (

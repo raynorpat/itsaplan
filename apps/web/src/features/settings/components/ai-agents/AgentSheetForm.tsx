@@ -44,14 +44,14 @@ import { integrationLabel } from '../../utils/integrationLabels';
 // once, inline at the top, via revealedKey. An internal agent's enabled skills are
 // managed once the agent exists (they are linked through a separate endpoint).
 export function AgentSheetForm({
-  projectKey,
+  teamKey,
   agent,
   expanded = false,
   onCreated,
   revealedKey,
   onDismissKey,
 }: {
-  projectKey: string;
+  teamKey: string;
   agent: AiAgent | null;
   expanded?: boolean;
   onCreated: (agent: AiAgent, apiKey: string | null) => void;
@@ -72,10 +72,10 @@ export function AgentSheetForm({
   const canManageSkills = can('agent_skills', 'edit');
   const canManageTools = can('agent_tools', 'edit');
 
-  const toolsQuery = useAgentToolsQuery(projectKey);
-  const catalogQuery = useIntegrationCatalogQuery(projectKey);
+  const toolsQuery = useAgentToolsQuery(teamKey);
+  const catalogQuery = useIntegrationCatalogQuery(teamKey);
   const catalog = catalogQuery.data ?? [];
-  const credentialsQuery = useCredentialsQuery(projectKey);
+  const credentialsQuery = useCredentialsQuery(teamKey);
   const credentials = credentialsQuery.data ?? [];
   // Only LLM-provider credentials can back a model.
   const llmCredentials = credentials.filter(
@@ -84,29 +84,29 @@ export function AgentSheetForm({
   const selectedProvider =
     credentials.find((c) => c.id === value.modelCredentialId)?.integrationKey ?? null;
   const providerModelsQuery = useIntegrationModelsQuery(
-    projectKey,
+    teamKey,
     value.kind === 'internal' ? selectedProvider : null,
   );
-  const rolesQuery = useRolesQuery(projectKey, value.kind === 'external');
+  const rolesQuery = useRolesQuery(teamKey, value.kind === 'external');
   const skillsLibraryQuery = useSkillsQuery(
-    value.kind === 'internal' && canManageSkills ? projectKey : null,
+    value.kind === 'internal' && canManageSkills ? teamKey : null,
   );
   const agentSkillsQuery = useAgentSkillsQuery(
-    projectKey,
+    teamKey,
     agent && agent.kind === 'internal' && canManageSkills ? agent.id : null,
   );
   const toolsLibraryQuery = useConfiguredToolsQuery(
-    value.kind === 'internal' && canManageTools ? projectKey : null,
+    value.kind === 'internal' && canManageTools ? teamKey : null,
   );
   const agentToolsQuery = useAgentToolLinksQuery(
-    projectKey,
+    teamKey,
     agent && agent.kind === 'internal' && canManageTools ? agent.id : null,
   );
 
-  const createAgent = useCreateAiAgent(projectKey);
-  const updateAgent = useUpdateAiAgent(projectKey);
-  const setAgentSkills = useSetAgentSkills(projectKey);
-  const setAgentTools = useSetAgentTools(projectKey);
+  const createAgent = useCreateAiAgent(teamKey);
+  const updateAgent = useUpdateAiAgent(teamKey);
+  const setAgentSkills = useSetAgentSkills(teamKey);
+  const setAgentTools = useSetAgentTools(teamKey);
   const saving =
     createAgent.isPending ||
     updateAgent.isPending ||
@@ -263,7 +263,7 @@ export function AgentSheetForm({
     <SettingsAiAgentFields
       value={value}
       onChange={merge}
-      projectKey={projectKey}
+      teamKey={teamKey}
       tools={toolsQuery.data ?? []}
       toolsLoading={toolsQuery.isLoading}
       kindLocked={!isCreate}

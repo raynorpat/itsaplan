@@ -12,7 +12,7 @@ import {
 
 export const PAGE_SIZES = [25, 50, 100] as const;
 
-// The pager under a directory table (accounts, projects): which slice is on screen,
+// The pager under a directory table (accounts, teams): which slice is on screen,
 // how big a page is, and a step in either direction. Page size sits next to the
 // range so both read as one statement about the window.
 export default function GodPager({

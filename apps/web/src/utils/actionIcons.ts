@@ -155,7 +155,7 @@ import {
 } from 'lucide-react';
 
 // Curated set of icons an action can display. The key is stored on the action
-// (project_action.icon) and resolved to a component here. Order is the order
+// (team_action.icon) and resolved to a component here. Order is the order
 // shown in the picker; keys are what the picker's search matches against.
 export const ACTION_ICONS: Record<string, LucideIcon> = {
   zap: Zap,

@@ -1,6 +1,6 @@
 import { CalendarArrowUp, CalendarClock, Target, Timer } from 'lucide-react';
 import { type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type Maps } from '@/utils/team';
 import { formatDurationShort, formatShortDate, isDueOverdue } from '@/utils/dates';
 import type { DisplayProperty, PropertyKey } from '@/utils/viewSettings';
 import {
@@ -13,7 +13,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
-import { priorityKey } from '@/utils/fieldOptions';
 
 // One board card's content. Which properties render is driven by `properties`.
 export function IssueCardBody({
@@ -31,14 +30,14 @@ export function IssueCardBody({
     issue.assigneeUserId != null ? maps.assigneeById.get(issue.assigneeUserId) : undefined;
   const delegate =
     issue.delegateUserId != null ? maps.assigneeById.get(issue.delegateUserId) : undefined;
-  const initiative = issue.initiative ?? undefined;
-  const column = maps.columnById.get(issue.columnId);
+  const project = issue.project ?? undefined;
+  const column = maps.columnById.get(issue.stateId);
   const metaShown =
     has('statusAge') ||
     (has('dueDate') && issue.dueDate) ||
     (has('startDate') && issue.startDate) ||
     (has('type') && type) ||
-    (has('initiative') && initiative) ||
+    (has('project') && project) ||
     (has('labels') && issue.labelIds.length > 0);
   const footerShown =
     has('created') ||
@@ -51,9 +50,7 @@ export function IssueCardBody({
       {(has('id') || (has('priority') && issue.priority > 0)) && (
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{has('id') ? issue.identifier : ''}</span>
-          {has('priority') && issue.priority > 0 && (
-            <PriorityBadge priority={priorityKey(issue.priority)} />
-          )}
+          {has('priority') && issue.priority > 0 && <PriorityBadge priority={issue.priority} />}
         </div>
       )}
 
@@ -116,13 +113,13 @@ export function IssueCardBody({
               {type.name}
             </Badge>
           )}
-          {has('initiative') && initiative && (
+          {has('project') && project && (
             <Badge
               variant="outline"
               className="max-w-full rounded-full px-1.5 py-0.5 text-[10px] text-muted-foreground"
             >
               <Target className="size-2.5 shrink-0" />
-              <span className="truncate">{initiative.title}</span>
+              <span className="truncate">{project.title}</span>
             </Badge>
           )}
           {has('labels') &&

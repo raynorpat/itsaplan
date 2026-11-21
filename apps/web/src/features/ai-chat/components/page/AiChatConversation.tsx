@@ -9,13 +9,13 @@ import { agentModelLabel } from '../../utils/agentModelLabel';
 // One agent's conversation on the AI Chat page: a header identifying the agent, and the
 // transcript plus composer below it.
 export function AiChatConversation({
-  projectKey,
+  teamKey,
   agent,
   providerLabel,
   threadId,
   onThreadCreated,
 }: {
-  projectKey: string;
+  teamKey: string;
   agent: AiAgent;
   providerLabel: (key: string) => string;
   threadId: string | null;
@@ -44,7 +44,7 @@ export function AiChatConversation({
 
       <div className="min-h-0 flex-1">
         <AiChatThread
-          projectKey={projectKey}
+          teamKey={teamKey}
           agent={agent}
           threadId={threadId}
           onThreadCreated={onThreadCreated}

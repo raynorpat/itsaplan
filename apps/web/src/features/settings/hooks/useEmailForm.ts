@@ -37,14 +37,14 @@ export interface EmailForm {
 // between the header Save button and the body fields, so it lives in a hook. Secrets
 // start blank and are sent only when changed. The whole tab saves at once.
 export function useEmailForm(
-  projectKey: string,
+  teamKey: string,
   settings: NotificationSettings,
   editable: boolean,
 ): EmailForm {
-  const update = useUpdateNotificationSettings(projectKey);
+  const update = useUpdateNotificationSettings(teamKey);
 
-  // The project's own provider wins when it configured one; otherwise it sends
-  // through the instance provider, which is also the default for a new project.
+  // The team's own provider wins when it configured one; otherwise it sends
+  // through the instance provider, which is also the default for a new team.
   const initialProvider: EmailProvider = settings.smtp.enabled
     ? 'smtp'
     : settings.resend.enabled

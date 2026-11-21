@@ -16,14 +16,14 @@ import { parseScheduleInput } from '../../utils/cronSchedule';
 import { SettingsScheduleInput } from './SettingsScheduleInput';
 
 export function SettingsScheduleDialog({
-  projectKey,
+  teamKey,
   agents,
   initial,
   saving,
   onSave,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   agents: AiAgent[];
   initial?: AgentSchedule;
   saving: boolean;
@@ -62,7 +62,7 @@ export function SettingsScheduleDialog({
     <Modal
       title={initial ? 'Edit schedule' : 'New schedule'}
       description="Choose an agent, describe the task, and set when it should run."
-      projectKey={projectKey}
+      teamKey={teamKey}
       onClose={onClose}
       wide
     >

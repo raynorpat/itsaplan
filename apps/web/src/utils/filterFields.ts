@@ -1,4 +1,4 @@
-import type { ProjectDetail, CustomField } from '@/lib/api';
+import type { TeamDetail, CustomField } from '@/lib/api';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
 import type { FilterCondition, FilterOperator, FilterSet, FilterValue } from '@/utils/filters';
 import { customFieldKey } from '@/utils/viewSettings';
@@ -65,15 +65,15 @@ function customFieldKind(field: CustomField): FieldKind {
   }
 }
 
-// The full catalog of filterable fields for a project: builtins plus every custom
-// field. Recomputed when the project or its custom fields change.
-export function buildFieldSpecs(project: ProjectDetail, customFields: CustomField[]): FieldSpec[] {
+// The full catalog of filterable fields for a team: builtins plus every custom
+// field. Recomputed when the team or its custom fields change.
+export function buildFieldSpecs(team: TeamDetail, customFields: CustomField[]): FieldSpec[] {
   const specs: FieldSpec[] = [
     {
       field: 'status',
       label: 'State',
       kind: 'set',
-      options: project.columns.map((c) => ({ value: c.id, label: c.name, color: c.color })),
+      options: team.states.map((c) => ({ value: c.id, label: c.name, color: c.color })),
     },
     { field: 'statusType', label: 'State type', kind: 'set', options: STATE_TYPE_OPTIONS },
     {
@@ -81,7 +81,7 @@ export function buildFieldSpecs(project: ProjectDetail, customFields: CustomFiel
       label: 'Assignee',
       kind: 'set',
       options: [
-        ...project.assignees
+        ...team.assignees
           .filter((a) => a.kind === 'member')
           .map((a) => ({ value: a.userId, label: a.name })),
         { value: null, label: 'No assignee' },
@@ -92,7 +92,7 @@ export function buildFieldSpecs(project: ProjectDetail, customFields: CustomFiel
       label: 'Delegate',
       kind: 'set',
       options: [
-        ...project.assignees
+        ...team.assignees
           .filter((a) => a.kind === 'agent')
           .map((a) => ({ value: a.userId, label: a.name })),
         { value: null, label: 'No delegate' },
@@ -104,7 +104,7 @@ export function buildFieldSpecs(project: ProjectDetail, customFields: CustomFiel
       label: 'Type',
       kind: 'set',
       options: [
-        ...project.issueTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })),
+        ...team.issueTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })),
         { value: null, label: 'No type' },
       ],
     },
@@ -112,7 +112,7 @@ export function buildFieldSpecs(project: ProjectDetail, customFields: CustomFiel
       field: 'labels',
       label: 'Labels',
       kind: 'set',
-      options: project.labels.map((l) => ({ value: l.id, label: l.name, color: l.color })),
+      options: team.labels.map((l) => ({ value: l.id, label: l.name, color: l.color })),
     },
     { field: 'dueDate', label: 'Due date', kind: 'date' },
     { field: 'startDate', label: 'Start date', kind: 'date' },
@@ -162,11 +162,11 @@ export function valuesLabel(spec: FieldSpec, cond: FilterCondition): string {
 // value-based operator) and conditions on unknown fields are skipped.
 export function describeConditions(
   filters: FilterSet | null | undefined,
-  project: ProjectDetail,
+  team: TeamDetail,
   customFields: CustomField[],
 ): string[] {
   if (!filters) return [];
-  const byField = new Map(buildFieldSpecs(project, customFields).map((s) => [s.field, s]));
+  const byField = new Map(buildFieldSpecs(team, customFields).map((s) => [s.field, s]));
   const out: string[] = [];
   for (const cond of filters.conditions) {
     const spec = byField.get(cond.field);

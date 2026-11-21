@@ -24,10 +24,10 @@ export interface AutoArchiveForm {
   setCanceledDays: (v: string) => void;
 }
 
-export function useAutoArchiveForm(projectKey: string): AutoArchiveForm {
+export function useAutoArchiveForm(teamKey: string): AutoArchiveForm {
   const { isOwner } = usePermissions();
-  const settingsQuery = useAutoArchiveQuery(projectKey);
-  const updateSettings = useUpdateAutoArchive(projectKey);
+  const settingsQuery = useAutoArchiveQuery(teamKey);
+  const updateSettings = useUpdateAutoArchive(teamKey);
 
   const [completedOn, setCompletedOn] = useState(false);
   const [completedDays, setCompletedDays] = useState(String(DEFAULT_COMPLETED_DAYS));

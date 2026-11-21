@@ -4,7 +4,7 @@ import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';
 
 // Asks, before copying, whether to include the type-scoped fields or copy only the
-// global ones. Shown only when the project has type-scoped fields.
+// global ones. Shown only when the team has type-scoped fields.
 export default function CustomFieldsCopyDialog({
   globalCount,
   scopedCount,
@@ -20,8 +20,8 @@ export default function CustomFieldsCopyDialog({
     <Modal title="Copy custom fields" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          This project has {scopedCount} field{scopedCount === 1 ? '' : 's'} scoped to an issue
-          type. Copy those too, or only the {globalCount} global field
+          This team has {scopedCount} field{scopedCount === 1 ? '' : 's'} scoped to an issue type.
+          Copy those too, or only the {globalCount} global field
           {globalCount === 1 ? '' : 's'}?
         </p>
         <div className="flex justify-end gap-2">

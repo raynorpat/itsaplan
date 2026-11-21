@@ -32,7 +32,7 @@ export const WIDGET_META: Record<
   },
   activity_feed: {
     label: 'Activity feed',
-    description: 'Project-wide change log, filterable by actor and action',
+    description: 'Team-wide change log, filterable by actor and action',
     icon: Activity,
   },
   pulse: {

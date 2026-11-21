@@ -16,7 +16,7 @@ import {
 
 // Command palette (⌘K). Renders the sections it is given, in order: the commands
 // for the issue in front of the user, then the board, the general commands, the
-// project list and every section they may open. A command with a submenu opens a
+// team list and every section they may open. A command with a submenu opens a
 // second level (status, priority, assignee, labels); Backspace on an empty input
 // goes back. While the user is typing, a last "Issues" group lists issues the
 // server matches by identifier, title, description, number or custom fields
@@ -25,15 +25,15 @@ export default function CommandPalette({
   open,
   onOpenChange,
   sections,
-  currentProjectKey,
-  hasProject,
+  currentTeamKey,
+  hasTeam,
   onOpenIssue,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sections: CommandSection[];
-  currentProjectKey: string | null;
-  hasProject: boolean;
+  currentTeamKey: string | null;
+  hasTeam: boolean;
   onOpenIssue: (sequenceNumber: number) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -61,7 +61,7 @@ export default function CommandPalette({
   // Debounce the input before it drives the search request, so a burst of
   // keystrokes issues one query, not one per character.
   const debounced = useDebouncedValue(query, 250);
-  const search = useIssueSearchQuery(currentProjectKey, debounced, { enabled: open && !page });
+  const search = useIssueSearchQuery(currentTeamKey, debounced, { enabled: open && !page });
   const hits = search.data ?? [];
   const searching = query.trim().length > 0;
 
@@ -111,8 +111,8 @@ export default function CommandPalette({
           ))
         )}
         {/* Issue results only appear while the user is typing, otherwise the
-            palette would list the entire project on open. */}
-        {!page && hasProject && searching && (hits.length > 0 || search.isFetching) && (
+            palette would list the entire team on open. */}
+        {!page && hasTeam && searching && (hits.length > 0 || search.isFetching) && (
           <CommandPaletteIssues
             hits={hits}
             fetching={search.isFetching}

@@ -12,13 +12,13 @@ import { CredentialDialog } from './components/integrations/CredentialDialog';
 
 const section = INTEGRATIONS_SECTION;
 
-// The integrations page (/project/:projectKey/integrations): stored credentials for
+// The integrations page (/team/:teamKey/integrations): stored credentials for
 // AI providers and tool integrations.
 export default function SettingsIntegrationsPage() {
-  const { project } = useShell();
-  const catalog = useIntegrationCatalogQuery(project?.project.key ?? null).data ?? [];
-  if (!project) return null;
-  const projectKey = project.project.key;
+  const { team } = useShell();
+  const catalog = useIntegrationCatalogQuery(team?.team.key ?? null).data ?? [];
+  if (!team) return null;
+  const teamKey = team.team.key;
   return (
     <SectionPageView
       title={section.label}
@@ -28,7 +28,7 @@ export default function SettingsIntegrationsPage() {
           {({ open, close }) =>
             open && (
               <CredentialDialog
-                projectKey={projectKey}
+                teamKey={teamKey}
                 catalog={catalog}
                 existing={null}
                 onClose={close}
@@ -41,7 +41,7 @@ export default function SettingsIntegrationsPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsIntegrations project={project} />
+          <SettingsIntegrations team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

@@ -9,12 +9,12 @@ import { CredentialForm } from './CredentialForm';
 // (CredentialForm). Editing skips the picker: the integration is fixed and the form
 // opens directly.
 export function CredentialDialog({
-  projectKey,
+  teamKey,
   catalog,
   existing,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   catalog: IntegrationMeta[];
   existing: IntegrationCredential | null;
   onClose: () => void;
@@ -27,7 +27,7 @@ export function CredentialDialog({
 
   if (!isEdit && !meta) {
     return (
-      <Modal title="Add credential" projectKey={projectKey} onClose={onClose} wide>
+      <Modal title="Add credential" teamKey={teamKey} onClose={onClose} wide>
         <IntegrationPicker catalog={catalog} onSelect={setIntegrationKey} />
       </Modal>
     );
@@ -39,11 +39,11 @@ export function CredentialDialog({
   return (
     <Modal
       title={isEdit ? 'Edit credential' : 'Add credential'}
-      projectKey={projectKey}
+      teamKey={teamKey}
       onClose={onClose}
     >
       <CredentialForm
-        projectKey={projectKey}
+        teamKey={teamKey}
         meta={meta}
         existing={existing}
         onBack={isEdit ? undefined : () => setIntegrationKey(null)}

@@ -4,13 +4,13 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/common/page/EmptyState';
 import NoteBoardNameDialog from './NoteBoardNameDialog';
 
-// Shown when a project has no note boards. Names what a board is and offers to
+// Shown when a team has no note boards. Names what a board is and offers to
 // create the first one, so it is a click away instead of hidden behind the "+".
 export default function NotesEmptyState({
-  projectKey,
+  teamKey,
   onCreate,
 }: {
-  projectKey: string;
+  teamKey: string;
   onCreate: (name: string, personal: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +32,7 @@ export default function NotesEmptyState({
         open={open}
         title="New board"
         description="A freeform canvas for sticky notes."
-        projectKey={projectKey}
+        teamKey={teamKey}
         initial=""
         withVisibility
         onClose={() => setOpen(false)}

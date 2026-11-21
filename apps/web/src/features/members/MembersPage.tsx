@@ -5,19 +5,19 @@ import SectionPageView from '@/components/common/page/SectionPageView';
 import InvitesManager from './components/invites/InvitesManager';
 import MembersList from './components/members/MembersList';
 
-// The Members page (/project/:projectKey/members): who has access to the project.
+// The Members page (/team/:teamKey/members): who has access to the team.
 // Pending invites and the invite form sit above the members list.
 export default function MembersPage() {
-  const { project } = useShell();
-  if (!project) return null;
+  const { team } = useShell();
+  if (!team) return null;
   return (
     <SectionPageView
       title="Members"
-      description="People with access to this project. Invite people by email; owners can revoke access."
+      description="People with access to this team. Invite people by email; owners can revoke access."
       wide
     >
-      <InvitesManager projectKey={project.project.key} />
-      <MembersList projectKey={project.project.key} />
+      <InvitesManager teamKey={team.team.key} />
+      <MembersList teamKey={team.team.key} />
     </SectionPageView>
   );
 }

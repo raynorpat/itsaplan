@@ -46,20 +46,20 @@ function ItemRow({
 // whether each is created or recolored. On confirm, groups are applied first (so new
 // labels can be placed in their group), then labels. A matched label keeps its group.
 export default function LabelsImportDialog({
-  projectKey,
+  teamKey,
   plan,
   existingGroups,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   plan: LabelsImportPlan;
   existingGroups: LabelGroup[];
   onClose: () => void;
 }) {
-  const createGroup = useCreateLabelGroup(projectKey);
-  const updateGroup = useUpdateLabelGroup(projectKey);
-  const createLabel = useCreateLabel(projectKey);
-  const updateLabel = useUpdateLabel(projectKey);
+  const createGroup = useCreateLabelGroup(teamKey);
+  const updateGroup = useUpdateLabelGroup(teamKey);
+  const createLabel = useCreateLabel(teamKey);
+  const updateLabel = useUpdateLabel(teamKey);
   const [busy, setBusy] = useState(false);
 
   const changed = (items: (PlannedGroup | PlannedLabel)[]) =>

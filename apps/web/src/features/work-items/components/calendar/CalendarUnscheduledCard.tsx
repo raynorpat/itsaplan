@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
+import { type TeamDetail, type Issue } from '@/lib/api';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
@@ -7,12 +7,12 @@ import IssueContextMenu from '@/features/issue/components/actions/IssueContextMe
 
 // A draggable card in the unscheduled panel.
 export function CalendarUnscheduledCard({
-  project,
+  team,
   issue,
   color,
   onOpen,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   color: string;
   onOpen: (id: string) => void;
@@ -26,7 +26,7 @@ export function CalendarUnscheduledCard({
     disabled: useIsPhone() || !can('work_items', 'edit'),
   });
   return (
-    <IssueContextMenu project={project} issue={issue}>
+    <IssueContextMenu team={team} issue={issue}>
       <div
         ref={setNodeRef}
         {...attributes}

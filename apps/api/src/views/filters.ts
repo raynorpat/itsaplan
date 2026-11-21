@@ -37,10 +37,6 @@ interface FilterSet {
 
 const DATE_FIELDS: FilterField[] = ['dueDate', 'startDate', 'created', 'updated'];
 
-// Issue priority (Linear's 0..4 scale) to the name the web app saves in view
-// filters. 0 (no priority) has no name.
-const PRIORITY_NAMES: Record<number, string> = { 1: 'urgent', 2: 'high', 3: 'medium', 4: 'low' };
-
 function parseCustomFieldKey(field: string): string | null {
   return field.startsWith('cf:') ? field.slice(3) : null;
 }
@@ -83,8 +79,8 @@ function builtinSetValues(
     case 'delegate':
       return [issue.delegateUserId];
     case 'priority':
-      // Saved filters hold priority names ('urgent'); null is "no priority".
-      return [PRIORITY_NAMES[issue.priority] ?? null];
+      // null is "no priority" (0).
+      return [issue.priority || null];
     case 'type':
       return [issue.typeId];
     case 'labels':

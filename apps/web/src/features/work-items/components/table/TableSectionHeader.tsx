@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
-import { type IssueGroup } from '@/utils/project';
+import { type IssueGroup } from '@/utils/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { GroupDot } from '../shared/GroupDot';

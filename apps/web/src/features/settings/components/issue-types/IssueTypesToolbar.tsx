@@ -26,12 +26,12 @@ import {
 // The Issue types page header actions: a copy/paste menu (like States) and the primary
 // "Add type" button (which opens the inline add form in the list via onAdd).
 export default function IssueTypesToolbar({
-  projectKey,
+  teamKey,
   resource,
   types,
   onAdd,
 }: {
-  projectKey: string;
+  teamKey: string;
   resource: PermissionResource;
   types: IssueType[];
   onAdd: () => void;
@@ -132,7 +132,7 @@ export default function IssueTypesToolbar({
 
       {importing && (
         <IssueTypesImportDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           planned={importing}
           onClose={() => setImporting(null)}
         />

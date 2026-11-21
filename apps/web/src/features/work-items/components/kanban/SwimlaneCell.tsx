@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type TeamDetail, type Issue } from '@/lib/api';
+import { type Maps } from '@/utils/team';
 import { cn } from '@/lib/utils';
 import type { PropertyKey } from '@/utils/viewSettings';
 import { BoardCard } from './BoardCard';
@@ -12,7 +12,7 @@ import { COLUMN_WIDTH } from '../../utils/kanban';
 // One swimlane+column cell: a fixed-width, non-virtualized stack of cards that is
 // a drop target. Empty cells still render so a drag can drop into them.
 export function SwimlaneCell({
-  project,
+  team,
   issues,
   maps,
   properties,
@@ -22,7 +22,7 @@ export function SwimlaneCell({
   onOpenIssue,
   onMoveIssue,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issues: Issue[];
   maps: Maps;
   properties: PropertyKey[];
@@ -59,7 +59,7 @@ export function SwimlaneCell({
             onDrop={(draggedId) => onMoveIssue(draggedId, index)}
           >
             <BoardCard
-              project={project}
+              team={team}
               issue={issue}
               maps={maps}
               properties={properties}

@@ -11,10 +11,10 @@ import { AiChatThreadRail } from './components/page/AiChatThreadRail';
 import { AiChatConversation } from './components/page/AiChatConversation';
 import { useAiChatSelection } from './hooks/useAiChatSelection';
 
-// The AI Chat page (/project/:projectKey/ai-team/chat): a full-page chat with the
-// project's internal agents.
+// The AI Chat page (/team/:teamKey/ai-team/chat): a full-page chat with the
+// team's internal agents.
 export default function AiChatPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   const { can } = usePermissions();
   const {
     agents,
@@ -28,14 +28,14 @@ export default function AiChatPage() {
     startNewChat,
     handleThreadCreated,
     handleThreadDeleted,
-  } = useAiChatSelection(project?.project.key ?? null);
+  } = useAiChatSelection(team?.team.key ?? null);
 
-  if (!project) return null;
+  if (!team) return null;
 
   if (!can('ai_agents', 'read')) {
     return (
       <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
-        You do not have access to AI agents in this project.
+        You do not have access to AI agents in this team.
       </div>
     );
   }
@@ -57,7 +57,7 @@ export default function AiChatPage() {
         >
           {can('ai_agents', 'edit') && (
             <Button asChild size="sm">
-              <Link href={aiAgentsPath(project.project.key)}>Create an agent</Link>
+              <Link href={aiAgentsPath(team.team.key)}>Create an agent</Link>
             </Button>
           )}
         </EmptyState>
@@ -77,7 +77,7 @@ export default function AiChatPage() {
         <>
           <AiChatThreadRail
             key={selected.id}
-            projectKey={project.project.key}
+            teamKey={team.team.key}
             agentId={selected.id}
             selectedThreadId={selectedThreadId}
             onSelect={selectThread}
@@ -87,7 +87,7 @@ export default function AiChatPage() {
           <div className="flex min-h-0 flex-1 flex-col">
             <AiChatConversation
               key={`${selected.id}:${newChatNonce}`}
-              projectKey={project.project.key}
+              teamKey={team.team.key}
               agent={selected}
               providerLabel={providerLabel}
               threadId={selectedThreadId}

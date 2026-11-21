@@ -19,7 +19,7 @@ export function resolveApiUrl(url: string): string {
 }
 
 // An error carrying the HTTP status so callers can tell apart 401 (no session),
-// 403 (no access to the project / not owner), 404 (not found) and 400 (a
+// 403 (no access to the team / not owner), 404 (not found) and 400 (a
 // validation or business-rule failure). `message` is the API's `{ error }` text
 // when present, so existing consumers that read `error.message` keep working.
 export class ApiError extends Error {
@@ -53,33 +53,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export interface Project {
+export interface Team {
   id: string;
   key: string;
   name: string;
   description: string;
-  // Whether this project is reachable through the MCP server. Toggled by an owner
-  // on the MCP page; gates every MCP tool call scoped to the project.
+  // Whether this team is reachable through the MCP server. Toggled by an owner
+  // on the MCP page; gates every MCP tool call scoped to the team.
   mcpEnabled: boolean;
   // The optional sections, toggled by an owner in Settings -> General. Read through
-  // useProjectFeatures, which hides the navigation and the section itself.
-  initiativesEnabled: boolean;
+  // useTeamFeatures, which hides the navigation and the section itself.
+  projectsEnabled: boolean;
   dashboardsEnabled: boolean;
   notesEnabled: boolean;
   createdAt: string;
-  // The caller's role in this project. Only present on the /projects list
+  // The caller's role in this team. Only present on the /teams list
   // response (used to gate owner-only actions like deletion); absent on the
   // create/copy responses.
   role?: MemberRole;
-  // The caller's permission matrix in this project. Present only when the list is
-  // requested with permissions (listProjects({ permissions: true })).
+  // The caller's permission matrix in this team. Present only when the list is
+  // requested with permissions (listTeams({ permissions: true })).
   permissions?: Permissions;
 }
 
-// Parts of a source project the copy can carry over, one key per project settings
-// section. Passed to copyProject as an include map; omitted keys are not copied. The
+// Parts of a source team the copy can carry over, one key per team settings
+// section. Passed to copyTeam as an include map; omitted keys are not copied. The
 // API force-enables dependencies (a view needs its states/types/labels/fields).
-export type CopyProjectIncludeKey =
+export type CopyTeamIncludeKey =
   | 'states'
   | 'issueTypes'
   | 'labels'
@@ -101,7 +101,7 @@ export type StateType = 'backlog' | 'unstarted' | 'started' | 'completed' | 'can
 
 export interface Column {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   stateType: StateType;
   color: string;
@@ -112,7 +112,7 @@ export interface Column {
 
 export interface IssueType {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string;
   color: string;
@@ -122,7 +122,7 @@ export interface IssueType {
 
 export interface Label {
   id: string;
-  projectId: string;
+  teamId: string;
   // The group this label belongs to, or null when ungrouped.
   groupId: string | null;
   name: string;
@@ -132,7 +132,7 @@ export interface Label {
 // A container a label can belong to. Labels reference it by groupId.
 export interface LabelGroup {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   color: string;
 }
@@ -146,7 +146,7 @@ export interface Assignee {
   agentKind: 'external' | 'internal' | null;
 }
 
-// An AI agent on a project: a bot user plus its configuration. `kind` is
+// An AI agent on a team: a bot user plus its configuration. `kind` is
 // 'external' (driven by an outside caller through the API) or 'internal' (run by
 // the built-in runtime, so it carries provider/model/instructions/tools). Only an
 // external agent has an API key: `apiKeyStart` is the non-secret prefix for display
@@ -154,7 +154,7 @@ export interface Assignee {
 // on regenerate.
 export interface AiAgent {
   id: string;
-  projectId: string;
+  teamId: string;
   userId: string;
   name: string;
   username: string;
@@ -171,7 +171,7 @@ export interface AiAgent {
   // Internal-agent run triggers.
   triggerOnMention: boolean;
   triggerOnAssign: boolean;
-  // External-agent authorization role (a project_role id, or null for the default).
+  // External-agent authorization role (a team_role id, or null for the default).
   roleId: string | null;
   createdAt: string;
   apiKeyStart: string | null;
@@ -298,7 +298,7 @@ export interface ConfigField {
   help?: string;
 }
 
-// An integration the project can store a credential for (server-side catalog). `kind`
+// An integration the team can store a credential for (server-side catalog). `kind`
 // 'llm' is an AI provider (its models an agent runs on, no tools); 'tool' is a tool
 // integration whose `tools` are configured on a credential.
 export interface IntegrationMeta {
@@ -319,7 +319,7 @@ export interface ProviderModel {
 // secret fields masked; the real secrets are never returned.
 export interface IntegrationCredential {
   id: string;
-  projectId: string;
+  teamId: string;
   integrationKey: string;
   label: string | null;
   redacted: Record<string, unknown>;
@@ -345,11 +345,11 @@ export interface SkillRef {
   size: number;
 }
 
-// A skill in the project library: a SKILL.md plus optional reference files, given
+// A skill in the team library: a SKILL.md plus optional reference files, given
 // to internal agents. Content lives in the object store; this is the metadata.
 export interface AgentSkill {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   description: string;
   source: 'upload' | 'inline' | 'github';
@@ -386,7 +386,7 @@ export interface GithubSkillCandidate {
 // AgentTool, which is a built-in capability tool in the agent's Actions list.)
 export interface ConfiguredTool {
   id: string;
-  projectId: string;
+  teamId: string;
   toolKey: string;
   credentialId: string;
   integrationKey: string;
@@ -437,14 +437,14 @@ export interface AiChatMessagePage {
 // request itself fails before the stream starts (e.g. 403/404); a failure during
 // the run arrives as an `error` event, not a throw.
 export async function* streamAiAgentRun(
-  projectKey: string,
+  teamKey: string,
   agentId: string,
   input: { prompt: string; threadId?: string | null },
 ): AsyncGenerator<AgentRunEvent> {
   const body = input.threadId
     ? { prompt: input.prompt, threadId: input.threadId }
     : { prompt: input.prompt };
-  const res = await fetch(`${API_URL}/projects/${projectKey}/ai-agents/${agentId}/run/stream`, {
+  const res = await fetch(`${API_URL}/teams/${teamKey}/ai-agents/${agentId}/run/stream`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -494,7 +494,7 @@ export interface CustomField {
   options: CustomFieldOption[];
 }
 
-// One custom field value on a project issue: the scalar value (null for
+// One custom field value on a team issue: the scalar value (null for
 // select/multi_select and unset fields) and the selected option ids. Only
 // fields with a value set appear; unset fields are omitted (see listIssues).
 export interface IssueFieldValueEntry {
@@ -505,18 +505,18 @@ export interface IssueFieldValueEntry {
 
 export interface Issue {
   id: string;
-  projectId: string;
-  // Project-scoped sequence number (the "42" in "MKT-42"). Addresses the issue by
-  // its human number in URLs (/project/MKT/issue/42).
+  teamId: string;
+  // Team-scoped sequence number (the "42" in "MKT-42"). Addresses the issue by
+  // its human number in URLs (/team/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
   typeId: string | null;
-  // The initiative this issue is linked to, expanded to id + title for rendering,
-  // or null. Set through updateIssue by initiativeId.
-  initiative: InitiativeOption | null;
+  // The project this issue is linked to, expanded to id + title for rendering,
+  // or null. Set through updateIssue by projectId.
+  project: ProjectOption | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  columnId: string;
+  stateId: string;
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
   creatorUserId: string | null;
@@ -546,16 +546,16 @@ export interface Issue {
   fieldValues: IssueFieldValueEntry[];
 }
 
-// A light search result from GET /projects/:key/issues/search: enough to list and
+// A light search result from GET /teams/:key/issues/search: enough to list and
 // open a match, without the full issue's description or field values.
 export interface IssueSearchHit {
   id: string;
   sequenceNumber: number;
   identifier: string;
   title: string;
-  columnId: string;
+  stateId: string;
   typeId: string | null;
-  initiativeId: string | null;
+  projectId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
   priority: number;
@@ -564,7 +564,7 @@ export interface IssueSearchHit {
   archived: boolean;
 }
 
-// Per-project auto-archive thresholds: days an issue may sit inactive in a
+// Per-team auto-archive thresholds: days an issue may sit inactive in a
 // completed/canceled column before the worker archives it. null disables archiving
 // for that state group. Both null by default (nothing is archived until enabled).
 export interface AutoArchiveSettings {
@@ -572,23 +572,23 @@ export interface AutoArchiveSettings {
   canceledDays: number | null;
 }
 
-// Which optional sections a project shows. All on by default; turning one off
+// Which optional sections a team shows. All on by default; turning one off
 // hides its navigation entry and its section, keeping the rows behind it.
-export interface ProjectFeatures {
-  initiatives: boolean;
+export interface TeamFeatures {
+  projects: boolean;
   dashboards: boolean;
   notes: boolean;
 }
 
-// A project's settings: MCP reachability, the enabled sections and the
+// A team's settings: MCP reachability, the enabled sections and the
 // auto-archive thresholds.
-export interface ProjectSettings {
+export interface TeamSettings {
   mcpEnabled: boolean;
-  features: ProjectFeatures;
+  features: TeamFeatures;
   autoArchive: AutoArchiveSettings;
 }
 
-// Per-project notification provider credentials (owner-managed) plus a member's own
+// Per-team notification provider credentials (owner-managed) plus a member's own
 // delivery preferences. The issue events match the inbox notification types.
 export type NotificationEncryption = 'none' | 'ssl' | 'tls';
 
@@ -602,10 +602,10 @@ export interface NotificationEventToggles {
 // The provider credentials as read from the API: secrets are never returned, only a
 // `hasX` flag telling whether a value is stored.
 export interface NotificationSettings {
-  // Deliver email through the instance provider instead of the project's own. Its
-  // credentials belong to the instance, so the project only turns it on.
+  // Deliver email through the instance provider instead of the team's own. Its
+  // credentials belong to the instance, so the team only turns it on.
   system: { enabled: boolean };
-  // Whether the instance provider exists and is shared with projects right now.
+  // Whether the instance provider exists and is shared with teams right now.
   systemAvailable: boolean;
   smtp: {
     enabled: boolean;
@@ -647,8 +647,8 @@ export interface StorageSettings {
   // Accepted attachment content types: a full type ('application/pdf') or a
   // wildcard ('image/*'). Empty means any type is accepted.
   attachmentMimeTypes: string[];
-  // Stored attachment bytes allowed per project, in MB. 0 means unlimited.
-  projectQuotaMb: number;
+  // Stored attachment bytes allowed per team, in MB. 0 means unlimited.
+  teamQuotaMb: number;
 }
 
 export type StorageSettingsPatch = Partial<StorageSettings>;
@@ -696,7 +696,7 @@ export interface InstanceAuthSettingsPatch {
 }
 
 // The instance mail provider used for authentication email (password reset, address
-// verification, magic links). Separate from a project's notification provider.
+// verification, magic links). Separate from a team's notification provider.
 // Secrets are never returned, only a `hasX` flag.
 export interface InstanceEmailSettings {
   smtp: {
@@ -710,8 +710,8 @@ export interface InstanceEmailSettings {
   };
   resend: { enabled: boolean; hasApiKey: boolean };
   from: string;
-  // Whether projects may deliver their notifications through this provider.
-  allowProjects: boolean;
+  // Whether teams may deliver their notifications through this provider.
+  allowTeams: boolean;
 }
 
 export interface InstanceEmailSettingsPatch {
@@ -726,7 +726,7 @@ export interface InstanceEmailSettingsPatch {
   };
   resend?: { enabled: boolean; apiKey?: string };
   from?: string;
-  allowProjects?: boolean;
+  allowTeams?: boolean;
 }
 
 // The Google OAuth credentials used for social sign-in. The client secret is never
@@ -759,7 +759,7 @@ export interface InstanceTelegramSettingsPatch {
 }
 
 // One account in the instance user directory. `role` is the global better-auth role
-// ("god" for the instance owner), which is unrelated to project membership.
+// ("god" for the instance owner), which is unrelated to team membership.
 export interface InstanceUser {
   id: string;
   name: string;
@@ -769,29 +769,29 @@ export interface InstanceUser {
   role: string;
   isAgent: boolean;
   providers: string[];
-  projectCount: number;
+  teamCount: number;
   lastSeenAt: string | null;
   createdAt: string;
 }
 
-// A project the user can reach, with the permissions their membership resolves to
+// A team the user can reach, with the permissions their membership resolves to
 // (full for an owner, the assigned role's matrix for a member).
-export interface InstanceUserProject {
-  projectId: string;
-  projectKey: string;
-  projectName: string;
+export interface InstanceUserTeam {
+  teamId: string;
+  teamKey: string;
+  teamName: string;
   role: MemberRole;
   roleId: string | null;
   roleName: string | null;
   permissions: Permissions;
-  // How many owners the project has. 1 on a project this user owns means deleting
-  // the account would leave the project with nobody who can manage it.
+  // How many owners the team has. 1 on a team this user owns means deleting
+  // the account would leave the team with nobody who can manage it.
   ownerCount: number;
   joinedAt: string;
 }
 
 export interface InstanceUserDetail extends InstanceUser {
-  projects: InstanceUserProject[];
+  teams: InstanceUserTeam[];
 }
 
 // Which accounts the directory lists: real people, the bot users behind AI agents,
@@ -805,9 +805,9 @@ export interface InstanceUserPage {
   total: number;
 }
 
-// One project in the instance project directory, with what it holds counted across
+// One team in the instance team directory, with what it holds counted across
 // its dependent tables. `lastActivityAt` is the most recent entry in its issue feed.
-export interface InstanceProject {
+export interface InstanceTeam {
   id: string;
   key: string;
   name: string;
@@ -816,7 +816,7 @@ export interface InstanceProject {
   memberCount: number;
   issueCount: number;
   archivedIssueCount: number;
-  initiativeCount: number;
+  projectCount: number;
   dashboardCount: number;
   viewCount: number;
   agentCount: number;
@@ -827,9 +827,9 @@ export interface InstanceProject {
   createdAt: string;
 }
 
-// One member of a project, with the permissions their membership resolves to (full
+// One member of a team, with the permissions their membership resolves to (full
 // for an owner, the assigned role's matrix for a member).
-export interface InstanceProjectMember {
+export interface InstanceTeamMember {
   userId: string;
   name: string;
   email: string;
@@ -842,12 +842,12 @@ export interface InstanceProjectMember {
   joinedAt: string;
 }
 
-export interface InstanceProjectDetail extends InstanceProject {
-  members: InstanceProjectMember[];
+export interface InstanceTeamDetail extends InstanceTeam {
+  members: InstanceTeamMember[];
 }
 
-export interface InstanceProjectPage {
-  items: InstanceProject[];
+export interface InstanceTeamPage {
+  items: InstanceTeam[];
   total: number;
 }
 
@@ -862,7 +862,7 @@ export interface PublicAuthConfig {
   google: boolean;
 }
 
-// The session member's own notification preferences for a project: which issue
+// The session member's own notification preferences for a team: which issue
 // events they want by email and/or Telegram. Email is sent to the member's account
 // address, Telegram to the account they linked in their profile.
 export interface NotificationPreferences {
@@ -888,11 +888,11 @@ export interface TelegramLinkStart {
 // every device. timezone is an IANA zone name the app renders stored UTC timestamps
 // in; issueOpenMode decides whether a clicked issue opens in the side panel or on
 // its own page; startPage is the section the app root lands on; showChatByDefault
-// keeps the floating AI chat button on screen from the start; lastProjectId is the
-// project the app root reopens (null until the user has opened one).
+// keeps the floating AI chat button on screen from the start; lastTeamId is the
+// team the app root reopens (null until the user has opened one).
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type IssueOpenMode = 'panel' | 'page';
-export type StartPage = 'inbox' | 'dashboard' | 'work-items' | 'initiatives' | 'ai-chat';
+export type StartPage = 'inbox' | 'dashboard' | 'work-items' | 'projects' | 'ai-chat';
 export type IssueStatsView = 'compact' | 'timeline';
 
 export interface AccountPreferences {
@@ -906,7 +906,7 @@ export interface AccountPreferences {
   // it lasts as long as that issue stays open.
   issueStatsOpen: boolean;
   issueStatsView: IssueStatsView;
-  lastProjectId: string | null;
+  lastTeamId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
   // changed ones; the rest come from the instance settings, then the built-in
   // bindings (see lib/hotkeys).
@@ -924,7 +924,7 @@ export type AccountPreferencesPatch = Partial<AccountPreferences>;
 // no per-user identity. filters/display are stored as jsonb.
 export interface View {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string | null;
   filters: FilterSet;
@@ -953,7 +953,7 @@ export interface ViewPatch {
 // list of widgets (owned by the UI, stored verbatim server-side as jsonb).
 export interface Dashboard {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string | null;
   layout: DashboardLayout;
@@ -1011,7 +1011,7 @@ export interface NoteCanvas {
 
 export interface NoteBoard {
   id: string;
-  projectId: string;
+  teamId: string;
   // null for a public board (every member sees it); a user id for a personal
   // board only its owner sees.
   ownerUserId: string | null;
@@ -1044,7 +1044,7 @@ export interface NoteBoardListParams {
   offset?: number;
 }
 
-// --- Analytics DTOs (project metrics behind the dashboard widgets) ---------------
+// --- Analytics DTOs (team metrics behind the dashboard widgets) ---------------
 
 export interface AnalyticsStats {
   open: number;
@@ -1077,7 +1077,7 @@ export interface ThroughputWeek {
   closed: number;
 }
 
-// One agent run in the project-wide feed (agent runs widget).
+// One agent run in the team-wide feed (agent runs widget).
 export interface AgentRunFeedItem {
   id: string;
   status: 'pending' | 'success' | 'failed';
@@ -1140,19 +1140,19 @@ export interface ActivityPage {
   nextCursor: FeedCursor | null;
 }
 
-// A manual action: a saved macro on a project. `condition` is a FilterSet (empty
+// A manual action: a saved macro on a team. `condition` is a FilterSet (empty
 // = always available) that decides which issues the action shows on; `effect`
 // is a partial issue patch over built-in fields applied in one update when the
 // action runs. A present effect key sets that field (value may be null); an
 // absent key leaves it unchanged.
 export type ActionEffect = Pick<
   IssuePatch,
-  'columnId' | 'assigneeUserId' | 'priority' | 'typeId' | 'startDate' | 'dueDate' | 'labelIds'
+  'stateId' | 'assigneeUserId' | 'priority' | 'typeId' | 'startDate' | 'dueDate' | 'labelIds'
 >;
 
 export interface ActionDef {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string;
   condition: FilterSet;
@@ -1198,7 +1198,7 @@ export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
 
 export interface Webhook {
   id: string;
-  projectId: string;
+  teamId: string;
   url: string;
   secret: string;
   events: WebhookEventType[];
@@ -1328,31 +1328,31 @@ export interface IssueFieldValueInput {
   optionIds?: string[];
 }
 
-// The caller's own role in a project (owner/member). Returned with the project;
+// The caller's own role in a team (owner/member). Returned with the team;
 // the resolved permission matrix is a sibling `permissions` field. See
 // usePermissions.
-export interface ProjectViewer {
+export interface TeamViewer {
   role: MemberRole;
 }
 
-export interface InitiativeOption {
+export interface ProjectOption {
   id: string;
   title: string;
 }
 
-// The board scaffold, returned by getProject: everything the work-items UI needs
+// The board scaffold, returned by getTeam: everything the work-items UI needs
 // except the issues themselves (those come from getBoardIssues).
-export interface ProjectScaffold {
-  project: Project;
-  columns: Column[];
+export interface TeamScaffold {
+  team: Team;
+  states: Column[];
   issueTypes: IssueType[];
   labels: Label[];
   labelGroups: LabelGroup[];
   assignees: Assignee[];
-  // Every custom field of the project (all type scopes); consumers filter by
+  // Every custom field of the team (all type scopes); consumers filter by
   // issueTypeId locally.
   customFields: CustomField[];
-  viewer: ProjectViewer;
+  viewer: TeamViewer;
   // The caller's resolved permission matrix (owners get every flag).
   permissions: Permissions;
 }
@@ -1365,38 +1365,38 @@ export interface BoardIssues {
 }
 
 // The scaffold composed with its issues, as the Shell assembles it and passes it
-// down. Downstream reads project.issues / project.rev off this composite.
-export type ProjectDetail = ProjectScaffold & BoardIssues;
+// down. Downstream reads team.issues / team.rev off this composite.
+export type TeamDetail = TeamScaffold & BoardIssues;
 
 export interface IssueDetail extends Issue {
   fields: IssueFieldValue[];
 }
 
 // Public read-only share bundles, returned by the /share/* routes with no session.
-// The scaffold mirrors ProjectScaffold minus the caller's viewer/permissions and
+// The scaffold mirrors TeamScaffold minus the caller's viewer/permissions and
 // member emails (a public page shows names and avatars only).
-export type PublicScaffold = Omit<ProjectScaffold, 'viewer' | 'permissions' | 'assignees'> & {
+export type PublicScaffold = Omit<TeamScaffold, 'viewer' | 'permissions' | 'assignees'> & {
   assignees: Omit<Assignee, 'email'>[];
 };
 
 export interface SharedIssueBundle {
-  project: PublicScaffold;
+  team: PublicScaffold;
   issue: IssueDetail;
   feed: FeedItem[];
 }
 
 export interface SharedViewBundle {
-  project: PublicScaffold;
+  team: PublicScaffold;
   view: { name: string; icon: string | null; filters: FilterSet; display: SavedViewDisplay };
   issues: Issue[];
 }
 
 export interface NewIssueInput {
   typeId?: string | null;
-  initiativeId?: string | null;
+  projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
-  columnId: string;
+  stateId: string;
   title: string;
   description?: string;
   priority?: number;
@@ -1408,9 +1408,9 @@ export interface NewIssueInput {
 // The fields a bulk update can set on many issues at once (the board-relevant
 // subset of IssuePatch: no title/description/position).
 export interface BulkIssuePatch {
-  columnId?: string;
+  stateId?: string;
   typeId?: string | null;
-  initiativeId?: string | null;
+  projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   priority?: number;
@@ -1419,10 +1419,10 @@ export interface BulkIssuePatch {
 }
 
 export interface IssuePatch {
-  columnId?: string;
+  stateId?: string;
   position?: number;
   typeId?: string | null;
-  initiativeId?: string | null;
+  projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
@@ -1433,97 +1433,100 @@ export interface IssuePatch {
   labelIds?: string[];
 }
 
-// --- Initiatives -----------------------------------------------------------------
-// A project-scoped grouping of issues. progress and health are derived server-side
+// --- Projects -----------------------------------------------------------------
+// A team-scoped grouping of issues. progress and health are derived server-side
 // from the linked issues' states (health is null when there is nothing to judge).
 
-export type InitiativeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'canceled';
-export type InitiativeHealth = 'on_track' | 'at_risk' | 'off_track';
+// A project status type (Linear's six project status types).
+export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled';
+export type ProjectHealth = 'on_track' | 'at_risk' | 'off_track';
 
-export interface InitiativeProgress {
+export interface ProjectProgress {
   completed: number;
   canceled: number;
   total: number;
 }
 
-export interface Initiative {
+export interface Project {
   id: string;
-  projectId: string;
-  title: string;
+  teamId: string;
+  name: string;
+  // Short plain-text summary.
   description: string;
-  status: InitiativeStatus;
-  ownerUserId: string | null;
-  priority: string | null;
+  // Markdown overview.
+  content: string;
+  status: ProjectStatus;
+  statusId: string;
+  leadUserId: string | null;
+  // Linear's scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
+  priority: number;
   startDate: string | null;
   targetDate: string | null;
-  position: number;
+  sortOrder: number;
+  slugId: string;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   labelIds: string[];
-  progress: InitiativeProgress;
-  health: InitiativeHealth | null;
+  progress: ProjectProgress;
+  health: ProjectHealth | null;
 }
 
-// Columns the initiative list can be sorted by, server-side. progress and health
+// Columns the project list can be sorted by, server-side. progress and health
 // are derived and not sortable.
-export const INITIATIVE_SORTS = ['title', 'priority', 'targetDate', 'owner'] as const;
+export const PROJECT_SORTS = ['name', 'priority', 'targetDate', 'lead'] as const;
 
-export type InitiativeSort = (typeof INITIATIVE_SORTS)[number];
+export type ProjectSort = (typeof PROJECT_SORTS)[number];
 
-export interface InitiativeListParams {
+export interface ProjectListParams {
   statuses?: string[];
   search?: string;
-  sort?: InitiativeSort;
+  sort?: ProjectSort;
   dir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
 
-export interface InitiativePage {
-  items: Initiative[];
+export interface ProjectPage {
+  items: Project[];
   total: number;
   page: number;
   pageSize: number;
 }
 
-// Per-status initiative counts for the list's status tabs.
-export interface InitiativeCounts {
-  total: number;
-  proposed: number;
-  planned: number;
-  active: number;
-  completed: number;
-  canceled: number;
-}
+// Per-status project counts for the list's status tabs.
+export type ProjectCounts = Record<ProjectStatus | 'total', number>;
 
-export interface NewInitiativeInput {
-  title: string;
+export interface NewProjectInput {
+  name: string;
   description?: string;
-  status?: InitiativeStatus;
-  ownerUserId?: string | null;
-  priority?: string | null;
+  content?: string;
+  status?: ProjectStatus;
+  leadUserId?: string | null;
+  priority?: number;
   startDate?: string | null;
   targetDate?: string | null;
   labelIds?: string[];
 }
 
-export interface InitiativePatch {
-  title?: string;
+export interface ProjectPatch {
+  name?: string;
   description?: string;
-  status?: InitiativeStatus;
-  ownerUserId?: string | null;
-  priority?: string | null;
+  content?: string;
+  status?: ProjectStatus;
+  leadUserId?: string | null;
+  priority?: number;
   startDate?: string | null;
   targetDate?: string | null;
   labelIds?: string[];
 }
 
-// One entry in an initiative's feed: an event of the initiative itself (source
-// 'initiative') or the activity of a linked issue (source 'issue', carrying the
+// One entry in an project's feed: an event of the project itself (source
+// 'project') or the activity of a linked issue (source 'issue', carrying the
 // issue's id and identifier so the row can link to it).
-export interface InitiativeFeedItem {
+export interface ProjectFeedItem {
   id: string;
-  source: 'initiative' | 'issue';
+  source: 'project' | 'issue';
   kind: 'comment' | 'activity';
   actorUserId: string | null;
   actorName: string | null;
@@ -1537,8 +1540,8 @@ export interface InitiativeFeedItem {
   issueIdentifier: string | null;
 }
 
-export interface InitiativeFeedPage {
-  items: InitiativeFeedItem[];
+export interface ProjectFeedPage {
+  items: ProjectFeedItem[];
   nextCursor: FeedCursor | null;
 }
 
@@ -1550,13 +1553,13 @@ export interface NewCustomFieldInput {
   options?: string[];
 }
 
-// The project permission matrix (mirrors apps/api shared/permissions.ts): 13
+// The team permission matrix (mirrors apps/api shared/permissions.ts): 13
 // resources, each granting or denying 4 actions. A custom role carries one matrix.
 export type PermissionAction = 'create' | 'edit' | 'read' | 'delete';
 
 export type PermissionResource =
   | 'work_items'
-  | 'initiatives'
+  | 'projects'
   | 'dashboards'
   | 'views'
   | 'members_invite'
@@ -1576,7 +1579,7 @@ export type PermissionResource =
 export type ResourcePermissions = Record<PermissionAction, boolean>;
 export type Permissions = Record<PermissionResource, ResourcePermissions>;
 
-// A project's custom role: a named permission matrix that can be assigned to a
+// A team's custom role: a named permission matrix that can be assigned to a
 // member. `isDefault` marks the fallback role new members get; it cannot be deleted.
 export interface Role {
   id: string;
@@ -1593,7 +1596,7 @@ export interface PermissionCatalog {
   actions: PermissionAction[];
 }
 
-// Project membership: a user's access to a project and their role in it. New
+// Team membership: a user's access to a team and their role in it. New
 // members join through invites, not a direct add.
 export type MemberRole = 'owner' | 'member';
 
@@ -1603,11 +1606,11 @@ export interface MemberRow {
   email: string;
   image: string | null;
   role: MemberRole;
-  // The assigned custom role. null when the member uses the project's default
+  // The assigned custom role. null when the member uses the team's default
   // role; owners never use roles (both fields null).
   roleId: string | null;
   roleName: string | null;
-  // What this member does in the project, set by an owner. Empty string when unset.
+  // What this member does in the team, set by an owner. Empty string when unset.
   description: string;
   // True when this member is an AI agent's bot user. Its role and access are managed
   // on the AI Agents screen, so this list does not let you reassign or revoke it.
@@ -1617,7 +1620,7 @@ export interface MemberRow {
 
 export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 
-// An invite as shown to the owner managing a project's invites: carries the token
+// An invite as shown to the owner managing a team's invites: carries the token
 // so the owner can share the link, and who sent it.
 export interface InviteRow {
   id: string;
@@ -1636,12 +1639,12 @@ export interface InviteRow {
   invitedByEmail: string | null;
 }
 
-// An invite as shown to the invitee opening the link: enough project context to
-// decide, never the internal project id.
+// An invite as shown to the invitee opening the link: enough team context to
+// decide, never the internal team id.
 export interface InviteView {
   token: string;
-  projectKey: string;
-  projectName: string;
+  teamKey: string;
+  teamName: string;
   email: string;
   role: MemberRole;
   roleId: string | null;
@@ -1659,7 +1662,7 @@ function absolutizeAttachment(a: Attachment): Attachment {
   return { ...a, url: a.url.startsWith('http') ? a.url : `${API_URL}${a.url}` };
 }
 
-// Inbox notifications. Each row is enriched with the issue and project it points at
+// Inbox notifications. Each row is enriched with the issue and team it points at
 // so the list renders without extra calls.
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
 
@@ -1675,9 +1678,9 @@ export interface Notification {
   issueSeq: number;
   issueTitle: string;
   issueStateType: StateType;
-  projectId: string;
-  projectKey: string;
-  projectName: string;
+  teamId: string;
+  teamKey: string;
+  teamName: string;
 }
 
 export interface NotificationCursor {
@@ -1700,150 +1703,140 @@ export interface NotificationFilters {
 export type NotificationDeleteScope = 'all' | 'read' | 'read-completed';
 
 export const api = {
-  listProjects: (opts?: { permissions?: boolean }) =>
-    request<Project[]>(`/projects${opts?.permissions ? '?permissions=true' : ''}`),
-  createProject: (input: { key: string; name: string; description?: string; preset?: string }) =>
-    request<Project>('/projects', { method: 'POST', body: JSON.stringify(input) }),
-  copyProject: (
-    projectKey: string,
+  listTeams: (opts?: { permissions?: boolean }) =>
+    request<Team[]>(`/teams${opts?.permissions ? '?permissions=true' : ''}`),
+  createTeam: (input: { key: string; name: string; description?: string; preset?: string }) =>
+    request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
+  copyTeam: (
+    teamKey: string,
     input: {
       key: string;
       name: string;
       description?: string;
-      include?: Partial<Record<CopyProjectIncludeKey, boolean>>;
+      include?: Partial<Record<CopyTeamIncludeKey, boolean>>;
     },
   ) =>
-    request<Project>(`/projects/${projectKey}/copy`, {
+    request<Team>(`/teams/${teamKey}/copy`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  // Update a project's name/description. The key is immutable, so it is not sent.
-  updateProject: (projectKey: string, patch: { name?: string; description?: string }) =>
-    request<Project>(`/projects/${projectKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteProject: (projectKey: string) =>
-    request<void>(`/projects/${projectKey}`, { method: 'DELETE' }),
+  // Update a team's name/description. The key is immutable, so it is not sent.
+  updateTeam: (teamKey: string, patch: { name?: string; description?: string }) =>
+    request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteTeam: (teamKey: string) => request<void>(`/teams/${teamKey}`, { method: 'DELETE' }),
   // The board scaffold (no issues). The issues come from getBoardIssues.
-  getProject: (projectKey: string) => request<ProjectScaffold>(`/projects/${projectKey}`),
+  getTeam: (teamKey: string) => request<TeamScaffold>(`/teams/${teamKey}`),
   // The board's issues plus its change marker.
-  getBoardIssues: (projectKey: string) =>
-    request<BoardIssues>(`/projects/${projectKey}/issues/board`),
+  getBoardIssues: (teamKey: string) => request<BoardIssues>(`/teams/${teamKey}/issues/board`),
   // Cheap change marker for the board issues — polled for live refresh, refetch
   // getBoardIssues only when rev changes.
-  getBoardIssuesRev: (projectKey: string) =>
-    request<{ rev: string }>(`/projects/${projectKey}/issues/rev`),
+  getBoardIssuesRev: (teamKey: string) => request<{ rev: string }>(`/teams/${teamKey}/issues/rev`),
 
-  createColumn: (
-    projectKey: string,
-    input: { name: string; stateType: StateType; color?: string },
-  ) =>
-    request<Column>(`/projects/${projectKey}/columns`, {
+  createState: (teamKey: string, input: { name: string; stateType: StateType; color?: string }) =>
+    request<Column>(`/teams/${teamKey}/columns`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateColumn: (
-    projectKey: string,
-    columnId: string,
+  updateState: (
+    teamKey: string,
+    stateId: string,
     patch: { name?: string; stateType?: StateType; color?: string },
   ) =>
-    request<Column>(`/projects/${projectKey}/columns/${columnId}`, {
+    request<Column>(`/teams/${teamKey}/columns/${stateId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  reorderColumns: (projectKey: string, orderedIds: string[]) =>
-    request<Column[]>(`/projects/${projectKey}/columns/reorder`, {
+  reorderStates: (teamKey: string, orderedIds: string[]) =>
+    request<Column[]>(`/teams/${teamKey}/columns/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
-  deleteColumn: (
-    projectKey: string,
-    columnId: string,
-    body: { mode: 'move'; targetColumnId: string } | { mode: 'delete' },
+  deleteState: (
+    teamKey: string,
+    stateId: string,
+    body: { mode: 'move'; targetStateId: string } | { mode: 'delete' },
   ) =>
-    request<void>(`/projects/${projectKey}/columns/${columnId}`, {
+    request<void>(`/teams/${teamKey}/columns/${stateId}`, {
       method: 'DELETE',
       body: JSON.stringify(body),
     }),
 
   createIssueType: (
-    projectKey: string,
+    teamKey: string,
     input: { name: string; icon?: string; color?: string; isDefault?: boolean },
   ) =>
-    request<IssueType>(`/projects/${projectKey}/issue-types`, {
+    request<IssueType>(`/teams/${teamKey}/issue-types`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   updateIssueType: (
-    projectKey: string,
+    teamKey: string,
     typeId: string,
     patch: { name?: string; color?: string; isDefault?: boolean },
   ) =>
-    request<IssueType>(`/projects/${projectKey}/issue-types/${typeId}`, {
+    request<IssueType>(`/teams/${teamKey}/issue-types/${typeId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteIssueType: (projectKey: string, typeId: string) =>
-    request<void>(`/projects/${projectKey}/issue-types/${typeId}`, { method: 'DELETE' }),
+  deleteIssueType: (teamKey: string, typeId: string) =>
+    request<void>(`/teams/${teamKey}/issue-types/${typeId}`, { method: 'DELETE' }),
 
   createLabel: (
-    projectKey: string,
+    teamKey: string,
     input: { name: string; color?: string; groupId?: string | null },
   ) =>
-    request<Label>(`/projects/${projectKey}/labels`, {
+    request<Label>(`/teams/${teamKey}/labels`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   updateLabel: (
-    projectKey: string,
+    teamKey: string,
     labelId: string,
     patch: { name?: string; color?: string; groupId?: string | null },
   ) =>
-    request<Label>(`/projects/${projectKey}/labels/${labelId}`, {
+    request<Label>(`/teams/${teamKey}/labels/${labelId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteLabel: (projectKey: string, labelId: string) =>
-    request<void>(`/projects/${projectKey}/labels/${labelId}`, { method: 'DELETE' }),
+  deleteLabel: (teamKey: string, labelId: string) =>
+    request<void>(`/teams/${teamKey}/labels/${labelId}`, { method: 'DELETE' }),
 
-  createLabelGroup: (projectKey: string, input: { name: string; color?: string }) =>
-    request<LabelGroup>(`/projects/${projectKey}/label-groups`, {
+  createLabelGroup: (teamKey: string, input: { name: string; color?: string }) =>
+    request<LabelGroup>(`/teams/${teamKey}/label-groups`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateLabelGroup: (
-    projectKey: string,
-    groupId: string,
-    patch: { name?: string; color?: string },
-  ) =>
-    request<LabelGroup>(`/projects/${projectKey}/label-groups/${groupId}`, {
+  updateLabelGroup: (teamKey: string, groupId: string, patch: { name?: string; color?: string }) =>
+    request<LabelGroup>(`/teams/${teamKey}/label-groups/${groupId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteLabelGroup: (projectKey: string, groupId: string) =>
-    request<void>(`/projects/${projectKey}/label-groups/${groupId}`, { method: 'DELETE' }),
+  deleteLabelGroup: (teamKey: string, groupId: string) =>
+    request<void>(`/teams/${teamKey}/label-groups/${groupId}`, { method: 'DELETE' }),
 
-  listCustomFields: (projectKey: string, issueTypeId?: string) =>
+  listCustomFields: (teamKey: string, issueTypeId?: string) =>
     request<CustomField[]>(
-      `/projects/${projectKey}/custom-fields${issueTypeId != null ? `?issueTypeId=${issueTypeId}` : ''}`,
+      `/teams/${teamKey}/custom-fields${issueTypeId != null ? `?issueTypeId=${issueTypeId}` : ''}`,
     ),
-  createCustomField: (projectKey: string, input: NewCustomFieldInput) =>
-    request<CustomField>(`/projects/${projectKey}/custom-fields`, {
+  createCustomField: (teamKey: string, input: NewCustomFieldInput) =>
+    request<CustomField>(`/teams/${teamKey}/custom-fields`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   updateCustomField: (
-    projectKey: string,
+    teamKey: string,
     fieldId: string,
     patch: { name?: string; showInBody?: boolean },
   ) =>
-    request<CustomField>(`/projects/${projectKey}/custom-fields/${fieldId}`, {
+    request<CustomField>(`/teams/${teamKey}/custom-fields/${fieldId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteCustomField: (projectKey: string, fieldId: string) =>
-    request<void>(`/projects/${projectKey}/custom-fields/${fieldId}`, { method: 'DELETE' }),
+  deleteCustomField: (teamKey: string, fieldId: string) =>
+    request<void>(`/teams/${teamKey}/custom-fields/${fieldId}`, { method: 'DELETE' }),
 
-  createIssue: (projectKey: string, input: NewIssueInput) =>
-    request<Issue>(`/projects/${projectKey}/issues`, {
+  createIssue: (teamKey: string, input: NewIssueInput) =>
+    request<Issue>(`/teams/${teamKey}/issues`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -1861,33 +1854,33 @@ export const api = {
   getSharedView: (token: string) => request<SharedViewBundle>(`/share/view/${token}`),
   getSharedViewIssue: (token: string, issueId: string) =>
     request<SharedIssueBundle>(`/share/view/${token}/issues/${issueId}`),
-  // Resolve an issue by its project-scoped number (the human "42" in the URL).
-  getIssueBySeq: (projectKey: string, seq: number) =>
-    request<IssueDetail>(`/projects/${projectKey}/issues/${seq}`),
+  // Resolve an issue by its team-scoped number (the human "42" in the URL).
+  getIssueBySeq: (teamKey: string, seq: number) =>
+    request<IssueDetail>(`/teams/${teamKey}/issues/${seq}`),
   // Cheap change marker for an issue's detail + feed — polled for live refresh.
   getIssueRev: (id: string) => request<{ rev: string }>(`/issues/${id}/rev`),
   updateIssue: (id: string, patch: IssuePatch) =>
     request<Issue>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteIssue: (id: string) => request<void>(`/issues/${id}`, { method: 'DELETE' }),
   // Board multi-select: apply one change to many issues in a single request. The
-  // server filters the ids to the project and refetching happens once.
-  bulkUpdateIssues: (projectKey: string, ids: string[], patch: BulkIssuePatch) =>
-    request<{ updated: number }>(`/projects/${projectKey}/issues/bulk`, {
+  // server filters the ids to the team and refetching happens once.
+  bulkUpdateIssues: (teamKey: string, ids: string[], patch: BulkIssuePatch) =>
+    request<{ updated: number }>(`/teams/${teamKey}/issues/bulk`, {
       method: 'PATCH',
       body: JSON.stringify({ ids, patch }),
     }),
-  bulkAddLabels: (projectKey: string, ids: string[], add: string[]) =>
-    request<{ updated: number }>(`/projects/${projectKey}/issues/bulk/labels`, {
+  bulkAddLabels: (teamKey: string, ids: string[], add: string[]) =>
+    request<{ updated: number }>(`/teams/${teamKey}/issues/bulk/labels`, {
       method: 'POST',
       body: JSON.stringify({ ids, add }),
     }),
-  bulkArchiveIssues: (projectKey: string, ids: string[]) =>
-    request<{ archived: number }>(`/projects/${projectKey}/issues/bulk/archive`, {
+  bulkArchiveIssues: (teamKey: string, ids: string[]) =>
+    request<{ archived: number }>(`/teams/${teamKey}/issues/bulk/archive`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
-  bulkDeleteIssues: (projectKey: string, ids: string[]) =>
-    request<{ deleted: number }>(`/projects/${projectKey}/issues/bulk/delete`, {
+  bulkDeleteIssues: (teamKey: string, ids: string[]) =>
+    request<{ deleted: number }>(`/teams/${teamKey}/issues/bulk/delete`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
@@ -1895,15 +1888,14 @@ export const api = {
   // back. The board excludes archived issues; the archive settings section lists them.
   archiveIssue: (id: string) => request<Issue>(`/issues/${id}/archive`, { method: 'POST' }),
   restoreIssue: (id: string) => request<Issue>(`/issues/${id}/restore`, { method: 'POST' }),
-  listArchivedIssues: (projectKey: string) =>
-    request<Issue[]>(`/projects/${projectKey}/issues/archived`),
+  listArchivedIssues: (teamKey: string) => request<Issue[]>(`/teams/${teamKey}/issues/archived`),
   // Server-side text search for the command palette. Always returns all matches,
   // archived included (each hit carries an `archived` flag).
-  searchIssues: (projectKey: string, params: { q?: string; limit?: number }) => {
+  searchIssues: (teamKey: string, params: { q?: string; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set('q', params.q);
     if (params.limit != null) qs.set('limit', String(params.limit));
-    return request<IssueSearchHit[]>(`/projects/${projectKey}/issues/search?${qs.toString()}`);
+    return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
   setFieldValue: (issueId: string, fieldId: string, input: IssueFieldValueInput) =>
     request<{ ok: boolean }>(`/issues/${issueId}/fields/${fieldId}`, {
@@ -1954,9 +1946,9 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  // Initiatives — collection ops take projectKey; ops on one initiative take its
-  // own id and hit /initiatives/:id (like issues).
-  listInitiatives: (projectKey: string, params: InitiativeListParams = {}) => {
+  // Projects — collection ops take teamKey; ops on one project take its
+  // own id and hit /projects/:id (like issues).
+  listProjects: (teamKey: string, params: ProjectListParams = {}) => {
     const q = new URLSearchParams();
     if (params.statuses && params.statuses.length) q.set('status', params.statuses.join(','));
     if (params.search) q.set('search', params.search);
@@ -1965,47 +1957,45 @@ export const api = {
     if (params.page) q.set('page', String(params.page));
     if (params.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString();
-    return request<InitiativePage>(`/projects/${projectKey}/initiatives${qs ? `?${qs}` : ''}`);
+    return request<ProjectPage>(`/teams/${teamKey}/projects${qs ? `?${qs}` : ''}`);
   },
-  initiativeCounts: (projectKey: string) =>
-    request<InitiativeCounts>(`/projects/${projectKey}/initiatives/counts`),
-  getInitiative: (id: string) => request<Initiative>(`/initiatives/${id}`),
-  createInitiative: (projectKey: string, input: NewInitiativeInput) =>
-    request<Initiative>(`/projects/${projectKey}/initiatives`, {
+  projectCounts: (teamKey: string) => request<ProjectCounts>(`/teams/${teamKey}/projects/counts`),
+  getProject: (id: string) => request<Project>(`/projects/${id}`),
+  createProject: (teamKey: string, input: NewProjectInput) =>
+    request<Project>(`/teams/${teamKey}/projects`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateInitiative: (id: string, patch: InitiativePatch) =>
-    request<Initiative>(`/initiatives/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteInitiative: (id: string) => request<void>(`/initiatives/${id}`, { method: 'DELETE' }),
-  // Cheap change marker for an initiative's detail + feed — polled for live refresh.
-  getInitiativeRev: (id: string) => request<{ rev: string }>(`/initiatives/${id}/rev`),
-  listInitiativeFeed: (id: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
+  updateProject: (id: string, patch: ProjectPatch) =>
+    request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+  // Cheap change marker for an project's detail + feed — polled for live refresh.
+  getProjectRev: (id: string) => request<{ rev: string }>(`/projects/${id}/rev`),
+  listProjectFeed: (id: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.limit) q.set('limit', String(params.limit));
     if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
     const qs = q.toString();
-    return request<InitiativeFeedPage>(`/initiatives/${id}/feed${qs ? `?${qs}` : ''}`);
+    return request<ProjectFeedPage>(`/projects/${id}/feed${qs ? `?${qs}` : ''}`);
   },
 
-  listViews: (projectKey: string) => request<View[]>(`/projects/${projectKey}/views`),
-  createView: (projectKey: string, input: NewViewInput) =>
-    request<View>(`/projects/${projectKey}/views`, { method: 'POST', body: JSON.stringify(input) }),
+  listViews: (teamKey: string) => request<View[]>(`/teams/${teamKey}/views`),
+  createView: (teamKey: string, input: NewViewInput) =>
+    request<View>(`/teams/${teamKey}/views`, { method: 'POST', body: JSON.stringify(input) }),
   updateView: (viewId: string, patch: ViewPatch) =>
     request<View>(`/views/${viewId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteView: (viewId: string) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
-  reorderViews: (projectKey: string, orderedIds: string[]) =>
-    request<View[]>(`/projects/${projectKey}/views/reorder`, {
+  reorderViews: (teamKey: string, orderedIds: string[]) =>
+    request<View[]>(`/teams/${teamKey}/views/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
 
-  // Dashboards — same CRUD shape as views: collection ops take projectKey, ops on
+  // Dashboards — same CRUD shape as views: collection ops take teamKey, ops on
   // a single dashboard take its own id and hit /dashboards/:id.
-  listDashboards: (projectKey: string) =>
-    request<Dashboard[]>(`/projects/${projectKey}/dashboards`),
-  createDashboard: (projectKey: string, input: NewDashboardInput) =>
-    request<Dashboard>(`/projects/${projectKey}/dashboards`, {
+  listDashboards: (teamKey: string) => request<Dashboard[]>(`/teams/${teamKey}/dashboards`),
+  createDashboard: (teamKey: string, input: NewDashboardInput) =>
+    request<Dashboard>(`/teams/${teamKey}/dashboards`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -2016,51 +2006,48 @@ export const api = {
     }),
   deleteDashboard: (dashboardId: string) =>
     request<void>(`/dashboards/${dashboardId}`, { method: 'DELETE' }),
-  reorderDashboards: (projectKey: string, orderedIds: string[]) =>
-    request<Dashboard[]>(`/projects/${projectKey}/dashboards/reorder`, {
+  reorderDashboards: (teamKey: string, orderedIds: string[]) =>
+    request<Dashboard[]>(`/teams/${teamKey}/dashboards/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
 
-  // Note boards — all ops are project-scoped (a personal board is filtered to its
-  // owner server-side), so board ops take projectKey plus the board id. The list
+  // Note boards — all ops are team-scoped (a personal board is filtered to its
+  // owner server-side), so board ops take teamKey plus the board id. The list
   // is paged and searchable (switcher); a single board carries its canvas.
-  listNoteBoards: (projectKey: string, params: NoteBoardListParams = {}) => {
+  listNoteBoards: (teamKey: string, params: NoteBoardListParams = {}) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set('q', params.q);
     if (params.limit != null) qs.set('limit', String(params.limit));
     if (params.offset != null) qs.set('offset', String(params.offset));
     const suffix = qs.toString() ? `?${qs}` : '';
-    return request<NoteBoardSummary[]>(`/projects/${projectKey}/note-boards${suffix}`);
+    return request<NoteBoardSummary[]>(`/teams/${teamKey}/note-boards${suffix}`);
   },
-  getNoteBoard: (projectKey: string, boardId: string) =>
-    request<NoteBoard>(`/projects/${projectKey}/note-boards/${boardId}`),
-  createNoteBoard: (projectKey: string, input: NewNoteBoardInput) =>
-    request<NoteBoard>(`/projects/${projectKey}/note-boards`, {
+  getNoteBoard: (teamKey: string, boardId: string) =>
+    request<NoteBoard>(`/teams/${teamKey}/note-boards/${boardId}`),
+  createNoteBoard: (teamKey: string, input: NewNoteBoardInput) =>
+    request<NoteBoard>(`/teams/${teamKey}/note-boards`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateNoteBoard: (projectKey: string, boardId: string, patch: NoteBoardPatch) =>
-    request<NoteBoard>(`/projects/${projectKey}/note-boards/${boardId}`, {
+  updateNoteBoard: (teamKey: string, boardId: string, patch: NoteBoardPatch) =>
+    request<NoteBoard>(`/teams/${teamKey}/note-boards/${boardId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteNoteBoard: (projectKey: string, boardId: string) =>
-    request<void>(`/projects/${projectKey}/note-boards/${boardId}`, { method: 'DELETE' }),
+  deleteNoteBoard: (teamKey: string, boardId: string) =>
+    request<void>(`/teams/${teamKey}/note-boards/${boardId}`, { method: 'DELETE' }),
 
-  // Analytics — read-only project metrics behind the dashboard widgets.
-  getStats: (projectKey: string) =>
-    request<AnalyticsStats>(`/projects/${projectKey}/analytics/stats`),
-  getBreakdown: (projectKey: string, by: BreakdownBy) =>
-    request<BreakdownItem[]>(`/projects/${projectKey}/analytics/breakdown?by=${by}`),
-  getPulse: (projectKey: string, unit: PulseUnit, columns: number) =>
-    request<PulseBucket[]>(
-      `/projects/${projectKey}/analytics/pulse?unit=${unit}&columns=${columns}`,
-    ),
-  getThroughput: (projectKey: string, weeks = 12) =>
-    request<ThroughputWeek[]>(`/projects/${projectKey}/analytics/throughput?weeks=${weeks}`),
+  // Analytics — read-only team metrics behind the dashboard widgets.
+  getStats: (teamKey: string) => request<AnalyticsStats>(`/teams/${teamKey}/analytics/stats`),
+  getBreakdown: (teamKey: string, by: BreakdownBy) =>
+    request<BreakdownItem[]>(`/teams/${teamKey}/analytics/breakdown?by=${by}`),
+  getPulse: (teamKey: string, unit: PulseUnit, columns: number) =>
+    request<PulseBucket[]>(`/teams/${teamKey}/analytics/pulse?unit=${unit}&columns=${columns}`),
+  getThroughput: (teamKey: string, weeks = 12) =>
+    request<ThroughputWeek[]>(`/teams/${teamKey}/analytics/throughput?weeks=${weeks}`),
   listActivity: (
-    projectKey: string,
+    teamKey: string,
     params: {
       cursor?: FeedCursor | null;
       limit?: number;
@@ -2076,287 +2063,270 @@ export const api = {
     if (params.action) q.set('action', params.action);
     if (params.issueIds) q.set('issueIds', params.issueIds.join(','));
     const qs = q.toString();
-    return request<ActivityPage>(`/projects/${projectKey}/analytics/activity${qs ? `?${qs}` : ''}`);
+    return request<ActivityPage>(`/teams/${teamKey}/analytics/activity${qs ? `?${qs}` : ''}`);
   },
-  getAgentRuns: (projectKey: string, params: { status?: string | null; limit?: number } = {}) => {
+  getAgentRuns: (teamKey: string, params: { status?: string | null; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.status) q.set('status', params.status);
     if (params.limit) q.set('limit', String(params.limit));
     const qs = q.toString();
     return request<AgentRunFeedItem[]>(
-      `/projects/${projectKey}/analytics/agent-runs${qs ? `?${qs}` : ''}`,
+      `/teams/${teamKey}/analytics/agent-runs${qs ? `?${qs}` : ''}`,
     );
   },
-  getAgentRunStats: (projectKey: string, days = 30) =>
-    request<AgentRunStats>(`/projects/${projectKey}/analytics/agent-run-stats?days=${days}`),
-  getWebhookStats: (projectKey: string, days = 30) =>
-    request<WebhookStats>(`/projects/${projectKey}/analytics/webhook-stats?days=${days}`),
-  getAgentWorkload: (projectKey: string) =>
-    request<AgentWorkloadItem[]>(`/projects/${projectKey}/analytics/agent-workload`),
+  getAgentRunStats: (teamKey: string, days = 30) =>
+    request<AgentRunStats>(`/teams/${teamKey}/analytics/agent-run-stats?days=${days}`),
+  getWebhookStats: (teamKey: string, days = 30) =>
+    request<WebhookStats>(`/teams/${teamKey}/analytics/webhook-stats?days=${days}`),
+  getAgentWorkload: (teamKey: string) =>
+    request<AgentWorkloadItem[]>(`/teams/${teamKey}/analytics/agent-workload`),
 
-  // Members: list who is on a project, and revoke access (an owner removes
-  // anyone; a member removes only themselves — leaving the project).
-  listMembers: (projectKey: string) => request<MemberRow[]>(`/projects/${projectKey}/members`),
-  removeMember: (projectKey: string, userId: string) =>
-    request<void>(`/projects/${projectKey}/members/${encodeURIComponent(userId)}`, {
+  // Members: list who is on a team, and revoke access (an owner removes
+  // anyone; a member removes only themselves — leaving the team).
+  listMembers: (teamKey: string) => request<MemberRow[]>(`/teams/${teamKey}/members`),
+  removeMember: (teamKey: string, userId: string) =>
+    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
     }),
   // Set a member's role (owner-only). role 'owner' promotes to owner; role
   // 'member' assigns a custom role via roleId (null resets to the default role).
   // The last owner cannot be demoted — the API rejects it.
   setMemberRole: (
-    projectKey: string,
+    teamKey: string,
     userId: string,
     input: { role: MemberRole; roleId?: string | null },
   ) =>
-    request<void>(`/projects/${projectKey}/members/${encodeURIComponent(userId)}`, {
+    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
-  // Set what a member does in the project (owner-only). Empty string clears it.
-  setMemberDescription: (projectKey: string, userId: string, description: string) =>
-    request<void>(`/projects/${projectKey}/members/${encodeURIComponent(userId)}/description`, {
+  // Set what a member does in the team (owner-only). Empty string clears it.
+  setMemberDescription: (teamKey: string, userId: string, description: string) =>
+    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}/description`, {
       method: 'PATCH',
       body: JSON.stringify({ description }),
     }),
 
-  // AI agents: a project's bot users and their configuration. The plaintext key
+  // AI agents: a team's bot users and their configuration. The plaintext key
   // is returned only by create and regenerate-key, so those responses carry it
   // alongside the agent; it is never part of a list/read.
-  listAiAgents: (projectKey: string) => request<AiAgent[]>(`/projects/${projectKey}/ai-agents`),
-  listAgentTools: (projectKey: string) =>
-    request<AgentTool[]>(`/projects/${projectKey}/ai-agents/tools`),
-  createAiAgent: (projectKey: string, input: NewAiAgentInput) =>
-    request<{ agent: AiAgent; apiKey: string | null }>(`/projects/${projectKey}/ai-agents`, {
+  listAiAgents: (teamKey: string) => request<AiAgent[]>(`/teams/${teamKey}/ai-agents`),
+  listAgentTools: (teamKey: string) => request<AgentTool[]>(`/teams/${teamKey}/ai-agents/tools`),
+  createAiAgent: (teamKey: string, input: NewAiAgentInput) =>
+    request<{ agent: AiAgent; apiKey: string | null }>(`/teams/${teamKey}/ai-agents`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateAiAgent: (projectKey: string, agentId: string, patch: AiAgentPatch) =>
-    request<AiAgent>(`/projects/${projectKey}/ai-agents/${agentId}`, {
+  updateAiAgent: (teamKey: string, agentId: string, patch: AiAgentPatch) =>
+    request<AiAgent>(`/teams/${teamKey}/ai-agents/${agentId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  regenerateAiAgentKey: (projectKey: string, agentId: string) =>
-    request<{ apiKey: string }>(`/projects/${projectKey}/ai-agents/${agentId}/regenerate-key`, {
+  regenerateAiAgentKey: (teamKey: string, agentId: string) =>
+    request<{ apiKey: string }>(`/teams/${teamKey}/ai-agents/${agentId}/regenerate-key`, {
       method: 'POST',
     }),
-  deleteAiAgent: (projectKey: string, agentId: string) =>
-    request<void>(`/projects/${projectKey}/ai-agents/${agentId}`, { method: 'DELETE' }),
-  listAgentRuns: (projectKey: string, agentId: string, before?: string) =>
+  deleteAiAgent: (teamKey: string, agentId: string) =>
+    request<void>(`/teams/${teamKey}/ai-agents/${agentId}`, { method: 'DELETE' }),
+  listAgentRuns: (teamKey: string, agentId: string, before?: string) =>
     request<AgentRunPage>(
-      `/projects/${projectKey}/ai-agents/${agentId}/runs?limit=25${before ? `&before=${before}` : ''}`,
+      `/teams/${teamKey}/ai-agents/${agentId}/runs?limit=25${before ? `&before=${before}` : ''}`,
     ),
-  listAgentSchedules: (projectKey: string) =>
-    request<AgentSchedule[]>(`/projects/${projectKey}/agent-schedules`),
-  createAgentSchedule: (projectKey: string, input: AgentScheduleInput) =>
-    request<AgentSchedule>(`/projects/${projectKey}/agent-schedules`, {
+  listAgentSchedules: (teamKey: string) =>
+    request<AgentSchedule[]>(`/teams/${teamKey}/agent-schedules`),
+  createAgentSchedule: (teamKey: string, input: AgentScheduleInput) =>
+    request<AgentSchedule>(`/teams/${teamKey}/agent-schedules`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateAgentSchedule: (
-    projectKey: string,
-    scheduleId: string,
-    patch: Partial<AgentScheduleInput>,
-  ) =>
-    request<AgentSchedule>(`/projects/${projectKey}/agent-schedules/${scheduleId}`, {
+  updateAgentSchedule: (teamKey: string, scheduleId: string, patch: Partial<AgentScheduleInput>) =>
+    request<AgentSchedule>(`/teams/${teamKey}/agent-schedules/${scheduleId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteAgentSchedule: (projectKey: string, scheduleId: string) =>
-    request<void>(`/projects/${projectKey}/agent-schedules/${scheduleId}`, { method: 'DELETE' }),
-  runAgentSchedule: (projectKey: string, scheduleId: string) =>
-    request<{ runId: string }>(`/projects/${projectKey}/agent-schedules/${scheduleId}/run`, {
+  deleteAgentSchedule: (teamKey: string, scheduleId: string) =>
+    request<void>(`/teams/${teamKey}/agent-schedules/${scheduleId}`, { method: 'DELETE' }),
+  runAgentSchedule: (teamKey: string, scheduleId: string) =>
+    request<{ runId: string }>(`/teams/${teamKey}/agent-schedules/${scheduleId}/run`, {
       method: 'POST',
     }),
-  listAgentScheduleRuns: (projectKey: string, scheduleId: string) =>
-    request<AgentScheduleRun[]>(`/projects/${projectKey}/agent-schedules/${scheduleId}/runs`),
+  listAgentScheduleRuns: (teamKey: string, scheduleId: string) =>
+    request<AgentScheduleRun[]>(`/teams/${teamKey}/agent-schedules/${scheduleId}/runs`),
   // The caller's own chat threads with an agent, newest first.
-  listAiAgentThreads: (projectKey: string, agentId: string) =>
-    request<AiChatThread[]>(`/projects/${projectKey}/ai-agents/${agentId}/threads`),
+  listAiAgentThreads: (teamKey: string, agentId: string) =>
+    request<AiChatThread[]>(`/teams/${teamKey}/ai-agents/${agentId}/threads`),
   // The transcript of one chat thread, to restore the conversation.
-  getAiAgentThreadMessages: (projectKey: string, agentId: string, threadId: string, page: number) =>
+  getAiAgentThreadMessages: (teamKey: string, agentId: string, threadId: string, page: number) =>
     request<AiChatMessagePage>(
-      `/projects/${projectKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}/messages?page=${page}`,
+      `/teams/${teamKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}/messages?page=${page}`,
     ),
-  deleteAiAgentThread: (projectKey: string, agentId: string, threadId: string) =>
+  deleteAiAgentThread: (teamKey: string, agentId: string, threadId: string) =>
     request<void>(
-      `/projects/${projectKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}`,
+      `/teams/${teamKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}`,
       { method: 'DELETE' },
     ),
 
   // Integrations: stored credentials for LLM providers and tool integrations. The
   // secret is write-only — responses carry only a redacted view.
-  listIntegrationCatalog: (projectKey: string) =>
-    request<IntegrationMeta[]>(`/projects/${projectKey}/integrations/catalog`),
-  listIntegrationModels: (projectKey: string, provider: string) =>
+  listIntegrationCatalog: (teamKey: string) =>
+    request<IntegrationMeta[]>(`/teams/${teamKey}/integrations/catalog`),
+  listIntegrationModels: (teamKey: string, provider: string) =>
     request<ProviderModel[]>(
-      `/projects/${projectKey}/integrations/models/${encodeURIComponent(provider)}`,
+      `/teams/${teamKey}/integrations/models/${encodeURIComponent(provider)}`,
     ),
-  listCredentials: (projectKey: string) =>
-    request<IntegrationCredential[]>(`/projects/${projectKey}/integrations`),
-  createCredential: (projectKey: string, input: NewCredentialInput) =>
-    request<IntegrationCredential>(`/projects/${projectKey}/integrations`, {
+  listCredentials: (teamKey: string) =>
+    request<IntegrationCredential[]>(`/teams/${teamKey}/integrations`),
+  createCredential: (teamKey: string, input: NewCredentialInput) =>
+    request<IntegrationCredential>(`/teams/${teamKey}/integrations`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateCredential: (projectKey: string, credentialId: string, patch: CredentialPatch) =>
-    request<IntegrationCredential>(`/projects/${projectKey}/integrations/${credentialId}`, {
+  updateCredential: (teamKey: string, credentialId: string, patch: CredentialPatch) =>
+    request<IntegrationCredential>(`/teams/${teamKey}/integrations/${credentialId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteCredential: (projectKey: string, credentialId: string) =>
-    request<void>(`/projects/${projectKey}/integrations/${credentialId}`, { method: 'DELETE' }),
+  deleteCredential: (teamKey: string, credentialId: string) =>
+    request<void>(`/teams/${teamKey}/integrations/${credentialId}`, { method: 'DELETE' }),
 
-  // Agent skills: the project skill library and the skills enabled on an agent.
-  listSkills: (projectKey: string) => request<AgentSkill[]>(`/projects/${projectKey}/agent-skills`),
-  getSkillMarkdown: (projectKey: string, skillId: string) =>
-    request<{ markdown: string }>(`/projects/${projectKey}/agent-skills/${skillId}/markdown`),
-  getSkillReferenceContent: (projectKey: string, skillId: string, path: string) =>
+  // Agent skills: the team skill library and the skills enabled on an agent.
+  listSkills: (teamKey: string) => request<AgentSkill[]>(`/teams/${teamKey}/agent-skills`),
+  getSkillMarkdown: (teamKey: string, skillId: string) =>
+    request<{ markdown: string }>(`/teams/${teamKey}/agent-skills/${skillId}/markdown`),
+  getSkillReferenceContent: (teamKey: string, skillId: string, path: string) =>
     request<{ content: string }>(
-      `/projects/${projectKey}/agent-skills/${skillId}/references/content?path=${encodeURIComponent(path)}`,
+      `/teams/${teamKey}/agent-skills/${skillId}/references/content?path=${encodeURIComponent(path)}`,
     ),
-  createSkill: (projectKey: string, input: NewSkillInput) =>
-    request<AgentSkill>(`/projects/${projectKey}/agent-skills`, {
+  createSkill: (teamKey: string, input: NewSkillInput) =>
+    request<AgentSkill>(`/teams/${teamKey}/agent-skills`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  discoverGithubSkills: (projectKey: string, url: string) =>
-    request<GithubSkillCandidate[]>(`/projects/${projectKey}/agent-skills/github/discover`, {
+  discoverGithubSkills: (teamKey: string, url: string) =>
+    request<GithubSkillCandidate[]>(`/teams/${teamKey}/agent-skills/github/discover`, {
       method: 'POST',
       body: JSON.stringify({ url }),
     }),
-  updateSkill: (projectKey: string, skillId: string, patch: SkillPatch) =>
-    request<AgentSkill>(`/projects/${projectKey}/agent-skills/${skillId}`, {
+  updateSkill: (teamKey: string, skillId: string, patch: SkillPatch) =>
+    request<AgentSkill>(`/teams/${teamKey}/agent-skills/${skillId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteSkill: (projectKey: string, skillId: string) =>
-    request<void>(`/projects/${projectKey}/agent-skills/${skillId}`, { method: 'DELETE' }),
+  deleteSkill: (teamKey: string, skillId: string) =>
+    request<void>(`/teams/${teamKey}/agent-skills/${skillId}`, { method: 'DELETE' }),
   // Multipart upload for a skill reference — see uploadAttachment for why request()
   // cannot be used.
-  addSkillReference: async (
-    projectKey: string,
-    skillId: string,
-    file: File,
-  ): Promise<AgentSkill> => {
+  addSkillReference: async (teamKey: string, skillId: string, file: File): Promise<AgentSkill> => {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(
-      `${API_URL}/projects/${projectKey}/agent-skills/${skillId}/references`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      },
-    );
+    const res = await fetch(`${API_URL}/teams/${teamKey}/agent-skills/${skillId}/references`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new ApiError(res.status, body?.error ?? `${res.status} ${res.statusText}`);
     }
     return res.json();
   },
-  updateSkillReferenceContent: (
-    projectKey: string,
-    skillId: string,
-    path: string,
-    content: string,
-  ) =>
-    request<AgentSkill>(`/projects/${projectKey}/agent-skills/${skillId}/references/content`, {
+  updateSkillReferenceContent: (teamKey: string, skillId: string, path: string, content: string) =>
+    request<AgentSkill>(`/teams/${teamKey}/agent-skills/${skillId}/references/content`, {
       method: 'PATCH',
       body: JSON.stringify({ path, content }),
     }),
-  deleteSkillReference: (projectKey: string, skillId: string, path: string) =>
+  deleteSkillReference: (teamKey: string, skillId: string, path: string) =>
     request<AgentSkill>(
-      `/projects/${projectKey}/agent-skills/${skillId}/references?path=${encodeURIComponent(path)}`,
+      `/teams/${teamKey}/agent-skills/${skillId}/references?path=${encodeURIComponent(path)}`,
       { method: 'DELETE' },
     ),
-  listAgentSkills: (projectKey: string, agentId: string) =>
-    request<AgentSkill[]>(`/projects/${projectKey}/ai-agents/${agentId}/skills`),
-  setAgentSkills: (projectKey: string, agentId: string, skillIds: string[]) =>
-    request<AgentSkill[]>(`/projects/${projectKey}/ai-agents/${agentId}/skills`, {
+  listAgentSkills: (teamKey: string, agentId: string) =>
+    request<AgentSkill[]>(`/teams/${teamKey}/ai-agents/${agentId}/skills`),
+  setAgentSkills: (teamKey: string, agentId: string, skillIds: string[]) =>
+    request<AgentSkill[]>(`/teams/${teamKey}/ai-agents/${agentId}/skills`, {
       method: 'PUT',
       body: JSON.stringify({ skillIds }),
     }),
 
-  // Configured tools: a project's tools bound to a credential, and the tools enabled
+  // Configured tools: a team's tools bound to a credential, and the tools enabled
   // on one agent. The tool catalog itself comes from the integrations catalog.
-  listConfiguredTools: (projectKey: string) =>
-    request<ConfiguredTool[]>(`/projects/${projectKey}/agent-tools`),
-  createConfiguredTool: (projectKey: string, input: NewConfiguredToolInput) =>
-    request<ConfiguredTool>(`/projects/${projectKey}/agent-tools`, {
+  listConfiguredTools: (teamKey: string) =>
+    request<ConfiguredTool[]>(`/teams/${teamKey}/agent-tools`),
+  createConfiguredTool: (teamKey: string, input: NewConfiguredToolInput) =>
+    request<ConfiguredTool>(`/teams/${teamKey}/agent-tools`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  deleteConfiguredTool: (projectKey: string, agentToolId: string) =>
-    request<void>(`/projects/${projectKey}/agent-tools/${agentToolId}`, { method: 'DELETE' }),
-  listAgentToolLinks: (projectKey: string, agentId: string) =>
-    request<ConfiguredTool[]>(`/projects/${projectKey}/ai-agents/${agentId}/tool-configs`),
-  setAgentTools: (projectKey: string, agentId: string, agentToolIds: string[]) =>
-    request<ConfiguredTool[]>(`/projects/${projectKey}/ai-agents/${agentId}/tool-configs`, {
+  deleteConfiguredTool: (teamKey: string, agentToolId: string) =>
+    request<void>(`/teams/${teamKey}/agent-tools/${agentToolId}`, { method: 'DELETE' }),
+  listAgentToolLinks: (teamKey: string, agentId: string) =>
+    request<ConfiguredTool[]>(`/teams/${teamKey}/ai-agents/${agentId}/tool-configs`),
+  setAgentTools: (teamKey: string, agentId: string, agentToolIds: string[]) =>
+    request<ConfiguredTool[]>(`/teams/${teamKey}/ai-agents/${agentId}/tool-configs`, {
       method: 'PUT',
       body: JSON.stringify({ agentToolIds }),
     }),
 
-  // Roles: a project's custom roles and the permission catalog behind the role
+  // Roles: a team's custom roles and the permission catalog behind the role
   // editor. Any member can list; create/update/delete are owner-only on the API.
   getPermissionCatalog: () => request<PermissionCatalog>('/permission-catalog'),
-  listRoles: (projectKey: string) => request<Role[]>(`/projects/${projectKey}/roles`),
-  createRole: (projectKey: string, input: { name: string; permissions: Permissions }) =>
-    request<Role>(`/projects/${projectKey}/roles`, { method: 'POST', body: JSON.stringify(input) }),
+  listRoles: (teamKey: string) => request<Role[]>(`/teams/${teamKey}/roles`),
+  createRole: (teamKey: string, input: { name: string; permissions: Permissions }) =>
+    request<Role>(`/teams/${teamKey}/roles`, { method: 'POST', body: JSON.stringify(input) }),
   updateRole: (
-    projectKey: string,
+    teamKey: string,
     roleId: string,
     patch: { name?: string; permissions?: Permissions },
   ) =>
-    request<Role>(`/projects/${projectKey}/roles/${roleId}`, {
+    request<Role>(`/teams/${teamKey}/roles/${roleId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteRole: (projectKey: string, roleId: string) =>
-    request<void>(`/projects/${projectKey}/roles/${roleId}`, { method: 'DELETE' }),
+  deleteRole: (teamKey: string, roleId: string) =>
+    request<void>(`/teams/${teamKey}/roles/${roleId}`, { method: 'DELETE' }),
 
-  // Invites — owner side: create, list, and revoke a project's invite links.
-  listInvites: (projectKey: string) => request<InviteRow[]>(`/projects/${projectKey}/invites`),
+  // Invites — owner side: create, list, and revoke a team's invite links.
+  listInvites: (teamKey: string) => request<InviteRow[]>(`/teams/${teamKey}/invites`),
   createInvite: (
-    projectKey: string,
+    teamKey: string,
     input: { email: string; role: MemberRole; roleId?: string | null },
   ) =>
-    request<InviteRow>(`/projects/${projectKey}/invites`, {
+    request<InviteRow>(`/teams/${teamKey}/invites`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  deleteInvite: (projectKey: string, inviteId: string) =>
-    request<void>(`/projects/${projectKey}/invites/${inviteId}`, { method: 'DELETE' }),
+  deleteInvite: (teamKey: string, inviteId: string) =>
+    request<void>(`/teams/${teamKey}/invites/${inviteId}`, { method: 'DELETE' }),
 
   // Invites — invitee side: open a link by token, then accept or reject it. The
   // session email must match the invite. Accept returns where to go next.
   getInvite: (token: string) => request<InviteView>(`/invites/${encodeURIComponent(token)}`),
   acceptInvite: (token: string) =>
-    request<{ projectKey: string; projectName: string; role: MemberRole }>(
+    request<{ teamKey: string; teamName: string; role: MemberRole }>(
       `/invites/${encodeURIComponent(token)}/accept`,
       { method: 'POST' },
     ),
   rejectInvite: (token: string) =>
     request<void>(`/invites/${encodeURIComponent(token)}/reject`, { method: 'POST' }),
 
-  listActions: (projectKey: string) => request<ActionDef[]>(`/projects/${projectKey}/actions`),
-  createAction: (projectKey: string, input: NewActionInput) =>
-    request<ActionDef>(`/projects/${projectKey}/actions`, {
+  listActions: (teamKey: string) => request<ActionDef[]>(`/teams/${teamKey}/actions`),
+  createAction: (teamKey: string, input: NewActionInput) =>
+    request<ActionDef>(`/teams/${teamKey}/actions`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   updateAction: (actionId: string, patch: ActionPatch) =>
     request<ActionDef>(`/actions/${actionId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteAction: (actionId: string) => request<void>(`/actions/${actionId}`, { method: 'DELETE' }),
-  reorderActions: (projectKey: string, orderedIds: string[]) =>
-    request<ActionDef[]>(`/projects/${projectKey}/actions/reorder`, {
+  reorderActions: (teamKey: string, orderedIds: string[]) =>
+    request<ActionDef[]>(`/teams/${teamKey}/actions/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
 
-  listWebhooks: (projectKey: string) => request<Webhook[]>(`/projects/${projectKey}/webhooks`),
-  createWebhook: (projectKey: string, input: NewWebhookInput) =>
-    request<Webhook>(`/projects/${projectKey}/webhooks`, {
+  listWebhooks: (teamKey: string) => request<Webhook[]>(`/teams/${teamKey}/webhooks`),
+  createWebhook: (teamKey: string, input: NewWebhookInput) =>
+    request<Webhook>(`/teams/${teamKey}/webhooks`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -2369,37 +2339,36 @@ export const api = {
       `/webhooks/${webhookId}/deliveries?limit=25${before ? `&before=${before}` : ''}`,
     ),
 
-  // Project settings: MCP reachability and auto-archive thresholds. Any member
+  // Team settings: MCP reachability and auto-archive thresholds. Any member
   // reads; owner writes. The PATCH takes only the fields being changed.
-  getProjectSettings: (projectKey: string) =>
-    request<ProjectSettings>(`/projects/${projectKey}/settings`),
-  updateProjectSettings: (
-    projectKey: string,
+  getTeamSettings: (teamKey: string) => request<TeamSettings>(`/teams/${teamKey}/settings`),
+  updateTeamSettings: (
+    teamKey: string,
     patch: {
       mcpEnabled?: boolean;
-      features?: Partial<ProjectFeatures>;
+      features?: Partial<TeamFeatures>;
       autoArchive?: AutoArchiveSettings;
     },
   ) =>
-    request<ProjectSettings>(`/projects/${projectKey}/settings`, {
+    request<TeamSettings>(`/teams/${teamKey}/settings`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
 
   // Notification provider credentials (danger_zone: read to view, edit to change).
-  getNotificationSettings: (projectKey: string) =>
-    request<NotificationSettings>(`/projects/${projectKey}/notification-settings`),
-  setNotificationSettings: (projectKey: string, input: NotificationSettingsPatch) =>
-    request<NotificationSettings>(`/projects/${projectKey}/notification-settings`, {
+  getNotificationSettings: (teamKey: string) =>
+    request<NotificationSettings>(`/teams/${teamKey}/notification-settings`),
+  setNotificationSettings: (teamKey: string, input: NotificationSettingsPatch) =>
+    request<NotificationSettings>(`/teams/${teamKey}/notification-settings`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
 
-  // The session member's own notification preferences for a project (any member).
-  getNotificationPreferences: (projectKey: string) =>
-    request<NotificationPreferences>(`/projects/${projectKey}/notification-preferences`),
-  setNotificationPreferences: (projectKey: string, input: NotificationPreferences) =>
-    request<NotificationPreferences>(`/projects/${projectKey}/notification-preferences`, {
+  // The session member's own notification preferences for a team (any member).
+  getNotificationPreferences: (teamKey: string) =>
+    request<NotificationPreferences>(`/teams/${teamKey}/notification-preferences`),
+  setNotificationPreferences: (teamKey: string, input: NotificationPreferences) =>
+    request<NotificationPreferences>(`/teams/${teamKey}/notification-preferences`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
@@ -2420,11 +2389,11 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  // Inbox notifications. The list is the session user's own; projectId scopes it to
-  // one project (the per-project inbox). cursor is the JSON-encoded keyset from the
+  // Inbox notifications. The list is the session user's own; teamId scopes it to
+  // one team (the per-team inbox). cursor is the JSON-encoded keyset from the
   // previous page.
   listNotifications: (
-    projectId: string,
+    teamId: string,
     params: {
       cursor?: NotificationCursor | null;
       limit?: number;
@@ -2432,7 +2401,7 @@ export const api = {
     } = {},
   ) => {
     const q = new URLSearchParams();
-    q.set('projectId', String(projectId));
+    q.set('teamId', String(teamId));
     if (params.limit) q.set('limit', String(params.limit));
     if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
     const f = params.filters ?? {};
@@ -2442,10 +2411,10 @@ export const api = {
     if (f.includeSnoozed) q.set('includeSnoozed', 'true');
     return request<NotificationPage>(`/notifications?${q.toString()}`);
   },
-  // Change marker + unread count for one project's inbox, for live refresh and the
+  // Change marker + unread count for one team's inbox, for live refresh and the
   // sidebar badge.
-  getNotificationsRev: (projectId: string) =>
-    request<{ rev: string; unread: number }>(`/notifications/rev?projectId=${projectId}`),
+  getNotificationsRev: (teamId: string) =>
+    request<{ rev: string; unread: number }>(`/notifications/rev?teamId=${teamId}`),
   setNotificationRead: (id: string, read: boolean) =>
     request<void>(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({ read }) }),
   snoozeNotification: (id: string, until: string | null) =>
@@ -2453,14 +2422,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ until }),
     }),
-  markAllNotificationsRead: (projectId: string) =>
+  markAllNotificationsRead: (teamId: string) =>
     request<{ count: number }>(`/notifications/read-all`, {
       method: 'POST',
-      body: JSON.stringify({ projectId }),
+      body: JSON.stringify({ teamId }),
     }),
   deleteNotification: (id: string) => request<void>(`/notifications/${id}`, { method: 'DELETE' }),
-  deleteNotifications: (scope: NotificationDeleteScope, projectId: string) =>
-    request<{ count: number }>(`/notifications?scope=${scope}&projectId=${projectId}`, {
+  deleteNotifications: (scope: NotificationDeleteScope, teamId: string) =>
+    request<{ count: number }>(`/notifications?scope=${scope}&teamId=${teamId}`, {
       method: 'DELETE',
     }),
 
@@ -2521,7 +2490,7 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   // The instance user directory: one page of accounts, and one account with the
-  // projects it can reach. Search, the kind filter and paging all run on the server.
+  // teams it can reach. Search, the kind filter and paging all run on the server.
   listInstanceUsers: (params: {
     search?: string;
     kind: InstanceUserKind;
@@ -2539,24 +2508,23 @@ export const api = {
   getInstanceUser: (userId: string) => request<InstanceUserDetail>(`/god/users/${userId}`),
   verifyInstanceUserEmail: (userId: string) =>
     request<InstanceUserDetail>(`/god/users/${userId}/verify-email`, { method: 'POST' }),
-  // `withProjects` takes down the projects the user owns alone; without it the API
-  // refuses to delete an account that would leave a project ownerless.
-  deleteInstanceUser: (userId: string, withProjects: boolean) =>
-    request<void>(`/god/users/${userId}${withProjects ? '?withProjects=true' : ''}`, {
+  // `withTeams` takes down the teams the user owns alone; without it the API
+  // refuses to delete an account that would leave a team ownerless.
+  deleteInstanceUser: (userId: string, withTeams: boolean) =>
+    request<void>(`/god/users/${userId}${withTeams ? '?withTeams=true' : ''}`, {
       method: 'DELETE',
     }),
-  // The instance project directory: one page of projects, and one project with its
+  // The instance team directory: one page of teams, and one team with its
   // members. Search and paging run on the server.
-  listInstanceProjects: (params: { search?: string; limit: number; offset: number }) => {
+  listInstanceTeams: (params: { search?: string; limit: number; offset: number }) => {
     const query = new URLSearchParams({
       limit: String(params.limit),
       offset: String(params.offset),
     });
     if (params.search) query.set('search', params.search);
-    return request<InstanceProjectPage>(`/god/projects?${query.toString()}`);
+    return request<InstanceTeamPage>(`/god/teams?${query.toString()}`);
   },
-  getInstanceProject: (projectId: string) =>
-    request<InstanceProjectDetail>(`/god/projects/${projectId}`),
+  getInstanceTeam: (teamId: string) => request<InstanceTeamDetail>(`/god/teams/${teamId}`),
   // The instance's own sign-in policy, readable without a session: the sign-up
   // screen needs it before an account exists.
   getAuthConfig: () => request<PublicAuthConfig>('/auth-config'),

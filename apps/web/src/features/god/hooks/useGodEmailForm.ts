@@ -27,8 +27,8 @@ export interface GodEmailForm {
   setTimeout: (v: string) => void;
   apiKey: string;
   setApiKey: (v: string) => void;
-  allowProjects: boolean;
-  setAllowProjects: (v: boolean) => void;
+  allowTeams: boolean;
+  setAllowTeams: (v: boolean) => void;
   settings: InstanceEmailSettings;
   dirty: boolean;
   saving: boolean;
@@ -39,8 +39,8 @@ export interface GodEmailForm {
 // header Save button and the page body, so it lives in a hook. Secrets start blank and
 // are sent only when changed. The whole tab saves at once.
 //
-// Unlike a project's notification provider this one also carries a From address:
-// authentication mail is sent by the instance, so it has no project address to fall
+// Unlike a team's notification provider this one also carries a From address:
+// authentication mail is sent by the instance, so it has no team address to fall
 // back on.
 export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
   const update = useUpdateInstanceEmailSettings();
@@ -60,7 +60,7 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
   const [password, setPassword] = useState('');
   const [timeout, setTimeout] = useState(initialTimeout);
   const [apiKey, setApiKey] = useState('');
-  const [allowProjects, setAllowProjects] = useState(settings.allowProjects);
+  const [allowTeams, setAllowTeams] = useState(settings.allowTeams);
 
   const smtpDirty =
     host !== settings.smtp.host ||
@@ -73,13 +73,13 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
     provider !== initialProvider ||
     enabled !== initialEnabled ||
     from !== settings.from ||
-    allowProjects !== settings.allowProjects ||
+    allowTeams !== settings.allowTeams ||
     (provider === 'smtp' ? smtpDirty : apiKey.length > 0);
 
   async function save() {
     await update.mutateAsync({
       from: from.trim(),
-      allowProjects,
+      allowTeams,
       smtp: {
         enabled: provider === 'smtp' && enabled,
         host: host.trim(),
@@ -119,8 +119,8 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
     setTimeout,
     apiKey,
     setApiKey,
-    allowProjects,
-    setAllowProjects,
+    allowTeams,
+    setAllowTeams,
     settings,
     dirty,
     saving: update.isPending,

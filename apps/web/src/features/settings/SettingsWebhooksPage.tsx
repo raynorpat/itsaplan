@@ -11,11 +11,11 @@ import SettingsWebhooks from './components/webhooks/SettingsWebhooks';
 
 const section = settingsSection('webhooks');
 
-// The Webhooks settings page (/project/:projectKey/settings/webhooks).
+// The Webhooks settings page (/team/:teamKey/settings/webhooks).
 export default function SettingsWebhooksPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   const [addNew, setAddNew] = useState(false);
-  if (!project) return null;
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
@@ -31,11 +31,7 @@ export default function SettingsWebhooksPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsWebhooks
-            project={project}
-            requestNew={addNew}
-            onNewHandled={() => setAddNew(false)}
-          />
+          <SettingsWebhooks team={team} requestNew={addNew} onNewHandled={() => setAddNew(false)} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

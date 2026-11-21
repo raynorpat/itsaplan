@@ -7,9 +7,9 @@ import DisplayLayoutTabs from '@/components/layout/DisplayLayoutTabs';
 import DisplayPropertiesSection from '@/components/layout/DisplayPropertiesSection';
 import DisplayTimelineRows from '@/components/layout/DisplayTimelineRows';
 
-// The body of the Display settings: a tabbed layout switcher (Project/Table/
+// The body of the Display settings: a tabbed layout switcher (Team/Table/
 // Timeline/Calendar) and the settings for the selected layout. Rendered inside
-// the DisplayPopover. Settings belong to the active project+view or saved view
+// the DisplayPopover. Settings belong to the active team+view or saved view
 // (see the view editor and lib/viewSettings).
 export default function DisplaySettingsBody({
   view,

@@ -4,7 +4,7 @@ import type { PermissionAction, PermissionResource } from '@/lib/api';
 // to its prettified slug.
 const RESOURCE_LABELS: Record<string, string> = {
   work_items: 'Work items',
-  initiatives: 'Initiatives',
+  projects: 'Projects',
   dashboards: 'Dashboards',
   views: 'Work item views',
   members_invite: 'Invites',
@@ -54,7 +54,7 @@ export interface PermissionGroup {
 
 // The resources shown together in the role editor. Ordering is display order.
 const GROUP_DEFS: PermissionGroup[] = [
-  { title: 'Work items', resources: ['work_items', 'initiatives', 'views'] },
+  { title: 'Work items', resources: ['work_items', 'projects', 'views'] },
   { title: 'Dashboards', resources: ['dashboards'] },
   { title: 'AI', resources: ['ai_agents', 'integrations', 'agent_skills', 'agent_tools'] },
   {
@@ -62,7 +62,7 @@ const GROUP_DEFS: PermissionGroup[] = [
     resources: ['states', 'issue_types', 'labels', 'custom_fields', 'actions', 'webhooks'],
   },
   { title: 'Members', resources: ['members_manage', 'members_invite'] },
-  { title: 'Project', resources: ['danger_zone'] },
+  { title: 'Team', resources: ['danger_zone'] },
 ];
 
 // Order the catalog's resources into display groups. A resource not covered by

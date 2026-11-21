@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
+import { type TeamDetail, type Issue } from '@/lib/api';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
@@ -8,12 +8,12 @@ import IssueContextMenu from '@/features/issue/components/actions/IssueContextMe
 // A draggable chip inside a day cell. A click (no drag) opens the issue; a drag
 // moves it to another day or the unscheduled panel.
 export function CalendarDayChip({
-  project,
+  team,
   issue,
   color,
   onOpen,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   color: string;
   onOpen: (id: string) => void;
@@ -27,7 +27,7 @@ export function CalendarDayChip({
     disabled: useIsPhone() || !can('work_items', 'edit'),
   });
   return (
-    <IssueContextMenu project={project} issue={issue}>
+    <IssueContextMenu team={team} issue={issue}>
       <div
         ref={setNodeRef}
         {...attributes}

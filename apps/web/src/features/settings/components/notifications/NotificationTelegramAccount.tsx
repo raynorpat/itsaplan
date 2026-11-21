@@ -8,7 +8,7 @@ import { telegramAccountLabel, useTelegramAccountQuery } from '@/services/telegr
 
 // Where the member's Telegram notifications go. There is nothing to fill in here:
 // the chat comes from the Telegram account connected to their profile, which is the
-// same for every project. This only shows which account that is, or sends them to
+// same for every team. This only shows which account that is, or sends them to
 // connect one.
 export default function NotificationTelegramAccount() {
   const { data } = useTelegramAccountQuery();
@@ -22,7 +22,7 @@ export default function NotificationTelegramAccount() {
   return (
     <SettingsSection
       title="Telegram account"
-      description="Telegram notifications go to the account connected to your profile, for every project you are in."
+      description="Telegram notifications go to the account connected to your profile, for every team you are in."
     >
       <div className="flex items-center justify-between gap-6 rounded-lg border border-border p-4 sm:max-w-md">
         <div className="flex min-w-0 items-center gap-3">

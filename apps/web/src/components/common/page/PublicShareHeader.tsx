@@ -1,4 +1,4 @@
-// The header over a public shared page (a board or an issue): the project's name
+// The header over a public shared page (a board or an issue): the team's name
 // and ticker, with an optional trailing label (the shared view's name on a board).
 // Read-only identity only — no navigation or session.
 export default function PublicShareHeader({

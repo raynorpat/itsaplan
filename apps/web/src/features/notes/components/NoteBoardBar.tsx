@@ -16,7 +16,7 @@ import BoardSwitcher from './BoardSwitcher';
 // right. A personal board carries a lock; the active tab exposes rename, a
 // public/personal toggle, and delete. The tab set is the MRU list from the host.
 export default function NoteBoardBar({
-  projectKey,
+  teamKey,
   tabs,
   activeBoardId,
   onSelect,
@@ -25,7 +25,7 @@ export default function NoteBoardBar({
   onToggleVisibility,
   onDelete,
 }: {
-  projectKey: string;
+  teamKey: string;
   tabs: MruEntry[];
   activeBoardId: string | null;
   onSelect: (id: string) => void;
@@ -55,7 +55,7 @@ export default function NoteBoardBar({
         <Plus className="size-4" />
       </button>
 
-      <BoardSwitcher projectKey={projectKey} activeBoardId={activeBoardId} onSelect={onSelect} />
+      <BoardSwitcher teamKey={teamKey} activeBoardId={activeBoardId} onSelect={onSelect} />
 
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {tabs.map((tab) => {
@@ -117,7 +117,7 @@ export default function NoteBoardBar({
         open={dialog != null}
         title={renaming ? 'Rename board' : 'New board'}
         description={renaming ? undefined : 'A freeform canvas for sticky notes.'}
-        projectKey={projectKey}
+        teamKey={teamKey}
         initial={renaming?.name ?? ''}
         withVisibility={dialog === 'create'}
         onClose={() => setDialog(null)}

@@ -1,46 +1,46 @@
 import { LayoutGrid, ListChecks, Plus, SquarePlus } from 'lucide-react';
-import type { Project } from '@/lib/api';
+import type { Team } from '@/lib/api';
 import { VIEWS, type WorkItemsView } from '@/utils/viewTypes';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useHotkeyFormatter } from '@/context/useHotkeys';
 import type { Command, CommandSection } from '@/utils/commands';
 
 // The commands that are not tied to one issue: the work items board controls
-// (shown only while the board is open) and the general project commands. The
+// (shown only while the board is open) and the general team commands. The
 // handlers come from the Shell, which owns the overlays and the router.
 export function useAppCommands({
-  hasProject,
+  hasTeam,
   onBoard,
   view,
-  projects,
-  currentProjectKey,
+  teams,
+  currentTeamKey,
   onViewChange,
   onNewIssue,
   onSelectAll,
-  onNewProject,
-  onSelectProject,
+  onNewTeam,
+  onSelectTeam,
 }: {
-  hasProject: boolean;
+  hasTeam: boolean;
   // True on the work items routes, where the layout and selection commands apply.
   onBoard: boolean;
   view: WorkItemsView;
-  projects: Project[];
-  currentProjectKey: string | null;
+  teams: Team[];
+  currentTeamKey: string | null;
   onViewChange: (view: WorkItemsView) => void;
   onNewIssue: () => void;
   onSelectAll: () => void;
-  onNewProject: () => void;
-  onSelectProject: (key: string) => void;
+  onNewTeam: () => void;
+  onSelectTeam: (key: string) => void;
 }): {
   board: CommandSection | null;
   general: CommandSection | null;
-  projects: CommandSection | null;
+  teams: CommandSection | null;
 } {
   const { can } = usePermissions();
   const hotkey = useHotkeyFormatter();
 
   const boardItems: Command[] = [];
-  if (hasProject && onBoard) {
+  if (hasTeam && onBoard) {
     for (const { value, label, icon: Icon, hotkey: id } of VIEWS) {
       boardItems.push({
         id: `board.view.${value}`,
@@ -65,7 +65,7 @@ export function useAppCommands({
   }
 
   const generalItems: Command[] = [];
-  if (hasProject && can('work_items', 'create')) {
+  if (hasTeam && can('work_items', 'create')) {
     generalItems.push({
       id: 'general.new-issue',
       label: 'New issue',
@@ -76,32 +76,29 @@ export function useAppCommands({
     });
   }
   generalItems.push({
-    id: 'general.new-project',
-    label: 'New project',
+    id: 'general.new-team',
+    label: 'New team',
     icon: <SquarePlus />,
     keywords: 'create add',
-    shortcut: hotkey('project.new') ?? undefined,
-    run: onNewProject,
+    shortcut: hotkey('team.new') ?? undefined,
+    run: onNewTeam,
   });
 
-  const projectItems: Command[] = projects.map((p, i) => ({
-    id: `project.switch.${p.key}`,
+  const teamItems: Command[] = teams.map((p, i) => ({
+    id: `team.switch.${p.key}`,
     label: p.name,
     icon: <LayoutGrid />,
-    keywords: `switch project ${p.key}`,
-    checked: p.key === currentProjectKey,
-    // The project switch is positional, so the digit is the row's place in the list.
-    shortcut: (i < 9 ? hotkey('project.switch')?.replace('1–9', String(i + 1)) : null) ?? undefined,
-    run: () => onSelectProject(p.key),
+    keywords: `switch team ${p.key}`,
+    checked: p.key === currentTeamKey,
+    // The team switch is positional, so the digit is the row's place in the list.
+    shortcut: (i < 9 ? hotkey('team.switch')?.replace('1–9', String(i + 1)) : null) ?? undefined,
+    run: () => onSelectTeam(p.key),
   }));
 
   return {
     board: boardItems.length > 0 ? { id: 'board', heading: 'Board', items: boardItems } : null,
     general:
       generalItems.length > 0 ? { id: 'general', heading: 'Commands', items: generalItems } : null,
-    projects:
-      projectItems.length > 0
-        ? { id: 'projects', heading: 'Switch project', items: projectItems }
-        : null,
+    teams: teamItems.length > 0 ? { id: 'teams', heading: 'Switch team', items: teamItems } : null,
   };
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { ConfiguredTool, ProjectDetail } from '@/lib/api';
+import type { ConfiguredTool, TeamDetail } from '@/lib/api';
 import { useConfiguredToolsQuery, useDeleteConfiguredTool } from '@/services/customTools.service';
 import { useIntegrationCatalogQuery } from '@/services/integrations.service';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,16 +9,16 @@ import { useSettingsCan } from '../../context/settingsPermission';
 import { ToolConfigRow } from './ToolConfigRow';
 import { integrationLabel } from '../../utils/integrationLabels';
 
-// Project settings for configured tools: a catalog tool bound to an integration
+// Team settings for configured tools: a catalog tool bound to an integration
 // credential. Adding picks a tool and a credential of its integration; deleting
 // confirms first. Enabling a configured tool on an agent is done on the agent editor.
-export default function SettingsAgentTools({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
-  const toolsQuery = useConfiguredToolsQuery(projectKey);
+export default function SettingsAgentTools({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
+  const toolsQuery = useConfiguredToolsQuery(teamKey);
   const tools = toolsQuery.data ?? [];
-  const catalogQuery = useIntegrationCatalogQuery(projectKey);
+  const catalogQuery = useIntegrationCatalogQuery(teamKey);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
-  const deleteTool = useDeleteConfiguredTool(projectKey);
+  const deleteTool = useDeleteConfiguredTool(teamKey);
   const can = useSettingsCan();
 
   const [deleting, setDeleting] = useState<ConfiguredTool | null>(null);

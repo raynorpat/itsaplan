@@ -1,4 +1,4 @@
-import type { Project } from '@/lib/api';
+import type { Team } from '@/lib/api';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import type { CommandSection } from '@/utils/commands';
 import { useShell } from '@/context/shellContext';
@@ -8,7 +8,7 @@ import { useIssueCommands } from '@/features/issue/hooks/useIssueCommands';
 import CommandPalette from '@/components/layout/CommandPalette';
 
 // Builds the palette's sections and renders it. It sits inside the Shell's
-// context provider (the command hooks read the project and the viewer's
+// context provider (the command hooks read the team and the viewer's
 // permissions from it), and owns the confirm dialogs the issue commands open —
 // the palette closes when a command runs, so those must outlive it.
 //
@@ -17,23 +17,23 @@ import CommandPalette from '@/components/layout/CommandPalette';
 export default function CommandLayer({
   open,
   onOpenChange,
-  projects,
-  currentProjectKey,
+  teams,
+  currentTeamKey,
   onBoard,
   view,
   currentIssueId,
   onViewChange,
   onNewIssue,
   onSelectAll,
-  onNewProject,
-  onSelectProject,
+  onNewTeam,
+  onSelectTeam,
   onOpenIssue,
   onIssueDeleted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projects: Project[];
-  currentProjectKey: string | null;
+  teams: Team[];
+  currentTeamKey: string | null;
   onBoard: boolean;
   view: WorkItemsView;
   // The issue the user is looking at: the open detail panel, or the issue page.
@@ -41,31 +41,31 @@ export default function CommandLayer({
   onViewChange: (view: WorkItemsView) => void;
   onNewIssue: () => void;
   onSelectAll: () => void;
-  onNewProject: () => void;
-  onSelectProject: (key: string) => void;
+  onNewTeam: () => void;
+  onSelectTeam: (key: string) => void;
   onOpenIssue: (sequenceNumber: number) => void;
   onIssueDeleted: () => void;
 }) {
-  const { project } = useShell();
-  const hasProject = !!project;
+  const { team } = useShell();
+  const hasTeam = !!team;
 
-  const issue = useIssueCommands(project, currentIssueId, onIssueDeleted);
+  const issue = useIssueCommands(team, currentIssueId, onIssueDeleted);
   const app = useAppCommands({
-    hasProject,
+    hasTeam,
     onBoard,
     view,
-    projects,
-    currentProjectKey,
+    teams,
+    currentTeamKey,
     onViewChange,
     onNewIssue,
     onSelectAll,
-    onNewProject,
-    onSelectProject,
+    onNewTeam,
+    onSelectTeam,
   });
-  const navigation = useNavigationCommands(currentProjectKey);
+  const navigation = useNavigationCommands(currentTeamKey);
 
   // Empty sections are dropped here so each hook can return one unconditionally.
-  const sections = [issue.section, app.board, app.general, app.projects, navigation].filter(
+  const sections = [issue.section, app.board, app.general, app.teams, navigation].filter(
     (s): s is CommandSection => s != null && s.items.length > 0,
   );
 
@@ -75,8 +75,8 @@ export default function CommandLayer({
         open={open}
         onOpenChange={onOpenChange}
         sections={sections}
-        currentProjectKey={currentProjectKey}
-        hasProject={hasProject}
+        currentTeamKey={currentTeamKey}
+        hasTeam={hasTeam}
         onOpenIssue={onOpenIssue}
       />
       {issue.dialogs}

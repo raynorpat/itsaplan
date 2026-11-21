@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
+import { type TeamDetail, type Issue } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { CalendarDayChip } from './CalendarDayChip';
 import { CalendarDayOverflow } from './CalendarDayOverflow';
@@ -9,7 +9,7 @@ const MAX_CHIPS = 3;
 
 // A droppable day cell that reschedules a dropped issue to its date.
 export function CalendarDayCell({
-  project,
+  team,
   dateKey,
   dayNumber,
   inMonth,
@@ -18,7 +18,7 @@ export function CalendarDayCell({
   dot,
   onOpen,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   dateKey: string;
   dayNumber: number;
   inMonth: boolean;
@@ -51,7 +51,7 @@ export function CalendarDayCell({
         {issues.slice(0, MAX_CHIPS).map((issue) => (
           <CalendarDayChip
             key={issue.id}
-            project={project}
+            team={team}
             issue={issue}
             color={dot(issue)}
             onOpen={onOpen}

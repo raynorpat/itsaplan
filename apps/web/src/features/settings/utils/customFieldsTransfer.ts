@@ -1,5 +1,5 @@
-// Serialize/parse a project's custom fields for the copy/paste transfer between
-// projects. The payload holds each field with its scope named by the issue type (null
+// Serialize/parse a team's custom fields for the copy/paste transfer between
+// teams. The payload holds each field with its scope named by the issue type (null
 // for a global field) and, for select fields, its option values. Matching is by name
 // within a scope: an existing field is left as is (its type and options cannot be
 // changed after creation), a missing one is created, and a referenced issue type that
@@ -46,7 +46,7 @@ const FIELD_TYPES: CustomFieldType[] = [
   'multi_select',
 ];
 
-// The clipboard text for the project's custom fields. When includeTypeScoped is false,
+// The clipboard text for the team's custom fields. When includeTypeScoped is false,
 // only global fields are exported.
 export function serializeCustomFields(
   fields: CustomField[],

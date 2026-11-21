@@ -7,14 +7,14 @@ import { AiChatThreadList } from '../shared/AiChatThreadList';
 // The middle column of the AI Chat page. A fresh chat that has not been sent yet is
 // marked by selectedThreadId null.
 export function AiChatThreadRail({
-  projectKey,
+  teamKey,
   agentId,
   selectedThreadId,
   onSelect,
   onDeleted,
   onNewChat,
 }: {
-  projectKey: string;
+  teamKey: string;
   agentId: string;
   selectedThreadId: string | null;
   onSelect: (threadId: string) => void;
@@ -37,7 +37,7 @@ export function AiChatThreadRail({
       </div>
 
       <AiChatThreadList
-        projectKey={projectKey}
+        teamKey={teamKey}
         agentId={agentId}
         selectedThreadId={selectedThreadId}
         onSelect={onSelect}

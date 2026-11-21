@@ -18,11 +18,11 @@ export default function RecentIssuesWidgetSettings({
   config: WidgetConfig;
   onConfigChange: (config: WidgetConfig) => void;
 }) {
-  const { project, customFields } = useShell();
+  const { team, customFields } = useShell();
   const sort = config.sort ?? 'created';
   const limit = config.limit ?? 10;
   const filters: FilterSet = config.filters ?? EMPTY_FILTER_SET;
-  if (!project) return null;
+  if (!team) return null;
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export default function RecentIssuesWidgetSettings({
       <FilterBar
         filters={filters}
         onChange={(next) => onConfigChange({ filters: next })}
-        project={project}
+        team={team}
         customFields={customFields}
       />
     </div>

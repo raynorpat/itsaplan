@@ -1,8 +1,8 @@
 // React Query hooks for everything the settings feature reads and writes: the
-// project's structural entities (columns, issue types, labels and label groups,
-// custom fields), the auto-archive thresholds, the project notification delivery
+// team's structural entities (columns, issue types, labels and label groups,
+// custom fields), the auto-archive thresholds, the team notification delivery
 // settings, and the session member's own notification preferences. Structural
-// writes go through useProjectMutation and invalidate the project detail; the
+// writes go through useTeamMutation and invalidate the team detail; the
 // settings and notification writes return the stored result and put it straight
 // into the cache. This module wraps the low-level fetch client (api.ts).
 
@@ -12,186 +12,179 @@ import {
   type AutoArchiveSettings,
   type NotificationSettingsPatch,
   type NotificationPreferences,
-  type ProjectFeatures,
+  type TeamFeatures,
 } from '@/lib/api';
-import { useInvalidateProject } from '@/services/projects.service';
+import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
 
-// A mutation whose success invalidates the project detail (and dependent lists).
+// A mutation whose success invalidates the team detail (and dependent lists).
 // Shared by every settings write below.
-function useProjectMutation<TArgs>(
-  projectKey: string,
-  mutationFn: (args: TArgs) => Promise<unknown>,
-) {
-  const invalidate = useInvalidateProject(projectKey);
+function useTeamMutation<TArgs>(teamKey: string, mutationFn: (args: TArgs) => Promise<unknown>) {
+  const invalidate = useInvalidateTeam(teamKey);
   return useMutation({ mutationFn, onSuccess: () => invalidate(true) });
 }
 
-export function useCreateColumn(projectKey: string) {
-  return useProjectMutation(projectKey, (input: Parameters<typeof api.createColumn>[1]) =>
-    api.createColumn(projectKey, input),
+export function useCreateColumn(teamKey: string) {
+  return useTeamMutation(teamKey, (input: Parameters<typeof api.createState>[1]) =>
+    api.createState(teamKey, input),
   );
 }
 
-export function useUpdateColumn(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
-    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateColumn>[2] }) =>
-      api.updateColumn(projectKey, id, patch),
+export function useUpdateColumn(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateState>[2] }) =>
+      api.updateState(teamKey, id, patch),
   );
 }
 
-export function useReorderColumns(projectKey: string) {
-  return useProjectMutation(projectKey, (orderedIds: string[]) =>
-    api.reorderColumns(projectKey, orderedIds),
+export function useReorderColumns(teamKey: string) {
+  return useTeamMutation(teamKey, (orderedIds: string[]) => api.reorderStates(teamKey, orderedIds));
+}
+
+export function useDeleteColumn(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
+    ({ id, body }: { id: string; body: Parameters<typeof api.deleteState>[2] }) =>
+      api.deleteState(teamKey, id, body),
   );
 }
 
-export function useDeleteColumn(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
-    ({ id, body }: { id: string; body: Parameters<typeof api.deleteColumn>[2] }) =>
-      api.deleteColumn(projectKey, id, body),
+export function useCreateIssueType(teamKey: string) {
+  return useTeamMutation(teamKey, (input: Parameters<typeof api.createIssueType>[1]) =>
+    api.createIssueType(teamKey, input),
   );
 }
 
-export function useCreateIssueType(projectKey: string) {
-  return useProjectMutation(projectKey, (input: Parameters<typeof api.createIssueType>[1]) =>
-    api.createIssueType(projectKey, input),
-  );
-}
-
-export function useUpdateIssueType(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
+export function useUpdateIssueType(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
     ({ id, patch }: { id: string; patch: Parameters<typeof api.updateIssueType>[2] }) =>
-      api.updateIssueType(projectKey, id, patch),
+      api.updateIssueType(teamKey, id, patch),
   );
 }
 
-export function useDeleteIssueType(projectKey: string) {
-  return useProjectMutation(projectKey, (id: string) => api.deleteIssueType(projectKey, id));
+export function useDeleteIssueType(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => api.deleteIssueType(teamKey, id));
 }
 
-export function useCreateLabel(projectKey: string) {
-  return useProjectMutation(projectKey, (input: Parameters<typeof api.createLabel>[1]) =>
-    api.createLabel(projectKey, input),
+export function useCreateLabel(teamKey: string) {
+  return useTeamMutation(teamKey, (input: Parameters<typeof api.createLabel>[1]) =>
+    api.createLabel(teamKey, input),
   );
 }
 
-export function useUpdateLabel(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
+export function useUpdateLabel(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
     ({ id, patch }: { id: string; patch: Parameters<typeof api.updateLabel>[2] }) =>
-      api.updateLabel(projectKey, id, patch),
+      api.updateLabel(teamKey, id, patch),
   );
 }
 
-export function useDeleteLabel(projectKey: string) {
-  return useProjectMutation(projectKey, (id: string) => api.deleteLabel(projectKey, id));
+export function useDeleteLabel(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => api.deleteLabel(teamKey, id));
 }
 
-export function useCreateLabelGroup(projectKey: string) {
-  return useProjectMutation(projectKey, (input: Parameters<typeof api.createLabelGroup>[1]) =>
-    api.createLabelGroup(projectKey, input),
+export function useCreateLabelGroup(teamKey: string) {
+  return useTeamMutation(teamKey, (input: Parameters<typeof api.createLabelGroup>[1]) =>
+    api.createLabelGroup(teamKey, input),
   );
 }
 
-export function useUpdateLabelGroup(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
+export function useUpdateLabelGroup(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
     ({ id, patch }: { id: string; patch: Parameters<typeof api.updateLabelGroup>[2] }) =>
-      api.updateLabelGroup(projectKey, id, patch),
+      api.updateLabelGroup(teamKey, id, patch),
   );
 }
 
-export function useDeleteLabelGroup(projectKey: string) {
-  return useProjectMutation(projectKey, (id: string) => api.deleteLabelGroup(projectKey, id));
+export function useDeleteLabelGroup(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => api.deleteLabelGroup(teamKey, id));
 }
 
-// Archive section: the project's auto-archive thresholds, read from the project
+// Archive section: the team's auto-archive thresholds, read from the team
 // settings resource and narrowed to the autoArchive part for this section.
-export function useAutoArchiveQuery(projectKey: string) {
+export function useAutoArchiveQuery(teamKey: string) {
   return useQuery({
-    queryKey: qk.projectSettings(projectKey),
-    queryFn: () => api.getProjectSettings(projectKey),
+    queryKey: qk.teamSettings(teamKey),
+    queryFn: () => api.getTeamSettings(teamKey),
     select: (s) => s.autoArchive,
   });
 }
 
-export function useUpdateAutoArchive(projectKey: string) {
+export function useUpdateAutoArchive(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: AutoArchiveSettings) =>
-      api.updateProjectSettings(projectKey, { autoArchive: input }),
-    onSuccess: (data) => qc.setQueryData(qk.projectSettings(projectKey), data),
+      api.updateTeamSettings(teamKey, { autoArchive: input }),
+    onSuccess: (data) => qc.setQueryData(qk.teamSettings(teamKey), data),
   });
 }
 
-// General section: which optional sections the project shows. The current state
-// comes with the project payload (getProject), so a write only invalidates it —
+// General section: which optional sections the team shows. The current state
+// comes with the team payload (getTeam), so a write only invalidates it —
 // the navigation and the sections themselves read it from there.
-export function useUpdateProjectFeatures(projectKey: string) {
-  const invalidate = useInvalidateProject(projectKey);
+export function useUpdateTeamFeatures(teamKey: string) {
+  const invalidate = useInvalidateTeam(teamKey);
   return useMutation({
-    mutationFn: (input: Partial<ProjectFeatures>) =>
-      api.updateProjectSettings(projectKey, { features: input }),
+    mutationFn: (input: Partial<TeamFeatures>) =>
+      api.updateTeamSettings(teamKey, { features: input }),
     onSuccess: () => invalidate(),
   });
 }
 
-// Notifications section: the project's notification delivery settings. A write
+// Notifications section: the team's notification delivery settings. A write
 // returns the redacted result, which replaces the cache directly.
-export function useNotificationSettingsQuery(projectKey: string) {
+export function useNotificationSettingsQuery(teamKey: string) {
   return useQuery({
-    queryKey: qk.notificationSettings(projectKey),
-    queryFn: () => api.getNotificationSettings(projectKey),
+    queryKey: qk.notificationSettings(teamKey),
+    queryFn: () => api.getNotificationSettings(teamKey),
   });
 }
 
-export function useUpdateNotificationSettings(projectKey: string) {
+export function useUpdateNotificationSettings(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NotificationSettingsPatch) =>
-      api.setNotificationSettings(projectKey, input),
-    onSuccess: (data) => qc.setQueryData(qk.notificationSettings(projectKey), data),
+    mutationFn: (input: NotificationSettingsPatch) => api.setNotificationSettings(teamKey, input),
+    onSuccess: (data) => qc.setQueryData(qk.notificationSettings(teamKey), data),
   });
 }
 
-// The session member's own notification preferences for a project. A write returns
+// The session member's own notification preferences for a team. A write returns
 // the normalized result, which replaces the cache directly.
-export function useNotificationPreferencesQuery(projectKey: string) {
+export function useNotificationPreferencesQuery(teamKey: string) {
   return useQuery({
-    queryKey: qk.notificationPreferences(projectKey),
-    queryFn: () => api.getNotificationPreferences(projectKey),
+    queryKey: qk.notificationPreferences(teamKey),
+    queryFn: () => api.getNotificationPreferences(teamKey),
   });
 }
 
-export function useUpdateNotificationPreferences(projectKey: string) {
+export function useUpdateNotificationPreferences(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NotificationPreferences) =>
-      api.setNotificationPreferences(projectKey, input),
-    onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(projectKey), data),
+    mutationFn: (input: NotificationPreferences) => api.setNotificationPreferences(teamKey, input),
+    onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(teamKey), data),
   });
 }
 
-// Custom fields. Writes go through the project-scoped endpoint; the shared
+// Custom fields. Writes go through the team-scoped endpoint; the shared
 // invalidation also refreshes the custom-field lists the reads depend on.
-export function useCreateCustomField(projectKey: string) {
-  return useProjectMutation(projectKey, (input: Parameters<typeof api.createCustomField>[1]) =>
-    api.createCustomField(projectKey, input),
+export function useCreateCustomField(teamKey: string) {
+  return useTeamMutation(teamKey, (input: Parameters<typeof api.createCustomField>[1]) =>
+    api.createCustomField(teamKey, input),
   );
 }
 
-export function useUpdateCustomField(projectKey: string) {
-  return useProjectMutation(
-    projectKey,
+export function useUpdateCustomField(teamKey: string) {
+  return useTeamMutation(
+    teamKey,
     ({ id, patch }: { id: string; patch: Parameters<typeof api.updateCustomField>[2] }) =>
-      api.updateCustomField(projectKey, id, patch),
+      api.updateCustomField(teamKey, id, patch),
   );
 }
 
-export function useDeleteCustomField(projectKey: string) {
-  return useProjectMutation(projectKey, (id: string) => api.deleteCustomField(projectKey, id));
+export function useDeleteCustomField(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => api.deleteCustomField(teamKey, id));
 }

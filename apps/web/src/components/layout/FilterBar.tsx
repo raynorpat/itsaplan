@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { ProjectDetail, CustomField } from '@/lib/api';
+import type { TeamDetail, CustomField } from '@/lib/api';
 import type { FilterCondition, FilterSet } from '@/utils/filters';
 import { buildFieldSpecs, newCondition, type FieldSpec } from '@/utils/filterFields';
 import { Button } from '@/components/ui/button';
@@ -12,16 +12,16 @@ import FilterConditionPill from '@/components/layout/FilterConditionPill';
 export default function FilterBar({
   filters,
   onChange,
-  project,
+  team,
   customFields,
 }: {
   filters: FilterSet;
   onChange: (filters: FilterSet) => void;
-  project: ProjectDetail;
+  team: TeamDetail;
   customFields: CustomField[];
 }) {
   const [addOpen, setAddOpen] = useState(false);
-  const specs = useMemo(() => buildFieldSpecs(project, customFields), [project, customFields]);
+  const specs = useMemo(() => buildFieldSpecs(team, customFields), [team, customFields]);
   const specByField = useMemo(() => new Map(specs.map((s) => [s.field, s])), [specs]);
 
   const update = (id: string, patch: Partial<FilterCondition>) =>
@@ -45,7 +45,7 @@ export default function FilterBar({
             key={cond.id}
             spec={spec}
             cond={cond}
-            project={project}
+            team={team}
             onOperatorChange={(op) => update(cond.id, { op })}
             onValuesChange={(values) => update(cond.id, { values })}
             onRemove={() => remove(cond.id)}

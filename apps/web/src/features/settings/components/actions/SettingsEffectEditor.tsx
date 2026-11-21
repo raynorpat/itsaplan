@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import type { ActionEffect, ProjectDetail } from '@/lib/api';
+import type { ActionEffect, TeamDetail } from '@/lib/api';
 import {
   EFFECT_FIELD_KEYS,
   EFFECT_FIELD_LABELS,
@@ -15,17 +15,13 @@ import StatusSelect from '@/components/common/fields/StatusSelect';
 import TypeSelect from '@/components/common/fields/TypeSelect';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // The default value used when a field is first added to an effect. null on a
 // nullable field means "clear it" on apply; the user then picks a real value.
-function defaultEffectValue(
-  key: EffectFieldKey,
-  project: ProjectDetail,
-): ActionEffect[EffectFieldKey] {
+function defaultEffectValue(key: EffectFieldKey, team: TeamDetail): ActionEffect[EffectFieldKey] {
   switch (key) {
-    case 'columnId':
-      return project.columns[0]?.id ?? '';
+    case 'stateId':
+      return team.states[0]?.id ?? '';
     case 'labelIds':
       return [];
     default:
@@ -38,42 +34,37 @@ function defaultEffectValue(
 function EffectValue({
   effect,
   fieldKey,
-  project,
+  team,
   onChange,
 }: {
   effect: ActionEffect;
   fieldKey: EffectFieldKey;
-  project: ProjectDetail;
+  team: TeamDetail;
   onChange: (v: ActionEffect[EffectFieldKey]) => void;
 }) {
   switch (fieldKey) {
-    case 'columnId':
+    case 'stateId':
       return (
         <StatusSelect
-          columns={project.columns}
-          value={effect.columnId ?? project.columns[0]?.id ?? ''}
+          columns={team.states}
+          value={effect.stateId ?? team.states[0]?.id ?? ''}
           onChange={onChange}
         />
       );
     case 'assigneeUserId':
       return (
         <AssigneeSelect
-          assignees={project.assignees}
+          assignees={team.assignees}
           value={effect.assigneeUserId ?? null}
           onChange={onChange}
         />
       );
     case 'priority':
-      return (
-        <PrioritySelect
-          value={priorityKey(effect.priority ?? 0)}
-          onChange={(v) => onChange(priorityLevel(v))}
-        />
-      );
+      return <PrioritySelect value={effect.priority ?? 0} onChange={(v) => onChange(v)} />;
     case 'typeId':
       return (
         <TypeSelect
-          issueTypes={project.issueTypes}
+          issueTypes={team.issueTypes}
           value={effect.typeId ?? null}
           onChange={onChange}
         />
@@ -90,8 +81,8 @@ function EffectValue({
         onChange(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
       return (
         <LabelsSelect
-          labels={project.labels}
-          groups={project.labelGroups}
+          labels={team.labels}
+          groups={team.labelGroups}
           value={ids}
           onToggle={toggle}
         />
@@ -102,11 +93,11 @@ function EffectValue({
 
 export function SettingsEffectEditor({
   effect,
-  project,
+  team,
   onChange,
 }: {
   effect: ActionEffect;
-  project: ProjectDetail;
+  team: TeamDetail;
   onChange: (e: ActionEffect) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -121,7 +112,7 @@ export function SettingsEffectEditor({
     onChange(next);
   };
   const addKey = (key: EffectFieldKey) => {
-    onChange({ ...effect, [key]: defaultEffectValue(key, project) });
+    onChange({ ...effect, [key]: defaultEffectValue(key, team) });
     setAddOpen(false);
   };
 
@@ -136,7 +127,7 @@ export function SettingsEffectEditor({
                 <EffectValue
                   effect={effect}
                   fieldKey={key}
-                  project={project}
+                  team={team}
                   onChange={(v) => setValue(key, v)}
                 />
                 <button

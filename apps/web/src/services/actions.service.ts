@@ -16,49 +16,49 @@ export function normalizeAction(a: ActionDef): ActionDef {
   };
 }
 
-export function useActionsQuery(projectKey: string | null) {
+export function useActionsQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.actions(projectKey ?? ''),
-    queryFn: () => api.listActions(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.actions(teamKey ?? ''),
+    queryFn: () => api.listActions(teamKey!),
+    enabled: teamKey != null,
     select: (rows) => rows.map(normalizeAction),
   });
 }
 
-export function useCreateAction(projectKey: string | null) {
+export function useCreateAction(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ input }: { input: Parameters<typeof api.createAction>[1] }) =>
-      api.createAction(projectKey!, input),
+      api.createAction(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.actions(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.actions(teamKey) });
     },
   });
 }
 
-export function useUpdateAction(projectKey: string | null) {
+export function useUpdateAction(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateAction>[1] }) =>
       api.updateAction(id, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.actions(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.actions(teamKey) });
     },
   });
 }
 
-export function useDeleteAction(projectKey: string | null) {
+export function useDeleteAction(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteAction(id),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.actions(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.actions(teamKey) });
     },
   });
 }
 
-export function useReorderActions(projectKey: string | null) {
-  return useOptimisticReorder<ActionDef>(projectKey ? qk.actions(projectKey) : null, (orderedIds) =>
-    api.reorderActions(projectKey!, orderedIds),
+export function useReorderActions(teamKey: string | null) {
+  return useOptimisticReorder<ActionDef>(teamKey ? qk.actions(teamKey) : null, (orderedIds) =>
+    api.reorderActions(teamKey!, orderedIds),
   );
 }

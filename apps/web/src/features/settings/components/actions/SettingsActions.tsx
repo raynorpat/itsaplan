@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ActionDef, ActionEffect, ProjectDetail, CustomField } from '@/lib/api';
+import type { ActionDef, ActionEffect, TeamDetail, CustomField } from '@/lib/api';
 import {
   useActionsQuery,
   useCreateAction,
@@ -14,27 +14,27 @@ import { SettingsActionsTable } from './SettingsActionsTable';
 
 type ActionSeed = { name: string; icon: string; condition: FilterSet; effect: ActionEffect };
 
-// Project settings tab for manual actions. Each action is a saved macro: a
+// Team settings tab for manual actions. Each action is a saved macro: a
 // condition selecting which issues it applies to and an effect applied in one
 // issue update. The matching actions show on a issue's Actions block and
 // context menu.
 export default function SettingsActions({
-  project,
+  team,
   customFields,
   requestNew,
   onNewHandled,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   customFields: CustomField[];
   requestNew: boolean;
   onNewHandled: () => void;
 }) {
-  const projectKey = project.project.key;
-  const actionsQuery = useActionsQuery(projectKey);
+  const teamKey = team.team.key;
+  const actionsQuery = useActionsQuery(teamKey);
   const actions = actionsQuery.data ?? [];
-  const createAction = useCreateAction(projectKey);
-  const updateAction = useUpdateAction(projectKey);
-  const deleteAction = useDeleteAction(projectKey);
+  const createAction = useCreateAction(teamKey);
+  const updateAction = useUpdateAction(teamKey);
+  const deleteAction = useDeleteAction(teamKey);
   // The action open in the editor: an action id, 'new' for the add form, or null.
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   // Prefill for the 'new' form when duplicating an existing action; null for a blank new action.
@@ -84,7 +84,7 @@ export default function SettingsActions({
         <div className="space-y-4">
           <SettingsActionsTable
             actions={actions}
-            project={project}
+            team={team}
             customFields={customFields}
             onEdit={setEditing}
             onDuplicate={startDuplicate}
@@ -96,8 +96,8 @@ export default function SettingsActions({
       {showDialog && (
         <SettingsActionDialog
           key={editingAction?.id ?? 'new'}
-          projectKey={projectKey}
-          project={project}
+          teamKey={teamKey}
+          team={team}
           customFields={customFields}
           mode={editingAction ? 'edit' : 'new'}
           initialName={editingAction?.name ?? newSeed?.name ?? ''}

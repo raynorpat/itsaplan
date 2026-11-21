@@ -6,7 +6,7 @@ import type { TelegramForm } from '../../hooks/useTelegramForm';
 
 export type NotificationTab = 'email' | 'telegram';
 
-// The email (SMTP or Resend) and Telegram bot credentials the project delivers
+// The email (SMTP or Resend) and Telegram bot credentials the team delivers
 // through, one tab per channel.
 export default function SettingsNotifications({
   tab,

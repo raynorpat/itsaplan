@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { ProjectDetail } from '@/lib/api';
-import { useUpdateProject } from '@/services/projects.service';
+import type { TeamDetail } from '@/lib/api';
+import { useUpdateTeam } from '@/services/teams.service';
 import { usePermissions } from '@/hooks/usePermissions';
 
 export interface GeneralForm {
@@ -19,27 +19,27 @@ export interface GeneralForm {
   save: () => Promise<void>;
 }
 
-// Form state for the General settings page: the project name and description. The
+// Form state for the General settings page: the team name and description. The
 // key is read-only. Shared between the header Save button and the body fields, so
 // it lives in a hook and is threaded into both.
-export function useGeneralForm(project: ProjectDetail): GeneralForm {
+export function useGeneralForm(team: TeamDetail): GeneralForm {
   const { isOwner } = usePermissions();
-  const { key, name: savedName, description: savedDescription } = project.project;
-  const updateProject = useUpdateProject();
+  const { key, name: savedName, description: savedDescription } = team.team;
+  const updateTeam = useUpdateTeam();
 
   const [name, setName] = useState(savedName);
   const [description, setDescription] = useState(savedDescription);
 
   const trimmedName = name.trim();
   const dirty = trimmedName !== savedName || description !== savedDescription;
-  const canSave = isOwner && trimmedName.length > 0 && dirty && !updateProject.isPending;
+  const canSave = isOwner && trimmedName.length > 0 && dirty && !updateTeam.isPending;
 
   async function save() {
-    await updateProject.mutateAsync({
-      projectKey: key,
+    await updateTeam.mutateAsync({
+      teamKey: key,
       patch: { name: trimmedName, description },
     });
-    toast.success('Project updated');
+    toast.success('Team updated');
   }
 
   return {
@@ -49,7 +49,7 @@ export function useGeneralForm(project: ProjectDetail): GeneralForm {
     setName,
     setDescription,
     editable: isOwner,
-    saving: updateProject.isPending,
+    saving: updateTeam.isPending,
     canSave,
     save,
   };

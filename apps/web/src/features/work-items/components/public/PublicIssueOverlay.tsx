@@ -7,7 +7,7 @@ import ReadOnlyIssueDetail from '@/features/issue/components/detail/ReadOnlyIssu
 
 // The read-only issue detail opened from a shared board card. It fetches the issue
 // under the board's own share token (the API checks the issue belongs to the shared
-// view's project) and renders it in a dialog. Composing the issue feature's
+// view's team) and renders it in a dialog. Composing the issue feature's
 // read-only detail is the allowed work-items → issue direction.
 export default function PublicIssueOverlay({
   token,

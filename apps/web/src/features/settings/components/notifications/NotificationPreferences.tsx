@@ -6,10 +6,10 @@ import NotificationTelegramAccount from './NotificationTelegramAccount';
 import { NOTIFICATION_EVENTS } from '../../utils/notificationEvents';
 import type { NotificationPreferencesForm } from '../../hooks/useNotificationPreferencesForm';
 
-// A member's own notification preferences for the project: for each issue event, a
+// A member's own notification preferences for the team: for each issue event, a
 // checkbox per channel (email, Telegram). Visible to every member (each edits only
 // their own). Email is sent to the account address; Telegram to the account connected
-// in the member's profile, shown below. Delivery only happens for channels a project
+// in the member's profile, shown below. Delivery only happens for channels a team
 // owner has configured. Save lives in the page header.
 
 // Shared column template so the header labels line up with every event row.

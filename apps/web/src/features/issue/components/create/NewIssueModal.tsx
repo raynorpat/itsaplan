@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { type Editor } from '@tiptap/react';
 import { MoreHorizontal } from 'lucide-react';
-import { type IssueFieldValueInput, type ProjectDetail } from '@/lib/api';
-import { type NewIssueDefaults } from '@/utils/project';
+import { type IssueFieldValueInput, type TeamDetail } from '@/lib/api';
+import { type NewIssueDefaults } from '@/utils/team';
 import { useSession } from '@/lib/auth-client';
 import { useCreateIssue, useSetFieldValue, useUpdateIssue } from '@/services/issues.service';
 import { useCustomFieldsQuery } from '@/services/customFields.service';
@@ -29,44 +29,42 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Pill } from '@/components/common/fields/Pill';
-import InitiativeSelect from '../fields/InitiativeSelect';
-import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
+import ProjectSelect from '../fields/ProjectSelect';
 
 export default function NewIssueModal({
-  project,
+  team,
   defaults,
   onClose,
   onCreated,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   defaults: NewIssueDefaults;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [columnId, setColumnId] = useState(defaults.columnId);
+  const [stateId, setColumnId] = useState(defaults.stateId);
   const [typeId, setTypeId] = useState<string | null>(
     defaults.typeId === undefined
-      ? (project.issueTypes.find((t) => t.isDefault)?.id ?? null)
+      ? (team.issueTypes.find((t) => t.isDefault)?.id ?? null)
       : defaults.typeId,
   );
-  const [initiativeId, setInitiativeId] = useState<string | null>(defaults.initiativeId ?? null);
+  const [projectId, setProjectId] = useState<string | null>(defaults.projectId ?? null);
   const { data: session } = useSession();
   // Assignee defaults to the creating user unless the caller set one explicitly
   // (defaults.assigneeUserId is null for the "No assignee" board group).
   const [assigneeUserId, setAssigneeUserId] = useState<string | null>(() => {
     if (defaults.assigneeUserId !== undefined) return defaults.assigneeUserId;
     const userId = session?.user.id;
-    return userId != null &&
-      project.assignees.some((a) => a.kind === 'member' && a.userId === userId)
+    return userId != null && team.assignees.some((a) => a.kind === 'member' && a.userId === userId)
       ? userId
       : null;
   });
   const [delegateUserId, setDelegateUserId] = useState<string | null>(
     defaults.delegateUserId ?? null,
   );
-  const [priority, setPriority] = useState(priorityKey(defaults.priority ?? 0));
+  const [priority, setPriority] = useState(defaults.priority ?? 0);
   const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [labelIds, setLabelIds] = useState<string[]>([]);
@@ -76,15 +74,15 @@ export default function NewIssueModal({
   // Custom fields for the selected type (global + type-scoped). Fields flagged
   // "show in main info" render below the description; the rest are added on
   // demand from the "…" menu.
-  const fieldsQuery = useCustomFieldsQuery(project.project.key, typeId ?? undefined);
+  const fieldsQuery = useCustomFieldsQuery(team.team.key, typeId ?? undefined);
   const fieldDefs = fieldsQuery.data ?? [];
   const [activeFieldIds, setActiveFieldIds] = useState<string[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, IssueFieldValueInput>>({});
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
   const createIssue = useCreateIssue();
-  const updateIssue = useUpdateIssue(project.project.key);
-  const setFieldValueMutation = useSetFieldValue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
+  const setFieldValueMutation = useSetFieldValue(team.team.key);
   const uploadAttachment = useUploadAttachment();
 
   // Files pasted or dropped into the description before the issue exists.
@@ -166,16 +164,16 @@ export default function NewIssueModal({
     setError(null);
     try {
       const created = await createIssue.mutateAsync({
-        projectKey: project.project.key,
+        teamKey: team.team.key,
         input: {
           title: title.trim(),
           description: description.trim() || undefined,
-          columnId,
+          stateId,
           typeId,
-          initiativeId,
+          projectId,
           assigneeUserId,
           delegateUserId,
-          priority: priorityLevel(priority),
+          priority: priority,
           startDate: startDate || null,
           dueDate: dueDate || null,
           labelIds,
@@ -219,7 +217,7 @@ export default function NewIssueModal({
   }
 
   return (
-    <Modal title="New issue" projectKey={project.project.key} onClose={onClose} wide>
+    <Modal title="New issue" teamKey={team.team.key} onClose={onClose} wide>
       <div onDragOver={onModalDragOver} onDrop={onModalDrop}>
         <input
           className="w-full bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
@@ -264,20 +262,20 @@ export default function NewIssueModal({
         <div
           className={`${bodyDefs.length > 0 ? 'mt-8' : 'mt-4'} flex flex-wrap items-center gap-2`}
         >
-          <StatusSelect columns={project.columns} value={columnId} onChange={setColumnId} />
+          <StatusSelect columns={team.states} value={stateId} onChange={setColumnId} />
 
-          {project.assignees.some((a) => a.kind === 'member') && (
+          {team.assignees.some((a) => a.kind === 'member') && (
             <AssigneeSelect
-              assignees={project.assignees}
+              assignees={team.assignees}
               value={assigneeUserId}
               onChange={setAssigneeUserId}
               placeholder="Assignee"
             />
           )}
 
-          {project.assignees.some((a) => a.kind === 'agent') && (
+          {team.assignees.some((a) => a.kind === 'agent') && (
             <DelegateSelect
-              assignees={project.assignees}
+              assignees={team.assignees}
               value={delegateUserId}
               onChange={setDelegateUserId}
               placeholder="Delegate"
@@ -286,22 +284,18 @@ export default function NewIssueModal({
 
           <PrioritySelect value={priority} onChange={setPriority} />
 
-          {project.issueTypes.length > 0 && (
-            <TypeSelect issueTypes={project.issueTypes} value={typeId} onChange={setTypeId} />
+          {team.issueTypes.length > 0 && (
+            <TypeSelect issueTypes={team.issueTypes} value={typeId} onChange={setTypeId} />
           )}
 
-          {project.project.initiativesEnabled && (
-            <InitiativeSelect
-              projectKey={project.project.key}
-              value={initiativeId}
-              onChange={setInitiativeId}
-            />
+          {team.team.projectsEnabled && (
+            <ProjectSelect teamKey={team.team.key} value={projectId} onChange={setProjectId} />
           )}
 
-          {project.labels.length > 0 && (
+          {team.labels.length > 0 && (
             <LabelsSelect
-              labels={project.labels}
-              groups={project.labelGroups}
+              labels={team.labels}
+              groups={team.labelGroups}
               value={labelIds}
               onToggle={toggleLabel}
             />

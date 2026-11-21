@@ -9,7 +9,7 @@ import {
   positionAt,
   sortIssues,
   type WorkItemsViewProps,
-} from '@/utils/project';
+} from '@/utils/team';
 import { useDndSensors } from '@/lib/dnd';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
@@ -23,26 +23,24 @@ import { TableRow } from './TableRow';
 const tableCollision = preferPrefix('row:');
 
 export default function TableView({
-  project,
+  team,
   customFields,
   settings,
   onOpenIssue,
   onAddIssue,
   readOnly,
 }: WorkItemsViewProps) {
-  const updateIssue = useUpdateIssue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
-  const collapsed = usePersistedSet(
-    collapsedKey(project.project.id, settings.group, settings.subgroup),
-  );
+  const collapsed = usePersistedSet(collapsedKey(team.team.id, settings.group, settings.subgroup));
 
   const grouped = settings.group !== 'none';
   const subgrouped = grouped && settings.subgroup !== 'none';
-  const sorted = sortIssues(project.issues, settings.sort, project);
-  const groups = buildGroups(project, settings.group);
-  const subGroups = subgrouped ? buildGroups(project, settings.subgroup) : [];
-  const maps = buildMaps(project);
+  const sorted = sortIssues(team.issues, settings.sort, team);
+  const groups = buildGroups(team, settings.group);
+  const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
+  const maps = buildMaps(team);
 
   const { columns, gridTemplate, minWidth, alignTop } = resolveColumns(
     settings.properties,
@@ -93,7 +91,7 @@ export default function TableView({
   }
 
   const activeIssue =
-    activeId != null ? (project.issues.find((i) => i.id === activeId) ?? null) : null;
+    activeId != null ? (team.issues.find((i) => i.id === activeId) ?? null) : null;
 
   function renderItem(item: FlatItem) {
     switch (item.kind) {
@@ -111,7 +109,7 @@ export default function TableView({
             onDrop={(id) => moveIssue(id, item.assign, item.bucket, item.bucket.length)}
             onToggle={() => collapsed.toggle(item.group.key)}
             onAddIssue={() =>
-              onAddIssue({ columnId: project.columns[0]?.id ?? '', ...item.group.assign })
+              onAddIssue({ stateId: team.states[0]?.id ?? '', ...item.group.assign })
             }
             readOnly={readOnly}
           />
@@ -131,7 +129,7 @@ export default function TableView({
       case 'row':
         return (
           <TableRow
-            project={project}
+            team={team}
             issue={item.issue}
             orderedColumns={columns}
             maps={maps}

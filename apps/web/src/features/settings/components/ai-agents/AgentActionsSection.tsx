@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { grantedToolCount } from '../../utils/agentForm';
 import { AgentFormSection } from './AgentFormSection';
 
-// What the agent may do in the project. Read-only tools are always granted; the rest
+// What the agent may do in the team. Read-only tools are always granted; the rest
 // are opt-in. The counter shows the tools the agent actually has (the granted ones
 // plus the always-on read tools) over the full catalog.
 export default function AgentActionsSection({
@@ -43,7 +43,7 @@ export default function AgentActionsSection({
       onOpenChange={onOpenChange}
       icon={ListChecks}
       title="Actions"
-      hint="What the agent can do in the project"
+      hint="What the agent can do in the team"
       headerRight={tools.length > 0 ? `${activeCount} / ${tools.length}` : undefined}
     >
       {toolsLoading && <p className="text-xs text-muted-foreground">Loading actions…</p>}

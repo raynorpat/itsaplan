@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { usePermissionCatalogQuery } from '@/services/roles.service';
 import { useDeleteInstanceUser, useInstanceUserQuery } from '../../services/god.service';
 import { providerList } from '../../utils/providers';
-import GodUserProjectCard from './GodUserProjectCard';
+import GodUserTeamCard from './GodUserTeamCard';
 import GodUserVerifyButton from './GodUserVerifyButton';
 
 // One fact in the account grid: a quiet label with the value under it. Reading down
@@ -28,7 +28,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 // One account in a right-hand side panel (the same surface the role editor uses):
-// the account facts and every project it can reach, each with the permissions its
+// the account facts and every team it can reach, each with the permissions its
 // membership resolves to. Escape or a backdrop click closes it.
 export default function GodUserDetailPanel({
   userId,
@@ -41,12 +41,12 @@ export default function GodUserDetailPanel({
   const catalogQuery = usePermissionCatalogQuery();
   const deleteUser = useDeleteInstanceUser();
   const [confirming, setConfirming] = useState(false);
-  const [withProjects, setWithProjects] = useState(false);
+  const [withTeams, setWithTeams] = useState(false);
   const user = userQuery.data;
 
-  // Projects this user owns alone. Deleting the account leaves them without anyone
+  // Teams this user owns alone. Deleting the account leaves them without anyone
   // who can manage them, so the API refuses unless they are deleted along with it.
-  const soleOwned = (user?.projects ?? []).filter((p) => p.role === 'owner' && p.ownerCount === 1);
+  const soleOwned = (user?.teams ?? []).filter((p) => p.role === 'owner' && p.ownerCount === 1);
   const one = soleOwned.length === 1;
 
   // Escape closes the confirm dialog first; the panel stays until it is gone.
@@ -59,9 +59,9 @@ export default function GodUserDetailPanel({
   const removable = user ? user.role !== 'god' && !user.isAgent : false;
 
   async function confirmDelete() {
-    await deleteUser.mutateAsync({ userId, withProjects });
+    await deleteUser.mutateAsync({ userId, withTeams });
     setConfirming(false);
-    toast.success(withProjects ? 'Account and its projects deleted' : 'Account deleted');
+    toast.success(withTeams ? 'Account and its teams deleted' : 'Account deleted');
     onClose();
   }
 
@@ -144,11 +144,11 @@ export default function GodUserDetailPanel({
                     <span className="text-muted-foreground">None linked</span>
                   )}
                 </Fact>
-                <Fact label="Projects">
-                  {user.projectCount === 0 ? (
+                <Fact label="Teams">
+                  {user.teamCount === 0 ? (
                     <span className="text-muted-foreground">None</span>
                   ) : (
-                    user.projectCount
+                    user.teamCount
                   )}
                 </Fact>
                 <Fact label="Registered">{formatDate(user.createdAt)}</Fact>
@@ -163,27 +163,23 @@ export default function GodUserDetailPanel({
 
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-sm font-medium">Project access</h3>
-                  {user.projects.length > 0 && (
-                    <span className="text-xs text-muted-foreground">{user.projects.length}</span>
+                  <h3 className="text-sm font-medium">Team access</h3>
+                  {user.teams.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{user.teams.length}</span>
                   )}
                 </div>
-                {user.projects.length === 0 ? (
+                {user.teams.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/30 px-6 py-10 text-center">
                     <FolderOpen className="size-5 text-muted-foreground" />
-                    <p className="text-sm font-medium">No project access</p>
+                    <p className="text-sm font-medium">No team access</p>
                     <p className="max-w-[36ch] text-xs text-muted-foreground">
-                      This account reaches nothing until someone invites it to a project.
+                      This account reaches nothing until someone invites it to a team.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {user.projects.map((p) => (
-                      <GodUserProjectCard
-                        key={p.projectId}
-                        project={p}
-                        catalog={catalogQuery.data}
-                      />
+                    {user.teams.map((p) => (
+                      <GodUserTeamCard key={p.teamId} team={p} catalog={catalogQuery.data} />
                     ))}
                   </div>
                 )}
@@ -202,7 +198,7 @@ export default function GodUserDetailPanel({
               size="sm"
               className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => {
-                setWithProjects(false);
+                setWithTeams(false);
                 setConfirming(true);
               }}
             >
@@ -217,9 +213,9 @@ export default function GodUserDetailPanel({
         <ConfirmDialog
           title="Delete account"
           confirmLabel={
-            withProjects ? `Delete account and ${one ? 'project' : 'projects'}` : 'Delete account'
+            withTeams ? `Delete account and ${one ? 'team' : 'teams'}` : 'Delete account'
           }
-          confirmDisabled={soleOwned.length > 0 && !withProjects}
+          confirmDisabled={soleOwned.length > 0 && !withTeams}
           onConfirm={confirmDelete}
           onClose={() => setConfirming(false)}
         >
@@ -236,15 +232,15 @@ export default function GodUserDetailPanel({
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
                   <div className="min-w-0 space-y-2">
                     <p className="text-sm font-medium">
-                      Only owner of {one ? 'a project' : `${soleOwned.length} projects`}
+                      Only owner of {one ? 'a team' : `${soleOwned.length} teams`}
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {soleOwned.map((p) => (
                         <span
-                          key={p.projectId}
+                          key={p.teamId}
                           className="rounded bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground"
                         >
-                          {p.projectKey}
+                          {p.teamKey}
                         </span>
                       ))}
                     </div>
@@ -256,16 +252,16 @@ export default function GodUserDetailPanel({
 
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-md bg-background/60 p-3 transition-colors hover:bg-background">
                   <Checkbox
-                    checked={withProjects}
-                    onCheckedChange={(v) => setWithProjects(v === true)}
+                    checked={withTeams}
+                    onCheckedChange={(v) => setWithTeams(v === true)}
                     className="mt-0.5"
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm">
-                      Delete {one ? 'the project' : 'the projects'} with the account
+                      Delete {one ? 'the team' : 'the teams'} with the account
                     </span>
                     <span className="block text-xs text-muted-foreground">
-                      {withProjects
+                      {withTeams
                         ? 'Everything inside goes too.'
                         : 'Or cancel and add a second owner first.'}
                     </span>

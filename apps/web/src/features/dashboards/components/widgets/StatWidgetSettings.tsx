@@ -11,14 +11,14 @@ export default function StatWidgetSettings({
   config: WidgetConfig;
   onConfigChange: (config: WidgetConfig) => void;
 }) {
-  const { project, customFields } = useShell();
+  const { team, customFields } = useShell();
   const filters: FilterSet = config.filters ?? EMPTY_FILTER_SET;
-  if (!project) return null;
+  if (!team) return null;
   return (
     <FilterBar
       filters={filters}
       onChange={(next) => onConfigChange({ filters: next })}
-      project={project}
+      team={team}
       customFields={customFields}
     />
   );

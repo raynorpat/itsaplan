@@ -1,5 +1,5 @@
 // Read-only analytics queries behind the dashboard widgets. Each hook wraps an
-// api.ts call and is keyed by qk.analytics(projectKey, kind, params) so widgets
+// api.ts call and is keyed by qk.analytics(teamKey, kind, params) so widgets
 // with different windows/filters cache independently. Feature-local: only the
 // dashboards feature reads these.
 
@@ -8,64 +8,64 @@ import { api, type PulseUnit } from '@/lib/api';
 import type { BreakdownBy } from '@/utils/dashboardWidgets';
 import { qk } from '@/services/queryKeys';
 
-export function useBreakdownQuery(projectKey: string, by: BreakdownBy) {
+export function useBreakdownQuery(teamKey: string, by: BreakdownBy) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'breakdown', { by }),
-    queryFn: () => api.getBreakdown(projectKey, by),
+    queryKey: qk.analytics(teamKey, 'breakdown', { by }),
+    queryFn: () => api.getBreakdown(teamKey, by),
   });
 }
 
-export function usePulseQuery(projectKey: string, unit: PulseUnit, columns: number) {
+export function usePulseQuery(teamKey: string, unit: PulseUnit, columns: number) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'pulse', { unit, columns }),
-    queryFn: () => api.getPulse(projectKey, unit, columns),
+    queryKey: qk.analytics(teamKey, 'pulse', { unit, columns }),
+    queryFn: () => api.getPulse(teamKey, unit, columns),
   });
 }
 
-export function useThroughputQuery(projectKey: string, weeks: number) {
+export function useThroughputQuery(teamKey: string, weeks: number) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'throughput', { weeks }),
-    queryFn: () => api.getThroughput(projectKey, weeks),
+    queryKey: qk.analytics(teamKey, 'throughput', { weeks }),
+    queryFn: () => api.getThroughput(teamKey, weeks),
   });
 }
 
 export function useAgentRunsQuery(
-  projectKey: string,
+  teamKey: string,
   params: { status: string | null; limit: number },
 ) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'agent-runs', params),
-    queryFn: () => api.getAgentRuns(projectKey, params),
+    queryKey: qk.analytics(teamKey, 'agent-runs', params),
+    queryFn: () => api.getAgentRuns(teamKey, params),
   });
 }
 
-export function useAgentRunStatsQuery(projectKey: string, days: number) {
+export function useAgentRunStatsQuery(teamKey: string, days: number) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'agent-run-stats', { days }),
-    queryFn: () => api.getAgentRunStats(projectKey, days),
+    queryKey: qk.analytics(teamKey, 'agent-run-stats', { days }),
+    queryFn: () => api.getAgentRunStats(teamKey, days),
   });
 }
 
-export function useWebhookStatsQuery(projectKey: string, days: number) {
+export function useWebhookStatsQuery(teamKey: string, days: number) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'webhook-stats', { days }),
-    queryFn: () => api.getWebhookStats(projectKey, days),
+    queryKey: qk.analytics(teamKey, 'webhook-stats', { days }),
+    queryFn: () => api.getWebhookStats(teamKey, days),
   });
 }
 
-export function useAgentWorkloadQuery(projectKey: string) {
+export function useAgentWorkloadQuery(teamKey: string) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'agent-workload'),
-    queryFn: () => api.getAgentWorkload(projectKey),
+    queryKey: qk.analytics(teamKey, 'agent-workload'),
+    queryFn: () => api.getAgentWorkload(teamKey),
   });
 }
 
 export function useActivityFeedQuery(
-  projectKey: string,
+  teamKey: string,
   params: { action: string | null; issueIds: string[] | null; limit: number },
 ) {
   return useQuery({
-    queryKey: qk.analytics(projectKey, 'activity', params),
-    queryFn: () => api.listActivity(projectKey, params),
+    queryKey: qk.analytics(teamKey, 'activity', params),
+    queryFn: () => api.listActivity(teamKey, params),
   });
 }

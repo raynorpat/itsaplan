@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import { type IssueType, type ProjectDetail } from '@/lib/api';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { type IssueType, type TeamDetail } from '@/lib/api';
+import { DEFAULT_COLOR } from '@/utils/team';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -25,14 +25,14 @@ import {
   useUpdateIssueType,
 } from '../../services/settings.service';
 
-// The project's issue types. Adding is opened from the page header (the `adding`
+// The team's issue types. Adding is opened from the page header (the `adding`
 // flag is lifted to the page); the add form itself is inline in this list.
 export default function SettingsIssueTypes({
-  project,
+  team,
   adding,
   onAddingChange,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
 }) {
@@ -42,12 +42,12 @@ export default function SettingsIssueTypes({
   const [isDefault, setIsDefault] = useState(false);
   const [deleting, setDeleting] = useState<IssueType | null>(null);
   const can = useSettingsCan();
-  const createIssueType = useCreateIssueType(project.project.key);
-  const updateIssueType = useUpdateIssueType(project.project.key);
-  const deleteIssueType = useDeleteIssueType(project.project.key);
+  const createIssueType = useCreateIssueType(team.team.key);
+  const updateIssueType = useUpdateIssueType(team.team.key);
+  const deleteIssueType = useDeleteIssueType(team.team.key);
 
-  const types = project.issueTypes;
-  const issueCount = (typeId: string) => project.issues.filter((t) => t.typeId === typeId).length;
+  const types = team.issueTypes;
+  const issueCount = (typeId: string) => team.issues.filter((t) => t.typeId === typeId).length;
 
   useEffect(() => {
     if (adding) {
@@ -98,7 +98,7 @@ export default function SettingsIssueTypes({
     return (
       <EmptyState
         title="No issue types yet"
-        description="Add the kinds of issues this project can hold, each with its own fields."
+        description="Add the kinds of issues this team can hold, each with its own fields."
       />
     );
   }

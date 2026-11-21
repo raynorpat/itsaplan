@@ -14,16 +14,16 @@ import { transferActionLabel } from '../../utils/transferAction';
 // and whether it is created or updates an existing state's color. On confirm, new
 // states are created and matched states have their color updated.
 export default function StatesImportDialog({
-  projectKey,
+  teamKey,
   planned,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   planned: PlannedState[];
   onClose: () => void;
 }) {
-  const createColumn = useCreateColumn(projectKey);
-  const updateColumn = useUpdateColumn(projectKey);
+  const createState = useCreateColumn(teamKey);
+  const updateState = useUpdateColumn(teamKey);
   const [busy, setBusy] = useState(false);
 
   const applicable = planned.filter((s) => s.action !== 'unchanged');
@@ -35,14 +35,14 @@ export default function StatesImportDialog({
       let updated = 0;
       for (const state of planned) {
         if (state.action === 'create') {
-          await createColumn.mutateAsync({
+          await createState.mutateAsync({
             name: state.name,
             stateType: state.stateType,
             color: state.color,
           });
           created += 1;
         } else if (state.action === 'update' && state.existingId != null) {
-          await updateColumn.mutateAsync({ id: state.existingId, patch: { color: state.color } });
+          await updateState.mutateAsync({ id: state.existingId, patch: { color: state.color } });
           updated += 1;
         }
       }

@@ -80,11 +80,12 @@ export function StateIcon({
   }
 }
 
-const PRIORITY_BARS: Record<string, number> = { low: 1, medium: 2, high: 3 };
+// Bars filled per priority (4 low, 3 medium, 2 high); 1 urgent draws a square.
+const PRIORITY_BARS: Record<number, number> = { 4: 1, 3: 2, 2: 3 };
 
 // Linear-style priority glyph: three bars of rising height, filled up to the
 // level. Urgent is a filled square with an exclamation mark instead of bars.
-export function PriorityIcon({ priority, className }: { priority: string; className?: string }) {
+export function PriorityIcon({ priority, className }: { priority: number; className?: string }) {
   const common = {
     width: 14,
     height: 14,
@@ -92,7 +93,7 @@ export function PriorityIcon({ priority, className }: { priority: string; classN
     className,
     'aria-hidden': true,
   } as const;
-  if (priority === 'urgent') {
+  if (priority === 1) {
     return (
       <svg {...common}>
         <rect x="1" y="1" width="12" height="12" rx="2.5" fill="var(--priority-urgent)" />

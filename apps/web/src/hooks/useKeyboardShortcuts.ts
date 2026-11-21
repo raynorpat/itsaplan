@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Project } from '@/lib/api';
+import type { Team } from '@/lib/api';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import { isTypingTarget, type HotkeyId } from '@/utils/hotkeys';
 import { useHotkeyMatch } from '@/context/useHotkeys';
@@ -14,30 +14,30 @@ const VIEW_HOTKEYS: [HotkeyId, WorkItemsView][] = [
 
 // The global keyboard layer. Which combination runs what is declared in
 // lib/hotkeys; this hook only decides when a binding may fire. A 'global' binding
-// (the palette, the project switch) fires even with an overlay open, while an
+// (the palette, the team switch) fires even with an overlay open, while an
 // 'app' one is suppressed while the user types or an overlay is open, because its
 // combination is a plain key that would land in the text being typed.
 export function useKeyboardShortcuts(opts: {
-  hasProject: boolean;
-  projects: Project[];
+  hasTeam: boolean;
+  teams: Team[];
   // True while any modal/overlay is open, which suppresses the app bindings.
   overlayOpen: boolean;
   onToggleCommand: () => void;
-  onSelectProject: (key: string) => void;
+  onSelectTeam: (key: string) => void;
   onChangeView: (view: WorkItemsView) => void;
   onNewIssue: () => void;
-  onNewProject: () => void;
+  onNewTeam: () => void;
   onSettings: () => void;
 }) {
   const {
-    hasProject,
-    projects,
+    hasTeam,
+    teams,
     overlayOpen,
     onToggleCommand,
-    onSelectProject,
+    onSelectTeam,
     onChangeView,
     onNewIssue,
-    onNewProject,
+    onNewTeam,
     onSettings,
   } = opts;
   const { matches, digit } = useHotkeyMatch();
@@ -49,21 +49,21 @@ export function useKeyboardShortcuts(opts: {
         onToggleCommand();
         return;
       }
-      // The project switch is positional: the digit picks the project at that
+      // The team switch is positional: the digit picks the team at that
       // place in the list.
-      const position = digit(e, 'project.switch');
+      const position = digit(e, 'team.switch');
       if (position != null) {
-        const target = projects[position - 1];
+        const target = teams[position - 1];
         if (target) {
           e.preventDefault();
-          onSelectProject(target.key);
+          onSelectTeam(target.key);
         }
         return;
       }
 
       if (isTypingTarget(e.target) || overlayOpen) return;
 
-      if (hasProject) {
+      if (hasTeam) {
         for (const [id, view] of VIEW_HOTKEYS) {
           if (matches(e, id)) {
             e.preventDefault();
@@ -72,17 +72,17 @@ export function useKeyboardShortcuts(opts: {
           }
         }
       }
-      if (hasProject && matches(e, 'issue.new')) {
+      if (hasTeam && matches(e, 'issue.new')) {
         e.preventDefault();
         onNewIssue();
         return;
       }
-      if (matches(e, 'project.new')) {
+      if (matches(e, 'team.new')) {
         e.preventDefault();
-        onNewProject();
+        onNewTeam();
         return;
       }
-      if (hasProject && matches(e, 'project.settings')) {
+      if (hasTeam && matches(e, 'team.settings')) {
         e.preventDefault();
         onSettings();
       }
@@ -90,16 +90,16 @@ export function useKeyboardShortcuts(opts: {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    hasProject,
-    projects,
+    hasTeam,
+    teams,
     overlayOpen,
     matches,
     digit,
     onToggleCommand,
-    onSelectProject,
+    onSelectTeam,
     onChangeView,
     onNewIssue,
-    onNewProject,
+    onNewTeam,
     onSettings,
   ]);
 }

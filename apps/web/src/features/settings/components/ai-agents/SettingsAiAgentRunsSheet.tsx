@@ -20,11 +20,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 // expands to show the task it was given and, if it failed, the error. Test-chat runs
 // are not recorded, so they never appear here.
 export function SettingsAiAgentRunsSheet({
-  projectKey,
+  teamKey,
   agent,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   agent: AiAgent | null;
   onClose: () => void;
 }) {
@@ -37,14 +37,14 @@ export function SettingsAiAgentRunsSheet({
             {agent ? `@${agent.username} · mention and delegation runs` : ''}
           </SheetDescription>
         </SheetHeader>
-        {agent && <RunsList projectKey={projectKey} agentId={agent.id} />}
+        {agent && <RunsList teamKey={teamKey} agentId={agent.id} />}
       </SheetContent>
     </Sheet>
   );
 }
 
-function RunsList({ projectKey, agentId }: { projectKey: string; agentId: string }) {
-  const query = useAgentRuns(projectKey, agentId);
+function RunsList({ teamKey, agentId }: { teamKey: string; agentId: string }) {
+  const query = useAgentRuns(teamKey, agentId);
   const runs = query.data?.pages.flatMap((p) => p.items) ?? [];
 
   if (query.isLoading) {

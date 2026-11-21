@@ -19,10 +19,10 @@ export interface NotificationPreferencesForm {
 // Form state for the member's own notification preferences. Shared between the
 // header Save button and the body checkboxes, so it lives in a hook.
 export function useNotificationPreferencesForm(
-  projectKey: string,
+  teamKey: string,
   initial: NotificationPreferences,
 ): NotificationPreferencesForm {
-  const update = useUpdateNotificationPreferences(projectKey);
+  const update = useUpdateNotificationPreferences(teamKey);
   const [emailEvents, setEmailEvents] = useState<NotificationEventToggles>(initial.emailEvents);
   const [telegramEvents, setTelegramEvents] = useState<NotificationEventToggles>(
     initial.telegramEvents,

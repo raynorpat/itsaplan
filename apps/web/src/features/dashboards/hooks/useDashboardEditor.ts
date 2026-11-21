@@ -19,18 +19,18 @@ import {
 // Drives the dashboards section: which layout is on screen, its unsaved edits,
 // and the create/rename/delete/reorder writes. The active dashboard comes from
 // the route (activeDashboardId); selecting one is a navigation, not local state.
-// When no dashboard is active (or the project has none) the built-in default
-// layout is shown, and saving it creates the project's first dashboard.
+// When no dashboard is active (or the team has none) the built-in default
+// layout is shown, and saving it creates the team's first dashboard.
 export function useDashboardEditor(
-  projectKey: string | null,
+  teamKey: string | null,
   dashboards: Dashboard[],
   activeDashboardId: string | null,
   onSelectDashboard: (id: string | null) => void,
 ) {
-  const createM = useCreateDashboard(projectKey);
-  const updateM = useUpdateDashboard(projectKey);
-  const deleteM = useDeleteDashboard(projectKey);
-  const reorderM = useReorderDashboards(projectKey);
+  const createM = useCreateDashboard(teamKey);
+  const updateM = useUpdateDashboard(teamKey);
+  const deleteM = useDeleteDashboard(teamKey);
+  const reorderM = useReorderDashboards(teamKey);
 
   const active = dashboards.find((d) => d.id === activeDashboardId) ?? null;
   const isVirtual = active == null;

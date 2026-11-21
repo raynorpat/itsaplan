@@ -20,12 +20,12 @@ import { AgentSheetForm } from './AgentSheetForm';
 // sheet stays open and switches to editing the new agent. An internal agent also gets
 // the test chat, shown alongside the form.
 export function SettingsAiAgentSheet({
-  projectKey,
+  teamKey,
   open,
   agent,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   open: boolean;
   agent: AiAgent | null;
   onClose: () => void;
@@ -43,21 +43,13 @@ export function SettingsAiAgentSheet({
       >
         {/* Key by agent (or 'new' for create) so switching gives a fresh form and chat
             session; create keeps the 'new' key while it becomes edit, so no remount. */}
-        {open && (
-          <SheetBody key={agent?.id ?? 'new'} projectKey={projectKey} initialAgent={agent} />
-        )}
+        {open && <SheetBody key={agent?.id ?? 'new'} teamKey={teamKey} initialAgent={agent} />}
       </SheetContent>
     </Sheet>
   );
 }
 
-function SheetBody({
-  projectKey,
-  initialAgent,
-}: {
-  projectKey: string;
-  initialAgent: AiAgent | null;
-}) {
+function SheetBody({ teamKey, initialAgent }: { teamKey: string; initialAgent: AiAgent | null }) {
   // The agent just created in this sheet, if any. Once set, the form switches from
   // create to edit for it without remounting.
   const [createdAgent, setCreatedAgent] = useState<AiAgent | null>(null);
@@ -68,7 +60,7 @@ function SheetBody({
   const canTest = agent?.kind === 'internal';
   // Held here so the transcript and thread survive re-renders. No agent yet during
   // create → id 0; the chat is only reachable once the agent exists.
-  const chat = useAgentChat(projectKey, agent?.id ?? '');
+  const chat = useAgentChat(teamKey, agent?.id ?? '');
 
   function onCreated(created: AiAgent, apiKey: string | null) {
     setCreatedAgent(created);
@@ -116,7 +108,7 @@ function SheetBody({
           className={`flex min-h-0 flex-1 flex-col ${split ? 'basis-0 border-r border-border/60' : ''}`}
         >
           <AgentSheetForm
-            projectKey={projectKey}
+            teamKey={teamKey}
             agent={agent}
             expanded
             onCreated={onCreated}

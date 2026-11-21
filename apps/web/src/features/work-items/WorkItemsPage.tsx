@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { api, type BoardIssues } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
-import { buildGroups, groupIssues } from '@/utils/project';
-import { restoreInitiative, withoutInitiative, type ViewSettings } from '@/utils/viewSettings';
+import { buildGroups, groupIssues } from '@/utils/team';
+import { restoreProject, withoutProject, type ViewSettings } from '@/utils/viewSettings';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,12 +29,11 @@ interface TimelineCollapseState {
 
 // The work items page (the index and /view/:viewId child routes of the Shell).
 // It renders the saved-view tabs, the inline edit bar and the selected layout;
-// the project data and the view editor come from the Shell through React context.
+// the team data and the view editor come from the Shell through React context.
 export default function WorkItemsPage() {
-  const { project, filteredProject, views, editor, customFields, onOpenIssue, onAddIssue } =
-    useShell();
+  const { team, filteredTeam, views, editor, customFields, onOpenIssue, onAddIssue } = useShell();
   const { can } = usePermissions();
-  const features = useProjectFeatures();
+  const features = useTeamFeatures();
   const qc = useQueryClient();
   const [timelineCollapseState, setTimelineCollapseState] = useState<TimelineCollapseState>({
     scope: '',
@@ -45,32 +44,32 @@ export default function WorkItemsPage() {
   // moves, so another user's create/move/edit shows without a manual reload. On
   // mount the first marker is compared against the cached issues' own marker, so
   // entering the section with a stale cache refetches at once.
-  const projectKey = project?.project.key ?? '';
+  const teamKey = team?.team.key ?? '';
   useLiveRefresh({
-    revKey: ['rev', 'boardIssues', projectKey],
-    fetchRev: () => api.getBoardIssuesRev(projectKey),
-    targets: [qk.boardIssues(projectKey)],
+    revKey: ['rev', 'boardIssues', teamKey],
+    fetchRev: () => api.getBoardIssuesRev(teamKey),
+    targets: [qk.boardIssues(teamKey)],
     intervalMs: 12000,
-    enabled: !!projectKey,
-    getCachedRev: () => qc.getQueryData<BoardIssues>(qk.boardIssues(projectKey))?.rev ?? null,
+    enabled: !!teamKey,
+    getCachedRev: () => qc.getQueryData<BoardIssues>(qk.boardIssues(teamKey))?.rev ?? null,
   });
 
-  if (!project || !filteredProject) return null;
+  if (!team || !filteredTeam) return null;
 
   // Saving persists the view: editing an existing one is a views edit, a brand-new
   // one is a views create. Filtering/display stay available to everyone (transient,
   // client-side); only persisting is gated.
   const canSaveView = can('views', editor.activeView ? 'edit' : 'create');
 
-  // With the Initiatives section off, its property and grouping are left out of
+  // With the Projects section off, its property and grouping are left out of
   // what the layouts and the Display panel work with, and put back on the way out
   // so the stored display keeps them for when the section is on again.
-  const settings = features.initiatives ? editor.settings : withoutInitiative(editor.settings);
+  const settings = features.projects ? editor.settings : withoutProject(editor.settings);
   const changeSettings = (next: ViewSettings) =>
-    editor.changeSettings(features.initiatives ? next : restoreInitiative(next, editor.settings));
+    editor.changeSettings(features.projects ? next : restoreProject(next, editor.settings));
 
-  const timelineGroups = buildGroups(filteredProject, settings.group);
-  const timelineIssuesByGroup = groupIssues(timelineGroups, filteredProject.issues, settings.group);
+  const timelineGroups = buildGroups(filteredTeam, settings.group);
+  const timelineIssuesByGroup = groupIssues(timelineGroups, filteredTeam.issues, settings.group);
   const visibleTimelineGroupKeys = timelineGroups
     .filter(
       (group) =>
@@ -78,7 +77,7 @@ export default function WorkItemsPage() {
     )
     .map((group) => group.key);
   const timelineCollapseScope = [
-    projectKey,
+    teamKey,
     editor.activeViewId ?? 'all',
     settings.group,
     settings.showEmptyGroups,
@@ -104,7 +103,7 @@ export default function WorkItemsPage() {
   };
 
   const viewProps = {
-    project: filteredProject,
+    team: filteredTeam,
     customFields,
     settings,
     onSettingsChange: changeSettings,
@@ -137,14 +136,14 @@ export default function WorkItemsPage() {
     settings,
     onSettingsChange: changeSettings,
     customFields,
-    issueTypes: project.issueTypes,
+    issueTypes: team.issueTypes,
   };
 
   return (
     <>
       <ViewTabs
         views={views}
-        projectKey={project.project.key}
+        teamKey={team.team.key}
         activeViewId={editor.activeViewId}
         onSelect={editor.selectView}
         onNewView={editor.beginNewView}
@@ -194,7 +193,7 @@ export default function WorkItemsPage() {
             <FilterBar
               filters={editor.filters}
               onChange={editor.changeFilters}
-              project={project}
+              team={team}
               customFields={customFields}
             />
           </div>

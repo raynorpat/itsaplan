@@ -14,8 +14,8 @@ function sourceLabel(isOwner: boolean, roleName: string | null): string {
   return 'No role assigned: the default member permissions apply.';
 }
 
-// One membership, from either side of it: a project the user can reach, or a member
-// of the project. `header` is what the row states about that side; the matrix behind
+// One membership, from either side of it: a team the user can reach, or a member
+// of the team. `header` is what the row states about that side; the matrix behind
 // the toggle spells the access out per resource.
 export default function GodAccessCard({
   header,

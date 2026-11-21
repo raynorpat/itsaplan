@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { NewIssueDefaults } from '@/utils/project';
+import type { NewIssueDefaults } from '@/utils/team';
 
-// The project-level overlays: the new-project modal, the command palette, the
+// The team-level overlays: the new-team modal, the command palette, the
 // new-issue modal and the issue detail panel. Grouped here so the Shell tracks
 // one object instead of four flags, and so the keyboard shortcut layer can ask
-// whether any overlay is open through `anyOpen`. Project settings are their own
+// whether any overlay is open through `anyOpen`. Team settings are their own
 // pages, not an overlay.
 // `showChatByDefault` is the account preference: it shows the floating chat button
 // from the start, with the chat window collapsed.
 export function useOverlays(showChatByDefault: boolean) {
-  const [showNewProject, setShowNewProject] = useState(false);
+  const [showNewTeam, setShowNewTeam] = useState(false);
   const [showCommand, setShowCommand] = useState(false);
   // Initial field values for a new issue (null = the new-issue modal is closed).
   const [newIssueDefaults, setNewIssueDefaults] = useState<NewIssueDefaults | null>(null);
@@ -38,11 +38,11 @@ export function useOverlays(showChatByDefault: boolean) {
     setChatOpen(next);
   };
 
-  const anyOpen = showNewProject || showCommand || newIssueDefaults != null || openIssueId != null;
+  const anyOpen = showNewTeam || showCommand || newIssueDefaults != null || openIssueId != null;
 
   return {
-    showNewProject,
-    setShowNewProject,
+    showNewTeam,
+    setShowNewTeam,
     showCommand,
     setShowCommand,
     newIssueDefaults,

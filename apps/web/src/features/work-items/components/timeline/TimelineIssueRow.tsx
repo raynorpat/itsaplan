@@ -1,4 +1,4 @@
-import { type ProjectDetail, type Issue } from '@/lib/api';
+import { type TeamDetail, type Issue } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import IssueContextMenu from '@/features/issue/components/actions/IssueContextMenu';
 import { type TimelineDragMode } from '../../hooks/useTimelineDrag';
@@ -8,7 +8,7 @@ import { ROW_H, type Span } from '../../utils/timeline';
 // track. The bar moves the issue (rewriting dates and, on a vertical move, the
 // selected group) or resizes one end; the start/end handles appear on hover.
 export function TimelineIssueRow({
-  project,
+  team,
   issue,
   span,
   rect,
@@ -25,7 +25,7 @@ export function TimelineIssueRow({
   onBeginDrag,
   onOpen,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   span: Span;
   rect: { left: number; width: number };
@@ -50,7 +50,7 @@ export function TimelineIssueRow({
       className={cn('flex border-b', isDrop ? 'bg-accent/40' : 'hover:bg-accent/20')}
       style={{ height: ROW_H }}
     >
-      <IssueContextMenu project={project} issue={issue}>
+      <IssueContextMenu team={team} issue={issue}>
         <div
           className={cn(
             'sticky left-0 z-10 flex shrink-0 cursor-pointer items-center gap-2 overflow-hidden border-r px-3',

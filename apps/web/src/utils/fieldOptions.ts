@@ -5,40 +5,27 @@
 
 import type { StateType } from '@/lib/api';
 
-export type Priority = 'urgent' | 'high' | 'medium' | 'low';
+// Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
+export type Priority = 1 | 2 | 3 | 4;
 
 // Priorities most-urgent-first. The filter options, sort rank, group order and
 // the field selector all derive from this list.
 export const PRIORITIES: { value: Priority; label: string }[] = [
-  { value: 'urgent', label: 'Urgent' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
+  { value: 1, label: 'Urgent' },
+  { value: 2, label: 'High' },
+  { value: 3, label: 'Medium' },
+  { value: 4, label: 'Low' },
 ];
 
 // Priority values in display/rank order (most urgent first).
 export const PRIORITY_ORDER = PRIORITIES.map((p) => p.value);
 
-// value -> rank (0 = most urgent). An unset priority is absent, so callers rank
-// it after every listed one.
-export const PRIORITY_RANK: Record<string, number> = Object.fromEntries(
-  PRIORITIES.map((p, i) => [p.value, i]),
-);
-
-// An issue's priority is on Linear's scale (0 none, 1 urgent, 2 high, 3 medium,
-// 4 low). The shared priority UI is keyed by name ('' for none), so issue code
-// converts at the boundary with these two.
-const ISSUE_PRIORITY_KEYS = ['', 'urgent', 'high', 'medium', 'low'];
-export const priorityKey = (level: number): string => ISSUE_PRIORITY_KEYS[level] ?? '';
-export const priorityLevel = (key: string | null | undefined): number =>
-  Math.max(0, ISSUE_PRIORITY_KEYS.indexOf(key ?? ''));
-
-// The label for a priority value, or "No priority" for an unset one.
-export const priorityLabel = (value: string | null | undefined): string =>
+// The label for a priority, or "No priority" for 0.
+export const priorityLabel = (value: number | null | undefined): string =>
   PRIORITIES.find((p) => p.value === value)?.label ?? 'No priority';
 
 // Filter-builder options: the priorities plus an explicit "unset" choice (null).
-export const PRIORITY_OPTIONS: { value: string | null; label: string }[] = [
+export const PRIORITY_OPTIONS: { value: number | null; label: string }[] = [
   ...PRIORITIES,
   { value: null, label: 'No priority' },
 ];

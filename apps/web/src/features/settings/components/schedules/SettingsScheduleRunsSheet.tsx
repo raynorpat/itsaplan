@@ -13,15 +13,15 @@ import {
 } from '@/components/ui/sheet';
 
 export function SettingsScheduleRunsSheet({
-  projectKey,
+  teamKey,
   schedule,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   schedule: AgentSchedule | null;
   onClose: () => void;
 }) {
-  const query = useAgentScheduleRuns(projectKey, schedule?.id ?? null);
+  const query = useAgentScheduleRuns(teamKey, schedule?.id ?? null);
   return (
     <Sheet open={schedule != null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">

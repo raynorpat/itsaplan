@@ -15,7 +15,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { ActionDef, IssuePatch, ProjectDetail } from '@/lib/api';
+import type { ActionDef, IssuePatch, TeamDetail } from '@/lib/api';
 import { actionIcon } from '@/utils/actionIcons';
 import { toDateStr } from '@/utils/dates';
 import { useActionsQuery } from '@/services/actions.service';
@@ -39,7 +39,6 @@ import {
 import { StateIcon } from '../components/shared/IssueIcons';
 import { dueDatePresets, formatPreset } from '../utils/dueDatePresets';
 import { buildIssuePrompt } from '../utils/issuePrompt';
-import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // The palette commands for the issue the user is looking at — the issue page or
 // the open detail panel. They are the context menu's actions in command form and
@@ -47,29 +46,29 @@ import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 // returned separately: the palette closes when a command runs, so they must be
 // rendered by the host that outlives it.
 export function useIssueCommands(
-  project: ProjectDetail | null,
+  team: TeamDetail | null,
   issueId: string | null,
   onDeleted?: () => void,
 ): { section: CommandSection | null; dialogs: ReactNode } {
   const { can } = usePermissions();
   const { onOpenIssue } = useShell();
   const { data: session } = useSession();
-  const projectKey = project?.project.key ?? null;
+  const teamKey = team?.team.key ?? null;
   const issueQuery = useIssueQuery(issueId);
   const issue = issueQuery.data ?? null;
-  const updateIssue = useUpdateIssue(projectKey);
-  const archiveIssue = useArchiveIssue(projectKey);
-  const restoreIssue = useRestoreIssue(projectKey);
-  const actionsQuery = useActionsQuery(projectKey);
+  const updateIssue = useUpdateIssue(teamKey);
+  const archiveIssue = useArchiveIssue(teamKey);
+  const restoreIssue = useRestoreIssue(teamKey);
+  const actionsQuery = useActionsQuery(teamKey);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
 
   const dialogs =
-    project && issue ? (
+    team && issue ? (
       <>
         {confirmingDelete && (
           <DeleteIssueDialog
-            project={project}
+            team={team}
             issue={issue}
             onClose={() => setConfirmingDelete(false)}
             onDeleted={onDeleted}
@@ -77,7 +76,7 @@ export function useIssueCommands(
         )}
         {confirmingAction && (
           <ApplyActionDialog
-            project={project}
+            team={team}
             issue={issue}
             action={confirmingAction}
             onClose={() => setConfirmingAction(null)}
@@ -86,18 +85,18 @@ export function useIssueCommands(
       </>
     ) : null;
 
-  if (!project || !issue) return { section: null, dialogs };
+  if (!team || !issue) return { section: null, dialogs };
 
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
   const patch = (fields: IssuePatch) => updateIssue.mutate({ id: issue.id, patch: fields });
-  const members = project.assignees.filter((a) => a.kind === 'member');
-  const agents = project.assignees.filter((a) => a.kind === 'agent');
-  const actions = matchedActions(actionsQuery.data ?? [], project, issue);
-  const currentColumn = project.columns.find((c) => c.id === issue.columnId);
+  const members = team.assignees.filter((a) => a.kind === 'member');
+  const agents = team.assignees.filter((a) => a.kind === 'agent');
+  const actions = matchedActions(actionsQuery.data ?? [], team, issue);
+  const currentColumn = team.states.find((c) => c.id === issue.stateId);
 
   const copyPrompt = async () => {
-    await navigator.clipboard.writeText(buildIssuePrompt(issue, project, session?.user));
+    await navigator.clipboard.writeText(buildIssuePrompt(issue, team, session?.user));
     toast.success('Prompt copied to clipboard');
   };
 
@@ -140,12 +139,12 @@ export function useIssueCommands(
       submenu: {
         heading: 'Change status',
         placeholder: 'Set status to…',
-        items: project.columns.map((c) => ({
+        items: team.states.map((c) => ({
           id: `issue.status.${c.id}`,
           label: c.name,
           icon: <StateIcon stateType={c.stateType} color={c.color} className="size-3.5" />,
-          checked: c.id === issue.columnId,
-          run: () => patch({ columnId: c.id }),
+          checked: c.id === issue.stateId,
+          run: () => patch({ stateId: c.id }),
         })),
       },
     });
@@ -153,9 +152,7 @@ export function useIssueCommands(
     items.push({
       id: 'issue.priority',
       label: 'Set priority',
-      icon: (
-        PRIORITY_FIELDS.find((p) => p.value === priorityKey(issue.priority)) ?? PRIORITY_FIELDS[0]
-      ).icon,
+      icon: (PRIORITY_FIELDS.find((p) => p.value === issue.priority) ?? PRIORITY_FIELDS[0]).icon,
       keywords: 'urgent high medium low',
       submenu: {
         heading: 'Set priority',
@@ -164,8 +161,8 @@ export function useIssueCommands(
           id: `issue.priority.${p.value || 'none'}`,
           label: p.label,
           icon: p.icon,
-          checked: p.value === priorityKey(issue.priority),
-          run: () => patch({ priority: priorityLevel(p.value) }),
+          checked: p.value === issue.priority,
+          run: () => patch({ priority: p.value }),
         })),
       },
     });
@@ -258,7 +255,7 @@ export function useIssueCommands(
       },
     });
 
-    if (project.labels.length > 0) {
+    if (team.labels.length > 0) {
       items.push({
         id: 'issue.labels',
         label: 'Toggle labels',
@@ -267,7 +264,7 @@ export function useIssueCommands(
         submenu: {
           heading: 'Toggle labels',
           placeholder: 'Toggle a label…',
-          items: project.labels.map((l) => ({
+          items: team.labels.map((l) => ({
             id: `issue.labels.${l.id}`,
             label: l.name,
             icon: colorDot(l.color),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AiAgent, ProjectDetail } from '@/lib/api';
+import type { AiAgent, TeamDetail } from '@/lib/api';
 import {
   useAiAgentsQuery,
   useDeleteAiAgent,
@@ -15,20 +15,20 @@ import { SettingsAiAgentSheet } from './SettingsAiAgentSheet';
 import { SettingsAiAgentRunsSheet } from './SettingsAiAgentRunsSheet';
 import { integrationLabel } from '../../utils/integrationLabels';
 
-// Project settings tab for AI agents: bot users that issues can be delegated to.
+// Team settings tab for AI agents: bot users that issues can be delegated to.
 // An external agent is driven through the API; an internal agent runs on the
 // built-in runtime and carries provider/model/instructions/tools. Creating and
 // editing happen in the same full-width sheet; creating an external agent reveals
 // its key once, inline, then stays open to keep editing. Regenerating a key (an
 // existing external agent only) reveals the new plaintext secret once.
-export default function SettingsAiAgents({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
-  const agentsQuery = useAiAgentsQuery(projectKey);
+export default function SettingsAiAgents({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
+  const agentsQuery = useAiAgentsQuery(teamKey);
   const agents = agentsQuery.data ?? [];
-  const deleteAgent = useDeleteAiAgent(projectKey);
-  const regenerateKey = useRegenerateAiAgentKey(projectKey);
+  const deleteAgent = useDeleteAiAgent(teamKey);
+  const regenerateKey = useRegenerateAiAgentKey(teamKey);
   // The integration catalog maps a provider key to a readable label for the meta row.
-  const catalog = useIntegrationCatalogQuery(projectKey).data ?? [];
+  const catalog = useIntegrationCatalogQuery(teamKey).data ?? [];
 
   // The open sheet: null means closed, agentId null means create, a set id means edit
   // that agent. Held in a single object so `null` distinguishes closed from create.
@@ -98,14 +98,14 @@ export default function SettingsAiAgents({ project }: { project: ProjectDetail }
       )}
 
       <SettingsAiAgentSheet
-        projectKey={projectKey}
+        teamKey={teamKey}
         open={sheet != null}
         agent={sheetAgent}
         onClose={() => setSheet(null)}
       />
 
       <SettingsAiAgentRunsSheet
-        projectKey={projectKey}
+        teamKey={teamKey}
         agent={runsAgent}
         onClose={() => setRunsAgent(null)}
       />

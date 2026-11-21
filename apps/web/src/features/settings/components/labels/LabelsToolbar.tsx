@@ -22,16 +22,16 @@ import {
   type LabelsImportPlan,
 } from '../../utils/labelsTransfer';
 
-// The Labels page header actions: copy the project's labels and groups to the
+// The Labels page header actions: copy the team's labels and groups to the
 // clipboard and paste them from it (with Cmd/Ctrl+C/V shortcuts). Adding labels is
 // done in the list below.
 export default function LabelsToolbar({
-  projectKey,
+  teamKey,
   resource,
   groups,
   labels,
 }: {
-  projectKey: string;
+  teamKey: string;
   resource: PermissionResource;
   groups: LabelGroup[];
   labels: Label[];
@@ -130,7 +130,7 @@ export default function LabelsToolbar({
 
       {importing && (
         <LabelsImportDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           plan={importing}
           existingGroups={groups}
           onClose={() => setImporting(null)}

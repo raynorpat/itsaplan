@@ -9,8 +9,8 @@ import UserMenu from '@/components/layout/UserMenu';
 import GodSidebar from '@/components/layout/GodSidebar';
 
 // The shell for god mode: the instance settings sidebar and a slim header, with no
-// project loaded. It is the counterpart of Shell for the project routes, but far
-// smaller — nothing here needs the board, overlays, or project permissions.
+// team loaded. It is the counterpart of Shell for the team routes, but far
+// smaller — nothing here needs the board, overlays, or team permissions.
 //
 // Access is by the global role: only the instance owner ("god") sees the pages. The
 // API enforces the same on every /god route, so this check is about what to render,

@@ -9,7 +9,7 @@ import {
   offeredDisplayProperties,
   type PropertyKey,
 } from '@/utils/viewSettings';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import CustomFieldMenu from '@/components/layout/CustomFieldMenu';
 import PropertyChip from '@/components/layout/PropertyChip';
 import SortablePropertyChip from '@/components/layout/SortablePropertyChip';
@@ -41,8 +41,8 @@ export default function TableProperties({
   // Enabled keys in display order, dropping any stale (deleted custom field) key.
   const enabled = properties.filter((k) => labelFor(k) != null);
   const enabledSet = new Set(properties);
-  const features = useProjectFeatures();
-  const disabledBuiltins = offeredDisplayProperties(features.initiatives).filter(
+  const features = useTeamFeatures();
+  const disabledBuiltins = offeredDisplayProperties(features.projects).filter(
     (p) => !enabledSet.has(p.value),
   );
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ProjectDetail, Webhook } from '@/lib/api';
+import type { TeamDetail, Webhook } from '@/lib/api';
 import {
   useWebhooksQuery,
   useCreateWebhook,
@@ -12,24 +12,24 @@ import { SettingsWebhookDialog, type WebhookFormValue } from './SettingsWebhookD
 import { SettingsWebhooksTable } from './SettingsWebhooksTable';
 import { SettingsWebhookDeliveriesSheet } from './SettingsWebhookDeliveriesSheet';
 
-// Project settings tab for outgoing webhooks. Each webhook posts subscribed
-// project events to its URL, signed with a per-webhook secret. Delivery is handled
+// Team settings tab for outgoing webhooks. Each webhook posts subscribed
+// team events to its URL, signed with a per-webhook secret. Delivery is handled
 // by the server; this tab manages the subscriptions.
 export default function SettingsWebhooks({
-  project,
+  team,
   requestNew,
   onNewHandled,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   requestNew: boolean;
   onNewHandled: () => void;
 }) {
-  const projectKey = project.project.key;
-  const webhooksQuery = useWebhooksQuery(projectKey);
+  const teamKey = team.team.key;
+  const webhooksQuery = useWebhooksQuery(teamKey);
   const webhooks = webhooksQuery.data ?? [];
-  const createWebhook = useCreateWebhook(projectKey);
-  const updateWebhook = useUpdateWebhook(projectKey);
-  const deleteWebhook = useDeleteWebhook(projectKey);
+  const createWebhook = useCreateWebhook(teamKey);
+  const updateWebhook = useUpdateWebhook(teamKey);
+  const deleteWebhook = useDeleteWebhook(teamKey);
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Webhook | null>(null);
@@ -76,7 +76,7 @@ export default function SettingsWebhooks({
       {showDialog && (
         <SettingsWebhookDialog
           key={editingWebhook?.id ?? 'new'}
-          projectKey={projectKey}
+          teamKey={teamKey}
           initial={editingWebhook}
           saving={saving}
           onSave={saveWebhook}

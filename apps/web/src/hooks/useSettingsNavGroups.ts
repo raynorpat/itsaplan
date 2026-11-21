@@ -16,12 +16,12 @@ import {
   type SettingsSection,
 } from '@/utils/settingsSections';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 
-// The project settings sidebar (the "Project settings" mode) lists the
+// The team settings sidebar (the "Team settings" mode) lists the
 // Configuration sections flat under group labels. This hook builds those groups
 // from the section config and the viewer's permissions, and reports the first
-// reachable destination so the main sidebar's "Project settings" entry knows
+// reachable destination so the main sidebar's "Team settings" entry knows
 // where to point.
 
 export type SettingsNavItem = {
@@ -47,17 +47,17 @@ const AI_SECTION_PATH: Record<string, (key: string) => string> = {
   'agent-tools': agentToolsPath,
 };
 
-// `project` is only passed by the Shell, which calls this above its own context
-// provider; everything else reads the project from the context.
+// `team` is only passed by the Shell, which calls this above its own context
+// provider; everything else reads the team from the context.
 export function useSettingsNavGroups(
-  projectKey: string | null,
-  project?: ProjectDetail | null,
+  teamKey: string | null,
+  team?: TeamDetail | null,
 ): {
   groups: SettingsNavGroup[];
   firstHref: string | null;
 } {
   const pathname = usePathname();
-  const { can, isOwner } = usePermissions(project);
+  const { can, isOwner } = usePermissions(team);
 
   // The readable sections of one group as nav items. `activeBase` is the path
   // segment the slug is appended to when matching the current route.
@@ -70,7 +70,7 @@ export function useSettingsNavGroups(
       .filter((s) => can(s.resource, 'read'))
       .map((s) => ({
         key: s.slug,
-        href: projectKey ? hrefFor(projectKey, s.slug) : '#',
+        href: teamKey ? hrefFor(teamKey, s.slug) : '#',
         icon: s.icon,
         label: s.label,
         active: pathname.endsWith(`${activeBase}/${s.slug}`),
@@ -81,13 +81,13 @@ export function useSettingsNavGroups(
   const workflowItems = toItems(CONFIGURATION_SECTIONS, settingsPath, '/settings');
   const automationItems = toItems(AUTOMATION_SECTIONS, settingsPath, '/settings');
 
-  // Roles is owner-only and sits in the Project group; Members lives in the main
+  // Roles is owner-only and sits in the Team group; Members lives in the main
   // sidebar, not here.
   const rolesItems: SettingsNavItem[] = isOwner
     ? [
         {
           key: 'roles',
-          href: projectKey ? rolesPath(projectKey) : '#',
+          href: teamKey ? rolesPath(teamKey) : '#',
           icon: Shield,
           label: 'Roles',
           active: pathname.endsWith('/members/roles'),
@@ -96,7 +96,7 @@ export function useSettingsNavGroups(
     : [];
 
   const groups: SettingsNavGroup[] = [
-    { key: 'general', label: 'Project', items: [...generalItems, ...rolesItems] },
+    { key: 'general', label: 'Team', items: [...generalItems, ...rolesItems] },
     { key: 'ai', label: 'AI Team', items: aiItems },
     { key: 'workflow', label: 'Workflow', items: workflowItems },
     { key: 'automation', label: 'Automation', items: automationItems },

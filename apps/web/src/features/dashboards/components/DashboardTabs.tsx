@@ -16,7 +16,7 @@ import DashboardNameDialog from './DashboardNameDialog';
 
 // The row of dashboard tabs. Each named dashboard is a sortable tab; the active
 // one exposes Rename/Delete. A "New dashboard" button and a name dialog handle
-// create/rename. When the project has no dashboards, a single non-clickable
+// create/rename. When the team has no dashboards, a single non-clickable
 // "Overview" chip stands in for the built-in default.
 export default function DashboardTabs({
   dashboards,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { type Issue, type IssuePatch, type ProjectDetail } from '@/lib/api';
+import { type Issue, type IssuePatch, type TeamDetail } from '@/lib/api';
 import { addDays, toDateStr } from '@/utils/dates';
-import { buildGroups, groupKeyOf } from '@/utils/project';
+import { buildGroups, groupKeyOf } from '@/utils/team';
 import { useUpdateIssue } from '@/services/issues.service';
 import type { GroupField } from '@/utils/viewSettings';
 import { effSpan } from '../utils/timeline';
@@ -26,19 +26,19 @@ interface DragSession {
 // span for the dragged issue; `dropGroupKey` is the group under the cursor
 // during a move (null when it matches the origin), used to highlight the target.
 export function useTimelineDrag({
-  project,
+  team,
   group,
   dayW,
   onOpenIssue,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   group: GroupField;
   dayW: number;
   onOpenIssue: (id: string) => void;
 }) {
-  const updateIssue = useUpdateIssue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
   const groupByKey = new Map(
-    buildGroups(project, group).map((issueGroup) => [issueGroup.key, issueGroup]),
+    buildGroups(team, group).map((issueGroup) => [issueGroup.key, issueGroup]),
   );
   const [preview, setPreview] = useState<{ issueId: string; start: Date; end: Date } | null>(null);
   const [dropGroupKey, setDropGroupKey] = useState<string | null>(null);

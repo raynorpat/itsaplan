@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { DEFAULT_COLOR, type IssueGroup } from '@/utils/project';
+import { DEFAULT_COLOR, type IssueGroup } from '@/utils/team';
 import { cn } from '@/lib/utils';
 import { GroupDot } from '../shared/GroupDot';
 import { GROUP_H } from '../../utils/timeline';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { api, type Notification, type NotificationFilters, type ProjectDetail } from '@/lib/api';
+import { api, type Notification, type NotificationFilters, type TeamDetail } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useInboxUnread } from '@/hooks/useInboxUnread';
@@ -17,27 +17,27 @@ import {
   useDeleteNotifications,
 } from '../services/notifications.service';
 
-export default function InboxView({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
-  const projectId = project.project.id;
+export default function InboxView({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
+  const teamId = team.team.id;
 
   const [filters, setFilters] = useState<NotificationFilters>({});
   const [selected, setSelected] = useState<Notification | null>(null);
 
-  const query = useNotificationsQuery(projectKey, projectId, filters);
-  const unreadQuery = useInboxUnread(projectKey, projectId);
-  const setRead = useSetNotificationRead(projectKey);
-  const snooze = useSnoozeNotification(projectKey);
-  const deleteOne = useDeleteNotification(projectKey);
-  const markAllRead = useMarkAllRead(projectKey, projectId);
-  const deleteNotifications = useDeleteNotifications(projectKey, projectId);
+  const query = useNotificationsQuery(teamKey, teamId, filters);
+  const unreadQuery = useInboxUnread(teamKey, teamId);
+  const setRead = useSetNotificationRead(teamKey);
+  const snooze = useSnoozeNotification(teamKey);
+  const deleteOne = useDeleteNotification(teamKey);
+  const markAllRead = useMarkAllRead(teamKey, teamId);
+  const deleteNotifications = useDeleteNotifications(teamKey, teamId);
 
   const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
 
   useLiveRefresh({
-    revKey: ['rev', 'notifications', projectKey],
-    fetchRev: () => api.getNotificationsRev(projectId),
-    targets: [['notifications', projectKey], qk.notificationsUnread(projectKey)],
+    revKey: ['rev', 'notifications', teamKey],
+    fetchRev: () => api.getNotificationsRev(teamId),
+    targets: [['notifications', teamKey], qk.notificationsUnread(teamKey)],
     intervalMs: 10000,
   });
 
@@ -81,7 +81,7 @@ export default function InboxView({ project }: { project: ProjectDetail }) {
           <div className="px-6 py-6 xl:px-10">
             <IssueDetailContent
               key={selected.issueId}
-              project={project}
+              team={team}
               issueId={selected.issueId}
               layout="split"
               onDeleted={() => setSelected(null)}

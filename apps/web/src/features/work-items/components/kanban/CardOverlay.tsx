@@ -1,6 +1,6 @@
 import { DragOverlay } from '@dnd-kit/core';
 import { type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type Maps } from '@/utils/team';
 import type { PropertyKey } from '@/utils/viewSettings';
 import { IssueCardBody } from './IssueCardBody';
 

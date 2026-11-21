@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { type IssueGroup } from '@/utils/project';
+import { type IssueGroup } from '@/utils/team';
 import { GroupDot } from '../shared/GroupDot';
 import { TableDropZone } from './TableDropZone';
 

@@ -1,67 +1,65 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { ProjectDetail } from '@/lib/api';
-import { issuePath, projectPath } from '@/utils/paths';
+import type { TeamDetail } from '@/lib/api';
+import { issuePath, teamPath } from '@/utils/paths';
 import type { useOverlays } from '@/hooks/useOverlays';
-import NewProjectModal from '@/components/layout/NewProjectModal';
+import NewTeamModal from '@/components/layout/NewTeamModal';
 import NewIssueModal from '@/features/issue/components/create/NewIssueModal';
 import IssueDetail from '@/features/issue/components/detail/IssueDetail';
 import { FloatingChat } from '@/features/ai-chat/components/floating/FloatingChat';
 
-// The project-level overlays the Shell mounts above its content: the new-project
+// The team-level overlays the Shell mounts above its content: the new-team
 // modal, the new-issue modal, the issue detail panel and the floating AI chat.
 // Each renders only while its overlay state says it is open.
 export default function ShellOverlays({
-  project,
-  projectKey,
+  team,
+  teamKey,
   overlays,
 }: {
-  project: ProjectDetail | null;
-  projectKey: string | null;
+  team: TeamDetail | null;
+  teamKey: string | null;
   overlays: ReturnType<typeof useOverlays>;
 }) {
   const router = useRouter();
 
   return (
     <>
-      {overlays.showNewProject && (
-        <NewProjectModal
-          onClose={() => overlays.setShowNewProject(false)}
+      {overlays.showNewTeam && (
+        <NewTeamModal
+          onClose={() => overlays.setShowNewTeam(false)}
           onCreated={(key) => {
-            overlays.setShowNewProject(false);
-            router.push(projectPath(key));
+            overlays.setShowNewTeam(false);
+            router.push(teamPath(key));
           }}
         />
       )}
 
-      {project && overlays.newIssueDefaults != null && (
+      {team && overlays.newIssueDefaults != null && (
         <NewIssueModal
-          project={project}
+          team={team}
           defaults={overlays.newIssueDefaults}
           onClose={() => overlays.setNewIssueDefaults(null)}
           onCreated={() => overlays.setNewIssueDefaults(null)}
         />
       )}
 
-      {project && overlays.openIssueId != null && (
+      {team && overlays.openIssueId != null && (
         <IssueDetail
-          project={project}
+          team={team}
           issueId={overlays.openIssueId}
           onClose={() => overlays.setOpenIssueId(null)}
           onExpand={(seq) => {
             // Prefer the number the panel loaded; fall back to the board issue.
             const n =
-              seq ??
-              project.issues.find((i) => i.id === overlays.openIssueId)?.sequenceNumber ??
-              null;
-            if (projectKey && n != null) router.push(issuePath(projectKey, n));
+              seq ?? team.issues.find((i) => i.id === overlays.openIssueId)?.sequenceNumber ?? null;
+            if (teamKey && n != null) router.push(issuePath(teamKey, n));
             overlays.setOpenIssueId(null);
           }}
         />
       )}
 
-      {project && overlays.chatEnabled && (
+      {team && overlays.chatEnabled && (
         <FloatingChat open={overlays.chatOpen} onOpenChange={overlays.setChatOpen} />
       )}
     </>

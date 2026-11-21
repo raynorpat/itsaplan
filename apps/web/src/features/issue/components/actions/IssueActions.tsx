@@ -1,23 +1,19 @@
-import type { ActionDef, ProjectDetail, Issue } from '@/lib/api';
+import type { ActionDef, TeamDetail, Issue } from '@/lib/api';
 import { matchesFilterSet } from '@/utils/filters';
 import { describeEffect } from '@/utils/actions';
 import { useDeleteIssue, useUpdateIssue } from '@/services/issues.service';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 
-// The project's manual actions whose condition matches this issue, in saved
+// The team's manual actions whose condition matches this issue, in saved
 // order. Shared by the issue detail Actions block and the context menu.
-export function matchedActions(
-  actions: ActionDef[],
-  project: ProjectDetail,
-  issue: Issue,
-): ActionDef[] {
-  return actions.filter((a) => matchesFilterSet(issue, a.condition, project));
+export function matchedActions(actions: ActionDef[], team: TeamDetail, issue: Issue): ActionDef[] {
+  return actions.filter((a) => matchesFilterSet(issue, a.condition, team));
 }
 
 // The confirm-dialog body for running an action: the changes it will apply, one
 // per line.
-function EffectSummary({ action, project }: { action: ActionDef; project: ProjectDetail }) {
-  const lines = describeEffect(action.effect, project);
+function EffectSummary({ action, team }: { action: ActionDef; team: TeamDetail }) {
+  const lines = describeEffect(action.effect, team);
   return (
     <div className="text-sm text-muted-foreground">
       <p>
@@ -40,17 +36,17 @@ function EffectSummary({ action, project }: { action: ActionDef; project: Projec
 // dialog is mounted and leaves the deleted issue via onDeleted. Shared by the
 // issue detail Actions bar and the context menu.
 export function DeleteIssueDialog({
-  project,
+  team,
   issue,
   onClose,
   onDeleted,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   onClose: () => void;
   onDeleted?: () => void;
 }) {
-  const deleteIssue = useDeleteIssue(project.project.key);
+  const deleteIssue = useDeleteIssue(team.team.key);
   return (
     <ConfirmDialog
       title="Delete issue"
@@ -73,17 +69,17 @@ export function DeleteIssueDialog({
 // Confirm and apply one manual action's effect as a single patch. Owns the
 // mutation; the caller owns whether the dialog is mounted.
 export function ApplyActionDialog({
-  project,
+  team,
   issue,
   action,
   onClose,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   action: ActionDef;
   onClose: () => void;
 }) {
-  const updateIssue = useUpdateIssue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
   return (
     <ConfirmDialog
       title={action.name}
@@ -94,7 +90,7 @@ export function ApplyActionDialog({
       }}
       onClose={onClose}
     >
-      <EffectSummary action={action} project={project} />
+      <EffectSummary action={action} team={team} />
     </ConfirmDialog>
   );
 }

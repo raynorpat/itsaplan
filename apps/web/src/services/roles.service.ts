@@ -14,24 +14,24 @@ export function usePermissionCatalogQuery() {
 
 // Roles are listable by any member, but only owners have a use for them here.
 // Pass enabled=false for a non-owner to skip the request.
-export function useRolesQuery(projectKey: string | null, enabled = true) {
+export function useRolesQuery(teamKey: string | null, enabled = true) {
   return useQuery({
-    queryKey: qk.roles(projectKey ?? ''),
-    queryFn: () => api.listRoles(projectKey!),
-    enabled: projectKey != null && enabled,
+    queryKey: qk.roles(teamKey ?? ''),
+    queryFn: () => api.listRoles(teamKey!),
+    enabled: teamKey != null && enabled,
   });
 }
 
-export function useCreateRole(projectKey: string) {
+export function useCreateRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; permissions: Permissions }) =>
-      api.createRole(projectKey, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.roles(projectKey) }),
+      api.createRole(teamKey, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.roles(teamKey) }),
   });
 }
 
-export function useUpdateRole(projectKey: string) {
+export function useUpdateRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -40,23 +40,23 @@ export function useUpdateRole(projectKey: string) {
     }: {
       roleId: string;
       patch: { name?: string; permissions?: Permissions };
-    }) => api.updateRole(projectKey, roleId, patch),
+    }) => api.updateRole(teamKey, roleId, patch),
     // A rename changes the role name shown on members, so refresh both lists.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.roles(projectKey) });
-      qc.invalidateQueries({ queryKey: qk.members(projectKey) });
+      qc.invalidateQueries({ queryKey: qk.roles(teamKey) });
+      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
     },
   });
 }
 
-export function useDeleteRole(projectKey: string) {
+export function useDeleteRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (roleId: string) => api.deleteRole(projectKey, roleId),
+    mutationFn: (roleId: string) => api.deleteRole(teamKey, roleId),
     // Deleting a role reassigns its members to the default role.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.roles(projectKey) });
-      qc.invalidateQueries({ queryKey: qk.members(projectKey) });
+      qc.invalidateQueries({ queryKey: qk.roles(teamKey) });
+      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
     },
   });
 }

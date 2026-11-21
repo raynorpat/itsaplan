@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import type { FilterCondition, FilterValue } from '@/utils/filters';
 import { BOOLEAN_OPTIONS, valuesLabel, type FieldSpec } from '@/utils/filterFields';
 import { cn } from '@/lib/utils';
@@ -13,12 +13,12 @@ export default function FilterValueEditor({
   spec,
   cond,
   onChange,
-  project,
+  team,
 }: {
   spec: FieldSpec;
   cond: FilterCondition;
   onChange: (values: FilterValue[]) => void;
-  project: ProjectDetail;
+  team: TeamDetail;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -32,8 +32,8 @@ export default function FilterValueEditor({
       onChange(selected.includes(id) ? cond.values.filter((v) => v !== id) : [...cond.values, id]);
     return (
       <LabelPicker
-        labels={project.labels}
-        groups={project.labelGroups}
+        labels={team.labels}
+        groups={team.labelGroups}
         selected={selected}
         onToggle={toggleLabel}
         trigger={

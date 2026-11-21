@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 // A Set<string> of keys persisted in localStorage under `storageKey`, used for
-// client-only per-project preferences like hidden columns and collapsed sections.
-// Reloads when `storageKey` changes (e.g. the project or grouping field switches),
-// so each project+field remembers its own set independently.
+// client-only per-team preferences like hidden columns and collapsed sections.
+// Reloads when `storageKey` changes (e.g. the team or grouping field switches),
+// so each team+field remembers its own set independently.
 //
 // The stored values are read in an effect, not in the state initializer: the
 // initializer also runs during the server render, where there is no localStorage,

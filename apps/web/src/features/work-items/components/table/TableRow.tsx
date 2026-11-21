@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type TeamDetail, type Issue } from '@/lib/api';
+import { type Maps } from '@/utils/team';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,7 @@ import { TableCustomCell } from './TableCustomCell';
 // A draggable, droppable table row. Dragging it starts a move; dropping another
 // row on it inserts before this one (onDrop). A click (no drag) opens it.
 export function TableRow({
-  project,
+  team,
   issue,
   orderedColumns,
   maps,
@@ -26,7 +26,7 @@ export function TableRow({
   onDrop,
   onClick,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: Issue;
   orderedColumns: OrderedColumn[];
   maps: Maps;
@@ -70,7 +70,7 @@ export function TableRow({
     [dragRef, dropRef],
   );
   return (
-    <IssueContextMenu project={project} issue={issue}>
+    <IssueContextMenu team={team} issue={issue}>
       <div
         ref={mergedRef}
         {...attributes}

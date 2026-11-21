@@ -16,13 +16,13 @@ export interface WebhookFormValue {
 // types, and whether it is active. The secret is generated server-side and shown
 // on the row, not here.
 export function SettingsWebhookDialog({
-  projectKey,
+  teamKey,
   initial,
   saving,
   onSave,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   initial?: Webhook;
   saving: boolean;
   onSave: (value: WebhookFormValue) => Promise<void>;
@@ -54,8 +54,8 @@ export function SettingsWebhookDialog({
   return (
     <Modal
       title={initial ? 'Edit webhook' : 'New webhook'}
-      description="Set the payload URL and choose which project events to send."
-      projectKey={projectKey}
+      description="Set the payload URL and choose which team events to send."
+      teamKey={teamKey}
       onClose={onClose}
       wide
     >

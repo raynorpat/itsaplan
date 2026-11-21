@@ -7,7 +7,7 @@ import CustomFieldRow from '@/components/layout/CustomFieldRow';
 
 // The "…" picker that adds custom fields to the display: global fields at the top
 // level, each issue type an expandable sub-list of its type-scoped fields.
-// Nothing renders when the project has no custom fields.
+// Nothing renders when the team has no custom fields.
 export default function CustomFieldMenu({
   customFields,
   issueTypes,

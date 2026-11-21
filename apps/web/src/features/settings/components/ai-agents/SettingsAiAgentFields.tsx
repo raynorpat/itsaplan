@@ -33,7 +33,7 @@ import AgentExpandedLayout from './AgentExpandedLayout';
 import AgentModelSection from './AgentModelSection';
 import AgentActionsSection from './AgentActionsSection';
 
-// Sentinel select value for "no explicit role" (falls back to the project default).
+// Sentinel select value for "no explicit role" (falls back to the team default).
 const DEFAULT_ROLE_VALUE = '__default__';
 
 // Which sections open when the form first renders. Core sections start open; the
@@ -56,7 +56,7 @@ const DEFAULT_OPEN: Record<string, boolean> = {
 export default function SettingsAiAgentFields({
   value,
   onChange,
-  projectKey,
+  teamKey,
   tools,
   toolsLoading,
   kindLocked,
@@ -72,7 +72,7 @@ export default function SettingsAiAgentFields({
 }: {
   value: AgentFormValue;
   onChange: (patch: Partial<AgentFormValue>) => void;
-  projectKey: string;
+  teamKey: string;
   tools: AgentTool[];
   toolsLoading: boolean;
   kindLocked: boolean;
@@ -196,7 +196,7 @@ export default function SettingsAiAgentFields({
       {...sectionProps('model')}
       value={value}
       onChange={onChange}
-      projectKey={projectKey}
+      teamKey={teamKey}
       credentials={credentials}
       catalog={catalog}
       models={models}

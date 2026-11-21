@@ -21,11 +21,11 @@ export interface TelegramForm {
 // Save button and the body fields, so it lives in a hook. The token is sent only
 // when changed.
 export function useTelegramForm(
-  projectKey: string,
+  teamKey: string,
   settings: NotificationSettings,
   editable: boolean,
 ): TelegramForm {
-  const update = useUpdateNotificationSettings(projectKey);
+  const update = useUpdateNotificationSettings(teamKey);
   const [enabled, setEnabled] = useState(settings.telegram.enabled);
   const [botToken, setBotToken] = useState('');
 

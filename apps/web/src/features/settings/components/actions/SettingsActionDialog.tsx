@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ActionEffect, ProjectDetail, CustomField } from '@/lib/api';
+import type { ActionEffect, TeamDetail, CustomField } from '@/lib/api';
 import { isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import { isEmptyEffect } from '@/utils/actions';
 import Modal from '@/components/common/overlay/Modal';
@@ -14,8 +14,8 @@ import { SettingsActionIconPicker } from './SettingsActionIconPicker';
 // availability condition (the shared FilterBar), and the effect. Edits are local
 // until Save; the parent decides create vs update.
 export function SettingsActionDialog({
-  projectKey,
-  project,
+  teamKey,
+  team,
   customFields,
   mode,
   initialName,
@@ -26,8 +26,8 @@ export function SettingsActionDialog({
   onSave,
   onClose,
 }: {
-  projectKey: string;
-  project: ProjectDetail;
+  teamKey: string;
+  team: TeamDetail;
   customFields: CustomField[];
   mode: 'new' | 'edit';
   initialName: string;
@@ -62,7 +62,7 @@ export function SettingsActionDialog({
     <Modal
       title={mode === 'edit' ? 'Edit action' : 'New action'}
       description="Pick an icon, name the action, and set which issues it applies to and what it changes."
-      projectKey={projectKey}
+      teamKey={teamKey}
       onClose={onClose}
       wide
     >
@@ -94,7 +94,7 @@ export function SettingsActionDialog({
           <FilterBar
             filters={condition}
             onChange={setCondition}
-            project={project}
+            team={team}
             customFields={customFields}
           />
           {!isActiveFilterSet(condition) && (
@@ -104,7 +104,7 @@ export function SettingsActionDialog({
 
         <div className="space-y-2.5">
           <Label>Then set</Label>
-          <SettingsEffectEditor effect={effect} project={project} onChange={setEffect} />
+          <SettingsEffectEditor effect={effect} team={team} onChange={setEffect} />
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border/50 pt-4">

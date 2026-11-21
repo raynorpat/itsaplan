@@ -17,7 +17,7 @@ import SavedViewTab from '@/components/layout/SavedViewTab';
 import ViewTabChrome from '@/components/layout/ViewTabChrome';
 import ViewTabLabel from '@/components/layout/ViewTabLabel';
 
-// The row of saved-view tabs above a project, plus a New view button and, on the
+// The row of saved-view tabs above a team, plus a New view button and, on the
 // right, the filter and display toggles. The leading "All" tab is implicit and
 // has no filters; it cannot be deleted. The saved tabs are a horizontal sortable
 // list — dragging one reorders it and persists via onReorder. The filter toggle
@@ -25,7 +25,7 @@ import ViewTabLabel from '@/components/layout/ViewTabLabel';
 // edit bar for a view (see WorkItemsPage).
 export default function ViewTabs({
   views,
-  projectKey,
+  teamKey,
   activeViewId,
   onSelect,
   onNewView,
@@ -36,7 +36,7 @@ export default function ViewTabs({
   displayControl,
 }: {
   views: View[];
-  projectKey: string;
+  teamKey: string;
   activeViewId: string | null;
   onSelect: (id: string | null) => void;
   onNewView: () => void;
@@ -101,7 +101,7 @@ export default function ViewTabs({
               <SavedViewTab
                 key={view.id}
                 view={view}
-                projectKey={projectKey}
+                teamKey={teamKey}
                 active={activeViewId === view.id}
                 canEdit={canEditView}
                 canDelete={canDeleteView}

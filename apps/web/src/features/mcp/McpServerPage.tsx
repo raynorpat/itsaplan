@@ -7,19 +7,19 @@ import McpStatusRow from './components/McpStatusRow';
 import McpConnectionGuide from './components/McpConnectionGuide';
 
 export default function McpServerPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   const { isOwner } = usePermissions();
 
   return (
     <SectionPageView
       title="MCP Server"
-      description="Let AI agents work with this project over the Model Context Protocol: every issue and board action they can reach with your access."
+      description="Let AI agents work with this team over the Model Context Protocol: every issue and board action they can reach with your access."
     >
       <div className="space-y-10">
         <McpStatusRow
-          projectKey={project?.project.key ?? ''}
-          enabled={project?.project.mcpEnabled ?? false}
-          isLoading={!project}
+          teamKey={team?.team.key ?? ''}
+          enabled={team?.team.mcpEnabled ?? false}
+          isLoading={!team}
           canManage={isOwner}
         />
         <McpConnectionGuide />

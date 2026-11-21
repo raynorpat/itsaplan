@@ -20,7 +20,7 @@ const ENCRYPTION_OPTIONS: { value: NotificationEncryption; label: string }[] = [
   { value: 'tls', label: 'TLS' },
 ];
 
-// The instance provider or one of the project's own (SMTP or Resend). Non-secret
+// The instance provider or one of the team's own (SMTP or Resend). Non-secret
 // fields prefill from the stored config; secrets start blank and are sent only when
 // changed.
 export default function EmailSettings({ form }: { form: EmailForm }) {
@@ -46,7 +46,7 @@ export default function EmailSettings({ form }: { form: EmailForm }) {
         <p className="text-sm text-muted-foreground">
           {settings.systemAvailable
             ? 'Notifications are sent through the provider configured for this instance. No credentials needed here.'
-            : 'The instance provider is not available. Ask the administrator to configure it and share it with projects, or set up a provider for this project.'}
+            : 'The instance provider is not available. Ask the administrator to configure it and share it with teams, or set up a provider for this team.'}
         </p>
       ) : form.provider === 'smtp' ? (
         <div className="grid gap-4 sm:grid-cols-3">

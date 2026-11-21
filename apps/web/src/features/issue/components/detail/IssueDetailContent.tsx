@@ -1,4 +1,4 @@
-import { type ProjectDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
+import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import { useIssueDetail } from '../../hooks/useIssueDetail';
 import IssueAttachmentsPanel from './IssueAttachmentsPanel';
 import IssueActivityFeed from './IssueActivityFeed';
@@ -14,17 +14,17 @@ import IssueActionsBar from '../actions/IssueActionsBar';
 // its own surrounding chrome (close button / breadcrumbs). Data loading and
 // mutations live in useIssueDetail; this component is layout only.
 export default function IssueDetailContent({
-  project,
+  team,
   issueId,
   onIssueLoaded,
   onDeleted,
   layout = 'panel',
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issueId: string;
   onIssueLoaded?: (issue: IssueDetailRow) => void;
   // Called after the issue is deleted, so the surrounding chrome can leave the
-  // now-gone issue (close the panel / return to the project).
+  // now-gone issue (close the panel / return to the team).
   onDeleted?: () => void;
   // 'panel' stacks everything in one column (side panel). 'page' puts the
   // Properties in a right sidebar fixed to the viewport edge (Linear full-page
@@ -42,7 +42,7 @@ export default function IssueDetailContent({
     uploadFile,
     imageAttachments,
     setDescEditor,
-  } = useIssueDetail(project, issueId, onIssueLoaded);
+  } = useIssueDetail(team, issueId, onIssueLoaded);
 
   if (!issue) {
     return <div className="py-6 text-sm text-muted-foreground">Loading…</div>;
@@ -106,7 +106,7 @@ export default function IssueDetailContent({
 
   const properties = (
     <IssueProperties
-      project={project}
+      team={team}
       issue={issue}
       fieldDefs={fieldDefs}
       onPatch={patch}
@@ -119,29 +119,20 @@ export default function IssueDetailContent({
   );
 
   const actions = (
-    <IssueActionsBar
-      project={project}
-      issue={issue}
-      hasSidebar={hasSidebar}
-      onDeleted={onDeleted}
-    />
+    <IssueActionsBar team={team} issue={issue} hasSidebar={hasSidebar} onDeleted={onDeleted} />
   );
 
   // A feed entry stores the author's name, not their picture, so the uploaded avatar
-  // comes from the project's candidate list by actor id. An author who is no longer a
+  // comes from the team's candidate list by actor id. An author who is no longer a
   // member falls back to the initials circle.
-  const imageByUserId = new Map(project.assignees.map((a) => [a.userId, a.image]));
+  const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
 
   const activity = (
     <>
-      <IssueStatusTimeline
-        issueId={issue.id}
-        columns={project.columns}
-        imageByUserId={imageByUserId}
-      />
+      <IssueStatusTimeline issueId={issue.id} columns={team.states} imageByUserId={imageByUserId} />
       <IssueActivityFeed
         issueId={issue.id}
-        assignees={project.assignees}
+        assignees={team.assignees}
         imageByUserId={imageByUserId}
       />
     </>

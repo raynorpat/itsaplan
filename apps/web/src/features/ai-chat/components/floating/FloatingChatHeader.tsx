@@ -14,7 +14,7 @@ import {
 import { agentModelLabel } from '../../utils/agentModelLabel';
 
 // The top bar of the floating chat: the agent picker plus the history, new-chat and
-// minimize actions. `selected` is null when the project has no internal agents, which
+// minimize actions. `selected` is null when the team has no internal agents, which
 // disables everything but minimize.
 export function FloatingChatHeader({
   agents,

@@ -2,8 +2,8 @@ import { useCallback, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronsRightLeft, EyeOff, Plus } from 'lucide-react';
-import { type ProjectDetail, type Issue } from '@/lib/api';
-import { type Maps, positionAt, type IssueGroup } from '@/utils/project';
+import { type TeamDetail, type Issue } from '@/lib/api';
+import { type Maps, positionAt, type IssueGroup } from '@/utils/team';
 import { cn } from '@/lib/utils';
 import type { PropertyKey } from '@/utils/viewSettings';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -21,7 +21,7 @@ import { COLUMN_WIDTH } from '../../utils/kanban';
 // a column with a large backlog stays fast. Card heights vary, so the virtualizer
 // measures each rendered card rather than assuming a fixed size.
 export function BoardColumn({
-  project,
+  team,
   group,
   issues,
   maps,
@@ -34,7 +34,7 @@ export function BoardColumn({
   onCollapse,
   readOnly,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   group: IssueGroup;
   issues: Issue[];
   maps: Maps;
@@ -55,9 +55,9 @@ export function BoardColumn({
   const scrollRef = useRef<HTMLDivElement>(null);
   // The scroll area is the append drop target; merge its ref with the virtualizer
   // scroll element ref.
-  const columnId = `col:${group.key}`;
+  const stateId = `col:${group.key}`;
   const { setNodeRef: dropRef, isOver } = useDroppable({
-    id: columnId,
+    id: stateId,
     data: { onDrop: (id: string) => onMoveIssue(id, group, positionAt(issues, issues.length)) },
   });
   const mergedRef = useCallback(
@@ -67,7 +67,7 @@ export function BoardColumn({
     },
     [dropRef],
   );
-  const isOverColumn = useIsOverContainer(columnId, issues);
+  const isOverColumn = useIsOverContainer(stateId, issues);
 
   const virtualizer = useVirtualizer({
     count: issues.length,
@@ -167,7 +167,7 @@ export function BoardColumn({
                   }
                 >
                   <BoardCard
-                    project={project}
+                    team={team}
                     issue={issue}
                     maps={maps}
                     properties={properties}

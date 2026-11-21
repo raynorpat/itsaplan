@@ -8,14 +8,14 @@ import { useWebhookStatsQuery } from '../../services/analytics.service';
 // auto-disabled by the worker (a dead endpoint). The window is configured from the
 // header popover.
 export default function WebhookHealthWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const days = config.days ?? 30;
-  const { data, isLoading } = useWebhookStatsQuery(projectKey, days);
+  const { data, isLoading } = useWebhookStatsQuery(teamKey, days);
 
   if (isLoading || !data) return <Skeleton className="h-10 w-20" />;
 

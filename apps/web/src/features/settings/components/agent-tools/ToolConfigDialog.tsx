@@ -19,12 +19,12 @@ export interface ToolOption {
 // (ToolPicker), then pick a credential of its integration to run it on
 // (ToolCredentialStep).
 export function ToolConfigDialog({
-  projectKey,
+  teamKey,
   catalog,
   credentials,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   catalog: IntegrationMeta[];
   credentials: IntegrationCredential[];
   onClose: () => void;
@@ -50,10 +50,10 @@ export function ToolConfigDialog({
   const tool = toolOptions.find((t) => t.toolKey === toolKey);
 
   return (
-    <Modal title="Add tool" projectKey={projectKey} onClose={onClose} wide>
+    <Modal title="Add tool" teamKey={teamKey} onClose={onClose} wide>
       {tool ? (
         <ToolCredentialStep
-          projectKey={projectKey}
+          teamKey={teamKey}
           tool={tool}
           credentials={credentials}
           onBack={() => setToolKey(null)}

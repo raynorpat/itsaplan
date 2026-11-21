@@ -5,12 +5,12 @@ import {
   type ViewSettings,
 } from '@/utils/viewSettings';
 import type { WorkItemsView } from '@/utils/viewTypes';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import PropertyChip from '@/components/layout/PropertyChip';
 import TableProperties from '@/components/layout/TableProperties';
 
 // The Display properties block. On the Table layout the chips are the column
-// list, sortable and extendable with custom fields; on Project they are plain
+// list, sortable and extendable with custom fields; on Team they are plain
 // on/off chips for the built-in properties.
 export default function DisplayPropertiesSection({
   view,
@@ -25,8 +25,8 @@ export default function DisplayPropertiesSection({
   customFields: CustomField[];
   issueTypes: IssueType[];
 }) {
-  const features = useProjectFeatures();
-  const properties = offeredDisplayProperties(features.initiatives);
+  const features = useTeamFeatures();
+  const properties = offeredDisplayProperties(features.projects);
 
   // Enabling appends to the end (a new column shows on the right); disabling
   // removes. Order is otherwise preserved.

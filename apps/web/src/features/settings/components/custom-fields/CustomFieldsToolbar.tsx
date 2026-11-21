@@ -23,15 +23,15 @@ import {
   type CustomFieldsImportPlan,
 } from '../../utils/customFieldsTransfer';
 
-// The Custom fields page header actions: copy the project's fields (asking whether to
+// The Custom fields page header actions: copy the team's fields (asking whether to
 // include the type-scoped ones) and paste them (creating any missing issue types).
 export default function CustomFieldsToolbar({
-  projectKey,
+  teamKey,
   resource,
   fields,
   types,
 }: {
-  projectKey: string;
+  teamKey: string;
   resource: PermissionResource;
   fields: CustomField[];
   types: IssueType[];
@@ -160,7 +160,7 @@ export default function CustomFieldsToolbar({
 
       {importing && (
         <CustomFieldsImportDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           plan={importing}
           existingTypes={types}
           onClose={() => setImporting(null)}

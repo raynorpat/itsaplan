@@ -28,7 +28,7 @@ export function sanitizeHtml(html: string, options?: HtmlOptions): string {
 
 // Markdown to display-ready HTML. `marked` passes raw HTML in the source
 // through untouched, so the result is sanitized before it reaches
-// dangerouslySetInnerHTML — markdown values are written by project members and
+// dangerouslySetInnerHTML — markdown values are written by team members and
 // agents, and would otherwise be a script injection into every viewer's session.
 // breaks:true so a single newline becomes a line break, matching the
 // MarkdownEditor used in the issue detail (tiptap-markdown breaks:true).

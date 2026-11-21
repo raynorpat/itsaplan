@@ -36,10 +36,7 @@ export default function PublicIssuePage({ token }: { token: string }) {
 
   return (
     <PublicShareFrame>
-      <PublicShareHeader
-        name={query.data.project.project.name}
-        ticker={query.data.project.project.key}
-      />
+      <PublicShareHeader name={query.data.team.team.name} ticker={query.data.team.team.key} />
       <ReadOnlyIssueDetail bundle={query.data} />
     </PublicShareFrame>
   );

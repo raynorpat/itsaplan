@@ -23,14 +23,14 @@ import {
   type PlannedRole,
 } from '../../utils/rolesTransfer';
 
-// The Roles page header actions: create a role, and copy/paste the project's roles to
+// The Roles page header actions: create a role, and copy/paste the team's roles to
 // and from the clipboard (with Cmd/Ctrl+C/V shortcuts). Owner-only; a non-owner sees
 // nothing here (the table below shows the access notice). Self-contained — it shares
 // the roles/catalog queries with the table through React Query.
-export default function RolesToolbar({ projectKey }: { projectKey: string }) {
+export default function RolesToolbar({ teamKey }: { teamKey: string }) {
   const { isOwner } = usePermissions();
   const mod = useIsMac() ? '⌘' : 'Ctrl';
-  const rolesQuery = useRolesQuery(projectKey, isOwner);
+  const rolesQuery = useRolesQuery(teamKey, isOwner);
   const catalogQuery = usePermissionCatalogQuery();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState<PlannedRole[] | null>(null);
@@ -39,7 +39,7 @@ export default function RolesToolbar({ projectKey }: { projectKey: string }) {
   const catalog = catalogQuery.data ?? null;
   const customRoleCount = roles.filter((r) => !r.isDefault).length;
 
-  // Copies the project's non-default roles to the clipboard as JSON.
+  // Copies the team's non-default roles to the clipboard as JSON.
   const copyRoles = useCallback(async () => {
     if (customRoleCount === 0) {
       toast.info('No custom roles to copy.');
@@ -141,7 +141,7 @@ export default function RolesToolbar({ projectKey }: { projectKey: string }) {
 
       {creating && catalog && (
         <RoleEditorPanel
-          projectKey={projectKey}
+          teamKey={teamKey}
           role={null}
           catalog={catalog}
           onClose={() => setCreating(false)}
@@ -150,7 +150,7 @@ export default function RolesToolbar({ projectKey }: { projectKey: string }) {
 
       {importing && (
         <RolesImportDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           planned={importing}
           onClose={() => setImporting(null)}
         />

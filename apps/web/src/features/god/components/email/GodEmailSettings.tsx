@@ -29,12 +29,12 @@ export default function GodEmailSettings({ form }: { form: GodEmailForm }) {
     <div className="space-y-8">
       <ProviderSection form={form} />
       <SettingsSection
-        title="Project notifications"
-        description="Let projects deliver their notifications through this provider instead of configuring one of their own. Each project still chooses whether to use it."
+        title="Team notifications"
+        description="Let teams deliver their notifications through this provider instead of configuring one of their own. Each team still chooses whether to use it."
         action={
           <EnabledSwitch
-            checked={form.allowProjects}
-            onChange={form.setAllowProjects}
+            checked={form.allowTeams}
+            onChange={form.setAllowTeams}
             disabled={form.saving}
           />
         }

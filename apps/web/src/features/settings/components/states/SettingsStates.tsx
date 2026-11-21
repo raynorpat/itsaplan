@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { closestCenter, DndContext, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { type Column, type ProjectDetail, type StateType } from '@/lib/api';
+import { type Column, type TeamDetail, type StateType } from '@/lib/api';
 import { useDndSensors } from '@/lib/dnd';
 import { STATE_TYPES } from '@/utils/fieldOptions';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { DEFAULT_COLOR } from '@/utils/team';
 import { Button } from '@/components/ui/button';
 import { ItemGroup } from '@/components/ui/item';
 import SettingsColorField from '../crud/SettingsColorField';
@@ -22,7 +22,7 @@ import SettingsDeleteStateDialog from './SettingsDeleteStateDialog';
 
 // The workflow states, grouped by state type. Each group has its own inline add;
 // states are reordered within their group by drag, edited inline, and deleted.
-export default function SettingsStates({ project }: { project: ProjectDetail }) {
+export default function SettingsStates({ team }: { team: TeamDetail }) {
   const [addingType, setAddingType] = useState<StateType | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
@@ -32,28 +32,27 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
   const [deleting, setDeleting] = useState<Column | null>(null);
   const sensors = useDndSensors();
   const can = useSettingsCan();
-  const createColumn = useCreateColumn(project.project.key);
-  const updateColumn = useUpdateColumn(project.project.key);
-  const reorderColumns = useReorderColumns(project.project.key);
+  const createState = useCreateColumn(team.team.key);
+  const updateState = useUpdateColumn(team.team.key);
+  const reorderStates = useReorderColumns(team.team.key);
 
-  const issueCount = (columnId: string) =>
-    project.issues.filter((t) => t.columnId === columnId).length;
+  const issueCount = (stateId: string) => team.issues.filter((t) => t.stateId === stateId).length;
 
   // Drop resolves to a reorder within the dragged column's own state type;
   // dropping onto a column of another type is ignored.
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const dragged = project.columns.find((c) => c.id === String(active.id));
-    const target = project.columns.find((c) => c.id === String(over.id));
+    const dragged = team.states.find((c) => c.id === String(active.id));
+    const target = team.states.find((c) => c.id === String(over.id));
     if (!dragged || !target || dragged.stateType !== target.stateType) return;
     void reorderWithinGroup(dragged.id, target.id, dragged.stateType);
   }
 
   // Moves the dragged column before the drop target within the same state type,
-  // then sends the full project column order so the backend renumbers positions.
+  // then sends the full team column order so the backend renumbers positions.
   async function reorderWithinGroup(draggedId: string, targetId: string, stateType: StateType) {
-    const group = project.columns.filter((c) => c.stateType === stateType);
+    const group = team.states.filter((c) => c.stateType === stateType);
     const from = group.findIndex((c) => c.id === draggedId);
     const to = group.findIndex((c) => c.id === targetId);
     if (from < 0 || to < 0) return;
@@ -62,9 +61,9 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
     next.splice(to, 0, moved);
 
     const orderedIds = STATE_TYPES.flatMap((s) =>
-      (s === stateType ? next : project.columns.filter((c) => c.stateType === s)).map((c) => c.id),
+      (s === stateType ? next : team.states.filter((c) => c.stateType === s)).map((c) => c.id),
     );
-    await reorderColumns.mutateAsync(orderedIds);
+    await reorderStates.mutateAsync(orderedIds);
   }
 
   function startAdd(s: StateType) {
@@ -76,7 +75,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
 
   async function add(stateType: StateType) {
     if (!name.trim()) return;
-    await createColumn.mutateAsync({ name: name.trim(), stateType, color });
+    await createState.mutateAsync({ name: name.trim(), stateType, color });
     setName('');
     setAddingType(null);
   }
@@ -90,7 +89,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
 
   async function saveEdit(c: Column) {
     if (!editName.trim()) return;
-    await updateColumn.mutateAsync({
+    await updateState.mutateAsync({
       id: c.id,
       patch: { name: editName.trim(), color: editColor },
     });
@@ -102,7 +101,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div>
           {STATE_TYPES.map((s) => {
-            const group = project.columns.filter((c) => c.stateType === s);
+            const group = team.states.filter((c) => c.stateType === s);
             return (
               <div key={s} className="mb-8 last:mb-0">
                 <div className="mb-1 flex items-center justify-between border-b pb-1">
@@ -174,7 +173,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
       </DndContext>
       {deleting && (
         <SettingsDeleteStateDialog
-          project={project}
+          team={team}
           column={deleting}
           issueCount={issueCount(deleting.id)}
           onClose={() => setDeleting(null)}

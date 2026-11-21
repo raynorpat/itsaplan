@@ -1,9 +1,9 @@
-// Serialize/parse a project's issue types for the copy/paste transfer between
-// projects. The clipboard payload is a small JSON envelope. Matching is by name;
+// Serialize/parse a team's issue types for the copy/paste transfer between
+// teams. The clipboard payload is a small JSON envelope. Matching is by name;
 // a new type is created, a same-name type with a different color is recolored.
 
 import type { IssueType } from '@/lib/api';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { DEFAULT_COLOR } from '@/utils/team';
 
 const PAYLOAD_TYPE = 'plan.issue-types';
 const PAYLOAD_VERSION = 1;
@@ -20,13 +20,13 @@ interface IssueTypesEnvelope {
   issueTypes: IssueTypeTransfer[];
 }
 
-// A parsed issue type paired with what applying it would do to the current project.
+// A parsed issue type paired with what applying it would do to the current team.
 export interface PlannedIssueType extends IssueTypeTransfer {
   action: 'create' | 'update' | 'unchanged';
   existingId?: string;
 }
 
-// The clipboard text for the project's issue types, in order.
+// The clipboard text for the team's issue types, in order.
 export function serializeIssueTypes(types: IssueType[]): string {
   const envelope: IssueTypesEnvelope = {
     type: PAYLOAD_TYPE,

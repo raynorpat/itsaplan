@@ -93,8 +93,8 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
         ),
       };
     case 'priority':
-      return a.toText
-        ? { line: <>set priority to {strong(priorityLabel(a.toText))}</> }
+      return Number(a.toText)
+        ? { line: <>set priority to {strong(priorityLabel(Number(a.toText)))}</> }
         : { line: 'removed priority' };
     case 'type':
       return a.toText ? { line: <>set type to {strong(a.toText)}</> } : { line: 'removed type' };

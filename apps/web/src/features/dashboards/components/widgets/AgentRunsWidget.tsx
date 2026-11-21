@@ -32,19 +32,19 @@ function triggerLabel(trigger: AgentRunFeedItem['trigger']): string {
   return 'ran on schedule';
 }
 
-// Project-wide feed of AI agent runs, newest first, optionally narrowed to one
+// Team-wide feed of AI agent runs, newest first, optionally narrowed to one
 // status. Issue-triggered rows link to the issue; scheduled rows show their
 // trigger. A failed run shows its error.
 export default function AgentRunsWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const status = config.runStatus ?? null;
   const limit = config.limit ?? 20;
-  const { data, isLoading } = useAgentRunsQuery(projectKey, { status, limit });
+  const { data, isLoading } = useAgentRunsQuery(teamKey, { status, limit });
   const items = data ?? [];
 
   const caption = STATUS_FILTER.find((o) => o.value === (status ?? 'all'))?.label ?? 'All runs';
@@ -73,8 +73,8 @@ export default function AgentRunsWidget({
               <span className="text-foreground/80">{r.agentName}</span>{' '}
               <span className="text-muted-foreground">{triggerLabel(r.trigger)}</span>{' '}
               {r.issueId != null && r.issueSequence != null && (
-                <Link href={issuePath(projectKey, r.issueSequence)} className="hover:underline">
-                  {projectKey}-{r.issueSequence}
+                <Link href={issuePath(teamKey, r.issueSequence)} className="hover:underline">
+                  {teamKey}-{r.issueSequence}
                 </Link>
               )}
               <span className="ml-1 text-xs text-muted-foreground/70">

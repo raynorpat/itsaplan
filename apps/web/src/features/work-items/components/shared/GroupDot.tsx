@@ -1,4 +1,4 @@
-import { DEFAULT_COLOR, type IssueGroup } from '@/utils/project';
+import { DEFAULT_COLOR, type IssueGroup } from '@/utils/team';
 import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
 
 // The leading marker for a group header: a status icon for status groups,

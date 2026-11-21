@@ -17,8 +17,8 @@ import {
   type ViewSettings,
 } from '@/utils/viewSettings';
 
-// Which layout (project/table/timeline/calendar) the All tab shows is a global
-// preference. The settings of each layout are stored per project in
+// Which layout (team/table/timeline/calendar) the All tab shows is a global
+// preference. The settings of each layout are stored per team in
 // lib/viewSettings.
 const VIEW_KEY = 'planner_view';
 
@@ -49,11 +49,11 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
   return { layout: view, ...settings };
 }
 
-// The saved-views and display/filter editing for one project. The active view is
+// The saved-views and display/filter editing for one team. The active view is
 // controlled: it comes from the caller (the route param) and selecting a view
 // calls onSelectView to navigate. This hook owns the live layout, its display
 // settings, the live filter set and the inline edit-bar state, and loads the
-// selection's display whenever the active view (or project) changes.
+// selection's display whenever the active view (or team) changes.
 //
 // Filters and display settings are live, transient state: changing them filters
 // the current screen and never writes to a saved view. On the All tab the layout
@@ -66,7 +66,7 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
 // it (see effectiveFilters). Edit view folds them into `filters` so they can be
 // changed, and Save writes that set back to the view.
 export function useViewEditor(
-  projectKey: string | null,
+  teamKey: string | null,
   views: View[],
   activeViewId: string | null,
   onSelectView: (id: string | null) => void,
@@ -83,10 +83,10 @@ export function useViewEditor(
   // from the selection's own filters, so ad-hoc filters can never be hidden.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const createView = useCreateView(projectKey);
-  const updateView = useUpdateView(projectKey);
-  const deleteViewMutation = useDeleteView(projectKey);
-  const reorderViewsMutation = useReorderViews(projectKey);
+  const createView = useCreateView(teamKey);
+  const updateView = useUpdateView(teamKey);
+  const deleteViewMutation = useDeleteView(teamKey);
+  const reorderViewsMutation = useReorderViews(teamKey);
 
   const activeView =
     activeViewId != null ? (views.find((v) => v.id === activeViewId) ?? null) : null;
@@ -107,7 +107,7 @@ export function useViewEditor(
       setFilters(EMPTY_FILTER_SET);
       const allView = loadView();
       setView(allView);
-      if (projectKey) setSettings(getViewSettings(projectKey, allView));
+      if (teamKey) setSettings(getViewSettings(teamKey, allView));
       return;
     }
     const v = views.find((x) => x.id === id);
@@ -118,8 +118,8 @@ export function useViewEditor(
     setSettings(s);
   }
 
-  // Apply the selection's display whenever the routed view or the project changes,
-  // or once the selected view's data arrives. loadedRef keys on project+view so an
+  // Apply the selection's display whenever the routed view or the team changes,
+  // or once the selected view's data arrives. loadedRef keys on team+view so an
   // unrelated views refetch (e.g. after Save) does not clobber the live edit.
   // openEditNext lets beginNewView/beginEditView keep the edit bar open across the
   // navigation that changes the selection; keepLiveNext lets beginNewView carry the
@@ -129,7 +129,7 @@ export function useViewEditor(
   const keepLiveNext = useRef(false);
   useEffect(() => {
     if (activeViewId != null && !views.some((v) => v.id === activeViewId)) return; // wait for views
-    const key = `${projectKey}:${activeViewId}`;
+    const key = `${teamKey}:${activeViewId}`;
     if (loadedRef.current === key) return;
     loadedRef.current = key;
     if (keepLiveNext.current) keepLiveNext.current = false;
@@ -137,7 +137,7 @@ export function useViewEditor(
     setEditing(openEditNext.current);
     openEditNext.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectKey, activeViewId, views]);
+  }, [teamKey, activeViewId, views]);
 
   // Enters edit mode, seeding the name and icon inputs from the given view (or
   // blank for a new/All-tab draft).
@@ -167,7 +167,7 @@ export function useViewEditor(
       // On the All tab (not editing), layout + its settings are the ad-hoc
       // localStorage default.
       localStorage.setItem(VIEW_KEY, next);
-      if (projectKey) setSettings(getViewSettings(projectKey, next));
+      if (teamKey) setSettings(getViewSettings(teamKey, next));
     } else {
       // A saved view or a draft: the layout change is live only; start the new
       // layout from its defaults.
@@ -179,7 +179,7 @@ export function useViewEditor(
     setSettings(next);
     // On the All tab (not editing) the settings are the ad-hoc localStorage
     // default; everywhere else they stay live until an explicit Save.
-    if (activeViewId == null && !editing && projectKey) setViewSettings(projectKey, view, next);
+    if (activeViewId == null && !editing && teamKey) setViewSettings(teamKey, view, next);
   }
 
   function toggleFilters() {
@@ -197,7 +197,7 @@ export function useViewEditor(
   // conditions become the view's own, so the filter row is emptied: they now apply
   // through the view.
   async function saveEdits() {
-    if (!projectKey) return;
+    if (!teamKey) return;
     const name = draftName.trim();
     const display = toDisplay(view, settings);
     if (activeView) {

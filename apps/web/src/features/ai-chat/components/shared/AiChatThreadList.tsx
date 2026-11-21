@@ -14,21 +14,21 @@ import { AiChatThreadItem } from './AiChatThreadItem';
 // Deleting a conversation removes it and its messages; `onDeleted` lets the host reset
 // the chat when the deleted one was open.
 export function AiChatThreadList({
-  projectKey,
+  teamKey,
   agentId,
   selectedThreadId,
   onSelect,
   onDeleted,
 }: {
-  projectKey: string;
+  teamKey: string;
   agentId: string;
   selectedThreadId: string | null;
   onSelect: (threadId: string) => void;
   onDeleted: (threadId: string) => void;
 }) {
-  const threadsQuery = useAgentThreadsQuery(projectKey, agentId);
+  const threadsQuery = useAgentThreadsQuery(teamKey, agentId);
   const threads = threadsQuery.data ?? [];
-  const deleteThread = useDeleteAgentThread(projectKey, agentId);
+  const deleteThread = useDeleteAgentThread(teamKey, agentId);
   const [pending, setPending] = useState<AiChatThread | null>(null);
 
   async function confirmDelete() {

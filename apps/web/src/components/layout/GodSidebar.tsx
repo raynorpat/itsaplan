@@ -22,10 +22,10 @@ import IntegrationsNav from '@/components/layout/IntegrationsNav';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarBrandFooter from '@/components/brand/SidebarBrandFooter';
 
-// The sidebar in god mode. It mirrors the project settings sidebar — a list of
+// The sidebar in god mode. It mirrors the team settings sidebar — a list of
 // sections plus a way back, with the integration sections folded into a collapsible
-// item — but the header shows a static "God mode" badge instead of the project
-// switcher: nothing here is scoped to a project.
+// item — but the header shows a static "God mode" badge instead of the team
+// switcher: nothing here is scoped to a team.
 export default function GodSidebar() {
   const pathname = usePathname();
 

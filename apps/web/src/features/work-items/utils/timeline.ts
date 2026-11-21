@@ -1,7 +1,7 @@
 import { format, startOfDay } from 'date-fns';
-import { type Issue, type ProjectDetail } from '@/lib/api';
+import { type Issue, type TeamDetail } from '@/lib/api';
 import { addDays, daysBetween, parseDate } from '@/utils/dates';
-import { buildGroups, groupIssues, type IssueGroup } from '@/utils/project';
+import { buildGroups, groupIssues, type IssueGroup } from '@/utils/team';
 import type { GroupField, TimelineScale } from '@/utils/viewSettings';
 
 // px per day at each zoom level. Wider days keep the per-day numbers legible;
@@ -50,7 +50,7 @@ export interface MonthLabel {
   width: number;
 }
 
-// The whole timeline layout derived from the project and the current viewport:
+// The whole timeline layout derived from the team and the current viewport:
 // the flattened rows, the day columns and their month labels, the track width
 // (extended with trailing days so it always fills the viewport), the today
 // marker, the gridline background, and a helper to place a span's bar.
@@ -66,7 +66,7 @@ export interface TimelineModel {
 }
 
 export function buildTimeline({
-  project,
+  team,
   group,
   showEmptyGroups,
   collapsedGroups,
@@ -74,7 +74,7 @@ export function buildTimeline({
   labelW,
   dayW,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   group: GroupField;
   showEmptyGroups: boolean;
   collapsedGroups: Set<string>;
@@ -82,8 +82,8 @@ export function buildTimeline({
   labelW: number;
   dayW: number;
 }): TimelineModel {
-  const groups = buildGroups(project, group);
-  const issuesByGroup = groupIssues(groups, project.issues, group);
+  const groups = buildGroups(team, group);
+  const issuesByGroup = groupIssues(groups, team.issues, group);
   // Rows, and the date range that covers every bar (plus padding and today).
   const rows: TimelineRow[] = [];
   const today = startOfDay(new Date());

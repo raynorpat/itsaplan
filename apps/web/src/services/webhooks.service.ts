@@ -2,11 +2,11 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useWebhooksQuery(projectKey: string | null) {
+export function useWebhooksQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.webhooks(projectKey ?? ''),
-    queryFn: () => api.listWebhooks(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.webhooks(teamKey ?? ''),
+    queryFn: () => api.listWebhooks(teamKey!),
+    enabled: teamKey != null,
   });
 }
 
@@ -22,34 +22,34 @@ export function useWebhookDeliveries(webhookId: string | null) {
   });
 }
 
-export function useCreateWebhook(projectKey: string | null) {
+export function useCreateWebhook(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ input }: { input: Parameters<typeof api.createWebhook>[1] }) =>
-      api.createWebhook(projectKey!, input),
+      api.createWebhook(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.webhooks(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.webhooks(teamKey) });
     },
   });
 }
 
-export function useUpdateWebhook(projectKey: string | null) {
+export function useUpdateWebhook(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateWebhook>[1] }) =>
       api.updateWebhook(id, input),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.webhooks(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.webhooks(teamKey) });
     },
   });
 }
 
-export function useDeleteWebhook(projectKey: string | null) {
+export function useDeleteWebhook(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteWebhook(id),
     onSuccess: () => {
-      if (projectKey) void qc.invalidateQueries({ queryKey: qk.webhooks(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.webhooks(teamKey) });
     },
   });
 }

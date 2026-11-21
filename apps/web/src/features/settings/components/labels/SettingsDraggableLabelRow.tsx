@@ -5,7 +5,7 @@ import { colorDot } from '@/components/common/fields/colorDot';
 import { SettingsRow } from '../crud/SettingsRow';
 import { useSettingsCan } from '../../context/settingsPermission';
 
-// `draggable` means the project has groups to move a label between.
+// `draggable` means the team has groups to move a label between.
 export function SettingsDraggableLabelRow({
   label,
   draggable,

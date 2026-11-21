@@ -16,7 +16,7 @@ import ShareDialog from '@/components/common/share/ShareDialog';
 // with Share / Edit view / Delete.
 export default function SavedViewTab({
   view,
-  projectKey,
+  teamKey,
   active,
   canEdit,
   canDelete,
@@ -25,7 +25,7 @@ export default function SavedViewTab({
   onDelete,
 }: {
   view: View;
-  projectKey: string;
+  teamKey: string;
   active: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -41,12 +41,12 @@ export default function SavedViewTab({
   // (and the dialog on reopen) stays in sync.
   async function enableShare() {
     const { token } = await api.enableViewShare(view.id);
-    await qc.invalidateQueries({ queryKey: qk.views(projectKey) });
+    await qc.invalidateQueries({ queryKey: qk.views(teamKey) });
     return token;
   }
   async function disableShare() {
     await api.disableViewShare(view.id);
-    await qc.invalidateQueries({ queryKey: qk.views(projectKey) });
+    await qc.invalidateQueries({ queryKey: qk.views(teamKey) });
   }
   // Reordering views is a views edit; disable dragging without it.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({

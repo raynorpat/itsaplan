@@ -43,20 +43,20 @@ function triState(values: boolean[]): boolean | 'indeterminate' {
 // groups resources and offers quick toggles per column (all resources) and per
 // group. On failure the reason is toasted globally and the panel stays open.
 export default function RoleEditorPanel({
-  projectKey,
+  teamKey,
   role,
   catalog,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   role: Role | null;
   catalog: PermissionCatalog;
   onClose: () => void;
 }) {
   const [name, setName] = useState(role?.name ?? '');
   const [matrix, setMatrix] = useState<Permissions>(() => seedMatrix(catalog, role));
-  const createRole = useCreateRole(projectKey);
-  const updateRole = useUpdateRole(projectKey);
+  const createRole = useCreateRole(teamKey);
+  const updateRole = useUpdateRole(teamKey);
   const busy = createRole.isPending || updateRole.isPending;
 
   useExitOnEscape(onClose);
@@ -107,7 +107,7 @@ export default function RoleEditorPanel({
             <h2 className="truncate text-sm font-medium">{role ? 'Edit role' : 'New role'}</h2>
             <p className="text-xs text-muted-foreground">
               <span className="rounded bg-secondary px-1.5 py-0.5 font-medium text-secondary-foreground">
-                {projectKey}
+                {teamKey}
               </span>{' '}
               role permissions
             </p>

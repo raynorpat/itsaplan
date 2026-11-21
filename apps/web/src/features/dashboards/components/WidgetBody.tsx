@@ -1,4 +1,4 @@
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import type { WidgetInstance } from '@/utils/dashboardWidgets';
 import StatWidget from './widgets/StatWidget';
 import BreakdownWidget from './widgets/BreakdownWidget';
@@ -15,35 +15,35 @@ import AgentWorkloadWidget from './widgets/AgentWorkloadWidget';
 // query and renders a static view; its config is edited through WidgetSettings.
 export default function WidgetBody({
   widget,
-  projectKey,
-  project,
+  teamKey,
+  team,
 }: {
   widget: WidgetInstance;
-  projectKey: string;
-  project: ProjectDetail;
+  teamKey: string;
+  team: TeamDetail;
 }) {
   const config = widget.config ?? {};
   switch (widget.type) {
     case 'stat':
       return <StatWidget config={config} />;
     case 'breakdown':
-      return <BreakdownWidget projectKey={projectKey} config={config} />;
+      return <BreakdownWidget teamKey={teamKey} config={config} />;
     case 'throughput':
-      return <ThroughputWidget projectKey={projectKey} config={config} />;
+      return <ThroughputWidget teamKey={teamKey} config={config} />;
     case 'pulse':
-      return <PulseWidget projectKey={projectKey} config={config} />;
+      return <PulseWidget teamKey={teamKey} config={config} />;
     case 'recent_issues':
-      return <RecentIssuesWidget projectKey={projectKey} config={config} />;
+      return <RecentIssuesWidget teamKey={teamKey} config={config} />;
     case 'activity_feed':
-      return <ActivityFeedWidget projectKey={projectKey} project={project} config={config} />;
+      return <ActivityFeedWidget teamKey={teamKey} team={team} config={config} />;
     case 'agent_runs':
-      return <AgentRunsWidget projectKey={projectKey} config={config} />;
+      return <AgentRunsWidget teamKey={teamKey} config={config} />;
     case 'agent_health':
-      return <AgentHealthWidget projectKey={projectKey} config={config} />;
+      return <AgentHealthWidget teamKey={teamKey} config={config} />;
     case 'webhook_health':
-      return <WebhookHealthWidget projectKey={projectKey} config={config} />;
+      return <WebhookHealthWidget teamKey={teamKey} config={config} />;
     case 'agent_workload':
-      return <AgentWorkloadWidget projectKey={projectKey} />;
+      return <AgentWorkloadWidget teamKey={teamKey} />;
     default:
       return null;
   }

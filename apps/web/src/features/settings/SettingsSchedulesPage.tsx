@@ -12,13 +12,13 @@ import SettingsSchedules from './components/schedules/SettingsSchedules';
 
 const section = settingsSection('schedules');
 
-// The Schedules page (/project/:projectKey/ai-team/schedules), listed in the main
+// The Schedules page (/team/:teamKey/ai-team/schedules), listed in the main
 // sidebar's AI Team group.
 export default function SettingsSchedulesPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   const [addNew, setAddNew] = useState(false);
-  const { agents } = useInternalAgents(project?.project.key ?? null);
-  if (!project) return null;
+  const { agents } = useInternalAgents(team?.team.key ?? null);
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
@@ -39,7 +39,7 @@ export default function SettingsSchedulesPage() {
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
           <SettingsSchedules
-            project={project}
+            team={team}
             requestNew={addNew}
             onNewHandled={() => setAddNew(false)}
           />

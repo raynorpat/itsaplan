@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/project';
+import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/team';
 import { useTimelineDrag } from '../../hooks/useTimelineDrag';
 import { buildTimeline, LABEL_W, SCALE_DAY_W } from '../../utils/timeline';
 import { TimelineHeader } from './TimelineHeader';
@@ -12,7 +12,7 @@ interface TimelineViewProps extends WorkItemsViewProps {
 }
 
 export default function TimelineView({
-  project,
+  team,
   settings,
   onOpenIssue,
   collapsedGroups,
@@ -32,10 +32,10 @@ export default function TimelineView({
       });
     });
   const DAY_W = SCALE_DAY_W[settings.timelineScale];
-  const maps = buildMaps(project);
+  const maps = buildMaps(team);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { preview, dropGroupKey, beginDrag } = useTimelineDrag({
-    project,
+    team,
     group: settings.group,
     dayW: DAY_W,
     onOpenIssue,
@@ -59,7 +59,7 @@ export default function TimelineView({
   const labelW = viewportW < 640 ? 140 : LABEL_W;
   const { rows, days, months, trackWidth, todayLeft, todayInRange, dayLines, spanToRect } =
     buildTimeline({
-      project,
+      team,
       group: settings.group,
       showEmptyGroups: settings.showEmptyGroups,
       collapsedGroups: activeCollapsedGroups,
@@ -115,7 +115,7 @@ export default function TimelineView({
           return (
             <TimelineIssueRow
               key={issue.id}
-              project={project}
+              team={team}
               issue={issue}
               span={span}
               rect={rect}

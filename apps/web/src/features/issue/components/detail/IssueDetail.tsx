@@ -1,24 +1,24 @@
 import { useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
-import { type ProjectDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
+import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import IssueDetailContent from './IssueDetailContent';
 import IssueActionsBar from '../actions/IssueActionsBar';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
 import { Button } from '@/components/ui/button';
 
-// The issue detail as a right-hand side panel over the project. Expand opens the
+// The issue detail as a right-hand side panel over the team. Expand opens the
 // same issue as a full page; the shared body lives in IssueDetailContent.
 export default function IssueDetail({
-  project,
+  team,
   issueId,
   onClose,
   onExpand,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issueId: string;
   onClose: () => void;
-  // Passed the issue's project-scoped number so the host can open the page URL
-  // (/project/KEY/issue/42); null while the issue is still loading.
+  // Passed the issue's team-scoped number so the host can open the page URL
+  // (/team/KEY/issue/42); null while the issue is still loading.
   onExpand: (sequenceNumber: number | null) => void;
 }) {
   const [issue, setIssue] = useState<IssueDetailRow | null>(null);
@@ -42,7 +42,7 @@ export default function IssueDetail({
             {issue && (
               <>
                 <IssueActionsBar
-                  project={project}
+                  team={team}
                   issue={issue}
                   hasSidebar={false}
                   variant="header"
@@ -67,7 +67,7 @@ export default function IssueDetail({
         </div>
 
         <IssueDetailContent
-          project={project}
+          team={team}
           issueId={issueId}
           onIssueLoaded={setIssue}
           onDeleted={onClose}

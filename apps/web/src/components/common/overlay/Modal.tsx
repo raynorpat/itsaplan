@@ -22,14 +22,14 @@ const MAX_WIDTH = {
 export default function Modal({
   title,
   description,
-  projectKey,
+  teamKey,
   onClose,
   children,
   wide = false,
 }: {
   title: string;
   description?: string;
-  projectKey?: string;
+  teamKey?: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean | 'xl';
@@ -39,10 +39,10 @@ export default function Modal({
       <DialogContent className={cn('max-h-[85vh] overflow-y-auto', MAX_WIDTH[`${wide}`])}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {projectKey && (
+            {teamKey && (
               <>
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-sm font-medium text-secondary-foreground">
-                  {projectKey}
+                  {teamKey}
                 </span>
                 <span className="font-normal text-muted-foreground">›</span>
               </>

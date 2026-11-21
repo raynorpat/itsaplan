@@ -3,7 +3,7 @@ import { type Editor } from '@tiptap/react';
 import {
   api,
   type Attachment,
-  type ProjectDetail,
+  type TeamDetail,
   type IssueDetail as IssueDetailRow,
   type IssueFieldValueInput,
   type IssuePatch,
@@ -19,13 +19,13 @@ import { fieldDefsForType } from '../utils/fieldDefs';
 // Loads one issue and exposes the edit operations for the detail surfaces.
 // onIssueLoaded surfaces the loaded issue to the surrounding chrome.
 export function useIssueDetail(
-  project: ProjectDetail,
+  team: TeamDetail,
   issueId: string,
   onIssueLoaded?: (issue: IssueDetailRow) => void,
 ) {
   const issueQuery = useIssueQuery(issueId);
   const issue = issueQuery.data ?? null;
-  const fieldDefs = fieldDefsForType(project.customFields, issue?.typeId ?? null);
+  const fieldDefs = fieldDefsForType(team.customFields, issue?.typeId ?? null);
 
   // Started here, not in the components that read them: those mount only after the
   // issue arrives, which would put these reads in a second wave after it.
@@ -36,8 +36,8 @@ export function useIssueDetail(
   // What the markdown editors' image picker offers.
   const imageAttachments = (attachmentsQuery.data ?? []).filter(isImage);
 
-  const updateIssue = useUpdateIssue(project.project.key);
-  const setFieldValue = useSetFieldValue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
+  const setFieldValue = useSetFieldValue(team.team.key);
   const uploadAttachment = useUploadAttachment();
   const [descEditor, setDescEditor] = useState<Editor | null>(null);
 

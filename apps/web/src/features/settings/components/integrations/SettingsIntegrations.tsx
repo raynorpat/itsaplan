@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { IntegrationCredential, ProjectDetail } from '@/lib/api';
+import type { IntegrationCredential, TeamDetail } from '@/lib/api';
 import {
   useCredentialsQuery,
   useIntegrationCatalogQuery,
@@ -12,16 +12,16 @@ import { useSettingsCan } from '../../context/settingsPermission';
 import { CredentialDialog } from './CredentialDialog';
 import { CredentialRow } from './CredentialRow';
 
-// Project settings for integration credentials: the API keys of AI providers and the
+// Team settings for integration credentials: the API keys of AI providers and the
 // credentials of tool integrations. Secrets are write-only, so the list shows only a
 // masked view. Adding and editing happen in a dialog; deleting confirms first.
-export default function SettingsIntegrations({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
-  const credentialsQuery = useCredentialsQuery(projectKey);
+export default function SettingsIntegrations({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
+  const credentialsQuery = useCredentialsQuery(teamKey);
   const credentials = credentialsQuery.data ?? [];
-  const catalogQuery = useIntegrationCatalogQuery(projectKey);
+  const catalogQuery = useIntegrationCatalogQuery(teamKey);
   const catalog = catalogQuery.data ?? [];
-  const deleteCredential = useDeleteCredential(projectKey);
+  const deleteCredential = useDeleteCredential(teamKey);
   const can = useSettingsCan();
 
   // Editing an existing credential; creating is done from the page header.
@@ -77,7 +77,7 @@ export default function SettingsIntegrations({ project }: { project: ProjectDeta
 
       {editing && (
         <CredentialDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           catalog={catalog}
           existing={editing}
           onClose={() => setEditing(null)}

@@ -1,10 +1,10 @@
-// Serialize/parse a project's labels (and their groups) for the copy/paste transfer
-// between projects. The clipboard payload is a small JSON envelope holding the groups
+// Serialize/parse a team's labels (and their groups) for the copy/paste transfer
+// between teams. The clipboard payload is a small JSON envelope holding the groups
 // and the labels, each label naming its group. Matching is by name; a new group/label
 // is created, and a same-name one with a different color is recolored.
 
 import type { Label, LabelGroup } from '@/lib/api';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { DEFAULT_COLOR } from '@/utils/team';
 
 const PAYLOAD_TYPE = 'plan.labels';
 const PAYLOAD_VERSION = 1;
@@ -44,7 +44,7 @@ export interface LabelsImportPlan {
   labels: PlannedLabel[];
 }
 
-// The clipboard text for the project's groups and labels.
+// The clipboard text for the team's groups and labels.
 export function serializeLabels(groups: LabelGroup[], labels: Label[]): string {
   const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
   const envelope: LabelsEnvelope = {

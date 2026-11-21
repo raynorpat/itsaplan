@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { formatDateTime } from '@/utils/dates';
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import { issuePath } from '@/utils/paths';
 import { EMPTY_FILTER_SET, applyFilters, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import type { WidgetConfig } from '@/utils/dashboardWidgets';
@@ -35,23 +35,23 @@ export const ACTION_FILTER: { value: string; label: string }[] = [
 ];
 
 // The resolved issue ids travel in the request's query string, so a broad filter on
-// a large project would build a URL past what proxies accept. Scope the feed to the
+// a large team would build a URL past what proxies accept. Scope the feed to the
 // most recently updated matches — the feed is newest-first, so older issues would
 // not reach the visible rows anyway.
 const MAX_SCOPED_ISSUES = 500;
 
-// Project-wide activity feed, configured (not switched live) by an action-kind
+// Team-wide activity feed, configured (not switched live) by an action-kind
 // filter and the same board filter set the recent-issues widget uses. Both are
 // edited from the header settings popover (see ActivityFeedWidgetSettings). The board
-// filter selects issues client-side over the project's loaded issues; their ids
+// filter selects issues client-side over the team's loaded issues; their ids
 // scope the feed server-side, so "activity on urgent issues" reads only those.
 export default function ActivityFeedWidget({
-  projectKey,
-  project,
+  teamKey,
+  team,
   config,
 }: {
-  projectKey: string;
-  project: ProjectDetail;
+  teamKey: string;
+  team: TeamDetail;
   config: WidgetConfig;
 }) {
   const filters: FilterSet = config.filters ?? EMPTY_FILTER_SET;
@@ -62,15 +62,15 @@ export default function ActivityFeedWidget({
   // (show every issue's activity); an empty array = filter matched nothing.
   const issueIds = useMemo(() => {
     if (!isActiveFilterSet(filters)) return null;
-    const matched = applyFilters(project.issues, filters, project);
+    const matched = applyFilters(team.issues, filters, team);
     if (matched.length <= MAX_SCOPED_ISSUES) return matched.map((i) => i.id);
     return [...matched]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, MAX_SCOPED_ISSUES)
       .map((i) => i.id);
-  }, [filters, project]);
+  }, [filters, team]);
 
-  const { data, isLoading } = useActivityFeedQuery(projectKey, { action, issueIds, limit });
+  const { data, isLoading } = useActivityFeedQuery(teamKey, { action, issueIds, limit });
   const items = data?.items ?? [];
 
   const actionLabel =
@@ -110,8 +110,8 @@ export default function ActivityFeedWidget({
               <span className="text-muted-foreground">
                 {a.kind === 'comment' ? 'commented on' : (VERB[a.action ?? ''] ?? 'updated')}
               </span>{' '}
-              <Link href={issuePath(projectKey, a.issueSequence)} className="hover:underline">
-                {projectKey}-{a.issueSequence}
+              <Link href={issuePath(teamKey, a.issueSequence)} className="hover:underline">
+                {teamKey}-{a.issueSequence}
               </Link>
               <span className="ml-1 text-xs text-muted-foreground/70">
                 {formatDateTime(a.createdAt)}

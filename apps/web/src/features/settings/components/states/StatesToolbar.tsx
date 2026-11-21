@@ -22,14 +22,14 @@ import {
   type PlannedState,
 } from '../../utils/statesTransfer';
 
-// The States page header actions: copy the project's states to the clipboard and
+// The States page header actions: copy the team's states to the clipboard and
 // paste states from it (with Cmd/Ctrl+C/V shortcuts). Shown to users who can create
 // states. Creating states is done inline per group in the list below.
 export default function StatesToolbar({
-  projectKey,
+  teamKey,
   columns,
 }: {
-  projectKey: string;
+  teamKey: string;
   columns: Column[];
 }) {
   const { can } = usePermissions();
@@ -123,7 +123,7 @@ export default function StatesToolbar({
 
       {importing && (
         <StatesImportDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           planned={importing}
           onClose={() => setImporting(null)}
         />

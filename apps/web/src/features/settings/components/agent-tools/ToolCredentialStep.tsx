@@ -35,13 +35,13 @@ function credLabel(c: IntegrationCredential): string {
 // is narrowed to the tool's integration; if none exists yet, the user is pointed at the
 // Integrations page. `onBack` returns to the tool picker.
 export function ToolCredentialStep({
-  projectKey,
+  teamKey,
   tool,
   credentials,
   onBack,
   onDone,
 }: {
-  projectKey: string;
+  teamKey: string;
   tool: ToolOption;
   credentials: IntegrationCredential[];
   onBack: () => void;
@@ -51,7 +51,7 @@ export function ToolCredentialStep({
   const [credentialId, setCredentialId] = useState<string | null>(matching[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
 
-  const create = useCreateConfiguredTool(projectKey);
+  const create = useCreateConfiguredTool(teamKey);
   const canSubmit = credentialId != null && !busy;
 
   async function submit() {

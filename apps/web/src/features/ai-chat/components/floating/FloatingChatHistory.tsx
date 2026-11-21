@@ -6,14 +6,14 @@ import { AiChatThreadList } from '../shared/AiChatThreadList';
 
 // The history layer of the floating chat, shown over the conversation.
 export function FloatingChatHistory({
-  projectKey,
+  teamKey,
   agentId,
   selectedThreadId,
   onSelect,
   onDeleted,
   onBack,
 }: {
-  projectKey: string;
+  teamKey: string;
   agentId: string;
   selectedThreadId: string | null;
   onSelect: (threadId: string) => void;
@@ -37,7 +37,7 @@ export function FloatingChatHistory({
       </div>
 
       <AiChatThreadList
-        projectKey={projectKey}
+        teamKey={teamKey}
         agentId={agentId}
         selectedThreadId={selectedThreadId}
         onSelect={onSelect}

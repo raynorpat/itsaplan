@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useIssueQuery } from '@/services/issues.service';
 import { issuePath } from '@/utils/paths';
 
-// A bare deep link /issue/:issueId has no project key in the URL. Resolve the
-// issue's project (its identifier is "<projectKey>-<number>") and redirect to the
-// project-scoped issue route so it opens inside the Shell layout.
+// A bare deep link /issue/:issueId has no team key in the URL. Resolve the
+// issue's team (its identifier is "<teamKey>-<number>") and redirect to the
+// team-scoped issue route so it opens inside the Shell layout.
 export default function IssueRedirect() {
   const router = useRouter();
   const params = useParams();
@@ -16,8 +16,8 @@ export default function IssueRedirect() {
 
   useEffect(() => {
     if (isLoading) return;
-    const projectKey = data ? data.identifier.replace(/-\d+$/, '') : null;
-    router.replace(projectKey && data ? issuePath(projectKey, data.sequenceNumber) : '/');
+    const teamKey = data ? data.identifier.replace(/-\d+$/, '') : null;
+    router.replace(teamKey && data ? issuePath(teamKey, data.sequenceNumber) : '/');
   }, [data, isLoading, router]);
 
   return (

@@ -12,15 +12,15 @@ import { ToolConfigDialog } from './components/agent-tools/ToolConfigDialog';
 
 const section = AGENT_TOOLS_SECTION;
 
-// The custom tools page (/project/:projectKey/agent-tools): external integrations
-// internal agents can call, configured once per project.
+// The custom tools page (/team/:teamKey/agent-tools): external integrations
+// internal agents can call, configured once per team.
 export default function SettingsAgentToolsPage() {
-  const { project } = useShell();
-  const key = project?.project.key ?? null;
+  const { team } = useShell();
+  const key = team?.team.key ?? null;
   const catalog = useIntegrationCatalogQuery(key).data ?? [];
   const credentials = useCredentialsQuery(key).data ?? [];
-  if (!project) return null;
-  const projectKey = project.project.key;
+  if (!team) return null;
+  const teamKey = team.team.key;
   return (
     <SectionPageView
       title={section.label}
@@ -30,7 +30,7 @@ export default function SettingsAgentToolsPage() {
           {({ open, close }) =>
             open && (
               <ToolConfigDialog
-                projectKey={projectKey}
+                teamKey={teamKey}
                 catalog={catalog}
                 credentials={credentials}
                 onClose={close}
@@ -43,7 +43,7 @@ export default function SettingsAgentToolsPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsAgentTools project={project} />
+          <SettingsAgentTools team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

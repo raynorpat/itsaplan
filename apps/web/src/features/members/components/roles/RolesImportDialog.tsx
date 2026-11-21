@@ -20,16 +20,16 @@ const ACTION_LABEL: Record<PlannedRole['action'], string> = {
 // confirm, created and overwritten roles are applied; default-name collisions are
 // left untouched.
 export default function RolesImportDialog({
-  projectKey,
+  teamKey,
   planned,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   planned: PlannedRole[];
   onClose: () => void;
 }) {
-  const createRole = useCreateRole(projectKey);
-  const updateRole = useUpdateRole(projectKey);
+  const createRole = useCreateRole(teamKey);
+  const updateRole = useUpdateRole(teamKey);
   const [busy, setBusy] = useState(false);
 
   const applicable = planned.filter((p) => p.action !== 'skip');

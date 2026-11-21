@@ -1,10 +1,9 @@
-// Client-side filter model and matching engine for the project views. A view's
+// Client-side filter model and matching engine for the team views. A view's
 // filters are stored in the DB (kanban_views.filters) as a FilterSet; the same
-// set is applied to every layout (Project, Table, Timeline, Calendar) before the
+// set is applied to every layout (Team, Table, Timeline, Calendar) before the
 // issues are handed to the view. The server never inspects this shape.
 
-import type { ProjectDetail, StateType, Issue } from '@/lib/api';
-import { priorityKey } from '@/utils/fieldOptions';
+import type { TeamDetail, StateType, Issue } from '@/lib/api';
 
 // The built-in fields a condition can target. Custom fields are targeted with
 // the string `cf:<fieldId>` (see customFieldKey / parseCustomFieldKey).
@@ -51,7 +50,7 @@ export function parseCustomFieldKey(field: string): string | null {
   return field.startsWith('cf:') ? field.slice(3) : null;
 }
 
-// A FilterSet is only "active" (narrows the project) when it has at least one
+// A FilterSet is only "active" (narrows the team) when it has at least one
 // condition. A condition with an empty value set for a value-based operator is
 // ignored, so a half-built condition in the UI does not hide everything.
 export function isActiveFilterSet(filters: FilterSet | null | undefined): boolean {
@@ -83,16 +82,16 @@ function builtinSetValues(
 ): FilterValue[] {
   switch (field) {
     case 'status':
-      return [issue.columnId];
+      return [issue.stateId];
     case 'statusType':
-      return [columnStateType.get(issue.columnId) ?? null];
+      return [columnStateType.get(issue.stateId) ?? null];
     case 'assignee':
       return [issue.assigneeUserId];
     case 'delegate':
       return [issue.delegateUserId];
     case 'priority':
-      // Saved filters hold priority names ('urgent'); null is "no priority".
-      return [priorityKey(issue.priority) || null];
+      // null is "no priority" (0).
+      return [issue.priority || null];
     case 'type':
       return [issue.typeId];
     case 'labels':
@@ -195,10 +194,10 @@ function matchCondition(
 export function applyFilters(
   issues: Issue[],
   filters: FilterSet | null | undefined,
-  project: ProjectDetail,
+  team: TeamDetail,
 ): Issue[] {
   if (!isActiveFilterSet(filters)) return issues;
-  const columnStateType = new Map(project.columns.map((c) => [c.id, c.stateType]));
+  const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
   const active = filters!.conditions.filter(isEffectiveCondition);
   return issues.filter((t) => active.every((cond) => matchCondition(t, cond, columnStateType)));
 }
@@ -210,10 +209,10 @@ export function applyFilters(
 export function matchesFilterSet(
   issue: Issue,
   filters: FilterSet | null | undefined,
-  project: ProjectDetail,
+  team: TeamDetail,
 ): boolean {
   if (!isActiveFilterSet(filters)) return true;
-  const columnStateType = new Map(project.columns.map((c) => [c.id, c.stateType]));
+  const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
   return filters!.conditions
     .filter(isEffectiveCondition)
     .every((cond) => matchCondition(issue, cond, columnStateType));

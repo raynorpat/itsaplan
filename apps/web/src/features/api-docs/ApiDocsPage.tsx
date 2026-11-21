@@ -14,7 +14,7 @@ const ScalarReference = dynamic(() => import('./components/ScalarReference'), {
   ),
 });
 
-// Mounted at /project/:projectKey/api, but the spec it renders is instance-wide.
+// Mounted at /team/:teamKey/api, but the spec it renders is instance-wide.
 export default function ApiDocsPage() {
   const { resolvedTheme } = useTheme();
   return <ScalarReference dark={resolvedTheme !== 'light'} />;

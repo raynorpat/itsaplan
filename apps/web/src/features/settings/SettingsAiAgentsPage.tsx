@@ -11,11 +11,11 @@ import { SettingsAiAgentSheet } from './components/ai-agents/SettingsAiAgentShee
 
 const section = AI_AGENTS_SECTION;
 
-// The AI agents page (/project/:projectKey/ai-agents), a top-level nav item.
+// The AI agents page (/team/:teamKey/ai-agents), a top-level nav item.
 export default function SettingsAiAgentsPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  const projectKey = project.project.key;
+  const { team } = useShell();
+  if (!team) return null;
+  const teamKey = team.team.key;
   return (
     <SectionPageView
       title={section.label}
@@ -23,12 +23,7 @@ export default function SettingsAiAgentsPage() {
       actions={
         <SettingsCreateAction resource={section.resource} label="New agent">
           {({ open, close }) => (
-            <SettingsAiAgentSheet
-              projectKey={projectKey}
-              open={open}
-              agent={null}
-              onClose={close}
-            />
+            <SettingsAiAgentSheet teamKey={teamKey} open={open} agent={null} onClose={close} />
           )}
         </SettingsCreateAction>
       }
@@ -36,7 +31,7 @@ export default function SettingsAiAgentsPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsAiAgents project={project} />
+          <SettingsAiAgents team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 // The god mode sections, in sidebar order. God mode is instance administration,
-// open only to the owner account; the sections mirror the project settings pattern
+// open only to the owner account; the sections mirror the team settings pattern
 // (one slug per page under /god/<slug>), so adding one is an entry here plus a page.
 // `group` is the sidebar heading a section sits under; GOD_GROUPS gives the order.
 // A section with `integration: true` is not listed under its group directly: it sits
@@ -33,15 +33,15 @@ export const GOD_SECTIONS: GodSection[] = [
     slug: 'users',
     label: 'Users',
     description:
-      'Every account on this instance: the global role, whether the address is confirmed, and the projects each user can reach.',
+      'Every account on this instance: the global role, whether the address is confirmed, and the teams each user can reach.',
     group: 'Management',
     icon: Users,
   },
   {
-    slug: 'projects',
-    label: 'Projects',
+    slug: 'teams',
+    label: 'Teams',
     description:
-      'Every project on this instance: what each one holds, when it was last active, and who can reach it.',
+      'Every team on this instance: what each one holds, when it was last active, and who can reach it.',
     group: 'Management',
     icon: FolderKanban,
   },
@@ -65,7 +65,7 @@ export const GOD_SECTIONS: GodSection[] = [
     slug: 'storage',
     label: 'Storage',
     description:
-      'How much people may upload: the size of a single file, the attachment types accepted, and the storage each project gets.',
+      'How much people may upload: the size of a single file, the attachment types accepted, and the storage each team gets.',
     group: 'Instance',
     icon: HardDrive,
   },
@@ -73,7 +73,7 @@ export const GOD_SECTIONS: GodSection[] = [
     slug: 'telegram',
     label: 'Telegram',
     description:
-      'The bot people connect their Telegram account to, and the one that delivers Telegram notifications for projects that set no bot of their own.',
+      'The bot people connect their Telegram account to, and the one that delivers Telegram notifications for teams that set no bot of their own.',
     group: 'Instance',
     icon: Send,
     integration: true,

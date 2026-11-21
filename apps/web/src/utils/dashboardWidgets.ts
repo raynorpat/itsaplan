@@ -159,8 +159,8 @@ const UNASSIGNED_FILTER: FilterSet = {
   conditions: [{ id: 'c1', field: 'assignee', op: 'is', values: [null] }],
 };
 
-// The built-in layout shown when a project has no saved dashboards. Saving it
-// persists it as the project's first real dashboard. The top row is small metric
+// The built-in layout shown when a team has no saved dashboards. Saving it
+// persists it as the team's first real dashboard. The top row is small metric
 // tiles (each a filtered count), then the charts, pulse, and the two lists.
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = [
   {

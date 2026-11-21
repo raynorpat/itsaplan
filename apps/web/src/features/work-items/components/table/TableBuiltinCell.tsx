@@ -1,6 +1,6 @@
 import { CalendarClock } from 'lucide-react';
 import { type Issue } from '@/lib/api';
-import { type Maps } from '@/utils/project';
+import { type Maps } from '@/utils/team';
 import { formatDurationShort, formatShortDate, isDueOverdue } from '@/utils/dates';
 import {
   AssigneeAvatar,
@@ -11,7 +11,6 @@ import {
 } from '@/features/issue/components/shared/IssueBadges';
 import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
 import { type TableColumn } from '../../utils/table';
-import { priorityKey } from '@/utils/fieldOptions';
 
 const DASH = <span className="text-muted-foreground/40">—</span>;
 
@@ -27,7 +26,7 @@ export function TableBuiltinCell({
 }) {
   switch (column) {
     case 'status': {
-      const col = maps.columnById.get(issue.columnId);
+      const col = maps.columnById.get(issue.stateId);
       return (
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {col ? (
@@ -48,7 +47,7 @@ export function TableBuiltinCell({
     case 'priority':
       return (
         <div className="flex items-center">
-          {issue.priority ? <PriorityBadge priority={priorityKey(issue.priority)} /> : DASH}
+          {issue.priority ? <PriorityBadge priority={issue.priority} /> : DASH}
         </div>
       );
     case 'type': {
@@ -87,11 +86,9 @@ export function TableBuiltinCell({
         </div>
       );
     }
-    case 'initiative':
+    case 'project':
       return (
-        <div className="truncate text-xs text-muted-foreground">
-          {issue.initiative?.title ?? DASH}
-        </div>
+        <div className="truncate text-xs text-muted-foreground">{issue.project?.title ?? DASH}</div>
       );
     case 'labels':
       return (
@@ -118,7 +115,7 @@ export function TableBuiltinCell({
             <DateBadge
               icon={<CalendarClock className="size-2.5" />}
               date={issue.dueDate}
-              overdue={isDueOverdue(issue.dueDate, maps.columnById.get(issue.columnId)?.stateType)}
+              overdue={isDueOverdue(issue.dueDate, maps.columnById.get(issue.stateId)?.stateType)}
             />
           ) : (
             DASH

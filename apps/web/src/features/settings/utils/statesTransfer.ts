@@ -1,10 +1,10 @@
-// Serialize/parse a project's workflow states (columns) for the copy/paste transfer
-// between projects. The clipboard payload is a small JSON envelope; parsing validates
+// Serialize/parse a team's workflow states (columns) for the copy/paste transfer
+// between teams. The clipboard payload is a small JSON envelope; parsing validates
 // it and drops states with an unknown state type.
 
 import type { Column, StateType } from '@/lib/api';
 import { STATE_TYPES } from '@/utils/fieldOptions';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { DEFAULT_COLOR } from '@/utils/team';
 
 const PAYLOAD_TYPE = 'plan.states';
 const PAYLOAD_VERSION = 1;
@@ -21,13 +21,13 @@ interface StatesEnvelope {
   states: StateTransfer[];
 }
 
-// A parsed state paired with what applying it would do to the current project.
+// A parsed state paired with what applying it would do to the current team.
 export interface PlannedState extends StateTransfer {
   action: 'create' | 'update' | 'unchanged';
   existingId?: string;
 }
 
-// The clipboard text for the project's states, in board order.
+// The clipboard text for the team's states, in board order.
 export function serializeStates(columns: Column[]): string {
   const envelope: StatesEnvelope = {
     type: PAYLOAD_TYPE,

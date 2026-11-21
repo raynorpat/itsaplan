@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import type { FilterCondition, FilterOperator, FilterValue } from '@/utils/filters';
 import { OPERATOR_LABELS, OPERATORS_BY_KIND, type FieldSpec } from '@/utils/filterFields';
 import {
@@ -16,14 +16,14 @@ import FilterValueEditor from '@/components/layout/FilterValueEditor';
 export default function FilterConditionPill({
   spec,
   cond,
-  project,
+  team,
   onOperatorChange,
   onValuesChange,
   onRemove,
 }: {
   spec: FieldSpec;
   cond: FilterCondition;
-  project: ProjectDetail;
+  team: TeamDetail;
   onOperatorChange: (op: FilterOperator) => void;
   onValuesChange: (values: FilterValue[]) => void;
   onRemove: () => void;
@@ -46,7 +46,7 @@ export default function FilterConditionPill({
           ))}
         </SelectContent>
       </Select>
-      <FilterValueEditor spec={spec} cond={cond} onChange={onValuesChange} project={project} />
+      <FilterValueEditor spec={spec} cond={cond} onChange={onValuesChange} team={team} />
       <button
         type="button"
         onClick={onRemove}

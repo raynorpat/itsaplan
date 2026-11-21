@@ -1,21 +1,21 @@
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUpdateProjectMcp } from '../services/mcp.service';
+import { useUpdateTeamMcp } from '../services/mcp.service';
 
 // Owner-only control; the API enforces the same restriction.
 export default function McpStatusRow({
-  projectKey,
+  teamKey,
   enabled,
   isLoading,
   canManage,
 }: {
-  projectKey: string;
+  teamKey: string;
   enabled: boolean;
   isLoading: boolean;
   canManage: boolean;
 }) {
-  const update = useUpdateProjectMcp(projectKey);
+  const update = useUpdateTeamMcp(teamKey);
   const busy = isLoading || update.isPending;
 
   return (
@@ -38,15 +38,15 @@ export default function McpStatusRow({
         </div>
         <p className="text-sm text-muted-foreground">
           {canManage
-            ? 'While on, agents with a personal API key can work with this project over MCP. Off makes this project unavailable through MCP.'
-            : 'Only a project owner can turn MCP on or off for this project.'}
+            ? 'While on, agents with a personal API key can work with this team over MCP. Off makes this team unavailable through MCP.'
+            : 'Only a team owner can turn MCP on or off for this team.'}
         </p>
       </div>
       <Switch
         checked={enabled}
         disabled={!canManage || busy}
         onCheckedChange={(value) => update.mutate(value)}
-        aria-label="Toggle MCP access for this project"
+        aria-label="Toggle MCP access for this team"
       />
     </div>
   );

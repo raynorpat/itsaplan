@@ -18,7 +18,7 @@ export default function InviteAcceptPage({ token }: { token: string }) {
 
   // The heading reflects the invite state so the copy never contradicts the body
   // (e.g. an invalid link must not read "Accept your invitation").
-  let title = 'Join the project';
+  let title = 'Join the team';
   let subtitle = 'Accept your invitation to start collaborating';
   let body = <p className="text-sm text-muted-foreground">Loading invite…</p>;
 
@@ -57,7 +57,7 @@ export default function InviteAcceptPage({ token }: { token: string }) {
               </div>
               {body}
             </div>
-            <BrandPanel subtitle="You have been invited to collaborate on a project." />
+            <BrandPanel subtitle="You have been invited to collaborate on a team." />
           </CardContent>
         </Card>
       </div>

@@ -8,7 +8,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { type Issue } from '@/lib/api';
-import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/project';
+import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/team';
 import { toDateStr } from '@/utils/dates';
 import { useDndSensors } from '@/lib/dnd';
 import { useUpdateIssue } from '@/services/issues.service';
@@ -18,23 +18,23 @@ import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarUnscheduledPanel, UNSCHEDULED_ID } from './CalendarUnscheduledPanel';
 
 export default function CalendarView({
-  project,
+  team,
   settings,
   onOpenIssue,
   readOnly,
 }: WorkItemsViewProps) {
-  const updateIssue = useUpdateIssue(project.project.key);
+  const updateIssue = useUpdateIssue(team.team.key);
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
 
   const dateField = settings.calendarDateField;
   const today = new Date();
-  const maps = buildMaps(project);
+  const maps = buildMaps(team);
   const dot = (issue: Issue) => issueColor(issue, maps);
 
   const { byDay, unscheduled, weekdays, days } = buildCalendarModel(
-    project.issues,
+    team.issues,
     dateField,
     settings.weekStart,
     cursor,
@@ -55,7 +55,7 @@ export default function CalendarView({
   }
 
   const activeIssue =
-    activeId != null ? (project.issues.find((i) => i.id === activeId) ?? null) : null;
+    activeId != null ? (team.issues.find((i) => i.id === activeId) ?? null) : null;
 
   return (
     <DndContext
@@ -83,7 +83,7 @@ export default function CalendarView({
               return (
                 <CalendarDayCell
                   key={key}
-                  project={project}
+                  team={team}
                   dateKey={key}
                   dayNumber={day.getDate()}
                   inMonth={isSameMonth(day, cursor)}
@@ -98,7 +98,7 @@ export default function CalendarView({
         </div>
 
         <CalendarUnscheduledPanel
-          project={project}
+          team={team}
           dateField={dateField}
           issues={unscheduled}
           dot={dot}

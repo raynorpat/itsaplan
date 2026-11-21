@@ -149,15 +149,14 @@ describe('share', () => {
       expect(opened.status).toBe(404);
     });
 
-    it('applies a priority filter saved with priority names', async () => {
+    it('applies a saved priority filter', async () => {
       const { asOwner, stateId, issueId } = await setup();
       const urgent = await asOwner
         .teams({ teamKey: 'MKT' })
         .issues.post({ stateId, title: 'Urgent one', priority: 1 });
-      // The web app saves priority filter values by name; null means "no priority".
       const view = await asOwner.teams({ teamKey: 'MKT' }).views.post({
         name: 'Urgent',
-        filters: { conditions: [{ id: 'c1', field: 'priority', op: 'is', values: ['urgent'] }] },
+        filters: { conditions: [{ id: 'c1', field: 'priority', op: 'is', values: [1] }] },
       });
       const token = (await asOwner.views({ viewId: view.data!.id }).share.post()).data!.token;
 

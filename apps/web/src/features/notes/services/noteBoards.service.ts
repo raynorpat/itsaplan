@@ -15,16 +15,16 @@ export const NOTE_BOARDS_PAGE = 10;
 // creating, deleting, or changing a board's visibility all reorder or refilter the
 // list. Scoped to the 'search' subtree so it never re-fetches (and clobbers) the
 // canvas of a board being edited.
-function invalidateSearch(qc: ReturnType<typeof useQueryClient>, projectKey: string) {
-  void qc.invalidateQueries({ queryKey: [...qk.noteBoardsForProject(projectKey), 'search'] });
+function invalidateSearch(qc: ReturnType<typeof useQueryClient>, teamKey: string) {
+  void qc.invalidateQueries({ queryKey: [...qk.noteBoardsForTeam(teamKey), 'search'] });
 }
 
 // The board switcher list: name-filtered, paged, most-recently-updated first.
-export function useNoteBoardSearch(projectKey: string | null, q: string) {
+export function useNoteBoardSearch(teamKey: string | null, q: string) {
   return useInfiniteQuery({
-    queryKey: qk.noteBoardsSearch(projectKey ?? '', q),
+    queryKey: qk.noteBoardsSearch(teamKey ?? '', q),
     queryFn: ({ pageParam }) =>
-      api.listNoteBoards(projectKey!, {
+      api.listNoteBoards(teamKey!, {
         q: q || undefined,
         limit: NOTE_BOARDS_PAGE,
         offset: pageParam,
@@ -32,27 +32,27 @@ export function useNoteBoardSearch(projectKey: string | null, q: string) {
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < NOTE_BOARDS_PAGE ? undefined : allPages.reduce((n, p) => n + p.length, 0),
-    enabled: projectKey != null,
+    enabled: teamKey != null,
   });
 }
 
 // One board with its canvas. Always refetched when opened so the canvas reflects
 // the latest server state, even after edits on another device.
-export function useNoteBoardQuery(projectKey: string | null, boardId: string | null) {
+export function useNoteBoardQuery(teamKey: string | null, boardId: string | null) {
   return useQuery({
-    queryKey: qk.noteBoard(projectKey ?? '', boardId ?? ''),
-    queryFn: () => api.getNoteBoard(projectKey!, boardId!),
-    enabled: projectKey != null && boardId != null,
+    queryKey: qk.noteBoard(teamKey ?? '', boardId ?? ''),
+    queryFn: () => api.getNoteBoard(teamKey!, boardId!),
+    enabled: teamKey != null && boardId != null,
     refetchOnMount: 'always',
   });
 }
 
-export function useCreateNoteBoard(projectKey: string | null) {
+export function useCreateNoteBoard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NewNoteBoardInput) => api.createNoteBoard(projectKey!, input),
+    mutationFn: (input: NewNoteBoardInput) => api.createNoteBoard(teamKey!, input),
     onSuccess: () => {
-      if (projectKey) invalidateSearch(qc, projectKey);
+      if (teamKey) invalidateSearch(qc, teamKey);
     },
   });
 }
@@ -60,42 +60,42 @@ export function useCreateNoteBoard(projectKey: string | null) {
 // Renaming changes the tab/switcher list, so invalidate the search lists and write
 // the new name into the open board's cache. Canvas autosave uses useSaveNoteCanvas
 // instead, which must not refetch mid-edit.
-export function useRenameNoteBoard(projectKey: string | null) {
+export function useRenameNoteBoard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ boardId, name }: { boardId: string; name: string }) =>
-      api.updateNoteBoard(projectKey!, boardId, { name }),
+      api.updateNoteBoard(teamKey!, boardId, { name }),
     onSuccess: (updated) => {
-      if (!projectKey) return;
-      qc.setQueryData<NoteBoard>(qk.noteBoard(projectKey, updated.id), updated);
-      invalidateSearch(qc, projectKey);
+      if (!teamKey) return;
+      qc.setQueryData<NoteBoard>(qk.noteBoard(teamKey, updated.id), updated);
+      invalidateSearch(qc, teamKey);
     },
   });
 }
 
 // Toggle a board between public and personal (owned by the caller). Changes both
 // the lock icon and which list section it falls under, so refresh the lists.
-export function useSetNoteBoardVisibility(projectKey: string | null) {
+export function useSetNoteBoardVisibility(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ boardId, personal }: { boardId: string; personal: boolean }) =>
-      api.updateNoteBoard(projectKey!, boardId, { personal }),
+      api.updateNoteBoard(teamKey!, boardId, { personal }),
     onSuccess: (updated) => {
-      if (!projectKey) return;
-      qc.setQueryData<NoteBoard>(qk.noteBoard(projectKey, updated.id), updated);
-      invalidateSearch(qc, projectKey);
+      if (!teamKey) return;
+      qc.setQueryData<NoteBoard>(qk.noteBoard(teamKey, updated.id), updated);
+      invalidateSearch(qc, teamKey);
     },
   });
 }
 
-export function useDeleteNoteBoard(projectKey: string | null) {
+export function useDeleteNoteBoard(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (boardId: string) => api.deleteNoteBoard(projectKey!, boardId),
+    mutationFn: (boardId: string) => api.deleteNoteBoard(teamKey!, boardId),
     onSuccess: (_res, boardId) => {
-      if (!projectKey) return;
-      qc.removeQueries({ queryKey: qk.noteBoard(projectKey, boardId) });
-      invalidateSearch(qc, projectKey);
+      if (!teamKey) return;
+      qc.removeQueries({ queryKey: qk.noteBoard(teamKey, boardId) });
+      invalidateSearch(qc, teamKey);
     },
   });
 }
@@ -103,14 +103,14 @@ export function useDeleteNoteBoard(projectKey: string | null) {
 // Persist the canvas without invalidating: the editor holds the live canvas, so a
 // refetch would clobber unsaved edits. The saved canvas is written back into the
 // board's cache so a later remount reads the current state.
-export function useSaveNoteCanvas(projectKey: string | null) {
+export function useSaveNoteCanvas(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ boardId, canvas }: { boardId: string; canvas: NoteCanvas }) =>
-      api.updateNoteBoard(projectKey!, boardId, { canvas }),
+      api.updateNoteBoard(teamKey!, boardId, { canvas }),
     onSuccess: (updated) => {
-      if (!projectKey) return;
-      qc.setQueryData<NoteBoard>(qk.noteBoard(projectKey, updated.id), updated);
+      if (!teamKey) return;
+      qc.setQueryData<NoteBoard>(qk.noteBoard(teamKey, updated.id), updated);
     },
   });
 }

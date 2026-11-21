@@ -15,16 +15,16 @@ import AddWidgetDialog from './components/AddWidgetDialog';
 
 // The dashboards section: a tab strip of named dashboards over a grid of analytics
 // widgets. The active dashboard comes from the route; with none selected the first
-// saved dashboard shows, or a built-in default when the project has none. Layout
+// saved dashboard shows, or a built-in default when the team has none. Layout
 // edits are local until saved (see useDashboardEditor).
 export default function DashboardsPage() {
-  const { project } = useShell();
+  const { team } = useShell();
   const { can } = usePermissions();
-  const params = useParams<{ projectKey: string; dashboardId?: string }>();
+  const params = useParams<{ teamKey: string; dashboardId?: string }>();
   const router = useRouter();
-  const projectKey = params.projectKey;
+  const teamKey = params.teamKey;
 
-  const { data: dashboards, isLoading } = useDashboardsQuery(projectKey);
+  const { data: dashboards, isLoading } = useDashboardsQuery(teamKey);
   const [editing, setEditing] = useState(false);
 
   const list = dashboards ?? [];
@@ -32,11 +32,11 @@ export default function DashboardsPage() {
   // With no id in the URL, fall back to the first saved dashboard.
   const activeDashboardId = routeId ?? list[0]?.id ?? null;
 
-  const editor = useDashboardEditor(projectKey, list, activeDashboardId, (id) =>
-    router.push(id != null ? dashboardPath(projectKey, id) : dashboardsPath(projectKey)),
+  const editor = useDashboardEditor(teamKey, list, activeDashboardId, (id) =>
+    router.push(id != null ? dashboardPath(teamKey, id) : dashboardsPath(teamKey)),
   );
 
-  if (!project || isLoading) {
+  if (!team || isLoading) {
     return (
       <div className="flex-1 space-y-4 p-6">
         <Skeleton className="h-8 w-full max-w-md" />
@@ -102,7 +102,7 @@ export default function DashboardsPage() {
         dashboards={list}
         activeDashboardId={activeDashboardId}
         isVirtual={editor.isVirtual}
-        onSelect={(id) => router.push(dashboardPath(projectKey, id))}
+        onSelect={(id) => router.push(dashboardPath(teamKey, id))}
         onNewDashboard={(name) => void editor.createDashboard(name)}
         onRename={(d, name) => void editor.renameDashboard(d, name)}
         onDelete={(d) => void editor.deleteDashboard(d)}
@@ -112,7 +112,7 @@ export default function DashboardsPage() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="w-full px-6 py-8 lg:px-10">
-          <WidgetGrid projectKey={projectKey} project={project} editor={editor} editing={editing} />
+          <WidgetGrid teamKey={teamKey} team={team} editor={editor} editing={editing} />
         </div>
       </div>
     </div>

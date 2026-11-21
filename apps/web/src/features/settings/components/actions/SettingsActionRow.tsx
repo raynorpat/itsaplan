@@ -1,5 +1,5 @@
 import { Copy, Pencil, Trash2 } from 'lucide-react';
-import type { ActionDef, CustomField, ProjectDetail } from '@/lib/api';
+import type { ActionDef, CustomField, TeamDetail } from '@/lib/api';
 import { describeConditions } from '@/utils/filterFields';
 import { describeEffect } from '@/utils/actions';
 import { actionIcon } from '@/utils/actionIcons';
@@ -10,22 +10,22 @@ import { useSettingsCan } from '../../context/settingsPermission';
 
 export function SettingsActionRow({
   action,
-  project,
+  team,
   customFields,
   onEdit,
   onDuplicate,
   onDelete,
 }: {
   action: ActionDef;
-  project: ProjectDetail;
+  team: TeamDetail;
   customFields: CustomField[];
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const can = useSettingsCan();
-  const conditions = describeConditions(action.condition, project, customFields);
-  const effects = describeEffect(action.effect, project);
+  const conditions = describeConditions(action.condition, team, customFields);
+  const effects = describeEffect(action.effect, team);
   const Icon = actionIcon(action.icon);
   return (
     <TableRow className="group/item">

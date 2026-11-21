@@ -1,10 +1,10 @@
-import type { ActionDef, CustomField, ProjectDetail } from '@/lib/api';
+import type { ActionDef, CustomField, TeamDetail } from '@/lib/api';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SettingsActionRow } from './SettingsActionRow';
 
 interface SettingsActionsTableProps {
   actions: ActionDef[];
-  project: ProjectDetail;
+  team: TeamDetail;
   customFields: CustomField[];
   onEdit: (actionId: string) => void;
   onDuplicate: (action: ActionDef) => void;
@@ -13,7 +13,7 @@ interface SettingsActionsTableProps {
 
 export function SettingsActionsTable({
   actions,
-  project,
+  team,
   customFields,
   onEdit,
   onDuplicate,
@@ -40,7 +40,7 @@ export function SettingsActionsTable({
           <SettingsActionRow
             key={action.id}
             action={action}
-            project={project}
+            team={team}
             customFields={customFields}
             onEdit={() => onEdit(action.id)}
             onDuplicate={() => onDuplicate(action)}

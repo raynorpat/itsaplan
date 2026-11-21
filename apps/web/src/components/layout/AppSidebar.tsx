@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Braces, Server, Shield } from 'lucide-react';
-import type { Project } from '@/lib/api';
+import type { Team } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
 import { apiDocsPath, godPath, mcpServerPath } from '@/utils/paths';
 import { GOD_SECTIONS } from '@/utils/godSections';
@@ -17,31 +17,31 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import ProjectSwitcher from '@/components/layout/ProjectSwitcher';
+import TeamSwitcher from '@/components/layout/TeamSwitcher';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarMainNav from '@/components/layout/SidebarMainNav';
 import SidebarSettingsNav from '@/components/layout/SidebarSettingsNav';
 import SidebarBrandFooter from '@/components/brand/SidebarBrandFooter';
 
 // The app sidebar. It has two modes driven by the route: the main work
-// navigation, and the project settings navigation reached through the "Project
-// settings" entry. The project switcher header and the footer (API docs, MCP
-// server, brand mark) are shared by both modes. Project deletion lives on the
-// standalone Manage projects page, not here.
+// navigation, and the team settings navigation reached through the "Team
+// settings" entry. The team switcher header and the footer (API docs, MCP
+// server, brand mark) are shared by both modes. Team deletion lives on the
+// standalone Manage teams page, not here.
 export default function AppSidebar({
-  projects,
-  currentProjectKey,
-  onSelectProject,
-  onNewProject,
+  teams,
+  currentTeamKey,
+  onSelectTeam,
+  onNewTeam,
 }: {
-  projects: Project[];
-  currentProjectKey: string | null;
-  onSelectProject: (key: string) => void;
-  onNewProject: () => void;
+  teams: Team[];
+  currentTeamKey: string | null;
+  onSelectTeam: (key: string) => void;
+  onNewTeam: () => void;
 }) {
   const pathname = usePathname();
-  const disabled = !currentProjectKey;
-  const projectId = projects.find((p) => p.key === currentProjectKey)?.id ?? null;
+  const disabled = !currentTeamKey;
+  const teamId = teams.find((p) => p.key === currentTeamKey)?.id ?? null;
 
   const { data: session } = useSession();
   // The session store can already be filled by the time React hydrates, while the
@@ -55,7 +55,7 @@ export default function AppSidebar({
   // Settings mode is on whenever the route matches one of the settings nav items.
   // Members and the AI Team Schedules page are not in those groups, so they keep
   // the main sidebar.
-  const settingsNav = useSettingsNavGroups(currentProjectKey);
+  const settingsNav = useSettingsNavGroups(currentTeamKey);
   const settingsMode = settingsNav.groups.some((g) => g.items.some((i) => i.active));
   const onApiDocs = pathname.endsWith('/api');
   const onMcp = pathname.endsWith('/mcp');
@@ -63,19 +63,19 @@ export default function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <ProjectSwitcher
-          projects={projects}
-          currentProjectKey={currentProjectKey}
-          onSelectProject={onSelectProject}
-          onNewProject={onNewProject}
+        <TeamSwitcher
+          teams={teams}
+          currentTeamKey={currentTeamKey}
+          onSelectTeam={onSelectTeam}
+          onNewTeam={onNewTeam}
         />
       </SidebarHeader>
 
       <SidebarContent>
         {settingsMode ? (
-          <SidebarSettingsNav projectKey={currentProjectKey} />
+          <SidebarSettingsNav teamKey={currentTeamKey} />
         ) : (
-          <SidebarMainNav projectKey={currentProjectKey} projectId={projectId} />
+          <SidebarMainNav teamKey={currentTeamKey} teamId={teamId} />
         )}
       </SidebarContent>
 
@@ -84,14 +84,14 @@ export default function AppSidebar({
           <>
             <SidebarMenu>
               <SidebarNavItem
-                href={currentProjectKey ? apiDocsPath(currentProjectKey) : '#'}
+                href={currentTeamKey ? apiDocsPath(currentTeamKey) : '#'}
                 icon={Braces}
                 label="API docs"
                 active={onApiDocs}
                 disabled={disabled}
               />
               <SidebarNavItem
-                href={currentProjectKey ? mcpServerPath(currentProjectKey) : '#'}
+                href={currentTeamKey ? mcpServerPath(currentTeamKey) : '#'}
                 icon={Server}
                 label="MCP Server"
                 active={onMcp}

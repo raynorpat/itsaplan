@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { type ProjectDetail, type Issue } from '@/lib/api';
+import { type TeamDetail, type Issue } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { type DateField } from '@/utils/viewSettings';
 import { CalendarUnscheduledCard } from './CalendarUnscheduledCard';
@@ -9,13 +9,13 @@ export const UNSCHEDULED_ID = 'unscheduled';
 
 // The unscheduled panel — a drop target that clears an issue's date.
 export function CalendarUnscheduledPanel({
-  project,
+  team,
   dateField,
   issues,
   dot,
   onOpen,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   dateField: DateField;
   issues: Issue[];
   dot: (issue: Issue) => string;
@@ -39,7 +39,7 @@ export function CalendarUnscheduledPanel({
         {issues.map((issue) => (
           <CalendarUnscheduledCard
             key={issue.id}
-            project={project}
+            team={team}
             issue={issue}
             color={dot(issue)}
             onOpen={onOpen}

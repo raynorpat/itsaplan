@@ -4,7 +4,7 @@ import IssueTimelineShare from './IssueTimelineShare';
 
 // The whole life of the issue as one bar: a share per status, sized by the total time
 // spent in it (repeat visits merged), with the same figures and the lifecycle metrics
-// spread across the row under it, in the project's own order. A completed status is not
+// spread across the row under it, in the team's own order. A completed status is not
 // scaled: it takes the width of its own name, and the rest split what is left.
 
 export default function IssueTimelineCompact({

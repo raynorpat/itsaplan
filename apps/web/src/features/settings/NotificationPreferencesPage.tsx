@@ -9,14 +9,14 @@ import NotificationPreferences from './components/notifications/NotificationPref
 import { useNotificationPreferencesQuery } from './services/settings.service';
 import { useNotificationPreferencesForm } from './hooks/useNotificationPreferencesForm';
 
-// The member's own notification preferences (/project/:projectKey/notifications).
+// The member's own notification preferences (/team/:teamKey/notifications).
 // A main-nav Configuration destination, open to any member: choose which issue events
 // you get and where (email, Telegram), plus your Telegram chat id. The delivery
 // providers are configured separately by admins (settings -> Notification providers).
 export default function NotificationPreferencesPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  return <PreferencesPage projectKey={project.project.key} />;
+  const { team } = useShell();
+  if (!team) return null;
+  return <PreferencesPage teamKey={team.team.key} />;
 }
 
 function Chrome({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
@@ -33,8 +33,8 @@ function Chrome({ actions, children }: { actions?: ReactNode; children: ReactNod
   );
 }
 
-function PreferencesPage({ projectKey }: { projectKey: string }) {
-  const query = useNotificationPreferencesQuery(projectKey);
+function PreferencesPage({ teamKey }: { teamKey: string }) {
+  const query = useNotificationPreferencesQuery(teamKey);
   if (!query.data) {
     return (
       <Chrome>
@@ -42,11 +42,11 @@ function PreferencesPage({ projectKey }: { projectKey: string }) {
       </Chrome>
     );
   }
-  return <PreferencesLoaded projectKey={projectKey} initial={query.data} />;
+  return <PreferencesLoaded teamKey={teamKey} initial={query.data} />;
 }
 
-function PreferencesLoaded({ projectKey, initial }: { projectKey: string; initial: Prefs }) {
-  const form = useNotificationPreferencesForm(projectKey, initial);
+function PreferencesLoaded({ teamKey, initial }: { teamKey: string; initial: Prefs }) {
+  const form = useNotificationPreferencesForm(teamKey, initial);
   return (
     <Chrome
       actions={

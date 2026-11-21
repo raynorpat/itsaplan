@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 // A borderless section of the agent form: a quiet header (optional leading icon, a
 // title, an optional one-line hint) over the fields, separated from its neighbours by
 // whitespace and a hairline divider under the header, not by a card. This follows the
-// project's borderless-first rule (see DESIGN.md) instead of boxing every group.
+// team's borderless-first rule (see DESIGN.md) instead of boxing every group.
 //
 // The header toggles the section. Open state is controlled by the parent so its
 // section nav can expand a section on jump.

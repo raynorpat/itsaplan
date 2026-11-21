@@ -11,28 +11,26 @@ import { SkillCreateDialog } from './components/agent-skills/SkillCreateDialog';
 
 const section = AGENT_SKILLS_SECTION;
 
-// The agent skills page (/project/:projectKey/agent-skills): the project skill
+// The agent skills page (/team/:teamKey/agent-skills): the team skill
 // library given to internal agents.
 export default function SettingsAgentSkillsPage() {
-  const { project } = useShell();
-  if (!project) return null;
-  const projectKey = project.project.key;
+  const { team } = useShell();
+  if (!team) return null;
+  const teamKey = team.team.key;
   return (
     <SectionPageView
       title={section.label}
       description={section.description}
       actions={
         <SettingsCreateAction resource={section.resource} label="New skill">
-          {({ open, close }) =>
-            open && <SkillCreateDialog projectKey={projectKey} onClose={close} />
-          }
+          {({ open, close }) => open && <SkillCreateDialog teamKey={teamKey} onClose={close} />}
         </SettingsCreateAction>
       }
       wide
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsAgentSkills project={project} />
+          <SettingsAgentSkills team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

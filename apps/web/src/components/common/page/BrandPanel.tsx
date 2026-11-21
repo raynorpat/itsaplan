@@ -5,7 +5,7 @@ import { APP_NAME } from '@/utils/app';
 // image — self-contained, no asset. Shared by the auth screens and the invite
 // accept screen; the subtitle differs per context.
 export default function BrandPanel({
-  subtitle = 'Plan issues on a board. Sign in to open your projects.',
+  subtitle = 'Plan issues on a board. Sign in to open your teams.',
 }: {
   subtitle?: string;
 }) {

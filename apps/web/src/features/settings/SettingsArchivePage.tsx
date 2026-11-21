@@ -1,6 +1,6 @@
 'use client';
 
-import type { ProjectDetail } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import { useShell } from '@/context/shellContext';
 import { settingsSection } from '@/utils/settingsSections';
 import { Button } from '@/components/ui/button';
@@ -12,16 +12,16 @@ import { useAutoArchiveForm } from './hooks/useAutoArchiveForm';
 
 const section = settingsSection('archive');
 
-// The Archive settings page (/project/:projectKey/settings/archive). Shows the
+// The Archive settings page (/team/:teamKey/settings/archive). Shows the
 // auto-archive thresholds; Save lives in the page header.
 export default function SettingsArchivePage() {
-  const { project } = useShell();
-  if (!project) return null;
-  return <ArchivePage project={project} />;
+  const { team } = useShell();
+  if (!team) return null;
+  return <ArchivePage team={team} />;
 }
 
-function ArchivePage({ project }: { project: ProjectDetail }) {
-  const form = useAutoArchiveForm(project.project.key);
+function ArchivePage({ team }: { team: TeamDetail }) {
+  const form = useAutoArchiveForm(team.team.key);
   return (
     <SectionPageView
       title={section.label}

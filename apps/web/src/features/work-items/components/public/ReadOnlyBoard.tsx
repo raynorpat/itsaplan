@@ -1,8 +1,8 @@
 import { type SharedViewBundle } from '@/lib/api';
 import { applyFilters } from '@/utils/filters';
 import { defaultViewSettings } from '@/utils/viewSettings';
-import { type WorkItemsViewProps } from '@/utils/project';
-import { toPublicProjectDetail } from '@/utils/publicProject';
+import { type WorkItemsViewProps } from '@/utils/team';
+import { toPublicTeamDetail } from '@/utils/publicTeam';
 import PublicShareHeader from '@/components/common/page/PublicShareHeader';
 import KanbanBoard from '../kanban/KanbanBoard';
 import TableView from '../table/TableView';
@@ -22,10 +22,10 @@ export default function ReadOnlyBoard({
   bundle: SharedViewBundle;
   onOpenIssue: (id: string) => void;
 }) {
-  const project = toPublicProjectDetail(bundle.project, bundle.issues);
-  const filteredProject = {
-    ...project,
-    issues: applyFilters(project.issues, bundle.view.filters, project),
+  const team = toPublicTeamDetail(bundle.team, bundle.issues);
+  const filteredTeam = {
+    ...team,
+    issues: applyFilters(team.issues, bundle.view.filters, team),
   };
 
   const layout = bundle.view.display.layout ?? 'kanban';
@@ -33,8 +33,8 @@ export default function ReadOnlyBoard({
   const settings = { ...defaultViewSettings(layout), ...displaySettings };
 
   const viewProps: WorkItemsViewProps = {
-    project: filteredProject,
-    customFields: project.customFields,
+    team: filteredTeam,
+    customFields: team.customFields,
     settings,
     onSettingsChange: noop,
     onOpenIssue,
@@ -57,11 +57,7 @@ export default function ReadOnlyBoard({
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <PublicShareHeader
-        name={project.project.name}
-        ticker={project.project.key}
-        trailing={bundle.view.name}
-      />
+      <PublicShareHeader name={team.team.name} ticker={team.team.key} trailing={bundle.view.name} />
       <div className="relative min-h-0 flex-1">{renderView()}</div>
     </div>
   );

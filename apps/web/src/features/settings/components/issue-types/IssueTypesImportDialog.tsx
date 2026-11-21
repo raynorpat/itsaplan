@@ -14,16 +14,16 @@ import { transferActionLabel } from '../../utils/transferAction';
 // whether it is created or updates an existing type's color. On confirm, new types are
 // created and matched types have their color updated.
 export default function IssueTypesImportDialog({
-  projectKey,
+  teamKey,
   planned,
   onClose,
 }: {
-  projectKey: string;
+  teamKey: string;
   planned: PlannedIssueType[];
   onClose: () => void;
 }) {
-  const createIssueType = useCreateIssueType(projectKey);
-  const updateIssueType = useUpdateIssueType(projectKey);
+  const createIssueType = useCreateIssueType(teamKey);
+  const updateIssueType = useUpdateIssueType(teamKey);
   const [busy, setBusy] = useState(false);
 
   const applicable = planned.filter((t) => t.action !== 'unchanged');

@@ -13,7 +13,7 @@ import {
   sortIssues,
   type WorkItemsViewProps,
   type IssueGroup,
-} from '@/utils/project';
+} from '@/utils/team';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useBoardDnd } from '../../hooks/useBoardDnd';
 import { useSelection } from '../../context/useSelection';
@@ -39,28 +39,28 @@ interface SwimlaneRow {
 // short. The whole board scrolls both axes together so the columns stay aligned
 // with the sticky column header row.
 export default function SwimlaneBoard({
-  project,
+  team,
   settings,
   onOpenIssue,
   readOnly,
 }: WorkItemsViewProps) {
-  const dnd = useBoardDnd(project.project.key, readOnly);
+  const dnd = useBoardDnd(team.team.key, readOnly);
   const selection = useSelection();
-  const collapsed = usePersistedSet(collapsedSwimlanesKey(project.project.id, settings.subgroup));
+  const collapsed = usePersistedSet(collapsedSwimlanesKey(team.team.id, settings.subgroup));
 
-  const maps = buildMaps(project);
-  const columnGroups = buildGroups(project, settings.group);
-  const swimlaneGroups = buildGroups(project, settings.subgroup);
+  const maps = buildMaps(team);
+  const columnGroups = buildGroups(team, settings.group);
+  const swimlaneGroups = buildGroups(team, settings.subgroup);
   const nested = nestIssues(
     swimlaneGroups,
     columnGroups,
-    sortIssues(project.issues, settings.sort, project),
+    sortIssues(team.issues, settings.sort, team),
     settings.subgroup,
     settings.group,
   );
 
   // A column is shown unless it is empty across every swimlane and empty columns
-  // are hidden; its header count is the project-wide total for that column.
+  // are hidden; its header count is the team-wide total for that column.
   const columnTotals = new Map(
     columnGroups.map((c) => [
       c.key,
@@ -208,7 +208,7 @@ export default function SwimlaneBoard({
                       {row.cells.map(({ column, issues }) => (
                         <SwimlaneCell
                           key={column.key}
-                          project={project}
+                          team={team}
                           issues={issues}
                           maps={maps}
                           properties={settings.properties}
@@ -238,7 +238,7 @@ export default function SwimlaneBoard({
 
       <CardOverlay
         activeId={dnd.activeId}
-        issues={project.issues}
+        issues={team.issues}
         maps={maps}
         properties={settings.properties}
       />

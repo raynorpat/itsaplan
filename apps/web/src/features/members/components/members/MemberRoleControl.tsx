@@ -15,26 +15,26 @@ import { useSetMemberRole } from '@/services/members.service';
 const OWNER_VALUE = 'owner';
 
 // A member's role, shown in the members list. An owner viewing the list gets a
-// select to reassign the role — the project's custom roles plus Owner; anyone
+// select to reassign the role — the team's custom roles plus Owner; anyone
 // else sees the current role name as a read-only badge. The last owner cannot be
 // demoted, so their select is disabled.
 export default function MemberRoleControl({
-  projectKey,
+  teamKey,
   member,
   roles,
   canManage,
   isLastOwner,
 }: {
-  projectKey: string;
+  teamKey: string;
   member: MemberRow;
   roles: Role[];
   canManage: boolean;
   isLastOwner: boolean;
 }) {
-  const setMemberRole = useSetMemberRole(projectKey);
+  const setMemberRole = useSetMemberRole(teamKey);
   const isOwnerRow = member.role === 'owner';
 
-  // A null roleId means the member uses the project's default role.
+  // A null roleId means the member uses the team's default role.
   const defaultRole = roles.find((r) => r.isDefault) ?? null;
   const currentId = member.roleId ?? defaultRole?.id ?? null;
   const currentName = member.roleName ?? defaultRole?.name ?? 'Member';
@@ -67,7 +67,7 @@ export default function MemberRoleControl({
       <SelectTrigger
         size="sm"
         className="h-7 w-36 text-xs"
-        title={isOwnerRow && isLastOwner ? 'A project must keep at least one owner' : undefined}
+        title={isOwnerRow && isLastOwner ? 'A team must keep at least one owner' : undefined}
       >
         <SelectValue placeholder="Select role" />
       </SelectTrigger>

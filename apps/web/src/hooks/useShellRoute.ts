@@ -10,16 +10,16 @@ function aiTeamLabel(section: string | null): string | null {
 }
 
 export type ShellRoute = {
-  projectKey: string | null;
-  // The segment after the project key: 'view', 'settings', 'issue', 'members', …
-  // null on the project root.
+  teamKey: string | null;
+  // The segment after the team key: 'view', 'settings', 'issue', 'members', …
+  // null on the team root.
   sub: string | null;
   activeViewId: string | null;
   section: string | null;
   aiTeamCrumb: string | null;
-  // The project-scoped issue number from the URL, not the internal id.
+  // The team-scoped issue number from the URL, not the internal id.
   routeIssueSeq: number | null;
-  routeInitiativeId: string | null;
+  routeProjectId: string | null;
   // The work items routes, where the layout and selection commands apply.
   onBoard: boolean;
 };
@@ -31,21 +31,21 @@ export function useShellRoute(): ShellRoute {
   const params = useParams();
   const pathname = usePathname();
 
-  const routeKey = params.projectKey;
-  const projectKey = (Array.isArray(routeKey) ? routeKey[0] : routeKey) ?? null;
+  const routeKey = params.teamKey;
+  const teamKey = (Array.isArray(routeKey) ? routeKey[0] : routeKey) ?? null;
 
-  const segs = pathname.split('/').filter(Boolean); // ['project', key, sub?, id?]
+  const segs = pathname.split('/').filter(Boolean); // ['team', key, sub?, id?]
   const sub = segs[2] ?? null;
 
   return {
-    projectKey,
+    teamKey,
     sub,
     activeViewId: sub === 'view' && segs[3] ? segs[3] : null,
     section: sub === 'settings' ? (segs[3] ?? null) : null,
     aiTeamCrumb: sub === 'ai-team' ? aiTeamLabel(segs[3] ?? null) : null,
     routeIssueSeq: sub === 'issue' && segs[3] ? Number(segs[3]) : null,
-    // /initiatives/details/:id — the segment right after 'initiatives' is a list tab.
-    routeInitiativeId: sub === 'initiatives' && segs[3] === 'details' && segs[4] ? segs[4] : null,
+    // /projects/details/:id — the segment right after 'projects' is a list tab.
+    routeProjectId: sub === 'projects' && segs[3] === 'details' && segs[4] ? segs[4] : null,
     onBoard: sub == null || sub === 'view',
   };
 }

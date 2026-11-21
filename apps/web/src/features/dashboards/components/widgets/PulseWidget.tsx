@@ -41,10 +41,10 @@ function level(count: number, max: number): number {
 // count. The server returns a zero-filled, preformatted series (see analytics
 // store), so this component only measures width and lays cells out.
 export default function PulseWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
   const unit = config.granularity ?? 'day';
@@ -66,7 +66,7 @@ export default function PulseWidget({
   const fitColumns = width > 0 ? Math.max(1, Math.floor((width + geo.gap) / step)) : 0;
   const fetchColumns = fitColumns > 0 ? Math.min(fitColumns + COLUMN_BUFFER, geo.maxColumns) : 26;
 
-  const { data, isLoading } = usePulseQuery(projectKey, unit, fetchColumns);
+  const { data, isLoading } = usePulseQuery(teamKey, unit, fetchColumns);
 
   const [tip, setTip] = useState<{ label: string; count: number; x: number; y: number } | null>(
     null,

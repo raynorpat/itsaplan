@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronRight, Plus } from 'lucide-react';
-import { type CustomField, type NewCustomFieldInput, type ProjectDetail } from '@/lib/api';
+import { type CustomField, type NewCustomFieldInput, type TeamDetail } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
@@ -13,12 +13,12 @@ import {
 } from '../../services/settings.service';
 import { SettingsCustomFieldForm, FIELD_TYPE_LABELS } from './SettingsCustomFieldForm';
 
-// Which group's inline add form is open: 'global' for the project-wide field group,
+// Which group's inline add form is open: 'global' for the team-wide field group,
 // or a issue type id for a type-scoped group. null when no form is open.
 type AddScope = 'global' | string;
 
-export default function SettingsCustomFields({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
+export default function SettingsCustomFields({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
   const [addingScope, setAddingScope] = useState<AddScope | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<CustomField | null>(null);
@@ -26,18 +26,18 @@ export default function SettingsCustomFields({ project }: { project: ProjectDeta
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const can = useSettingsCan();
-  const createCustomField = useCreateCustomField(projectKey);
-  const updateCustomField = useUpdateCustomField(projectKey);
-  const deleteCustomField = useDeleteCustomField(projectKey);
+  const createCustomField = useCreateCustomField(teamKey);
+  const updateCustomField = useUpdateCustomField(teamKey);
+  const deleteCustomField = useDeleteCustomField(teamKey);
 
-  const fields = project.customFields;
+  const fields = team.customFields;
   const groups: { scope: AddScope; label: string; fields: CustomField[] }[] = [
     {
       scope: 'global',
       label: 'Global (all types)',
       fields: fields.filter((f) => f.issueTypeId == null),
     },
-    ...project.issueTypes.map((t) => ({
+    ...team.issueTypes.map((t) => ({
       scope: t.id as AddScope,
       label: t.name,
       fields: fields.filter((f) => f.issueTypeId === t.id),

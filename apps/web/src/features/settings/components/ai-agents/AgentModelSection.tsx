@@ -24,7 +24,7 @@ export default function AgentModelSection({
   onOpenChange,
   value,
   onChange,
-  projectKey,
+  teamKey,
   credentials,
   catalog,
   models,
@@ -34,7 +34,7 @@ export default function AgentModelSection({
   onOpenChange: (open: boolean) => void;
   value: AgentFormValue;
   onChange: (patch: Partial<AgentFormValue>) => void;
-  projectKey: string;
+  teamKey: string;
   credentials: IntegrationCredential[];
   catalog: IntegrationMeta[];
   models: ProviderModel[];
@@ -64,7 +64,7 @@ export default function AgentModelSection({
                 The agent needs a provider key to pick a model.
               </p>
               <Link
-                href={integrationsPath(projectKey)}
+                href={integrationsPath(teamKey)}
                 className="inline-flex items-center gap-1 text-xs font-medium hover:underline"
               >
                 Add a key on Integrations

@@ -26,18 +26,18 @@ import MemberRoleControl from './MemberRoleControl';
 import MemberDescription from './MemberDescription';
 import MemberDescriptionDialog from './MemberDescriptionDialog';
 
-// The project's members, one row per person. An owner can revoke anyone's access;
+// The team's members, one row per person. An owner can revoke anyone's access;
 // a member can only leave (remove themselves). The last owner is protected — the
 // API rejects it and the action is disabled here too.
-export default function MembersList({ projectKey }: { projectKey: string }) {
-  const membersQuery = useMembersQuery(projectKey);
+export default function MembersList({ teamKey }: { teamKey: string }) {
+  const membersQuery = useMembersQuery(teamKey);
   const { can, isOwner } = usePermissions();
   const { data: session } = useSession();
   const currentUserId = session?.user.id ?? null;
-  const removeMember = useRemoveMember(projectKey);
+  const removeMember = useRemoveMember(teamKey);
   // Roles feed the per-member role select; only an owner can reassign, so only an
   // owner needs the list fetched.
-  const rolesQuery = useRolesQuery(projectKey, isOwner);
+  const rolesQuery = useRolesQuery(teamKey, isOwner);
   const router = useRouter();
   const [target, setTarget] = useState<MemberRow | null>(null);
 
@@ -53,8 +53,8 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
     if (!target) return;
     await removeMember.mutateAsync(target.userId);
     setTarget(null);
-    // Leaving the project revokes your own access; return to the app root, which
-    // reopens a project you still belong to.
+    // Leaving the team revokes your own access; return to the app root, which
+    // reopens a team you still belong to.
     if (targetIsSelf) {
       router.push('/');
       router.refresh();
@@ -86,7 +86,7 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
             const canRemove = !m.isAgent && (self || can('members_manage', 'delete'));
             const canEditDescription = !m.isAgent && (isOwner || self);
             const lastOwner = m.role === 'owner' && ownerCount === 1;
-            const removeLabel = self ? 'Leave project' : 'Revoke access';
+            const removeLabel = self ? 'Leave team' : 'Revoke access';
             return (
               <TableRow key={m.userId} className="group/item">
                 <TableCell className="px-3 py-3 align-top whitespace-normal">
@@ -123,7 +123,7 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
                 </TableCell>
                 <TableCell className="px-3 pt-4 pb-3 align-top whitespace-normal">
                   <MemberRoleControl
-                    projectKey={projectKey}
+                    teamKey={teamKey}
                     member={m}
                     roles={roles}
                     canManage={isOwner && !self && !m.isAgent}
@@ -133,7 +133,7 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
                 <TableCell className="px-3 pt-3 pb-2 align-top">
                   <div className="flex items-center justify-end gap-1">
                     {canEditDescription && (
-                      <MemberDescriptionDialog projectKey={projectKey} member={m} self={self} />
+                      <MemberDescriptionDialog teamKey={teamKey} member={m} self={self} />
                     )}
                     {canRemove && (
                       <Tooltip>
@@ -154,7 +154,7 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {lastOwner ? 'A project must keep at least one owner' : removeLabel}
+                          {lastOwner ? 'A team must keep at least one owner' : removeLabel}
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -169,16 +169,16 @@ export default function MembersList({ projectKey }: { projectKey: string }) {
       {target && (
         <ConfirmDialog
           title={
-            targetIsSelf ? 'Leave this project' : `Revoke access for ${target.name || target.email}`
+            targetIsSelf ? 'Leave this team' : `Revoke access for ${target.name || target.email}`
           }
-          confirmLabel={targetIsSelf ? 'Leave project' : 'Revoke access'}
+          confirmLabel={targetIsSelf ? 'Leave team' : 'Revoke access'}
           onConfirm={confirmRemove}
           onClose={() => setTarget(null)}
         >
           <div className="text-sm text-muted-foreground">
             {targetIsSelf
-              ? 'You will lose access to this project and its issues. An owner can invite you back later.'
-              : `${target.name || target.email} will lose access to this project. They can be invited back later.`}
+              ? 'You will lose access to this team and its issues. An owner can invite you back later.'
+              : `${target.name || target.email} will lose access to this team. They can be invited back later.`}
           </div>
         </ConfirmDialog>
       )}

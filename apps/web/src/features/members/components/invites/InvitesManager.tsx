@@ -13,12 +13,12 @@ import InviteRow from './InviteRow';
 // accepted or rejected yet, each with a revoke action, and — with create
 // permission — the form to invite someone by email. Gated by the members_invite
 // matrix: without read it renders nothing.
-export default function InvitesManager({ projectKey }: { projectKey: string }) {
+export default function InvitesManager({ teamKey }: { teamKey: string }) {
   const { can } = usePermissions();
   const canRead = can('members_invite', 'read');
   const canCreate = can('members_invite', 'create');
-  const invitesQuery = useInvitesQuery(projectKey, canRead);
-  const deleteInvite = useDeleteInvite(projectKey);
+  const invitesQuery = useInvitesQuery(teamKey, canRead);
+  const deleteInvite = useDeleteInvite(teamKey);
   const [target, setTarget] = useState<Invite | null>(null);
 
   if (!canRead) return null;
@@ -28,7 +28,7 @@ export default function InvitesManager({ projectKey }: { projectKey: string }) {
 
   return (
     <div>
-      {canCreate && <InviteCreateForm projectKey={projectKey} />}
+      {canCreate && <InviteCreateForm teamKey={teamKey} />}
 
       {pending.length > 0 && (
         <div className="mb-8">

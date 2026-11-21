@@ -1,5 +1,5 @@
 import type { AgentTool, AiAgent, NewAiAgentInput, AiAgentPatch } from '@/lib/api';
-import { transliterate } from '@/utils/projectKey';
+import { transliterate } from '@/utils/teamKey';
 
 // The editable shape of an agent form. temperature/maxSteps are kept as strings so
 // the inputs can be left blank; they are parsed to numbers (or null) on submit.

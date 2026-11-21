@@ -21,11 +21,11 @@ const SCROLL_THRESHOLD = 48;
 // whole set is never fetched at once. Selecting a board hands its id to the host,
 // which loads the board fresh.
 export default function BoardSwitcher({
-  projectKey,
+  teamKey,
   activeBoardId,
   onSelect,
 }: {
-  projectKey: string;
+  teamKey: string;
   activeBoardId: string | null;
   onSelect: (id: string) => void;
 }) {
@@ -33,7 +33,7 @@ export default function BoardSwitcher({
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query, 250);
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useNoteBoardSearch(
-    projectKey,
+    teamKey,
     debounced,
   );
 

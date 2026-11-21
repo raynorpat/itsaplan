@@ -2,35 +2,35 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useAgentSchedules(projectKey: string) {
+export function useAgentSchedules(teamKey: string) {
   return useQuery({
-    queryKey: qk.agentSchedules(projectKey),
-    queryFn: () => api.listAgentSchedules(projectKey),
+    queryKey: qk.agentSchedules(teamKey),
+    queryFn: () => api.listAgentSchedules(teamKey),
     refetchInterval: (query) =>
       query.state.data?.some((schedule) => schedule.lastRunStatus === 'pending') ? 2000 : false,
   });
 }
 
-export function useAgentScheduleRuns(projectKey: string, scheduleId: string | null) {
+export function useAgentScheduleRuns(teamKey: string, scheduleId: string | null) {
   return useQuery({
-    queryKey: qk.agentScheduleRuns(projectKey, scheduleId ?? ''),
-    queryFn: () => api.listAgentScheduleRuns(projectKey, scheduleId!),
+    queryKey: qk.agentScheduleRuns(teamKey, scheduleId ?? ''),
+    queryFn: () => api.listAgentScheduleRuns(teamKey, scheduleId!),
     enabled: scheduleId != null,
     refetchInterval: (query) =>
       query.state.data?.some((run) => run.status === 'pending') ? 2000 : false,
   });
 }
 
-export function useCreateAgentSchedule(projectKey: string) {
+export function useCreateAgentSchedule(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: Parameters<typeof api.createAgentSchedule>[1]) =>
-      api.createAgentSchedule(projectKey, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) }),
+      api.createAgentSchedule(teamKey, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(teamKey) }),
   });
 }
 
-export function useUpdateAgentSchedule(projectKey: string) {
+export function useUpdateAgentSchedule(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -39,26 +39,26 @@ export function useUpdateAgentSchedule(projectKey: string) {
     }: {
       id: string;
       patch: Parameters<typeof api.updateAgentSchedule>[2];
-    }) => api.updateAgentSchedule(projectKey, id, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) }),
+    }) => api.updateAgentSchedule(teamKey, id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(teamKey) }),
   });
 }
 
-export function useDeleteAgentSchedule(projectKey: string) {
+export function useDeleteAgentSchedule(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteAgentSchedule(projectKey, id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) }),
+    mutationFn: (id: string) => api.deleteAgentSchedule(teamKey, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(teamKey) }),
   });
 }
 
-export function useRunAgentSchedule(projectKey: string) {
+export function useRunAgentSchedule(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.runAgentSchedule(projectKey, id),
+    mutationFn: (id: string) => api.runAgentSchedule(teamKey, id),
     onSuccess: (_data, id) => {
-      void qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) });
-      void qc.invalidateQueries({ queryKey: qk.agentScheduleRuns(projectKey, id) });
+      void qc.invalidateQueries({ queryKey: qk.agentSchedules(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.agentScheduleRuns(teamKey, id) });
     },
   });
 }

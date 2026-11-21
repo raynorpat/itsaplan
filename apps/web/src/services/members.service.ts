@@ -3,25 +3,25 @@ import { toast } from 'sonner';
 import { api, type MemberRole } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useMembersQuery(projectKey: string | null) {
+export function useMembersQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.members(projectKey ?? ''),
-    queryFn: () => api.listMembers(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.members(teamKey ?? ''),
+    queryFn: () => api.listMembers(teamKey!),
+    enabled: teamKey != null,
   });
 }
 
-export function useRemoveMember(projectKey: string) {
+export function useRemoveMember(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => api.removeMember(projectKey, userId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.members(projectKey) }),
+    mutationFn: (userId: string) => api.removeMember(teamKey, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.members(teamKey) }),
   });
 }
 
 // Set a member's role (owner-only on the API). role 'owner' promotes to owner;
 // role 'member' assigns a custom role by roleId (null resets to the default role).
-export function useSetMemberRole(projectKey: string) {
+export function useSetMemberRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -32,22 +32,22 @@ export function useSetMemberRole(projectKey: string) {
       userId: string;
       role: MemberRole;
       roleId?: string | null;
-    }) => api.setMemberRole(projectKey, userId, { role, roleId }),
+    }) => api.setMemberRole(teamKey, userId, { role, roleId }),
     onSuccess: (_data, { role }) => {
-      qc.invalidateQueries({ queryKey: qk.members(projectKey) });
+      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
       toast.success(role === 'owner' ? 'Member promoted to owner' : 'Member role updated');
     },
   });
 }
 
-// Set what a member does in the project (owner-only on the API).
-export function useSetMemberDescription(projectKey: string) {
+// Set what a member does in the team (owner-only on the API).
+export function useSetMemberDescription(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ userId, description }: { userId: string; description: string }) =>
-      api.setMemberDescription(projectKey, userId, description),
+      api.setMemberDescription(teamKey, userId, description),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.members(projectKey) });
+      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
       toast.success('Member description updated');
     },
   });
@@ -55,27 +55,27 @@ export function useSetMemberDescription(projectKey: string) {
 
 // Invites are owner-only on the API; pass enabled=false for a non-owner so the
 // list query does not fire a request that would 403.
-export function useInvitesQuery(projectKey: string | null, enabled = true) {
+export function useInvitesQuery(teamKey: string | null, enabled = true) {
   return useQuery({
-    queryKey: qk.invites(projectKey ?? ''),
-    queryFn: () => api.listInvites(projectKey!),
-    enabled: projectKey != null && enabled,
+    queryKey: qk.invites(teamKey ?? ''),
+    queryFn: () => api.listInvites(teamKey!),
+    enabled: teamKey != null && enabled,
   });
 }
 
-export function useCreateInvite(projectKey: string) {
+export function useCreateInvite(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { email: string; role: MemberRole; roleId?: string | null }) =>
-      api.createInvite(projectKey, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(projectKey) }),
+      api.createInvite(teamKey, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(teamKey) }),
   });
 }
 
-export function useDeleteInvite(projectKey: string) {
+export function useDeleteInvite(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (inviteId: string) => api.deleteInvite(projectKey, inviteId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(projectKey) }),
+    mutationFn: (inviteId: string) => api.deleteInvite(teamKey, inviteId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(teamKey) }),
   });
 }

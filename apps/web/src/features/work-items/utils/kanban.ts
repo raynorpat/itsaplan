@@ -6,8 +6,8 @@ export const COLUMN_WIDTH = 313;
 
 export const boardCollision = preferPrefix('card:');
 
-// Collapsed swimlanes are a per-project, per-swimlane-field client-only preference,
+// Collapsed swimlanes are a per-team, per-swimlane-field client-only preference,
 // persisted in localStorage so it survives reloads without touching the server.
-export function collapsedSwimlanesKey(projectId: string, subgroup: string): string {
-  return `kanban-swimlanes-collapsed:${projectId}:${subgroup}`;
+export function collapsedSwimlanesKey(teamId: string, subgroup: string): string {
+  return `kanban-swimlanes-collapsed:${teamId}:${subgroup}`;
 }

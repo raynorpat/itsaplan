@@ -30,7 +30,7 @@ interface FormState {
   maxAttachmentMb: string;
   maxAvatarMb: string;
   attachmentMimeTypes: string;
-  projectQuotaMb: string;
+  teamQuotaMb: string;
 }
 
 function settingsToForm(settings: StorageSettings): FormState {
@@ -40,7 +40,7 @@ function settingsToForm(settings: StorageSettings): FormState {
     // One type per line: the list is short and each entry is a whole value, so a
     // line is easier to read and edit than a comma-separated string.
     attachmentMimeTypes: settings.attachmentMimeTypes.join('\n'),
-    projectQuotaMb: String(settings.projectQuotaMb),
+    teamQuotaMb: String(settings.teamQuotaMb),
   };
 }
 
@@ -53,7 +53,7 @@ function StorageForm({ settings }: { settings: FormState }) {
 
   const maxAttachmentMb = Number(form.maxAttachmentMb);
   const maxAvatarMb = Number(form.maxAvatarMb);
-  const projectQuotaMb = Number(form.projectQuotaMb);
+  const teamQuotaMb = Number(form.teamQuotaMb);
   // The same bounds the api validates the body against, so an out-of-range value
   // disables Save instead of coming back as a 400.
   const inRange = (n: number, min: number, max: number) =>
@@ -61,14 +61,14 @@ function StorageForm({ settings }: { settings: FormState }) {
   const valid =
     inRange(maxAttachmentMb, 1, 10240) &&
     inRange(maxAvatarMb, 1, 1024) &&
-    inRange(projectQuotaMb, 0, Number.MAX_SAFE_INTEGER);
+    inRange(teamQuotaMb, 0, Number.MAX_SAFE_INTEGER);
 
   async function save() {
     try {
       await update.mutateAsync({
         maxAttachmentMb,
         maxAvatarMb,
-        projectQuotaMb,
+        teamQuotaMb,
         attachmentMimeTypes: form.attachmentMimeTypes
           .split('\n')
           .map((line) => line.trim())
@@ -154,22 +154,22 @@ function StorageForm({ settings }: { settings: FormState }) {
         </SettingsSection>
 
         <SettingsSection
-          title="Project quota"
-          description="Total attachment storage one project may use. 0 means no limit."
+          title="Team quota"
+          description="Total attachment storage one team may use. 0 means no limit."
         >
           <SettingsCard className="space-y-2 p-4">
             <div className="space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="storage-project-quota-mb">Storage per project (MB)</Label>
+              <Label htmlFor="storage-team-quota-mb">Storage per team (MB)</Label>
               <Input
-                id="storage-project-quota-mb"
+                id="storage-team-quota-mb"
                 type="number"
                 min={0}
-                value={form.projectQuotaMb}
-                onChange={(e) => set({ projectQuotaMb: e.target.value })}
+                value={form.teamQuotaMb}
+                onChange={(e) => set({ teamQuotaMb: e.target.value })}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Once a project reaches the quota, new uploads are refused until someone deletes
+              Once a team reaches the quota, new uploads are refused until someone deletes
               attachments.
             </p>
           </SettingsCard>

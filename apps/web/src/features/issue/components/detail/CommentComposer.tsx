@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateComment } from '../../services/comments.service';
 
 // The new-comment box: a plain markdown textarea with an @-mention menu. Typing "@"
-// opens a menu of the project's members and agents; picking one inserts a mention
+// opens a menu of the team's members and agents; picking one inserts a mention
 // token @[Name](user:<id>) into the body. The token is what the backend parses to
 // notify a member or trigger an agent (see the feed's chip rendering for how it
 // displays). Posts as the current session user on the button or Cmd/Ctrl+Enter.

@@ -36,7 +36,7 @@ export async function signInWithEmail(input: { email: string; password: string }
 // where the confirmation link lands when the instance sends one.
 //
 // On an invite-only instance the API rejects the sign-up unless the address has a
-// pending project invite, and the thrown message says so.
+// pending team invite, and the thrown message says so.
 export async function signUpWithEmail(input: { email: string; password: string }): Promise<void> {
   const result = await signUp.email({
     ...input,

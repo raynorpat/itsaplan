@@ -4,7 +4,7 @@ import Avatar from '@/components/common/Avatar';
 import { Pill } from '@/components/common/fields/Pill';
 import PopoverPick from '@/components/common/fields/PopoverPick';
 
-// The agent an issue is delegated to. `assignees` is the project's full candidate
+// The agent an issue is delegated to. `assignees` is the team's full candidate
 // list; this control filters it to agents. Members are set through AssigneeSelect.
 export default function DelegateSelect({
   assignees,

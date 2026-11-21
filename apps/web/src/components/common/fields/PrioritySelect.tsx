@@ -2,14 +2,14 @@ import { Pill } from './Pill';
 import { PRIORITY_FIELDS } from './priorityFields';
 import PopoverPick from './PopoverPick';
 
-// Value is the priority string, '' for none (matches PRIORITY_FIELDS[0]).
+// Value is Linear's 0..4, 0 for none (matches PRIORITY_FIELDS[0]).
 export default function PrioritySelect({
   value,
   onChange,
   readOnly,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  value: number;
+  onChange: (v: number) => void;
   readOnly?: boolean;
 }) {
   const prio = PRIORITY_FIELDS.find((p) => p.value === value) ?? PRIORITY_FIELDS[0];
@@ -24,7 +24,7 @@ export default function PrioritySelect({
       }
       inputPlaceholder="Set priority to…"
       items={PRIORITY_FIELDS.map((p) => ({
-        key: p.value || 'none',
+        key: String(p.value),
         search: p.label,
         icon: p.icon,
         label: p.label,

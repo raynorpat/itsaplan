@@ -8,7 +8,7 @@ import {
   sortIssues,
   type WorkItemsViewProps,
   type IssueGroup,
-} from '@/utils/project';
+} from '@/utils/team';
 import { useBoardDnd } from '../../hooks/useBoardDnd';
 import { useSelection } from '../../context/useSelection';
 import { boardCollision } from '../../utils/kanban';
@@ -22,14 +22,14 @@ import { CollapsedColumn } from './CollapsedColumn';
 // Flat board: one vertically-virtualized column per group, laid out horizontally,
 // with a trailing "Hidden" panel for manually-hidden columns.
 export default function FlatBoard({
-  project,
+  team,
   settings,
   onSettingsChange,
   onOpenIssue,
   onAddIssue,
   readOnly,
 }: WorkItemsViewProps) {
-  const dnd = useBoardDnd(project.project.key, readOnly);
+  const dnd = useBoardDnd(team.team.key, readOnly);
   const selection = useSelection();
 
   // Hidden columns live in the view's display (settings.hiddenGroups); toggling
@@ -56,13 +56,13 @@ export default function FlatBoard({
         : settings.collapsedGroups.filter((k) => k !== key),
     });
 
-  const groups = buildGroups(project, settings.group);
+  const groups = buildGroups(team, settings.group);
   const issuesByGroup = groupIssues(
     groups,
-    sortIssues(project.issues, settings.sort, project),
+    sortIssues(team.issues, settings.sort, team),
     settings.group,
   );
-  const maps = buildMaps(project);
+  const maps = buildMaps(team);
 
   // Empty groups drop out entirely when "Show empty columns" is off; manual hide
   // moves the rest into the "Hidden" panel.
@@ -89,7 +89,7 @@ export default function FlatBoard({
   }
 
   function addIssueTo(group: IssueGroup) {
-    onAddIssue({ columnId: project.columns[0]?.id ?? '', ...group.assign });
+    onAddIssue({ stateId: team.states[0]?.id ?? '', ...group.assign });
   }
 
   return (
@@ -119,7 +119,7 @@ export default function FlatBoard({
           ) : (
             <BoardColumn
               key={group.key}
-              project={project}
+              team={team}
               group={group}
               issues={issuesByGroup.get(group.key) ?? []}
               maps={maps}
@@ -172,7 +172,7 @@ export default function FlatBoard({
 
       <CardOverlay
         activeId={dnd.activeId}
-        issues={project.issues}
+        issues={team.issues}
         maps={maps}
         properties={settings.properties}
       />

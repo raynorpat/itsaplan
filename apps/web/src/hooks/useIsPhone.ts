@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 // True on phone-width viewports, matching the app's Tailwind `sm` breakpoint
-// (640px). Below it the project views disable drag so a touch scrolls the list.
+// (640px). Below it the team views disable drag so a touch scrolls the list.
 const QUERY = '(max-width: 639px)';
 
 function subscribe(onChange: () => void): () => void {

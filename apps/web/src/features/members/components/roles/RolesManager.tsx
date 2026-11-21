@@ -20,20 +20,20 @@ import { useDeleteRole, usePermissionCatalogQuery, useRolesQuery } from '@/servi
 import RoleEditorPanel from './RoleEditorPanel';
 import { PermissionsPopover } from '@/components/common/permissions/PermissionsPopover';
 
-// The project's custom roles table: edit the permission matrix and delete a role.
+// The team's custom roles table: edit the permission matrix and delete a role.
 // Creating a role and the copy/paste transfer live in the page header (RolesToolbar).
 // Owner-only — the API rejects a non-owner's writes, so a member sees a notice. The
 // default role cannot be deleted (no delete action on it).
-export default function RolesManager({ projectKey }: { projectKey: string }) {
+export default function RolesManager({ teamKey }: { teamKey: string }) {
   const { isOwner } = usePermissions();
-  const rolesQuery = useRolesQuery(projectKey, isOwner);
+  const rolesQuery = useRolesQuery(teamKey, isOwner);
   const catalogQuery = usePermissionCatalogQuery();
-  const deleteRole = useDeleteRole(projectKey);
+  const deleteRole = useDeleteRole(teamKey);
   const [editing, setEditing] = useState<Role | null>(null);
   const [deleting, setDeleting] = useState<Role | null>(null);
 
   if (!isOwner)
-    return <p className="text-sm text-muted-foreground">Only project owners can manage roles.</p>;
+    return <p className="text-sm text-muted-foreground">Only team owners can manage roles.</p>;
 
   const roles = rolesQuery.data ?? [];
   const catalog = catalogQuery.data ?? null;
@@ -126,7 +126,7 @@ export default function RolesManager({ projectKey }: { projectKey: string }) {
 
       {editing && catalog && (
         <RoleEditorPanel
-          projectKey={projectKey}
+          teamKey={teamKey}
           role={editing}
           catalog={catalog}
           onClose={() => setEditing(null)}

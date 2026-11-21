@@ -42,7 +42,7 @@ const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
   { value: 'work-items', label: 'Work items' },
   { value: 'inbox', label: 'Inbox' },
   { value: 'dashboard', label: 'Dashboards' },
-  { value: 'initiatives', label: 'Initiatives' },
+  { value: 'projects', label: 'Projects' },
   { value: 'ai-chat', label: 'AI chat' },
 ];
 
@@ -112,7 +112,7 @@ export default function AccountPreferencesPage() {
         </AccountPreferenceRow>
         <AccountPreferenceRow
           label="Start page"
-          description="The section that opens when you enter the app, in your last active project."
+          description="The section that opens when you enter the app, in your last active team."
         >
           <AccountPreferenceSelect
             value={prefs.startPage}
@@ -153,7 +153,7 @@ export default function AccountPreferencesPage() {
       <AccountPreferencesSection title="AI chat">
         <AccountPreferenceRow
           label="Show chat by default"
-          description="The chat button stays on screen in a project. The chat window opens only when you click it."
+          description="The chat button stays on screen in a team. The chat window opens only when you click it."
         >
           <Switch
             checked={prefs.showChatByDefault}

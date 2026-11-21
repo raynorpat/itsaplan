@@ -10,13 +10,13 @@ import {
 } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
-// The Configuration sidebar group: Members, Notifications and the "Project
+// The Configuration sidebar group: Members, Notifications and the "Team
 // settings" entry. That entry links to the first settings section the viewer may
 // read and switches the sidebar into settings mode (see AppSidebar).
-export default function SidebarConfigNav({ projectKey }: { projectKey: string | null }) {
+export default function SidebarConfigNav({ teamKey }: { teamKey: string | null }) {
   const pathname = usePathname();
-  const disabled = !projectKey;
-  const { firstHref } = useSettingsNavGroups(projectKey);
+  const disabled = !teamKey;
+  const { firstHref } = useSettingsNavGroups(teamKey);
 
   const onRoles = pathname.endsWith('/members/roles');
 
@@ -26,24 +26,24 @@ export default function SidebarConfigNav({ projectKey }: { projectKey: string | 
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarNavItem
-            href={projectKey ? membersPath(projectKey) : '#'}
+            href={teamKey ? membersPath(teamKey) : '#'}
             icon={Users}
             label="Members"
             active={pathname.includes('/members') && !onRoles}
             disabled={disabled}
           />
           <SidebarNavItem
-            href={projectKey ? notificationsPath(projectKey) : '#'}
+            href={teamKey ? notificationsPath(teamKey) : '#'}
             icon={Bell}
             label="Notifications"
-            active={!!projectKey && pathname === notificationsPath(projectKey)}
+            active={!!teamKey && pathname === notificationsPath(teamKey)}
             disabled={disabled}
           />
           {firstHref && (
             <SidebarNavItem
               href={firstHref}
               icon={Settings}
-              label="Project settings"
+              label="Team settings"
               active={false}
               disabled={disabled}
             />

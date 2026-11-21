@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AgentSkill, ProjectDetail } from '@/lib/api';
+import type { AgentSkill, TeamDetail } from '@/lib/api';
 import { useSkillsQuery, useDeleteSkill } from '@/services/agentSkills.service';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/page/EmptyState';
@@ -8,15 +8,15 @@ import { useSettingsCan } from '../../context/settingsPermission';
 import { SkillEditDialog } from './SkillEditDialog';
 import { SkillRow } from './SkillRow';
 
-// Project settings for the agent skill library: reusable instructions given to
+// Team settings for the agent skill library: reusable instructions given to
 // internal agents. A skill is a SKILL.md plus optional reference files; it can be
 // written inline, uploaded, or imported from GitHub. Creating opens a dialog;
 // editing opens a separate dialog that also manages reference files.
-export default function SettingsAgentSkills({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
-  const skillsQuery = useSkillsQuery(projectKey);
+export default function SettingsAgentSkills({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
+  const skillsQuery = useSkillsQuery(teamKey);
   const skills = skillsQuery.data ?? [];
-  const deleteSkill = useDeleteSkill(projectKey);
+  const deleteSkill = useDeleteSkill(teamKey);
   const can = useSettingsCan();
 
   const [editing, setEditing] = useState<AgentSkill | null>(null);
@@ -66,7 +66,7 @@ export default function SettingsAgentSkills({ project }: { project: ProjectDetai
 
       {editing && (
         <SkillEditDialog
-          projectKey={projectKey}
+          teamKey={teamKey}
           skill={editing}
           canEdit={can('edit')}
           onClose={() => setEditing(null)}

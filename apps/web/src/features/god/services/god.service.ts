@@ -82,7 +82,7 @@ export function useUpdateInstanceTelegramSettings() {
   });
 }
 
-// The upload limits: file sizes, accepted attachment types, and the per-project
+// The upload limits: file sizes, accepted attachment types, and the per-team
 // storage quota.
 export function useInstanceStorageSettingsQuery() {
   return useQuery({
@@ -127,7 +127,7 @@ export function useInstanceUsersQuery(filters: InstanceUserFilters) {
   });
 }
 
-// One account with its project access. The detail panel mounts only while a user is
+// One account with its team access. The detail panel mounts only while a user is
 // selected, so there is no unselected state to fetch for.
 export function useInstanceUserQuery(userId: string) {
   return useQuery({
@@ -139,31 +139,31 @@ export function useInstanceUserQuery(userId: string) {
 export function useDeleteInstanceUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { userId: string; withProjects: boolean }) =>
-      api.deleteInstanceUser(input.userId, input.withProjects),
+    mutationFn: (input: { userId: string; withTeams: boolean }) =>
+      api.deleteInstanceUser(input.userId, input.withTeams),
     onSuccess: (_data, input) => {
       qc.removeQueries({ queryKey: qk.instanceUser(input.userId) });
       void qc.invalidateQueries({ queryKey: qk.anyInstanceUsers });
-      // Deleting the projects the user owned alone changes the sidebar's project
-      // list and every project-scoped list the session holds.
-      if (input.withProjects) void qc.invalidateQueries({ queryKey: qk.projects });
+      // Deleting the teams the user owned alone changes the sidebar's team
+      // list and every team-scoped list the session holds.
+      if (input.withTeams) void qc.invalidateQueries({ queryKey: qk.teams });
     },
   });
 }
 
-export interface InstanceProjectFilters {
+export interface InstanceTeamFilters {
   search: string;
   limit: number;
   offset: number;
 }
 
-// One page of the project directory. Like the user directory, the filters are part
+// One page of the team directory. Like the user directory, the filters are part
 // of the key and the previous page stays on screen while the next one loads.
-export function useInstanceProjectsQuery(filters: InstanceProjectFilters) {
+export function useInstanceTeamsQuery(filters: InstanceTeamFilters) {
   return useQuery({
-    queryKey: qk.instanceProjects(filters),
+    queryKey: qk.instanceTeams(filters),
     queryFn: () =>
-      api.listInstanceProjects({
+      api.listInstanceTeams({
         search: filters.search || undefined,
         limit: filters.limit,
         offset: filters.offset,
@@ -172,12 +172,12 @@ export function useInstanceProjectsQuery(filters: InstanceProjectFilters) {
   });
 }
 
-// One project with its members. Mounted only while a project is selected, like the
+// One team with its members. Mounted only while a team is selected, like the
 // account panel.
-export function useInstanceProjectQuery(projectId: string) {
+export function useInstanceTeamQuery(teamId: string) {
   return useQuery({
-    queryKey: qk.instanceProject(projectId),
-    queryFn: () => api.getInstanceProject(projectId),
+    queryKey: qk.instanceTeam(teamId),
+    queryFn: () => api.getInstanceTeam(teamId),
   });
 }
 

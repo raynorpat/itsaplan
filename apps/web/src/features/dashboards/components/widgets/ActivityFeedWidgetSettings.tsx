@@ -20,11 +20,11 @@ export default function ActivityFeedWidgetSettings({
   config: WidgetConfig;
   onConfigChange: (config: WidgetConfig) => void;
 }) {
-  const { project, customFields } = useShell();
+  const { team, customFields } = useShell();
   const filters: FilterSet = config.filters ?? EMPTY_FILTER_SET;
   const action = config.action ?? null;
   const limit = config.limit ?? 20;
-  if (!project) return null;
+  if (!team) return null;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
@@ -46,7 +46,7 @@ export default function ActivityFeedWidgetSettings({
       <FilterBar
         filters={filters}
         onChange={(next) => onConfigChange({ filters: next })}
-        project={project}
+        team={team}
         customFields={customFields}
       />
     </div>

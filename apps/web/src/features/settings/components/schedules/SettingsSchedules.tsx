@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { AgentSchedule, AgentScheduleInput, ProjectDetail } from '@/lib/api';
+import type { AgentSchedule, AgentScheduleInput, TeamDetail } from '@/lib/api';
 import { aiAgentsPath } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/common/page/EmptyState';
@@ -19,24 +19,24 @@ import { SettingsScheduleRunsSheet } from './SettingsScheduleRunsSheet';
 import { SettingsSchedulesTable } from './SettingsSchedulesTable';
 
 export default function SettingsSchedules({
-  project,
+  team,
   requestNew,
   onNewHandled,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   requestNew: boolean;
   onNewHandled: () => void;
 }) {
-  const projectKey = project.project.key;
+  const teamKey = team.team.key;
   const can = useSettingsCan();
-  const schedulesQuery = useAgentSchedules(projectKey);
-  const agentsQuery = useInternalAgents(projectKey);
+  const schedulesQuery = useAgentSchedules(teamKey);
+  const agentsQuery = useInternalAgents(teamKey);
   const schedules = schedulesQuery.data ?? [];
   const agents = agentsQuery.agents;
-  const createSchedule = useCreateAgentSchedule(projectKey);
-  const updateSchedule = useUpdateAgentSchedule(projectKey);
-  const deleteSchedule = useDeleteAgentSchedule(projectKey);
-  const runSchedule = useRunAgentSchedule(projectKey);
+  const createSchedule = useCreateAgentSchedule(teamKey);
+  const updateSchedule = useUpdateAgentSchedule(teamKey);
+  const deleteSchedule = useDeleteAgentSchedule(teamKey);
+  const runSchedule = useRunAgentSchedule(teamKey);
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<AgentSchedule | null>(null);
   const [history, setHistory] = useState<AgentSchedule | null>(null);
@@ -84,7 +84,7 @@ export default function SettingsSchedules({
       >
         {can('edit') && (
           <Button size="sm" asChild>
-            <Link href={aiAgentsPath(projectKey)}>Create an agent</Link>
+            <Link href={aiAgentsPath(teamKey)}>Create an agent</Link>
           </Button>
         )}
       </EmptyState>
@@ -136,7 +136,7 @@ export default function SettingsSchedules({
       {showEditor && (
         <SettingsScheduleDialog
           key={editingSchedule?.id ?? 'new'}
-          projectKey={projectKey}
+          teamKey={teamKey}
           agents={agents}
           initial={editingSchedule}
           saving={saving}
@@ -163,7 +163,7 @@ export default function SettingsSchedules({
         />
       )}
       <SettingsScheduleRunsSheet
-        projectKey={projectKey}
+        teamKey={teamKey}
         schedule={history}
         onClose={() => setHistory(null)}
       />

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 // try/catch around the action. Callers put the dialog-specific body in `children`
 // and supply the action. A failed action is toasted globally; the dialog stays
 // open so the user can retry. Used by the delete confirmations (label/type/state/
-// project) and the members/roles flows.
+// team) and the members/roles flows.
 export default function ConfirmDialog({
   title,
   children,

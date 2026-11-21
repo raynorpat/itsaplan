@@ -10,10 +10,10 @@ import SettingsLabels from './components/labels/SettingsLabels';
 
 const section = settingsSection('labels');
 
-// The Labels settings page (/project/:projectKey/settings/labels).
+// The Labels settings page (/team/:teamKey/settings/labels).
 export default function SettingsLabelsPage() {
-  const { project } = useShell();
-  if (!project) return null;
+  const { team } = useShell();
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
@@ -22,16 +22,16 @@ export default function SettingsLabelsPage() {
       widthClassName="min-w-[600px] max-w-[60%]"
       actions={
         <LabelsToolbar
-          projectKey={project.project.key}
+          teamKey={team.team.key}
           resource={section.resource}
-          groups={project.labelGroups}
-          labels={project.labels}
+          groups={team.labelGroups}
+          labels={team.labels}
         />
       }
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsLabels project={project} />
+          <SettingsLabels team={team} />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

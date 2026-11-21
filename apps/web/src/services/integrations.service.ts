@@ -2,66 +2,63 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type NewCredentialInput, type CredentialPatch } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useCredentialsQuery(projectKey: string | null) {
+export function useCredentialsQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.integrationCredentials(projectKey ?? ''),
-    queryFn: () => api.listCredentials(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.integrationCredentials(teamKey ?? ''),
+    queryFn: () => api.listCredentials(teamKey!),
+    enabled: teamKey != null,
   });
 }
 
 // The integrations the instance offers. Changes only on deploy, so it is cached
 // for the session.
-export function useIntegrationCatalogQuery(projectKey: string | null) {
+export function useIntegrationCatalogQuery(teamKey: string | null) {
   return useQuery({
-    queryKey: qk.integrationCatalog(projectKey ?? ''),
-    queryFn: () => api.listIntegrationCatalog(projectKey!),
-    enabled: projectKey != null,
+    queryKey: qk.integrationCatalog(teamKey ?? ''),
+    queryFn: () => api.listIntegrationCatalog(teamKey!),
+    enabled: teamKey != null,
     staleTime: Infinity,
   });
 }
 
 // Models an LLM provider offers (from the models.dev registry). Fetched only when a
 // provider is chosen; cached for the session.
-export function useIntegrationModelsQuery(projectKey: string | null, provider: string | null) {
+export function useIntegrationModelsQuery(teamKey: string | null, provider: string | null) {
   return useQuery({
-    queryKey: qk.integrationModels(projectKey ?? '', provider ?? ''),
-    queryFn: () => api.listIntegrationModels(projectKey!, provider!),
-    enabled: projectKey != null && provider != null && provider.length > 0,
+    queryKey: qk.integrationModels(teamKey ?? '', provider ?? ''),
+    queryFn: () => api.listIntegrationModels(teamKey!, provider!),
+    enabled: teamKey != null && provider != null && provider.length > 0,
     staleTime: Infinity,
   });
 }
 
-export function useCreateCredential(projectKey: string | null) {
+export function useCreateCredential(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NewCredentialInput) => api.createCredential(projectKey!, input),
+    mutationFn: (input: NewCredentialInput) => api.createCredential(teamKey!, input),
     onSuccess: () => {
-      if (projectKey)
-        void qc.invalidateQueries({ queryKey: qk.integrationCredentials(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.integrationCredentials(teamKey) });
     },
   });
 }
 
-export function useUpdateCredential(projectKey: string | null) {
+export function useUpdateCredential(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: CredentialPatch }) =>
-      api.updateCredential(projectKey!, id, patch),
+      api.updateCredential(teamKey!, id, patch),
     onSuccess: () => {
-      if (projectKey)
-        void qc.invalidateQueries({ queryKey: qk.integrationCredentials(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.integrationCredentials(teamKey) });
     },
   });
 }
 
-export function useDeleteCredential(projectKey: string | null) {
+export function useDeleteCredential(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteCredential(projectKey!, id),
+    mutationFn: (id: string) => api.deleteCredential(teamKey!, id),
     onSuccess: () => {
-      if (projectKey)
-        void qc.invalidateQueries({ queryKey: qk.integrationCredentials(projectKey) });
+      if (teamKey) void qc.invalidateQueries({ queryKey: qk.integrationCredentials(teamKey) });
     },
   });
 }

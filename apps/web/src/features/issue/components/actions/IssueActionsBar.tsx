@@ -5,7 +5,7 @@ import { Archive, ArchiveRestore, Check, ClipboardCopy, Globe, Share2, Trash2 } 
 import {
   api,
   type ActionDef,
-  type ProjectDetail,
+  type TeamDetail,
   type IssueDetail as IssueDetailRow,
 } from '@/lib/api';
 import { actionIcon } from '@/utils/actionIcons';
@@ -28,13 +28,13 @@ import ShareDialog from '@/components/common/share/ShareDialog';
 // header. The confirm dialogs render through a portal, so their position in the
 // tree does not matter.
 export default function IssueActionsBar({
-  project,
+  team,
   issue,
   hasSidebar,
   variant = 'section',
   onDeleted,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   issue: IssueDetailRow;
   // True when the host renders Properties in a sidebar, which the 'section'
   // variant follows with a bare right-aligned button row instead of a titled block.
@@ -49,9 +49,9 @@ export default function IssueActionsBar({
   const qc = useQueryClient();
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const actionsQuery = useActionsQuery(project.project.key);
-  const archiveIssue = useArchiveIssue(project.project.key);
-  const restoreIssue = useRestoreIssue(project.project.key);
+  const actionsQuery = useActionsQuery(team.team.key);
+  const archiveIssue = useArchiveIssue(team.team.key);
+  const restoreIssue = useRestoreIssue(team.team.key);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -73,10 +73,10 @@ export default function IssueActionsBar({
   // Manual actions whose condition matches this issue, applied as one patch.
   // Applying one is a issue edit; Copy Prompt only reads the issue and is always
   // available, so the block always renders.
-  const issueActions = canEdit ? matchedActions(actionsQuery.data ?? [], project, issue) : [];
+  const issueActions = canEdit ? matchedActions(actionsQuery.data ?? [], team, issue) : [];
 
   async function copyPrompt() {
-    await navigator.clipboard.writeText(buildIssuePrompt(issue, project, session?.user));
+    await navigator.clipboard.writeText(buildIssuePrompt(issue, team, session?.user));
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopied(false), 1500);
@@ -219,7 +219,7 @@ export default function IssueActionsBar({
 
       {confirmingDelete && (
         <DeleteIssueDialog
-          project={project}
+          team={team}
           issue={issue}
           onClose={() => setConfirmingDelete(false)}
           onDeleted={onDeleted}
@@ -228,7 +228,7 @@ export default function IssueActionsBar({
 
       {confirmingAction && (
         <ApplyActionDialog
-          project={project}
+          team={team}
           issue={issue}
           action={confirmingAction}
           onClose={() => setConfirmingAction(null)}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-// The recently-opened boards backing the tab strip. Kept per project in
+// The recently-opened boards backing the tab strip. Kept per team in
 // localStorage (per browser, not synced): a lightweight most-recently-used list so
 // the tabs show the last few boards without loading every board. The cached name
 // and visibility only label the tab; opening a board fetches its fresh state and
@@ -13,18 +13,18 @@ export interface MruEntry {
 
 const MAX = 5;
 
-function storageKey(projectKey: string) {
-  return `noteBoards:mru:${projectKey}`;
+function storageKey(teamKey: string) {
+  return `noteBoards:mru:${teamKey}`;
 }
 
 function isEntry(v: unknown): v is MruEntry {
   return typeof v === 'object' && v !== null && typeof (v as MruEntry).id === 'string';
 }
 
-function read(projectKey: string): MruEntry[] {
+function read(teamKey: string): MruEntry[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(storageKey(projectKey));
+    const raw = window.localStorage.getItem(storageKey(teamKey));
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter(isEntry).slice(0, MAX) : [];
   } catch {
@@ -32,20 +32,20 @@ function read(projectKey: string): MruEntry[] {
   }
 }
 
-export function useNoteBoardMru(projectKey: string) {
-  const [entries, setEntries] = useState<MruEntry[]>(() => read(projectKey));
+export function useNoteBoardMru(teamKey: string) {
+  const [entries, setEntries] = useState<MruEntry[]>(() => read(teamKey));
 
-  // Reload when switching projects — the hook instance may outlive the route.
-  useEffect(() => setEntries(read(projectKey)), [projectKey]);
+  // Reload when switching teams — the hook instance may outlive the route.
+  useEffect(() => setEntries(read(teamKey)), [teamKey]);
 
   const persist = useCallback(
     (next: MruEntry[]) => {
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(storageKey(projectKey), JSON.stringify(next));
+        window.localStorage.setItem(storageKey(teamKey), JSON.stringify(next));
       }
       return next;
     },
-    [projectKey],
+    [teamKey],
   );
 
   // Record an opened board. A board already in the list keeps its tab position (its

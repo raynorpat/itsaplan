@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { DndContext, DragOverlay, type DragEndEvent } from '@dnd-kit/core';
-import { type Label as LabelRow, type LabelGroup, type ProjectDetail } from '@/lib/api';
+import { type Label as LabelRow, type LabelGroup, type TeamDetail } from '@/lib/api';
 import { useDndSensors } from '@/lib/dnd';
-import { DEFAULT_COLOR } from '@/utils/project';
+import { DEFAULT_COLOR } from '@/utils/team';
 import { colorDot } from '@/components/common/fields/colorDot';
 import SettingsColorField from '../crud/SettingsColorField';
 import { SettingsInlineForm } from '../crud/SettingsInlineForm';
@@ -27,8 +27,8 @@ import { SettingsLabelsAddMenu } from './SettingsLabelsAddMenu';
 // ungrouped labels sit directly at the root alongside the groups. A group's header
 // adds labels into that group; the "Add" action below the list adds a group or an
 // ungrouped label. Labels drag between groups and the root.
-export default function SettingsLabels({ project }: { project: ProjectDetail }) {
-  const projectKey = project.project.key;
+export default function SettingsLabels({ team }: { team: TeamDetail }) {
+  const teamKey = team.team.key;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // The open label add/edit form, and the open group add/edit form. At most one is
   // set at a time (opening either closes the other).
@@ -50,20 +50,19 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
   const can = useSettingsCan();
   const sensors = useDndSensors();
 
-  const createLabel = useCreateLabel(projectKey);
-  const updateLabel = useUpdateLabel(projectKey);
-  const deleteLabel = useDeleteLabel(projectKey);
-  const createLabelGroup = useCreateLabelGroup(projectKey);
-  const updateLabelGroup = useUpdateLabelGroup(projectKey);
-  const deleteLabelGroup = useDeleteLabelGroup(projectKey);
+  const createLabel = useCreateLabel(teamKey);
+  const updateLabel = useUpdateLabel(teamKey);
+  const deleteLabel = useDeleteLabel(teamKey);
+  const createLabelGroup = useCreateLabelGroup(teamKey);
+  const updateLabelGroup = useUpdateLabelGroup(teamKey);
+  const deleteLabelGroup = useDeleteLabelGroup(teamKey);
 
   const issueCount = (labelId: string) =>
-    project.issues.filter((t) => t.labelIds.includes(labelId)).length;
-  const labelCount = (groupId: string) =>
-    project.labels.filter((l) => l.groupId === groupId).length;
-  const hasGroups = project.labelGroups.length > 0;
-  const activeLabel = activeId != null ? project.labels.find((l) => l.id === activeId) : null;
-  const ungroupedLabels = project.labels.filter((l) => l.groupId == null);
+    team.issues.filter((t) => t.labelIds.includes(labelId)).length;
+  const labelCount = (groupId: string) => team.labels.filter((l) => l.groupId === groupId).length;
+  const hasGroups = team.labelGroups.length > 0;
+  const activeLabel = activeId != null ? team.labels.find((l) => l.id === activeId) : null;
+  const ungroupedLabels = team.labels.filter((l) => l.groupId == null);
   const addingUngrouped = labelForm?.mode === 'add' && labelForm.groupId === null;
 
   function toggle(key: string) {
@@ -81,7 +80,7 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
     setLName('');
     // Adding into a group defaults the label to the group's color.
     const groupColor =
-      groupId != null ? project.labelGroups.find((g) => g.id === groupId)?.color : undefined;
+      groupId != null ? team.labelGroups.find((g) => g.id === groupId)?.color : undefined;
     setLColor(groupColor ?? DEFAULT_COLOR);
     setLGroupId(groupId);
     setCollapsed((prev) => {
@@ -145,7 +144,7 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
     setActiveId(null);
     if (!e.over) return;
     const labelId = String(e.active.id);
-    const label = project.labels.find((l) => l.id === labelId);
+    const label = team.labels.find((l) => l.id === labelId);
     if (!label) return;
     const target = (e.over.data.current as { groupId: string | null } | undefined)?.groupId ?? null;
     if (target === label.groupId) return;
@@ -207,10 +206,10 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
         onDragEnd={onDragEnd}
       >
         <div className="divide-y divide-border/50">
-          {project.labelGroups.map((g) => {
+          {team.labelGroups.map((g) => {
             const key = `group:${g.id}`;
             const open = !collapsed.has(key);
-            const labels = project.labels.filter((l) => l.groupId === g.id);
+            const labels = team.labels.filter((l) => l.groupId === g.id);
             const groupEditing = groupForm?.mode === 'edit' && groupForm.id === g.id;
             const addingHere = labelForm?.mode === 'add' && labelForm.groupId === g.id;
             return (

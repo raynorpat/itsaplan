@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { Archive, Bot, CircleDashed, Tag, Target, Trash2, User, X } from 'lucide-react';
-import { type ProjectDetail } from '@/lib/api';
+import { type TeamDetail } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useInitiativesQuery } from '@/services/initiatives.service';
-import { LINKABLE_STATUSES } from '@/utils/initiativeMeta';
+import { useProjectsQuery } from '@/services/projects.service';
+import { LINKABLE_STATUSES } from '@/utils/projectMeta';
 import { cn } from '@/lib/utils';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
@@ -16,37 +16,35 @@ import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
 import { useSelection } from '../../context/useSelection';
 import { useBulkActions } from '../../hooks/useBulkActions';
 import { BarMenu } from './BarMenu';
-import { priorityLevel } from '@/utils/fieldOptions';
 
 // Floating bar shown while the kanban board is in selection mode. Each control
 // applies one field to every selected issue at once; archive and delete run their
 // respective bulk mutations. Selection is kept after a field edit (the applied
 // change stays visible and further edits can be chained) and self-empties after
 // archive/delete as those issues leave the board.
-export function BulkActionBar({ project }: { project: ProjectDetail }) {
+export function BulkActionBar({ team }: { team: TeamDetail }) {
   const selection = useSelection();
   const { can } = usePermissions();
-  const bulk = useBulkActions(project);
+  const bulk = useBulkActions(team);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // Initiatives are not in the board scaffold. The bulk picker fetches the first
-  // page of linkable (open) initiatives only while selection is active, and only
-  // while the project shows the Initiatives section (with none loaded the picker
+  // Projects are not in the board scaffold. The bulk picker fetches the first
+  // page of linkable (open) projects only while selection is active, and only
+  // while the team shows the Projects section (with none loaded the picker
   // is left out).
-  const initiativesKey =
-    selection.isSelecting && project.project.initiativesEnabled ? project.project.key : null;
-  const { data } = useInitiativesQuery(initiativesKey, {
+  const projectsKey = selection.isSelecting && team.team.projectsEnabled ? team.team.key : null;
+  const { data } = useProjectsQuery(projectsKey, {
     statuses: LINKABLE_STATUSES,
     pageSize: 50,
   });
-  const initiatives = data?.items ?? [];
+  const projects = data?.items ?? [];
 
   if (!selection.isSelecting) return null;
 
   const ids = [...selection.selected];
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const members = project.assignees.filter((a) => a.kind === 'member');
-  const agents = project.assignees.filter((a) => a.kind === 'agent');
+  const members = team.assignees.filter((a) => a.kind === 'member');
+  const agents = team.assignees.filter((a) => a.kind === 'agent');
   const disabled = bulk.pending;
 
   return (
@@ -69,10 +67,10 @@ export function BulkActionBar({ project }: { project: ProjectDetail }) {
                 label="Status"
                 disabled={disabled}
               >
-                {project.columns.map((c) => (
+                {team.states.map((c) => (
                   <DropdownMenuItem
                     key={c.id}
-                    onSelect={() => void bulk.patch(ids, { columnId: c.id })}
+                    onSelect={() => void bulk.patch(ids, { stateId: c.id })}
                   >
                     <StateIcon stateType={c.stateType} color={c.color} className="size-3.5" />
                     <span className="truncate">{c.name}</span>
@@ -84,7 +82,7 @@ export function BulkActionBar({ project }: { project: ProjectDetail }) {
                 {PRIORITY_FIELDS.map((p) => (
                   <DropdownMenuItem
                     key={p.value || 'none'}
-                    onSelect={() => void bulk.patch(ids, { priority: priorityLevel(p.value) })}
+                    onSelect={() => void bulk.patch(ids, { priority: p.value })}
                   >
                     {p.icon}
                     <span className="flex-1">{p.label}</span>
@@ -128,31 +126,27 @@ export function BulkActionBar({ project }: { project: ProjectDetail }) {
                 </BarMenu>
               )}
 
-              {initiatives.length > 0 && (
-                <BarMenu
-                  icon={<Target className="size-4" />}
-                  label="Initiative"
-                  disabled={disabled}
-                >
-                  <DropdownMenuItem onSelect={() => void bulk.patch(ids, { initiativeId: null })}>
+              {projects.length > 0 && (
+                <BarMenu icon={<Target className="size-4" />} label="Project" disabled={disabled}>
+                  <DropdownMenuItem onSelect={() => void bulk.patch(ids, { projectId: null })}>
                     <CircleDashed />
-                    <span className="flex-1">No initiative</span>
+                    <span className="flex-1">No project</span>
                   </DropdownMenuItem>
-                  {initiatives.map((initiative) => (
+                  {projects.map((project) => (
                     <DropdownMenuItem
-                      key={initiative.id}
-                      onSelect={() => void bulk.patch(ids, { initiativeId: initiative.id })}
+                      key={project.id}
+                      onSelect={() => void bulk.patch(ids, { projectId: project.id })}
                     >
                       <Target />
-                      <span className="flex-1 truncate">{initiative.title}</span>
+                      <span className="flex-1 truncate">{project.name}</span>
                     </DropdownMenuItem>
                   ))}
                 </BarMenu>
               )}
 
-              {project.labels.length > 0 && (
+              {team.labels.length > 0 && (
                 <BarMenu icon={<Tag className="size-4" />} label="Labels" disabled={disabled}>
-                  {project.labels.map((l) => (
+                  {team.labels.map((l) => (
                     <DropdownMenuItem
                       key={l.id}
                       // Keep the menu open so several labels can be added in one pass.

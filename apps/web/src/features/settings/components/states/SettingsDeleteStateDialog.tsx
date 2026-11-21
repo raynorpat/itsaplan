@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type ProjectDetail, type Column } from '@/lib/api';
+import { type TeamDetail, type Column } from '@/lib/api';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -13,27 +13,27 @@ import {
 import { useDeleteColumn } from '../../services/settings.service';
 
 export default function SettingsDeleteStateDialog({
-  project,
+  team,
   column,
   issueCount,
   onClose,
 }: {
-  project: ProjectDetail;
+  team: TeamDetail;
   column: Column;
   issueCount: number;
   onClose: () => void;
 }) {
-  const otherColumns = project.columns.filter((c) => c.id !== column.id);
+  const otherColumns = team.states.filter((c) => c.id !== column.id);
   const [action, setAction] = useState<'move' | 'delete'>(otherColumns.length ? 'move' : 'delete');
-  const [targetColumnId, setTargetColumnId] = useState<string | undefined>(otherColumns[0]?.id);
-  const deleteColumn = useDeleteColumn(project.project.key);
+  const [targetStateId, setTargetColumnId] = useState<string | undefined>(otherColumns[0]?.id);
+  const deleteState = useDeleteColumn(team.team.key);
 
   async function confirm() {
     const body =
-      action === 'move' && targetColumnId != null
-        ? ({ mode: 'move', targetColumnId } as const)
+      action === 'move' && targetStateId != null
+        ? ({ mode: 'move', targetStateId } as const)
         : ({ mode: 'delete' } as const);
-    await deleteColumn.mutateAsync({ id: column.id, body });
+    await deleteState.mutateAsync({ id: column.id, body });
     onClose();
   }
 
@@ -41,7 +41,7 @@ export default function SettingsDeleteStateDialog({
     <ConfirmDialog
       title={`Delete state "${column.name}"`}
       confirmLabel={action === 'move' && issueCount > 0 ? 'Move & delete state' : 'Delete state'}
-      confirmDisabled={action === 'move' && issueCount > 0 && targetColumnId == null}
+      confirmDisabled={action === 'move' && issueCount > 0 && targetStateId == null}
       onConfirm={confirm}
       onClose={onClose}
     >
@@ -66,7 +66,7 @@ export default function SettingsDeleteStateDialog({
             </Label>
             {action === 'move' && (
               <Select
-                value={targetColumnId != null ? String(targetColumnId) : undefined}
+                value={targetStateId != null ? String(targetStateId) : undefined}
                 onValueChange={(v) => setTargetColumnId(v)}
               >
                 <SelectTrigger className="ml-6 w-[calc(100%-1.5rem)]">

@@ -11,12 +11,12 @@ import SettingsActions from './components/actions/SettingsActions';
 
 const section = settingsSection('actions');
 
-// The Actions settings page (/project/:projectKey/settings/actions). The actions
-// section also needs the project's custom fields for the condition editor.
+// The Actions settings page (/team/:teamKey/settings/actions). The actions
+// section also needs the team's custom fields for the condition editor.
 export default function SettingsActionsPage() {
-  const { project, customFields } = useShell();
+  const { team, customFields } = useShell();
   const [addNew, setAddNew] = useState(false);
-  if (!project) return null;
+  if (!team) return null;
   return (
     <SectionPageView
       title={section.label}
@@ -33,7 +33,7 @@ export default function SettingsActionsPage() {
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
           <SettingsActions
-            project={project}
+            team={team}
             customFields={customFields}
             requestNew={addNew}
             onNewHandled={() => setAddNew(false)}

@@ -1,4 +1,4 @@
-// Per-view display settings, stored per project. Each project remembers its own
+// Per-view display settings, stored per team. Each team remembers its own
 // settings for every view independently. The type is a superset of every view's
 // options; each view reads only the fields it uses, and the Display popover
 // shows only the controls that apply to the active view. Missing fields fall
@@ -6,13 +6,13 @@
 
 import type { Sort, WorkItemsView } from '@/utils/viewTypes';
 
-// Field the Project columns / Table sections group by. 'none' is a single flat
-// list (Table only). Project always groups by something. `subgroup` (below) adds a
-// second level: Project swimlanes / Table sub-sections, and may be 'none'.
+// Field the Team columns / Table sections group by. 'none' is a single flat
+// list (Table only). Team always groups by something. `subgroup` (below) adds a
+// second level: Team swimlanes / Table sub-sections, and may be 'none'.
 export type GroupField =
-  'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'type' | 'initiative';
+  'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'type' | 'project';
 
-// Issue properties that can be shown on a Project card or as a Table column.
+// Issue properties that can be shown on a Team card or as a Table column.
 // 'id' is the issue identifier; 'status' the state; the rest map to issue
 // fields directly.
 export type DisplayProperty =
@@ -22,7 +22,7 @@ export type DisplayProperty =
   | 'type'
   | 'assignee'
   | 'delegate'
-  | 'initiative'
+  | 'project'
   | 'labels'
   | 'startDate'
   | 'dueDate'
@@ -50,7 +50,7 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'type', label: 'Type' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'delegate', label: 'Delegate' },
-  { value: 'initiative', label: 'Initiative' },
+  { value: 'project', label: 'Project' },
   { value: 'labels', label: 'Labels' },
   { value: 'startDate', label: 'Start date' },
   { value: 'dueDate', label: 'Due date' },
@@ -59,14 +59,14 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'statusAge', label: 'Time in status' },
 ];
 
-// The display properties a project offers: Initiative only while its Initiatives
+// The display properties a team offers: Project only while its Projects
 // section is on.
 export function offeredDisplayProperties(
-  initiativesEnabled: boolean,
+  projectsEnabled: boolean,
 ): { value: DisplayProperty; label: string }[] {
-  return initiativesEnabled
+  return projectsEnabled
     ? DISPLAY_PROPERTIES
-    : DISPLAY_PROPERTIES.filter((p) => p.value !== 'initiative');
+    : DISPLAY_PROPERTIES.filter((p) => p.value !== 'project');
 }
 
 // Timeline zoom: how much horizontal space one day gets, which sets whether day
@@ -82,7 +82,7 @@ export type WeekStart = 0 | 1;
 export interface ViewSettings {
   sort: Sort;
   group: GroupField;
-  // Second grouping level: Project swimlanes (rows) / Table sub-sections. 'none'
+  // Second grouping level: Team swimlanes (rows) / Table sub-sections. 'none'
   // disables it. Kept distinct from `group`; the Display panel never offers the
   // primary field here, and normalizeViewSettings forces it back to 'none' if it
   // ever equals `group`.
@@ -95,12 +95,12 @@ export interface ViewSettings {
   timelineCollapseAll: boolean;
   calendarDateField: DateField;
   weekStart: WeekStart;
-  // Group keys collapsed into the "Hidden columns" panel on the flat project (see
+  // Group keys collapsed into the "Hidden columns" panel on the flat team (see
   // KanbanBoard). Keys are namespaced by grouping field (c<id>/a<id>/p<v>/t<id>),
   // so a set from one grouping never matches another. Empty for every other
   // layout. Part of the display, so each saved view keeps its own hidden set.
   hiddenGroups: string[];
-  // Group keys collapsed to a narrow vertical strip on the flat project. Unlike
+  // Group keys collapsed to a narrow vertical strip on the flat team. Unlike
   // hiddenGroups the column stays in place (in column order) with its count
   // visible; collapsing only gives its horizontal space back. Namespaced like
   // hiddenGroups, empty for every other layout, and part of the display so each
@@ -159,7 +159,7 @@ const GROUP_FIELDS: GroupField[] = [
   'delegate',
   'priority',
   'type',
-  'initiative',
+  'project',
 ];
 const DISPLAY_VALUES = DISPLAY_PROPERTIES.map((p) => p.value);
 const TIMELINE_SCALES: TimelineScale[] = ['week', 'month', 'quarter'];
@@ -172,7 +172,7 @@ function normalizeSort(sort: unknown): Sort | null {
   return null;
 }
 
-// localStorage holds a map of project key -> per-view settings, each stored as a
+// localStorage holds a map of team key -> per-view settings, each stored as a
 // partial that is merged over the per-view defaults on read.
 const STORE_KEY = 'planner_view_settings';
 type Store = Record<string, Partial<Record<WorkItemsView, Partial<ViewSettings>>>>;
@@ -255,43 +255,41 @@ export function normalizeViewSettings(
   };
 }
 
-// The same settings without the Initiative property, grouping and sub-grouping,
-// for a project with the Initiatives section turned off: a display built while it
+// The same settings without the Project property, grouping and sub-grouping,
+// for a team with the Projects section turned off: a display built while it
 // was on then renders no dead column or lane.
-export function withoutInitiative(settings: ViewSettings): ViewSettings {
+export function withoutProject(settings: ViewSettings): ViewSettings {
   return {
     ...settings,
-    group: settings.group === 'initiative' ? 'status' : settings.group,
-    subgroup: settings.subgroup === 'initiative' ? 'none' : settings.subgroup,
-    properties: settings.properties.filter((p) => p !== 'initiative'),
+    group: settings.group === 'project' ? 'status' : settings.group,
+    subgroup: settings.subgroup === 'project' ? 'none' : settings.subgroup,
+    properties: settings.properties.filter((p) => p !== 'project'),
   };
 }
 
-// The counterpart of withoutInitiative: puts the stored Initiative choices back
+// The counterpart of withoutProject: puts the stored Project choices back
 // into a display edited while the section was off, at the column position they
 // had. The panel could not show them, so an edit made then must not drop them —
 // the display comes back as it was once the section is on again. A value the user
 // did change carries through, since it then differs from what stripping left.
-export function restoreInitiative(edited: ViewSettings, stored: ViewSettings): ViewSettings {
-  const at = stored.properties.indexOf('initiative');
+export function restoreProject(edited: ViewSettings, stored: ViewSettings): ViewSettings {
+  const at = stored.properties.indexOf('project');
   return {
     ...edited,
-    group: stored.group === 'initiative' && edited.group === 'status' ? 'initiative' : edited.group,
+    group: stored.group === 'project' && edited.group === 'status' ? 'project' : edited.group,
     subgroup:
-      stored.subgroup === 'initiative' && edited.subgroup === 'none'
-        ? 'initiative'
-        : edited.subgroup,
+      stored.subgroup === 'project' && edited.subgroup === 'none' ? 'project' : edited.subgroup,
     properties:
       at === -1
         ? edited.properties
-        : [...edited.properties.slice(0, at), 'initiative', ...edited.properties.slice(at)],
+        : [...edited.properties.slice(0, at), 'project', ...edited.properties.slice(at)],
   };
 }
 
-// Settings for one project+view, each field validated against the stored partial
+// Settings for one team+view, each field validated against the stored partial
 // and falling back to the per-view default.
-export function getViewSettings(projectKey: string, view: WorkItemsView): ViewSettings {
-  return normalizeViewSettings(readStore()[projectKey]?.[view], view);
+export function getViewSettings(teamKey: string, view: WorkItemsView): ViewSettings {
+  return normalizeViewSettings(readStore()[teamKey]?.[view], view);
 }
 
 // A saved view's display snapshot: which layout is active plus that layout's
@@ -313,9 +311,9 @@ export function normalizeSavedDisplay(blob: unknown): SavedViewDisplay {
   return { layout, ...normalizeViewSettings(b, layout) };
 }
 
-export function setViewSettings(projectKey: string, view: WorkItemsView, settings: ViewSettings) {
+export function setViewSettings(teamKey: string, view: WorkItemsView, settings: ViewSettings) {
   const store = readStore();
-  const project = store[projectKey] ?? (store[projectKey] = {});
-  project[view] = settings;
+  const team = store[teamKey] ?? (store[teamKey] = {});
+  team[view] = settings;
   writeStore(store);
 }

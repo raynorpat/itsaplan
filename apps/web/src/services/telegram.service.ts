@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
 // The session user's Telegram account link. Shared rather than feature-local: the
-// account page manages the link, and a project's notification preferences show which
+// account page manages the link, and a team's notification preferences show which
 // account its Telegram notifications will reach.
 
 // `pollMs` turns on polling while a connection is in progress: the bot writes the

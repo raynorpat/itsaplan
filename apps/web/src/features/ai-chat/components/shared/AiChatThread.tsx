@@ -16,12 +16,12 @@ import { AiChatThreadSkeleton } from './AiChatThreadSkeleton';
 // this component by agent id and a new-chat nonce: switching agents or starting a new
 // chat remounts it into a fresh session.
 export function AiChatThread({
-  projectKey,
+  teamKey,
   agent,
   threadId,
   onThreadCreated,
 }: {
-  projectKey: string;
+  teamKey: string;
   agent: AiAgent;
   threadId: string | null;
   onThreadCreated: (threadId: string) => void;
@@ -34,8 +34,8 @@ export function AiChatThread({
     send,
     loadThread,
     prependHistory,
-  } = useAgentChat(projectKey, agent.id);
-  const messagesQuery = useAgentThreadMessagesQuery(projectKey, agent.id, threadId);
+  } = useAgentChat(teamKey, agent.id);
+  const messagesQuery = useAgentThreadMessagesQuery(teamKey, agent.id, threadId);
 
   // How many transcript pages of the active thread are already in the conversation.
   // Page 0 counts as merged from the start: for a restored thread it is what

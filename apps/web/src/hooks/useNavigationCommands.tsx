@@ -20,33 +20,33 @@ import {
   dashboardsPath,
   godPath,
   inboxPath,
-  initiativesPath,
-  manageProjectsPath,
+  projectsPath,
+  manageTeamsPath,
   mcpServerPath,
   membersPath,
   notificationsPath,
-  projectPath,
+  teamPath,
 } from '@/utils/paths';
 import { ACCOUNT_SECTIONS, accountPath } from '@/utils/accountSections';
 import { AI_TEAM_SECTIONS } from '@/utils/settingsSections';
 import { GOD_SECTIONS } from '@/utils/godSections';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import type { Command, CommandSection } from '@/utils/commands';
 
 // Every place the palette can navigate to, filtered by what the viewer may read.
 // The destinations mirror the sidebars one-to-one: the main nav (SidebarMainNav),
-// the project settings nav (useSettingsNavGroups, which already applies the
+// the team settings nav (useSettingsNavGroups, which already applies the
 // permission gate), the sidebar footer, the account pages and god mode. Grouped
 // under one "Sections" heading so a search separates them from commands and
 // issues.
-export function useNavigationCommands(projectKey: string | null): CommandSection | null {
+export function useNavigationCommands(teamKey: string | null): CommandSection | null {
   const router = useRouter();
   const { can } = usePermissions();
-  const features = useProjectFeatures();
+  const features = useTeamFeatures();
   const { data: session } = useSession();
-  const { groups } = useSettingsNavGroups(projectKey);
+  const { groups } = useSettingsNavGroups(teamKey);
   const isGod = session?.user.role === 'god';
 
   const items: Command[] = [];
@@ -55,14 +55,14 @@ export function useNavigationCommands(projectKey: string | null): CommandSection
     items.push({ id, label, icon, keywords, run: () => router.push(href) });
   }
 
-  if (projectKey) {
-    const key = projectKey;
+  if (teamKey) {
+    const key = teamKey;
     add('nav.inbox', 'Inbox', <Inbox />, inboxPath(key), 'notifications unread');
     if (features.dashboards && can('dashboards', 'read'))
       add('nav.dashboards', 'Dashboards', <LayoutDashboard />, dashboardsPath(key), 'charts');
-    add('nav.work-items', 'Work items', <SquareKanban />, projectPath(key), 'board issues kanban');
-    if (features.initiatives && can('initiatives', 'read'))
-      add('nav.initiatives', 'Initiatives', <Target />, initiativesPath(key), 'epics');
+    add('nav.work-items', 'Work items', <SquareKanban />, teamPath(key), 'board issues kanban');
+    if (features.projects && can('projects', 'read'))
+      add('nav.projects', 'Projects', <Target />, projectsPath(key), 'epics');
     if (can('ai_agents', 'read'))
       add('nav.ai-chat', 'Chat with AI Team', <MessagesSquare />, aiChatPath(key), 'ai agents');
     for (const s of AI_TEAM_SECTIONS) {
@@ -96,10 +96,10 @@ export function useNavigationCommands(projectKey: string | null): CommandSection
   }
 
   add(
-    'nav.manage-projects',
-    'Manage projects',
+    'nav.manage-teams',
+    'Manage teams',
     <FolderKanban />,
-    manageProjectsPath(),
+    manageTeamsPath(),
     'account leave delete copy',
   );
   for (const s of ACCOUNT_SECTIONS) {

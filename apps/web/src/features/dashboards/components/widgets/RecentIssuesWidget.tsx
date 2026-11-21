@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useShell } from '@/context/shellContext';
 import { issuePath } from '@/utils/paths';
 import { formatShortDate } from '@/utils/dates';
-import { priorityLabel, priorityKey } from '@/utils/fieldOptions';
+import { priorityLabel } from '@/utils/fieldOptions';
 import { EMPTY_FILTER_SET, applyFilters, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import type { WidgetConfig } from '@/utils/dashboardWidgets';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,37 +12,34 @@ import { Skeleton } from '@/components/ui/skeleton';
 // labels, dates, custom fields) and sorted by created or updated time. Both the
 // filter and the sort are configured settings (edited from the header settings
 // popover, see RecentIssuesWidgetSettings) — the view is static. Filtering runs
-// client-side over the project's already-loaded issues, so it stays in sync with
+// client-side over the team's already-loaded issues, so it stays in sync with
 // the board.
 export default function RecentIssuesWidget({
-  projectKey,
+  teamKey,
   config,
 }: {
-  projectKey: string;
+  teamKey: string;
   config: WidgetConfig;
 }) {
-  const { project } = useShell();
+  const { team } = useShell();
   const sort = config.sort ?? 'created';
   const limit = config.limit ?? 10;
   const filters: FilterSet = config.filters ?? EMPTY_FILTER_SET;
 
   const issues = useMemo(() => {
-    if (!project) return [];
-    const filtered = applyFilters(project.issues, filters, project);
+    if (!team) return [];
+    const filtered = applyFilters(team.issues, filters, team);
     const sorted = [...filtered].sort((a, b) =>
       sort === 'updated'
         ? b.updatedAt.localeCompare(a.updatedAt)
         : b.createdAt.localeCompare(a.createdAt),
     );
     return sorted.slice(0, limit);
-  }, [project, filters, sort, limit]);
+  }, [team, filters, sort, limit]);
 
-  const columnById = useMemo(
-    () => new Map((project?.columns ?? []).map((c) => [c.id, c])),
-    [project],
-  );
+  const columnById = useMemo(() => new Map((team?.states ?? []).map((c) => [c.id, c])), [team]);
 
-  if (!project) return <Skeleton className="h-40 w-full" />;
+  if (!team) return <Skeleton className="h-40 w-full" />;
 
   const filterCount = filters.conditions.length;
   const caption = [
@@ -63,11 +60,11 @@ export default function RecentIssuesWidget({
       ) : (
         <ul className="space-y-0.5">
           {issues.map((issue) => {
-            const column = columnById.get(issue.columnId);
+            const column = columnById.get(issue.stateId);
             return (
               <li key={issue.id}>
                 <Link
-                  href={issuePath(projectKey, issue.sequenceNumber)}
+                  href={issuePath(teamKey, issue.sequenceNumber)}
                   className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
                 >
                   <span
@@ -81,7 +78,7 @@ export default function RecentIssuesWidget({
                   <span className="min-w-0 flex-1 truncate">{issue.title}</span>
                   {issue.priority > 0 && (
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {priorityLabel(priorityKey(issue.priority))}
+                      {priorityLabel(issue.priority)}
                     </span>
                   )}
                   <span className="shrink-0 text-xs text-muted-foreground">

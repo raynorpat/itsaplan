@@ -1,7 +1,7 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import { SORT_FIELDS, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
-import { useProjectFeatures } from '@/hooks/useProjectFeatures';
+import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
@@ -11,7 +11,7 @@ import DisplaySettingsSelect from '@/components/layout/DisplaySettingsSelect';
 // Timeline and Calendar ignore it.
 const ORDERING_VIEWS: WorkItemsView[] = ['kanban', 'table'];
 
-// Grouping options. Project always groups by something, so it drops 'none'.
+// Grouping options. Team always groups by something, so it drops 'none'.
 const GROUP_OPTIONS: { value: GroupField; label: string }[] = [
   { value: 'none', label: 'No grouping' },
   { value: 'status', label: 'State' },
@@ -19,7 +19,7 @@ const GROUP_OPTIONS: { value: GroupField; label: string }[] = [
   { value: 'delegate', label: 'Delegate' },
   { value: 'priority', label: 'Priority' },
   { value: 'type', label: 'Type' },
-  { value: 'initiative', label: 'Initiative' },
+  { value: 'project', label: 'Project' },
 ];
 
 // The grouping, sub-grouping, ordering and empty-group rows. Which of them show
@@ -38,11 +38,11 @@ export default function DisplayGroupingRows({
   const setGroup = (group: GroupField) =>
     onChange(group === settings.subgroup ? { group, subgroup: 'none' } : { group });
 
-  // Initiative is only offered while the project shows the Initiatives section.
-  const features = useProjectFeatures();
-  const options = features.initiatives
+  // Project is only offered while the team shows the Projects section.
+  const features = useTeamFeatures();
+  const options = features.projects
     ? GROUP_OPTIONS
-    : GROUP_OPTIONS.filter((o) => o.value !== 'initiative');
+    : GROUP_OPTIONS.filter((o) => o.value !== 'project');
 
   const groupOptions =
     view === 'kanban' || view === 'timeline' ? options.filter((o) => o.value !== 'none') : options;

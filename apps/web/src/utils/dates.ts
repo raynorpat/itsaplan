@@ -1,6 +1,6 @@
 import type { StateType } from '@/lib/api';
 
-// Date helpers shared by the project views. Kept separate from project grouping so
+// Date helpers shared by the team views. Kept separate from team grouping so
 // components that only need date math (Calendar, Timeline, cards) do not pull in
 // the sorting/grouping code.
 

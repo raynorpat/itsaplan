@@ -32,22 +32,22 @@ const MAX_TABS = 5;
 // switcher list when fewer than MAX_TABS have been opened. Opening a board loads
 // it fresh (its full canvas) and moves it to the front of the tab strip.
 export default function NotesPage() {
-  const { project } = useShell();
-  const params = useParams<{ projectKey: string; boardId?: string }>();
+  const { team } = useShell();
+  const params = useParams<{ teamKey: string; boardId?: string }>();
   const router = useRouter();
   const qc = useQueryClient();
-  const projectKey = params.projectKey;
+  const teamKey = params.teamKey;
 
-  const { entries: mru, record, remove: removeMru } = useNoteBoardMru(projectKey);
+  const { entries: mru, record, remove: removeMru } = useNoteBoardMru(teamKey);
   // The first page of the switcher list, reused to top up the tabs. Shares its
   // cache with the switcher's empty-query page.
-  const seedQuery = useNoteBoardSearch(projectKey, '');
+  const seedQuery = useNoteBoardSearch(teamKey, '');
   const seed = flattenBoardPages(seedQuery.data?.pages);
 
-  const createBoard = useCreateNoteBoard(projectKey);
-  const renameBoard = useRenameNoteBoard(projectKey);
-  const setVisibility = useSetNoteBoardVisibility(projectKey);
-  const deleteBoard = useDeleteNoteBoard(projectKey);
+  const createBoard = useCreateNoteBoard(teamKey);
+  const renameBoard = useRenameNoteBoard(teamKey);
+  const setVisibility = useSetNoteBoardVisibility(teamKey);
+  const deleteBoard = useDeleteNoteBoard(teamKey);
 
   const tabs = useMemo<MruEntry[]>(() => {
     const result = [...mru];
@@ -64,7 +64,7 @@ export default function NotesPage() {
   const routeId = typeof params.boardId === 'string' ? params.boardId : null;
   const activeBoardId = routeId ?? tabs[0]?.id ?? null;
 
-  const { data: activeBoard, isError, error } = useNoteBoardQuery(projectKey, activeBoardId);
+  const { data: activeBoard, isError, error } = useNoteBoardQuery(teamKey, activeBoardId);
 
   // Record the opened board as most-recent once it loads. Also refreshes its cached
   // tab label and visibility, healing a stale MRU entry (renamed elsewhere).
@@ -84,12 +84,12 @@ export default function NotesPage() {
   useEffect(() => {
     if (isError && error instanceof ApiError && error.status === 404 && activeBoardId != null) {
       removeMru(activeBoardId);
-      void qc.invalidateQueries({ queryKey: [...qk.noteBoardsForProject(projectKey), 'search'] });
-      router.replace(notesPath(projectKey));
+      void qc.invalidateQueries({ queryKey: [...qk.noteBoardsForTeam(teamKey), 'search'] });
+      router.replace(notesPath(teamKey));
     }
-  }, [isError, error, activeBoardId, removeMru, qc, router, projectKey]);
+  }, [isError, error, activeBoardId, removeMru, qc, router, teamKey]);
 
-  if (!project || seedQuery.isLoading) {
+  if (!team || seedQuery.isLoading) {
     return (
       <div className="flex-1 space-y-4 p-6">
         <Skeleton className="h-8 w-full max-w-md" />
@@ -100,14 +100,14 @@ export default function NotesPage() {
 
   async function create(name: string, personal: boolean) {
     const board = await createBoard.mutateAsync({ name, personal });
-    router.push(notePath(projectKey, board.id));
+    router.push(notePath(teamKey, board.id));
   }
 
   function remove(boardId: string) {
     deleteBoard.mutate(boardId, {
       onSuccess: () => {
         removeMru(boardId);
-        if (boardId === activeBoardId) router.push(notesPath(projectKey));
+        if (boardId === activeBoardId) router.push(notesPath(teamKey));
       },
     });
   }
@@ -116,7 +116,7 @@ export default function NotesPage() {
     if (activeBoard) {
       return (
         <ReactFlowProvider key={activeBoard.id}>
-          <NoteCanvas projectKey={projectKey} board={activeBoard} />
+          <NoteCanvas teamKey={teamKey} board={activeBoard} />
         </ReactFlowProvider>
       );
     }
@@ -124,16 +124,16 @@ export default function NotesPage() {
     if (activeBoardId != null && !isError) {
       return <Skeleton className="m-6 flex-1" />;
     }
-    return <NotesEmptyState projectKey={projectKey} onCreate={create} />;
+    return <NotesEmptyState teamKey={teamKey} onCreate={create} />;
   }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <NoteBoardBar
-        projectKey={projectKey}
+        teamKey={teamKey}
         tabs={tabs}
         activeBoardId={activeBoardId}
-        onSelect={(id) => router.push(notePath(projectKey, id))}
+        onSelect={(id) => router.push(notePath(teamKey, id))}
         onCreate={create}
         onRename={(id, name) => renameBoard.mutate({ boardId: id, name })}
         onToggleVisibility={(id, personal) => setVisibility.mutate({ boardId: id, personal })}

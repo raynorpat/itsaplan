@@ -17,16 +17,16 @@ import {
 } from 'lucide-react';
 import type { PermissionResource } from '@/lib/api';
 
-// The sidebar group a section is listed under: the project-level general
+// The sidebar group a section is listed under: the team-level general
 // settings, workflow configuration, automation/integrations, or the AI section
 // (agents, providers, skills). 'ai-team' sections are listed in the main sidebar's
-// AI Team group next to the chat, not in the project settings sidebar.
+// AI Team group next to the chat, not in the team settings sidebar.
 export type SettingsGroup = 'general' | 'configuration' | 'automation' | 'ai' | 'ai-team';
 
-// The project settings sections, each mounted as its own page at
-// /project/:projectKey/settings/:section, except the 'ai-team' group, which is
-// mounted at /project/:projectKey/ai-team/:section. The slug is the route param; the tab
-// components live in features/settings/components and take { project }. `resource`
+// The team settings sections, each mounted as its own page at
+// /team/:teamKey/settings/:section, except the 'ai-team' group, which is
+// mounted at /team/:teamKey/ai-team/:section. The slug is the route param; the tab
+// components live in features/settings/components and take { team }. `resource`
 // is the permission resource that gates the section: read to view it, and the
 // create/edit/delete actions gate the controls inside. `group` places it in the
 // sidebar (see CONFIGURATION_SECTIONS / AUTOMATION_SECTIONS).
@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     slug: 'general',
     label: 'General',
-    description: "The project's name, description, and the sections it shows.",
+    description: "The team's name, description, and the sections it shows.",
     icon: Info,
     resource: 'danger_zone',
     group: 'general',
@@ -52,7 +52,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     slug: 'notifications',
     label: 'Notification providers',
     description:
-      'The email (SMTP or Resend) and Telegram bot credentials this project delivers notifications through.',
+      'The email (SMTP or Resend) and Telegram bot credentials this team delivers notifications through.',
     icon: Bell,
     resource: 'danger_zone',
     group: 'general',
@@ -68,7 +68,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     slug: 'issue-types',
     label: 'Issue types',
-    description: 'The kinds of issues this project can hold, each with its own fields.',
+    description: 'The kinds of issues this team can hold, each with its own fields.',
     icon: Shapes,
     resource: 'issue_types',
     group: 'configuration',
@@ -76,7 +76,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     slug: 'labels',
     label: 'Labels',
-    description: 'Tags for organizing and filtering issues across the project.',
+    description: 'Tags for organizing and filtering issues across the team.',
     icon: Tags,
     resource: 'labels',
     group: 'configuration',
@@ -116,7 +116,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     slug: 'webhooks',
     label: 'Webhooks',
-    description: 'Send project events to external URLs, signed with a per-webhook secret.',
+    description: 'Send team events to external URLs, signed with a per-webhook secret.',
     icon: Webhook,
     resource: 'webhooks',
     group: 'automation',
