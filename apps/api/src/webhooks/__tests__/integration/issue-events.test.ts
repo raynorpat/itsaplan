@@ -37,6 +37,9 @@ async function payloads(api: Api, webhookId: string): Promise<Payload[]> {
   return res.data!.items.map((d) => d.payload as Payload).reverse();
 }
 
+// Treaty revives ISO strings in the payload to Dates; compare as epoch ms.
+const time = (v: unknown) => new Date(v as string).getTime();
+
 async function createIssue(api: Api, stateId: string, title = 'Task') {
   return (await api.teams({ teamKey: 'MKT' }).issues.post({ stateId, title })).data!;
 }
@@ -165,5 +168,41 @@ describe('issue webhooks', () => {
     await createIssue(asOwner, team.states[0].id);
     expect(await payloads(asOwner, off.id)).toEqual([]);
     expect(await payloads(asOwner, other.id)).toEqual([]);
+  });
+
+  it('bumps updatedAt on archive and restore', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const issue = await createIssue(asOwner, team.states[0].id);
+    await Bun.sleep(5);
+    await asOwner.issues({ issueId: issue.id }).archive.post();
+    await Bun.sleep(5);
+    await asOwner.issues({ issueId: issue.id }).restore.post();
+    const [, archived, restored] = await payloads(asOwner, hookId);
+    for (const p of [archived!, restored!])
+      expect(time(p.data.updatedAt)).toBeGreaterThan(time(p.updatedFrom!.updatedAt));
+  });
+
+  it('sends an Issue update for each issue moved by deleting its state', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const from = team.states.find((s) => s.stateType !== 'backlog')!;
+    const to = team.states[0]!;
+    const a = await createIssue(asOwner, from.id, 'a');
+    const b = await createIssue(asOwner, from.id, 'b');
+    await asOwner
+      .teams({ teamKey: 'MKT' })
+      .states({ stateId: from.id })
+      .delete({ mode: 'move', targetStateId: to.id });
+    const updates = (await payloads(asOwner, hookId)).filter((p) => p.action === 'update');
+    expect(updates.map((p) => p.data.id).sort()).toEqual([a.id, b.id].sort());
+    for (const p of updates) expect(p.updatedFrom).toMatchObject({ stateId: from.id });
+  });
+
+  it('sends an Issue remove for each issue deleted with its state', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const from = team.states.find((s) => s.stateType !== 'backlog')!;
+    const a = await createIssue(asOwner, from.id, 'a');
+    await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: from.id }).delete({ mode: 'delete' });
+    const removes = (await payloads(asOwner, hookId)).filter((p) => p.action === 'remove');
+    expect(removes.map((p) => p.data.id)).toEqual([a.id]);
   });
 });

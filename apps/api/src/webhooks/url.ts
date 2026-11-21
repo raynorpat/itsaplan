@@ -1,8 +1,15 @@
 import { HttpError } from '../shared/lib';
 
 // A local, loopback, or private-range host — the SSRF-sensitive targets.
-function isLocalHost(host: string): boolean {
+// IPv6 literals arrive bracketed from URL.hostname ("[::1]"); an IPv4-mapped
+// address (::ffff:127.0.0.1, or its hex form) is checked as the IPv4 it maps to.
+function isLocalHost(rawHost: string): boolean {
+  const host = rawHost.replace(/^\[|\]$/g, '');
+  const mapped = /^::ffff:(.+)$/.exec(host);
+  if (mapped) return isLocalHost(mappedIpv4(mapped[1]!));
   return (
+    host === '::' ||
+    /^fe[89ab][0-9a-f]:/.test(host) ||
     host === 'localhost' ||
     host.endsWith('.local') ||
     host === '0.0.0.0' ||
@@ -14,6 +21,15 @@ function isLocalHost(host: string): boolean {
     /^169\.254\./.test(host) ||
     /^f[cd][0-9a-f]{2}:/.test(host)
   );
+}
+
+// The IPv4 address an IPv4-mapped IPv6 suffix stands for: "127.0.0.1" as is, or
+// the hex form "7f00:1" converted to dotted decimal.
+function mappedIpv4(suffix: string): string {
+  if (suffix.includes('.')) return suffix;
+  const [hi = '0', lo = '0'] = suffix.split(':');
+  const n = (parseInt(hi, 16) << 16) | parseInt(lo, 16);
+  return [24, 16, 8, 0].map((shift) => (n >>> shift) & 255).join('.');
 }
 
 // An IPv4 or IPv6 literal (as opposed to a DNS name).

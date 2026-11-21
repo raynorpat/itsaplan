@@ -48,7 +48,7 @@ async function tick(): Promise<void> {
       // An unreachable api must not read as a failed tick: the issues are archived
       // either way, and their threads then stay until the agent or team goes.
       try {
-        await deleteIssueAgentThreads(archived);
+        await deleteIssueAgentThreads(archived.map((a) => a.id));
       } catch (error) {
         console.error('[worker] deleting agent threads of archived issues failed:', error);
       }

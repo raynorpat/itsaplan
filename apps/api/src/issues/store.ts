@@ -404,7 +404,7 @@ export async function archiveIssue(
   const beforeData = await issueData(id);
   const [row] = await db
     .update(issue)
-    .set({ archivedAt: sql`now()` })
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
     .where(and(eq(issue.id, id), isNull(issue.archivedAt)))
     .returning({ id: issue.id });
   if (!row) {
@@ -430,7 +430,7 @@ export async function restoreIssue(
   const beforeData = await issueData(id);
   const [row] = await db
     .update(issue)
-    .set({ archivedAt: null })
+    .set({ archivedAt: null, updatedAt: sql`now()` })
     .where(and(eq(issue.id, id), isNotNull(issue.archivedAt)))
     .returning({ id: issue.id, stateId: issue.stateId, teamId: issue.teamId });
   if (!row) return getIssue(id);

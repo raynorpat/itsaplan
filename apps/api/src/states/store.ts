@@ -2,6 +2,8 @@ import { db, workflowState, issue, issueLabel, issueFieldValue, issueFieldOption
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { recordActivityForIssues } from '../issues/activity';
+import { emitEvent } from '../webhooks/event';
+import { issueData, type WebhookData } from '../webhooks/data';
 
 // Data access for columns (kanban states). A column belongs to one team and
 // has a state type that fixes its place in the work items view's left-to-right order.
@@ -202,6 +204,14 @@ export async function deleteState(
       throw new HttpError(400, 'Target column must differ from the deleted column');
   }
 
+  // Webhook data of the column's issues before the change, for their Issue events.
+  const affected = await db.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId));
+  const beforeData = new Map<string, WebhookData>();
+  for (const { id } of affected) {
+    const data = await issueData(id);
+    if (data) beforeData.set(id, data);
+  }
+
   const movedIssueIds = await db.transaction(async (tx) => {
     let moved: string[] = [];
     if (opts.mode === 'move') {
@@ -231,4 +241,17 @@ export async function deleteState(
       { action: 'status', fromText: column.name, toText: target.name },
       actorUserId,
     );
+
+  for (const [id, before] of beforeData) {
+    const data = target ? await issueData(id) : before;
+    if (!data) continue;
+    await emitEvent({
+      type: 'Issue',
+      action: target ? 'update' : 'remove',
+      teamIds: [teamId],
+      actorUserId: actorUserId ?? null,
+      data,
+      before: target ? before : undefined,
+    });
+  }
 }

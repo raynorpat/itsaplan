@@ -39,13 +39,17 @@ describe('internal webhook routes', () => {
         .teams({ teamKey: 'MKT' })
         .issues.post({ stateId: team.states[0].id, title: 'x' })
     ).data!;
+    const [before] = await db
+      .select({ updatedAt: issue.updatedAt })
+      .from(issue)
+      .where(eq(issue.id, created.id));
     await db
       .update(issue)
-      .set({ archivedAt: sql`now()` })
+      .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
       .where(eq(issue.id, created.id));
 
     const res = await api.internal.webhooks['issues-archived'].post(
-      { issueIds: [created.id] },
+      { issues: [{ id: created.id, previousUpdatedAt: before!.updatedAt.toISOString() }] },
       { headers: { 'x-worker-token': TOKEN } },
     );
     expect(res.status).toBe(200);
@@ -56,10 +60,14 @@ describe('internal webhook routes', () => {
       data: { id: created.id },
       updatedFrom: { archivedAt: null },
     });
+    const sent = items[0]!.payload as { updatedFrom: { updatedAt: unknown } };
+    expect(new Date(sent.updatedFrom.updatedAt as string).getTime()).toBe(
+      before!.updatedAt.getTime(),
+    );
   });
 
   it('rejects a missing worker token', async () => {
-    const res = await api.internal.webhooks['issues-archived'].post({ issueIds: [] });
+    const res = await api.internal.webhooks['issues-archived'].post({ issues: [] });
     expect(res.status).toBe(401);
   });
 });

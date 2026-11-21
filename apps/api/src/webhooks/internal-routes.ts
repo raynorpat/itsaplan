@@ -5,7 +5,8 @@ import { emitEvent } from './event';
 
 // The worker's auto-archive sweep sets archived_at with raw SQL and cannot build
 // webhook payloads, so it reports the archived issue ids here. Each sends an
-// Issue update with no actor; the issue was unarchived before the sweep.
+// Issue update with no actor. The sweep reports each issue's updated_at from
+// before it, since the sweep moves it.
 export const internalWebhookRoutes = new Elysia({ name: 'internal-webhooks' }).post(
   '/internal/webhooks/issues-archived',
   async ({ body, headers, set }) => {
@@ -13,7 +14,7 @@ export const internalWebhookRoutes = new Elysia({ name: 'internal-webhooks' }).p
       set.status = 401;
       return { error: 'Unauthorized' };
     }
-    for (const id of body.issueIds) {
+    for (const { id, previousUpdatedAt } of body.issues) {
       const data = await issueData(id);
       if (!data) continue;
       await emitEvent({
@@ -22,10 +23,16 @@ export const internalWebhookRoutes = new Elysia({ name: 'internal-webhooks' }).p
         teamIds: [data.teamId as string],
         actorUserId: null,
         data,
-        before: { ...data, archivedAt: null },
+        before: { ...data, archivedAt: null, updatedAt: new Date(previousUpdatedAt).toISOString() },
       });
     }
-    return { sent: body.issueIds.length };
+    return { sent: body.issues.length };
   },
-  { body: t.Object({ issueIds: t.Array(t.String({ format: 'uuid' })) }) },
+  {
+    body: t.Object({
+      issues: t.Array(
+        t.Object({ id: t.String({ format: 'uuid' }), previousUpdatedAt: t.String() }),
+      ),
+    }),
+  },
 );

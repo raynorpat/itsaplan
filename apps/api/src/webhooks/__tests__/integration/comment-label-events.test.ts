@@ -52,6 +52,7 @@ describe('comment and label webhooks', () => {
   it('sends IssueLabel create, update and remove', async () => {
     const { asOwner, hookId, scope } = await setup();
     const created = (await scope.labels.post({ name: 'bug', color: '#ff0000' })).data!;
+    await Bun.sleep(5);
     await scope.labels({ labelId: created.id }).patch({ name: 'defect' });
     await scope.labels({ labelId: created.id }).delete();
     const [c, u, r] = await payloads(asOwner, hookId);
@@ -65,6 +66,9 @@ describe('comment and label webhooks', () => {
       data: { name: 'defect' },
       updatedFrom: { name: 'bug' },
     });
+    expect(new Date(u!.data.updatedAt as string).getTime()).toBeGreaterThan(
+      new Date(u!.updatedFrom!.updatedAt as string).getTime(),
+    );
     expect(r).toMatchObject({ action: 'remove', data: { id: created.id, name: 'defect' } });
   });
 

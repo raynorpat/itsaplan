@@ -403,6 +403,42 @@ describe('webhooks', () => {
     });
   });
 
+  describe('validation of addresses', () => {
+    for (const url of [
+      'https://[::1]/hook',
+      'https://[::ffff:127.0.0.1]/hook',
+      'https://[fd00::1]/hook',
+      'https://[fe80::1]/hook',
+    ]) {
+      it(`rejects ${url}`, async () => {
+        const { asOwner } = await setupOwnerTeam();
+        const res = await asOwner
+          .teams({ teamKey: 'MKT' })
+          .webhooks.post({ url, resourceTypes: ['Issue'] });
+        expect(res.status).toBe(400);
+      });
+    }
+  });
+
+  describe('all teams over MCP', () => {
+    const mcp = { headers: { 'x-mcp-loopback': '1' } };
+    const hook = { url: 'https://example.com/all', resourceTypes: ['Issue' as const] };
+
+    it('is refused while a team has MCP turned off', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      expect((await asOwner.webhooks.post(hook, mcp)).status).toBe(403);
+      expect((await asOwner.webhooks.get(mcp)).status).toBe(403);
+      const id = (await asOwner.webhooks.post(hook)).data!.id;
+      expect((await asOwner.webhooks({ webhookId: id }).delete(undefined, mcp)).status).toBe(403);
+    });
+
+    it('is allowed when every team has MCP turned on', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      await asOwner.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
+      expect((await asOwner.webhooks.post(hook, mcp)).status).toBe(201);
+    });
+  });
+
   describe('access', () => {
     it('returns 404 for an unknown team', async () => {
       const { asOwner } = await setupOwnerTeam();

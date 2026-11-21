@@ -94,8 +94,9 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     }),
     // Workspace-level routes for all-teams webhooks.
     allTeamsManager: (enabled: boolean) => ({
-      async resolve({ user }: { user?: AuthUser | null }) {
-        if (enabled) await assertAllTeamsManager(requireUser(user));
+      async resolve({ user, request }: { user?: AuthUser | null; request: Request }) {
+        if (enabled)
+          await assertAllTeamsManager(requireUser(user), { mcp: isMcpRequest(request.headers) });
         return {};
       },
     }),

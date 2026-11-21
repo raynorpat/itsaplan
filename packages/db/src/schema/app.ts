@@ -305,6 +305,7 @@ export const labelGroup = pgTable(
     name: text('name').notNull(),
     color: text('color').notNull().default('#6b7280'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.teamId, t.name)],
 );
@@ -322,6 +323,7 @@ export const label = pgTable(
     name: text('name').notNull(),
     color: text('color').notNull().default('#6b7280'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.teamId, t.name)],
 );

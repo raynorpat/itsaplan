@@ -335,6 +335,7 @@ CREATE TABLE "label" (
 	"name" text NOT NULL,
 	"color" text DEFAULT '#6b7280' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "label_team_id_name_unique" UNIQUE("team_id","name")
 );
 --> statement-breakpoint
@@ -344,6 +345,7 @@ CREATE TABLE "label_group" (
 	"name" text NOT NULL,
 	"color" text DEFAULT '#6b7280' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "label_group_team_id_name_unique" UNIQUE("team_id","name")
 );
 --> statement-breakpoint

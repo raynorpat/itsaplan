@@ -44,6 +44,9 @@ export async function deliver(input: DeliverInput): Promise<DeliveryResult> {
   try {
     const res = await fetch(input.url, {
       method: 'POST',
+      // A redirect is a failed attempt (Linear accepts only a direct 200), and
+      // following one would let a public URL send the worker to an internal address.
+      redirect: 'manual',
       signal: AbortSignal.timeout(input.timeoutMs),
       headers: {
         'Content-Type': 'application/json; charset=utf-8',

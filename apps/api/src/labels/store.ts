@@ -90,7 +90,11 @@ export async function updateLabel(
     return rows[0] ? mapLabel(rows[0]) : null;
   }
   const before = await issueLabelData(id);
-  const [row] = await db.update(label).set(set).where(scope).returning();
+  const [row] = await db
+    .update(label)
+    .set({ ...set, updatedAt: new Date() })
+    .where(scope)
+    .returning();
   if (row) await emitLabel('update', teamId, actorUserId, await issueLabelData(id), before);
   return row ? mapLabel(row) : null;
 }
@@ -162,13 +166,17 @@ export async function updateLabelGroup(
     return rows[0] ? mapLabelGroup(rows[0]) : null;
   }
   const before = await labelGroupData(id);
-  const [row] = await db.update(labelGroup).set(set).where(scope).returning();
+  const [row] = await db
+    .update(labelGroup)
+    .set({ ...set, updatedAt: new Date() })
+    .where(scope)
+    .returning();
   if (row) await emitLabel('update', teamId, actorUserId, await labelGroupData(id), before);
   return row ? mapLabelGroup(row) : null;
 }
 
 // Scoped to teamId: an id outside the team deletes nothing.
-// Deleting a group ungroups its labels (FK SET NULL); each sends an IssueLabel
+// Deleting a group ungroups its labels; each sends an IssueLabel
 // update with parentId in updatedFrom, then the group sends its remove.
 export async function deleteLabelGroup(
   id: string,
@@ -179,7 +187,14 @@ export async function deleteLabelGroup(
   if (!before || before.teamId !== teamId) return;
   const members = await db.select({ id: label.id }).from(label).where(eq(label.groupId, id));
   const membersBefore = await Promise.all(members.map((m) => issueLabelData(m.id)));
-  await db.delete(labelGroup).where(and(eq(labelGroup.id, id), eq(labelGroup.teamId, teamId)));
+  await db.transaction(async (tx) => {
+    // Ungrouped explicitly (rather than by the FK's SET NULL) so updated_at moves.
+    await tx
+      .update(label)
+      .set({ groupId: null, updatedAt: new Date() })
+      .where(eq(label.groupId, id));
+    await tx.delete(labelGroup).where(and(eq(labelGroup.id, id), eq(labelGroup.teamId, teamId)));
+  });
   for (const [i, m] of members.entries())
     await emitLabel('update', teamId, actorUserId, await issueLabelData(m.id), membersBefore[i]);
   await emitLabel('remove', teamId, actorUserId, before);

@@ -153,26 +153,38 @@ export async function cleanupOldDeliveries(): Promise<number> {
 // issue is archived only after the full period with no activity. The ->> is guarded
 // by a numeric-string regex so a malformed or missing value is treated as disabled,
 // never cast. Returns the ids archived, which the caller uses to drop the agent
-// conversation threads of those issues. Idempotent (archived_at IS NULL filter).
-export async function archiveStaleIssues(): Promise<string[]> {
+// conversation threads of those issues and reports them for webhooks, with each
+// issue's updated_at from before the sweep. Idempotent (archived_at IS NULL filter).
+export interface ArchivedIssue {
+  id: string;
+  previousUpdatedAt: string;
+}
+
+export async function archiveStaleIssues(): Promise<ArchivedIssue[]> {
   const rows = await db.execute(sql`
-    UPDATE issue i
-    SET archived_at = now()
-    FROM workflow_state c, team_setting s
-    WHERE i.state_id = c.id
-      AND i.team_id = s.team_id
-      AND s.key = 'auto_archive'
-      AND i.archived_at IS NULL
-      AND (
-        (c.state_type = 'completed'
-          AND (s.value->>'completedDays') ~ '^[0-9]+$'
-          AND i.updated_at < now() - make_interval(days => (s.value->>'completedDays')::int))
-        OR
-        (c.state_type = 'canceled'
-          AND (s.value->>'canceledDays') ~ '^[0-9]+$'
-          AND i.updated_at < now() - make_interval(days => (s.value->>'canceledDays')::int))
-      )
-    RETURNING i.id
+    WITH stale AS (
+      SELECT i.id, i.updated_at
+      FROM issue i, workflow_state c, team_setting s
+      WHERE i.state_id = c.id
+        AND i.team_id = s.team_id
+        AND s.key = 'auto_archive'
+        AND i.archived_at IS NULL
+        AND (
+          (c.state_type = 'completed'
+            AND (s.value->>'completedDays') ~ '^[0-9]+$'
+            AND i.updated_at < now() - make_interval(days => (s.value->>'completedDays')::int))
+          OR
+          (c.state_type = 'canceled'
+            AND (s.value->>'canceledDays') ~ '^[0-9]+$'
+            AND i.updated_at < now() - make_interval(days => (s.value->>'canceledDays')::int))
+        )
+      FOR UPDATE OF i
+    )
+    UPDATE issue
+    SET archived_at = now(), updated_at = now()
+    FROM stale
+    WHERE issue.id = stale.id
+    RETURNING issue.id, to_json(stale.updated_at) #>> '{}' AS "previousUpdatedAt"
   `);
-  return (rows as unknown as Array<{ id: string }>).map((row) => row.id);
+  return rows as unknown as ArchivedIssue[];
 }

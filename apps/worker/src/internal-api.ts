@@ -22,11 +22,13 @@ export async function postInternal(
 // Reports issues the auto-archive sweep archived, so the api sends their webhook
 // events. Batched like deleteIssueAgentThreads: the first sweep of an instance can
 // archive thousands of issues.
-export async function notifyIssuesArchived(issueIds: string[]): Promise<void> {
-  for (let from = 0; from < issueIds.length; from += 200) {
+export async function notifyIssuesArchived(
+  issues: { id: string; previousUpdatedAt: string }[],
+): Promise<void> {
+  for (let from = 0; from < issues.length; from += 200) {
     const response = await postInternal(
       '/internal/webhooks/issues-archived',
-      { issueIds: issueIds.slice(from, from + 200) },
+      { issues: issues.slice(from, from + 200) },
       30_000,
     );
     if (!response.ok) throw new Error(`Webhook API returned ${response.status}`);

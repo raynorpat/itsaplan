@@ -24,15 +24,26 @@ export async function canManageAllTeams(user: {
   return teams.every((t) => ownedIds.has(t.id));
 }
 
-export async function assertAllTeamsManager(user: {
-  id: string;
-  role?: string | null;
-}): Promise<void> {
+// Over MCP every team must also have MCP enabled: an all-teams webhook sends the
+// events of every team, including teams that keep MCP clients out.
+export async function assertAllTeamsManager(
+  user: { id: string; role?: string | null },
+  opts: { mcp?: boolean } = {},
+): Promise<void> {
   if (!(await canManageAllTeams(user)))
     throw new HttpError(
       403,
       'All-teams webhooks need the instance owner or an owner of every team',
     );
+  if (opts.mcp) {
+    const closed = await db
+      .select({ id: team.id })
+      .from(team)
+      .where(eq(team.mcpEnabled, false))
+      .limit(1);
+    if (closed.length)
+      throw new HttpError(403, 'All-teams webhooks over MCP need MCP enabled on every team');
+  }
 }
 
 // Access to a webhook addressed by id: a team webhook through its team's
@@ -47,7 +58,7 @@ export async function assertWebhookAccess(
   const found = await getWebhook(webhookId);
   if (!found) throw new HttpError(404, 'Webhook not found');
   if (found.teamId === null) {
-    await assertAllTeamsManager(requireUser(user));
+    await assertAllTeamsManager(requireUser(user), opts);
   } else {
     await assertPermission(found.teamId, user, 'webhooks', action);
     if (opts.mcp) {
