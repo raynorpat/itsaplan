@@ -92,6 +92,8 @@ describe('agent chat history', () => {
     const { owner, asOwner } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
     await seedThread('t-old', owner.userId, agent, 'older question');
+    // Threads are ordered by updated_at; two seeds in the same millisecond would tie.
+    await Bun.sleep(5);
     await seedThread('t-new', owner.userId, agent, 'newer question');
 
     const res = await agents(asOwner)({ agentId: agent.id }).threads.get();
