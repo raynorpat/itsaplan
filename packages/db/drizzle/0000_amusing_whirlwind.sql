@@ -481,6 +481,17 @@ CREATE TABLE "project_update" (
 	CONSTRAINT "project_update_health_check" CHECK ("project_update"."health" IN ('onTrack', 'atRisk', 'offTrack'))
 );
 --> statement-breakpoint
+CREATE TABLE "reaction" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"comment_id" uuid,
+	"issue_id" uuid,
+	"project_update_id" uuid,
+	"user_id" uuid NOT NULL,
+	"emoji" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "reaction_parent_check" CHECK (num_nonnulls("reaction"."comment_id", "reaction"."issue_id", "reaction"."project_update_id") = 1)
+);
+--> statement-breakpoint
 CREATE TABLE "team" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"key" text NOT NULL,
@@ -743,6 +754,10 @@ ALTER TABLE "project_team" ADD CONSTRAINT "project_team_project_id_project_id_fk
 ALTER TABLE "project_team" ADD CONSTRAINT "project_team_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_update" ADD CONSTRAINT "project_update_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_update" ADD CONSTRAINT "project_update_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reaction" ADD CONSTRAINT "reaction_comment_id_comment_id_fk" FOREIGN KEY ("comment_id") REFERENCES "public"."comment"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reaction" ADD CONSTRAINT "reaction_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reaction" ADD CONSTRAINT "reaction_project_update_id_project_update_id_fk" FOREIGN KEY ("project_update_id") REFERENCES "public"."project_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reaction" ADD CONSTRAINT "reaction_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_action" ADD CONSTRAINT "team_action_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_dashboard" ADD CONSTRAINT "team_dashboard_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_invite" ADD CONSTRAINT "team_invite_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -800,6 +815,7 @@ CREATE INDEX "notification_delivery_due_idx" ON "notification_delivery" USING bt
 CREATE INDEX "project_milestone_project_idx" ON "project_milestone" USING btree ("project_id","sort_order");--> statement-breakpoint
 CREATE INDEX "project_team_team_idx" ON "project_team" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "project_update_project_idx" ON "project_update" USING btree ("project_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE UNIQUE INDEX "reaction_once_per_emoji_idx" ON "reaction" USING btree (coalesce("comment_id", "issue_id", "project_update_id"),"user_id","emoji");--> statement-breakpoint
 CREATE INDEX "team_action_team_idx" ON "team_action" USING btree ("team_id","position");--> statement-breakpoint
 CREATE INDEX "team_dashboard_team_idx" ON "team_dashboard" USING btree ("team_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_invite_pending_uq" ON "team_invite" USING btree ("team_id","email") WHERE "team_invite"."status" = 'pending';--> statement-breakpoint

@@ -1,5 +1,5 @@
 {
-  "id": "40cdb477-82ac-49aa-937f-a24290d18407",
+  "id": "fdcf8ddd-6869-430b-8900-783d0ac8a8ba",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4532,6 +4532,149 @@
         "project_update_health_check": {
           "name": "project_update_health_check",
           "value": "\"project_update\".\"health\" IN ('onTrack', 'atRisk', 'offTrack')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.reaction": {
+      "name": "reaction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "comment_id": {
+          "name": "comment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_update_id": {
+          "name": "project_update_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emoji": {
+          "name": "emoji",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reaction_once_per_emoji_idx": {
+          "name": "reaction_once_per_emoji_idx",
+          "columns": [
+            {
+              "expression": "coalesce(\"comment_id\", \"issue_id\", \"project_update_id\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "emoji",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reaction_comment_id_comment_id_fk": {
+          "name": "reaction_comment_id_comment_id_fk",
+          "tableFrom": "reaction",
+          "tableTo": "comment",
+          "columnsFrom": [
+            "comment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reaction_issue_id_issue_id_fk": {
+          "name": "reaction_issue_id_issue_id_fk",
+          "tableFrom": "reaction",
+          "tableTo": "issue",
+          "columnsFrom": [
+            "issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reaction_project_update_id_project_update_id_fk": {
+          "name": "reaction_project_update_id_project_update_id_fk",
+          "tableFrom": "reaction",
+          "tableTo": "project_update",
+          "columnsFrom": [
+            "project_update_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reaction_user_id_user_id_fk": {
+          "name": "reaction_user_id_user_id_fk",
+          "tableFrom": "reaction",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reaction_parent_check": {
+          "name": "reaction_parent_check",
+          "value": "num_nonnulls(\"reaction\".\"comment_id\", \"reaction\".\"issue_id\", \"reaction\".\"project_update_id\") = 1"
         }
       },
       "isRLSEnabled": false

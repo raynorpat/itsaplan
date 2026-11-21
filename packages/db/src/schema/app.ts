@@ -1106,6 +1106,37 @@ export const comment = pgTable(
   ],
 );
 
+// Emoji reactions (Linear's Reaction) on a comment, an issue or a project update —
+// exactly one of the three. A user reacts once with each emoji on an item. emoji is
+// stored as given (trimmed), such as `+1` or a Unicode emoji.
+export const reaction = pgTable(
+  'reaction',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    commentId: uuid('comment_id').references(() => comment.id, { onDelete: 'cascade' }),
+    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
+    projectUpdateId: uuid('project_update_id').references(() => projectUpdate.id, {
+      onDelete: 'cascade',
+    }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'reaction_parent_check',
+      sql`num_nonnulls(${t.commentId}, ${t.issueId}, ${t.projectUpdateId}) = 1`,
+    ),
+    uniqueIndex('reaction_once_per_emoji_idx').on(
+      sql`coalesce(${t.commentId}, ${t.issueId}, ${t.projectUpdateId})`,
+      t.userId,
+      t.emoji,
+    ),
+  ],
+);
+
 // The timeline of issues and projects: change-log rows and comments in one row
 // shape, for the feeds (issue, range, share, team activity, project). kind is
 // 'activity' or 'comment'; the columns a kind does not use are null.
