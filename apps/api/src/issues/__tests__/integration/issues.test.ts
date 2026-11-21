@@ -203,6 +203,107 @@ describe('issues', () => {
     });
   });
 
+  // Linear's issue fields: sub-issues, estimate, creator, and the status timestamps.
+  describe('linear fields', () => {
+    async function columnsByType(client: Api) {
+      const view = await client.projects({ projectKey: 'MKT' }).get();
+      const byType: Record<string, string> = {};
+      for (const c of view.data!.columns) byType[c.stateType] ??= c.id;
+      return byType;
+    }
+
+    it('sets startedAt on create in a started column', async () => {
+      const { asOwner } = await setupProject();
+      const col = await columnsByType(asOwner);
+      const created = (await createIssue(asOwner, col.started)).data!;
+      expect(created.startedAt).toBeTruthy();
+      expect(created.completedAt).toBeNull();
+    });
+
+    it('sets completedAt on completing and clears all on moving to backlog', async () => {
+      const { asOwner } = await setupProject();
+      const col = await columnsByType(asOwner);
+      const issue = (await createIssue(asOwner, col.started)).data!;
+
+      const done = await asOwner.issues({ issueId: issue.id }).patch({ columnId: col.completed });
+      expect(done.data!.completedAt).toBeTruthy();
+      expect(done.data!.startedAt).toBeTruthy();
+
+      const back = await asOwner.issues({ issueId: issue.id }).patch({ columnId: col.backlog });
+      expect(back.data).toMatchObject({ startedAt: null, completedAt: null, canceledAt: null });
+    });
+
+    it('sets canceledAt on canceling', async () => {
+      const { asOwner } = await setupProject();
+      const col = await columnsByType(asOwner);
+      const issue = (await createIssue(asOwner, col.backlog)).data!;
+      const res = await asOwner.issues({ issueId: issue.id }).patch({ columnId: col.canceled });
+      expect(res.data!.canceledAt).toBeTruthy();
+    });
+
+    it('records the creating user as creator', async () => {
+      const owner = await signUpTestUser();
+      const asOwner = authedApi(owner.cookie);
+      await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+      const col = await columnsByType(asOwner);
+      const created = (await createIssue(asOwner, col.backlog)).data!;
+      expect(created.creatorUserId).toBe(owner.userId);
+    });
+
+    it('stores and updates an estimate', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const created = (await createIssue(asOwner, columnId, { estimate: 3 })).data!;
+      expect(created.estimate).toBe(3);
+      const res = await asOwner.issues({ issueId: created.id }).patch({ estimate: null });
+      expect(res.data!.estimate).toBeNull();
+    });
+
+    it('links a sub-issue to its parent', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const parent = (await createIssue(asOwner, columnId, { title: 'Parent' })).data!;
+      const child = await createIssue(asOwner, columnId, { title: 'Child', parentId: parent.id });
+      expect(child.status).toBe(201);
+      expect(child.data!.parentId).toBe(parent.id);
+    });
+
+    it('rejects a parent from another project', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const other = await foreignProject(asOwner);
+      const foreign = (
+        await asOwner
+          .projects({ projectKey: 'OPS' })
+          .issues.post({ columnId: other.columnId, title: 'Foreign' })
+      ).data!;
+      const res = await createIssue(asOwner, columnId, { parentId: foreign.id });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects an issue as its own parent', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const issue = (await createIssue(asOwner, columnId)).data!;
+      const res = await asOwner.issues({ issueId: issue.id }).patch({ parentId: issue.id });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects making an issue the child of its own descendant', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const top = (await createIssue(asOwner, columnId, { title: 'Top' })).data!;
+      const mid = (await createIssue(asOwner, columnId, { title: 'Mid', parentId: top.id })).data!;
+      const leaf = (await createIssue(asOwner, columnId, { title: 'Leaf', parentId: mid.id }))
+        .data!;
+      const res = await asOwner.issues({ issueId: top.id }).patch({ parentId: leaf.id });
+      expect(res.status).toBe(400);
+    });
+
+    it('clears a parent with null', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const parent = (await createIssue(asOwner, columnId)).data!;
+      const child = (await createIssue(asOwner, columnId, { parentId: parent.id })).data!;
+      const res = await asOwner.issues({ issueId: child.id }).patch({ parentId: null });
+      expect(res.data!.parentId).toBeNull();
+    });
+  });
+
   describe('get', () => {
     it('returns the issue with its custom field values', async () => {
       const { asOwner, columnId } = await setupProject();

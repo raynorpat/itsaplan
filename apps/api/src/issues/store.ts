@@ -30,6 +30,7 @@ import {
 } from 'drizzle-orm';
 import type { IssueQuery } from '../ai-agents/issue-query';
 import { iso, num, HttpError } from '../shared/lib';
+import { nextStatusTimestamps, type StateType } from './status-timestamps';
 import type { ProjectRow } from '../projects/store';
 import { getCustomFieldById, type CustomFieldType } from '../custom-fields/store';
 import {
@@ -74,12 +75,20 @@ export interface IssueRow {
   assigneeUserId: string | null;
   delegateUserId: string | null;
   columnId: string;
+  // Parent issue id (sub-issues), or null for a top-level issue.
+  parentId: string | null;
+  creatorUserId: string | null;
   title: string;
   description: string;
   priority: number;
+  estimate: number | null;
   startDate: string | null;
   dueDate: string | null;
   position: number;
+  // Status timestamps, kept in step with the column type (see status-timestamps.ts).
+  startedAt: string | null;
+  completedAt: string | null;
+  canceledAt: string | null;
   createdAt: string;
   updatedAt: string;
   // When the issue was archived (hidden from the board but kept), or null when it
@@ -112,12 +121,18 @@ function mapIssue(row: typeof issue.$inferSelect, projectKey: string): IssueRow 
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     columnId: row.columnId,
+    parentId: row.parentId,
+    creatorUserId: row.creatorUserId,
     title: row.title,
     description: row.description,
     priority: row.priority,
+    estimate: row.estimate,
     startDate: row.startDate,
     dueDate: row.dueDate,
     position: num(row.position),
+    startedAt: row.startedAt ? iso(row.startedAt) : null,
+    completedAt: row.completedAt ? iso(row.completedAt) : null,
+    canceledAt: row.canceledAt ? iso(row.canceledAt) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
@@ -580,6 +595,8 @@ export interface NewIssueInput {
   title: string;
   description?: string;
   priority?: number;
+  estimate?: number | null;
+  parentId?: string | null;
   startDate?: string | null;
   dueDate?: string | null;
   labelIds?: string[];
@@ -617,13 +634,46 @@ async function assertInitiative(
 // Enforces that a column belongs to the issue's project — issue.column_id only
 // requires the column to exist somewhere, so an issue could otherwise sit on
 // another project's board. Throws 400 otherwise.
-async function assertColumn(projectId: string, columnId: string | undefined): Promise<void> {
-  if (columnId === undefined) return;
+// Returns the column's state type, or null when no column is given.
+async function assertColumn(
+  projectId: string,
+  columnId: string | undefined,
+): Promise<StateType | null> {
+  if (columnId === undefined) return null;
   const rows = await db
-    .select({ id: projectColumn.id })
+    .select({ stateType: projectColumn.stateType })
     .from(projectColumn)
     .where(and(eq(projectColumn.id, columnId), eq(projectColumn.projectId, projectId)));
   if (rows.length === 0) throw new HttpError(400, 'Column must belong to this project');
+  return rows[0].stateType as StateType;
+}
+
+// Enforces that a parent issue is in the same project and is neither the issue
+// itself nor one of its descendants (which would make a cycle). Only checks when
+// set to a non-null value. issueId is null on create. Throws 400 otherwise.
+async function assertParent(
+  projectId: string,
+  issueId: string | null,
+  parentId: string | null | undefined,
+): Promise<void> {
+  if (!parentId) return;
+  if (parentId === issueId) throw new HttpError(400, 'An issue cannot be its own parent');
+  const rows = await db
+    .select({ id: issue.id })
+    .from(issue)
+    .where(and(eq(issue.id, parentId), eq(issue.projectId, projectId)));
+  if (rows.length === 0) throw new HttpError(400, 'Parent issue must belong to this project');
+  if (!issueId) return;
+  // Walk up from the proposed parent; reaching the issue means a cycle.
+  const ancestors = (await db.execute(sql`
+    WITH RECURSIVE up(id, parent_id) AS (
+      SELECT id, parent_id FROM issue WHERE id = ${parentId}
+      UNION
+      SELECT i.id, i.parent_id FROM issue i JOIN up ON i.id = up.parent_id
+    )
+    SELECT 1 FROM up WHERE id = ${issueId} LIMIT 1
+  `)) as unknown as unknown[];
+  if (ancestors.length > 0) throw new HttpError(400, 'Parent cannot be a sub-issue of this issue');
 }
 
 // Enforces that an issue type belongs to the issue's project. Only checks when set
@@ -662,7 +712,13 @@ export async function createIssue(
 ): Promise<IssueRow> {
   await assertAssignments(project.id, input);
   await assertInitiative(project.id, input.initiativeId);
-  await assertColumn(project.id, input.columnId);
+  const stateType = (await assertColumn(project.id, input.columnId))!;
+  await assertParent(project.id, null, input.parentId);
+  const timestamps = nextStatusTimestamps(
+    { startedAt: null, completedAt: null, canceledAt: null },
+    stateType,
+    new Date(),
+  );
   await assertIssueType(project.id, input.typeId);
   // Also checked by setIssueLabels below, but here it fails before the issue exists.
   await assertIssueLabels(project.id, input.labelIds);
@@ -687,9 +743,13 @@ export async function createIssue(
         assigneeUserId: input.assigneeUserId ?? null,
         delegateUserId: input.delegateUserId ?? null,
         columnId: input.columnId,
+        parentId: input.parentId ?? null,
+        creatorUserId: actorUserId ?? null,
         title: input.title,
         description: input.description ?? '',
         priority: input.priority ?? 0,
+        estimate: input.estimate ?? null,
+        ...timestamps,
         startDate: input.startDate ?? null,
         dueDate: input.dueDate ?? null,
         position: Number(posRow.pos),
@@ -731,6 +791,8 @@ export interface IssuePatch {
   title?: string;
   description?: string;
   priority?: number;
+  estimate?: number | null;
+  parentId?: string | null;
   startDate?: string | null;
   dueDate?: string | null;
 }
@@ -745,7 +807,8 @@ export async function updateIssue(
 
   await assertAssignments(before.projectId, patch);
   await assertInitiative(before.projectId, patch.initiativeId);
-  await assertColumn(before.projectId, patch.columnId);
+  const stateType = await assertColumn(before.projectId, patch.columnId);
+  await assertParent(before.projectId, id, patch.parentId);
   await assertIssueType(before.projectId, patch.typeId);
 
   const set: Partial<typeof issue.$inferInsert> = {};
@@ -758,6 +821,19 @@ export async function updateIssue(
   if (patch.title !== undefined) set.title = patch.title;
   if (patch.description !== undefined) set.description = patch.description;
   if (patch.priority !== undefined) set.priority = patch.priority;
+  if (patch.estimate !== undefined) set.estimate = patch.estimate;
+  if (patch.parentId !== undefined) set.parentId = patch.parentId;
+  if (stateType && patch.columnId !== before.columnId) {
+    const [prev] = await db
+      .select({
+        startedAt: issue.startedAt,
+        completedAt: issue.completedAt,
+        canceledAt: issue.canceledAt,
+      })
+      .from(issue)
+      .where(eq(issue.id, id));
+    Object.assign(set, nextStatusTimestamps(prev, stateType, new Date()));
+  }
   if (patch.startDate !== undefined) set.startDate = patch.startDate;
   if (patch.dueDate !== undefined) set.dueDate = patch.dueDate;
 

@@ -60,12 +60,18 @@ const IssueResponse = t.Object({
   assigneeUserId: t.Nullable(t.String({ format: 'uuid' })),
   delegateUserId: t.Nullable(t.String({ format: 'uuid' })),
   columnId: t.String({ format: 'uuid' }),
+  parentId: t.Nullable(t.String({ format: 'uuid' })),
+  creatorUserId: t.Nullable(t.String({ format: 'uuid' })),
   title: t.String(),
   description: t.String(),
   priority: t.Integer(),
+  estimate: t.Nullable(t.Number()),
   startDate: t.Nullable(t.String()),
   dueDate: t.Nullable(t.String()),
   position: t.Number(),
+  startedAt: t.Nullable(t.String()),
+  completedAt: t.Nullable(t.String()),
+  canceledAt: t.Nullable(t.String()),
   createdAt: t.String(),
   updatedAt: t.String(),
   archivedAt: t.Nullable(t.String()),
@@ -206,6 +212,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         dueDate: t.Optional(
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
         ),
+        parentId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Parent issue id (sub-issue), or null.' }),
+          ),
+        ),
+        estimate: t.Optional(t.Nullable(t.Number({ description: 'Estimate points, or null.' }))),
         labelIds: t.Optional(
           t.Array(t.String({ format: 'uuid' }), {
             description: 'Label ids to attach. From get_project.labels.',
@@ -674,6 +686,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         dueDate: t.Optional(
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
         ),
+        parentId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Parent issue id (sub-issue), or null.' }),
+          ),
+        ),
+        estimate: t.Optional(t.Nullable(t.Number({ description: 'Estimate points, or null.' }))),
         labelIds: t.Optional(
           t.Array(t.String({ format: 'uuid' }), {
             description: "Replace the issue's labels with these ids.",

@@ -515,12 +515,21 @@ export interface Issue {
   assigneeUserId: string | null;
   delegateUserId: string | null;
   columnId: string;
+  // Parent issue id (sub-issues), or null for a top-level issue.
+  parentId: string | null;
+  creatorUserId: string | null;
   title: string;
   description: string;
+  // Linear's scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
   priority: number;
+  estimate: number | null;
   startDate: string | null;
   dueDate: string | null;
   position: number;
+  // Status timestamps, kept in step with the column type by the API.
+  startedAt: string | null;
+  completedAt: string | null;
+  canceledAt: string | null;
   createdAt: string;
   updatedAt: string;
   // When the issue was archived (hidden from the board but kept), or null when it
