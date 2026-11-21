@@ -1,4 +1,4 @@
-import { comment, db } from '@repo/db';
+import { comment, db, projectUpdate } from '@repo/db';
 import { and, eq, type SQL } from 'drizzle-orm';
 import {
   assertParentAccess,
@@ -22,7 +22,7 @@ import { commentFilterSql } from '../comment-filter';
 import { gqlError } from '../errors';
 import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
-import { findProject } from './project';
+import { findProject, toUpdate } from './project';
 
 // Linear's Comment over a comment row. `parentUrl` is the web URL of the comment's
 // issue, project or project update; GraphQL resolves `url` lazily when it is empty.
@@ -154,6 +154,20 @@ export const commentResolvers = {
     issue: (c: GraphQLComment) => (c.issueId ? issueById(c.issueId) : null),
     project: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       c.projectId ? findProject(c.projectId, ctx) : null,
+    // Null, like Comment.project, when the update's project is not visible.
+    projectUpdate: async (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => {
+      if (!c.projectUpdateId) return null;
+      const [row] = await db
+        .select()
+        .from(projectUpdate)
+        .where(eq(projectUpdate.id, c.projectUpdateId));
+      if (!row) return null;
+      const visible = await findProject(row.projectId, ctx).then(
+        () => true,
+        () => false,
+      );
+      return visible ? toUpdate(row) : null;
+    },
   },
   Mutation: {
     commentCreate: (_: unknown, { input }: { input: CreateInput }, ctx: GraphQLContext) =>

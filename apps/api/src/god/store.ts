@@ -9,7 +9,7 @@ import {
   projectTeam,
   integrationCredential,
   issue,
-  issueActivity,
+  feedEntry,
   team,
   teamDashboard,
   teamMember,
@@ -404,9 +404,9 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
     // Reduced to the latest per team below, because aggregating in SQL would
     // return the max as a driver-formatted string, not a Date.
     db
-      .select({ teamId: issue.teamId, createdAt: issueActivity.createdAt })
-      .from(issueActivity)
-      .innerJoin(issue, eq(issue.id, issueActivity.issueId))
+      .select({ teamId: issue.teamId, createdAt: feedEntry.createdAt })
+      .from(feedEntry)
+      .innerJoin(issue, eq(issue.id, feedEntry.issueId))
       .where(inArray(issue.teamId, teamIds)),
   ]);
 

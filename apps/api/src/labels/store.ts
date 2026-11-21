@@ -89,12 +89,14 @@ export async function createLabel(input: {
   description?: string | null;
   isGroup?: boolean;
   actorUserId: string | null;
+  id?: string;
 }): Promise<LabelRow> {
   if (input.isGroup && input.groupId) throw new HttpError(400, 'A label group cannot be nested');
   await assertGroup(input.groupId, input.teamId);
   const [row] = await db
     .insert(label)
     .values({
+      ...(input.id ? { id: input.id } : {}),
       teamId: input.teamId,
       name: input.name,
       color: input.color ?? '#6b7280',

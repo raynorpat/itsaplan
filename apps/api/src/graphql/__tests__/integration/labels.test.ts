@@ -126,4 +126,11 @@ describe('graphql labels', () => {
       (await asOwner.webhooks({ webhookId: allHook.id }).deliveries.get()).data!.items,
     ).toHaveLength(1);
   });
+
+  it('keeps a client-supplied id', async () => {
+    const { client } = await setup();
+    const id = '11111111-2222-4333-8444-555555555555';
+    const created = (await (await client.createIssueLabel({ id, name: 'Pre-made' })).issueLabel)!;
+    expect(created.id).toBe(id);
+  });
 });

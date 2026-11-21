@@ -791,6 +791,7 @@ CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("ident
 CREATE UNIQUE INDEX "agent_run_schedule_fire_uq" ON "agent_run" USING btree ("schedule_id","scheduled_for");--> statement-breakpoint
 CREATE INDEX "agent_run_due_idx" ON "agent_run" USING btree ("status","next_attempt_at");--> statement-breakpoint
 CREATE INDEX "agent_run_schedule_idx" ON "agent_run" USING btree ("schedule_id");--> statement-breakpoint
+CREATE INDEX "agent_run_source_comment_idx" ON "agent_run" USING btree ("source_comment_id");--> statement-breakpoint
 CREATE INDEX "agent_schedule_due_idx" ON "agent_schedule" USING btree ("status","next_run_at");--> statement-breakpoint
 CREATE INDEX "agent_schedule_agent_idx" ON "agent_schedule" USING btree ("agent_id");--> statement-breakpoint
 CREATE INDEX "agent_skill_team_idx" ON "agent_skill" USING btree ("team_id");--> statement-breakpoint
@@ -803,6 +804,7 @@ CREATE INDEX "comment_issue_idx" ON "comment" USING btree ("issue_id","created_a
 CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_parent_idx" ON "comment" USING btree ("parent_id");--> statement-breakpoint
+CREATE INDEX "comment_resolving_comment_idx" ON "comment" USING btree ("resolving_comment_id");--> statement-breakpoint
 CREATE INDEX "integration_credential_team_idx" ON "integration_credential" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "issue_team_active_idx" ON "issue" USING btree ("team_id","state_id") WHERE "issue"."archived_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
@@ -810,12 +812,16 @@ CREATE INDEX "issue_activity_project_idx" ON "issue_activity" USING btree ("proj
 CREATE INDEX "issue_attachment_issue_idx" ON "issue_attachment" USING btree ("issue_id");--> statement-breakpoint
 CREATE INDEX "note_board_team_idx" ON "note_board" USING btree ("team_id","updated_at");--> statement-breakpoint
 CREATE INDEX "notification_user_idx" ON "notification" USING btree ("user_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "notification_source_comment_idx" ON "notification" USING btree ("source_comment_id");--> statement-breakpoint
 CREATE INDEX "notification_user_unread_idx" ON "notification" USING btree ("user_id","id" DESC NULLS LAST) WHERE "notification"."read_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "notification_delivery_due_idx" ON "notification_delivery" USING btree ("next_attempt_at") WHERE "notification_delivery"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "project_milestone_project_idx" ON "project_milestone" USING btree ("project_id","sort_order");--> statement-breakpoint
 CREATE INDEX "project_team_team_idx" ON "project_team" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "project_update_project_idx" ON "project_update" USING btree ("project_id","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE UNIQUE INDEX "reaction_once_per_emoji_idx" ON "reaction" USING btree (coalesce("comment_id", "issue_id", "project_update_id"),"user_id","emoji");--> statement-breakpoint
+CREATE INDEX "reaction_comment_idx" ON "reaction" USING btree ("comment_id");--> statement-breakpoint
+CREATE INDEX "reaction_issue_idx" ON "reaction" USING btree ("issue_id");--> statement-breakpoint
+CREATE INDEX "reaction_project_update_idx" ON "reaction" USING btree ("project_update_id");--> statement-breakpoint
 CREATE INDEX "team_action_team_idx" ON "team_action" USING btree ("team_id","position");--> statement-breakpoint
 CREATE INDEX "team_dashboard_team_idx" ON "team_dashboard" USING btree ("team_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_invite_pending_uq" ON "team_invite" USING btree ("team_id","email") WHERE "team_invite"."status" = 'pending';--> statement-breakpoint

@@ -198,4 +198,22 @@ describe('god teams', () => {
       expect((await god.api.god.teams({ teamId: 'abc' }).get()).status).toBe(400);
     });
   });
+  it('counts a comment as the latest activity', async () => {
+    const { god } = await setup();
+    await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
+    const team = (await god.api.teams({ teamKey: 'MKT' }).get()).data!;
+    const issue = (
+      await god.api
+        .teams({ teamKey: 'MKT' })
+        .issues.post({ stateId: team.states[0].id, title: 'x' })
+    ).data!;
+    await Bun.sleep(20);
+    const comment = (await god.api.issues({ issueId: issue.id }).comments.post({ body: 'later' }))
+      .data!;
+    const res = await god.api.god.teams.get({ query: PAGE });
+    const row = res.data!.items.find((r) => r.id === team.team.id)!;
+    expect(new Date(row.lastActivityAt as unknown as string).getTime()).toBe(
+      new Date(comment.createdAt as unknown as string).getTime(),
+    );
+  });
 });

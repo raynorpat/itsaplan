@@ -223,6 +223,19 @@ describe('analytics', () => {
   });
 
   describe('pulse', () => {
+    it('counts comments', async () => {
+      const { asOwner, col } = await setupTeam();
+      const issue = await createIssue(asOwner, col.started!);
+      const total = async () =>
+        (await asOwner.teams({ teamKey: 'MKT' }).analytics.pulse.get()).data!.reduce(
+          (sum, c) => sum + c.count,
+          0,
+        );
+      const before = await total();
+      await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'hi' });
+      expect(await total()).toBe(before + 1);
+    });
+
     it('returns a zero-filled default day series for an empty team', async () => {
       const { asOwner } = await setupTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.pulse.get();

@@ -1,11 +1,23 @@
 import type { ActionDef, TeamDetail, Issue } from '@/lib/api';
 import { matchesFilterSet } from '@/utils/filters';
 import { describeEffect } from '@/utils/actions';
+import { applicableLabels } from '@/utils/labels';
 import { useDeleteIssue, useUpdateIssue } from '@/services/issues.service';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 
 // The team's manual actions whose condition matches this issue, in saved
 // order. Shared by the issue detail Actions block and the context menu.
+// The issue patch an action applies. A labels effect replaces the issue's labels,
+// so labels the web does not offer (workspace and retired labels applied over the
+// API) are kept alongside the effect's labels.
+function effectPatch(action: ActionDef, issue: Issue, team: TeamDetail) {
+  const effect = action.effect;
+  if (!effect.labelIds) return effect;
+  const offered = new Set(applicableLabels(team.labels).map((l) => l.id));
+  const kept = issue.labelIds.filter((id) => !offered.has(id));
+  return { ...effect, labelIds: [...new Set([...effect.labelIds, ...kept])] };
+}
+
 export function matchedActions(actions: ActionDef[], team: TeamDetail, issue: Issue): ActionDef[] {
   return actions.filter((a) => matchesFilterSet(issue, a.condition, team));
 }
@@ -85,7 +97,7 @@ export function ApplyActionDialog({
       title={action.name}
       confirmLabel="Apply"
       onConfirm={async () => {
-        await updateIssue.mutateAsync({ id: issue.id, patch: action.effect });
+        await updateIssue.mutateAsync({ id: issue.id, patch: effectPatch(action, issue, team) });
         onClose();
       }}
       onClose={onClose}

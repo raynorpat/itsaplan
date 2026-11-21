@@ -1,5 +1,5 @@
 {
-  "id": "fdcf8ddd-6869-430b-8900-783d0ac8a8ba",
+  "id": "22504819-aa2d-4317-bfa1-15efc0414e34",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -848,6 +848,21 @@
           "columns": [
             {
               "expression": "schedule_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_source_comment_idx": {
+          "name": "agent_run_source_comment_idx",
+          "columns": [
+            {
+              "expression": "source_comment_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1946,6 +1961,21 @@
           "columns": [
             {
               "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "comment_resolving_comment_idx": {
+          "name": "comment_resolving_comment_idx",
+          "columns": [
+            {
+              "expression": "resolving_comment_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3605,6 +3635,21 @@
           "method": "btree",
           "with": {}
         },
+        "notification_source_comment_idx": {
+          "name": "notification_source_comment_idx",
+          "columns": [
+            {
+              "expression": "source_comment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "notification_user_unread_idx": {
           "name": "notification_user_unread_idx",
           "columns": [
@@ -4609,6 +4654,51 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reaction_comment_idx": {
+          "name": "reaction_comment_idx",
+          "columns": [
+            {
+              "expression": "comment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reaction_issue_idx": {
+          "name": "reaction_issue_idx",
+          "columns": [
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reaction_project_update_idx": {
+          "name": "reaction_project_update_idx",
+          "columns": [
+            {
+              "expression": "project_update_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

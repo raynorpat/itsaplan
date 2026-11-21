@@ -450,6 +450,7 @@ export const agentRun = pgTable(
     uniqueIndex('agent_run_schedule_fire_uq').on(t.scheduleId, t.scheduledFor),
     index('agent_run_due_idx').on(t.status, t.nextAttemptAt),
     index('agent_run_schedule_idx').on(t.scheduleId),
+    index('agent_run_source_comment_idx').on(t.sourceCommentId),
   ],
 );
 
@@ -1103,6 +1104,7 @@ export const comment = pgTable(
     index('comment_project_idx').on(t.projectId, t.createdAt, t.id),
     index('comment_project_update_idx').on(t.projectUpdateId, t.createdAt, t.id),
     index('comment_parent_idx').on(t.parentId),
+    index('comment_resolving_comment_idx').on(t.resolvingCommentId),
   ],
 );
 
@@ -1134,6 +1136,10 @@ export const reaction = pgTable(
       t.userId,
       t.emoji,
     ),
+    // Reactions are read and cascaded per item.
+    index('reaction_comment_idx').on(t.commentId),
+    index('reaction_issue_idx').on(t.issueId),
+    index('reaction_project_update_idx').on(t.projectUpdateId),
   ],
 );
 
@@ -1359,6 +1365,8 @@ export const notification = pgTable(
     ),
     // Backs the inbox list: a user's notifications newest first.
     index('notification_user_idx').on(t.userId, t.createdAt.desc(), t.id.desc()),
+    // Deleting a comment sets these to null.
+    index('notification_source_comment_idx').on(t.sourceCommentId),
     // Backs the unread count and the unread-only inbox view.
     index('notification_user_unread_idx')
       .on(t.userId, t.id.desc())

@@ -155,6 +155,7 @@ describe('graphql comments', () => {
     expect((await (await client.project(project.id)).comments()).nodes.map((c) => c.id)).toEqual([
       onProject.id,
     ]);
+    expect((await onUpdate.projectUpdate)?.id).toBe(update.id);
     const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
       name: 'Issues only',
       permissions: { work_items: { read: true, create: true, edit: false, delete: false } },

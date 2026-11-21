@@ -192,6 +192,7 @@ export const issueLabelResolvers = {
             description: input.description,
             isGroup: input.isGroup,
             actorUserId: ctx.user.id,
+            id: input.id,
           });
           return labelPayload(created.id);
         } catch (err) {

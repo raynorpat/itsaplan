@@ -291,7 +291,7 @@ export async function getPulse(
     SELECT to_char(s.bucket, '${u.fmt}') AS label,
            COALESCE(count(a.id), 0)::int AS count
     FROM generate_series(${range.start}, ${range.end}, interval '1 ${u.trunc}') AS s(bucket)
-    LEFT JOIN issue_activity a
+    LEFT JOIN feed_entry a
       ON date_trunc('${u.trunc}', a.created_at) = s.bucket
       AND a.issue_id IN (SELECT id FROM issue WHERE team_id = `;
   const tail = `)
