@@ -1,18 +1,9 @@
-import {
-  db,
-  issueLabel,
-  label,
-  labelGroup,
-  projectUpdate,
-  team,
-  user,
-  workflowState,
-} from '@repo/db';
+import { db, issueLabel, label, projectUpdate, team, user, workflowState } from '@repo/db';
 import { asc, eq } from 'drizzle-orm';
 import { toComment } from '../graphql/resolvers/comment';
 import { commentParentUrl, getComment } from '../comments/store';
 import { issueById } from '../graphql/resolvers/issue';
-import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
+import { toIssueLabel } from '../graphql/resolvers/issue-label';
 import { toProject, toUpdate } from '../graphql/resolvers/project';
 import { getProject } from '../projects/store';
 
@@ -74,11 +65,6 @@ export async function commentData(commentId: string): Promise<WebhookData | null
 export async function issueLabelData(labelId: string): Promise<WebhookData | null> {
   const [row] = await db.select().from(label).where(eq(label.id, labelId));
   return row ? toIssueLabel(row) : null;
-}
-
-export async function labelGroupData(groupId: string): Promise<WebhookData | null> {
-  const [row] = await db.select().from(labelGroup).where(eq(labelGroup.id, groupId));
-  return row ? toLabelGroupAsIssueLabel(row) : null;
 }
 
 // All of the project's teams (no visibility filter): webhooks are scoped by team.

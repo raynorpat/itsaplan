@@ -1,4 +1,5 @@
 import { useContext, useState, type ReactNode } from 'react';
+import { applicableLabels } from '@/utils/labels';
 import { toast } from 'sonner';
 import {
   Archive,
@@ -284,14 +285,14 @@ export default function IssueContextMenu({
                 </ContextMenuSubContent>
               </ContextMenuSub>
 
-              {team.labels.length > 0 && (
+              {applicableLabels(team.labels).length > 0 && (
                 <ContextMenuSub>
                   <ContextMenuSubTrigger>
                     <Tag />
                     Labels
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-56">
-                    {team.labels.map((l) => (
+                    {applicableLabels(team.labels).map((l) => (
                       <ContextMenuItem
                         key={l.id}
                         // Keep the menu open so several labels can be toggled in one pass.

@@ -345,23 +345,17 @@ CREATE TABLE "issue_type" (
 --> statement-breakpoint
 CREATE TABLE "label" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"team_id" uuid NOT NULL,
-	"group_id" uuid,
+	"team_id" uuid,
+	"parent_id" uuid,
+	"is_group" boolean DEFAULT false NOT NULL,
 	"name" text NOT NULL,
+	"description" text,
 	"color" text DEFAULT '#6b7280' NOT NULL,
+	"retired_at" timestamp with time zone,
+	"creator_user_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "label_team_id_name_unique" UNIQUE("team_id","name")
-);
---> statement-breakpoint
-CREATE TABLE "label_group" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"team_id" uuid NOT NULL,
-	"name" text NOT NULL,
-	"color" text DEFAULT '#6b7280' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "label_group_team_id_name_unique" UNIQUE("team_id","name")
+	CONSTRAINT "label_team_id_name_unique" UNIQUE NULLS NOT DISTINCT("team_id","name")
 );
 --> statement-breakpoint
 CREATE TABLE "note_board" (
@@ -727,8 +721,8 @@ ALTER TABLE "issue_label" ADD CONSTRAINT "issue_label_issue_id_issue_id_fk" FORE
 ALTER TABLE "issue_label" ADD CONSTRAINT "issue_label_label_id_label_id_fk" FOREIGN KEY ("label_id") REFERENCES "public"."label"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_type" ADD CONSTRAINT "issue_type_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "label" ADD CONSTRAINT "label_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "label" ADD CONSTRAINT "label_group_id_label_group_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."label_group"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "label_group" ADD CONSTRAINT "label_group_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "label" ADD CONSTRAINT "label_parent_id_label_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."label"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "label" ADD CONSTRAINT "label_creator_user_id_user_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "note_board" ADD CONSTRAINT "note_board_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "note_board" ADD CONSTRAINT "note_board_owner_user_id_user_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

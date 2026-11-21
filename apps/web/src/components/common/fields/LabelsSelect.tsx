@@ -2,6 +2,7 @@ import { Tag } from 'lucide-react';
 import type { Label, LabelGroup } from '@/lib/api';
 import { Pill } from './Pill';
 import ReadOnlyPill from './ReadOnlyPill';
+import { applicableLabels, teamOwnGroups } from '@/utils/labels';
 import LabelPicker from './LabelPicker';
 
 export default function LabelsSelect({
@@ -39,8 +40,8 @@ export default function LabelsSelect({
   if (readOnly) return <ReadOnlyPill>{trigger}</ReadOnlyPill>;
   return (
     <LabelPicker
-      labels={labels}
-      groups={groups}
+      labels={applicableLabels(labels)}
+      groups={teamOwnGroups(groups)}
       selected={value}
       onToggle={onToggle}
       trigger={trigger}

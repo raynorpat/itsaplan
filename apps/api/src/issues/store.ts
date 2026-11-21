@@ -4,7 +4,6 @@ import {
   issue,
   issueActivity,
   issueLabel,
-  label,
   workflowState,
   issueType,
   issueFieldValue,
@@ -49,6 +48,7 @@ import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
+import { assertLabelsApplicable } from '../labels/store';
 
 import { getMembership } from '../members/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
@@ -730,24 +730,21 @@ async function assertIssueType(teamId: string, typeId: string | null | undefined
   if (rows.length === 0) throw new HttpError(400, 'Issue type must belong to this team');
 }
 
-// Enforces that every label belongs to the issue's team — the issue_label
-// foreign key only requires the label to exist somewhere. Throws 400 otherwise.
-async function assertIssueLabels(teamId: string, labelIds?: string[]): Promise<void> {
-  const ids = [...new Set(labelIds ?? [])];
-  if (ids.length === 0) return;
-  const rows = await db
-    .select({ id: label.id })
-    .from(label)
-    .where(and(eq(label.teamId, teamId), inArray(label.id, ids)));
-  if (rows.length !== ids.length) throw new HttpError(400, 'Labels must belong to this team');
-}
-
 // The issue's webhook data, or null when no webhook receives Issue events of its
 // team (so nothing is built for a later event).
 async function watchedIssueData(issueId: string, teamId?: string | null) {
   const team = teamId ?? (await getIssueTeamId(issueId));
   if (!team || !(await isWatched('Issue', [team]))) return null;
   return issueData(issueId);
+}
+
+// The ids of the labels on an issue.
+async function issueLabelIds(issueId: string): Promise<string[]> {
+  const rows = await db
+    .select({ labelId: issueLabel.labelId })
+    .from(issueLabel)
+    .where(eq(issueLabel.issueId, issueId));
+  return rows.map((r) => r.labelId);
 }
 
 // Sends an Issue webhook event with the issue's current data. `before` is the
@@ -792,7 +789,7 @@ export async function createIssue(
   );
   await assertIssueType(team.id, input.typeId);
   // Also checked by setIssueLabels below, but here it fails before the issue exists.
-  await assertIssueLabels(team.id, input.labelIds);
+  await assertLabelsApplicable(team.id, input.labelIds ?? []);
   const issueId = await db.transaction(async (tx) => {
     const [seqRow] = await tx
       .update(teamTable)
@@ -908,7 +905,8 @@ export async function updateIssue(
   if (!before) return null;
 
   const stateType = await checkPatch(id, before, patch);
-  if (opts.labelIds) await assertIssueLabels(before.teamId, opts.labelIds);
+  if (opts.labelIds)
+    await assertLabelsApplicable(before.teamId, opts.labelIds, await issueLabelIds(id));
   const beforeData = opts.before ?? (await watchedIssueData(id, before.teamId));
 
   const set: Partial<typeof issue.$inferInsert> = {};
@@ -1025,13 +1023,9 @@ export async function setIssueLabels(
   actorUserId?: string | null,
   sendEvent = true,
 ): Promise<void> {
-  await assertIssueLabels(teamId, labelIds);
+  const before = await issueLabelIds(issueId);
+  await assertLabelsApplicable(teamId, labelIds, before);
   const beforeData = sendEvent ? await watchedIssueData(issueId, teamId) : null;
-  const beforeRows = await db
-    .select({ labelId: issueLabel.labelId })
-    .from(issueLabel)
-    .where(eq(issueLabel.issueId, issueId));
-  const before = beforeRows.map((r) => r.labelId);
   const next = [...new Set(labelIds)];
 
   await db.delete(issueLabel).where(eq(issueLabel.issueId, issueId));
@@ -1107,7 +1101,7 @@ export async function bulkAddLabels(
   actorUserId?: string | null,
 ): Promise<number> {
   const add = [...new Set(labelIds)];
-  await assertIssueLabels(teamId, add);
+  await assertLabelsApplicable(teamId, add);
   const valid = await issuesInTeam(teamId, ids);
   if (add.length === 0 || valid.length === 0) return 0;
 

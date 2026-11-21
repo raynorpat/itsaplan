@@ -122,17 +122,20 @@ export interface IssueType {
 
 export interface Label {
   id: string;
-  teamId: string;
+  // Null for a workspace label (shared by every team; managed over the API).
+  teamId: string | null;
   // The group this label belongs to, or null when ungrouped.
   groupId: string | null;
   name: string;
   color: string;
+  // Set when the label is retired: it stays on issues but is not offered.
+  retiredAt: string | null;
 }
 
 // A container a label can belong to. Labels reference it by groupId.
 export interface LabelGroup {
   id: string;
-  teamId: string;
+  teamId: string | null;
   name: string;
   color: string;
 }

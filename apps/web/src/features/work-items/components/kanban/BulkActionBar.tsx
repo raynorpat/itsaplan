@@ -1,4 +1,5 @@
 'use client';
+import { applicableLabels } from '@/utils/labels';
 
 import { useState } from 'react';
 import { Archive, Bot, CircleDashed, Tag, Target, Trash2, User, X } from 'lucide-react';
@@ -144,9 +145,9 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
                 </BarMenu>
               )}
 
-              {team.labels.length > 0 && (
+              {applicableLabels(team.labels).length > 0 && (
                 <BarMenu icon={<Tag className="size-4" />} label="Labels" disabled={disabled}>
-                  {team.labels.map((l) => (
+                  {applicableLabels(team.labels).map((l) => (
                     <DropdownMenuItem
                       key={l.id}
                       // Keep the menu open so several labels can be added in one pass.

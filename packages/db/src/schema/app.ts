@@ -294,39 +294,26 @@ export const issueType = pgTable(
   (t) => [unique().on(t.teamId, t.name)],
 );
 
-// Optional container a label can belong to. A label has at most one group;
-// deleting a group ungroups its labels (label.groupId -> SET NULL).
-export const labelGroup = pgTable(
-  'label_group',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    color: text('color').notNull().default('#6b7280'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [unique().on(t.teamId, t.name)],
-);
-
 export const label = pgTable(
   'label',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    groupId: uuid('group_id').references(() => labelGroup.id, {
-      onDelete: 'set null',
-    }),
+    // Null for a workspace label, usable on every team's issues.
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'cascade' }),
+    // The group (an is_group label of the same scope) this label belongs to.
+    parentId: uuid('parent_id').references((): AnyPgColumn => label.id, { onDelete: 'set null' }),
+    isGroup: boolean('is_group').notNull().default(false),
     name: text('name').notNull(),
+    description: text('description'),
     color: text('color').notNull().default('#6b7280'),
+    // A retired label stays on the issues that have it but cannot be newly applied.
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique().on(t.teamId, t.name)],
+  // Names are unique per team, and among workspace labels (team_id null).
+  (t) => [unique().on(t.teamId, t.name).nullsNotDistinct()],
 );
 
 // AI agents attached to a team. Each agent is backed by a hidden bot user

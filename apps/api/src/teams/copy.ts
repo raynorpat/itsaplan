@@ -5,7 +5,6 @@ import {
   teamRole,
   workflowState,
   issueType,
-  labelGroup,
   label,
   customField,
   customFieldOption,
@@ -18,7 +17,7 @@ import {
   teamNotificationSetting,
   teamSetting,
 } from '@repo/db';
-import { eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { defaultMemberPermissions } from '../shared/permissions';
 import { DEFAULT_COLUMNS, type TeamRow } from './store';
@@ -35,7 +34,7 @@ import { listAgentSchedules, createAgentSchedule } from '../agent-schedules/stor
 import { nextCronRun } from '../agent-schedules/cron';
 import { getObject } from '../shared/s3';
 import { emitEvent } from '../webhooks/event';
-import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
+import { toIssueLabel } from '../graphql/resolvers/issue-label';
 
 // Which parts of a source team the copy carries over. Each key mirrors a section
 // of the team settings menu. A key set false skips that entity. Some sections
@@ -124,7 +123,6 @@ function normalizeInclude(raw?: Partial<CopyTeamInclude>): CopyTeamInclude {
 // views and actions hold in their filters.
 interface CopyIdMaps {
   column: Map<string, string>;
-  labelGroup: Map<string, string>;
   label: Map<string, string>;
   type: Map<string, string>;
   field: Map<string, string>;
@@ -260,7 +258,6 @@ export async function copyTeam(
 
   const maps: CopyIdMaps = {
     column: new Map(),
-    labelGroup: new Map(),
     label: new Map(),
     type: new Map(),
     field: new Map(),
@@ -391,29 +388,25 @@ export async function copyTeam(
     }
 
     if (inc.labels) {
-      // Label groups are copied before labels so each copied label's group_id can be
-      // remapped to the new group.
-      const labelGroupRows = await tx
+      // The team's labels, groups first so each copied label's parent_id can be
+      // remapped to the new group. Workspace labels are shared and not copied.
+      const labelRows = await tx
         .select()
-        .from(labelGroup)
-        .where(eq(labelGroup.teamId, sourceTeamId));
-      for (const g of labelGroupRows) {
-        const [created] = await tx
-          .insert(labelGroup)
-          .values({ teamId: proj.id, name: g.name, color: g.color })
-          .returning({ id: labelGroup.id });
-        maps.labelGroup.set(g.id, created.id);
-      }
-
-      const labelRows = await tx.select().from(label).where(eq(label.teamId, sourceTeamId));
+        .from(label)
+        .where(eq(label.teamId, sourceTeamId))
+        .orderBy(desc(label.isGroup), label.name);
       for (const l of labelRows) {
         const [created] = await tx
           .insert(label)
           .values({
             teamId: proj.id,
-            groupId: l.groupId != null ? (maps.labelGroup.get(l.groupId) ?? null) : null,
+            parentId: l.parentId != null ? (maps.label.get(l.parentId) ?? null) : null,
+            isGroup: l.isGroup,
             name: l.name,
+            description: l.description,
             color: l.color,
+            retiredAt: l.retiredAt,
+            creatorUserId: ownerId,
           })
           .returning({ id: label.id });
         maps.label.set(l.id, created.id);
@@ -704,12 +697,11 @@ export async function copyTeam(
 // The copied team's labels are new IssueLabels; all-teams webhooks receive their
 // creates, groups first (as the copy inserted them).
 async function emitCopiedLabels(teamId: string, actorUserId: string): Promise<void> {
-  const groups = await db.select().from(labelGroup).where(eq(labelGroup.teamId, teamId));
-  const labels = await db.select().from(label).where(eq(label.teamId, teamId));
-  const created = [
-    ...groups.map((g) => toLabelGroupAsIssueLabel(g)),
-    ...labels.map((l) => toIssueLabel(l)),
-  ];
-  for (const data of created)
+  const labels = await db
+    .select()
+    .from(label)
+    .where(eq(label.teamId, teamId))
+    .orderBy(desc(label.isGroup), label.name);
+  for (const data of labels.map(toIssueLabel))
     await emitEvent({ type: 'IssueLabel', action: 'create', teamIds: [teamId], actorUserId, data });
 }

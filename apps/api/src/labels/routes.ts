@@ -21,16 +21,18 @@ const groupParams = t.Object({ teamKey: t.String(), groupId: t.String({ format: 
 // A label DTO (LabelRow from the store).
 const LabelResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
+  // Null for a workspace label.
+  teamId: t.Nullable(t.String({ format: 'uuid' })),
   groupId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
+  retiredAt: t.Nullable(t.String()),
 });
 
 // A label group DTO (LabelGroupRow from the store).
 const LabelGroupResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
+  teamId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
 });

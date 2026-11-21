@@ -26,7 +26,15 @@ export default function ProjectHeader({ project, team }: { project: Project; tea
   // issue-label shape (no groups).
   const projectLabels = (useProjectLabelsQuery().data ?? [])
     .filter((l) => !l.isGroup)
-    .map((l) => ({ id: l.id, teamId: '', groupId: null, name: l.name, color: l.color }));
+    // Shaped as team labels so LabelsSelect offers them (it offers labels with a team).
+    .map((l) => ({
+      id: l.id,
+      teamId: '',
+      groupId: null,
+      name: l.name,
+      color: l.color,
+      retiredAt: null,
+    }));
 
   const toggleLabel = (labelId: string) => {
     const next = project.labelIds.includes(labelId)

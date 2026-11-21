@@ -116,16 +116,18 @@ const IssueTypeResponse = t.Object({
 // A label (LabelRow from labels/store).
 const LabelResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
+  // Null for a workspace label.
+  teamId: t.Nullable(t.String({ format: 'uuid' })),
   groupId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
+  retiredAt: t.Nullable(t.String()),
 });
 
 // A label group (LabelGroupRow from labels/store).
 const LabelGroupResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
+  teamId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
 });

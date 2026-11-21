@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { applicableLabels } from '@/utils/labels';
 import { Plus, X } from 'lucide-react';
 import type { ActionEffect, TeamDetail } from '@/lib/api';
 import {
@@ -81,7 +82,7 @@ function EffectValue({
         onChange(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
       return (
         <LabelsSelect
-          labels={team.labels}
+          labels={applicableLabels(team.labels)}
           groups={team.labelGroups}
           value={ids}
           onToggle={toggle}

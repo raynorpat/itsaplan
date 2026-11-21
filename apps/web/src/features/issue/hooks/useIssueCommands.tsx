@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { applicableLabels } from '@/utils/labels';
 import { toast } from 'sonner';
 import {
   Archive,
@@ -255,7 +256,7 @@ export function useIssueCommands(
       },
     });
 
-    if (team.labels.length > 0) {
+    if (applicableLabels(team.labels).length > 0) {
       items.push({
         id: 'issue.labels',
         label: 'Toggle labels',
@@ -264,7 +265,7 @@ export function useIssueCommands(
         submenu: {
           heading: 'Toggle labels',
           placeholder: 'Toggle a label…',
-          items: team.labels.map((l) => ({
+          items: applicableLabels(team.labels).map((l) => ({
             id: `issue.labels.${l.id}`,
             label: l.name,
             icon: colorDot(l.color),

@@ -1,5 +1,5 @@
 {
-  "id": "03823e21-65b8-4d00-90f3-1e8019447709",
+  "id": "40cdb477-82ac-49aa-937f-a24290d18407",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3272,13 +3272,20 @@
           "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "group_id": {
-          "name": "group_id",
+        "parent_id": {
+          "name": "parent_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_group": {
+          "name": "is_group",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "name": {
           "name": "name",
@@ -3286,12 +3293,30 @@
           "primaryKey": false,
           "notNull": true
         },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "color": {
           "name": "color",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'#6b7280'"
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_user_id": {
+          "name": "creator_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -3323,12 +3348,25 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "label_group_id_label_group_id_fk": {
-          "name": "label_group_id_label_group_id_fk",
+        "label_parent_id_label_id_fk": {
+          "name": "label_parent_id_label_id_fk",
           "tableFrom": "label",
-          "tableTo": "label_group",
+          "tableTo": "label",
           "columnsFrom": [
-            "group_id"
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "label_creator_user_id_user_id_fk": {
+          "name": "label_creator_user_id_user_id_fk",
+          "tableFrom": "label",
+          "tableTo": "user",
+          "columnsFrom": [
+            "creator_user_id"
           ],
           "columnsTo": [
             "id"
@@ -3341,83 +3379,7 @@
       "uniqueConstraints": {
         "label_team_id_name_unique": {
           "name": "label_team_id_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "team_id",
-            "name"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.label_group": {
-      "name": "label_group",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "color": {
-          "name": "color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'#6b7280'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "label_group_team_id_team_id_fk": {
-          "name": "label_group_team_id_team_id_fk",
-          "tableFrom": "label_group",
-          "tableTo": "team",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "label_group_team_id_name_unique": {
-          "name": "label_group_team_id_name_unique",
-          "nullsNotDistinct": false,
+          "nullsNotDistinct": true,
           "columns": [
             "team_id",
             "name"

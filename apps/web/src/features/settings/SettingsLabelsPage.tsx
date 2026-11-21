@@ -1,4 +1,5 @@
 'use client';
+import { teamOwnGroups, teamOwnLabels } from '@/utils/labels';
 
 import { useShell } from '@/context/shellContext';
 import { settingsSection } from '@/utils/settingsSections';
@@ -24,8 +25,8 @@ export default function SettingsLabelsPage() {
         <LabelsToolbar
           teamKey={team.team.key}
           resource={section.resource}
-          groups={team.labelGroups}
-          labels={team.labels}
+          groups={teamOwnGroups(team.labelGroups)}
+          labels={teamOwnLabels(team.labels)}
         />
       }
     >

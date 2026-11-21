@@ -32,3 +32,14 @@ export function groupLabels(labels: Label[], groups: LabelGroup[]): LabelSection
   if (ungrouped.length) sections.push({ group: null, labels: ungrouped });
   return sections;
 }
+
+// The team's own labels and groups: the team detail also lists workspace labels
+// (teamId null), which the web shows on issues but does not manage.
+export const teamOwnLabels = (labels: Label[]) => labels.filter((l) => l.teamId !== null);
+export const teamOwnGroups = (groups: LabelGroup[]) => groups.filter((g) => g.teamId !== null);
+
+// The labels the web offers to apply: the team's own labels that are not retired.
+// Labels already on an issue that are not offered (workspace or retired) stay on it,
+// since the pickers add and remove one label at a time.
+export const applicableLabels = (labels: Label[]) =>
+  teamOwnLabels(labels).filter((l) => !l.retiredAt);
