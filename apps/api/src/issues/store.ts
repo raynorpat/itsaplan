@@ -648,9 +648,6 @@ async function assertAssignments(
   }
 }
 
-// Enforces that a linked project belongs to the same team. Only checks when
-// set to a non-null value (clearing the link is always allowed). Throws 400
-// otherwise.
 // Enforces that a milestone belongs to the issue's (resulting) project. Only
 // checks when set to a non-null value. Throws 400 otherwise.
 async function assertMilestone(
@@ -836,6 +833,31 @@ export interface IssuePatch {
   dueDate?: string | null;
 }
 
+// Runs every check updateIssue makes before writing. Throws 400 on a rule
+// violation; returns the target state's type, or null when the state is unchanged.
+async function checkPatch(
+  id: string,
+  before: { teamId: string; projectId: string | null },
+  patch: IssuePatch,
+): Promise<StateType | null> {
+  await assertAssignments(before.teamId, patch);
+  await assertProject(before.teamId, patch.projectId);
+  const projectAfter = patch.projectId !== undefined ? patch.projectId : before.projectId;
+  await assertMilestone(projectAfter, patch.projectMilestoneId);
+  const stateType = await assertColumn(before.teamId, patch.stateId);
+  await assertParent(before.teamId, id, patch.parentId);
+  await assertIssueType(before.teamId, patch.typeId);
+  return stateType;
+}
+
+// Checks a patch against an issue without writing, so a batch can reject the
+// whole call before its first update. Throws 404 when the issue does not exist.
+export async function validateIssuePatch(id: string, patch: IssuePatch): Promise<void> {
+  const before = await loadSnapshot(id);
+  if (!before) throw new HttpError(404, 'Issue not found');
+  await checkPatch(id, before, patch);
+}
+
 export async function updateIssue(
   id: string,
   patch: IssuePatch,
@@ -844,13 +866,7 @@ export async function updateIssue(
   const before = await loadSnapshot(id);
   if (!before) return null;
 
-  await assertAssignments(before.teamId, patch);
-  await assertProject(before.teamId, patch.projectId);
-  const projectAfter = patch.projectId !== undefined ? patch.projectId : before.projectId;
-  await assertMilestone(projectAfter, patch.projectMilestoneId);
-  const stateType = await assertColumn(before.teamId, patch.stateId);
-  await assertParent(before.teamId, id, patch.parentId);
-  await assertIssueType(before.teamId, patch.typeId);
+  const stateType = await checkPatch(id, before, patch);
 
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;

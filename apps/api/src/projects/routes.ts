@@ -7,7 +7,7 @@ import { requireUser, type AuthUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
 import type { PermissionAction } from '../shared/permissions';
 import { getTeamByKey } from '../teams/store';
-import { assertProjectAccess, teamsGranting } from './access';
+import { assertProjectAccess, memberTeamIds, teamsGranting } from './access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
@@ -259,7 +259,10 @@ export const projectRoutes = new Elysia({
       const { teamIds, ...input } = body;
       const created = await createProject(teamIds, input, actor);
       set.status = 201;
-      return (await getProject(created.id, await teamsGranting(actor, 'read')))!;
+      return (await getProject(
+        created.id,
+        await teamsGranting(actor, 'read', { mcpOnly: isMcpRequest(request.headers) }),
+      ))!;
     },
     {
       body: t.Object({
@@ -392,11 +395,12 @@ export const projectRoutes = new Elysia({
 
   .put(
     '/projects/:projectId/teams',
-    async ({ params, body, user, access }) => {
+    async ({ params, body, user, access, request }) => {
       const actor = requireUser(user).id;
-      const editable = await teamsGranting(actor, 'edit');
+      const mcpOnly = isMcpRequest(request.headers);
+      const editable = await teamsGranting(actor, 'edit', { mcpOnly });
       await setProjectTeams(params.projectId, access.readableTeamIds, editable, body.teamIds);
-      return (await getProject(params.projectId, await teamsGranting(actor, 'read')))!;
+      return (await getProject(params.projectId, await teamsGranting(actor, 'read', { mcpOnly })))!;
     },
     {
       params: projectParams,
@@ -544,7 +548,7 @@ export const projectRoutes = new Elysia({
 
   .get(
     '/projects/:projectId/feed',
-    async ({ params, query }) => {
+    async ({ params, query, user, request }) => {
       const limit = query.limit != null ? Number(query.limit) : 25;
       let before = null;
       if (query.cursor) {
@@ -554,7 +558,10 @@ export const projectRoutes = new Elysia({
           // Ignore a malformed cursor and serve the first page.
         }
       }
-      return listFeed(params.projectId, { before, limit });
+      const issueTeamIds = await memberTeamIds(requireUser(user).id, {
+        mcpOnly: isMcpRequest(request.headers),
+      });
+      return listFeed(params.projectId, issueTeamIds, { before, limit });
     },
     {
       params: projectParams,

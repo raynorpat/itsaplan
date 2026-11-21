@@ -157,11 +157,11 @@ export const projectMutationResolvers = {
         onlySupported(input, ['teamIds', ...PROJECT_FIELDS], 'input');
         const found = await findProject(id, ctx);
         const access = await projectAccess(found.id, ctx, 'edit');
+        const patch = toProjectPatch(input);
         if (input.teamIds !== undefined) {
           const editable = await teamsGranting(ctx.user.id, 'edit');
           await setProjectTeams(found.id, access.readableTeamIds, editable, input.teamIds);
         }
-        const patch = toProjectPatch(input);
         if (Object.keys(patch).length) await updateProject(found.id, patch, ctx.user.id);
         return {
           success: true,

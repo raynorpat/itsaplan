@@ -10,7 +10,9 @@ export default function IssueMilestoneName({
   projectId: string;
   milestoneId: string;
 }) {
-  const { data } = useProjectMilestonesQuery(projectId);
+  const { data, isPending } = useProjectMilestonesQuery(projectId);
   const name = data?.find((m) => m.id === milestoneId)?.name;
-  return <span className="truncate text-sm">{name ?? '…'}</span>;
+  let label = name;
+  if (!label) label = isPending ? '…' : 'Milestone'; // an error: the viewer cannot read the project
+  return <span className="truncate text-sm">{label}</span>;
 }

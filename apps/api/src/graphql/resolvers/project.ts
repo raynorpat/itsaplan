@@ -76,7 +76,7 @@ async function listProjects(where: SQL | undefined, args: ConnectionArgs, ctx: G
       inArray(project.id, projectsInTeams(teams)),
       where,
       args.includeArchived ? undefined : isNull(project.archivedAt),
-      projectFilterSql(args.filter, ctx.user.id),
+      projectFilterSql(args.filter, ctx.user.id, teams),
     ),
     args,
     teams,
@@ -386,13 +386,20 @@ export const projectResolvers = {
   Issue: {
     project: async (i: { projectId: string | null }, _: unknown, ctx: GraphQLContext) =>
       i.projectId ? findProject(i.projectId, ctx).catch(() => null) : null,
-    projectMilestone: async (i: { projectMilestoneId: string | null }) => {
+    // Null, like Issue.project, when the viewer cannot see the milestone's project.
+    projectMilestone: async (
+      i: { projectMilestoneId: string | null },
+      _: unknown,
+      ctx: GraphQLContext,
+    ) => {
       if (!i.projectMilestoneId) return null;
-      const [row] = await db
+      const rows = await db
         .select()
         .from(projectMilestone)
         .where(eq(projectMilestone.id, i.projectMilestoneId));
-      return row ? toMilestone(row) : null;
+      return visibleItem(rows, ctx, 'Project milestone', i.projectMilestoneId)
+        .then(toMilestone)
+        .catch(() => null);
     },
   },
 };

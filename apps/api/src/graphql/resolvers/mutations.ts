@@ -6,6 +6,7 @@ import {
   deleteIssue,
   restoreIssue,
   updateIssue,
+  validateIssuePatch,
   type IssuePatch,
 } from '../../issues/store';
 import { archiveState, createState, updateState } from '../../states/store';
@@ -193,9 +194,10 @@ export const mutationResolvers = {
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
       }),
 
-    // Linear runs the batch in one transaction. Here every issue is resolved and
-    // permission-checked before the first write, so an invisible or forbidden id
-    // fails the call with nothing changed; the writes themselves are per issue.
+    // Linear runs the batch in one transaction. Here every issue is resolved,
+    // permission-checked and validated against the patch before the first write,
+    // so an invalid id or input fails the call with nothing changed; the writes
+    // themselves are per issue.
     issueBatchUpdate: async (
       _: unknown,
       { ids, input }: { ids: string[]; input: IssueInput },
@@ -213,6 +215,7 @@ export const mutationResolvers = {
           rows.push(row);
         }
         const patch = toPatch(input);
+        for (const row of rows) await validateIssuePatch(row.id, patch);
         for (const row of rows) await updateIssue(row.id, patch, ctx.user.id);
         const issues = [];
         for (const row of rows) issues.push(await issueById(row.id));

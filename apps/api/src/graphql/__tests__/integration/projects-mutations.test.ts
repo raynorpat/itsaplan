@@ -155,6 +155,36 @@ describe('graphql project mutations', () => {
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
   });
 
+  it('validates the whole projectUpdate input before changing teams', async () => {
+    const { owner, mkt, ops, client } = await setup();
+    const project = (await (
+      await client.createProject({ name: 'P', teamIds: [mkt.team.id] })
+    ).project)!;
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectUpdate(id: "${project.id}", input: { teamIds: ["${mkt.team.id}", "${ops.team.id}"], priority: 9 }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    expect((await (await client.project(project.id)).teams()).nodes.map((t) => t.key)).toEqual([
+      'MKT',
+    ]);
+  });
+
+  it('changes nothing when one issue of a batch cannot join the project', async () => {
+    const { owner, mkt, ops, client } = await setup();
+    const project = (await (
+      await client.createProject({ name: 'MKT only', teamIds: [mkt.team.id] })
+    ).project)!;
+    const a = (await (await client.createIssue({ teamId: mkt.team.id, title: 'a' })).issue)!;
+    const b = (await (await client.createIssue({ teamId: ops.team.id, title: 'b' })).issue)!;
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { issueBatchUpdate(ids: ["${a.id}", "${b.id}"], input: { projectId: "${project.id}" }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    expect(await (await client.issue(a.id)).project).toBeUndefined();
+  });
+
   it('leaves project status mutations not implemented', async () => {
     const { owner } = await setup();
     const res = await gql(

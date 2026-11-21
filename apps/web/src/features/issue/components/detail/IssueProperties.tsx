@@ -135,7 +135,8 @@ export default function IssueProperties({
         </PropertyRow>
       )}
 
-      {issue.project && issue.projectMilestoneId && (
+      {/* Hidden read-only: the milestone name needs the authenticated milestones query. */}
+      {!readOnly && issue.project && issue.projectMilestoneId && (
         <PropertyRow label="Milestone">
           <IssueMilestoneName projectId={issue.project.id} milestoneId={issue.projectMilestoneId} />
         </PropertyRow>

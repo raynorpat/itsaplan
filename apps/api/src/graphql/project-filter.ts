@@ -1,5 +1,5 @@
 import { db, project, projectStatus, projectTeam, team, user } from '@repo/db';
-import { eq, inArray, not, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, not, sql, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { gqlError } from './errors';
 import { teamFilter } from './resolvers/team';
@@ -9,13 +9,21 @@ import { teamFilter } from './resolvers/team';
 // startDate, targetDate, createdAt, updatedAt, accessibleTeams (some), and / or.
 // Anything else is INVALID_INPUT.
 
+const NO_ID = '00000000-0000-0000-0000-000000000000';
+
 const statusFilter: FieldHandlers = {
   id: (v, p) => compareId(projectStatus.id, v, p),
   name: (v, p) => compare(projectStatus.name, v, p),
   type: (v, p) => compare(projectStatus.type, v, p),
 };
 
-export function projectFilterSql(filter: unknown, viewerId: string): SQL | undefined {
+// accessibleTeams matches only teams in `readableTeamIds`, so a filter cannot
+// reveal that a project is in a team the viewer cannot access.
+export function projectFilterSql(
+  filter: unknown,
+  viewerId: string,
+  readableTeamIds: string[],
+): SQL | undefined {
   const handlers: FieldHandlers = {
     id: (v, p) => compareId(project.id, v, p),
     name: (v, p) => compare(project.name, v, p),
@@ -60,7 +68,12 @@ export function projectFilterSql(filter: unknown, viewerId: string): SQL | undef
           .select({ id: projectTeam.projectId })
           .from(projectTeam)
           .innerJoin(team, eq(team.id, projectTeam.teamId))
-          .where(filterSql(some, teamFilter, `${p}.some`)),
+          .where(
+            and(
+              inArray(projectTeam.teamId, readableTeamIds.length ? readableTeamIds : [NO_ID]),
+              filterSql(some, teamFilter, `${p}.some`),
+            ),
+          ),
       );
     },
   };

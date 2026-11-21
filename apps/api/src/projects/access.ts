@@ -46,6 +46,19 @@ export async function teamsGranting(
     .map((r) => r.teamId);
 }
 
+// The ids of the teams the user is a member of (the teams whose issues they see).
+export async function memberTeamIds(
+  userId: string,
+  opts: { mcpOnly?: boolean } = {},
+): Promise<string[]> {
+  const rows = await db
+    .select({ teamId: teamMember.teamId, mcpEnabled: team.mcpEnabled })
+    .from(teamMember)
+    .innerJoin(team, eq(team.id, teamMember.teamId))
+    .where(eq(teamMember.userId, userId));
+  return rows.filter((r) => !opts.mcpOnly || r.mcpEnabled).map((r) => r.teamId);
+}
+
 // The ids of the teams a project belongs to (empty when it does not exist).
 export async function projectTeamIds(projectId: string): Promise<string[]> {
   const rows = await db

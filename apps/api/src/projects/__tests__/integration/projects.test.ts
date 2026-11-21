@@ -543,6 +543,38 @@ describe('projects', () => {
       expect(kept.data!.teams.map((t) => t.key)).toEqual(['MKT']);
     });
 
+    it("leaves a hidden team's issues out of the project feed", async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
+      const opsState = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!.states[0].id;
+      const secret = (
+        await asOwner
+          .teams({ teamKey: 'OPS' })
+          .issues.post({ stateId: opsState, title: 'Secret OPS issue', projectId: project.id })
+      ).data!;
+      await asOwner.issues({ issueId: secret.id }).comments.post({ body: 'confidential' });
+      const member = await addMember(asOwner, 'MKT');
+
+      const feed = await member.api.projects({ projectId: project.id }).feed.get();
+      expect(feed.data!.items.filter((i) => i.issueId === secret.id)).toHaveLength(0);
+      const ownerFeed = await asOwner.projects({ projectId: project.id }).feed.get();
+      expect(ownerFeed.data!.items.some((i) => i.issueId === secret.id)).toBe(true);
+    });
+
+    it('over MCP, adds only teams with MCP enabled and lists only those teams', async () => {
+      const { asOwner, teamId } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      await asOwner.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
+      const project = (await createProject(asOwner, { name: 'P' })).data!;
+      const opsId = await teamIdOf(asOwner, 'OPS');
+      const mcp = { headers: { 'x-mcp-loopback': '1' } };
+      const res = await asOwner
+        .projects({ projectId: project.id })
+        .teams.put({ teamIds: [teamId, opsId] }, mcp);
+      expect(res.status).toBe(403);
+    });
+
     it('requires the lead to be a member of one of the teams', async () => {
       const { asOwner } = await setup();
       await asOwner.teams.post({ key: 'OPS', name: 'Operations' });

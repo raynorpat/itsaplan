@@ -41,9 +41,15 @@ export interface FeedPage {
   nextCursor: FeedCursor | null;
 }
 
-// One page of an project's feed, newest first. limit is clamped to 1..100.
+// An id no row has, for `IN` lists that would otherwise be empty.
+const NO_ID = '00000000-0000-0000-0000-000000000000';
+
+// One page of a project's feed, newest first: the project's own activity and the
+// activity of its issues in `issueTeamIds` (the teams the viewer can see).
+// limit is clamped to 1..100.
 export async function listFeed(
   projectId: string,
+  issueTeamIds: string[],
   opts: { before?: FeedCursor | null; limit?: number } = {},
 ): Promise<FeedPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 100);
@@ -51,7 +57,12 @@ export async function listFeed(
   const linkedIssueIds = db
     .select({ id: issue.id })
     .from(issue)
-    .where(eq(issue.projectId, projectId));
+    .where(
+      and(
+        eq(issue.projectId, projectId),
+        inArray(issue.teamId, issueTeamIds.length ? issueTeamIds : [NO_ID]),
+      ),
+    );
   const rows = await db
     .select({
       id: issueActivity.id,

@@ -122,6 +122,49 @@ describe('graphql project queries', () => {
     expect((await client.projectLabels()).nodes.map((l) => l.name)).toEqual(['Q3']);
   });
 
+  it("hides an issue's milestone when the viewer cannot see the project", async () => {
+    const { asOwner, mkt } = await setup();
+    const rest = await createProject(asOwner, [mkt.team.id]);
+    const milestone = await createMilestone(rest.id, { name: 'Beta' });
+    const issue = (
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({
+        stateId: mkt.states[0].id,
+        title: 'Task',
+        projectId: rest.id,
+        projectMilestoneId: milestone.id,
+      })
+    ).data!;
+    const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
+      name: 'Issues only',
+      permissions: { work_items: { read: true, create: false, edit: false, delete: false } },
+    });
+    const member = await signUpTestUser();
+    const invite = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
+    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    const res = await gql(
+      { cookie: member.cookie },
+      `{ issue(id: "${issue.id}") { project { id } projectMilestone { id } } }`,
+    );
+    expect(res.body.data).toEqual({ issue: { project: null, projectMilestone: null } });
+  });
+
+  it('does not match a project on a team the viewer cannot access', async () => {
+    const { asOwner, mkt, ops } = await setup();
+    await createProject(asOwner, [mkt.team.id, ops.team.id]);
+    const member = await signUpTestUser();
+    const invite = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: member.email, role: 'member' });
+    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    const res = await gql(
+      { cookie: member.cookie },
+      '{ projects(filter: { accessibleTeams: { some: { key: { eq: "OPS" } } } }) { nodes { id } } }',
+    );
+    expect(res.body.data).toEqual({ projects: { nodes: [] } });
+  });
+
   it('hides a project from a non-member', async () => {
     const { asOwner, mkt } = await setup();
     const rest = await createProject(asOwner, [mkt.team.id]);
