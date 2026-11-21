@@ -23,7 +23,7 @@ const eventsSchema = t.Array(eventType, { minItems: 1 });
 // A webhook subscription DTO (WebhookRow from the store).
 const WebhookResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   url: t.String(),
   secret: t.String(),
   events: t.Array(eventType),
@@ -108,19 +108,19 @@ function validateWebhookUrl(raw: string): string {
 export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['Webhooks'] } })
   .use(authContext)
   .use(guards)
-  // Guard for routes that address a webhook by its own id (no :projectKey in the
+  // Guard for routes that address a webhook by its own id (no :teamKey in the
   // path). Set `webhook: "<action>"` in the route options.
   .macro({
     webhook: entityGuard(
       'webhooks',
       'Webhook not found',
-      async (p) => (await getWebhook(p.webhookId))?.projectId ?? null,
+      async (p) => (await getWebhook(p.webhookId))?.teamId ?? null,
     ),
   })
   .get(
-    '/projects/:projectKey/webhooks',
-    async ({ project }) => {
-      return listWebhooks(project.id);
+    '/teams/:teamKey/webhooks',
+    async ({ team }) => {
+      return listWebhooks(team.id);
     },
     {
       permission: ['webhooks', 'read'],
@@ -130,16 +130,16 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "List a project's webhooks", ...mcpTool('list_webhooks') },
+      detail: { summary: "List a team's webhooks", ...mcpTool('list_webhooks') },
     },
   )
 
   .post(
-    '/projects/:projectKey/webhooks',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/webhooks',
+    async ({ team, body, set }) => {
       set.status = 201;
       return createWebhook({
-        projectId: project.id,
+        teamId: team.id,
         url: validateWebhookUrl(body.url),
         events: body.events,
         isActive: body.isActive,

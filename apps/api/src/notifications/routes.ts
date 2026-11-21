@@ -37,9 +37,9 @@ const NotificationResponse = t.Object({
   issueSeq: t.Number(),
   issueTitle: t.String(),
   issueStateType: t.String(),
-  projectId: t.String({ format: 'uuid' }),
-  projectKey: t.String(),
-  projectName: t.String(),
+  teamId: t.String({ format: 'uuid' }),
+  teamKey: t.String(),
+  teamName: t.String(),
 });
 
 const NotificationPageResponse = t.Object({
@@ -49,8 +49,8 @@ const NotificationPageResponse = t.Object({
 
 const idParams = t.Object({ id: t.String({ format: 'uuid' }) });
 
-// Inbox: the session user's own notifications across every project they are a
-// member of. Every route is scoped to that user (no project permission needed to
+// Inbox: the session user's own notifications across every team they are a
+// member of. Every route is scoped to that user (no team permission needed to
 // read your own inbox); single-notification actions only touch a row that belongs
 // to the user.
 export const notificationRoutes = new Elysia({
@@ -80,7 +80,7 @@ export const notificationRoutes = new Elysia({
         if (types.length) filters.types = types;
       }
       if (query.from) filters.fromUserId = query.from;
-      if (query.projectId) filters.projectId = query.projectId;
+      if (query.teamId) filters.teamId = query.teamId;
       filters.includeRead = query.includeRead !== 'false';
       filters.includeSnoozed = query.includeSnoozed === 'true';
       return listNotifications(userId, { before, limit, filters });
@@ -93,7 +93,7 @@ export const notificationRoutes = new Elysia({
           t.String({ description: 'Comma-separated notification types to include.' }),
         ),
         from: t.Optional(t.String({ description: 'Filter by actor user id.' })),
-        projectId: t.Optional(t.String({ description: 'Filter by project id.' })),
+        teamId: t.Optional(t.String({ description: 'Filter by team id.' })),
         includeRead: t.Optional(t.String({ description: "'false' hides read. Default true." })),
         includeSnoozed: t.Optional(
           t.String({ description: "'true' shows snoozed. Default false." }),
@@ -110,16 +110,16 @@ export const notificationRoutes = new Elysia({
     '/notifications/rev',
     async ({ user, query }) => {
       const userId = requireUser(user).id;
-      const projectId = query.projectId ? query.projectId : undefined;
+      const teamId = query.teamId ? query.teamId : undefined;
       const [rev, unread] = await Promise.all([
-        notificationsRev(userId, projectId),
-        unreadCount(userId, projectId),
+        notificationsRev(userId, teamId),
+        unreadCount(userId, teamId),
       ]);
       return { rev, unread };
     },
     {
       query: t.Object({
-        projectId: t.Optional(t.String({ description: 'Scope the marker to one project.' })),
+        teamId: t.Optional(t.String({ description: 'Scope the marker to one team.' })),
       }),
       response: { 200: t.Object({ rev: t.String(), unread: t.Number() }), 401: ErrorResponse },
       detail: { summary: 'Get inbox revision and unread count' },
@@ -130,11 +130,11 @@ export const notificationRoutes = new Elysia({
     '/notifications/read-all',
     async ({ user, body }) => {
       const userId = requireUser(user).id;
-      const count = await markAllRead(userId, body?.projectId ?? undefined);
+      const count = await markAllRead(userId, body?.teamId ?? undefined);
       return { count };
     },
     {
-      body: t.Optional(t.Object({ projectId: t.Optional(t.String({ format: 'uuid' })) })),
+      body: t.Optional(t.Object({ teamId: t.Optional(t.String({ format: 'uuid' })) })),
       response: { 200: t.Object({ count: t.Number() }), 401: ErrorResponse },
       detail: { summary: 'Mark all notifications read' },
     },
@@ -145,8 +145,8 @@ export const notificationRoutes = new Elysia({
     async ({ user, query }) => {
       const userId = requireUser(user).id;
       const scope = (query.scope ?? 'read') as DeleteScope;
-      const projectId = query.projectId ? query.projectId : undefined;
-      const count = await deleteNotifications(userId, scope, projectId);
+      const teamId = query.teamId ? query.teamId : undefined;
+      const count = await deleteNotifications(userId, scope, teamId);
       return { count };
     },
     {
@@ -156,7 +156,7 @@ export const notificationRoutes = new Elysia({
             description: 'Which notifications to delete. Default read.',
           }),
         ),
-        projectId: t.Optional(t.String({ description: 'Scope the delete to one project.' })),
+        teamId: t.Optional(t.String({ description: 'Scope the delete to one team.' })),
       }),
       response: { 200: t.Object({ count: t.Number() }), 401: ErrorResponse },
       detail: { summary: 'Delete inbox notifications' },

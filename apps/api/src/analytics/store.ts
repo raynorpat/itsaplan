@@ -1,7 +1,7 @@
 import {
   db,
   issue,
-  projectColumn,
+  workflowState,
   issueActivity,
   issueType,
   user,
@@ -13,21 +13,21 @@ import {
 import { and, desc, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
-// Read-only project metrics for the dashboards feature. Every figure is derived
-// from the existing issue / project_column / issue_activity tables — there is no
+// Read-only team metrics for the dashboards feature. Every figure is derived
+// from the existing issue / workflow_state / issue_activity tables — there is no
 // analytics storage. This module is the only place in the API that uses GROUP BY
 // and date_trunc; counts are cast to int (Postgres count() returns bigint, which
 // would otherwise arrive as a string).
 
-// The names of a project's completed-type columns. "Closed" work is detected in
+// The names of a team's completed-type columns. "Closed" work is detected in
 // the activity log by matching a status change's to_text (a column-name snapshot)
 // against these. Correct until a completed column is renamed; acceptable for the
 // rolling windows the dashboards show. Historical CFD reconstruction is out of scope.
-async function completedColumnNames(projectId: string): Promise<string[]> {
+async function completedColumnNames(teamId: string): Promise<string[]> {
   const rows = await db
-    .select({ name: projectColumn.name })
-    .from(projectColumn)
-    .where(and(eq(projectColumn.projectId, projectId), eq(projectColumn.stateType, 'completed')));
+    .select({ name: workflowState.name })
+    .from(workflowState)
+    .where(and(eq(workflowState.teamId, teamId), eq(workflowState.stateType, 'completed')));
   return rows.map((r) => r.name);
 }
 
@@ -42,17 +42,17 @@ export interface StatsDto {
   closedLast7d: number;
 }
 
-const OPEN_STATES = sql`${projectColumn.stateType} NOT IN ('completed', 'canceled')`;
+const OPEN_STATES = sql`${workflowState.stateType} NOT IN ('completed', 'canceled')`;
 
-export async function getStats(projectId: string): Promise<StatsDto> {
+export async function getStats(teamId: string): Promise<StatsDto> {
   // One row per state type with its issue count; the open/backlog/in-progress
   // figures are derived from it.
   const stateRows = await db
-    .select({ stateType: projectColumn.stateType, count: sql<number>`count(*)::int` })
+    .select({ stateType: workflowState.stateType, count: sql<number>`count(*)::int` })
     .from(issue)
-    .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
-    .where(eq(issue.projectId, projectId))
-    .groupBy(projectColumn.stateType);
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(eq(issue.teamId, teamId))
+    .groupBy(workflowState.stateType);
 
   let open = 0;
   let inProgress = 0;
@@ -66,16 +66,16 @@ export async function getStats(projectId: string): Promise<StatsDto> {
   const [{ overdue }] = await db
     .select({ overdue: sql<number>`count(*)::int` })
     .from(issue)
-    .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
-    .where(and(eq(issue.projectId, projectId), sql`${issue.dueDate} < CURRENT_DATE`, OPEN_STATES));
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(and(eq(issue.teamId, teamId), sql`${issue.dueDate} < CURRENT_DATE`, OPEN_STATES));
 
   const [{ unassigned }] = await db
     .select({ unassigned: sql<number>`count(*)::int` })
     .from(issue)
-    .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
-    .where(and(eq(issue.projectId, projectId), isNull(issue.assigneeUserId), OPEN_STATES));
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(and(eq(issue.teamId, teamId), isNull(issue.assigneeUserId), OPEN_STATES));
 
-  const completed = await completedColumnNames(projectId);
+  const completed = await completedColumnNames(teamId);
   let closedLast7d = 0;
   if (completed.length) {
     const [{ closed }] = await db
@@ -84,7 +84,7 @@ export async function getStats(projectId: string): Promise<StatsDto> {
       .innerJoin(issue, eq(issue.id, issueActivity.issueId))
       .where(
         and(
-          eq(issue.projectId, projectId),
+          eq(issue.teamId, teamId),
           eq(issueActivity.action, 'status'),
           inArray(issueActivity.toText, completed),
           sql`${issueActivity.createdAt} >= now() - interval '7 days'`,
@@ -115,21 +115,21 @@ const PRIORITY_LABEL: Record<string, string> = {
   '4': 'Low',
 };
 
-export async function getBreakdown(projectId: string, by: BreakdownBy): Promise<BreakdownItem[]> {
+export async function getBreakdown(teamId: string, by: BreakdownBy): Promise<BreakdownItem[]> {
   if (by === 'status') {
     // Every column, including empty ones, in work items order.
     const rows = await db
       .select({
-        key: sql<string>`${projectColumn.id}::text`,
-        label: projectColumn.name,
-        color: projectColumn.color,
+        key: sql<string>`${workflowState.id}::text`,
+        label: workflowState.name,
+        color: workflowState.color,
         count: sql<number>`count(${issue.id})::int`,
       })
-      .from(projectColumn)
-      .leftJoin(issue, eq(issue.columnId, projectColumn.id))
-      .where(eq(projectColumn.projectId, projectId))
-      .groupBy(projectColumn.id, projectColumn.name, projectColumn.color, projectColumn.position)
-      .orderBy(projectColumn.position);
+      .from(workflowState)
+      .leftJoin(issue, eq(issue.stateId, workflowState.id))
+      .where(eq(workflowState.teamId, teamId))
+      .groupBy(workflowState.id, workflowState.name, workflowState.color, workflowState.position)
+      .orderBy(workflowState.position);
     return rows.map((r) => ({ key: r.key, label: r.label, count: r.count, color: r.color }));
   }
 
@@ -140,7 +140,7 @@ export async function getBreakdown(projectId: string, by: BreakdownBy): Promise<
         count: sql<number>`count(*)::int`,
       })
       .from(issue)
-      .where(eq(issue.projectId, projectId))
+      .where(eq(issue.teamId, teamId))
       .groupBy(issue.priority)
       .orderBy(desc(sql`count(*)`));
     return rows.map((r) => ({
@@ -161,7 +161,7 @@ export async function getBreakdown(projectId: string, by: BreakdownBy): Promise<
       })
       .from(issue)
       .leftJoin(issueType, eq(issueType.id, issue.typeId))
-      .where(eq(issue.projectId, projectId))
+      .where(eq(issue.teamId, teamId))
       .groupBy(issueType.id, issueType.name, issueType.color)
       .orderBy(desc(sql`count(${issue.id})`));
     return rows.map((r) => ({
@@ -181,7 +181,7 @@ export async function getBreakdown(projectId: string, by: BreakdownBy): Promise<
       })
       .from(issue)
       .leftJoin(user, eq(user.id, issue.delegateUserId))
-      .where(eq(issue.projectId, projectId))
+      .where(eq(issue.teamId, teamId))
       .groupBy(user.id, user.name)
       .orderBy(desc(sql`count(${issue.id})`));
     return rows.map((r) => ({ key: r.key, label: r.label, count: r.count, color: null }));
@@ -196,7 +196,7 @@ export async function getBreakdown(projectId: string, by: BreakdownBy): Promise<
     })
     .from(issue)
     .leftJoin(user, eq(user.id, issue.assigneeUserId))
-    .where(eq(issue.projectId, projectId))
+    .where(eq(issue.teamId, teamId))
     .groupBy(user.id, user.name)
     .orderBy(desc(sql`count(${issue.id})`));
   return rows.map((r) => ({ key: r.key, label: r.label, count: r.count, color: null }));
@@ -267,9 +267,9 @@ export function pulseRows(unit: PulseUnit): number {
 // full bucket axis with generate_series and left-joins the counts, so the client
 // renders the returned order directly — no client-side date math or timezone
 // reconciliation. columns is a validated number and the unit tokens are
-// whitelisted, so the interpolation is injection-safe; projectId is a bound parameter.
+// whitelisted, so the interpolation is injection-safe; teamId is a bound parameter.
 export async function getPulse(
-  projectId: string,
+  teamId: string,
   unit: PulseUnit,
   columns: number,
 ): Promise<PulseBucket[]> {
@@ -292,15 +292,16 @@ export async function getPulse(
     FROM generate_series(${range.start}, ${range.end}, interval '1 ${u.trunc}') AS s(bucket)
     LEFT JOIN issue_activity a
       ON date_trunc('${u.trunc}', a.created_at) = s.bucket
-      AND a.issue_id IN (SELECT id FROM issue WHERE project_id = `;
+      AND a.issue_id IN (SELECT id FROM issue WHERE team_id = `;
   const tail = `)
     GROUP BY s.bucket
     ORDER BY s.bucket
   `;
-  // projectId is bound as a parameter; only the whitelisted unit parts are raw.
-  const rows = (await db.execute(
-    sql`${sql.raw(q)}${projectId}::uuid${sql.raw(tail)}`,
-  )) as unknown as { label: string; count: number }[];
+  // teamId is bound as a parameter; only the whitelisted unit parts are raw.
+  const rows = (await db.execute(sql`${sql.raw(q)}${teamId}::uuid${sql.raw(tail)}`)) as unknown as {
+    label: string;
+    count: number;
+  }[];
   return rows.map((r) => ({ label: r.label, count: Number(r.count) }));
 }
 
@@ -312,8 +313,8 @@ export interface ThroughputWeek {
   closed: number;
 }
 
-export async function getThroughput(projectId: string, weeks: number): Promise<ThroughputWeek[]> {
-  const completed = await completedColumnNames(projectId);
+export async function getThroughput(teamId: string, weeks: number): Promise<ThroughputWeek[]> {
+  const completed = await completedColumnNames(teamId);
   const closedCond = completed.length
     ? and(eq(issueActivity.action, 'status'), inArray(issueActivity.toText, completed))
     : sql`false`;
@@ -328,7 +329,7 @@ export async function getThroughput(projectId: string, weeks: number): Promise<T
     .innerJoin(issue, eq(issue.id, issueActivity.issueId))
     .where(
       and(
-        eq(issue.projectId, projectId),
+        eq(issue.teamId, teamId),
         sql`${issueActivity.createdAt} >= date_trunc('week', now()) - make_interval(weeks => ${weeks - 1})`,
       ),
     )
@@ -337,7 +338,7 @@ export async function getThroughput(projectId: string, weeks: number): Promise<T
   return rows.map((r) => ({ week: r.week, created: r.created, closed: r.closed }));
 }
 
-// --- Project-wide activity feed --------------------------------------------------
+// --- Team-wide activity feed --------------------------------------------------
 
 export interface ActivityCursor {
   ts: string;
@@ -365,13 +366,13 @@ export interface ActivityPage {
   nextCursor: ActivityCursor | null;
 }
 
-// One page of the project's activity feed, newest first, keyset-paginated by
+// One page of the team's activity feed, newest first, keyset-paginated by
 // (created_at, id) exactly like the per-issue feed. Optional filters narrow by
 // action kind, actor, and — for the dashboard widget's issue filter — a set of
 // issue ids the client resolved from a work items filter set. An empty issueIds array
 // means "the filter matched no issues", so the feed is empty.
 export async function listActivity(
-  projectId: string,
+  teamId: string,
   opts: {
     before?: ActivityCursor | null;
     limit?: number;
@@ -385,7 +386,7 @@ export async function listActivity(
 
   if (opts.issueIds && opts.issueIds.length === 0) return { items: [], nextCursor: null };
 
-  const conds = [eq(issue.projectId, projectId)];
+  const conds = [eq(issue.teamId, teamId)];
   if (opts.issueIds) conds.push(inArray(issueActivity.issueId, opts.issueIds));
   if (opts.actorUserId != null) conds.push(eq(issueActivity.actorUserId, opts.actorUserId));
   if (opts.action) conds.push(eq(issueActivity.action, opts.action));
@@ -423,7 +424,7 @@ export async function listActivity(
   return {
     items: page.map((row) => ({
       id: row.id,
-      // The inner join on issueActivity.issueId excludes initiative rows, so
+      // The inner join on issueActivity.issueId excludes project rows, so
       // issueId is always present here despite the column being nullable.
       issueId: row.issueId as string,
       issueSequence: row.issueSequence,
@@ -442,7 +443,7 @@ export async function listActivity(
   };
 }
 
-// --- Agent runs (project-wide feed) ----------------------------------------------
+// --- Agent runs (team-wide feed) ----------------------------------------------
 
 export interface AgentRunFeedItem {
   id: string;
@@ -456,15 +457,15 @@ export interface AgentRunFeedItem {
   createdAt: string;
 }
 
-// The project's agent runs, newest first, optionally narrowed to one status. Joins
-// agent_run through ai_agent (which carries the project scope and the agent name)
+// The team's agent runs, newest first, optionally narrowed to one status. Joins
+// agent_run through ai_agent (which carries the team scope and the agent name)
 // and issue when the run is issue-triggered.
 export async function listAgentRunFeed(
-  projectId: string,
+  teamId: string,
   opts: { status?: string | null; limit?: number } = {},
 ): Promise<AgentRunFeedItem[]> {
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
-  const conds = [eq(aiAgent.projectId, projectId)];
+  const conds = [eq(aiAgent.teamId, teamId)];
   if (opts.status) conds.push(eq(agentRun.status, opts.status));
 
   const rows = await db
@@ -508,16 +509,16 @@ export interface AgentRunStatsDto {
   pending: number;
 }
 
-// Agent run outcome counts over the last `days` days for the project. Backs the
+// Agent run outcome counts over the last `days` days for the team. Backs the
 // agent health widget's success rate and failure count.
-export async function getAgentRunStats(projectId: string, days: number): Promise<AgentRunStatsDto> {
+export async function getAgentRunStats(teamId: string, days: number): Promise<AgentRunStatsDto> {
   const rows = await db
     .select({ status: agentRun.status, count: sql<number>`count(*)::int` })
     .from(agentRun)
     .innerJoin(aiAgent, eq(aiAgent.id, agentRun.agentId))
     .where(
       and(
-        eq(aiAgent.projectId, projectId),
+        eq(aiAgent.teamId, teamId),
         sql`${agentRun.createdAt} >= now() - make_interval(days => ${days})`,
       ),
     )
@@ -547,14 +548,14 @@ export interface WebhookStatsDto {
 // Webhook delivery outcome counts over the last `days` days plus the current
 // active/disabled subscription split (a dead endpoint is auto-disabled once its
 // consecutive failures cross the worker threshold). Backs the webhook health widget.
-export async function getWebhookStats(projectId: string, days: number): Promise<WebhookStatsDto> {
+export async function getWebhookStats(teamId: string, days: number): Promise<WebhookStatsDto> {
   const deliveryRows = await db
     .select({ status: webhookDelivery.status, count: sql<number>`count(*)::int` })
     .from(webhookDelivery)
     .innerJoin(webhook, eq(webhook.id, webhookDelivery.webhookId))
     .where(
       and(
-        eq(webhook.projectId, projectId),
+        eq(webhook.teamId, teamId),
         sql`${webhookDelivery.createdAt} >= now() - make_interval(days => ${days})`,
       ),
     )
@@ -563,7 +564,7 @@ export async function getWebhookStats(projectId: string, days: number): Promise<
   const webhookRows = await db
     .select({ isActive: webhook.isActive, count: sql<number>`count(*)::int` })
     .from(webhook)
-    .where(eq(webhook.projectId, projectId))
+    .where(eq(webhook.teamId, teamId))
     .groupBy(webhook.isActive);
 
   const stats: WebhookStatsDto = {
@@ -599,21 +600,21 @@ export interface AgentWorkloadItem {
   runsFailed: number;
 }
 
-// Per-agent workload for the project: how many open issues each agent is currently
+// Per-agent workload for the team: how many open issues each agent is currently
 // delegated, and its lifetime run outcomes. Three cheap grouped reads merged in
 // memory (one per source), keyed by the agent's bot user id and agent id.
-export async function getAgentWorkload(projectId: string): Promise<AgentWorkloadItem[]> {
+export async function getAgentWorkload(teamId: string): Promise<AgentWorkloadItem[]> {
   const agents = await db
     .select({ id: aiAgent.id, userId: aiAgent.userId, name: aiAgent.username, kind: aiAgent.kind })
     .from(aiAgent)
-    .where(eq(aiAgent.projectId, projectId));
+    .where(eq(aiAgent.teamId, teamId));
   if (agents.length === 0) return [];
 
   const delegatedRows = await db
     .select({ userId: issue.delegateUserId, count: sql<number>`count(*)::int` })
     .from(issue)
-    .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
-    .where(and(eq(issue.projectId, projectId), isNotNull(issue.delegateUserId), OPEN_STATES))
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(and(eq(issue.teamId, teamId), isNotNull(issue.delegateUserId), OPEN_STATES))
     .groupBy(issue.delegateUserId);
   const delegatedByUser = new Map(delegatedRows.map((r) => [r.userId, r.count]));
 
@@ -626,7 +627,7 @@ export async function getAgentWorkload(projectId: string): Promise<AgentWorkload
     })
     .from(agentRun)
     .innerJoin(aiAgent, eq(aiAgent.id, agentRun.agentId))
-    .where(eq(aiAgent.projectId, projectId))
+    .where(eq(aiAgent.teamId, teamId))
     .groupBy(agentRun.agentId);
   const runsByAgent = new Map(runRows.map((r) => [r.agentId, r]));
 

@@ -3,35 +3,35 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// Custom fields belong to a project. A field with issueTypeId null is
-// project-wide; a field with issueTypeId set applies only to issues of that
-// type. Routes live under /projects/:projectKey/custom-fields, so the permission
-// guard runs on :projectKey and the store scopes every field to that project.
-// Fields are read back through GET /projects/:projectKey/custom-fields, which
+// Custom fields belong to a team. A field with issueTypeId null is
+// team-wide; a field with issueTypeId set applies only to issues of that
+// type. Routes live under /teams/:teamKey/custom-fields, so the permission
+// guard runs on :teamKey and the store scopes every field to that team.
+// Fields are read back through GET /teams/:teamKey/custom-fields, which
 // takes an optional issueTypeId query to include that type's own fields.
 
-async function setupProject() {
+async function setupTeam() {
   const owner = await signUpTestUser();
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { asOwner };
 }
 
 // Treaty maps the hyphenated segment as a bracketed accessor.
-function fields(client: Api, projectKey = 'MKT') {
-  return client.projects({ projectKey })['custom-fields'];
+function fields(client: Api, teamKey = 'MKT') {
+  return client.teams({ teamKey })['custom-fields'];
 }
 
-// The project's custom fields, optionally scoped to an issue type.
-async function listFields(client: Api, issueTypeId?: string, projectKey = 'MKT') {
-  const res = await fields(client, projectKey).get(
+// The team's custom fields, optionally scoped to an issue type.
+async function listFields(client: Api, issueTypeId?: string, teamKey = 'MKT') {
+  const res = await fields(client, teamKey).get(
     issueTypeId != null ? { query: { issueTypeId } } : {},
   );
   return res.data!;
 }
 
-function createType(client: Api, name: string, projectKey = 'MKT') {
-  return client.projects({ projectKey })['issue-types'].post({ name });
+function createType(client: Api, name: string, teamKey = 'MKT') {
+  return client.teams({ teamKey })['issue-types'].post({ name });
 }
 
 describe('custom-fields', () => {
@@ -40,8 +40,8 @@ describe('custom-fields', () => {
   });
 
   describe('create', () => {
-    it('creates a project-wide field with defaults and lists it', async () => {
-      const { asOwner } = await setupProject();
+    it('creates a team-wide field with defaults and lists it', async () => {
+      const { asOwner } = await setupTeam();
 
       const created = await fields(asOwner).post({ name: 'Severity', fieldType: 'text' });
       expect(created.status).toBe(201);
@@ -59,7 +59,7 @@ describe('custom-fields', () => {
     });
 
     it('stores showInBody when provided', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const created = await fields(asOwner).post({
         name: 'Owner',
         fieldType: 'text',
@@ -69,7 +69,7 @@ describe('custom-fields', () => {
     });
 
     it('creates a select field with ordered options', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const created = await fields(asOwner).post({
         name: 'Priority',
         fieldType: 'select',
@@ -81,14 +81,14 @@ describe('custom-fields', () => {
     });
 
     it('assigns increasing positions within the same scope', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const first = (await fields(asOwner).post({ name: 'A', fieldType: 'text' })).data!;
       const second = (await fields(asOwner).post({ name: 'B', fieldType: 'text' })).data!;
       expect(second.position).toBeGreaterThan(first.position);
     });
 
-    it('creates a type-scoped field targeting a type of this project', async () => {
-      const { asOwner } = await setupProject();
+    it('creates a type-scoped field targeting a type of this team', async () => {
+      const { asOwner } = await setupTeam();
       const type = (await createType(asOwner, 'Bug')).data!;
 
       const created = await fields(asOwner).post({
@@ -100,9 +100,9 @@ describe('custom-fields', () => {
       expect(created.data).toMatchObject({ issueTypeId: type.id });
     });
 
-    it('rejects a type-scoped field whose type belongs to another project', async () => {
-      const { asOwner } = await setupProject();
-      await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
+    it('rejects a type-scoped field whose type belongs to another team', async () => {
+      const { asOwner } = await setupTeam();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
       const foreignType = (await createType(asOwner, 'Bug', 'OPS')).data!;
 
       const res = await fields(asOwner).post({
@@ -114,7 +114,7 @@ describe('custom-fields', () => {
     });
 
     it('rejects an issueTypeId that does not exist', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner).post({
         name: 'Steps',
         fieldType: 'text',
@@ -124,13 +124,13 @@ describe('custom-fields', () => {
     });
 
     it('rejects an empty name', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner).post({ name: '', fieldType: 'text' });
       expect(res.status).toBe(400);
     });
 
     it('rejects an unknown field type', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner).post({
         name: 'Weird',
         fieldType: 'nonsense' as unknown as 'text',
@@ -139,7 +139,7 @@ describe('custom-fields', () => {
     });
 
     it('rejects an empty option value', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner).post({
         name: 'Priority',
         fieldType: 'select',
@@ -150,8 +150,8 @@ describe('custom-fields', () => {
   });
 
   describe('list', () => {
-    it('returns only project-wide fields without an issueTypeId', async () => {
-      const { asOwner } = await setupProject();
+    it('returns only team-wide fields without an issueTypeId', async () => {
+      const { asOwner } = await setupTeam();
       const type = (await createType(asOwner, 'Bug')).data!;
       await fields(asOwner).post({ name: 'Global', fieldType: 'text' });
       await fields(asOwner).post({ name: 'Scoped', fieldType: 'text', issueTypeId: type.id });
@@ -163,7 +163,7 @@ describe('custom-fields', () => {
     });
 
     it("includes a type's own fields when issueTypeId is passed", async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const bug = (await createType(asOwner, 'Bug')).data!;
       const story = (await createType(asOwner, 'Story')).data!;
       await fields(asOwner).post({ name: 'Global', fieldType: 'text' });
@@ -179,7 +179,7 @@ describe('custom-fields', () => {
     });
 
     it('returns fields ordered by position', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       await fields(asOwner).post({ name: 'First', fieldType: 'text' });
       await fields(asOwner).post({ name: 'Second', fieldType: 'text' });
 
@@ -189,8 +189,8 @@ describe('custom-fields', () => {
       expect(list.map((f) => f.name)).toEqual(['First', 'Second']);
     });
 
-    it('returns 404 for an unknown project', async () => {
-      const { asOwner } = await setupProject();
+    it('returns 404 for an unknown team', async () => {
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner, 'NOPE').get({});
       expect(res.status).toBe(404);
     });
@@ -198,7 +198,7 @@ describe('custom-fields', () => {
 
   describe('update', () => {
     it('updates the name and showInBody', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const field = (await fields(asOwner).post({ name: 'Severity', fieldType: 'text' })).data!;
 
       const patched = await fields(asOwner)({ fieldId: field.id }).patch({
@@ -216,7 +216,7 @@ describe('custom-fields', () => {
     });
 
     it('returns 404 for a missing field', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner)({ fieldId: '00000000-0000-4000-8000-000000000000' }).patch({
         name: 'Nope',
       });
@@ -224,14 +224,14 @@ describe('custom-fields', () => {
     });
 
     it('rejects an empty name', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const field = (await fields(asOwner).post({ name: 'Severity', fieldType: 'text' })).data!;
       const res = await fields(asOwner)({ fieldId: field.id }).patch({ name: '' });
       expect(res.status).toBe(400);
     });
 
     it('rejects a non-numeric field id', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner)({ fieldId: 'abc' as unknown as number }).patch({
         name: 'X',
       });
@@ -241,7 +241,7 @@ describe('custom-fields', () => {
 
   describe('delete', () => {
     it('deletes a field and drops it from the list', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const field = (
         await fields(asOwner).post({
           name: 'Priority',
@@ -258,7 +258,7 @@ describe('custom-fields', () => {
     });
 
     it('returns 404 for a missing field', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner)({
         fieldId: '00000000-0000-4000-8000-000000000000',
       }).delete();
@@ -266,14 +266,14 @@ describe('custom-fields', () => {
     });
   });
 
-  // A field is addressed as /projects/:projectKey/custom-fields/:fieldId. The
-  // permission guard runs on :projectKey, so the store scopes the field to that
-  // project — a member of one project must not edit or delete another project's
+  // A field is addressed as /teams/:teamKey/custom-fields/:fieldId. The
+  // permission guard runs on :teamKey, so the store scopes the field to that
+  // team — a member of one team must not edit or delete another team's
   // field by passing its id.
-  describe('cross-project isolation', () => {
-    it('does not patch a field from another project', async () => {
-      const { asOwner } = await setupProject();
-      await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
+  describe('cross-team isolation', () => {
+    it('does not patch a field from another team', async () => {
+      const { asOwner } = await setupTeam();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
       const foreign = (await fields(asOwner, 'OPS').post({ name: 'Foreign', fieldType: 'text' }))
         .data!;
 
@@ -284,9 +284,9 @@ describe('custom-fields', () => {
       expect(opsFields.find((f) => f.id === foreign.id)?.name).toBe('Foreign');
     });
 
-    it('does not delete a field from another project', async () => {
-      const { asOwner } = await setupProject();
-      await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
+    it('does not delete a field from another team', async () => {
+      const { asOwner } = await setupTeam();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
       const foreign = (await fields(asOwner, 'OPS').post({ name: 'Foreign', fieldType: 'text' }))
         .data!;
 
@@ -299,14 +299,14 @@ describe('custom-fields', () => {
   });
 
   describe('access', () => {
-    it('returns 404 for an unknown project on create', async () => {
-      const { asOwner } = await setupProject();
+    it('returns 404 for an unknown team on create', async () => {
+      const { asOwner } = await setupTeam();
       const res = await fields(asOwner, 'NOPE').post({ name: 'X', fieldType: 'text' });
       expect(res.status).toBe(404);
     });
 
     it('denies a non-member on every custom-fields route', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const field = (await fields(asOwner).post({ name: 'Severity', fieldType: 'text' })).data!;
       const outsider = authedApi((await signUpTestUser()).cookie);
 

@@ -13,13 +13,13 @@ import {
   deleteLabelGroup,
 } from './store';
 
-const labelParams = t.Object({ projectKey: t.String(), labelId: t.String({ format: 'uuid' }) });
-const groupParams = t.Object({ projectKey: t.String(), groupId: t.String({ format: 'uuid' }) });
+const labelParams = t.Object({ teamKey: t.String(), labelId: t.String({ format: 'uuid' }) });
+const groupParams = t.Object({ teamKey: t.String(), groupId: t.String({ format: 'uuid' }) });
 
 // A label DTO (LabelRow from the store).
 const LabelResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   groupId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
@@ -28,7 +28,7 @@ const LabelResponse = t.Object({
 // A label group DTO (LabelGroupRow from the store).
 const LabelGroupResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   color: t.String(),
 });
@@ -37,11 +37,11 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   .use(guards)
   // --- Labels ------------------------------------------------------------------
   .post(
-    '/projects/:projectKey/labels',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/labels',
+    async ({ team, body, set }) => {
       try {
         set.status = 201;
-        return await createLabel({ projectId: project.id, ...body });
+        return await createLabel({ teamId: team.id, ...body });
       } catch (err) {
         rethrowDuplicate(err, 'label');
       }
@@ -70,11 +70,11 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   )
 
   .patch(
-    '/projects/:projectKey/labels/:labelId',
-    async ({ params, project, body }) => {
+    '/teams/:teamKey/labels/:labelId',
+    async ({ params, team, body }) => {
       let label;
       try {
-        label = await updateLabel(params.labelId, project.id, body);
+        label = await updateLabel(params.labelId, team.id, body);
       } catch (err) {
         rethrowDuplicate(err, 'label');
       }
@@ -107,9 +107,9 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   )
 
   .delete(
-    '/projects/:projectKey/labels/:labelId',
-    async ({ params, project }) => {
-      await deleteLabel(params.labelId, project.id);
+    '/teams/:teamKey/labels/:labelId',
+    async ({ params, team }) => {
+      await deleteLabel(params.labelId, team.id);
       return noContent();
     },
     {
@@ -132,11 +132,11 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
 
   // --- Label groups ------------------------------------------------------------
   .post(
-    '/projects/:projectKey/label-groups',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/label-groups',
+    async ({ team, body, set }) => {
       try {
         set.status = 201;
-        return await createLabelGroup({ projectId: project.id, ...body });
+        return await createLabelGroup({ teamId: team.id, ...body });
       } catch (err) {
         rethrowDuplicate(err, 'label group');
       }
@@ -161,11 +161,11 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   )
 
   .patch(
-    '/projects/:projectKey/label-groups/:groupId',
-    async ({ params, project, body }) => {
+    '/teams/:teamKey/label-groups/:groupId',
+    async ({ params, team, body }) => {
       let group;
       try {
-        group = await updateLabelGroup(params.groupId, project.id, body);
+        group = await updateLabelGroup(params.groupId, team.id, body);
       } catch (err) {
         rethrowDuplicate(err, 'label group');
       }
@@ -196,9 +196,9 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   )
 
   .delete(
-    '/projects/:projectKey/label-groups/:groupId',
-    async ({ params, project }) => {
-      await deleteLabelGroup(params.groupId, project.id);
+    '/teams/:teamKey/label-groups/:groupId',
+    async ({ params, team }) => {
+      await deleteLabelGroup(params.groupId, team.id);
       return noContent();
     },
     {

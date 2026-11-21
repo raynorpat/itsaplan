@@ -1,10 +1,10 @@
 import { db, userNotificationPreference } from '@repo/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
-// A member's own notification preferences for one project: for each issue event
-// type, whether they want it by email and/or Telegram. One row per (user, project);
+// A member's own notification preferences for one team: for each issue event
+// type, whether they want it by email and/or Telegram. One row per (user, team);
 // absent means the member has not opted in and receives nothing (opt-in default).
-// The project's provider credentials live separately in notification-settings, and
+// The team's provider credentials live separately in notification-settings, and
 // which Telegram chat the member is reached at comes from the account they linked
 // (telegram/store.ts), which is instance-wide. Here is only the per-user choice of
 // events and channels.
@@ -45,11 +45,11 @@ function toDto(row: { emailEvents: unknown; telegramEvents: unknown }): Notifica
   };
 }
 
-// A member's preferences for a project, or opt-in defaults (nothing enabled) when
+// A member's preferences for a team, or opt-in defaults (nothing enabled) when
 // they have no row yet.
 export async function getPreferences(
   userId: string,
-  projectId: string,
+  teamId: string,
 ): Promise<NotificationPreferenceDto> {
   const rows = await db
     .select({
@@ -60,34 +60,34 @@ export async function getPreferences(
     .where(
       and(
         eq(userNotificationPreference.userId, userId),
-        eq(userNotificationPreference.projectId, projectId),
+        eq(userNotificationPreference.teamId, teamId),
       ),
     );
   return rows[0] ? toDto(rows[0]) : defaults();
 }
 
-// Upserts a member's preferences for a project and returns the normalized result.
+// Upserts a member's preferences for a team and returns the normalized result.
 export async function setPreferences(
   userId: string,
-  projectId: string,
+  teamId: string,
   input: NotificationPreferenceDto,
 ): Promise<NotificationPreferenceDto> {
   const values = { emailEvents: input.emailEvents, telegramEvents: input.telegramEvents };
   await db
     .insert(userNotificationPreference)
-    .values({ userId, projectId, ...values })
+    .values({ userId, teamId, ...values })
     .onConflictDoUpdate({
-      target: [userNotificationPreference.userId, userNotificationPreference.projectId],
+      target: [userNotificationPreference.userId, userNotificationPreference.teamId],
       set: { ...values, updatedAt: sql`now()` },
     });
   return toDto(values);
 }
 
-// Preferences for a set of members of one project, keyed by user id. Missing members
+// Preferences for a set of members of one team, keyed by user id. Missing members
 // (no row) are omitted; the caller treats them as opted out. Used by the outbound
 // enqueue path to decide, per inbox row, which channels that member wants.
 export async function getPreferencesForUsers(
-  projectId: string,
+  teamId: string,
   userIds: string[],
 ): Promise<Map<string, NotificationPreferenceDto>> {
   if (userIds.length === 0) return new Map();
@@ -100,7 +100,7 @@ export async function getPreferencesForUsers(
     .from(userNotificationPreference)
     .where(
       and(
-        eq(userNotificationPreference.projectId, projectId),
+        eq(userNotificationPreference.teamId, teamId),
         inArray(userNotificationPreference.userId, userIds),
       ),
     );

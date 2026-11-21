@@ -1,10 +1,10 @@
 import type { IssueRow } from '../issues/store';
-import type { ColumnRow } from '../columns/store';
+import type { WorkflowStateRow } from '../states/store';
 
 // Server-side copy of the view filter engine. The web app (utils/filters.ts) stores
 // a view's filters as a FilterSet and applies them client-side to every layout; the
 // server never inspected the shape. Public sharing needs it on the server: a shared
-// view must return only the issues its filters match, not the whole project. Keep
+// view must return only the issues its filters match, not the whole team. Keep
 // the matching semantics in sync with the web util.
 
 type FilterField =
@@ -75,9 +75,9 @@ function builtinSetValues(
 ): FilterValue[] {
   switch (field) {
     case 'status':
-      return [issue.columnId];
+      return [issue.stateId];
     case 'statusType':
-      return [columnStateType.get(issue.columnId) ?? null];
+      return [columnStateType.get(issue.stateId) ?? null];
     case 'assignee':
       return [issue.assigneeUserId];
     case 'delegate':
@@ -174,7 +174,7 @@ function matchCondition(
 export function applyFilters(
   issues: IssueRow[],
   rawFilters: unknown,
-  columns: ColumnRow[],
+  columns: WorkflowStateRow[],
 ): IssueRow[] {
   const active = toFilterSet(rawFilters).conditions.filter(isEffectiveCondition);
   if (active.length === 0) return issues;

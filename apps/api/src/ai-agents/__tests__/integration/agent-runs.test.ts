@@ -3,7 +3,7 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// The run-history endpoint: GET /projects/:key/ai-agents/:agentId/runs lists an agent's
+// The run-history endpoint: GET /teams/:key/ai-agents/:agentId/runs lists an agent's
 // triggered runs (a mention or a delegation), newest first, keyset-paginated. Runs are
 // created by the same paths the runtime uses: mentioning the agent in a comment queues
 // a mention run; delegating an issue to an agent with trigger_on_assign queues a
@@ -12,16 +12,16 @@ import { resetDb } from '../../../__tests__/helpers/db';
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = view.data!.columns[0].id;
-  return { owner, asOwner, columnId };
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = view.data!.states[0].id;
+  return { owner, asOwner, stateId };
 }
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
-function createIssue(client: Api, columnId: string, title = 'Task') {
-  return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title });
+function createIssue(client: Api, stateId: string, title = 'Task') {
+  return client.teams({ teamKey: 'MKT' }).issues.post({ stateId, title });
 }
 
 async function createInternalAgent(asOwner: Api, name: string, username: string) {
@@ -53,9 +53,9 @@ describe('agent run history', () => {
   });
 
   it('lists a mention run with the issue, trigger, and rendered prompt', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId, 'Landing page')).data!;
+    const issue = (await createIssue(asOwner, stateId, 'Landing page')).data!;
     await mentionAgent(asOwner, issue.id, 'Design Bot', agent.userId);
 
     const res = await agents(asOwner)({ agentId: agent.id }).runs.get();
@@ -75,10 +75,10 @@ describe('agent run history', () => {
   });
 
   it('lists a delegation run when an issue is delegated to the agent', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
     await agents(asOwner)({ agentId: agent.id }).patch({ triggerOnAssign: true });
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
 
     await asOwner.issues({ issueId: issue.id }).patch({ delegateUserId: agent.userId });
 
@@ -89,9 +89,9 @@ describe('agent run history', () => {
   });
 
   it('paginates newest first with a keyset cursor', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
     await mentionAgent(asOwner, issue.id, 'Design Bot', agent.userId);
     await mentionAgent(asOwner, issue.id, 'Design Bot', agent.userId);
     await mentionAgent(asOwner, issue.id, 'Design Bot', agent.userId);
@@ -114,10 +114,10 @@ describe('agent run history', () => {
   });
 
   it('scopes runs to the requested agent', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const a = await createInternalAgent(asOwner, 'Bot A', 'bota');
     const b = await createInternalAgent(asOwner, 'Bot B', 'botb');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
     await mentionAgent(asOwner, issue.id, 'Bot A', a.userId);
 
     const runsB = await agents(asOwner)({ agentId: b.id }).runs.get();
@@ -126,7 +126,7 @@ describe('agent run history', () => {
     expect(runsA.data!.items.length).toBe(1);
   });
 
-  it('404s for an agent that does not exist in the project', async () => {
+  it('404s for an agent that does not exist in the team', async () => {
     const { asOwner } = await setup();
     const res = await agents(asOwner)({
       agentId: '00000000-0000-4000-8000-000000000000',
@@ -141,9 +141,9 @@ describe('agent run history', () => {
   });
 
   it('denies a non-member with 403', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
     await mentionAgent(asOwner, issue.id, 'Design Bot', agent.userId);
 
     const outsider = await signUpTestUser({ name: 'Outsider' });

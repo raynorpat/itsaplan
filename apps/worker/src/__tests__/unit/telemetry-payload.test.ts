@@ -44,7 +44,7 @@ describe('failureRate', () => {
 const counts: InstanceCounts = {
   users: 7,
   activeUsers30d: 3,
-  projects: 2,
+  teams: 2,
   issues: 412,
   issuesCreated30d: 30,
   agents: 1,
@@ -52,22 +52,22 @@ const counts: InstanceCounts = {
   agentRunsFailed30d: 5,
   webhookDeliveries30d: 0,
   webhookDeliveriesFailed30d: 0,
-  hasInitiatives: true,
+  hasProjects: true,
   hasNoteBoards: false,
   hasDashboards: true,
   hasCustomViews: true,
   hasCustomFields: false,
   hasLabelGroups: true,
-  hasProjectActions: false,
+  hasTeamActions: false,
   hasAttachments: true,
   hasAgentSchedules: false,
   hasWebhooks: false,
   hasApiKeys: false,
-  hasMcpProject: true,
+  hasMcpTeam: true,
   hasEmail: true,
   hasGoogleOauth: false,
   hasTelegramBot: true,
-  hasProjectIntegrations: false,
+  hasTeamIntegrations: false,
 };
 
 const input = {
@@ -88,7 +88,7 @@ describe('buildPulse', () => {
     expect(pulse.scale).toEqual({
       users: '6-20',
       activeUsers30d: '2-5',
-      projects: '2-5',
+      teams: '2-5',
       issues: '101-1000',
       issuesCreated30d: '21-100',
     });
@@ -116,7 +116,7 @@ describe('buildPulse', () => {
 
   it('reports features and integrations as booleans', () => {
     const pulse = buildPulse(input);
-    expect(pulse.features.initiatives).toBe(true);
+    expect(pulse.features.projects).toBe(true);
     expect(pulse.features.noteBoards).toBe(false);
     expect(pulse.integrations.telegramBot).toBe(true);
     expect(pulse.integrations.webhooks).toBe(false);

@@ -1,20 +1,20 @@
 import { createTool } from '@mastra/core/tools';
 import type { z } from 'zod';
-import type { ProjectRow } from '../../../projects/store';
+import type { TeamRow } from '../../../teams/store';
 import { routeTools, type McpInputSchema, type McpRouteTool } from '../../../mcp/generate';
 import { dispatchTool } from '../../../mcp/dispatch';
 import { getMcpApp } from '../../../mcp/app-ref';
 import { ALWAYS_ON_KEYS, normalizeToolKeys } from './catalog';
 
-// The tools an internal agent uses to work in its project, built from the routes
+// The tools an internal agent uses to work in its team, built from the routes
 // tagged with mcpTool() — the same table the MCP endpoint serves. A tool call is
 // dispatched as an in-process request against the real route with the agent's API
 // key, so the route's schema, permission guard, and error model apply unchanged.
 // Nothing about an endpoint is restated here: this file only picks which routes an
-// agent gets and binds them to its project.
+// agent gets and binds them to its team.
 //
 // An agent's rights are therefore the intersection of two things: the actions it was
-// granted (catalog.ts, stored in ai_agent.tools) and what its project role permits.
+// granted (catalog.ts, stored in ai_agent.tools) and what its team role permits.
 // A tool it holds but its role forbids returns the route's normal 403.
 
 // Mastra accepts a JSON Schema wrapped in the ai-sdk schema protocol: an object
@@ -37,15 +37,15 @@ function jsonSchemaInput(schema: McpInputSchema): z.ZodType<Record<string, unkno
   } as unknown as z.ZodType<Record<string, unknown>>;
 }
 
-// Drops projectKey from a tool's arguments. The agent belongs to one project and the
+// Drops teamKey from a tool's arguments. The agent belongs to one team and the
 // runtime fills the key in itself, so the model neither has to supply it nor can it
-// name another project.
-function withoutProjectKey(schema: McpInputSchema): McpInputSchema {
-  const { projectKey: _bound, ...properties } = schema.properties;
+// name another team.
+function withoutTeamKey(schema: McpInputSchema): McpInputSchema {
+  const { teamKey: _bound, ...properties } = schema.properties;
   return {
     type: 'object',
     properties,
-    required: schema.required.filter((name) => name !== 'projectKey'),
+    required: schema.required.filter((name) => name !== 'teamKey'),
   };
 }
 
@@ -64,7 +64,7 @@ function parseBody(text: string): unknown {
 // always-on actions are always included; a mutating action only when its key is in
 // enabledActions (the agent's granted actions, from ai_agent.tools).
 export function buildRouteTools(
-  project: ProjectRow,
+  team: TeamRow,
   apiKey: string,
   enabledActions: string[] = [],
 ): Record<string, ReturnType<typeof createTool>> {
@@ -74,18 +74,18 @@ export function buildRouteTools(
   const tools: Record<string, ReturnType<typeof createTool>> = {};
   for (const route of routeTools(app)) {
     if (!granted.has(route.name)) continue;
-    tools[route.name] = buildOne(route, project, apiKey);
+    tools[route.name] = buildOne(route, team, apiKey);
   }
   return tools;
 }
 
 function buildOne(
   route: McpRouteTool,
-  project: ProjectRow,
+  team: TeamRow,
   apiKey: string,
 ): ReturnType<typeof createTool> {
-  const bindsProject = route.pathParams.includes('projectKey');
-  const schema = bindsProject ? withoutProjectKey(route.inputSchema) : route.inputSchema;
+  const bindsTeam = route.pathParams.includes('teamKey');
+  const schema = bindsTeam ? withoutTeamKey(route.inputSchema) : route.inputSchema;
 
   return createTool({
     id: route.name,
@@ -93,7 +93,7 @@ function buildOne(
     inputSchema: jsonSchemaInput(schema),
     execute: async (input) => {
       const args: Record<string, unknown> = { ...input };
-      if (bindsProject) args.projectKey = project.key;
+      if (bindsTeam) args.teamKey = team.key;
       const { text, isError } = await dispatchTool(getMcpApp(), route, args, apiKey, {
         viaMcpEndpoint: false,
       });

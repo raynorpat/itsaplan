@@ -4,21 +4,21 @@ import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { pulseRows } from '../../store';
 
-// Read-only project analytics. Every figure is derived from the issue /
-// project_column / issue_activity tables, so the tests build state through the
+// Read-only team analytics. Every figure is derived from the issue /
+// workflow_state / issue_activity tables, so the tests build state through the
 // real create/move API (which seeds the "created" and "status" activity the
-// metrics read) rather than inserting rows. createProject seeds five default
+// metrics read) rather than inserting rows. createTeam seeds five default
 // columns, one per state type.
 
-// Owner + project MKT with the seeded default columns. `col` maps a state type to
+// Owner + team MKT with the seeded default columns. `col` maps a state type to
 // its column id so a test can place an issue in a known state without hardcoding
 // ids.
-async function setupProject() {
+async function setupTeam() {
   const owner: TestUser = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columns = view.data!.columns;
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const columns = view.data!.states;
   const col: Record<string, string> = {};
   for (const c of columns) col[c.stateType] = c.id;
   return { asOwner, owner, columns, col };
@@ -26,7 +26,7 @@ async function setupProject() {
 
 async function createIssue(
   asOwner: Api,
-  columnId: string,
+  stateId: string,
   extra: {
     title?: string;
     priority?: number;
@@ -36,17 +36,15 @@ async function createIssue(
   } = {},
 ) {
   const { title = 'Task', ...rest } = extra;
-  const res = await asOwner
-    .projects({ projectKey: 'MKT' })
-    .issues.post({ columnId, title, ...rest });
+  const res = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title, ...rest });
   if (!res.data) throw new Error(`createIssue failed with status ${res.status}`);
   return res.data;
 }
 
 // Moving an issue to another column writes a "status" activity whose toText is the
 // destination column name — the signal closed/throughput metrics read.
-function moveIssue(asOwner: Api, issueId: string, columnId: string) {
-  return asOwner.issues({ issueId }).patch({ columnId });
+function moveIssue(asOwner: Api, issueId: string, stateId: string) {
+  return asOwner.issues({ issueId }).patch({ stateId });
 }
 
 describe('analytics', () => {
@@ -55,9 +53,9 @@ describe('analytics', () => {
   });
 
   describe('stats', () => {
-    it('returns all-zero stats for an empty project', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.stats.get();
+    it('returns all-zero stats for an empty team', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.stats.get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual({
         open: 0,
@@ -70,58 +68,58 @@ describe('analytics', () => {
     });
 
     it('counts open, in-progress and backlog and excludes completed/canceled', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.backlog);
       await createIssue(asOwner, col.unstarted);
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.completed);
       await createIssue(asOwner, col.canceled);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.stats.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.stats.get();
       expect(res.status).toBe(200);
       // open = backlog + unstarted + started; completed and canceled are excluded.
       expect(res.data).toMatchObject({ open: 3, inProgress: 1, backlog: 1 });
     });
 
     it('counts overdue open issues and ignores completed and no-due-date ones', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started, { dueDate: '2000-01-01' });
       await createIssue(asOwner, col.completed, { dueDate: '2000-01-01' });
       await createIssue(asOwner, col.started);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.stats.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.stats.get();
       expect(res.data?.overdue).toBe(1);
     });
 
     it('counts only open issues without an assignee as unassigned', async () => {
-      const { asOwner, owner, col } = await setupProject();
+      const { asOwner, owner, col } = await setupTeam();
       await createIssue(asOwner, col.started, { assigneeUserId: owner.userId });
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.completed);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.stats.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.stats.get();
       expect(res.data?.unassigned).toBe(1);
     });
 
     it('counts issues moved to a completed column as closedLast7d', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const issue = await createIssue(asOwner, col.started);
       await moveIssue(asOwner, issue.id, col.completed);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.stats.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.stats.get();
       expect(res.data?.closedLast7d).toBe(1);
     });
   });
 
   describe('breakdown', () => {
     it('groups by status returning every column in work-items order, empty ones included', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.backlog);
       await createIssue(asOwner, col.backlog);
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'status' } });
       expect(res.status).toBe(200);
       expect(res.data?.map((i) => i.label)).toEqual([
@@ -140,14 +138,14 @@ describe('analytics', () => {
     });
 
     it('groups by priority with a labelled No-priority bucket', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started, { priority: 2 });
       await createIssue(asOwner, col.started, { priority: 2 });
       await createIssue(asOwner, col.started, { priority: 4 });
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'priority' } });
       expect(res.status).toBe(200);
       expect(res.data?.find((i) => i.key === '2')).toMatchObject({ label: 'High', count: 2 });
@@ -159,15 +157,13 @@ describe('analytics', () => {
     });
 
     it('groups by type with a No-type bucket', async () => {
-      const { asOwner, col } = await setupProject();
-      const type = await asOwner
-        .projects({ projectKey: 'MKT' })
-        ['issue-types'].post({ name: 'Bug' });
+      const { asOwner, col } = await setupTeam();
+      const type = await asOwner.teams({ teamKey: 'MKT' })['issue-types'].post({ name: 'Bug' });
       await createIssue(asOwner, col.started, { typeId: type.data!.id });
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'type' } });
       expect(res.status).toBe(200);
       expect(res.data?.find((i) => i.key === String(type.data!.id))).toMatchObject({
@@ -178,12 +174,12 @@ describe('analytics', () => {
     });
 
     it('groups by assignee with an Unassigned bucket', async () => {
-      const { asOwner, owner, col } = await setupProject();
+      const { asOwner, owner, col } = await setupTeam();
       await createIssue(asOwner, col.started, { assigneeUserId: owner.userId });
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'assignee' } });
       expect(res.status).toBe(200);
       expect(res.data?.find((i) => i.key === owner.userId)).toMatchObject({
@@ -197,14 +193,14 @@ describe('analytics', () => {
     });
 
     it('groups by delegate with a Not-delegated bucket', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const agent = await createAgent(asOwner, 'helperbot');
       const delegated = await createIssue(asOwner, col.started);
       await asOwner.issues({ issueId: delegated.id }).patch({ delegateUserId: agent.userId });
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'delegate' } });
       expect(res.status).toBe(200);
       expect(res.data?.find((i) => i.key === agent.userId)).toMatchObject({
@@ -218,18 +214,18 @@ describe('analytics', () => {
     });
 
     it('rejects an unknown group-by value', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'nonsense' as unknown as 'status' } });
       expect(res.status).toBe(400);
     });
   });
 
   describe('pulse', () => {
-    it('returns a zero-filled default day series for an empty project', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.pulse.get();
+    it('returns a zero-filled default day series for an empty team', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.pulse.get();
       expect(res.status).toBe(200);
       // Default: 26 day columns of 7 cells each, all zero.
       expect(res.data).toHaveLength(26 * pulseRows('day'));
@@ -238,65 +234,65 @@ describe('analytics', () => {
     });
 
     it('reflects activity in the series', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.pulse.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.pulse.get();
       const total = res.data?.reduce((sum, b) => sum + b.count, 0);
       // The one "created" activity lands in the current bucket.
       expect(total).toBe(1);
     });
 
     it('honors unit and columns', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const hour = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.pulse.get({ query: { unit: 'hour', columns: 2 } });
       expect(hour.data).toHaveLength(2 * pulseRows('hour'));
 
       const week = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.pulse.get({ query: { unit: 'week', columns: 5 } });
       expect(week.data).toHaveLength(5 * pulseRows('week'));
     });
 
     it("clamps columns to the unit's bounds", async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const tooMany = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.pulse.get({ query: { unit: 'day', columns: 10000 } });
       expect(tooMany.data).toHaveLength(160 * pulseRows('day'));
 
       const tooFew = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.pulse.get({ query: { unit: 'day', columns: 0 } });
       expect(tooFew.data).toHaveLength(1 * pulseRows('day'));
     });
 
     it('rejects an unknown unit', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.pulse.get({ query: { unit: 'nonsense' as unknown as 'day' } });
       expect(res.status).toBe(400);
     });
   });
 
   describe('throughput', () => {
-    it('returns an empty series for a project with no activity', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.throughput.get();
+    it('returns an empty series for a team with no activity', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.throughput.get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual([]);
     });
 
     it('counts created and closed issues in the current week', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const a = await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
       await moveIssue(asOwner, a.id, col.completed);
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.throughput.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.throughput.get();
       expect(res.status).toBe(200);
       expect(res.data).toHaveLength(1);
       expect(res.data?.[0]).toMatchObject({ created: 2, closed: 1 });
@@ -305,10 +301,10 @@ describe('analytics', () => {
 
   describe('activity', () => {
     it('returns the feed with issue context, newest first', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.backlog, { title: 'Alpha' });
 
-      const res = await asOwner.projects({ projectKey: 'MKT' }).analytics.activity.get();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).analytics.activity.get();
       expect(res.status).toBe(200);
       expect(res.data?.items).toHaveLength(1);
       expect(res.data?.items[0]).toMatchObject({
@@ -321,18 +317,18 @@ describe('analytics', () => {
     });
 
     it('paginates with the keyset cursor', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
 
       const first = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { limit: 2 } });
       expect(first.data?.items).toHaveLength(2);
       expect(first.data?.nextCursor).not.toBeNull();
 
-      const second = await asOwner.projects({ projectKey: 'MKT' }).analytics.activity.get({
+      const second = await asOwner.teams({ teamKey: 'MKT' }).analytics.activity.get({
         query: { limit: 2, cursor: JSON.stringify(first.data!.nextCursor) },
       });
       expect(second.data?.items).toHaveLength(1);
@@ -344,64 +340,64 @@ describe('analytics', () => {
     });
 
     it('filters by action', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const issue = await createIssue(asOwner, col.started);
       await moveIssue(asOwner, issue.id, col.completed);
 
       const status = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { action: 'status' } });
       expect(status.data?.items).toHaveLength(1);
       expect(status.data?.items[0]).toMatchObject({ action: 'status', toText: 'Done' });
 
       const created = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { action: 'created' } });
       expect(created.data?.items).toHaveLength(1);
       expect(created.data?.items[0]?.action).toBe('created');
     });
 
     it('filters by actor', async () => {
-      const { asOwner, owner, col } = await setupProject();
+      const { asOwner, owner, col } = await setupTeam();
       // The "created" activity is attributed to the session user who created it.
       await createIssue(asOwner, col.started);
 
       const mine = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { actorUserId: owner.userId } });
       expect(mine.data?.items.length).toBeGreaterThan(0);
       expect(mine.data?.items.every((i) => i.actorUserId === owner.userId)).toBe(true);
 
       const other = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { actorUserId: '00000000-0000-4000-8000-000000000000' } });
       expect(other.data?.items).toHaveLength(0);
     });
 
     it('filters by issue ids and returns nothing for a filter with no valid ids', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const a = await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
 
       const scoped = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { issueIds: String(a.id) } });
       expect(scoped.data?.items.length).toBeGreaterThan(0);
       expect(scoped.data?.items.every((i) => i.issueId === a.id)).toBe(true);
 
       const none = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { issueIds: 'abc' } });
       expect(none.data?.items).toHaveLength(0);
     });
 
     it('clamps a limit below 1 up to a single item', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { limit: 0 } });
       expect(res.status).toBe(200);
       // limit 0 is clamped to 1, so the page holds one item and reports more.
@@ -410,12 +406,12 @@ describe('analytics', () => {
     });
 
     it('ignores a malformed cursor and serves the first page', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       await createIssue(asOwner, col.started);
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .analytics.activity.get({ query: { cursor: 'not-json' } });
       expect(res.status).toBe(200);
       expect(res.data?.items).toHaveLength(2);
@@ -430,53 +426,51 @@ describe('analytics', () => {
     kind: 'external' | 'internal' = 'external',
   ) {
     const res = await asOwner
-      .projects({ projectKey: 'MKT' })
+      .teams({ teamKey: 'MKT' })
       ['ai-agents'].post({ name: username, username, kind });
     if (!res.data) throw new Error(`createAgent failed with status ${res.status}`);
     return res.data.agent;
   }
 
   describe('agent runs', () => {
-    it('returns an empty feed for a project with no runs', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' })['analytics']['agent-runs'].get();
+    it('returns an empty feed for a team with no runs', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['agent-runs'].get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual([]);
     });
 
     it('accepts a status filter', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         ['analytics']['agent-runs'].get({ query: { status: 'failed' } });
       expect(res.status).toBe(200);
       expect(res.data).toEqual([]);
     });
 
     it('rejects an unknown status', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         ['analytics']['agent-runs'].get({ query: { status: 'nonsense' as unknown as 'failed' } });
       expect(res.status).toBe(400);
     });
   });
 
   describe('agent run stats', () => {
-    it('returns all-zero counts for a project with no runs', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner
-        .projects({ projectKey: 'MKT' })
-        ['analytics']['agent-run-stats'].get();
+    it('returns all-zero counts for a team with no runs', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['agent-run-stats'].get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual({ total: 0, success: 0, failed: 0, pending: 0 });
     });
   });
 
   describe('webhook stats', () => {
-    it('returns all-zero counts for a project with no webhooks', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' })['analytics']['webhook-stats'].get();
+    it('returns all-zero counts for a team with no webhooks', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['webhook-stats'].get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual({
         total: 0,
@@ -489,8 +483,8 @@ describe('analytics', () => {
     });
 
     it('reflects the active and disabled subscription split', async () => {
-      const { asOwner } = await setupProject();
-      const scope = asOwner.projects({ projectKey: 'MKT' });
+      const { asOwner } = await setupTeam();
+      const scope = asOwner.teams({ teamKey: 'MKT' });
       const active = await scope.webhooks.post({
         url: 'https://example.com/a',
         events: ['issue.created'],
@@ -506,24 +500,20 @@ describe('analytics', () => {
   });
 
   describe('agent workload', () => {
-    it('returns an empty roster for a project with no agents', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner
-        .projects({ projectKey: 'MKT' })
-        ['analytics']['agent-workload'].get();
+    it('returns an empty roster for a team with no agents', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['agent-workload'].get();
       expect(res.status).toBe(200);
       expect(res.data).toEqual([]);
     });
 
     it('counts open issues delegated to an agent and reports zero runs', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const agent = await createAgent(asOwner, 'helperbot');
       const issue = await createIssue(asOwner, col.started);
       await asOwner.issues({ issueId: issue.id }).patch({ delegateUserId: agent.userId });
 
-      const res = await asOwner
-        .projects({ projectKey: 'MKT' })
-        ['analytics']['agent-workload'].get();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['agent-workload'].get();
       expect(res.status).toBe(200);
       const row = res.data?.find((r) => r.agentId === agent.id);
       expect(row).toMatchObject({
@@ -536,32 +526,30 @@ describe('analytics', () => {
     });
 
     it('excludes completed and canceled issues from the delegated count', async () => {
-      const { asOwner, col } = await setupProject();
+      const { asOwner, col } = await setupTeam();
       const agent = await createAgent(asOwner, 'helperbot');
       const open = await createIssue(asOwner, col.started);
       const done = await createIssue(asOwner, col.completed);
       await asOwner.issues({ issueId: open.id }).patch({ delegateUserId: agent.userId });
       await asOwner.issues({ issueId: done.id }).patch({ delegateUserId: agent.userId });
 
-      const res = await asOwner
-        .projects({ projectKey: 'MKT' })
-        ['analytics']['agent-workload'].get();
+      const res = await asOwner.teams({ teamKey: 'MKT' })['analytics']['agent-workload'].get();
       const row = res.data?.find((r) => r.agentId === agent.id);
       expect(row?.delegatedOpen).toBe(1);
     });
   });
 
   describe('access', () => {
-    it('returns 404 for an unknown project', async () => {
-      const { asOwner } = await setupProject();
-      const res = await asOwner.projects({ projectKey: 'NOPE' }).analytics.stats.get();
+    it('returns 404 for an unknown team', async () => {
+      const { asOwner } = await setupTeam();
+      const res = await asOwner.teams({ teamKey: 'NOPE' }).analytics.stats.get();
       expect(res.status).toBe(404);
     });
 
     it('denies a non-member on every analytics route', async () => {
-      await setupProject();
+      await setupTeam();
       const outsider = authedApi((await signUpTestUser()).cookie);
-      const scope = outsider.projects({ projectKey: 'MKT' });
+      const scope = outsider.teams({ teamKey: 'MKT' });
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert
       // the top-level HTTP status rather than error.status.

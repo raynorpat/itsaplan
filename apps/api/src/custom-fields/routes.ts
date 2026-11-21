@@ -18,7 +18,7 @@ const fieldType = t.Union([
   t.Literal('multi_select'),
 ]);
 
-const fieldParams = t.Object({ projectKey: t.String(), fieldId: t.String({ format: 'uuid' }) });
+const fieldParams = t.Object({ teamKey: t.String(), fieldId: t.String({ format: 'uuid' }) });
 
 // A field option DTO (CustomFieldOptionRow from the store).
 const CustomFieldOptionResponse = t.Object({
@@ -45,14 +45,14 @@ export const customFieldRoutes = new Elysia({
 })
   .use(guards)
   // issueTypeId query param includes that type's own fields alongside the
-  // project-wide ones; omitting it returns only the project-wide fields.
+  // team-wide ones; omitting it returns only the team-wide fields.
   .get(
-    '/projects/:projectKey/custom-fields',
-    async ({ project, query }) => {
-      return listCustomFields(project.id, { issueTypeId: query.issueTypeId });
+    '/teams/:teamKey/custom-fields',
+    async ({ team, query }) => {
+      return listCustomFields(team.id, { issueTypeId: query.issueTypeId });
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       query: t.Object({ issueTypeId: t.Optional(t.String({ format: 'uuid' })) }),
       permission: ['custom_fields', 'read'],
       response: {
@@ -63,28 +63,28 @@ export const customFieldRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: "List a project's custom fields",
-        description: "List a project's custom fields.",
+        summary: "List a team's custom fields",
+        description: "List a team's custom fields.",
         ...mcpTool('list_custom_fields'),
       },
     },
   )
 
   .post(
-    '/projects/:projectKey/custom-fields',
-    async ({ project, body, set }) => {
-      // A type-scoped field must target an issue type of this project.
+    '/teams/:teamKey/custom-fields',
+    async ({ team, body, set }) => {
+      // A type-scoped field must target an issue type of this team.
       if (body.issueTypeId != null) {
         const type = await getIssueTypeById(body.issueTypeId);
-        if (!type || type.projectId !== project.id) {
-          throw new HttpError(400, 'issueTypeId does not belong to this project');
+        if (!type || type.teamId !== team.id) {
+          throw new HttpError(400, 'issueTypeId does not belong to this team');
         }
       }
       set.status = 201;
-      return createCustomField({ projectId: project.id, ...body });
+      return createCustomField({ teamId: team.id, ...body });
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       body: t.Object({
         issueTypeId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
         name: t.String({ minLength: 1 }),
@@ -102,16 +102,16 @@ export const customFieldRoutes = new Elysia({
       },
       detail: {
         summary: 'Create a custom field',
-        description: 'Create a custom field for a project.',
+        description: 'Create a custom field for a team.',
         ...mcpTool('create_custom_field'),
       },
     },
   )
 
   .patch(
-    '/projects/:projectKey/custom-fields/:fieldId',
-    async ({ project, params, body }) => {
-      const field = await updateCustomField(project.id, params.fieldId, body);
+    '/teams/:teamKey/custom-fields/:fieldId',
+    async ({ team, params, body }) => {
+      const field = await updateCustomField(team.id, params.fieldId, body);
       if (!field) throw new HttpError(404, 'Custom field not found');
       return field;
     },
@@ -138,9 +138,9 @@ export const customFieldRoutes = new Elysia({
   )
 
   .delete(
-    '/projects/:projectKey/custom-fields/:fieldId',
-    async ({ project, params }) => {
-      const deleted = await deleteCustomField(project.id, params.fieldId);
+    '/teams/:teamKey/custom-fields/:fieldId',
+    async ({ team, params }) => {
+      const deleted = await deleteCustomField(team.id, params.fieldId);
       if (!deleted) throw new HttpError(404, 'Custom field not found');
       return noContent();
     },

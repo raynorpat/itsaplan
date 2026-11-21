@@ -1,7 +1,7 @@
 import { db, label, labelGroup } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
 
-// Data access for labels and label groups. Both belong to one project. A label
+// Data access for labels and label groups. Both belong to one team. A label
 // has at most one group; deleting a group ungroups its labels (group_id → SET
 // NULL). Deleting a label removes it from every issue that has it (ON DELETE
 // CASCADE on issue_label.label_id).
@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm';
 
 export interface LabelRow {
   id: string;
-  projectId: string;
+  teamId: string;
   groupId: string | null;
   name: string;
   color: string;
@@ -19,24 +19,20 @@ export interface LabelRow {
 function mapLabel(row: typeof label.$inferSelect): LabelRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     groupId: row.groupId ?? null,
     name: row.name,
     color: row.color,
   };
 }
 
-export async function listLabels(projectId: string): Promise<LabelRow[]> {
-  const rows = await db
-    .select()
-    .from(label)
-    .where(eq(label.projectId, projectId))
-    .orderBy(label.name);
+export async function listLabels(teamId: string): Promise<LabelRow[]> {
+  const rows = await db.select().from(label).where(eq(label.teamId, teamId)).orderBy(label.name);
   return rows.map(mapLabel);
 }
 
 export async function createLabel(input: {
-  projectId: string;
+  teamId: string;
   name: string;
   color?: string;
   groupId?: string | null;
@@ -44,7 +40,7 @@ export async function createLabel(input: {
   const [row] = await db
     .insert(label)
     .values({
-      projectId: input.projectId,
+      teamId: input.teamId,
       name: input.name,
       color: input.color ?? '#6b7280',
       groupId: input.groupId ?? null,
@@ -53,14 +49,14 @@ export async function createLabel(input: {
   return mapLabel(row);
 }
 
-// Scoped to projectId so an id from another project resolves to null (a 404 at
-// the route), never a cross-project edit.
+// Scoped to teamId so an id from another team resolves to null (a 404 at
+// the route), never a cross-team edit.
 export async function updateLabel(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: { name?: string; color?: string; groupId?: string | null },
 ): Promise<LabelRow | null> {
-  const scope = and(eq(label.id, id), eq(label.projectId, projectId));
+  const scope = and(eq(label.id, id), eq(label.teamId, teamId));
   const set: Partial<typeof label.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.color !== undefined) set.color = patch.color;
@@ -73,53 +69,53 @@ export async function updateLabel(
   return row ? mapLabel(row) : null;
 }
 
-// Scoped to projectId: an id outside the project deletes nothing.
-export async function deleteLabel(id: string, projectId: string): Promise<void> {
-  await db.delete(label).where(and(eq(label.id, id), eq(label.projectId, projectId)));
+// Scoped to teamId: an id outside the team deletes nothing.
+export async function deleteLabel(id: string, teamId: string): Promise<void> {
+  await db.delete(label).where(and(eq(label.id, id), eq(label.teamId, teamId)));
 }
 
 // --- Label groups --------------------------------------------------------------
 
 export interface LabelGroupRow {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   color: string;
 }
 
 function mapLabelGroup(row: typeof labelGroup.$inferSelect): LabelGroupRow {
-  return { id: row.id, projectId: row.projectId, name: row.name, color: row.color };
+  return { id: row.id, teamId: row.teamId, name: row.name, color: row.color };
 }
 
-export async function listLabelGroups(projectId: string): Promise<LabelGroupRow[]> {
+export async function listLabelGroups(teamId: string): Promise<LabelGroupRow[]> {
   const rows = await db
     .select()
     .from(labelGroup)
-    .where(eq(labelGroup.projectId, projectId))
+    .where(eq(labelGroup.teamId, teamId))
     .orderBy(labelGroup.name);
   return rows.map(mapLabelGroup);
 }
 
 export async function createLabelGroup(input: {
-  projectId: string;
+  teamId: string;
   name: string;
   color?: string;
 }): Promise<LabelGroupRow> {
   const [row] = await db
     .insert(labelGroup)
-    .values({ projectId: input.projectId, name: input.name, color: input.color ?? '#6b7280' })
+    .values({ teamId: input.teamId, name: input.name, color: input.color ?? '#6b7280' })
     .returning();
   return mapLabelGroup(row);
 }
 
-// Scoped to projectId so an id from another project resolves to null (a 404 at
-// the route), never a cross-project edit.
+// Scoped to teamId so an id from another team resolves to null (a 404 at
+// the route), never a cross-team edit.
 export async function updateLabelGroup(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: { name?: string; color?: string },
 ): Promise<LabelGroupRow | null> {
-  const scope = and(eq(labelGroup.id, id), eq(labelGroup.projectId, projectId));
+  const scope = and(eq(labelGroup.id, id), eq(labelGroup.teamId, teamId));
   const set: Partial<typeof labelGroup.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.color !== undefined) set.color = patch.color;
@@ -131,9 +127,7 @@ export async function updateLabelGroup(
   return row ? mapLabelGroup(row) : null;
 }
 
-// Scoped to projectId: an id outside the project deletes nothing.
-export async function deleteLabelGroup(id: string, projectId: string): Promise<void> {
-  await db
-    .delete(labelGroup)
-    .where(and(eq(labelGroup.id, id), eq(labelGroup.projectId, projectId)));
+// Scoped to teamId: an id outside the team deletes nothing.
+export async function deleteLabelGroup(id: string, teamId: string): Promise<void> {
+  await db.delete(labelGroup).where(and(eq(labelGroup.id, id), eq(labelGroup.teamId, teamId)));
 }

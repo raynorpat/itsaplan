@@ -4,13 +4,13 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import type { WebhookEventType } from '../../store';
 
-async function setupOwnerProject() {
+async function setupOwnerTeam() {
   const owner = await signUpTestUser();
   const asOwner = authedApi(owner.cookie);
-  const project = await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  // createProject seeds five default columns; the first is the target for issues.
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  return { asOwner, projectId: project.data!.id, columnId: view.data!.columns[0].id };
+  const team = await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  // createTeam seeds five default columns; the first is the target for issues.
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  return { asOwner, teamId: team.data!.id, stateId: view.data!.states[0].id };
 }
 
 // Registers a webhook on MKT and returns its id.
@@ -19,7 +19,7 @@ async function createWebhook(
   events: WebhookEventType[],
   opts: { isActive?: boolean } = {},
 ): Promise<string> {
-  const res = await client.projects({ projectKey: 'MKT' }).webhooks.post({
+  const res = await client.teams({ teamKey: 'MKT' }).webhooks.post({
     url: 'https://example.com/hook',
     events,
     ...opts,
@@ -35,24 +35,24 @@ describe('webhooks', () => {
   it('lists webhooks in creation order', async () => {
     const owner = await signUpTestUser();
     const asOwner = authedApi(owner.cookie);
-    await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+    await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
     const ids: string[] = [];
     for (let i = 0; i < 5; i++) ids.push(await createWebhook(asOwner, ['issue.created']));
-    const list = await asOwner.projects({ projectKey: 'MKT' }).webhooks.get();
+    const list = await asOwner.teams({ teamKey: 'MKT' }).webhooks.get();
     expect(list.data!.map((w) => w.id)).toEqual(ids);
   });
 
   describe('create and list', () => {
     it('creates a webhook with a generated secret and lists it', async () => {
-      const { asOwner, projectId } = await setupOwnerProject();
+      const { asOwner, teamId } = await setupOwnerTeam();
 
-      const created = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const created = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
         events: ['issue.created', 'issue.updated'],
       });
       expect(created.status).toBe(201);
       expect(created.data).toMatchObject({
-        projectId,
+        teamId,
         url: 'https://example.com/hook',
         events: ['issue.created', 'issue.updated'],
         isActive: true,
@@ -60,15 +60,15 @@ describe('webhooks', () => {
       expect(typeof created.data?.id).toBe('string');
       expect(created.data?.secret).toMatch(/^whsec_/);
 
-      const list = await asOwner.projects({ projectKey: 'MKT' }).webhooks.get();
+      const list = await asOwner.teams({ teamKey: 'MKT' }).webhooks.get();
       expect(list.status).toBe(200);
       expect(list.data).toHaveLength(1);
       expect(list.data?.[0]).toMatchObject({ url: 'https://example.com/hook' });
     });
 
     it('honors an explicit isActive false', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const created = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const created = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
         events: ['issue.created'],
         isActive: false,
@@ -80,8 +80,8 @@ describe('webhooks', () => {
 
   describe('validation', () => {
     it('rejects a non-https url', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'http://example.com/hook',
         events: ['issue.created'],
       });
@@ -89,8 +89,8 @@ describe('webhooks', () => {
     });
 
     it('rejects a url pointing at a private address', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://192.168.0.10/hook',
         events: ['issue.created'],
       });
@@ -98,8 +98,8 @@ describe('webhooks', () => {
     });
 
     it('rejects a url pointing at localhost', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://localhost/hook',
         events: ['issue.created'],
       });
@@ -107,8 +107,8 @@ describe('webhooks', () => {
     });
 
     it('rejects an empty events list', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
         events: [],
       });
@@ -116,8 +116,8 @@ describe('webhooks', () => {
     });
 
     it('rejects an unknown event type', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
         // @ts-expect-error unknown event type is rejected by the schema
         events: ['issue.exploded'],
@@ -126,7 +126,7 @@ describe('webhooks', () => {
     });
 
     it('rejects a non-numeric webhook id', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.webhooks({ webhookId: 'abc' }).patch({ isActive: false });
       expect(res.status).toBe(400);
     });
@@ -134,9 +134,9 @@ describe('webhooks', () => {
 
   describe('update', () => {
     it('updates only the provided fields', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const id = (
-        await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+        await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
           events: ['issue.created'],
         })
@@ -155,9 +155,9 @@ describe('webhooks', () => {
     });
 
     it('validates the url on update', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const id = (
-        await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+        await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
           events: ['issue.created'],
         })
@@ -168,7 +168,7 @@ describe('webhooks', () => {
     });
 
     it('returns 404 when patching a missing webhook', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const res = await asOwner
         .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
         .patch({ isActive: false });
@@ -178,9 +178,9 @@ describe('webhooks', () => {
 
   describe('delete', () => {
     it('deletes a webhook', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const id = (
-        await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+        await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
           events: ['issue.created'],
         })
@@ -189,12 +189,12 @@ describe('webhooks', () => {
       const del = await asOwner.webhooks({ webhookId: id }).delete();
       expect(del.status).toBe(204);
 
-      const list = await asOwner.projects({ projectKey: 'MKT' }).webhooks.get();
+      const list = await asOwner.teams({ teamKey: 'MKT' }).webhooks.get();
       expect(list.data).toHaveLength(0);
     });
 
     it('returns 404 when deleting a missing webhook', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const res = await asOwner
         .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
         .delete();
@@ -204,7 +204,7 @@ describe('webhooks', () => {
 
   describe('deliveries', () => {
     it('returns an empty page for a webhook with no deliveries', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['issue.created']);
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
@@ -213,7 +213,7 @@ describe('webhooks', () => {
     });
 
     it('returns 404 for a missing webhook', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const res = await asOwner
         .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
         .deliveries.get();
@@ -221,18 +221,18 @@ describe('webhooks', () => {
     });
 
     it('rejects a non-numeric webhook id', async () => {
-      const { asOwner } = await setupOwnerProject();
+      const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.webhooks({ webhookId: 'abc' }).deliveries.get();
       expect(res.status).toBe(400);
     });
 
     it('paginates newest-first with a keyset cursor', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['issue.created']);
 
       // Three issue.created events queue three deliveries on this webhook.
       for (const title of ['a', 'b', 'c']) {
-        await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title });
+        await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title });
       }
 
       const first = await asOwner
@@ -262,10 +262,10 @@ describe('webhooks', () => {
   // pending). These assert the fan-out selection, not the worker.
   describe('fan-out', () => {
     it('queues a pending delivery for a subscribed active webhook on issue.created', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['issue.created']);
 
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(1);
@@ -285,31 +285,31 @@ describe('webhooks', () => {
     });
 
     it('does not queue for an inactive webhook', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['issue.created'], { isActive: false });
 
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(0);
     });
 
     it('does not queue for an event the webhook is not subscribed to', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['comment.created']);
 
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(0);
     });
 
     it('fans out to every matching webhook with a shared event id', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const a = await createWebhook(asOwner, ['issue.created']);
       const b = await createWebhook(asOwner, ['issue.created']);
 
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
       const da = await asOwner.webhooks({ webhookId: a }).deliveries.get();
       const db = await asOwner.webhooks({ webhookId: b }).deliveries.get();
@@ -320,15 +320,13 @@ describe('webhooks', () => {
     });
 
     it('fires the granular issue.state_changed alongside issue.updated on a column move', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
-      const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-      const otherColumn = view.data!.columns[1].id;
+      const { asOwner, stateId } = await setupOwnerTeam();
+      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+      const otherColumn = view.data!.states[1].id;
       const id = await createWebhook(asOwner, ['issue.updated', 'issue.state_changed']);
 
-      const issue = await asOwner
-        .projects({ projectKey: 'MKT' })
-        .issues.post({ columnId, title: 'Task' });
-      await asOwner.issues({ issueId: issue.data!.id }).patch({ columnId: otherColumn });
+      const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
+      await asOwner.issues({ issueId: issue.data!.id }).patch({ stateId: otherColumn });
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       const types = res.data!.items.map((d) => d.eventType).sort();
@@ -336,12 +334,10 @@ describe('webhooks', () => {
     });
 
     it('queues a delivery on comment.created', async () => {
-      const { asOwner, columnId } = await setupOwnerProject();
+      const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['comment.created']);
 
-      const issue = await asOwner
-        .projects({ projectKey: 'MKT' })
-        .issues.post({ columnId, title: 'Task' });
+      const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
       await asOwner.issues({ issueId: issue.data!.id }).comments.post({ body: 'looks good' });
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
@@ -351,16 +347,16 @@ describe('webhooks', () => {
   });
 
   describe('access', () => {
-    it('returns 404 for an unknown project', async () => {
-      const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.projects({ projectKey: 'NOPE' }).webhooks.get();
+    it('returns 404 for an unknown team', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      const res = await asOwner.teams({ teamKey: 'NOPE' }).webhooks.get();
       expect(res.status).toBe(404);
     });
 
-    it('denies a non-member on project-scoped and entity routes', async () => {
-      const { asOwner } = await setupOwnerProject();
+    it('denies a non-member on team-scoped and entity routes', async () => {
+      const { asOwner } = await setupOwnerTeam();
       const webhookId = (
-        await asOwner.projects({ projectKey: 'MKT' }).webhooks.post({
+        await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
           events: ['issue.created'],
         })
@@ -370,10 +366,10 @@ describe('webhooks', () => {
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so
       // assert the top-level HTTP status (typed number) rather than error.status.
-      const list = await outsider.projects({ projectKey: 'MKT' }).webhooks.get();
+      const list = await outsider.teams({ teamKey: 'MKT' }).webhooks.get();
       expect(list.status).toBe(403);
 
-      const create = await outsider.projects({ projectKey: 'MKT' }).webhooks.post({
+      const create = await outsider.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://evil.example.com/hook',
         events: ['issue.created'],
       });

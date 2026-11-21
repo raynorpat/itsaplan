@@ -12,7 +12,7 @@ import { getCredentialById } from '../integrations/store';
 
 export interface AgentToolRow {
   id: string;
-  projectId: string;
+  teamId: string;
   toolKey: string;
   credentialId: string;
   integrationKey: string;
@@ -22,7 +22,7 @@ export interface AgentToolRow {
 
 const dtoColumns = {
   id: agentTool.id,
-  projectId: agentTool.projectId,
+  teamId: agentTool.teamId,
   toolKey: agentTool.toolKey,
   credentialId: agentTool.credentialId,
   integrationKey: integrationCredential.integrationKey,
@@ -34,22 +34,22 @@ function mapRow(row: Omit<AgentToolRow, 'createdAt'> & { createdAt: Date }): Age
   return { ...row, createdAt: iso(row.createdAt) };
 }
 
-export async function listAgentTools(projectId: string): Promise<AgentToolRow[]> {
+export async function listAgentTools(teamId: string): Promise<AgentToolRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentTool)
     .innerJoin(integrationCredential, eq(integrationCredential.id, agentTool.credentialId))
-    .where(eq(agentTool.projectId, projectId))
+    .where(eq(agentTool.teamId, teamId))
     .orderBy(agentTool.toolKey);
   return rows.map(mapRow);
 }
 
-async function getAgentToolById(id: string, projectId: string): Promise<AgentToolRow | null> {
+async function getAgentToolById(id: string, teamId: string): Promise<AgentToolRow | null> {
   const rows = await db
     .select(dtoColumns)
     .from(agentTool)
     .innerJoin(integrationCredential, eq(integrationCredential.id, agentTool.credentialId))
-    .where(and(eq(agentTool.id, id), eq(agentTool.projectId, projectId)));
+    .where(and(eq(agentTool.id, id), eq(agentTool.teamId, teamId)));
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
@@ -59,12 +59,12 @@ export interface NewAgentToolInput {
 }
 
 export async function createAgentTool(
-  projectId: string,
+  teamId: string,
   input: NewAgentToolInput,
 ): Promise<AgentToolRow> {
   const found = getTool(input.toolKey);
   if (!found) throw new HttpError(400, `Unknown tool: ${input.toolKey}`);
-  const credential = await getCredentialById(input.credentialId, projectId);
+  const credential = await getCredentialById(input.credentialId, teamId);
   if (!credential) throw new HttpError(400, 'Credential not found');
   // The bound credential must belong to the tool's integration.
   if (credential.integrationKey !== found.integration.key) {
@@ -76,19 +76,19 @@ export async function createAgentTool(
   try {
     const [row] = await db
       .insert(agentTool)
-      .values({ projectId, toolKey: input.toolKey, credentialId: input.credentialId })
+      .values({ teamId, toolKey: input.toolKey, credentialId: input.credentialId })
       .returning({ id: agentTool.id });
-    return (await getAgentToolById(row.id, projectId))!;
+    return (await getAgentToolById(row.id, teamId))!;
   } catch (err) {
     rethrowDuplicate(err, 'This tool on this credential');
     throw err;
   }
 }
 
-export async function deleteAgentTool(id: string, projectId: string): Promise<boolean> {
+export async function deleteAgentTool(id: string, teamId: string): Promise<boolean> {
   const deleted = await db
     .delete(agentTool)
-    .where(and(eq(agentTool.id, id), eq(agentTool.projectId, projectId)))
+    .where(and(eq(agentTool.id, id), eq(agentTool.teamId, teamId)))
     .returning({ id: agentTool.id });
   return deleted.length > 0;
 }
@@ -133,10 +133,10 @@ export async function listAgentToolsForRun(
 }
 
 // Replaces the set of configured tools enabled on an agent. Only tools in the agent's
-// project are accepted; unknown or cross-project ids are ignored.
+// team are accepted; unknown or cross-team ids are ignored.
 export async function setAgentTools(
   agentId: string,
-  projectId: string,
+  teamId: string,
   agentToolIds: string[],
 ): Promise<void> {
   const unique = [...new Set(agentToolIds)];
@@ -147,7 +147,7 @@ export async function setAgentTools(
           await db
             .select({ id: agentTool.id })
             .from(agentTool)
-            .where(and(eq(agentTool.projectId, projectId), inArray(agentTool.id, unique)))
+            .where(and(eq(agentTool.teamId, teamId), inArray(agentTool.id, unique)))
         ).map((r) => r.id);
 
   await db.transaction(async (tx) => {

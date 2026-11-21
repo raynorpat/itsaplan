@@ -15,13 +15,13 @@ import { requireGod } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { noContent } from '../shared/http';
-import { deleteProject } from '../projects/store';
+import { deleteTeam } from '../teams/store';
 import {
   USER_KINDS,
   deleteInstanceUser,
-  getInstanceProject,
+  getInstanceTeam,
   getInstanceUser,
-  listInstanceProjects,
+  listInstanceTeams,
   listInstanceUsers,
   verifyInstanceUserEmail,
 } from './store';
@@ -33,7 +33,7 @@ import { getUpdateStatus, UpdateStatusSchema } from '../settings/updates';
 // God mode: instance-wide administration, open only to the "god" user (the first
 // registered account). It covers how people may register, the mail provider that
 // sends authentication email, and the Google OAuth credentials. Invites are per
-// project (project_invite), managed in the project's Members section — there is
+// team (team_invite), managed in the team's Members section — there is
 // nothing instance-level to add here.
 //
 // The settings themselves are owned by @repo/auth, which reads them at sign-up and
@@ -69,9 +69,9 @@ const EmailSettingsResponse = t.Object({
   }),
   resend: t.Object({ enabled: t.Boolean(), hasApiKey: t.Boolean() }),
   from: t.String(),
-  // Whether projects may deliver their notifications through this provider instead
+  // Whether teams may deliver their notifications through this provider instead
   // of configuring one of their own.
-  allowProjects: t.Boolean(),
+  allowTeams: t.Boolean(),
 });
 
 const EmailSettingsBody = t.Object({
@@ -88,7 +88,7 @@ const EmailSettingsBody = t.Object({
   ),
   resend: t.Optional(t.Object({ enabled: t.Boolean(), apiKey: t.Optional(t.String()) })),
   from: t.Optional(t.String()),
-  allowProjects: t.Optional(t.Boolean()),
+  allowTeams: t.Optional(t.Boolean()),
 });
 
 const GoogleSettingsResponse = t.Object({
@@ -110,7 +110,7 @@ const StorageSettingsBody = t.Object({
   maxAttachmentMb: t.Optional(t.Integer({ minimum: 1, maximum: 10240 })),
   maxAvatarMb: t.Optional(t.Integer({ minimum: 1, maximum: 1024 })),
   attachmentMimeTypes: t.Optional(t.Array(t.String({ minLength: 1 }))),
-  projectQuotaMb: t.Optional(t.Integer({ minimum: 0 })),
+  teamQuotaMb: t.Optional(t.Integer({ minimum: 0 })),
 });
 
 const TelegramSettingsResponse = t.Object({
@@ -136,7 +136,7 @@ const InstanceUserResponse = t.Object({
   role: t.String(),
   isAgent: t.Boolean(),
   providers: t.Array(t.String()),
-  projectCount: t.Number(),
+  teamCount: t.Number(),
   lastSeenAt: t.Nullable(t.String()),
   createdAt: t.String(),
 });
@@ -148,11 +148,11 @@ const PermissionMatrix = t.Record(t.String(), t.Record(t.String(), t.Boolean()))
 const InstanceUserDetailResponse = t.Composite([
   InstanceUserResponse,
   t.Object({
-    projects: t.Array(
+    teams: t.Array(
       t.Object({
-        projectId: t.String({ format: 'uuid' }),
-        projectKey: t.String(),
-        projectName: t.String(),
+        teamId: t.String({ format: 'uuid' }),
+        teamKey: t.String(),
+        teamName: t.String(),
         role: t.UnionEnum(['owner', 'member']),
         roleId: t.Nullable(t.String({ format: 'uuid' })),
         roleName: t.Nullable(t.String()),
@@ -164,9 +164,9 @@ const InstanceUserDetailResponse = t.Composite([
   }),
 ]);
 
-// One project in the instance project directory, with what it holds counted across
+// One team in the instance team directory, with what it holds counted across
 // its dependent tables.
-const InstanceProjectResponse = t.Object({
+const InstanceTeamResponse = t.Object({
   id: t.String({ format: 'uuid' }),
   key: t.String(),
   name: t.String(),
@@ -175,7 +175,7 @@ const InstanceProjectResponse = t.Object({
   memberCount: t.Number(),
   issueCount: t.Number(),
   archivedIssueCount: t.Number(),
-  initiativeCount: t.Number(),
+  projectCount: t.Number(),
   dashboardCount: t.Number(),
   viewCount: t.Number(),
   agentCount: t.Number(),
@@ -186,8 +186,8 @@ const InstanceProjectResponse = t.Object({
   createdAt: t.String(),
 });
 
-const InstanceProjectDetailResponse = t.Composite([
-  InstanceProjectResponse,
+const InstanceTeamDetailResponse = t.Composite([
+  InstanceTeamResponse,
   t.Object({
     members: t.Array(
       t.Object({
@@ -323,7 +323,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     response: { 200: StorageSettingsSchema, 401: ErrorResponse, 403: ErrorResponse },
     detail: {
       summary: 'Get storage limits',
-      description: 'Get the instance upload limits: file sizes, accepted types, and project quota.',
+      description: 'Get the instance upload limits: file sizes, accepted types, and team quota.',
     },
   })
 
@@ -442,7 +442,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     {
       query: t.Object({
         search: t.Optional(t.String()),
-        // Agent bot users are accounts too, but they are managed on a project's AI
+        // Agent bot users are accounts too, but they are managed on a team's AI
         // Agents screen, so the directory lists people unless asked otherwise.
         kind: t.Optional(t.UnionEnum([...USER_KINDS])),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 200 })),
@@ -480,7 +480,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       detail: {
         summary: 'Get an instance user',
         description:
-          'Get one account with the projects it can reach and the permissions its membership resolves to.',
+          'Get one account with the teams it can reach and the permissions its membership resolves to.',
       },
     },
   )
@@ -518,21 +518,21 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       if (target.role === 'god') throw new HttpError(403, 'An instance owner cannot be deleted');
       // An agent's bot user is created and removed with its AI Agent config.
       if (target.isAgent) {
-        throw new HttpError(400, 'Delete the AI agent from its project instead');
+        throw new HttpError(400, 'Delete the AI agent from its team instead');
       }
-      // Projects this user owns alone. Their membership goes with the account, so
-      // the project would be left with nobody who can manage it (god mode does not
-      // bypass project membership). Either the caller takes those projects down
+      // Teams this user owns alone. Their membership goes with the account, so
+      // the team would be left with nobody who can manage it (god mode does not
+      // bypass team membership). Either the caller takes those teams down
       // with the account, or the request is refused until another owner is added.
-      const sole = target.projects.filter((p) => p.role === 'owner' && p.ownerCount === 1);
-      if (sole.length > 0 && !query.withProjects) {
+      const sole = target.teams.filter((p) => p.role === 'owner' && p.ownerCount === 1);
+      if (sole.length > 0 && !query.withTeams) {
         throw new HttpError(
           400,
-          `This user is the only owner of ${sole.map((p) => p.projectKey).join(', ')}. Add another owner first, or delete the projects with the account.`,
+          `This user is the only owner of ${sole.map((p) => p.teamKey).join(', ')}. Add another owner first, or delete the teams with the account.`,
         );
       }
-      if (query.withProjects) {
-        for (const p of sole) await deleteProject(p.projectId);
+      if (query.withTeams) {
+        for (const p of sole) await deleteTeam(p.teamId);
       }
       await deleteInstanceUser(params.userId);
       return noContent();
@@ -540,9 +540,9 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     {
       params: t.Object({ userId: t.String({ format: 'uuid' }) }),
       query: t.Object({
-        // Delete the projects this user owns alone along with the account. Every
+        // Delete the teams this user owns alone along with the account. Every
         // issue, comment and attachment in them goes too.
-        withProjects: t.Optional(t.Boolean()),
+        withTeams: t.Optional(t.Boolean()),
       }),
       response: {
         204: t.Void(),
@@ -554,15 +554,15 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       detail: {
         summary: 'Delete a user',
         description:
-          'Remove an account from the instance, with its sessions, memberships and preferences. Optionally deletes the projects it owns alone.',
+          'Remove an account from the instance, with its sessions, memberships and preferences. Optionally deletes the teams it owns alone.',
       },
     },
   )
 
   .get(
-    '/god/projects',
+    '/god/teams',
     ({ query }) =>
-      listInstanceProjects({
+      listInstanceTeams({
         search: query.search,
         limit: query.limit ?? 50,
         offset: query.offset ?? 0,
@@ -574,39 +574,38 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
         offset: t.Optional(t.Numeric({ minimum: 0 })),
       }),
       response: {
-        200: t.Object({ items: t.Array(InstanceProjectResponse), total: t.Number() }),
+        200: t.Object({ items: t.Array(InstanceTeamResponse), total: t.Number() }),
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
       },
       detail: {
-        summary: 'List instance projects',
-        description:
-          'List one page of projects with what each holds, plus how many match the search.',
+        summary: 'List instance teams',
+        description: 'List one page of teams with what each holds, plus how many match the search.',
       },
     },
   )
 
   .get(
-    '/god/projects/:projectId',
+    '/god/teams/:teamId',
     async ({ params }) => {
-      const found = await getInstanceProject(params.projectId);
-      if (!found) throw new HttpError(404, 'Project not found');
+      const found = await getInstanceTeam(params.teamId);
+      if (!found) throw new HttpError(404, 'Team not found');
       return found;
     },
     {
-      params: t.Object({ projectId: t.String({ format: 'uuid' }) }),
+      params: t.Object({ teamId: t.String({ format: 'uuid' }) }),
       response: {
-        200: InstanceProjectDetailResponse,
+        200: InstanceTeamDetailResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get an instance project',
+        summary: 'Get an instance team',
         description:
-          'Get one project with what it holds and every member, with the permissions each membership resolves to.',
+          'Get one team with what it holds and every member, with the permissions each membership resolves to.',
       },
     },
   );

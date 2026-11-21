@@ -6,7 +6,7 @@ import { entityGuard } from '../shared/guards';
 import { HttpError } from '../shared/lib';
 import { putObject, getObject, deleteObject } from '../shared/s3';
 import { assertPublicHttpUrl } from '../shared/net';
-import { getIssueProjectId } from '../issues/store';
+import { getIssueTeamId } from '../issues/store';
 import { mcpTool } from '../mcp/generate';
 import { ErrorResponse } from '../shared/responses';
 import { getStorageSettings, mimeAllowed, MB, type StorageSettings } from '../settings/storage';
@@ -16,7 +16,7 @@ import {
   getAttachmentByPublicId,
   deleteAttachmentByPublicId,
   removeAttachmentEmbeds,
-  getProjectAttachmentBytes,
+  getTeamAttachmentBytes,
   type AttachmentRow,
 } from './store';
 
@@ -34,7 +34,7 @@ const AttachmentSchema = t.Object({
 // request so a change in god mode takes effect without a restart.
 async function assertUploadAllowed(
   limits: StorageSettings,
-  projectId: string,
+  teamId: string,
   size: number,
   contentType: string,
 ): Promise<void> {
@@ -44,25 +44,25 @@ async function assertUploadAllowed(
   if (!mimeAllowed(contentType, limits.attachmentMimeTypes)) {
     throw new HttpError(400, `Files of type "${contentType}" are not accepted on this instance`);
   }
-  if (limits.projectQuotaMb > 0) {
-    const used = await getProjectAttachmentBytes(projectId);
-    if (used + size > limits.projectQuotaMb * MB) {
+  if (limits.teamQuotaMb > 0) {
+    const used = await getTeamAttachmentBytes(teamId);
+    if (used + size > limits.teamQuotaMb * MB) {
       throw new HttpError(
         413,
-        `The project has used its ${limits.projectQuotaMb} MB storage quota. Delete attachments to free space.`,
+        `The team has used its ${limits.teamQuotaMb} MB storage quota. Delete attachments to free space.`,
       );
     }
   }
 }
 
-// Object keys are grouped by project so a project's bytes sit under one prefix in
-// the bucket, which is what makes per-project listing, cleanup, and policies
+// Object keys are grouped by team so a team's bytes sit under one prefix in
+// the bucket, which is what makes per-team listing, cleanup, and policies
 // possible. Keys already stored keep their old form; the full key lives in the row.
-function attachmentKey(projectId: string, issueId: string, filename: string): string {
+function attachmentKey(teamId: string, issueId: string, filename: string): string {
   // Keep the original filename as the last key segment so the extension is visible
   // in the bucket and to any tool that sniffs the key by suffix.
   const safeName = filename.replace(/[^\w.-]+/g, '_').slice(-100);
-  return `projects/${projectId}/attachments/${issueId}/${randomUUID()}-${safeName}`;
+  return `teams/${teamId}/attachments/${issueId}/${randomUUID()}-${safeName}`;
 }
 
 // Public shape returned to the UI: never exposes the internal serial id or the
@@ -88,15 +88,13 @@ export const attachmentRoutes = new Elysia({
   .use(authContext)
   // Guards for the attachment routes, keyed by how they address the work item:
   // `issueAttachment` for /issues/:issueId/attachments, `attachment` for
-  // /attachments/:publicId. Both assert a work_items action on the owning project.
+  // /attachments/:publicId. Both assert a work_items action on the owning team.
   .macro({
-    issueAttachment: entityGuard('work_items', 'Issue not found', (p) =>
-      getIssueProjectId(p.issueId),
-    ),
+    issueAttachment: entityGuard('work_items', 'Issue not found', (p) => getIssueTeamId(p.issueId)),
     attachment: entityGuard('work_items', 'Attachment not found', async (p) => {
       const existing = await getAttachmentByPublicId(p.publicId);
       if (!existing) return null;
-      return getIssueProjectId(existing.issueId);
+      return getIssueTeamId(existing.issueId);
     }),
   })
   .get(
@@ -127,7 +125,7 @@ export const attachmentRoutes = new Elysia({
   // object store, and records the metadata. Returns the attachment DTO.
   .post(
     '/issues/:issueId/attachments',
-    async ({ params, body, set, projectId }) => {
+    async ({ params, body, set, teamId }) => {
       const issueId = params.issueId;
       const file = body.file;
       if (!(file instanceof File)) throw new HttpError(400, 'No file uploaded (form field "file")');
@@ -135,9 +133,9 @@ export const attachmentRoutes = new Elysia({
 
       const filename = file.name || 'file';
       const contentType = file.type || 'application/octet-stream';
-      await assertUploadAllowed(await getStorageSettings(), projectId, file.size, contentType);
+      await assertUploadAllowed(await getStorageSettings(), teamId, file.size, contentType);
 
-      const key = attachmentKey(projectId, issueId, filename);
+      const key = attachmentKey(teamId, issueId, filename);
       const bytes = Buffer.from(await file.arrayBuffer());
 
       try {
@@ -184,7 +182,7 @@ export const attachmentRoutes = new Elysia({
   // private/local hosts, no redirects) and size-capped like a direct upload.
   .post(
     '/issues/:issueId/attachments/import',
-    async ({ params, body, set, projectId }) => {
+    async ({ params, body, set, teamId }) => {
       const issueId = params.issueId;
       const { filename, url, contentBase64 } = body;
       if ((url == null) === (contentBase64 == null)) {
@@ -223,9 +221,9 @@ export const attachmentRoutes = new Elysia({
       }
 
       if (bytes.length === 0) throw new HttpError(400, 'The file is empty');
-      await assertUploadAllowed(limits, projectId, bytes.length, contentType);
+      await assertUploadAllowed(limits, teamId, bytes.length, contentType);
 
-      const key = attachmentKey(projectId, issueId, filename);
+      const key = attachmentKey(teamId, issueId, filename);
       try {
         await putObject(key, bytes, contentType);
       } catch (err) {

@@ -3,28 +3,26 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// Full integration flow: a real session against the real (test) database.
-// Requires the test DB to be up and migrated:
-//   cp .env.test.example .env.test
-//   bun run db:migrate:test
-// See apps/api/AGENTS.md "Tests" for the setup.
-//
-// The projects feature owns five routes: list, create, copy, the full work-items
-// view, and delete. createProject seeds five default columns (one per state type)
-// and a default "Member" role; it seeds no issue types or assignees.
+// Projects are a team-scoped grouping of issues. Issues link to one through
+// issue.projectId. status is a fixed lifecycle enum; progress and health are
+// derived from the linked issues' states and are not stored. The activity feed
+// merges the project's own events with the activity of its linked issues.
 
-// createProject seeds one column per state type; a new project always has these
-// five and nothing else.
-const DEFAULT_COLUMN_NAMES = ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'];
-
-// Registers a user and returns a Treaty client acting as them.
-async function signUpClient() {
-  const user = await signUpTestUser();
-  return { user, api: authedApi(user.cookie) };
+async function setup() {
+  const owner = await signUpTestUser({ name: 'Owner' });
+  const asOwner = authedApi(owner.cookie);
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const columns = view.data!.states;
+  const stateId = columns[0].id;
+  const doneColumnId = columns.find((c) => c.stateType === 'completed')!.id;
+  return { owner, asOwner, stateId, doneColumnId };
 }
 
-async function viewOf(client: Api, projectKey: string) {
-  return client.projects({ projectKey }).get();
+const projects = (api: Api) => api.teams({ teamKey: 'MKT' }).projects;
+
+function createProject(api: Api, body: { name: string } & Record<string, unknown>) {
+  return projects(api).post(body);
 }
 
 describe('projects', () => {
@@ -33,662 +31,332 @@ describe('projects', () => {
   });
 
   describe('create', () => {
-    it('stores the key uppercased', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects.post({ key: 'ops', name: 'Operations' });
-      expect(res.status).toBe(201);
-      expect(res.data!.key).toBe('OPS');
-    });
-
-    it('rejects a key that is not letters and digits starting with a letter', async () => {
-      const { api } = await signUpClient();
-      for (const key of ['A-B', '1AB', 'A B']) {
-        expect((await api.projects.post({ key, name: 'X' })).status).toBe(400);
-      }
-    });
-
-    it('creates a project and lists it for its owner', async () => {
-      const { api } = await signUpClient();
-
-      const created = await api.projects.post({ key: 'MKT', name: 'Marketing' });
+    it('creates an project with defaults and lists it', async () => {
+      const { asOwner } = await setup();
+      const created = await createProject(asOwner, { name: 'Q3 Launch' });
       expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ key: 'MKT', name: 'Marketing', description: '' });
+      expect(created.data).toMatchObject({
+        name: 'Q3 Launch',
+        status: 'backlog',
+        leadUserId: null,
+        priority: 0,
+        progress: { completed: 0, total: 0, canceled: 0 },
+        health: null,
+      });
       expect(typeof created.data?.id).toBe('string');
 
-      const list = await api.projects.get();
-      expect(list.status).toBe(200);
-      expect(list.data).toHaveLength(1);
-      // The list reports the caller's role in each project; the creator is owner.
-      expect(list.data?.[0]).toMatchObject({ key: 'MKT', name: 'Marketing', role: 'owner' });
+      const list = await projects(asOwner).get();
+      expect(list.data!.items.map((i) => i.name)).toEqual(['Q3 Launch']);
+      expect(list.data!.total).toBe(1);
     });
 
-    it('stores a provided description', async () => {
-      const { api } = await signUpClient();
-      const created = await api.projects.post({
-        key: 'MKT',
-        name: 'Marketing',
-        description: 'Growth work',
+    it('stores the provided fields', async () => {
+      const { asOwner } = await setup();
+      const created = await createProject(asOwner, {
+        name: 'Growth',
+        status: 'started',
+        priority: 2,
+        targetDate: '2026-09-01',
       });
-      expect(created.data).toMatchObject({ description: 'Growth work' });
-    });
-
-    it('seeds the five default columns', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.status).toBe(200);
-      expect(view.data?.columns.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-    });
-
-    it('rejects an empty key', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects.post({ key: '', name: 'Marketing' });
-      expect(res.status).toBe(400);
+      expect(created.status).toBe(201);
+      expect(created.data).toMatchObject({ status: 'started', priority: 2 });
+      // Eden Treaty revives the ISO date string into a Date; assert the value.
+      expect(new Date(created.data!.targetDate as unknown as string).toISOString()).toStartWith(
+        '2026-09-01',
+      );
     });
 
     it('rejects an empty name', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects.post({ key: 'MKT', name: '' });
+      const { asOwner } = await setup();
+      const res = await createProject(asOwner, { name: '' });
       expect(res.status).toBe(400);
     });
 
-    it('rejects a missing name', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects.post({ key: 'MKT' } as unknown as {
-        key: string;
-        name: string;
+    it('rejects an invalid status', async () => {
+      const { asOwner } = await setup();
+      const res = await createProject(asOwner, { name: 'X', status: 'shipping' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a lead from outside the team and an unknown label before creating', async () => {
+      const { asOwner } = await setup();
+      const outsider = await signUpTestUser({ name: 'Outsider' });
+
+      const badLead = await createProject(asOwner, {
+        name: 'Bad lead',
+        leadUserId: outsider.userId,
       });
-      expect(res.status).toBe(400);
-    });
+      const badLabel = await createProject(asOwner, {
+        name: 'Bad label',
+        labelIds: ['00000000-0000-4000-8000-000000000000'],
+      });
 
-    it('rejects a duplicate key with 409', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const dup = await api.projects.post({ key: 'MKT', name: 'Marketing Two' });
-      expect(dup.status).toBe(409);
-    });
-
-    it('requires a session', async () => {
-      // The anonymous client carries no cookie, so the session gate rejects it.
-      const anon = authedApi('');
-      const res = await anon.projects.post({ key: 'MKT', name: 'Marketing' });
-      expect(res.status).toBe(401);
+      expect(badLead.status).toBe(400);
+      expect(badLabel.status).toBe(400);
+      expect((await projects(asOwner).get()).data!.items).toHaveLength(0);
     });
   });
 
-  describe('list', () => {
-    it('returns only the projects the user is a member of, ordered by key', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'OPS', name: 'Operations' });
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
+  describe('list filter', () => {
+    it('filters by a comma-separated status set', async () => {
+      const { asOwner } = await setup();
+      await createProject(asOwner, { name: 'A', status: 'started' });
+      await createProject(asOwner, { name: 'P', status: 'planned' });
+      await createProject(asOwner, { name: 'Pr', status: 'backlog' });
 
-      const list = await api.projects.get();
-      expect(list.status).toBe(200);
-      expect(list.data?.map((p) => p.key)).toEqual(['MKT', 'OPS']);
+      const active = await projects(asOwner).get({ query: { status: 'started' } });
+      expect(active.data!.items.map((i) => i.name)).toEqual(['A']);
+
+      const planned = await projects(asOwner).get({ query: { status: 'backlog,planned' } });
+      expect(planned.data!.items.map((i) => i.name).sort()).toEqual(['P', 'Pr']);
     });
 
-    it('does not show a project to a non-member', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
+    it('matches the name case-insensitively with search', async () => {
+      const { asOwner } = await setup();
+      await createProject(asOwner, { name: 'Growth loops' });
+      await createProject(asOwner, { name: 'Retention' });
 
-      const outsider = await signUpClient();
-      const list = await outsider.api.projects.get();
-      expect(list.status).toBe(200);
-      expect(list.data).toHaveLength(0);
+      const res = await projects(asOwner).get({ query: { search: 'GROWTH' } });
+      expect(res.data!.items.map((i) => i.name)).toEqual(['Growth loops']);
+      expect(res.data!.total).toBe(1);
+    });
+  });
+
+  describe('list sort and paging', () => {
+    it('sorts by name and reverses with dir', async () => {
+      const { asOwner } = await setup();
+      await createProject(asOwner, { name: 'B' });
+      await createProject(asOwner, { name: 'A' });
+      await createProject(asOwner, { name: 'C' });
+
+      const asc = await projects(asOwner).get({ query: { sort: 'name' } });
+      expect(asc.data!.items.map((i) => i.name)).toEqual(['A', 'B', 'C']);
+
+      const desc = await projects(asOwner).get({ query: { sort: 'name', dir: 'desc' } });
+      expect(desc.data!.items.map((i) => i.name)).toEqual(['C', 'B', 'A']);
     });
 
-    it('omits permissions by default and includes them with the flag', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
+    it('sorts by priority severity, unset last', async () => {
+      const { asOwner } = await setup();
+      await createProject(asOwner, { name: 'none' });
+      await createProject(asOwner, { name: 'low', priority: 4 });
+      await createProject(asOwner, { name: 'urgent', priority: 1 });
 
-      const bare = await api.projects.get();
-      expect(bare.data?.[0].permissions).toBeUndefined();
+      const res = await projects(asOwner).get({ query: { sort: 'priority' } });
+      expect(res.data!.items.map((i) => i.name)).toEqual(['urgent', 'low', 'none']);
+    });
 
-      const withPerms = await api.projects.get({ query: { permissions: 'true' } });
-      expect(withPerms.status).toBe(200);
-      // The owner's matrix grants everything. The matrix is a loose Record over the
-      // wire, so read it through a typed view.
-      const perms = withPerms.data?.[0].permissions as
-        Record<string, Record<string, boolean>> | undefined;
-      expect(perms?.work_items.create).toBe(true);
+    it('pages with page and pageSize and reports the full total', async () => {
+      const { asOwner } = await setup();
+      for (const name of ['A', 'B', 'C']) await createProject(asOwner, { name });
+
+      const first = await projects(asOwner).get({
+        query: { sort: 'name', page: 1, pageSize: 2 },
+      });
+      expect(first.data!.items.map((i) => i.name)).toEqual(['A', 'B']);
+      expect(first.data!.total).toBe(3);
+
+      const second = await projects(asOwner).get({
+        query: { sort: 'name', page: 2, pageSize: 2 },
+      });
+      expect(second.data!.items.map((i) => i.name)).toEqual(['C']);
+      expect(second.data!.total).toBe(3);
+    });
+  });
+
+  describe('counts', () => {
+    it('returns per-status counts for the tabs', async () => {
+      const { asOwner } = await setup();
+      await createProject(asOwner, { name: 'a1', status: 'started' });
+      await createProject(asOwner, { name: 'a2', status: 'started' });
+      await createProject(asOwner, { name: 'p', status: 'planned' });
+      await createProject(asOwner, { name: 'c', status: 'completed' });
+
+      const res = await projects(asOwner).counts.get();
+      expect(res.status).toBe(200);
+      expect(res.data).toMatchObject({
+        total: 4,
+        backlog: 0,
+        planned: 1,
+        started: 2,
+        paused: 0,
+        completed: 1,
+        canceled: 0,
+      });
+    });
+  });
+
+  describe('get', () => {
+    it('returns an project by id', async () => {
+      const { asOwner } = await setup();
+      const created = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const got = await asOwner.projects({ projectId: created.id }).get();
+      expect(got.status).toBe(200);
+      expect(got.data).toMatchObject({ id: created.id, name: 'Q3' });
+    });
+
+    it('returns 404 for a missing project', async () => {
+      const { asOwner } = await setup();
+      const res = await asOwner
+        .projects({ projectId: '00000000-0000-4000-8000-000000000000' })
+        .get();
+      expect(res.status).toBe(404);
     });
   });
 
   describe('update', () => {
-    it("updates an owner's project name and description, leaving the key", async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
+    it('updates fields', async () => {
+      const { asOwner } = await setup();
+      const created = (await createProject(asOwner, { name: 'Q3' })).data!;
 
-      const res = await api
-        .projects({ projectKey: 'MKT' })
-        .patch({ name: 'Growth', description: 'Growth work' });
-      expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({ key: 'MKT', name: 'Growth', description: 'Growth work' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.data?.project).toMatchObject({
-        key: 'MKT',
-        name: 'Growth',
-        description: 'Growth work',
+      const patched = await asOwner.projects({ projectId: created.id }).patch({
+        name: 'Q3 Launch',
+        status: 'started',
       });
+      expect(patched.status).toBe(200);
+      expect(patched.data).toMatchObject({ name: 'Q3 Launch', status: 'started' });
     });
 
-    it('denies a non-member (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api.projects({ projectKey: 'MKT' }).patch({ name: 'Hijacked' });
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe('view', () => {
-    it('returns the full work-items view for a member', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.status).toBe(200);
-      expect(view.data?.project).toMatchObject({ key: 'MKT', name: 'Marketing' });
-      expect(view.data?.columns.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      // The permission guard resolved the caller's own access; an owner's viewer
-      // reports the owner role, and the sibling permission matrix grants everything.
-      expect(view.data?.viewer.role).toBe('owner');
-      expect(view.data?.permissions.work_items.create).toBe(true);
-      expect(view.data?.permissions.danger_zone.delete).toBe(true);
-    });
-
-    it('includes every custom field of the project, both scopes', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-      const type = (await api.projects({ projectKey: 'MKT' })['issue-types'].post({ name: 'Bug' }))
-        .data!;
-      const cf = api.projects({ projectKey: 'MKT' })['custom-fields'];
-      await cf.post({ name: 'Severity', fieldType: 'text' });
-      await cf.post({ name: 'Steps', fieldType: 'text', issueTypeId: type.id });
-
-      const view = await viewOf(api, 'MKT');
-      expect(
-        view.data?.customFields.map((f) => ({ name: f.name, issueTypeId: f.issueTypeId })),
-      ).toEqual(
-        expect.arrayContaining([
-          { name: 'Severity', issueTypeId: null },
-          { name: 'Steps', issueTypeId: type.id },
-        ]),
-      );
-    });
-
-    it('returns 404 for an unknown project', async () => {
-      const { api } = await signUpClient();
-      const res = await viewOf(api, 'NOPE');
+    it('returns 404 for a missing project', async () => {
+      const { asOwner } = await setup();
+      const res = await asOwner
+        .projects({ projectId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ name: 'x' });
       expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await viewOf(outsider.api, 'MKT');
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe('copy', () => {
-    // Builds a source project with one label and one issue, so a copy can assert
-    // the structure is copied but the issues are not.
-    async function setupSource(api: Api) {
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      const backlog = (await viewOf(api, 'SRC')).data!.columns.find((c) => c.name === 'Backlog')!;
-      await api.projects({ projectKey: 'SRC' }).labels.post({ name: 'bug', color: '#ff0000' });
-      await api
-        .projects({ projectKey: 'SRC' })
-        .issues.post({ columnId: backlog.id, title: 'Task' });
-    }
-
-    it('copies the structure into a new project owned by the caller', async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-
-      const copied = await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(copied.status).toBe(201);
-      expect(copied.data).toMatchObject({ key: 'DST', name: 'Destination' });
-
-      // The copy is owned by the caller: it shows up in their project list.
-      const list = await api.projects.get();
-      expect(list.data?.map((p) => p.key)).toContain('DST');
-
-      const view = await viewOf(api, 'DST');
-      expect(view.data?.columns.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      expect(view.data?.labels.map((l) => l.name)).toEqual(['bug']);
-      expect(view.data?.viewer.role).toBe('owner');
-    });
-
-    it("does not copy the source project's issues", async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-      const src = await api.projects({ projectKey: 'SRC' }).issues.board.get();
-      expect(src.data?.issues).toHaveLength(1);
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const dst = await api.projects({ projectKey: 'DST' }).issues.board.get();
-      expect(dst.data?.issues).toHaveLength(0);
-    });
-
-    it("copies the source project's issue types", async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      await api.projects({ projectKey: 'SRC' })['issue-types'].post({ name: 'Bug' });
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const view = await viewOf(api, 'DST');
-      // The source starts with the seeded default "Task" type; both it and the
-      // added "Bug" carry over to the copy.
-      expect(view.data?.issueTypes.map((t) => t.name)).toEqual(['Task', 'Bug']);
-    });
-
-    it('copies which optional sections the source project shows', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      await api
-        .projects({ projectKey: 'SRC' })
-        .settings.patch({ features: { notes: false, dashboards: false } });
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const settings = await api.projects({ projectKey: 'DST' }).settings.get();
-      expect(settings.data?.features).toEqual({
-        initiatives: true,
-        dashboards: false,
-        notes: false,
-      });
-    });
-
-    it("remaps a saved view's filter ids to the copied project's entities", async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      const srcBacklog = (await viewOf(api, 'SRC')).data!.columns.find(
-        (c) => c.name === 'Backlog',
-      )!;
-      // A view whose status filter references the source project's Backlog column.
-      await api.projects({ projectKey: 'SRC' }).views.post({
-        name: 'Open',
-        filters: { conditions: [{ field: 'status', op: 'in', values: [srcBacklog.id] }] },
-      });
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const dstBacklog = (await viewOf(api, 'DST')).data!.columns.find(
-        (c) => c.name === 'Backlog',
-      )!;
-      // The columns are distinct rows, so the copied view's filter must point at
-      // the new column id, not the source's.
-      expect(dstBacklog.id).not.toBe(srcBacklog.id);
-      const dstViews = await api.projects({ projectKey: 'DST' }).views.get();
-      const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: string[] }[];
-      };
-      expect(filters.conditions[0].values).toEqual([dstBacklog.id]);
-    });
-
-    it('copies only the sections named in include, seeding default states', async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-      await api.projects({ projectKey: 'SRC' })['issue-types'].post({ name: 'Bug' });
-
-      // Copy the labels only. States are not selected, so the copy gets the default
-      // columns; issue types are not selected, so it has none.
-      const copied = await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { labels: true },
-      });
-      expect(copied.status).toBe(201);
-
-      const view = await viewOf(api, 'DST');
-      expect(view.data?.labels.map((l) => l.name)).toEqual(['bug']);
-      expect(view.data?.columns.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      expect(view.data?.issueTypes).toHaveLength(0);
-    });
-
-    it('force-enables a dependency: copying views pulls in the referenced states', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      const review = (
-        await api
-          .projects({ projectKey: 'SRC' })
-          .columns.post({ name: 'Review', stateType: 'started', color: '#123456' })
-      ).data!;
-      await api.projects({ projectKey: 'SRC' }).views.post({
-        name: 'In review',
-        filters: { conditions: [{ field: 'status', op: 'in', values: [review.id] }] },
-      });
-
-      // include names views only; the API must also copy the states the view's
-      // filter references, and remap the filter to the copied column.
-      await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { views: true },
-      });
-
-      const dstReview = (await viewOf(api, 'DST')).data!.columns.find((c) => c.name === 'Review')!;
-      expect(dstReview).toBeDefined();
-      expect(dstReview.id).not.toBe(review.id);
-      const dstViews = await api.projects({ projectKey: 'DST' }).views.get();
-      const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: string[] }[];
-      };
-      expect(filters.conditions[0].values).toEqual([dstReview.id]);
-    });
-
-    it('copies custom roles when selected, and not by default', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      await api.projects({ projectKey: 'SRC' }).roles.post({
-        name: 'Editor',
-        permissions: { work_items: { create: true, edit: true, read: true, delete: false } },
-      });
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'NOR',
-        name: 'No roles',
-      });
-      const withoutRoles = await api.projects({ projectKey: 'NOR' }).roles.get();
-      expect(withoutRoles.data?.map((r) => r.name).sort()).toEqual(['Member']);
-
-      await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { roles: true },
-      });
-      const withRoles = await api.projects({ projectKey: 'DST' }).roles.get();
-      expect(withRoles.data?.map((r) => r.name).sort()).toEqual(['Editor', 'Member']);
-    });
-
-    it('returns 400 with an error body on a duplicate key', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      await api.projects.post({ key: 'DST', name: 'Existing' });
-
-      const res = await api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 404 for an unknown source project', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects({ projectKey: 'NOPE' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'SRC', name: 'Source' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api.projects({ projectKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(403);
-    });
-
-    it('rejects an empty key', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'SRC', name: 'Source' });
-      const res = await api
-        .projects({ projectKey: 'SRC' })
-        .copy.post({ key: '', name: 'Destination' });
-      expect(res.status).toBe(400);
     });
   });
 
   describe('delete', () => {
-    it('deletes a project and its scoped entities for an owner', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-      const backlog = (await viewOf(api, 'MKT')).data!.columns.find((c) => c.name === 'Backlog')!;
-      await api
-        .projects({ projectKey: 'MKT' })
-        .issues.post({ columnId: backlog.id, title: 'Task' });
+    it('deletes the project but keeps its linked issues (unlinked)', async () => {
+      const { asOwner, stateId } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const issue = (
+        await asOwner
+          .teams({ teamKey: 'MKT' })
+          .issues.post({ stateId, title: 'Task', projectId: project.id })
+      ).data!;
 
-      const del = await api.projects({ projectKey: 'MKT' }).delete();
+      const del = await asOwner.projects({ projectId: project.id }).delete();
       expect(del.status).toBe(204);
 
-      // The project and everything under it are gone: the view 404s and the list
-      // is empty.
-      expect((await viewOf(api, 'MKT')).status).toBe(404);
-      expect((await api.projects.get()).data).toHaveLength(0);
+      const gone = await asOwner.projects({ projectId: project.id }).get();
+      expect(gone.status).toBe(404);
+
+      // The issue survives, with its project link cleared.
+      const survivor = await asOwner.issues({ issueId: issue.id }).get();
+      expect(survivor.status).toBe(200);
+      expect(survivor.data?.project).toBeNull();
+    });
+  });
+
+  describe('linked issues, progress and health', () => {
+    it('counts linked issues and reflects completion in progress', async () => {
+      const { asOwner, stateId, doneColumnId } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3', targetDate: '2026-09-01' }))
+        .data!;
+      const scope = asOwner.teams({ teamKey: 'MKT' }).issues;
+      const a = (await scope.post({ stateId, title: 'A', projectId: project.id })).data!;
+      await scope.post({ stateId, title: 'B', projectId: project.id });
+
+      let got = await asOwner.projects({ projectId: project.id }).get();
+      expect(got.data?.progress).toMatchObject({ completed: 0, total: 2 });
+
+      // Move one issue to the completed column.
+      await asOwner.issues({ issueId: a.id }).patch({ stateId: doneColumnId });
+      got = await asOwner.projects({ projectId: project.id }).get();
+      expect(got.data?.progress).toMatchObject({ completed: 1, total: 2 });
+      expect(typeof got.data?.health).toBe('string');
     });
 
-    it('returns 404 for an unknown project', async () => {
-      const { api } = await signUpClient();
-      const res = await api.projects({ projectKey: 'NOPE' }).delete();
+    it('links and unlinks an issue through update_issue', async () => {
+      const { asOwner, stateId } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const issue = (
+        await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' })
+      ).data!;
+
+      await asOwner.issues({ issueId: issue.id }).patch({ projectId: project.id });
+      let got = await asOwner.projects({ projectId: project.id }).get();
+      expect(got.data?.progress.total).toBe(1);
+
+      await asOwner.issues({ issueId: issue.id }).patch({ projectId: null });
+      got = await asOwner.projects({ projectId: project.id }).get();
+      expect(got.data?.progress.total).toBe(0);
+    });
+
+    it('rejects linking an issue to an project from another team', async () => {
+      const { asOwner, stateId } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const otherProject = (
+        await asOwner.teams({ teamKey: 'OPS' }).projects.post({ name: 'Other' })
+      ).data!;
+      const issue = (
+        await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' })
+      ).data!;
+
+      const res = await asOwner.issues({ issueId: issue.id }).patch({ projectId: otherProject.id });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('feed', () => {
+    it("records the project's own events and its linked issues' activity", async () => {
+      const { asOwner, stateId } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      await asOwner.projects({ projectId: project.id }).patch({ status: 'started' });
+
+      const issue = (
+        await asOwner
+          .teams({ teamKey: 'MKT' })
+          .issues.post({ stateId, title: 'Task', projectId: project.id })
+      ).data!;
+      await asOwner.issues({ issueId: issue.id }).patch({ title: 'Renamed' });
+
+      const feed = await asOwner.projects({ projectId: project.id }).feed.get();
+      expect(feed.status).toBe(200);
+      const actions = feed.data!.items.map((i) => i.action);
+      // Project-level events (created, status change) and issue activity are merged.
+      expect(actions).toContain('created');
+      expect(actions).toContain('status');
+      expect(actions).toContain('title');
+      // Issue rows carry the source 'issue' and an identifier; project rows do not.
+      const issueRow = feed.data!.items.find((i) => i.action === 'title');
+      expect(issueRow?.source).toBe('issue');
+      expect(issueRow?.issueId).toBe(issue.id);
+      expect(issueRow?.issueIdentifier).toMatch(/^MKT-\d+$/);
+    });
+
+    it('exposes a change marker that moves after an edit', async () => {
+      const { asOwner } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const before = (await asOwner.projects({ projectId: project.id }).rev.get()).data!.rev;
+      await asOwner.projects({ projectId: project.id }).patch({ status: 'started' });
+      const after = (await asOwner.projects({ projectId: project.id }).rev.get()).data!.rev;
+      expect(after).not.toBe(before);
+    });
+  });
+
+  describe('access', () => {
+    it('returns 404 for an unknown team', async () => {
+      const { asOwner } = await setup();
+      const res = await asOwner.teams({ teamKey: 'NOPE' }).projects.post({ name: 'x' });
       expect(res.status).toBe(404);
     });
 
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
+    it('denies a non-member on the project routes', async () => {
+      const { asOwner } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const outsider = authedApi((await signUpTestUser()).cookie);
 
-      const outsider = await signUpClient();
-      const res = await outsider.api.projects({ projectKey: 'MKT' }).delete();
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe('mcp toggle', () => {
-    // Marks a request as an MCP tool dispatch. The MCP endpoint sets this header on
-    // its in-process loopback requests; the guards read it to gate the per-project
-    // MCP toggle. A test forges it to exercise that path without going through /mcp.
-    const asMcp = { headers: { 'x-mcp-loopback': '1' } };
-
-    it('defaults a new project to MCP disabled', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.data?.project.mcpEnabled).toBe(false);
-    });
-
-    it('lets an owner enable then disable MCP for the project', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const on = await api.projects({ projectKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect(on.status).toBe(200);
-      expect(on.data).toMatchObject({ mcpEnabled: true });
-      expect((await viewOf(api, 'MKT')).data?.project.mcpEnabled).toBe(true);
-
-      const off = await api.projects({ projectKey: 'MKT' }).settings.patch({ mcpEnabled: false });
-      expect(off.status).toBe(200);
-      expect(off.data).toMatchObject({ mcpEnabled: false });
-      expect((await viewOf(api, 'MKT')).data?.project.mcpEnabled).toBe(false);
-    });
-
-    it('denies the toggle to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ mcpEnabled: true });
-      expect(res.status).toBe(403);
-    });
-
-    it('blocks an MCP call to a project with MCP disabled, but not a web call', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      // Web request (no MCP marker) reaches the disabled project fine.
-      expect((await api.projects({ projectKey: 'MKT' }).get()).status).toBe(200);
-      // The same request marked as MCP is denied while MCP is off.
-      const blocked = await api.projects({ projectKey: 'MKT' }).get(asMcp);
-      expect(blocked.status).toBe(403);
-    });
-
-    it('allows an MCP call once the project has MCP enabled', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await api.projects({ projectKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-
-      const res = await api.projects({ projectKey: 'MKT' }).get(asMcp);
-      expect(res.status).toBe(200);
-    });
-
-    it('blocks an MCP call on an entity-by-id route of a disabled project', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-      const backlog = (await viewOf(api, 'MKT')).data!.columns.find((c) => c.name === 'Backlog')!;
-      const issue = (
-        await api
-          .projects({ projectKey: 'MKT' })
-          .issues.post({ columnId: backlog.id, title: 'Task' })
-      ).data!;
-
-      // Web read works; the MCP-marked read is denied while the project has MCP off.
-      expect((await api.issues({ issueId: issue.id }).get()).status).toBe(200);
-      expect((await api.issues({ issueId: issue.id }).get(asMcp)).status).toBe(403);
-    });
-
-    it('hides MCP-disabled projects from an MCP list_projects call', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'ON', name: 'Enabled' });
-      await api.projects.post({ key: 'OFF', name: 'Disabled' });
-      await api.projects({ projectKey: 'ON' }).settings.patch({ mcpEnabled: true });
-
-      // A web list shows both; an MCP list shows only the enabled project.
-      expect((await api.projects.get()).data?.map((p) => p.key).sort()).toEqual(['OFF', 'ON']);
-      expect((await api.projects.get(asMcp)).data?.map((p) => p.key)).toEqual(['ON']);
-    });
-  });
-
-  describe('settings', () => {
-    it('defaults a new project to MCP off and the default auto-archive thresholds', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api.projects({ projectKey: 'MKT' }).settings.get();
-      expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({
-        mcpEnabled: false,
-        autoArchive: { completedDays: 28, canceledDays: 7 },
-      });
-    });
-
-    it('starts a new project with every optional section enabled', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api.projects({ projectKey: 'MKT' }).settings.get();
-      expect(res.data?.features).toMatchObject({
-        initiatives: true,
-        dashboards: true,
-        notes: true,
-      });
-      expect((await viewOf(api, 'MKT')).data?.project).toMatchObject({
-        initiativesEnabled: true,
-        dashboardsEnabled: true,
-        notesEnabled: true,
-      });
-    });
-
-    it('lets an owner turn a section off and back on, leaving the others', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const off = await api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ features: { initiatives: false } });
-      expect(off.status).toBe(200);
-      expect(off.data?.features).toMatchObject({
-        initiatives: false,
-        dashboards: true,
-        notes: true,
-      });
-      expect((await viewOf(api, 'MKT')).data?.project.initiativesEnabled).toBe(false);
-
-      const on = await api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ features: { initiatives: true } });
-      expect(on.data?.features).toMatchObject({ initiatives: true });
-      expect((await viewOf(api, 'MKT')).data?.project.initiativesEnabled).toBe(true);
-    });
-
-    it('denies turning a section off to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ features: { notes: false } });
-      expect(res.status).toBe(403);
-    });
-
-    it('lets an owner set and read back the auto-archive thresholds', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const patch = await api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 28, canceledDays: 7 } });
-      expect(patch.status).toBe(200);
-      expect(patch.data?.autoArchive).toMatchObject({ completedDays: 28, canceledDays: 7 });
-
-      const get = await api.projects({ projectKey: 'MKT' }).settings.get();
-      expect(get.data?.autoArchive).toMatchObject({ completedDays: 28, canceledDays: 7 });
-    });
-
-    it('stores null to disable a state group', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 30, canceledDays: null } });
-      expect(res.status).toBe(200);
-      expect(res.data?.autoArchive).toMatchObject({ completedDays: 30, canceledDays: null });
-    });
-
-    it('changes only the supplied field, leaving the other', async () => {
-      const { api } = await signUpClient();
-      await api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 14, canceledDays: 3 } });
-
-      const res = await api.projects({ projectKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect(res.data).toMatchObject({
-        mcpEnabled: true,
-        autoArchive: { completedDays: 14, canceledDays: 3 },
-      });
-    });
-
-    it('denies writing settings to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.projects.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api
-        .projects({ projectKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 28, canceledDays: 7 } });
-      expect(res.status).toBe(403);
+      expect((await outsider.teams({ teamKey: 'MKT' }).projects.post({ name: 'x' })).status).toBe(
+        403,
+      );
+      expect((await outsider.teams({ teamKey: 'MKT' }).projects.get()).status).toBe(403);
+      expect((await outsider.projects({ projectId: project.id }).get()).status).toBe(403);
+      expect((await outsider.projects({ projectId: project.id }).patch({ name: 'x' })).status).toBe(
+        403,
+      );
+      expect((await outsider.projects({ projectId: project.id }).delete()).status).toBe(403);
     });
   });
 });

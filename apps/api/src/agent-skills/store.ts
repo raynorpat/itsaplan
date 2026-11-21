@@ -4,7 +4,7 @@ import { iso, rethrowDuplicate, HttpError } from '../shared/lib';
 import { putObject, getObjectText, deleteObjects } from '../shared/s3';
 import { parseFrontmatter, isDisallowedRef } from './skill-format';
 
-// Data access for the project skill library. A skill's SKILL.md and reference files
+// Data access for the team skill library. A skill's SKILL.md and reference files
 // live in the S3 object store under s3_prefix; the row holds metadata and the list
 // of reference files. Content is read from S3 on demand (the runtime pulls it
 // through a tool; the editor pulls it to display). Skills are linked to agents
@@ -20,7 +20,7 @@ export interface SkillRef {
 
 export interface SkillRow {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   description: string;
   source: SkillSource;
@@ -31,7 +31,7 @@ export interface SkillRow {
 
 const dtoColumns = {
   id: agentSkill.id,
-  projectId: agentSkill.projectId,
+  teamId: agentSkill.teamId,
   name: agentSkill.name,
   description: agentSkill.description,
   source: agentSkill.source,
@@ -42,7 +42,7 @@ const dtoColumns = {
 
 function mapRow(row: {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   description: string;
   source: string;
@@ -52,7 +52,7 @@ function mapRow(row: {
 }): SkillRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     name: row.name,
     description: row.description,
     source: row.source as SkillSource,
@@ -66,47 +66,47 @@ function skillMdKey(prefix: string): string {
   return `${prefix}/SKILL.md`;
 }
 
-export async function listSkills(projectId: string): Promise<SkillRow[]> {
+export async function listSkills(teamId: string): Promise<SkillRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentSkill)
-    .where(eq(agentSkill.projectId, projectId))
+    .where(eq(agentSkill.teamId, teamId))
     .orderBy(agentSkill.name);
   return rows.map(mapRow);
 }
 
-export async function getSkill(id: string, projectId: string): Promise<SkillRow | null> {
+export async function getSkill(id: string, teamId: string): Promise<SkillRow | null> {
   const rows = await db
     .select(dtoColumns)
     .from(agentSkill)
-    .where(and(eq(agentSkill.id, id), eq(agentSkill.projectId, projectId)));
+    .where(and(eq(agentSkill.id, id), eq(agentSkill.teamId, teamId)));
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
 // The full SKILL.md markdown from the object store. 404 if the skill is missing.
-export async function getSkillMarkdown(id: string, projectId: string): Promise<string> {
-  const skill = await getSkillRow(id, projectId);
+export async function getSkillMarkdown(id: string, teamId: string): Promise<string> {
+  const skill = await getSkillRow(id, teamId);
   return getObjectText(skillMdKey(skill.s3Prefix));
 }
 
 // The content of one reference file of a skill, addressed by its relative path.
 export async function getSkillRefContent(
   id: string,
-  projectId: string,
+  teamId: string,
   path: string,
 ): Promise<string> {
-  const skill = await getSkillRow(id, projectId);
+  const skill = await getSkillRow(id, teamId);
   const ref = (skill.files as SkillRef[]).find((f) => f.path === path);
   if (!ref) throw new HttpError(404, 'Reference file not found');
   return getObjectText(ref.s3Key);
 }
 
 // Loads the raw row (including s3_prefix, not in the DTO) or throws 404.
-async function getSkillRow(id: string, projectId: string) {
+async function getSkillRow(id: string, teamId: string) {
   const rows = await db
     .select()
     .from(agentSkill)
-    .where(and(eq(agentSkill.id, id), eq(agentSkill.projectId, projectId)));
+    .where(and(eq(agentSkill.id, id), eq(agentSkill.teamId, teamId)));
   const row = rows[0];
   if (!row) throw new HttpError(404, 'Skill not found');
   return row;
@@ -124,8 +124,8 @@ export interface NewSkillInput {
 // Creates a skill: writes SKILL.md to the object store, then inserts the row. name
 // and description default to the frontmatter values; a skill with no resolvable name
 // is a 400.
-export async function createSkill(projectId: string, input: NewSkillInput): Promise<SkillRow> {
-  return createSkillFromFiles(projectId, { ...input, refs: [] });
+export async function createSkill(teamId: string, input: NewSkillInput): Promise<SkillRow> {
+  return createSkillFromFiles(teamId, { ...input, refs: [] });
 }
 
 export interface ImportedRefInput {
@@ -154,7 +154,7 @@ function sanitizeRefPath(path: string): string | null {
 // their relative paths preserved, then the row is inserted. On any failure the
 // written objects are removed so no orphans remain.
 export async function createSkillFromFiles(
-  projectId: string,
+  teamId: string,
   input: NewSkillFromFilesInput,
 ): Promise<SkillRow> {
   const fm = parseFrontmatter(input.markdown);
@@ -163,7 +163,7 @@ export async function createSkillFromFiles(
     throw new HttpError(400, 'Skill needs a name (in the request or SKILL.md frontmatter)');
   }
   const description = (input.description ?? fm.description ?? '').trim();
-  const prefix = `skills/${projectId}/${crypto.randomUUID()}`;
+  const prefix = `skills/${teamId}/${crypto.randomUUID()}`;
 
   const written: string[] = [];
   const files: SkillRef[] = [];
@@ -184,7 +184,7 @@ export async function createSkillFromFiles(
     const [row] = await db
       .insert(agentSkill)
       .values({
-        projectId,
+        teamId,
         name,
         description,
         source: input.source,
@@ -209,10 +209,10 @@ export interface SkillPatch {
 
 export async function updateSkill(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: SkillPatch,
 ): Promise<SkillRow | null> {
-  const skill = await getSkillRow(id, projectId);
+  const skill = await getSkillRow(id, teamId);
   if (patch.markdown !== undefined) {
     await putObject(
       skillMdKey(skill.s3Prefix),
@@ -228,20 +228,20 @@ export async function updateSkill(
       await db
         .update(agentSkill)
         .set(set)
-        .where(and(eq(agentSkill.id, id), eq(agentSkill.projectId, projectId)));
+        .where(and(eq(agentSkill.id, id), eq(agentSkill.teamId, teamId)));
     } catch (err) {
       rethrowDuplicate(err, 'A skill with this name');
       throw err;
     }
   }
-  return getSkill(id, projectId);
+  return getSkill(id, teamId);
 }
 
 // Adds a reference file to a skill. Rejects executable files (no scripts in a
 // skill). The path is the sanitized file name under refs/.
 export async function addReference(
   id: string,
-  projectId: string,
+  teamId: string,
   filename: string,
   bytes: Buffer,
   contentType: string,
@@ -250,7 +250,7 @@ export async function addReference(
   if (!safeName || isDisallowedRef(safeName)) {
     throw new HttpError(400, 'This file type is not allowed as a skill reference');
   }
-  const skill = await getSkillRow(id, projectId);
+  const skill = await getSkillRow(id, teamId);
   const path = `refs/${safeName}`;
   const s3Key = `${skill.s3Prefix}/${path}`;
   await putObject(s3Key, bytes, contentType || 'application/octet-stream');
@@ -258,49 +258,49 @@ export async function addReference(
   const files = (skill.files as SkillRef[]).filter((f) => f.path !== path);
   files.push({ path, s3Key, size: bytes.length });
   await db.update(agentSkill).set({ files }).where(eq(agentSkill.id, id));
-  return getSkill(id, projectId);
+  return getSkill(id, teamId);
 }
 
 // Overwrites the content of an existing reference file, keeping its object key and
 // updating its recorded size. 404 if the skill or the reference path is unknown.
 export async function updateReference(
   id: string,
-  projectId: string,
+  teamId: string,
   path: string,
   bytes: Buffer,
   contentType: string,
 ): Promise<SkillRow | null> {
-  const skill = await getSkillRow(id, projectId);
+  const skill = await getSkillRow(id, teamId);
   const files = skill.files as SkillRef[];
   const ref = files.find((f) => f.path === path);
   if (!ref) throw new HttpError(404, 'Reference file not found');
   await putObject(ref.s3Key, bytes, contentType || 'application/octet-stream');
   const next = files.map((f) => (f.path === path ? { ...f, size: bytes.length } : f));
   await db.update(agentSkill).set({ files: next }).where(eq(agentSkill.id, id));
-  return getSkill(id, projectId);
+  return getSkill(id, teamId);
 }
 
 export async function deleteReference(
   id: string,
-  projectId: string,
+  teamId: string,
   path: string,
 ): Promise<SkillRow | null> {
-  const skill = await getSkillRow(id, projectId);
+  const skill = await getSkillRow(id, teamId);
   const ref = (skill.files as SkillRef[]).find((f) => f.path === path);
   if (!ref) throw new HttpError(404, 'Reference file not found');
   await deleteObjects([ref.s3Key]);
   const files = (skill.files as SkillRef[]).filter((f) => f.path !== path);
   await db.update(agentSkill).set({ files }).where(eq(agentSkill.id, id));
-  return getSkill(id, projectId);
+  return getSkill(id, teamId);
 }
 
 // Deletes a skill: its object-store contents (SKILL.md + references), then the row.
 // The link rows go by ON DELETE CASCADE.
-export async function deleteSkill(id: string, projectId: string): Promise<boolean> {
+export async function deleteSkill(id: string, teamId: string): Promise<boolean> {
   const rows = await db
     .select()
     .from(agentSkill)
-    .where(and(eq(agentSkill.id, id), eq(agentSkill.projectId, projectId)));
+    .where(and(eq(agentSkill.id, id), eq(agentSkill.teamId, teamId)));
   const skill = rows[0];
   if (!skill) return false;
   const keys = [skillMdKey(skill.s3Prefix), ...(skill.files as SkillRef[]).map((f) => f.s3Key)];
@@ -320,16 +320,16 @@ export async function listAgentSkills(agentId: string): Promise<SkillRow[]> {
   return rows.map(mapRow);
 }
 
-// Replaces the set of skills enabled on an agent. Only skills in the agent's project
-// are accepted; unknown or cross-project ids are ignored. Both the agent and skills
-// are validated against projectId by the caller's route guard.
+// Replaces the set of skills enabled on an agent. Only skills in the agent's team
+// are accepted; unknown or cross-team ids are ignored. Both the agent and skills
+// are validated against teamId by the caller's route guard.
 export async function setAgentSkills(
   agentId: string,
-  projectId: string,
+  teamId: string,
   skillIds: string[],
 ): Promise<void> {
   const unique = [...new Set(skillIds)];
-  // Keep only ids that are real skills in this project.
+  // Keep only ids that are real skills in this team.
   const valid =
     unique.length === 0
       ? []
@@ -337,7 +337,7 @@ export async function setAgentSkills(
           await db
             .select({ id: agentSkill.id })
             .from(agentSkill)
-            .where(and(eq(agentSkill.projectId, projectId), inArray(agentSkill.id, unique)))
+            .where(and(eq(agentSkill.teamId, teamId), inArray(agentSkill.id, unique)))
         ).map((r) => r.id);
 
   await db.transaction(async (tx) => {
@@ -348,12 +348,12 @@ export async function setAgentSkills(
   });
 }
 
-// True if the agent belongs to the project (guards addressing an agent by id).
-export async function agentInProject(agentId: string, projectId: string): Promise<boolean> {
+// True if the agent belongs to the team (guards addressing an agent by id).
+export async function agentInTeam(agentId: string, teamId: string): Promise<boolean> {
   const rows = await db
     .select({ id: aiAgent.id })
     .from(aiAgent)
-    .where(and(eq(aiAgent.id, agentId), eq(aiAgent.projectId, projectId)))
+    .where(and(eq(aiAgent.id, agentId), eq(aiAgent.teamId, teamId)))
     .limit(1);
   return rows.length > 0;
 }

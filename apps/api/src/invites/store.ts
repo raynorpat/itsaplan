@@ -1,11 +1,11 @@
-import { db, projectInvite, projectMember, projectRole, project, user } from '@repo/db';
+import { db, teamInvite, teamMember, teamRole, team, user } from '@repo/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
 import type { MemberRole } from '../members/store';
 
-// Data access for project invites. An invite is a token-addressed grant of a
-// role to an email in a project. Creating one requires the project owner;
-// accepting it (email must match the session) creates the project_member row.
+// Data access for team invites. An invite is a token-addressed grant of a
+// role to an email in a team. Creating one requires the team owner;
+// accepting it (email must match the session) creates the team_member row.
 
 export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 
@@ -28,12 +28,12 @@ export interface InviteRow {
   invitedByEmail: string | null;
 }
 
-// Row shown to the invitee opening the link, with enough project context to
-// decide. Never exposes the internal project id.
+// Row shown to the invitee opening the link, with enough team context to
+// decide. Never exposes the internal team id.
 export interface InviteView {
   token: string;
-  projectKey: string;
-  projectName: string;
+  teamKey: string;
+  teamName: string;
   email: string;
   role: MemberRole;
   roleId: string | null;
@@ -49,7 +49,7 @@ export interface InviteView {
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export async function createInvite(input: {
-  projectId: string;
+  teamId: string;
   email: string;
   role: MemberRole;
   roleId: string | null;
@@ -61,43 +61,43 @@ export async function createInvite(input: {
   let row;
   try {
     [row] = await db
-      .insert(projectInvite)
+      .insert(teamInvite)
       .values({
-        projectId: input.projectId,
+        teamId: input.teamId,
         email,
         role: input.role,
         roleId,
         invitedByUserId: input.invitedByUserId,
       })
-      .returning({ id: projectInvite.id });
+      .returning({ id: teamInvite.id });
   } catch (err) {
     if (pgErrorCode(err) === '23505') {
       throw new HttpError(409, 'A pending invite for this email already exists');
     }
     throw err;
   }
-  return (await getInviteById(input.projectId, row.id))!;
+  return (await getInviteById(input.teamId, row.id))!;
 }
 
-export async function getInviteById(projectId: string, id: string): Promise<InviteRow | null> {
+export async function getInviteById(teamId: string, id: string): Promise<InviteRow | null> {
   const rows = await db
     .select({
-      id: projectInvite.id,
-      token: projectInvite.token,
-      email: projectInvite.email,
-      role: projectInvite.role,
-      roleId: projectInvite.roleId,
-      roleName: projectRole.name,
-      status: projectInvite.status,
-      createdAt: projectInvite.createdAt,
-      respondedAt: projectInvite.respondedAt,
+      id: teamInvite.id,
+      token: teamInvite.token,
+      email: teamInvite.email,
+      role: teamInvite.role,
+      roleId: teamInvite.roleId,
+      roleName: teamRole.name,
+      status: teamInvite.status,
+      createdAt: teamInvite.createdAt,
+      respondedAt: teamInvite.respondedAt,
       invitedByName: user.name,
       invitedByEmail: user.email,
     })
-    .from(projectInvite)
-    .leftJoin(user, eq(user.id, projectInvite.invitedByUserId))
-    .leftJoin(projectRole, eq(projectRole.id, projectInvite.roleId))
-    .where(and(eq(projectInvite.projectId, projectId), eq(projectInvite.id, id)));
+    .from(teamInvite)
+    .leftJoin(user, eq(user.id, teamInvite.invitedByUserId))
+    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
+    .where(and(eq(teamInvite.teamId, teamId), eq(teamInvite.id, id)));
   const r = rows[0];
   if (!r) return null;
   return {
@@ -115,26 +115,26 @@ export async function getInviteById(projectId: string, id: string): Promise<Invi
   };
 }
 
-export async function listInvites(projectId: string): Promise<InviteRow[]> {
+export async function listInvites(teamId: string): Promise<InviteRow[]> {
   const rows = await db
     .select({
-      id: projectInvite.id,
-      token: projectInvite.token,
-      email: projectInvite.email,
-      role: projectInvite.role,
-      roleId: projectInvite.roleId,
-      roleName: projectRole.name,
-      status: projectInvite.status,
-      createdAt: projectInvite.createdAt,
-      respondedAt: projectInvite.respondedAt,
+      id: teamInvite.id,
+      token: teamInvite.token,
+      email: teamInvite.email,
+      role: teamInvite.role,
+      roleId: teamInvite.roleId,
+      roleName: teamRole.name,
+      status: teamInvite.status,
+      createdAt: teamInvite.createdAt,
+      respondedAt: teamInvite.respondedAt,
       invitedByName: user.name,
       invitedByEmail: user.email,
     })
-    .from(projectInvite)
-    .leftJoin(user, eq(user.id, projectInvite.invitedByUserId))
-    .leftJoin(projectRole, eq(projectRole.id, projectInvite.roleId))
-    .where(eq(projectInvite.projectId, projectId))
-    .orderBy(desc(projectInvite.createdAt));
+    .from(teamInvite)
+    .leftJoin(user, eq(user.id, teamInvite.invitedByUserId))
+    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
+    .where(eq(teamInvite.teamId, teamId))
+    .orderBy(desc(teamInvite.createdAt));
   return rows.map((r) => ({
     id: r.id,
     token: r.token,
@@ -152,33 +152,33 @@ export async function listInvites(projectId: string): Promise<InviteRow[]> {
 
 // Removes an invite row. Returns true when one existed. Used to revoke a pending
 // invite or clean up a resolved one.
-export async function deleteInvite(projectId: string, id: string): Promise<boolean> {
+export async function deleteInvite(teamId: string, id: string): Promise<boolean> {
   const deleted = await db
-    .delete(projectInvite)
-    .where(and(eq(projectInvite.projectId, projectId), eq(projectInvite.id, id)))
-    .returning({ id: projectInvite.id });
+    .delete(teamInvite)
+    .where(and(eq(teamInvite.teamId, teamId), eq(teamInvite.id, id)))
+    .returning({ id: teamInvite.id });
   return deleted.length > 0;
 }
 
-// The invite behind a link, with its project context, or null if the token is
+// The invite behind a link, with its team context, or null if the token is
 // unknown.
 export async function getInviteByToken(token: string): Promise<InviteView | null> {
   const rows = await db
     .select({
-      token: projectInvite.token,
-      projectKey: project.key,
-      projectName: project.name,
-      email: projectInvite.email,
-      role: projectInvite.role,
-      roleId: projectInvite.roleId,
-      roleName: projectRole.name,
-      status: projectInvite.status,
-      createdAt: projectInvite.createdAt,
+      token: teamInvite.token,
+      teamKey: team.key,
+      teamName: team.name,
+      email: teamInvite.email,
+      role: teamInvite.role,
+      roleId: teamInvite.roleId,
+      roleName: teamRole.name,
+      status: teamInvite.status,
+      createdAt: teamInvite.createdAt,
     })
-    .from(projectInvite)
-    .innerJoin(project, eq(project.id, projectInvite.projectId))
-    .leftJoin(projectRole, eq(projectRole.id, projectInvite.roleId))
-    .where(eq(projectInvite.token, token));
+    .from(teamInvite)
+    .innerJoin(team, eq(team.id, teamInvite.teamId))
+    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
+    .where(eq(teamInvite.token, token));
   const r = rows[0];
   if (!r) return null;
   // The invite email is stored normalized (lowercase); compare case-insensitively
@@ -190,8 +190,8 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
     .limit(1);
   return {
     token: r.token,
-    projectKey: r.projectKey,
-    projectName: r.projectName,
+    teamKey: r.teamKey,
+    teamName: r.teamName,
     email: r.email,
     role: r.role as MemberRole,
     roleId: r.roleId,
@@ -206,15 +206,15 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
 export async function getInviteRowByToken(token: string) {
   const rows = await db
     .select({
-      id: projectInvite.id,
-      projectId: projectInvite.projectId,
-      email: projectInvite.email,
-      role: projectInvite.role,
-      roleId: projectInvite.roleId,
-      status: projectInvite.status,
+      id: teamInvite.id,
+      teamId: teamInvite.teamId,
+      email: teamInvite.email,
+      role: teamInvite.role,
+      roleId: teamInvite.roleId,
+      status: teamInvite.status,
     })
-    .from(projectInvite)
-    .where(eq(projectInvite.token, token));
+    .from(teamInvite)
+    .where(eq(teamInvite.token, token));
   return rows[0] ?? null;
 }
 
@@ -222,11 +222,11 @@ export async function getInviteRowByToken(token: string) {
 // invite accepted, in one transaction. The caller has already checked the
 // invite is pending and the session email matches.
 export async function acceptInvite(
-  invite: { id: string; projectId: string; role: string; roleId: string | null },
+  invite: { id: string; teamId: string; role: string; roleId: string | null },
   userId: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    // A member joins on the invite's chosen role, falling back to the project's
+    // A member joins on the invite's chosen role, falling back to the team's
     // default role when none was set; an owner bypasses roles.
     let roleId: string | null = null;
     if (invite.role === 'member') {
@@ -234,29 +234,29 @@ export async function acceptInvite(
         roleId = invite.roleId;
       } else {
         const [def] = await tx
-          .select({ id: projectRole.id })
-          .from(projectRole)
-          .where(and(eq(projectRole.projectId, invite.projectId), eq(projectRole.isDefault, true)));
+          .select({ id: teamRole.id })
+          .from(teamRole)
+          .where(and(eq(teamRole.teamId, invite.teamId), eq(teamRole.isDefault, true)));
         roleId = def?.id ?? null;
       }
     }
     await tx
-      .insert(projectMember)
-      .values({ projectId: invite.projectId, userId, role: invite.role, roleId })
+      .insert(teamMember)
+      .values({ teamId: invite.teamId, userId, role: invite.role, roleId })
       .onConflictDoUpdate({
-        target: [projectMember.projectId, projectMember.userId],
+        target: [teamMember.teamId, teamMember.userId],
         set: { role: invite.role, roleId },
       });
     await tx
-      .update(projectInvite)
+      .update(teamInvite)
       .set({ status: 'accepted', acceptedByUserId: userId, respondedAt: new Date() })
-      .where(eq(projectInvite.id, invite.id));
+      .where(eq(teamInvite.id, invite.id));
   });
 }
 
 export async function rejectInvite(inviteId: string): Promise<void> {
   await db
-    .update(projectInvite)
+    .update(teamInvite)
     .set({ status: 'rejected', respondedAt: new Date() })
-    .where(eq(projectInvite.id, inviteId));
+    .where(eq(teamInvite.id, inviteId));
 }

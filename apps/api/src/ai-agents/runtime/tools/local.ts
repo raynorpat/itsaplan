@@ -1,10 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-// The agent tools with no route behind them. Everything an agent does to a project
+// The agent tools with no route behind them. Everything an agent does to a team
 // goes through the real API (see route-tools.ts); this is what is left over.
 //
-// The current date is not a project resource, so exposing it over REST would add an
+// The current date is not a team resource, so exposing it over REST would add an
 // endpoint that exists only for the agent. It is answered in process instead.
 
 export function buildLocalTools(): Record<string, ReturnType<typeof createTool>> {

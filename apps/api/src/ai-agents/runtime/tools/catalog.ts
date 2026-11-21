@@ -4,7 +4,7 @@
 // - AGENT_ACTIONS: mutating actions the user opts an agent into. The enabled subset
 //   is stored in ai_agent.tools and becomes the tools the runtime exposes.
 // - ALWAYS_ON_ACTIONS: read-only actions always granted, so an agent can always see
-//   its project regardless of which actions it is allowed to take. Listed only so
+//   its team regardless of which actions it is allowed to take. Listed only so
 //   the UI can show them (always enabled, not editable); their keys are never
 //   stored on the agent.
 //
@@ -12,7 +12,7 @@
 // get_current_date, which has no route behind it (see tools/local.ts). This file is
 // only the allowlist and the UI copy: what a tool accepts, what it does, and who may
 // call it all come from the route itself (see tools/route-tools.ts). An agent's
-// effective rights are the intersection of these keys and its project role.
+// effective rights are the intersection of these keys and its team role.
 
 export interface ToolMeta {
   key: string;
@@ -26,14 +26,14 @@ export const AGENT_ACTIONS: ToolMeta[] = [
   {
     key: 'create_issue',
     label: 'Create issues',
-    description: 'Create new work items in the project.',
+    description: 'Create new work items in the team.',
     always: false,
   },
   {
     key: 'update_issue',
     label: 'Update issues',
     description:
-      "Change an issue's state, type, initiative, assignee, delegate, details, priority, dates, or labels.",
+      "Change an issue's state, type, project, assignee, delegate, details, priority, dates, or labels.",
     always: false,
   },
   {
@@ -67,26 +67,26 @@ export const AGENT_ACTIONS: ToolMeta[] = [
     always: false,
   },
   {
-    key: 'create_initiative',
-    label: 'Create initiatives',
-    description: 'Create initiatives in the project.',
+    key: 'create_project',
+    label: 'Create projects',
+    description: 'Create projects in the team.',
     always: false,
   },
   {
-    key: 'update_initiative',
-    label: 'Update initiatives',
-    description: 'Change initiative details, status, owner, dates, and labels.',
+    key: 'update_project',
+    label: 'Update projects',
+    description: 'Change project details, status, owner, dates, and labels.',
     always: false,
   },
   {
-    key: 'delete_initiative',
-    label: 'Delete initiatives',
-    description: 'Permanently delete initiatives.',
+    key: 'delete_project',
+    label: 'Delete projects',
+    description: 'Permanently delete projects.',
     always: false,
   },
 ];
 
-// Read-only actions, always granted to an internal agent so it can see its project
+// Read-only actions, always granted to an internal agent so it can see its team
 // regardless of which actions it is allowed to take. Listed for the UI only; these
 // keys are never stored on the agent (see normalizeToolKeys).
 export const ALWAYS_ON_ACTIONS: ToolMeta[] = [
@@ -97,8 +97,8 @@ export const ALWAYS_ON_ACTIONS: ToolMeta[] = [
     always: true,
   },
   {
-    key: 'get_project',
-    label: 'Read project setup',
+    key: 'get_team',
+    label: 'Read team setup',
     description: 'View workflow states, issue types, labels, custom fields, and assignees.',
     always: true,
   },
@@ -127,15 +127,15 @@ export const ALWAYS_ON_ACTIONS: ToolMeta[] = [
     always: true,
   },
   {
-    key: 'list_initiatives',
-    label: 'List initiatives',
-    description: 'View initiatives in the project.',
+    key: 'list_projects',
+    label: 'List projects',
+    description: 'View projects in the team.',
     always: true,
   },
   {
-    key: 'get_initiative',
-    label: 'Read an initiative',
-    description: 'View one initiative with its progress and health.',
+    key: 'get_project',
+    label: 'Read an project',
+    description: 'View one project with its progress and health.',
     always: true,
   },
 ];

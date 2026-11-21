@@ -5,7 +5,7 @@ import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { mcpTool } from '../mcp/generate';
-import { agentInProject } from '../agent-skills/store';
+import { agentInTeam } from '../agent-skills/store';
 import { AGENT_ACTIONS, ALWAYS_ON_ACTIONS } from '../ai-agents/runtime/tools/catalog';
 import {
   listAgentTools,
@@ -15,8 +15,8 @@ import {
   setAgentTools,
 } from './store';
 
-const toolParams = t.Object({ projectKey: t.String(), agentToolId: t.String({ format: 'uuid' }) });
-const agentParams = t.Object({ projectKey: t.String(), agentId: t.String({ format: 'uuid' }) });
+const toolParams = t.Object({ teamKey: t.String(), agentToolId: t.String({ format: 'uuid' }) });
+const agentParams = t.Object({ teamKey: t.String(), agentId: t.String({ format: 'uuid' }) });
 
 // A built-in agent action in the catalog (ToolMeta from ai-agents/runtime/tools).
 // `always` marks the read-only actions granted unconditionally, that cannot be
@@ -33,7 +33,7 @@ const ToolMetaResponse = t.Object({
 // integrations catalog (kind 'tool').
 const AgentToolResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   toolKey: t.String(),
   credentialId: t.String({ format: 'uuid' }),
   integrationKey: t.String(),
@@ -56,7 +56,7 @@ export const agentToolRoutes = new Elysia({
 
   // The built-in actions an internal agent can be granted, followed by the always-on
   // read-only ones. Feeds the `tools` field on create_ai_agent / update_ai_agent.
-  .get('/projects/:projectKey/ai-agents/tools', () => [...AGENT_ACTIONS, ...ALWAYS_ON_ACTIONS], {
+  .get('/teams/:teamKey/ai-agents/tools', () => [...AGENT_ACTIONS, ...ALWAYS_ON_ACTIONS], {
     permission: ['ai_agents', 'read'],
     response: {
       200: t.Array(ToolMetaResponse),
@@ -73,7 +73,7 @@ export const agentToolRoutes = new Elysia({
     },
   })
 
-  .get('/projects/:projectKey/agent-tools', ({ project }) => listAgentTools(project.id), {
+  .get('/teams/:teamKey/agent-tools', ({ team }) => listAgentTools(team.id), {
     permission: ['agent_tools', 'read'],
     response: {
       200: t.Array(AgentToolResponse),
@@ -83,15 +83,15 @@ export const agentToolRoutes = new Elysia({
     },
     detail: {
       summary: 'List configured tools',
-      description: "List a project's tools configured on integration credentials.",
+      description: "List a team's tools configured on integration credentials.",
     },
   })
 
   .post(
-    '/projects/:projectKey/agent-tools',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/agent-tools',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createAgentTool(project.id, body);
+      return createAgentTool(team.id, body);
     },
     {
       body: t.Object({
@@ -115,9 +115,9 @@ export const agentToolRoutes = new Elysia({
   )
 
   .delete(
-    '/projects/:projectKey/agent-tools/:agentToolId',
-    async ({ params, project }) => {
-      const ok = await deleteAgentTool(params.agentToolId, project.id);
+    '/teams/:teamKey/agent-tools/:agentToolId',
+    async ({ params, team }) => {
+      const ok = await deleteAgentTool(params.agentToolId, team.id);
       if (!ok) throw new HttpError(404, 'Configured tool not found');
       return noContent();
     },
@@ -136,9 +136,9 @@ export const agentToolRoutes = new Elysia({
 
   // Which configured tools are enabled on an agent.
   .get(
-    '/projects/:projectKey/ai-agents/:agentId/tool-configs',
-    async ({ params, project }) => {
-      if (!(await agentInProject(params.agentId, project.id))) {
+    '/teams/:teamKey/ai-agents/:agentId/tool-configs',
+    async ({ params, team }) => {
+      if (!(await agentInTeam(params.agentId, team.id))) {
         throw new HttpError(404, 'Agent not found');
       }
       return listAgentToolLinks(params.agentId);
@@ -161,12 +161,12 @@ export const agentToolRoutes = new Elysia({
 
   // Replaces the set of configured tools enabled on an agent.
   .put(
-    '/projects/:projectKey/ai-agents/:agentId/tool-configs',
-    async ({ params, project, body }) => {
-      if (!(await agentInProject(params.agentId, project.id))) {
+    '/teams/:teamKey/ai-agents/:agentId/tool-configs',
+    async ({ params, team, body }) => {
+      if (!(await agentInTeam(params.agentId, team.id))) {
         throw new HttpError(404, 'Agent not found');
       }
-      await setAgentTools(params.agentId, project.id, body.agentToolIds);
+      await setAgentTools(params.agentId, team.id, body.agentToolIds);
       return listAgentToolLinks(params.agentId);
     },
     {

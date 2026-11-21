@@ -1,4 +1,4 @@
-import { db, appSecret, projectInvite, getSetting, setSetting } from '@repo/db';
+import { db, appSecret, teamInvite, getSetting, setSetting } from '@repo/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { encryptSecret, decryptSecret } from '@repo/crypto';
 import {
@@ -104,10 +104,10 @@ export interface InstanceEmailConfig extends EmailConfig {
   smtp: SmtpConfig;
   resend: ResendConfig;
   from: string;
-  // Let projects send their notifications through this provider instead of
+  // Let teams send their notifications through this provider instead of
   // configuring one of their own. Off by default: the instance owner pays for the
   // provider, so sharing it is an explicit decision.
-  allowProjects: boolean;
+  allowTeams: boolean;
 }
 
 // The config as returned to the client: every secret replaced by a boolean telling
@@ -124,7 +124,7 @@ export interface InstanceEmailDto {
   };
   resend: { enabled: boolean; hasApiKey: boolean };
   from: string;
-  allowProjects: boolean;
+  allowTeams: boolean;
 }
 
 // A partial write. Each section, when present, replaces that section's non-secret
@@ -142,7 +142,7 @@ export interface InstanceEmailPatch {
   };
   resend?: { enabled: boolean; apiKey?: string };
   from?: string;
-  allowProjects?: boolean;
+  allowTeams?: boolean;
 }
 
 function defaultEmailConfig(): InstanceEmailConfig {
@@ -158,7 +158,7 @@ function defaultEmailConfig(): InstanceEmailConfig {
     },
     resend: { enabled: false, apiKey: '' },
     from: '',
-    allowProjects: false,
+    allowTeams: false,
   };
 }
 
@@ -175,7 +175,7 @@ function toEmailDto(config: InstanceEmailConfig): InstanceEmailDto {
     },
     resend: { enabled: config.resend.enabled, hasApiKey: config.resend.apiKey.length > 0 },
     from: config.from,
-    allowProjects: config.allowProjects,
+    allowTeams: config.allowTeams,
   };
 }
 
@@ -199,12 +199,12 @@ export async function hasConfiguredEmailProvider(): Promise<boolean> {
   return config ? hasEmailProvider(config) : false;
 }
 
-// The instance provider a project may send its notifications through, or null when
-// projects are not allowed to use it or it is not configured. Read by the api on the
-// project notification paths (which channels are enabled, and the actual send).
-export async function getProjectEmailConfig(): Promise<InstanceEmailConfig | null> {
+// The instance provider a team may send its notifications through, or null when
+// teams are not allowed to use it or it is not configured. Read by the api on the
+// team notification paths (which channels are enabled, and the actual send).
+export async function getTeamEmailConfig(): Promise<InstanceEmailConfig | null> {
   const config = await getEmailConfig();
-  if (!config || !config.allowProjects) return null;
+  if (!config || !config.allowTeams) return null;
   return hasEmailProvider(config) ? config : null;
 }
 
@@ -221,7 +221,7 @@ export async function setEmailSettings(patch: InstanceEmailPatch): Promise<Insta
         }
       : current.resend,
     from: patch.from ?? current.from,
-    allowProjects: patch.allowProjects ?? current.allowProjects,
+    allowTeams: patch.allowTeams ?? current.allowTeams,
   };
   const redacted = toEmailDto(next);
   await writeSecret(EMAIL_SECRET_KEY, next, redacted);
@@ -300,10 +300,10 @@ export async function setGoogleSettings(patch: InstanceGooglePatch): Promise<Ins
 
 // ── Invites ───────────────────────────────────────────────────────────────────
 
-// True when this address has a pending project invite. That is what "invite only"
-// means on this instance: an owner invites someone to a project, and that invite is
-// what lets them register at all. Invites are created and revoked inside a project
-// (project_invite), so there is nothing instance-level to manage.
+// True when this address has a pending team invite. That is what "invite only"
+// means on this instance: an owner invites someone to a team, and that invite is
+// what lets them register at all. Invites are created and revoked inside a team
+// (team_invite), so there is nothing instance-level to manage.
 //
 // The invite itself is accepted after sign-up, on the /invite/:token screen — this
 // only decides whether the account may be created, and leaves the invite pending.
@@ -311,9 +311,9 @@ export async function hasPendingInvite(email: string): Promise<boolean> {
   const address = email.trim().toLowerCase();
   if (!address) return false;
   const rows = await db
-    .select({ id: projectInvite.id })
-    .from(projectInvite)
-    .where(and(eq(projectInvite.email, address), eq(projectInvite.status, 'pending')))
+    .select({ id: teamInvite.id })
+    .from(teamInvite)
+    .where(and(eq(teamInvite.email, address), eq(teamInvite.status, 'pending')))
     .limit(1);
   return rows.length > 0;
 }

@@ -47,17 +47,17 @@ export const app = new Elysia()
         info: {
           title: "It's a Plan API",
           version: '1.0.0',
-          description: 'REST API for projects, issues, and their dependent entities.\n\n',
+          description: 'REST API for teams, issues, and their dependent entities.\n\n',
         },
         tags: [
-          { name: 'Projects', description: 'Projects and the full work items view' },
-          { name: 'Members', description: 'Project membership and roles' },
-          { name: 'Roles', description: 'Project roles and their permissions' },
-          { name: 'Invites', description: 'Project invites (create, accept, reject)' },
-          { name: 'Columns', description: 'Work items columns and their order' },
-          { name: 'Issue Types', description: 'Per-project issue types' },
+          { name: 'Teams', description: 'Teams and the full work items view' },
+          { name: 'Members', description: 'Team membership and roles' },
+          { name: 'Roles', description: 'Team roles and their permissions' },
+          { name: 'Invites', description: 'Team invites (create, accept, reject)' },
+          { name: 'States', description: 'Workflow states and their order' },
+          { name: 'Issue Types', description: 'Per-team issue types' },
           { name: 'Labels', description: 'Labels and label groups' },
-          { name: 'AI Agents', description: 'AI agents attached to a project' },
+          { name: 'AI Agents', description: 'AI agents attached to a team' },
           {
             name: 'Integrations',
             description: 'Stored integration credentials (LLM keys and tool creds)',
@@ -70,14 +70,14 @@ export const app = new Elysia()
           { name: 'Custom Fields', description: 'Global and type-scoped custom fields' },
           { name: 'Issues', description: 'Issues, their fields, feed, and comments' },
           {
-            name: 'Initiatives',
-            description: 'Initiatives (issue groupings) and their activity feed',
+            name: 'Projects',
+            description: 'Projects (issue groupings) and their activity feed',
           },
           { name: 'Attachments', description: 'Issue attachments and raw bytes' },
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
           { name: 'Views', description: 'Saved work items views' },
           { name: 'Share', description: 'Public read-only sharing of issues and views' },
-          { name: 'Actions', description: 'Project automation actions' },
+          { name: 'Actions', description: 'Team automation actions' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
           { name: 'Agent Schedules', description: 'Recurring tasks for internal agents' },
           { name: 'Dashboards', description: 'Saved analytics dashboards' },
@@ -89,7 +89,7 @@ export const app = new Elysia()
           },
           {
             name: 'Analytics',
-            description: 'Project metrics: stats, pulse, throughput, breakdowns, activity',
+            description: 'Team metrics: stats, pulse, throughput, breakdowns, activity',
           },
           {
             name: 'Webhook test',
@@ -146,7 +146,7 @@ export const app = new Elysia()
   .use(internalTelegramRoutes)
   // Test receiver for inspecting webhook deliveries (unauthenticated, dev aid).
   .use(webhookTestRoutes)
-  // Planner API: projects, issues, and their dependent entities.
+  // Planner API: teams, issues, and their dependent entities.
   .use(planner);
 
 // MCP endpoint (POST /mcp). Added after the chain so `type App` (the Eden client

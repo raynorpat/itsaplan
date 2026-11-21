@@ -8,13 +8,13 @@ import { resetDb } from '../../../__tests__/helpers/db';
 // reject a token. Real sessions against the real (test) database. See
 // apps/api/AGENTS.md "Tests" for setup.
 
-// Creates a project MKT owned by a fresh user and returns a Treaty client acting
+// Creates a team MKT owned by a fresh user and returns a Treaty client acting
 // as that owner. The first user in a reset DB is "god"; the owner still reaches
-// the project only through its project_member row, so this is a plain owner.
+// the team only through its team_member row, so this is a plain owner.
 async function setupOwner(): Promise<{ user: TestUser; api: ReturnType<typeof authedApi> }> {
   const user = await signUpTestUser();
   const api = authedApi(user.cookie);
-  await api.projects.post({ key: 'MKT', name: 'Marketing' });
+  await api.teams.post({ key: 'MKT', name: 'Marketing' });
   return { user, api };
 }
 
@@ -23,12 +23,12 @@ describe('invites', () => {
     await resetDb();
   });
 
-  describe('create — POST /projects/:projectKey/invites', () => {
+  describe('create — POST /teams/:teamKey/invites', () => {
     it('creates a pending invite and returns its token and inviter', async () => {
       const owner = await setupOwner();
 
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'invitee@example.com', role: 'member' });
 
       expect(res.status).toBe(201);
@@ -47,7 +47,7 @@ describe('invites', () => {
       const owner = await setupOwner();
 
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'Mixed.Case@Example.COM', role: 'owner' });
 
       expect(res.status).toBe(201);
@@ -57,7 +57,7 @@ describe('invites', () => {
     it('rejects a malformed email with 400', async () => {
       const owner = await setupOwner();
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'not-an-email', role: 'member' });
       expect(res.status).toBe(400);
     });
@@ -66,17 +66,17 @@ describe('invites', () => {
       const owner = await setupOwner();
       const body = { email: 'dup@example.com', role: 'member' as const };
 
-      const first = await owner.api.projects({ projectKey: 'MKT' }).invites.post(body);
+      const first = await owner.api.teams({ teamKey: 'MKT' }).invites.post(body);
       expect(first.status).toBe(201);
 
-      const second = await owner.api.projects({ projectKey: 'MKT' }).invites.post(body);
+      const second = await owner.api.teams({ teamKey: 'MKT' }).invites.post(body);
       expect(second.status).toBe(409);
     });
 
     it('rejects an invalid role with 400', async () => {
       const owner = await setupOwner();
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         // @ts-expect-error — role must be "owner" | "member"
         .invites.post({ email: 'x@example.com', role: 'admin' });
       expect(res.status).toBe(400);
@@ -85,11 +85,11 @@ describe('invites', () => {
     it('pins a custom role on a member invite', async () => {
       const owner = await setupOwner();
       const role = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .roles.post({ name: 'Editor', permissions: {} });
 
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'editor@example.com', role: 'member', roleId: role.data!.id });
 
       expect(res.status).toBe(201);
@@ -99,26 +99,26 @@ describe('invites', () => {
     it('ignores roleId on an owner invite', async () => {
       const owner = await setupOwner();
       const role = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .roles.post({ name: 'Editor', permissions: {} });
 
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'boss@example.com', role: 'owner', roleId: role.data!.id });
 
       expect(res.status).toBe(201);
       expect(res.data).toMatchObject({ role: 'owner', roleId: null, roleName: null });
     });
 
-    it('rejects a roleId from another project with 400', async () => {
+    it('rejects a roleId from another team with 400', async () => {
       const owner = await setupOwner();
-      await owner.api.projects.post({ key: 'OPS', name: 'Operations' });
+      await owner.api.teams.post({ key: 'OPS', name: 'Operations' });
       const foreign = await owner.api
-        .projects({ projectKey: 'OPS' })
+        .teams({ teamKey: 'OPS' })
         .roles.post({ name: 'Ops', permissions: {} });
 
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'x@example.com', role: 'member', roleId: foreign.data!.id });
       expect(res.status).toBe(400);
     });
@@ -128,23 +128,23 @@ describe('invites', () => {
       const outsider = authedApi((await signUpTestUser()).cookie);
 
       const res = await outsider
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'x@example.com', role: 'member' });
       expect(res.status).toBe(403);
     });
   });
 
-  describe('list — GET /projects/:projectKey/invites', () => {
-    it("lists the project's invites, newest first", async () => {
+  describe('list — GET /teams/:teamKey/invites', () => {
+    it("lists the team's invites, newest first", async () => {
       const owner = await setupOwner();
       await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'a@example.com', role: 'member' });
       await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'b@example.com', role: 'owner' });
 
-      const res = await owner.api.projects({ projectKey: 'MKT' }).invites.get();
+      const res = await owner.api.teams({ teamKey: 'MKT' }).invites.get();
       expect(res.status).toBe(200);
       expect(res.data?.map((i) => i.email)).toEqual(['b@example.com', 'a@example.com']);
     });
@@ -152,32 +152,32 @@ describe('invites', () => {
     it('denies a non-member with 403', async () => {
       await setupOwner();
       const outsider = authedApi((await signUpTestUser()).cookie);
-      const res = await outsider.projects({ projectKey: 'MKT' }).invites.get();
+      const res = await outsider.teams({ teamKey: 'MKT' }).invites.get();
       expect(res.status).toBe(403);
     });
   });
 
-  describe('revoke — DELETE /projects/:projectKey/invites/:inviteId', () => {
+  describe('revoke — DELETE /teams/:teamKey/invites/:inviteId', () => {
     it('removes a pending invite', async () => {
       const owner = await setupOwner();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'gone@example.com', role: 'member' });
 
       const del = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites({ inviteId: created.data!.id })
         .delete();
       expect(del.status).toBe(204);
 
-      const list = await owner.api.projects({ projectKey: 'MKT' }).invites.get();
+      const list = await owner.api.teams({ teamKey: 'MKT' }).invites.get();
       expect(list.data).toHaveLength(0);
     });
 
     it('returns 404 for an unknown invite id', async () => {
       const owner = await setupOwner();
       const res = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites({ inviteId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(404);
@@ -185,22 +185,19 @@ describe('invites', () => {
 
     it('returns 400 for a non-numeric invite id', async () => {
       const owner = await setupOwner();
-      const res = await owner.api
-        .projects({ projectKey: 'MKT' })
-        .invites({ inviteId: 'abc' })
-        .delete();
+      const res = await owner.api.teams({ teamKey: 'MKT' }).invites({ inviteId: 'abc' }).delete();
       expect(res.status).toBe(400);
     });
 
     it('denies a non-member with 403', async () => {
       const owner = await setupOwner();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'x@example.com', role: 'member' });
       const outsider = authedApi((await signUpTestUser()).cookie);
 
       const res = await outsider
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites({ inviteId: created.data!.id })
         .delete();
       expect(res.status).toBe(403);
@@ -208,10 +205,10 @@ describe('invites', () => {
   });
 
   describe('read by token — GET /invites/:token', () => {
-    it('returns the invite with project context and hasAccount=false for a stranger email', async () => {
+    it('returns the invite with team context and hasAccount=false for a stranger email', async () => {
       const owner = await setupOwner();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'nobody@example.com', role: 'member' });
 
       const res = await authedApi((await signUpTestUser()).cookie)
@@ -219,8 +216,8 @@ describe('invites', () => {
         .get();
       expect(res.status).toBe(200);
       expect(res.data).toMatchObject({
-        projectKey: 'MKT',
-        projectName: 'Marketing',
+        teamKey: 'MKT',
+        teamName: 'Marketing',
         email: 'nobody@example.com',
         role: 'member',
         status: 'pending',
@@ -232,7 +229,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member' });
 
       const res = await authedApi(invitee.cookie).invites({ token: created.data!.token }).get();
@@ -258,24 +255,24 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member' });
       const inviteeApi = authedApi(invitee.cookie);
 
-      // Before accepting, the invitee cannot reach the project.
-      const before = await inviteeApi.projects({ projectKey: 'MKT' }).get();
+      // Before accepting, the invitee cannot reach the team.
+      const before = await inviteeApi.teams({ teamKey: 'MKT' }).get();
       expect(before.status).toBe(403);
 
       const accept = await inviteeApi.invites({ token: created.data!.token }).accept.post();
       expect(accept.status).toBe(200);
       expect(accept.data).toMatchObject({
-        projectKey: 'MKT',
-        projectName: 'Marketing',
+        teamKey: 'MKT',
+        teamName: 'Marketing',
         role: 'member',
       });
 
-      // Membership took effect: the invitee can now read the project.
-      const after = await inviteeApi.projects({ projectKey: 'MKT' }).get();
+      // Membership took effect: the invitee can now read the team.
+      const after = await inviteeApi.teams({ teamKey: 'MKT' }).get();
       expect(after.status).toBe(200);
 
       // The invite is no longer pending.
@@ -287,10 +284,10 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const role = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .roles.post({ name: 'Editor', permissions: {} });
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member', roleId: role.data!.id });
 
       const accept = await authedApi(invitee.cookie)
@@ -298,7 +295,7 @@ describe('invites', () => {
         .accept.post();
       expect(accept.status).toBe(200);
 
-      const members = await owner.api.projects({ projectKey: 'MKT' }).members.get();
+      const members = await owner.api.teams({ teamKey: 'MKT' }).members.get();
       const row = members.data?.find((m) => m.userId === invitee.userId);
       expect(row).toMatchObject({ role: 'member', roleId: role.data!.id, roleName: 'Editor' });
     });
@@ -307,7 +304,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email.toUpperCase(), role: 'member' });
 
       const accept = await authedApi(invitee.cookie)
@@ -319,7 +316,7 @@ describe('invites', () => {
     it('denies acceptance from a different email with 403', async () => {
       const owner = await setupOwner();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'someone-else@example.com', role: 'member' });
 
       const other = authedApi((await signUpTestUser()).cookie);
@@ -331,7 +328,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member' });
       const inviteeApi = authedApi(invitee.cookie);
 
@@ -354,7 +351,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member' });
       const inviteeApi = authedApi(invitee.cookie);
 
@@ -362,8 +359,8 @@ describe('invites', () => {
       expect(res.status).toBe(204);
 
       // No membership was created.
-      const project = await inviteeApi.projects({ projectKey: 'MKT' }).get();
-      expect(project.status).toBe(403);
+      const team = await inviteeApi.teams({ teamKey: 'MKT' }).get();
+      expect(team.status).toBe(403);
 
       // The invite is now rejected.
       const view = await inviteeApi.invites({ token: created.data!.token }).get();
@@ -373,7 +370,7 @@ describe('invites', () => {
     it('denies rejection from a different email with 403', async () => {
       const owner = await setupOwner();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'someone-else@example.com', role: 'member' });
 
       const other = authedApi((await signUpTestUser()).cookie);
@@ -385,7 +382,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const invitee = await signUpTestUser();
       const created = await owner.api
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: invitee.email, role: 'member' });
       const inviteeApi = authedApi(invitee.cookie);
 

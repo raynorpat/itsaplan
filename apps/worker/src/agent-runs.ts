@@ -14,7 +14,7 @@ interface ClaimedRun {
   trigger: Trigger;
   prompt: string;
   attempts: number;
-  projectId: string;
+  teamId: string;
   agentUserId: string;
   issueIdentifier: string | null;
   issueTitle: string | null;
@@ -47,9 +47,9 @@ async function claimDueRuns(): Promise<ClaimedRun[]> {
     RETURNING
       r.id, r.agent_id AS "agentId", r.issue_id AS "issueId",
       r.schedule_id AS "scheduleId", r.trigger, r.prompt, r.attempts,
-      (SELECT project_id FROM ai_agent a WHERE a.id = r.agent_id) AS "projectId",
+      (SELECT team_id FROM ai_agent a WHERE a.id = r.agent_id) AS "teamId",
       (SELECT user_id FROM ai_agent a WHERE a.id = r.agent_id) AS "agentUserId",
-      (SELECT p.key || '-' || i.sequence_number FROM issue i JOIN project p ON p.id = i.project_id WHERE i.id = r.issue_id) AS "issueIdentifier",
+      (SELECT p.key || '-' || i.sequence_number FROM issue i JOIN team p ON p.id = i.team_id WHERE i.id = r.issue_id) AS "issueIdentifier",
       (SELECT title FROM issue i WHERE i.id = r.issue_id) AS "issueTitle",
       (SELECT assignee_user_id FROM issue i WHERE i.id = r.issue_id) AS "assigneeUserId",
       (SELECT u.name FROM issue i JOIN "user" u ON u.id = i.assignee_user_id WHERE i.id = r.issue_id) AS "assigneeName",

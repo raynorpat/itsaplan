@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
-// Outbound email transport, shared by the two senders in the app: project
-// notifications (credentials per project) and authentication mail (credentials per
+// Outbound email transport, shared by the two senders in the app: team
+// notifications (credentials per team) and authentication mail (credentials per
 // instance). Only the transport lives here. Where the credentials come from, how
 // they are stored, and what the message says belong to the caller.
 

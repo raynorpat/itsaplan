@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, aiAgent, apikey, projectMember } from '@repo/db';
+import { db, aiAgent, apikey, teamMember } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { getProjectByKey } from '../../../projects/store';
+import { getTeamByKey } from '../../../teams/store';
 import { getAgentById, getInternalAgentApiKey } from '../../store';
 import { buildRouteTools } from '../../runtime/tools/route-tools';
 
@@ -12,15 +12,15 @@ import { buildRouteTools } from '../../runtime/tools/route-tools';
 // dispatched in process with the agent's own API key. What is asserted here is the
 // wiring, not the routes themselves (each feature's own test covers those): which
 // tools an agent gets, that a call reaches the real route as the agent, that the
-// project is bound rather than supplied by the model, and that the agent's project
+// team is bound rather than supplied by the model, and that the agent's team
 // role is enforced.
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
@@ -35,12 +35,12 @@ async function toolsFor(asOwner: Api, tools: string[], roleId?: string) {
   });
   const agentId = created.data?.agent.id;
   if (agentId === undefined) throw new Error('Test agent was not created');
-  const project = await getProjectByKey('MKT');
-  if (!project) throw new Error('Test project was not created');
-  const agent = await getAgentById(agentId, project.id);
+  const team = await getTeamByKey('MKT');
+  if (!team) throw new Error('Test team was not created');
+  const agent = await getAgentById(agentId, team.id);
   if (!agent) throw new Error('Test agent was not found');
   const apiKey = await getInternalAgentApiKey(agent);
-  return buildRouteTools(project, apiKey, agent.tools);
+  return buildRouteTools(team, apiKey, agent.tools);
 }
 
 type ToolMap = Awaited<ReturnType<typeof toolsFor>>;
@@ -62,7 +62,7 @@ describe('internal agent route tools', () => {
 
     // Always-on reads are there without being granted...
     expect(Object.keys(tools)).toEqual(
-      expect.arrayContaining(['get_project', 'search_issues', 'list_issues', 'get_issue']),
+      expect.arrayContaining(['get_team', 'search_issues', 'list_issues', 'get_issue']),
     );
     // ...the granted action is there...
     expect(tools.create_issue).toBeDefined();
@@ -71,42 +71,42 @@ describe('internal agent route tools', () => {
     expect(tools.update_issue).toBeUndefined();
   });
 
-  it('reaches the real route: a create lands in the project, authored by the agent', async () => {
+  it('reaches the real route: a create lands in the team, authored by the agent', async () => {
     const { asOwner } = await setup();
-    const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-    const columnId = view.data?.columns[0]?.id;
-    if (columnId === undefined) throw new Error('Test project has no columns');
+    const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+    const stateId = view.data?.states[0]?.id;
+    if (stateId === undefined) throw new Error('Test team has no columns');
     const tools = await toolsFor(asOwner, ['create_issue']);
 
-    const created = await run(tools, 'create_issue', { columnId, title: 'Prepare launch' });
+    const created = await run(tools, 'create_issue', { stateId, title: 'Prepare launch' });
     expect(created).toMatchObject({ title: 'Prepare launch' });
 
     // The issue is really there, read back through the API.
-    const found = await asOwner.projects({ projectKey: 'MKT' }).issues.search.get({ query: {} });
+    const found = await asOwner.teams({ teamKey: 'MKT' }).issues.search.get({ query: {} });
     expect(found.data).toEqual(
       expect.arrayContaining([expect.objectContaining({ title: 'Prepare launch' })]),
     );
   });
 
-  it('binds projectKey: it is not asked of the model and cannot be redirected', async () => {
+  it('binds teamKey: it is not asked of the model and cannot be redirected', async () => {
     const { asOwner } = await setup();
-    await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
-    const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-    const columnId = view.data?.columns[0]?.id;
-    if (columnId === undefined) throw new Error('Test project has no columns');
+    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+    const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+    const stateId = view.data?.states[0]?.id;
+    if (stateId === undefined) throw new Error('Test team has no columns');
     const tools = await toolsFor(asOwner, ['create_issue']);
 
-    // The argument the agent's project supplies is not part of the tool's schema.
+    // The argument the agent's team supplies is not part of the tool's schema.
     const schema = tools.create_issue?.inputSchema as unknown as {
       getJsonSchema(): { properties: Record<string, unknown> };
     };
-    expect(Object.keys(schema.getJsonSchema().properties)).not.toContain('projectKey');
+    expect(Object.keys(schema.getJsonSchema().properties)).not.toContain('teamKey');
 
-    // Naming another project in the arguments does not move the write there.
-    await run(tools, 'create_issue', { columnId, title: 'Stray', projectKey: 'OPS' });
-    const ops = await asOwner.projects({ projectKey: 'OPS' }).issues.search.get({ query: {} });
+    // Naming another team in the arguments does not move the write there.
+    await run(tools, 'create_issue', { stateId, title: 'Stray', teamKey: 'OPS' });
+    const ops = await asOwner.teams({ teamKey: 'OPS' }).issues.search.get({ query: {} });
     expect(ops.data).toEqual([]);
-    const mkt = await asOwner.projects({ projectKey: 'MKT' }).issues.search.get({ query: {} });
+    const mkt = await asOwner.teams({ teamKey: 'MKT' }).issues.search.get({ query: {} });
     expect(mkt.data).toEqual([expect.objectContaining({ title: 'Stray' })]);
   });
 
@@ -118,8 +118,8 @@ describe('internal agent route tools', () => {
       kind: 'internal',
     });
     const agentId = created.data?.agent.id;
-    const project = await getProjectByKey('MKT');
-    if (agentId === undefined || !project) throw new Error('Test agent was not created');
+    const team = await getTeamByKey('MKT');
+    if (agentId === undefined || !team) throw new Error('Test agent was not created');
 
     // An agent from before the key existed: no stored secret, no membership.
     await db
@@ -127,9 +127,9 @@ describe('internal agent route tools', () => {
       .set({ apiKeyCiphertext: null, apiKeyIv: null, apiKeyAuthTag: null })
       .where(eq(aiAgent.id, agentId));
     await db.delete(apikey).where(eq(apikey.referenceId, created.data!.agent.userId));
-    await db.delete(projectMember).where(eq(projectMember.userId, created.data!.agent.userId));
+    await db.delete(teamMember).where(eq(teamMember.userId, created.data!.agent.userId));
 
-    const agent = await getAgentById(agentId, project.id);
+    const agent = await getAgentById(agentId, team.id);
     if (!agent) throw new Error('Test agent was not found');
 
     // Two runs of the same agent race to provision it.
@@ -147,18 +147,18 @@ describe('internal agent route tools', () => {
     // The listing still shows the agent once, and the key works against a real route.
     const listed = await agents(asOwner).get();
     expect(listed.data?.filter((a) => a.id === agentId)).toHaveLength(1);
-    const tools = buildRouteTools(project, first, agent.tools);
-    expect(await run(tools, 'get_project')).toMatchObject({ columns: expect.any(Array) });
+    const tools = buildRouteTools(team, first, agent.tools);
+    expect(await run(tools, 'get_team')).toMatchObject({ states: expect.any(Array) });
   });
 
-  it("enforces the agent's project role: a forbidden action returns the route's error", async () => {
+  it("enforces the agent's team role: a forbidden action returns the route's error", async () => {
     const { asOwner } = await setup();
-    const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-    const columnId = view.data?.columns[0]?.id;
-    if (columnId === undefined) throw new Error('Test project has no columns');
+    const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+    const stateId = view.data?.states[0]?.id;
+    if (stateId === undefined) throw new Error('Test team has no columns');
 
     // A role that may read work items but not create them.
-    const role = await asOwner.projects({ projectKey: 'MKT' }).roles.post({
+    const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
       name: 'Read only',
       permissions: { work_items: { create: false, edit: false, read: true, delete: false } },
     });
@@ -171,14 +171,14 @@ describe('internal agent route tools', () => {
 
     // ...but the role denies it, and the route's 403 comes back as a result the model
     // can read rather than aborting the run.
-    const result = await run(tools, 'create_issue', { columnId, title: 'Denied' });
+    const result = await run(tools, 'create_issue', { stateId, title: 'Denied' });
     expect(result).toMatchObject({ error: expect.anything() });
 
-    const found = await asOwner.projects({ projectKey: 'MKT' }).issues.search.get({ query: {} });
+    const found = await asOwner.teams({ teamKey: 'MKT' }).issues.search.get({ query: {} });
     expect(found.data).toEqual([]);
 
     // A read the role does allow still works.
-    const context = await run(tools, 'get_project');
-    expect(context).toMatchObject({ columns: expect.any(Array) });
+    const context = await run(tools, 'get_team');
+    expect(context).toMatchObject({ states: expect.any(Array) });
   });
 });

@@ -11,7 +11,7 @@ const runBody = t.Object({
   scheduleId: t.Nullable(t.String({ format: 'uuid' })),
   trigger: t.UnionEnum(['mention', 'delegation', 'schedule', 'manual']),
   prompt: t.String(),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   agentUserId: t.String({ format: 'uuid' }),
   issueIdentifier: t.Nullable(t.String()),
   issueTitle: t.Nullable(t.String()),
@@ -34,7 +34,7 @@ export const internalAgentRunRoutes = new Elysia({ name: 'internal-agent-runs' }
         set.status = 401;
         return { error: 'Unauthorized' };
       }
-      const result = await runAgent(body.agentId, body.projectId, framePrompt(body), {
+      const result = await runAgent(body.agentId, body.teamId, framePrompt(body), {
         callerUserId: body.agentUserId,
         threadId: runThreadId(body),
         issueId: body.issueId,

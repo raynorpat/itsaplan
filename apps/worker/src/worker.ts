@@ -46,7 +46,7 @@ async function tick(): Promise<void> {
     if (archived.length > 0) {
       console.log(`[worker] auto-archived ${archived.length} stale issues`);
       // An unreachable api must not read as a failed tick: the issues are archived
-      // either way, and their threads then stay until the agent or project goes.
+      // either way, and their threads then stay until the agent or team goes.
       try {
         await deleteIssueAgentThreads(archived);
       } catch (error) {

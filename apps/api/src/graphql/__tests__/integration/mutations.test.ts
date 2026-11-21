@@ -10,10 +10,10 @@ import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/line
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
   const col: Record<string, string> = {};
-  for (const c of view.data!.columns) col[c.stateType] ??= c.id;
+  for (const c of view.data!.states) col[c.stateType] ??= c.id;
   const client = linearClient(await createApiKey(owner.cookie));
   const team = await client.team('MKT');
   return { owner, asOwner, col, client, teamId: team.id };
@@ -22,11 +22,11 @@ async function setup() {
 // A member of MKT on a role without work item permissions.
 async function readOnlyMember(asOwner: Api) {
   const role = await asOwner
-    .projects({ projectKey: 'MKT' })
+    .teams({ teamKey: 'MKT' })
     .roles.post({ name: 'Viewer', permissions: {} });
   const member = await signUpTestUser();
   const invite = await asOwner
-    .projects({ projectKey: 'MKT' })
+    .teams({ teamKey: 'MKT' })
     .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
   await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
   return member;
@@ -82,8 +82,8 @@ describe('graphql mutations', () => {
     it('rejects a state from another team', async () => {
       const { owner, teamId } = await setup();
       const other = authedApi((await signUpTestUser()).cookie);
-      await other.projects.post({ key: 'OPS', name: 'Operations' });
-      const opsState = (await other.projects({ projectKey: 'OPS' }).get()).data!.columns[0].id;
+      await other.teams.post({ key: 'OPS', name: 'Operations' });
+      const opsState = (await other.teams({ teamKey: 'OPS' }).get()).data!.states[0].id;
       const res = await gql(
         { cookie: owner.cookie },
         `mutation { issueCreate(input: { teamId: "${teamId}", title: "x", stateId: "${opsState}" }) { success } }`,
@@ -116,7 +116,7 @@ describe('graphql mutations', () => {
     it('moves an issue with the same activity and webhook REST produces', async () => {
       const { asOwner, client, teamId, col } = await setup();
       const hook = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .webhooks.post({ url: 'https://example.com/hook', events: ['issue.state_changed'] });
       const issue = (await (await client.createIssue({ teamId, title: 'Move me' })).issue)!;
 

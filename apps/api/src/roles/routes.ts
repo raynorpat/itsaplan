@@ -7,7 +7,7 @@ import { PERMISSION_RESOURCES, PERMISSION_ACTIONS } from '../shared/permissions'
 import { ErrorResponse } from '../shared/responses';
 import { listRoles, getRole, createRole, updateRole, deleteRole } from './store';
 
-const roleParams = t.Object({ projectKey: t.String(), roleId: t.String({ format: 'uuid' }) });
+const roleParams = t.Object({ teamKey: t.String(), roleId: t.String({ format: 'uuid' }) });
 
 // Permission matrix carried on create/update. Kept loose (a jsonb blob) and
 // sanitized by normalizePermissions in the store: unknown keys are dropped,
@@ -59,37 +59,37 @@ export const roleRoutes = new Elysia({ name: 'roles', detail: { tags: ['Roles'] 
   )
 
   .get(
-    '/projects/:projectKey/roles',
-    async ({ project }) => {
-      return listRoles(project.id);
+    '/teams/:teamKey/roles',
+    async ({ team }) => {
+      return listRoles(team.id);
     },
     {
-      params: t.Object({ projectKey: t.String() }),
-      projectMember: true,
+      params: t.Object({ teamKey: t.String() }),
+      teamMember: true,
       response: {
         200: t.Array(RoleResponse),
         401: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "List a project's roles", ...mcpTool('list_roles') },
+      detail: { summary: "List a team's roles", ...mcpTool('list_roles') },
     },
   )
 
   .post(
-    '/projects/:projectKey/roles',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/roles',
+    async ({ team, body, set }) => {
       try {
         set.status = 201;
-        return await createRole(project.id, body);
+        return await createRole(team.id, body);
       } catch (err) {
         rethrowDuplicate(err, 'role');
       }
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       body: t.Object({ name: t.String({ minLength: 1 }), permissions }),
-      projectOwner: true,
+      teamOwner: true,
       response: {
         201: RoleResponse,
         400: ErrorResponse,
@@ -103,11 +103,11 @@ export const roleRoutes = new Elysia({ name: 'roles', detail: { tags: ['Roles'] 
   )
 
   .patch(
-    '/projects/:projectKey/roles/:roleId',
-    async ({ project, params, body }) => {
+    '/teams/:teamKey/roles/:roleId',
+    async ({ team, params, body }) => {
       let role;
       try {
-        role = await updateRole(project.id, params.roleId, body);
+        role = await updateRole(team.id, params.roleId, body);
       } catch (err) {
         rethrowDuplicate(err, 'role');
       }
@@ -120,7 +120,7 @@ export const roleRoutes = new Elysia({ name: 'roles', detail: { tags: ['Roles'] 
         name: t.Optional(t.String({ minLength: 1 })),
         permissions: t.Optional(permissions),
       }),
-      projectOwner: true,
+      teamOwner: true,
       response: {
         200: RoleResponse,
         400: ErrorResponse,
@@ -140,17 +140,17 @@ export const roleRoutes = new Elysia({ name: 'roles', detail: { tags: ['Roles'] 
   // Deletes a custom role. The default role cannot be deleted. Members on the
   // role are reassigned to the default role.
   .delete(
-    '/projects/:projectKey/roles/:roleId',
-    async ({ project, params }) => {
-      const role = await getRole(project.id, params.roleId);
+    '/teams/:teamKey/roles/:roleId',
+    async ({ team, params }) => {
+      const role = await getRole(team.id, params.roleId);
       if (!role) throw new HttpError(404, 'Role not found');
       if (role.isDefault) throw new HttpError(400, 'The default role cannot be deleted');
-      await deleteRole(project.id, params.roleId);
+      await deleteRole(team.id, params.roleId);
       return noContent();
     },
     {
       params: roleParams,
-      projectOwner: true,
+      teamOwner: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,

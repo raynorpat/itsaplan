@@ -13,7 +13,7 @@ const StartPage = t.Union([
   t.Literal('inbox'),
   t.Literal('dashboard'),
   t.Literal('work-items'),
-  t.Literal('initiatives'),
+  t.Literal('projects'),
   t.Literal('ai-chat'),
 ]);
 
@@ -27,7 +27,7 @@ const PreferenceResponse = t.Object({
   showChatByDefault: t.Boolean(),
   issueStatsOpen: t.Boolean(),
   issueStatsView: IssueStatsView,
-  lastProjectId: t.Nullable(t.String({ format: 'uuid' })),
+  lastTeamId: t.Nullable(t.String({ format: 'uuid' })),
   hotkeys: HotkeyCombosSchema,
 });
 
@@ -39,7 +39,7 @@ const PreferencePatch = t.Object({
   showChatByDefault: t.Optional(t.Boolean()),
   issueStatsOpen: t.Optional(t.Boolean()),
   issueStatsView: t.Optional(IssueStatsView),
-  lastProjectId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+  lastTeamId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
   // The full set of the user's overrides: a shortcut left out falls back to the
   // instance binding.
   hotkeys: t.Optional(HotkeyCombosSchema),
@@ -47,8 +47,8 @@ const PreferencePatch = t.Object({
 
 // The session user's own interface preferences: timezone, theme, how a clicked issue
 // opens, which section the app root lands on, whether the floating AI chat starts
-// visible, how an issue's status stats section starts out, and the project they were
-// in last. Every route is self-scoped to the session user, so no project guard applies
+// visible, how an issue's status stats section starts out, and the team they were
+// in last. Every route is self-scoped to the session user, so no team guard applies
 // — a user only ever reads or writes their own row. Not MCP tools: an agent has no
 // business changing a person's UI settings.
 export const userPreferenceRoutes = new Elysia({
@@ -73,10 +73,10 @@ export const userPreferenceRoutes = new Elysia({
       if (body.timezone !== undefined && !isValidTimezone(body.timezone)) {
         throw new HttpError(400, 'Unknown timezone');
       }
-      // Only a project the user belongs to can be remembered, so the stored id can
+      // Only a team the user belongs to can be remembered, so the stored id can
       // never point at one they cannot open.
-      if (body.lastProjectId != null && !(await getMembership(body.lastProjectId, current.id))) {
-        throw new HttpError(403, 'You do not have access to this project');
+      if (body.lastTeamId != null && !(await getMembership(body.lastTeamId, current.id))) {
+        throw new HttpError(403, 'You do not have access to this team');
       }
       return updatePreferences(current.id, body);
     },

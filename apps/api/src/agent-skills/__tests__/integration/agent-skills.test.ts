@@ -3,7 +3,7 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// The project skill library: SKILL.md documents (plus optional reference files) given
+// The team skill library: SKILL.md documents (plus optional reference files) given
 // to internal agents. Content lives in the object store; the row holds metadata.
 // Access is the ai_agents permission resource. These tests need the object store
 // (MinIO), like the attachments test.
@@ -11,12 +11,12 @@ import { resetDb } from '../../../__tests__/helpers/db';
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
-const skills = (api: Api) => api.projects({ projectKey: 'MKT' })['agent-skills'];
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const skills = (api: Api) => api.teams({ teamKey: 'MKT' })['agent-skills'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 const SKILL_MD = `---
 name: Triage

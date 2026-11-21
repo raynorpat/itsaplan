@@ -42,12 +42,12 @@ describe('normalizeToolKeys', () => {
     expect(normalizeToolKeys(all)).toEqual(all);
   });
 
-  it('registers initiative actions and read tools', () => {
+  it('registers project actions and read tools', () => {
     expect(AGENT_ACTIONS.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['create_initiative', 'update_initiative', 'delete_initiative']),
+      expect.arrayContaining(['create_project', 'update_project', 'delete_project']),
     );
     expect(ALWAYS_ON_ACTIONS.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['list_initiatives', 'get_initiative']),
+      expect.arrayContaining(['list_projects', 'get_project']),
     );
   });
 

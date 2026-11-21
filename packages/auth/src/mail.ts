@@ -3,7 +3,7 @@ import { getEmailConfig } from './instance';
 
 // Authentication email: password reset, address verification, magic link. It uses
 // the instance mail provider configured in god mode, which is separate from the
-// per-project notification providers.
+// per-team notification providers.
 //
 // Delivery is best effort and never blocks the request that triggered it: when no
 // provider is configured, or the provider rejects the message, this logs and

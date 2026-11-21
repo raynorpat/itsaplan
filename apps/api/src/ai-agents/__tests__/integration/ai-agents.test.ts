@@ -3,22 +3,22 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// AI agents attached to a project. Each agent is backed by a hidden bot user, owns a
-// better-auth API key, and is a project member acting under a project role. An
+// AI agents attached to a team. Each agent is backed by a hidden bot user, owns a
+// better-auth API key, and is a team member acting under a team role. An
 // external agent needs only a name + username, and its operator gets the key secret
 // (returned once on create and again on regenerate); an internal agent adds a model
 // configuration and its key stays server-side for its own runtime. Agents show up as
-// assignee candidates on the project aggregate. Access is the ai_agents permission
+// assignee candidates on the team aggregate. Access is the ai_agents permission
 // resource.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 describe('ai agents', () => {
   beforeEach(async () => {
@@ -52,19 +52,19 @@ describe('ai agents', () => {
       expect.arrayContaining([
         expect.objectContaining({ key: 'create_issue', label: expect.any(String), always: false }),
         expect.objectContaining({
-          key: 'create_initiative',
+          key: 'create_project',
           label: expect.any(String),
           always: false,
         }),
         expect.objectContaining({
-          key: 'get_project',
+          key: 'get_team',
           label: expect.any(String),
           always: true,
         }),
         expect.objectContaining({ key: 'search_issues', label: expect.any(String), always: true }),
         expect.objectContaining({ key: 'list_issues', label: expect.any(String), always: true }),
         expect.objectContaining({
-          key: 'list_initiatives',
+          key: 'list_projects',
           label: expect.any(String),
           always: true,
         }),
@@ -150,8 +150,8 @@ describe('ai agents', () => {
 
   it('assigns an authorization role to either kind of agent', async () => {
     const { asOwner } = await setup();
-    // The project ships with a default "Member" role; use its id.
-    const roles = await asOwner.projects({ projectKey: 'MKT' }).roles.get();
+    // The team ships with a default "Member" role; use its id.
+    const roles = await asOwner.teams({ teamKey: 'MKT' }).roles.get();
     const roleId = roles.data![0].id;
     const res = await agents(asOwner).post({
       name: 'Ext',
@@ -202,8 +202,8 @@ describe('ai agents', () => {
   it('exposes the created agent as an assignee candidate', async () => {
     const { asOwner } = await setup();
     await agents(asOwner).post({ name: 'Assign Me', username: 'assignme', kind: 'external' });
-    const project = await asOwner.projects({ projectKey: 'MKT' }).get();
-    const agent = project.data?.assignees.find((a) => a.kind === 'agent');
+    const team = await asOwner.teams({ teamKey: 'MKT' }).get();
+    const agent = team.data?.assignees.find((a) => a.kind === 'agent');
     expect(agent).toMatchObject({ name: 'Assign Me', kind: 'agent', agentKind: 'external' });
   });
 
@@ -249,8 +249,8 @@ describe('ai agents', () => {
     expect(del.status).toBe(204);
     const list = await agents(asOwner).get();
     expect(list.data).toHaveLength(0);
-    const project = await asOwner.projects({ projectKey: 'MKT' }).get();
-    expect(project.data?.assignees.some((a) => a.kind === 'agent')).toBe(false);
+    const team = await asOwner.teams({ teamKey: 'MKT' }).get();
+    expect(team.data?.assignees.some((a) => a.kind === 'agent')).toBe(false);
   });
 
   it('rejects a duplicate username with 409', async () => {
@@ -315,14 +315,14 @@ describe('ai agents', () => {
     expect(res.status).toBe(404);
   });
 
-  it('does not reach an agent through another project (404)', async () => {
+  it('does not reach an agent through another team (404)', async () => {
     const { asOwner } = await setup();
-    await asOwner.projects.post({ key: 'ENG', name: 'Engineering' });
+    await asOwner.teams.post({ key: 'ENG', name: 'Engineering' });
     const created = await agents(asOwner).post({ name: 'Bot', username: 'bot', kind: 'external' });
     const agentId = created.data!.agent.id;
-    // The same owner addresses the agent through a different project it owns; the
-    // store scopes every lookup to (agentId, projectId), so it is not found here.
-    const res = await asOwner.projects({ projectKey: 'ENG' })['ai-agents']({ agentId }).patch({
+    // The same owner addresses the agent through a different team it owns; the
+    // store scopes every lookup to (agentId, teamId), so it is not found here.
+    const res = await asOwner.teams({ teamKey: 'ENG' })['ai-agents']({ agentId }).patch({
       name: 'x',
     });
     expect(res.status).toBe(404);

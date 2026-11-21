@@ -3,20 +3,20 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// Configured tools for a project: a catalog tool bound to an integration credential.
+// Configured tools for a team: a catalog tool bound to an integration credential.
 // The secret lives on the credential, so a configured tool carries no secret. Access
 // is the agent_tools permission resource.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
-const tools = (api: Api) => api.projects({ projectKey: 'MKT' })['agent-tools'];
-const integrations = (api: Api) => api.projects({ projectKey: 'MKT' }).integrations;
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const tools = (api: Api) => api.teams({ teamKey: 'MKT' })['agent-tools'];
+const integrations = (api: Api) => api.teams({ teamKey: 'MKT' }).integrations;
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 // Creates a Jina credential and returns its id.
 async function jinaCredential(asOwner: Api): Promise<string> {

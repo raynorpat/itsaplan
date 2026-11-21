@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { db, issue, projectView } from '@repo/db';
+import { db, issue, teamView } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { getProjectById, type ProjectRow } from '../projects/store';
-import { listColumns } from '../columns/store';
+import { getTeamById, type TeamRow } from '../teams/store';
+import { listStates } from '../states/store';
 import { listIssueTypes } from '../issue-types/store';
 import { listLabels, listLabelGroups } from '../labels/store';
 import { listCustomFields } from '../custom-fields/store';
@@ -14,15 +14,15 @@ import { applyFilters } from '../views/filters';
 // Public read-only sharing: an issue or a saved view carries an unguessable
 // share_token that, when set, makes it readable without a session through the
 // /share/* routes. Enabling sets the token; revoking clears it. The public reads
-// return a self-contained bundle (project scaffold + the entity) so the read-only
+// return a self-contained bundle (team scaffold + the entity) so the read-only
 // page needs no other authenticated call.
 
-// The project scaffold a read-only page needs to render issues: the same shape as
-// GET /projects/:projectKey minus the caller's viewer/permissions. Member emails
+// The team scaffold a read-only page needs to render issues: the same shape as
+// GET /teams/:teamKey minus the caller's viewer/permissions. Member emails
 // are stripped — a public page shows names, never emails.
 export interface ShareScaffold {
-  project: ProjectRow;
-  columns: Awaited<ReturnType<typeof listColumns>>;
+  team: TeamRow;
+  states: Awaited<ReturnType<typeof listStates>>;
   issueTypes: Awaited<ReturnType<typeof listIssueTypes>>;
   labels: Awaited<ReturnType<typeof listLabels>>;
   labelGroups: Awaited<ReturnType<typeof listLabelGroups>>;
@@ -37,29 +37,29 @@ export interface ShareScaffold {
 }
 
 export interface SharedIssueBundle {
-  project: ShareScaffold;
+  team: ShareScaffold;
   issue: IssueRow & { fields: Awaited<ReturnType<typeof getIssueFieldValues>> };
   feed: FeedItemRow[];
 }
 
 export interface SharedViewBundle {
-  project: ShareScaffold;
+  team: ShareScaffold;
   view: { name: string; icon: string | null; filters: unknown; display: unknown };
   issues: IssueRow[];
 }
 
-async function buildScaffold(project: ProjectRow): Promise<ShareScaffold> {
-  const [columns, issueTypes, labels, labelGroups, assignees, customFields] = await Promise.all([
-    listColumns(project.id),
-    listIssueTypes(project.id),
-    listLabels(project.id),
-    listLabelGroups(project.id),
-    listAssigneeCandidates(project.id),
-    listCustomFields(project.id, { allTypes: true }),
+async function buildScaffold(team: TeamRow): Promise<ShareScaffold> {
+  const [states, issueTypes, labels, labelGroups, assignees, customFields] = await Promise.all([
+    listStates(team.id),
+    listIssueTypes(team.id),
+    listLabels(team.id),
+    listLabelGroups(team.id),
+    listAssigneeCandidates(team.id),
+    listCustomFields(team.id, { allTypes: true }),
   ]);
   return {
-    project,
-    columns,
+    team,
+    states,
     issueTypes,
     labels,
     labelGroups,
@@ -91,15 +91,15 @@ async function issueBundle(
   issueRow: IssueRow,
   keepShareToken: boolean,
 ): Promise<SharedIssueBundle> {
-  const project = await getProjectById(issueRow.projectId);
-  if (!project) throw new Error('project missing for shared issue');
+  const team = await getTeamById(issueRow.teamId);
+  if (!team) throw new Error('team missing for shared issue');
   const [scaffold, fields, feed] = await Promise.all([
-    buildScaffold(project),
+    buildScaffold(team),
     getIssueFieldValues(issueRow.id),
     issueFeed(issueRow.id),
   ]);
   return {
-    project: scaffold,
+    team: scaffold,
     issue: { ...issueRow, shareToken: keepShareToken ? issueRow.shareToken : null, fields },
     feed,
   };
@@ -133,22 +133,22 @@ export async function disableIssueShare(issueId: string): Promise<boolean> {
 
 export async function enableViewShare(viewId: string): Promise<string | null> {
   const rows = await db
-    .select({ token: projectView.shareToken })
-    .from(projectView)
-    .where(eq(projectView.id, viewId));
+    .select({ token: teamView.shareToken })
+    .from(teamView)
+    .where(eq(teamView.id, viewId));
   if (rows.length === 0) return null;
   if (rows[0].token) return rows[0].token;
   const token = randomUUID();
-  await db.update(projectView).set({ shareToken: token }).where(eq(projectView.id, viewId));
+  await db.update(teamView).set({ shareToken: token }).where(eq(teamView.id, viewId));
   return token;
 }
 
 export async function disableViewShare(viewId: string): Promise<boolean> {
   const rows = await db
-    .update(projectView)
+    .update(teamView)
     .set({ shareToken: null })
-    .where(eq(projectView.id, viewId))
-    .returning({ id: projectView.id });
+    .where(eq(teamView.id, viewId))
+    .returning({ id: teamView.id });
   return rows.length > 0;
 }
 
@@ -164,18 +164,18 @@ export async function getSharedIssue(token: string): Promise<SharedIssueBundle |
 
 // The bundle for a shared view link, or null if no view carries the token.
 export async function getSharedView(token: string): Promise<SharedViewBundle | null> {
-  const rows = await db.select().from(projectView).where(eq(projectView.shareToken, token));
+  const rows = await db.select().from(teamView).where(eq(teamView.shareToken, token));
   const view = rows[0];
   if (!view) return null;
-  const project = await getProjectById(view.projectId);
-  if (!project) return null;
-  const [scaffold, issues] = await Promise.all([buildScaffold(project), listIssues(project)]);
+  const team = await getTeamById(view.teamId);
+  if (!team) return null;
+  const [scaffold, issues] = await Promise.all([buildScaffold(team), listIssues(team)]);
   // Apply the view's own filters here so the bundle carries only the issues the
-  // view shows, not the whole project. A public link must not expose issues the
+  // view shows, not the whole team. A public link must not expose issues the
   // filter excludes.
-  const visible = applyFilters(issues, view.filters, scaffold.columns);
+  const visible = applyFilters(issues, view.filters, scaffold.states);
   return {
-    project: scaffold,
+    team: scaffold,
     view: { name: view.name, icon: view.icon, filters: view.filters, display: view.display },
     // A shared board never leaks its issues' own individual share tokens.
     issues: visible.map((i) => ({ ...i, shareToken: null })),
@@ -183,7 +183,7 @@ export async function getSharedView(token: string): Promise<SharedViewBundle | n
 }
 
 // The read-only detail of one issue opened from a shared board. Enforces that the
-// issue is one the shared view actually shows: it must belong to the view's project
+// issue is one the shared view actually shows: it must belong to the view's team
 // and pass the view's filters, so the board token cannot open issues the filter
 // excludes (nor archived issues, which listIssues omits). Null if the token is
 // unknown or the issue is not on the shared board.
@@ -192,13 +192,13 @@ export async function getSharedViewIssue(
   issueId: string,
 ): Promise<SharedIssueBundle | null> {
   const rows = await db
-    .select({ projectId: projectView.projectId, filters: projectView.filters })
-    .from(projectView)
-    .where(eq(projectView.shareToken, token));
+    .select({ teamId: teamView.teamId, filters: teamView.filters })
+    .from(teamView)
+    .where(eq(teamView.shareToken, token));
   if (rows.length === 0) return null;
-  const project = await getProjectById(rows[0].projectId);
-  if (!project) return null;
-  const [columns, issues] = await Promise.all([listColumns(project.id), listIssues(project)]);
+  const team = await getTeamById(rows[0].teamId);
+  if (!team) return null;
+  const [columns, issues] = await Promise.all([listStates(team.id), listIssues(team)]);
   const issueRow = applyFilters(issues, rows[0].filters, columns).find((i) => i.id === issueId);
   if (!issueRow) return null;
   return issueBundle(issueRow, false);

@@ -20,21 +20,20 @@ import {
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = view.data!.columns[0].id;
-  return { asOwner, columnId };
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = view.data!.states[0].id;
+  return { asOwner, stateId };
 }
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 // Creates an internal agent and an issue, then enqueues a pending run for the pair.
-async function enqueueRun(asOwner: Api, columnId: string) {
+async function enqueueRun(asOwner: Api, stateId: string) {
   const agent = (await agents(asOwner).post({ name: 'Bot', username: 'bot', kind: 'internal' }))
     .data!.agent;
-  const issue = (
-    await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' })
-  ).data!;
+  const issue = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' }))
+    .data!;
   await enqueueAgentRun({
     agentId: agent.id,
     issueId: issue.id,
@@ -56,14 +55,14 @@ describe('agent_run queue store', () => {
   });
 
   it('enqueues a run as pending with zero attempts', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
     expect(await readRun(runId)).toMatchObject({ status: 'pending', attempts: 0, lastError: null });
   });
 
   it('claims a due run, bumps attempts, and holds the lease so it is not re-claimed', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
 
     const first = await claimDueRuns();
     expect(first.find((r) => r.id === runId)).toBeDefined();
@@ -78,24 +77,24 @@ describe('agent_run queue store', () => {
   });
 
   it('marks a claimed run successful and removes it from the queue', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
     await claimDueRuns();
     await markRunSuccess(runId);
     expect(await readRun(runId)).toMatchObject({ status: 'success', lastError: null });
   });
 
   it('marks a run failed and records the error', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
     await claimDueRuns();
     await markRunFailed(runId, 'boom');
     expect(await readRun(runId)).toMatchObject({ status: 'failed', lastError: 'boom' });
   });
 
   it('reschedules a retry back to pending with the error and a future attempt time', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
     await claimDueRuns();
     await scheduleRunRetry(runId, 60_000, 'transient');
     const row = await readRun(runId);
@@ -104,8 +103,8 @@ describe('agent_run queue store', () => {
   });
 
   it('truncates a long error to the column limit', async () => {
-    const { asOwner, columnId } = await setup();
-    const { runId } = await enqueueRun(asOwner, columnId);
+    const { asOwner, stateId } = await setup();
+    const { runId } = await enqueueRun(asOwner, stateId);
     await markRunFailed(runId, 'x'.repeat(600));
     expect((await readRun(runId)).lastError).toHaveLength(500);
   });

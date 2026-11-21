@@ -56,7 +56,7 @@ export function framePrompt(run: RunForPrompt): string {
 
 function frameDelegation(run: RunForPrompt, titled: string): string {
   const lines = [
-    `Issue ${titled} of your project has been delegated to you. Carry it out.`,
+    `Issue ${titled} of your team has been delegated to you. Carry it out.`,
     'Read the issue for context, then do the work it needs with your tools. Add a',
     'question comment only when you genuinely cannot proceed without a human answer.',
   ];
@@ -69,9 +69,9 @@ function frameDelegation(run: RunForPrompt, titled: string): string {
   } else {
     lines.push(
       '',
-      'This issue has no assignee. Before you comment, call get_project and read',
+      'This issue has no assignee. Before you comment, call get_team and read',
       "the members' descriptions; tag the one member whose role best fits this work. If",
-      'none clearly fits, tag a project owner. Tag exactly one person.',
+      'none clearly fits, tag a team owner. Tag exactly one person.',
     );
   }
   lines.push(
@@ -85,7 +85,7 @@ function frameDelegation(run: RunForPrompt, titled: string): string {
 
 function frameMention(run: RunForPrompt, titled: string): string {
   return [
-    `You were mentioned in a comment on issue ${titled} of your project.`,
+    `You were mentioned in a comment on issue ${titled} of your team.`,
     'Work out what the comment is asking for and do it with your tools, then reply by',
     `adding one comment to the issue with the add_comment tool (issueId ${run.issueId})`,
     'with the result or answer. Keep it short.',

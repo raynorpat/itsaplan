@@ -88,7 +88,7 @@ async function readCounts(): Promise<InstanceCounts> {
       (SELECT count(*)::int FROM "user") AS "users",
       (SELECT count(DISTINCT user_id)::int FROM "session"
         WHERE created_at > now() - interval '30 days') AS "activeUsers30d",
-      (SELECT count(*)::int FROM project) AS "projects",
+      (SELECT count(*)::int FROM team) AS "teams",
       (SELECT count(*)::int FROM issue) AS "issues",
       (SELECT count(*)::int FROM issue
         WHERE created_at > now() - interval '30 days') AS "issuesCreated30d",
@@ -103,18 +103,18 @@ async function readCounts(): Promise<InstanceCounts> {
       (SELECT count(*)::int FROM webhook_delivery
         WHERE created_at > now() - interval '30 days'
           AND status = 'failed') AS "webhookDeliveriesFailed30d",
-      EXISTS(SELECT 1 FROM initiative) AS "hasInitiatives",
+      EXISTS(SELECT 1 FROM project) AS "hasProjects",
       EXISTS(SELECT 1 FROM note_board) AS "hasNoteBoards",
-      EXISTS(SELECT 1 FROM project_dashboard) AS "hasDashboards",
-      EXISTS(SELECT 1 FROM project_view) AS "hasCustomViews",
+      EXISTS(SELECT 1 FROM team_dashboard) AS "hasDashboards",
+      EXISTS(SELECT 1 FROM team_view) AS "hasCustomViews",
       EXISTS(SELECT 1 FROM custom_field) AS "hasCustomFields",
       EXISTS(SELECT 1 FROM label_group) AS "hasLabelGroups",
-      EXISTS(SELECT 1 FROM project_action) AS "hasProjectActions",
+      EXISTS(SELECT 1 FROM team_action) AS "hasTeamActions",
       EXISTS(SELECT 1 FROM issue_attachment) AS "hasAttachments",
       EXISTS(SELECT 1 FROM agent_schedule) AS "hasAgentSchedules",
       EXISTS(SELECT 1 FROM webhook) AS "hasWebhooks",
       EXISTS(SELECT 1 FROM apikey) AS "hasApiKeys",
-      EXISTS(SELECT 1 FROM project WHERE mcp_enabled) AS "hasMcpProject",
+      EXISTS(SELECT 1 FROM team WHERE mcp_enabled) AS "hasMcpTeam",
       -- The app_secret row appears on any save, so read the plaintext mirror of the
       -- config: same conditions as hasEmailProvider, isGoogleUsable, isInstanceBotUsable.
       EXISTS(SELECT 1 FROM app_secret WHERE key = 'auth.email'
@@ -128,7 +128,7 @@ async function readCounts(): Promise<InstanceCounts> {
       EXISTS(SELECT 1 FROM app_secret WHERE key = 'telegram.bot'
         AND (redacted->>'enabled')::boolean
         AND (redacted->>'hasBotToken')::boolean) AS "hasTelegramBot",
-      EXISTS(SELECT 1 FROM integration_credential) AS "hasProjectIntegrations"
+      EXISTS(SELECT 1 FROM integration_credential) AS "hasTeamIntegrations"
   `);
   return (rows as unknown as InstanceCounts[])[0];
 }

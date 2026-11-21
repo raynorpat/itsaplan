@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addUser, createAgentUser, joinProject, setup } from '../helpers';
+import { addUser, createAgentUser, joinTeam, setup } from '../helpers';
 
 // The instance user directory under god mode: listing every account on the instance,
-// reading one with the projects it can reach, confirming an email address on the
+// reading one with the teams it can reach, confirming an email address on the
 // owner's behalf, and deleting an account. These routes read across the better-auth
-// tables and every project's membership, which no project-scoped route may do, so the
+// tables and every team's membership, which no team-scoped route may do, so the
 // whole plugin sits behind the god guard.
 
 const ALL = { kind: 'all' as const, limit: 50, offset: 0 };
@@ -30,9 +30,9 @@ describe('god users', () => {
   });
 
   describe('list — GET /god/users', () => {
-    it('reports the sign-in state and project count of each account', async () => {
+    it('reports the sign-in state and team count of each account', async () => {
       const { god } = await setup();
-      await god.api.projects.post({ key: 'MKT', name: 'Marketing' });
+      await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
       const res = await god.api.god.users.get({ query: ALL });
 
@@ -47,14 +47,14 @@ describe('god users', () => {
         emailVerified: false,
         // Signing up links the password provider and opens a session.
         providers: ['credential'],
-        projectCount: 1,
+        teamCount: 1,
       });
       expect(res.data?.items[0].lastSeenAt).not.toBeNull();
     });
 
     it('lists people by default and agent bot users only when asked', async () => {
       const { god } = await setup();
-      await god.api.projects.post({ key: 'MKT', name: 'Marketing' });
+      await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
       const agentUserId = await createAgentUser(god, 'MKT');
 
       const humans = await god.api.god.users.get({
@@ -77,7 +77,7 @@ describe('god users', () => {
 
     it('defaults to people when no kind is given', async () => {
       const { god } = await setup();
-      await god.api.projects.post({ key: 'MKT', name: 'Marketing' });
+      await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
       await createAgentUser(god, 'MKT');
 
       const res = await god.api.god.users.get({ query: {} });
@@ -133,15 +133,15 @@ describe('god users', () => {
     it('resolves an owner membership to full permissions', async () => {
       const { god } = await setup();
       const alice = await addUser({ name: 'Alice', email: 'alice@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
       const res = await god.api.god.users({ userId: alice.id }).get();
 
       expect(res.status).toBe(200);
-      expect(res.data?.projects).toHaveLength(1);
-      expect(res.data?.projects[0]).toMatchObject({
-        projectKey: 'MKT',
-        projectName: 'Marketing',
+      expect(res.data?.teams).toHaveLength(1);
+      expect(res.data?.teams[0]).toMatchObject({
+        teamKey: 'MKT',
+        teamName: 'Marketing',
         role: 'owner',
         roleId: null,
         roleName: null,
@@ -149,41 +149,41 @@ describe('god users', () => {
         ownerCount: 1,
       });
       // An owner bypasses the matrix, so every resource comes back granted.
-      expect(res.data?.projects[0].permissions.work_items.create).toBe(true);
-      expect(res.data?.projects[0].permissions.members_manage.delete).toBe(true);
+      expect(res.data?.teams[0].permissions.work_items.create).toBe(true);
+      expect(res.data?.teams[0].permissions.members_manage.delete).toBe(true);
     });
 
     it("resolves a member membership to the assigned role's matrix", async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await joinProject(alice, bob, 'MKT', 'member');
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      await joinTeam(alice, bob, 'MKT', 'member');
 
       const res = await god.api.god.users({ userId: bob.id }).get();
 
       expect(res.status).toBe(200);
-      expect(res.data?.projects[0]).toMatchObject({
-        projectKey: 'MKT',
+      expect(res.data?.teams[0]).toMatchObject({
+        teamKey: 'MKT',
         role: 'member',
         roleName: 'Member',
         ownerCount: 1,
       });
       // The default Member role: full work items, no member management.
-      expect(res.data?.projects[0].permissions.work_items.create).toBe(true);
-      expect(res.data?.projects[0].permissions.members_manage.read).toBe(false);
+      expect(res.data?.teams[0].permissions.work_items.create).toBe(true);
+      expect(res.data?.teams[0].permissions.members_manage.read).toBe(false);
     });
 
-    it('counts every owner of a shared project', async () => {
+    it('counts every owner of a shared team', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await joinProject(alice, bob, 'MKT', 'owner');
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      await joinTeam(alice, bob, 'MKT', 'owner');
 
       const res = await god.api.god.users({ userId: alice.id }).get();
 
-      expect(res.data?.projects[0]).toMatchObject({ role: 'owner', ownerCount: 2 });
+      expect(res.data?.teams[0]).toMatchObject({ role: 'owner', ownerCount: 2 });
     });
 
     it('returns an account with no memberships as reachable by nothing', async () => {
@@ -193,8 +193,8 @@ describe('god users', () => {
       const res = await god.api.god.users({ userId: alice.id }).get();
 
       expect(res.status).toBe(200);
-      expect(res.data?.projects).toEqual([]);
-      expect(res.data?.projectCount).toBe(0);
+      expect(res.data?.teams).toEqual([]);
+      expect(res.data?.teamCount).toBe(0);
     });
 
     it('404s for an unknown id', async () => {
@@ -246,20 +246,20 @@ describe('god users', () => {
       expect((await god.api.god.users.get({ query: ALL })).data?.total).toBe(1);
     });
 
-    it('removes an account whose projects still have another owner', async () => {
+    it('removes an account whose teams still have another owner', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await joinProject(alice, bob, 'MKT', 'owner');
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      await joinTeam(alice, bob, 'MKT', 'owner');
 
       const res = await god.api.god.users({ userId: alice.id }).delete();
 
       expect(res.status).toBe(204);
       // MKT survives with Bob as its remaining owner.
       const remaining = await god.api.god.users({ userId: bob.id }).get();
-      expect(remaining.data?.projects).toHaveLength(1);
-      expect(remaining.data?.projects[0]).toMatchObject({ projectKey: 'MKT', ownerCount: 1 });
+      expect(remaining.data?.teams).toHaveLength(1);
+      expect(remaining.data?.teams[0]).toMatchObject({ teamKey: 'MKT', ownerCount: 1 });
     });
 
     it('refuses to delete the instance owner', async () => {
@@ -273,7 +273,7 @@ describe('god users', () => {
 
     it("refuses to delete an agent's bot user", async () => {
       const { god } = await setup();
-      await god.api.projects.post({ key: 'MKT', name: 'Marketing' });
+      await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
       const agentUserId = await createAgentUser(god, 'MKT');
 
       const res = await god.api.god.users({ userId: agentUserId }).delete();
@@ -282,58 +282,58 @@ describe('god users', () => {
       expect((await god.api.god.users({ userId: agentUserId }).get()).status).toBe(200);
     });
 
-    it('refuses when the account is the only owner of a project', async () => {
+    it('refuses when the account is the only owner of a team', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await joinProject(alice, bob, 'MKT', 'member');
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      await joinTeam(alice, bob, 'MKT', 'member');
 
       const res = await god.api.god.users({ userId: alice.id }).delete();
 
       expect(res.status).toBe(400);
-      // The message names the projects standing in the way.
+      // The message names the teams standing in the way.
       expect(JSON.stringify(res.error?.value)).toContain('MKT');
-      // Neither the account nor the project was touched.
+      // Neither the account nor the team was touched.
       expect((await god.api.god.users({ userId: alice.id }).get()).status).toBe(200);
-      expect((await god.api.god.users({ userId: bob.id }).get()).data?.projects).toHaveLength(1);
+      expect((await god.api.god.users({ userId: bob.id }).get()).data?.teams).toHaveLength(1);
     });
 
-    it('deletes the sole-owned projects with the account when asked', async () => {
+    it('deletes the sole-owned teams with the account when asked', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
-      await alice.api.projects.post({ key: 'MKT', name: 'Marketing' });
-      await joinProject(alice, bob, 'MKT', 'member');
+      await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      await joinTeam(alice, bob, 'MKT', 'member');
 
       const res = await god.api.god
         .users({ userId: alice.id })
-        .delete(undefined, { query: { withProjects: true } });
+        .delete(undefined, { query: { withTeams: true } });
 
       expect(res.status).toBe(204);
       expect((await god.api.god.users({ userId: alice.id }).get()).status).toBe(404);
       // MKT went with the account, so Bob's membership went with it.
       const remaining = await god.api.god.users({ userId: bob.id }).get();
-      expect(remaining.data?.projects).toEqual([]);
-      expect(remaining.data?.projectCount).toBe(0);
+      expect(remaining.data?.teams).toEqual([]);
+      expect(remaining.data?.teamCount).toBe(0);
     });
 
-    it('leaves projects the account only shares alone', async () => {
+    it('leaves teams the account only shares alone', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
       // Bob owns OPS; Alice is only a member there, so it is not hers to take down.
-      await bob.api.projects.post({ key: 'OPS', name: 'Operations' });
-      await joinProject(bob, alice, 'OPS', 'member');
+      await bob.api.teams.post({ key: 'OPS', name: 'Operations' });
+      await joinTeam(bob, alice, 'OPS', 'member');
 
       const res = await god.api.god
         .users({ userId: alice.id })
-        .delete(undefined, { query: { withProjects: true } });
+        .delete(undefined, { query: { withTeams: true } });
 
       expect(res.status).toBe(204);
       const remaining = await god.api.god.users({ userId: bob.id }).get();
-      expect(remaining.data?.projects).toHaveLength(1);
-      expect(remaining.data?.projects[0]).toMatchObject({ projectKey: 'OPS' });
+      expect(remaining.data?.teams).toHaveLength(1);
+      expect(remaining.data?.teams[0]).toMatchObject({ teamKey: 'OPS' });
     });
 
     it('404s for an unknown id', async () => {

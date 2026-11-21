@@ -6,7 +6,7 @@
 export interface InstanceCounts {
   users: number;
   activeUsers30d: number;
-  projects: number;
+  teams: number;
   issues: number;
   issuesCreated30d: number;
   agents: number;
@@ -14,22 +14,22 @@ export interface InstanceCounts {
   agentRunsFailed30d: number;
   webhookDeliveries30d: number;
   webhookDeliveriesFailed30d: number;
-  hasInitiatives: boolean;
+  hasProjects: boolean;
   hasNoteBoards: boolean;
   hasDashboards: boolean;
   hasCustomViews: boolean;
   hasCustomFields: boolean;
   hasLabelGroups: boolean;
-  hasProjectActions: boolean;
+  hasTeamActions: boolean;
   hasAttachments: boolean;
   hasAgentSchedules: boolean;
   hasWebhooks: boolean;
   hasApiKeys: boolean;
-  hasMcpProject: boolean;
+  hasMcpTeam: boolean;
   hasEmail: boolean;
   hasGoogleOauth: boolean;
   hasTelegramBot: boolean;
-  hasProjectIntegrations: boolean;
+  hasTeamIntegrations: boolean;
 }
 
 export interface PulseInput {
@@ -89,20 +89,20 @@ export function buildPulse(input: PulseInput) {
     scale: {
       users: bucket(c.users),
       activeUsers30d: bucket(c.activeUsers30d),
-      projects: bucket(c.projects),
+      teams: bucket(c.teams),
       issues: bucket(c.issues),
       issuesCreated30d: bucket(c.issuesCreated30d),
     },
-    // Roles and issue types are absent: every project is seeded with both, so their
+    // Roles and issue types are absent: every team is seeded with both, so their
     // presence does not distinguish real use from the seed.
     features: {
-      initiatives: c.hasInitiatives,
+      projects: c.hasProjects,
       noteBoards: c.hasNoteBoards,
       dashboards: c.hasDashboards,
       customViews: c.hasCustomViews,
       customFields: c.hasCustomFields,
       labelGroups: c.hasLabelGroups,
-      projectActions: c.hasProjectActions,
+      teamActions: c.hasTeamActions,
       attachments: c.hasAttachments,
     },
     // Which are configured, never any part of the configuration.
@@ -112,8 +112,8 @@ export function buildPulse(input: PulseInput) {
       telegramBot: c.hasTelegramBot,
       webhooks: c.hasWebhooks,
       apiKeys: c.hasApiKeys,
-      mcp: c.hasMcpProject,
-      projectIntegrations: c.hasProjectIntegrations,
+      mcp: c.hasMcpTeam,
+      teamIntegrations: c.hasTeamIntegrations,
     },
     ai: {
       agents: bucket(c.agents),

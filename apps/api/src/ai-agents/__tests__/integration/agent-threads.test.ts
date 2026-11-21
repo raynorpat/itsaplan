@@ -5,7 +5,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { ensureThread, buildMemory } from '../../runtime/memory';
 
 // The chat-history endpoints:
-//   GET /projects/:key/ai-agents/:agentId/threads             — the caller's own chat
+//   GET /teams/:key/ai-agents/:agentId/threads             — the caller's own chat
 //                                                               threads with the agent
 //   GET .../ai-agents/:agentId/threads/:threadId/messages     — one thread's transcript
 //   DELETE .../ai-agents/:agentId/threads/:threadId           — delete one conversation
@@ -21,11 +21,11 @@ import { ensureThread, buildMemory } from '../../runtime/memory';
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
 async function createInternalAgent(asOwner: Api, name: string, username: string) {
   const res = await agents(asOwner).post({ name, username, kind: 'internal' });
@@ -38,14 +38,14 @@ async function createInternalAgent(asOwner: Api, name: string, username: string)
 async function seedThread(
   threadId: string,
   resourceId: string,
-  agent: { id: string; projectId: string },
+  agent: { id: string; teamId: string },
   title: string,
   turns: Array<{ role: 'user' | 'assistant'; text: string }> = [],
 ) {
   await ensureThread(
     threadId,
     resourceId,
-    { agentId: agent.id, projectId: agent.projectId, kind: 'chat' },
+    { agentId: agent.id, teamId: agent.teamId, kind: 'chat' },
     title,
   );
   if (turns.length === 0) return;

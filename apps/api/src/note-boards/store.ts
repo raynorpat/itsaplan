@@ -9,7 +9,7 @@ import { iso } from '../shared/lib';
 
 export interface NoteBoardRow {
   id: string;
-  projectId: string;
+  teamId: string;
   ownerUserId: string | null;
   name: string;
   canvas: unknown;
@@ -25,7 +25,7 @@ export type NoteBoardSummary = Omit<NoteBoardRow, 'canvas'>;
 function mapNoteBoard(row: typeof noteBoard.$inferSelect): NoteBoardRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     ownerUserId: row.ownerUserId,
     name: row.name,
     canvas: row.canvas,
@@ -34,23 +34,23 @@ function mapNoteBoard(row: typeof noteBoard.$inferSelect): NoteBoardRow {
   };
 }
 
-// The boards a user may see in a project, paged for the switcher: every public
+// The boards a user may see in a team, paged for the switcher: every public
 // board plus the user's own personal boards, optionally filtered by a name
 // substring, most-recently-updated first. Canvas is omitted from the list.
 export async function listNoteBoards(
-  projectId: string,
+  teamId: string,
   userId: string,
   opts: { q?: string; limit: number; offset: number },
 ): Promise<NoteBoardSummary[]> {
   const visible = and(
-    eq(noteBoard.projectId, projectId),
+    eq(noteBoard.teamId, teamId),
     or(isNull(noteBoard.ownerUserId), eq(noteBoard.ownerUserId, userId)),
   );
   const where = opts.q ? and(visible, ilike(noteBoard.name, `%${opts.q}%`)) : visible;
   const rows = await db
     .select({
       id: noteBoard.id,
-      projectId: noteBoard.projectId,
+      teamId: noteBoard.teamId,
       ownerUserId: noteBoard.ownerUserId,
       name: noteBoard.name,
       createdAt: noteBoard.createdAt,
@@ -63,7 +63,7 @@ export async function listNoteBoards(
     .offset(opts.offset);
   return rows.map((row) => ({
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     ownerUserId: row.ownerUserId,
     name: row.name,
     createdAt: iso(row.createdAt),
@@ -78,7 +78,7 @@ export async function getNoteBoard(id: string): Promise<NoteBoardRow | null> {
 
 // ownerUserId set makes the board personal to that user; null makes it public.
 export async function createNoteBoard(input: {
-  projectId: string;
+  teamId: string;
   ownerUserId: string | null;
   name: string;
   canvas?: unknown;
@@ -86,7 +86,7 @@ export async function createNoteBoard(input: {
   const [row] = await db
     .insert(noteBoard)
     .values({
-      projectId: input.projectId,
+      teamId: input.teamId,
       ownerUserId: input.ownerUserId,
       name: input.name,
       canvas: input.canvas ?? {},

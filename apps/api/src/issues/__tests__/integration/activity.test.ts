@@ -12,21 +12,21 @@ import { resetDb } from '../../../__tests__/helpers/db';
 interface Setup {
   asOwner: Api;
   owner: TestUser;
-  columnId: string;
-  columnIds: string[];
+  stateId: string;
+  stateIds: string[];
 }
 
-async function setupProject(): Promise<Setup> {
+async function setupTeam(): Promise<Setup> {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnIds = view.data!.columns.map((c) => c.id);
-  return { asOwner, owner, columnId: columnIds[0], columnIds };
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateIds = view.data!.states.map((c) => c.id);
+  return { asOwner, owner, stateId: stateIds[0], stateIds };
 }
 
-function createIssue(client: Api, columnId: string, patch: Record<string, unknown> = {}) {
-  return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task', ...patch });
+function createIssue(client: Api, stateId: string, patch: Record<string, unknown> = {}) {
+  return client.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task', ...patch });
 }
 
 // One page of the feed (newest first).
@@ -42,8 +42,8 @@ describe('issue activity', () => {
 
   describe('comments', () => {
     it('adds a comment and returns it', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       const res = await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'looks good' });
       expect(res.status).toBe(201);
@@ -51,8 +51,8 @@ describe('issue activity', () => {
     });
 
     it('records the author from the session user', async () => {
-      const { asOwner, owner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, owner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       const res = await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'mine' });
       expect(res.status).toBe(201);
@@ -60,8 +60,8 @@ describe('issue activity', () => {
     });
 
     it('shows the comment in the feed', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'first note' });
 
       const res = await feed(asOwner, issue.id);
@@ -71,14 +71,14 @@ describe('issue activity', () => {
     });
 
     it('rejects an empty comment body', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       const res = await asOwner.issues({ issueId: issue.id }).comments.post({ body: '' });
       expect(res.status).toBe(400);
     });
 
     it('returns 404 when commenting on a missing issue', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await asOwner
         .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
         .comments.post({ body: 'x' });
@@ -88,8 +88,8 @@ describe('issue activity', () => {
 
   describe('feed', () => {
     it("records a 'created' entry when an issue is created", async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       const res = await feed(asOwner, issue.id);
       expect(res.status).toBe(200);
@@ -99,8 +99,8 @@ describe('issue activity', () => {
     });
 
     it('returns items newest first', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'one' });
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'two' });
 
@@ -110,8 +110,8 @@ describe('issue activity', () => {
     });
 
     it('pages through the feed with limit and cursor', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       for (const body of ['a', 'b', 'c']) {
         await asOwner.issues({ issueId: issue.id }).comments.post({ body });
       }
@@ -131,8 +131,8 @@ describe('issue activity', () => {
     });
 
     it('serves the first page for a malformed cursor', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'note' });
 
       const res = await feed(asOwner, issue.id, { cursor: 'not-json' });
@@ -141,7 +141,7 @@ describe('issue activity', () => {
     });
 
     it('returns 404 for a missing issue', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       const res = await feed(asOwner, '00000000-0000-4000-8000-000000000000');
       expect(res.status).toBe(404);
     });
@@ -156,8 +156,8 @@ describe('issue activity', () => {
     }
 
     it('logs a title change with its old and new value', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId, { title: 'Old' })).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId, { title: 'Old' })).data!;
       await asOwner.issues({ issueId: issue.id }).patch({ title: 'New' });
 
       const title = (await actions(asOwner, issue.id)).find((a) => a.action === 'title');
@@ -165,9 +165,9 @@ describe('issue activity', () => {
     });
 
     it('logs a column move as a status change with column names', async () => {
-      const { asOwner, columnId, columnIds } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
-      await asOwner.issues({ issueId: issue.id }).patch({ columnId: columnIds[1] });
+      const { asOwner, stateId, stateIds } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
+      await asOwner.issues({ issueId: issue.id }).patch({ stateId: stateIds[1] });
 
       const status = (await actions(asOwner, issue.id)).find((a) => a.action === 'status');
       expect(status).toBeDefined();
@@ -177,10 +177,9 @@ describe('issue activity', () => {
     });
 
     it('logs added and removed labels', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const label = (await asOwner.projects({ projectKey: 'MKT' }).labels.post({ name: 'bug' }))
-        .data!;
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const label = (await asOwner.teams({ teamKey: 'MKT' }).labels.post({ name: 'bug' })).data!;
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [label.id] });
       const added = (await actions(asOwner, issue.id)).find((a) => a.action === 'label_add');
@@ -191,13 +190,12 @@ describe('issue activity', () => {
       expect(removed?.fromText).toBe('bug');
     });
 
-    it("does not log the name of another project's label", async () => {
-      const { asOwner, columnId } = await setupProject();
-      await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
-      const foreign = (
-        await asOwner.projects({ projectKey: 'OPS' }).labels.post({ name: 'ops-secret' })
-      ).data!;
-      const issue = (await createIssue(asOwner, columnId)).data!;
+    it("does not log the name of another team's label", async () => {
+      const { asOwner, stateId } = await setupTeam();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const foreign = (await asOwner.teams({ teamKey: 'OPS' }).labels.post({ name: 'ops-secret' }))
+        .data!;
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       const patched = await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [foreign.id] });
       expect(patched.status).toBe(400);
@@ -205,13 +203,13 @@ describe('issue activity', () => {
     });
 
     it('logs a custom field value change', async () => {
-      const { asOwner, columnId } = await setupProject();
+      const { asOwner, stateId } = await setupTeam();
       const field = (
         await asOwner
-          .projects({ projectKey: 'MKT' })
+          .teams({ teamKey: 'MKT' })
           ['custom-fields'].post({ name: 'Notes', fieldType: 'text' })
       ).data!;
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       await asOwner
         .issues({ issueId: issue.id })
@@ -223,8 +221,8 @@ describe('issue activity', () => {
     });
 
     it('does not log a position-only reorder', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       const before = (await actions(asOwner, issue.id)).length;
 
       await asOwner.issues({ issueId: issue.id }).patch({ position: 42 });
@@ -241,10 +239,10 @@ describe('issue activity', () => {
     }
 
     it('returns one open segment for an issue that never moved', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-      const columnName = view.data!.columns.find((c) => c.id === columnId)!.name;
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+      const columnName = view.data!.states.find((c) => c.id === stateId)!.name;
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       const res = await timeline(asOwner, issue.id);
       expect(res.status).toBe(200);
@@ -253,16 +251,16 @@ describe('issue activity', () => {
     });
 
     it('splits at a status change and names both columns', async () => {
-      const { asOwner, columnId, columnIds } = await setupProject();
-      const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-      const names = new Map(view.data!.columns.map((c) => [c.id, c.name]));
-      const issue = (await createIssue(asOwner, columnId)).data!;
-      await asOwner.issues({ issueId: issue.id }).patch({ columnId: columnIds[1] });
+      const { asOwner, stateId, stateIds } = await setupTeam();
+      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+      const names = new Map(view.data!.states.map((c) => [c.id, c.name]));
+      const issue = (await createIssue(asOwner, stateId)).data!;
+      await asOwner.issues({ issueId: issue.id }).patch({ stateId: stateIds[1] });
 
       const res = await timeline(asOwner, issue.id);
       expect(res.data!.map((s) => s.status)).toEqual([
-        names.get(columnId)!,
-        names.get(columnIds[1])!,
+        names.get(stateId)!,
+        names.get(stateIds[1])!,
       ]);
       // The first stretch is closed at the move, the second is still open.
       expect(res.data![0]!.to).not.toBeNull();
@@ -270,10 +268,10 @@ describe('issue activity', () => {
     });
 
     it('repeats a status as a separate segment when the issue returns to it', async () => {
-      const { asOwner, columnId, columnIds } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
-      await asOwner.issues({ issueId: issue.id }).patch({ columnId: columnIds[1] });
-      await asOwner.issues({ issueId: issue.id }).patch({ columnId: columnId });
+      const { asOwner, stateId, stateIds } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
+      await asOwner.issues({ issueId: issue.id }).patch({ stateId: stateIds[1] });
+      await asOwner.issues({ issueId: issue.id }).patch({ stateId: stateId });
 
       const res = await timeline(asOwner, issue.id);
       expect(res.data!.length).toBe(3);
@@ -281,7 +279,7 @@ describe('issue activity', () => {
     });
 
     it('returns 404 for a missing issue', async () => {
-      const { asOwner } = await setupProject();
+      const { asOwner } = await setupTeam();
       expect((await timeline(asOwner, '00000000-0000-4000-8000-000000000000')).status).toBe(404);
     });
   });
@@ -294,10 +292,10 @@ describe('issue activity', () => {
     }
 
     it('serves each stretch the entries written while it was open', async () => {
-      const { asOwner, columnId, columnIds } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId, stateIds } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'before the move' });
-      await asOwner.issues({ issueId: issue.id }).patch({ columnId: columnIds[1] });
+      await asOwner.issues({ issueId: issue.id }).patch({ stateId: stateIds[1] });
       await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'after the move' });
 
       const segments = (await asOwner.issues({ issueId: issue.id }).timeline.get()).data!;
@@ -317,8 +315,8 @@ describe('issue activity', () => {
     });
 
     it('rejects a from that is not a datetime', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
 
       expect((await itemsOf(asOwner, issue.id, 'yesterday')).status).toBe(400);
     });
@@ -326,8 +324,8 @@ describe('issue activity', () => {
 
   describe('access', () => {
     it('denies a non-member on the feed, timeline and comment routes', async () => {
-      const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId)).data!;
+      const { asOwner, stateId } = await setupTeam();
+      const issue = (await createIssue(asOwner, stateId)).data!;
       const outsider = authedApi((await signUpTestUser()).cookie);
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert

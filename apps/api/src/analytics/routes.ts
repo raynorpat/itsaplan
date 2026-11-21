@@ -76,7 +76,7 @@ const ActivityPage = t.Object({
   nextCursor: t.Nullable(ActivityCursorDto),
 });
 
-// One agent run in the project-wide feed (AgentRunFeedItem from the store).
+// One agent run in the team-wide feed (AgentRunFeedItem from the store).
 const AgentRunFeedItem = t.Object({
   id: t.String({ format: 'uuid' }),
   status: t.String(),
@@ -123,8 +123,8 @@ const AgentWorkloadItem = t.Object({
   runsFailed: t.Number(),
 });
 
-// Read-only project analytics that back the dashboard widgets. Every route is
-// under /projects/:projectKey/analytics and gated by the dashboards read
+// Read-only team analytics that back the dashboard widgets. Every route is
+// under /teams/:teamKey/analytics and gated by the dashboards read
 // permission (the analytics feed the dashboards). All figures come from existing
 // tables; see store.ts.
 export const analyticsRoutes = new Elysia({
@@ -133,9 +133,9 @@ export const analyticsRoutes = new Elysia({
 })
   .use(guards)
   .get(
-    '/projects/:projectKey/analytics/stats',
-    async ({ project }) => {
-      return getStats(project.id);
+    '/teams/:teamKey/analytics/stats',
+    async ({ team }) => {
+      return getStats(team.id);
     },
     {
       permission: ['dashboards', 'read'],
@@ -146,17 +146,17 @@ export const analyticsRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get project stats',
+        summary: 'Get team stats',
         description: 'Issue counts by state (open, in progress, overdue, and more).',
-        ...mcpTool('get_project_stats'),
+        ...mcpTool('get_team_stats'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/breakdown',
-    async ({ project, query }) => {
-      return getBreakdown(project.id, query.by);
+    '/teams/:teamKey/analytics/breakdown',
+    async ({ team, query }) => {
+      return getBreakdown(team.id, query.by);
     },
     {
       query: t.Object({
@@ -177,22 +177,22 @@ export const analyticsRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get project breakdown',
+        summary: 'Get team breakdown',
         description: 'Issue counts grouped by a chosen dimension.',
-        ...mcpTool('get_project_breakdown'),
+        ...mcpTool('get_team_breakdown'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/pulse',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/pulse',
+    async ({ team, query }) => {
       const unit = query.unit ?? 'day';
       // Cap columns so the generated bucket axis stays bounded (hour columns hold
       // 24 cells each, so their cap is lower).
       const maxColumns = unit === 'hour' ? 140 : unit === 'week' ? 130 : 160;
       const columns = query.columns != null ? Math.min(Math.max(query.columns, 1), maxColumns) : 26;
-      return getPulse(project.id, unit, columns);
+      return getPulse(team.id, unit, columns);
     },
     {
       query: t.Object({
@@ -208,18 +208,18 @@ export const analyticsRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get project pulse',
+        summary: 'Get team pulse',
         description: 'Activity counts over time for a heatmap.',
-        ...mcpTool('get_project_pulse'),
+        ...mcpTool('get_team_pulse'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/throughput',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/throughput',
+    async ({ team, query }) => {
       const weeks = query.weeks != null ? Math.min(Math.max(query.weeks, 1), 52) : 12;
-      return getThroughput(project.id, weeks);
+      return getThroughput(team.id, weeks);
     },
     {
       query: t.Object({ weeks: t.Optional(t.Numeric()) }),
@@ -232,16 +232,16 @@ export const analyticsRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get project throughput',
+        summary: 'Get team throughput',
         description: 'Created versus closed issues over time.',
-        ...mcpTool('get_project_throughput'),
+        ...mcpTool('get_team_throughput'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/activity',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/activity',
+    async ({ team, query }) => {
       const limit = query.limit ?? 25;
       let before: ActivityCursor | null = null;
       if (query.cursor) {
@@ -253,7 +253,7 @@ export const analyticsRoutes = new Elysia({
       }
       const issueIds =
         query.issueIds != null ? query.issueIds.split(',').filter((id) => UUID_RE.test(id)) : null;
-      return listActivity(project.id, {
+      return listActivity(team.id, {
         before,
         limit,
         actorUserId: query.actorUserId ?? null,
@@ -280,18 +280,18 @@ export const analyticsRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get project activity',
-        description: 'Project-wide feed of issue activity.',
-        ...mcpTool('get_project_activity'),
+        summary: 'Get team activity',
+        description: 'Team-wide feed of issue activity.',
+        ...mcpTool('get_team_activity'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/agent-runs',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/agent-runs',
+    async ({ team, query }) => {
       const limit = query.limit ?? 20;
-      return listAgentRunFeed(project.id, { status: query.status ?? null, limit });
+      return listAgentRunFeed(team.id, { status: query.status ?? null, limit });
     },
     {
       query: t.Object({
@@ -310,17 +310,17 @@ export const analyticsRoutes = new Elysia({
       },
       detail: {
         summary: 'List agent runs',
-        description: 'Project-wide feed of agent runs.',
+        description: 'Team-wide feed of agent runs.',
         ...mcpTool('list_agent_runs'),
       },
     },
   )
 
   .get(
-    '/projects/:projectKey/analytics/agent-run-stats',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/agent-run-stats',
+    async ({ team, query }) => {
       const days = query.days != null ? Math.min(Math.max(query.days, 1), 90) : 30;
-      return getAgentRunStats(project.id, days);
+      return getAgentRunStats(team.id, days);
     },
     {
       query: t.Object({ days: t.Optional(t.Numeric()) }),
@@ -341,10 +341,10 @@ export const analyticsRoutes = new Elysia({
   )
 
   .get(
-    '/projects/:projectKey/analytics/webhook-stats',
-    async ({ project, query }) => {
+    '/teams/:teamKey/analytics/webhook-stats',
+    async ({ team, query }) => {
       const days = query.days != null ? Math.min(Math.max(query.days, 1), 90) : 30;
-      return getWebhookStats(project.id, days);
+      return getWebhookStats(team.id, days);
     },
     {
       query: t.Object({ days: t.Optional(t.Numeric()) }),
@@ -365,9 +365,9 @@ export const analyticsRoutes = new Elysia({
   )
 
   .get(
-    '/projects/:projectKey/analytics/agent-workload',
-    async ({ project }) => {
-      return getAgentWorkload(project.id);
+    '/teams/:teamKey/analytics/agent-workload',
+    async ({ team }) => {
+      return getAgentWorkload(team.id);
     },
     {
       permission: ['dashboards', 'read'],

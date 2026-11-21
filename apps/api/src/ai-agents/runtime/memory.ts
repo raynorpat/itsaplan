@@ -9,7 +9,7 @@ import { toIso } from '../helpers/dates';
 // recall), so no vector store is required.
 //
 // Every thread carries metadata binding it to what it belongs to: the agent and
-// project always, the issue or schedule for an autonomous run, plus the kind (a UI
+// team always, the issue or schedule for an autonomous run, plus the kind (a UI
 // chat or a run). Two things read it. The chat history lists a user's own
 // conversations with one agent — the thread's resourceId is the caller's user id, so
 // filtering by (resourceId, agentId, kind "chat") returns exactly those. And deleting
@@ -52,7 +52,7 @@ function getReadMemory(): Memory {
 // an issue run and a scheduled run.
 type ThreadMeta = {
   agentId: string;
-  projectId: string;
+  teamId: string;
   kind: 'chat' | 'run';
   issueId?: string;
   scheduleId?: string;
@@ -88,11 +88,10 @@ export async function deleteChatThread(threadId: string, resourceId: string): Pr
   return true;
 }
 
-// Deletes every thread bound to the given agent, project, issue or schedule, with its
+// Deletes every thread bound to the given agent, team, issue or schedule, with its
 // messages, and returns how many were deleted. Called when that binding goes away.
 export async function deleteThreadsWhere(
-  binding:
-    { agentId: string } | { projectId: string } | { issueId: string } | { scheduleId: string },
+  binding: { agentId: string } | { teamId: string } | { issueId: string } | { scheduleId: string },
 ): Promise<number> {
   const memory = getReadMemory();
   const { threads } = await memory.listThreads({ filter: { metadata: binding }, perPage: false });

@@ -1,30 +1,30 @@
-// Permission model for project roles. A role carries a matrix: for each resource
+// Permission model for team roles. A role carries a matrix: for each resource
 // the create/edit/read/delete flags. The matrix is stored as jsonb on
-// project_role and enforced here and in shared/access.ts. Owners bypass the
+// team_role and enforced here and in shared/access.ts. Owners bypass the
 // matrix entirely (full access).
 //
-// Resources map to the areas a project exposes:
+// Resources map to the areas a team exposes:
 //   work_items     issues, their comments, attachments, and the board view
-//   initiatives    initiatives (issue groupings) and their activity feed
+//   projects    projects (issue groupings) and their activity feed
 //   dashboards     saved dashboards and the analytics that back them
 //   views          saved work-items views
-//   members_invite project invites
+//   members_invite team invites
 //   members_manage the member list (view/remove members)
 //   states         workflow columns
 //   issue_types    issue types
 //   labels         labels and label groups
-//   ai_agents      AI agents attached to the project
+//   ai_agents      AI agents attached to the team
 //   integrations   stored integration credentials (LLM keys and tool creds)
-//   agent_skills   the project skill library given to internal agents
+//   agent_skills   the team skill library given to internal agents
 //   agent_tools    tools configured on a credential and given to agents
 //   custom_fields  custom field definitions
 //   actions        saved actions (macros)
 //   webhooks       outgoing webhook subscriptions
-//   danger_zone    project-level settings and deletion
+//   danger_zone    team-level settings and deletion
 
 export const PERMISSION_RESOURCES = [
   'work_items',
-  'initiatives',
+  'projects',
   'dashboards',
   'views',
   'members_invite',
@@ -64,16 +64,16 @@ export function fullPermissions(): Permissions {
   return Object.fromEntries(PERMISSION_RESOURCES.map((r) => [r, fill(true)])) as Permissions;
 }
 
-// The default "Member" role assigned to members that join a project. Full access
+// The default "Member" role assigned to members that join a team. Full access
 // to work items, read-only on dashboards and views, and no access to member
-// management, invites, or project settings. read is left on for the entity
+// management, invites, or team settings. read is left on for the entity
 // resources the board and issue editors need to render (states, issue types,
 // labels, ai_agents, custom fields). Keep this in sync with the backfill
-// migration that seeds existing projects.
+// migration that seeds existing teams.
 export function defaultMemberPermissions(): Permissions {
   const p = emptyPermissions();
   p.work_items = fill(true);
-  p.initiatives = fill(true);
+  p.projects = fill(true);
   p.dashboards.read = true;
   p.views.read = true;
   p.states.read = true;

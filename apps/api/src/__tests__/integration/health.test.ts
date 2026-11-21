@@ -19,8 +19,8 @@ describe('health', () => {
     expect(data).toEqual({ authenticated: false });
   });
 
-  it('GET /projects without a session is rejected with 401', async () => {
-    const { error } = await api.projects.get();
+  it('GET /teams without a session is rejected with 401', async () => {
+    const { error } = await api.teams.get();
 
     expect(error?.status).toBe(401);
   });

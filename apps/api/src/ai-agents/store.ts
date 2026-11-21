@@ -3,7 +3,7 @@ import {
   aiAgent,
   user,
   apikey,
-  projectMember,
+  teamMember,
   agentSkillLink,
   agentToolLink,
   integrationCredential,
@@ -21,7 +21,7 @@ import { deleteThreadsWhere } from './runtime/memory';
 // (apikey.reference_id).
 //
 // Both kinds of agent act through the same API under the same authorization. Each
-// owns an API key and a project_member row carrying a project role, so its requests
+// owns an API key and a team_member row carrying a team role, so its requests
 // are checked by the normal permission matrix. The kinds differ in who drives them:
 // an external agent is driven over HTTP by its operator, who holds the key; an
 // internal agent is driven by the built-in runtime, carries a model configuration,
@@ -34,9 +34,9 @@ export type AgentKind = 'external' | 'internal';
 
 export interface AiAgentRow {
   id: string;
-  projectId: string;
+  teamId: string;
   userId: string;
-  // name lives on the bot user; username is the project-scoped handle.
+  // name lives on the bot user; username is the team-scoped handle.
   name: string;
   username: string;
   kind: AgentKind;
@@ -52,7 +52,7 @@ export interface AiAgentRow {
   // Internal-agent run triggers.
   triggerOnMention: boolean;
   triggerOnAssign: boolean;
-  // The project_role the bot user acts under. NULL falls back to the project's
+  // The team_role the bot user acts under. NULL falls back to the team's
   // default member permissions.
   roleId: string | null;
   createdAt: string;
@@ -72,7 +72,7 @@ export interface AiAgentRow {
 
 function mapAgent(row: {
   id: string;
-  projectId: string;
+  teamId: string;
   userId: string;
   name: string;
   username: string;
@@ -97,7 +97,7 @@ function mapAgent(row: {
   const tools = Array.isArray(row.tools) ? (row.tools as string[]) : [];
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     userId: row.userId,
     name: row.name,
     username: row.username,
@@ -124,7 +124,7 @@ function mapAgent(row: {
 
 const agentColumns = {
   id: aiAgent.id,
-  projectId: aiAgent.projectId,
+  teamId: aiAgent.teamId,
   userId: aiAgent.userId,
   name: user.name,
   username: aiAgent.username,
@@ -153,7 +153,7 @@ const agentColumns = {
     ),
 };
 
-export async function listAgents(projectId: string): Promise<AiAgentRow[]> {
+export async function listAgents(teamId: string): Promise<AiAgentRow[]> {
   const rows = await db
     .select(agentColumns)
     .from(aiAgent)
@@ -161,13 +161,13 @@ export async function listAgents(projectId: string): Promise<AiAgentRow[]> {
     // better-auth stores apikey.reference_id as text; the user id is a uuid.
     .leftJoin(apikey, eq(apikey.referenceId, sql`${aiAgent.userId}::text`))
     .leftJoin(integrationCredential, eq(integrationCredential.id, aiAgent.modelCredentialId))
-    .where(eq(aiAgent.projectId, projectId))
+    .where(eq(aiAgent.teamId, teamId))
     .orderBy(user.name);
   return rows.map(mapAgent);
 }
 
-// Scoped to projectId so an id from another project resolves to null.
-export async function getAgentById(id: string, projectId: string): Promise<AiAgentRow | null> {
+// Scoped to teamId so an id from another team resolves to null.
+export async function getAgentById(id: string, teamId: string): Promise<AiAgentRow | null> {
   const rows = await db
     .select(agentColumns)
     .from(aiAgent)
@@ -175,15 +175,15 @@ export async function getAgentById(id: string, projectId: string): Promise<AiAge
     // better-auth stores apikey.reference_id as text; the user id is a uuid.
     .leftJoin(apikey, eq(apikey.referenceId, sql`${aiAgent.userId}::text`))
     .leftJoin(integrationCredential, eq(integrationCredential.id, aiAgent.modelCredentialId))
-    .where(and(eq(aiAgent.id, id), eq(aiAgent.projectId, projectId)));
+    .where(and(eq(aiAgent.id, id), eq(aiAgent.teamId, teamId)));
   return rows[0] ? mapAgent(rows[0]) : null;
 }
 
-// Internal agents in the project whose bot user is among the given ids and that
+// Internal agents in the team whose bot user is among the given ids and that
 // react to mentions. Turns the user ids parsed from a comment's mentions into the
 // agents that should run.
 export async function listInternalAgentsByUserIds(
-  projectId: string,
+  teamId: string,
   userIds: string[],
 ): Promise<{ id: string; userId: string }[]> {
   if (userIds.length === 0) return [];
@@ -192,7 +192,7 @@ export async function listInternalAgentsByUserIds(
     .from(aiAgent)
     .where(
       and(
-        eq(aiAgent.projectId, projectId),
+        eq(aiAgent.teamId, teamId),
         eq(aiAgent.kind, 'internal'),
         eq(aiAgent.triggerOnMention, true),
         inArray(aiAgent.userId, userIds),
@@ -217,18 +217,18 @@ export async function getAssignTriggerAgent(userId: string): Promise<{ id: strin
   return rows[0] ?? null;
 }
 
-// True if the user id is the bot user of an agent in this project. Validates that a
-// delegate is an agent of the same project before it is written to an issue.
-export async function isProjectAgent(projectId: string, userId: string): Promise<boolean> {
+// True if the user id is the bot user of an agent in this team. Validates that a
+// delegate is an agent of the same team before it is written to an issue.
+export async function isTeamAgent(teamId: string, userId: string): Promise<boolean> {
   const rows = await db
     .select({ id: aiAgent.id })
     .from(aiAgent)
-    .where(and(eq(aiAgent.projectId, projectId), eq(aiAgent.userId, userId)))
+    .where(and(eq(aiAgent.teamId, teamId), eq(aiAgent.userId, userId)))
     .limit(1);
   return rows.length > 0;
 }
 
-// True if the user id is an agent's bot user (in any project). A comment authored by
+// True if the user id is an agent's bot user (in any team). A comment authored by
 // such a user never triggers agent runs, which stops agent-to-agent mention loops.
 export async function isAgentUser(userId: string): Promise<boolean> {
   const rows = await db
@@ -266,7 +266,7 @@ async function issueKey(userId: string, name: string): Promise<string> {
   return created.key;
 }
 
-// Creates an agent: a bot user, the ai_agent config row, its project membership, and
+// Creates an agent: a bot user, the ai_agent config row, its team membership, and
 // its first API key. Internal-agent config fields are stored only for kind
 // "internal"; an external agent keeps them null.
 //
@@ -274,16 +274,16 @@ async function issueKey(userId: string, name: string): Promise<string> {
 // an external agent, whose operator must copy it — an internal agent's key is kept
 // encrypted on the row for its own runtime and is never surfaced to a caller.
 export async function createAgent(
-  projectId: string,
+  teamId: string,
   input: NewAgentInput,
 ): Promise<{ agent: AiAgentRow; apiKey: string | null }> {
   const userId = crypto.randomUUID();
   const email = `${userId}@agents.local`;
   const isInternal = input.kind === 'internal';
 
-  // Every agent acts under a project role and so needs a project_member row for the
+  // Every agent acts under a team role and so needs a team_member row for the
   // permission checks to apply to its requests. roleId names the role; NULL falls
-  // back to the project's default member permissions.
+  // back to the team's default member permissions.
   const roleId = input.roleId ?? null;
 
   const agentId = await db.transaction(async (tx) => {
@@ -294,7 +294,7 @@ export async function createAgent(
       const [row] = await tx
         .insert(aiAgent)
         .values({
-          projectId,
+          teamId,
           userId,
           username: input.username,
           kind: input.kind,
@@ -311,7 +311,7 @@ export async function createAgent(
           roleId,
         })
         .returning({ id: aiAgent.id });
-      await tx.insert(projectMember).values({ projectId, userId, role: 'member', roleId });
+      await tx.insert(teamMember).values({ teamId, userId, role: 'member', roleId });
       return row.id;
     } catch (err) {
       rethrowDuplicate(err, 'An agent with this username');
@@ -323,7 +323,7 @@ export async function createAgent(
   // connection, so it cannot join this one.
   const apiKey = await issueKey(userId, input.name);
   if (isInternal) await storeAgentKey(agentId, apiKey);
-  const agent = (await getAgentById(agentId, projectId))!;
+  const agent = (await getAgentById(agentId, teamId))!;
   return { agent, apiKey: isInternal ? null : apiKey };
 }
 
@@ -382,9 +382,9 @@ export async function getInternalAgentApiKey(agent: AiAgentRow): Promise<string>
     if (won) return won;
 
     await tx
-      .insert(projectMember)
+      .insert(teamMember)
       .values({
-        projectId: agent.projectId,
+        teamId: agent.teamId,
         userId: agent.userId,
         role: 'member',
         roleId: agent.roleId,
@@ -417,10 +417,10 @@ export interface AgentPatch {
 
 export async function updateAgent(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: AgentPatch,
 ): Promise<AiAgentRow | null> {
-  const agent = await getAgentById(id, projectId);
+  const agent = await getAgentById(id, teamId);
   if (!agent) return null;
 
   // The display name lives on the bot user.
@@ -432,9 +432,9 @@ export async function updateAgent(
   // membership, so the permission checks act under the new role.
   if (patch.roleId !== undefined) {
     await db
-      .update(projectMember)
+      .update(teamMember)
       .set({ roleId: patch.roleId })
-      .where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, agent.userId)));
+      .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, agent.userId)));
   }
 
   const set: Partial<typeof aiAgent.$inferInsert> = {};
@@ -455,22 +455,22 @@ export async function updateAgent(
       await db
         .update(aiAgent)
         .set(set)
-        .where(and(eq(aiAgent.id, id), eq(aiAgent.projectId, projectId)));
+        .where(and(eq(aiAgent.id, id), eq(aiAgent.teamId, teamId)));
     } catch (err) {
       rethrowDuplicate(err, 'An agent with this username');
       throw err;
     }
   }
 
-  return getAgentById(id, projectId);
+  return getAgentById(id, teamId);
 }
 
 // Replaces the agent's API key: deletes the current key row(s) for the bot user
 // and issues a new one. Returns the new plaintext secret, or null if the agent
 // does not exist. There is no atomic rotate in the plugin, so this is delete+create.
 // An internal agent's new secret is re-encrypted onto its row for its runtime.
-export async function regenerateKey(id: string, projectId: string): Promise<string | null> {
-  const agent = await getAgentById(id, projectId);
+export async function regenerateKey(id: string, teamId: string): Promise<string | null> {
+  const agent = await getAgentById(id, teamId);
   if (!agent) return null;
   await db.delete(apikey).where(eq(apikey.referenceId, agent.userId));
   const apiKey = await issueKey(agent.userId, agent.name);
@@ -482,8 +482,8 @@ export async function regenerateKey(id: string, projectId: string): Promise<stri
 // Deleting the user cascades to the ai_agent row (ON DELETE CASCADE on user_id), sets
 // assignee_user_id to NULL on every issue the agent was on, and nulls the actor on its
 // activity.
-export async function deleteAgent(id: string, projectId: string): Promise<boolean> {
-  const agent = await getAgentById(id, projectId);
+export async function deleteAgent(id: string, teamId: string): Promise<boolean> {
+  const agent = await getAgentById(id, teamId);
   if (!agent) return false;
   await deleteThreadsWhere({ agentId: id });
   await db.delete(apikey).where(eq(apikey.referenceId, agent.userId));

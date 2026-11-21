@@ -144,11 +144,11 @@ export async function cleanupOldDeliveries(): Promise<number> {
 }
 
 // Auto-archive sweep: archives active issues that have sat inactive in a
-// completed/canceled column past their project's configured threshold. The
-// threshold lives in project_setting under key 'auto_archive' as
+// completed/canceled column past their team's configured threshold. The
+// threshold lives in team_setting under key 'auto_archive' as
 // { completedDays, canceledDays }; a positive day count enables archiving for that
 // state group, null/absent disables it (kept in sync with getAutoArchiveSettings in
-// apps/api/src/projects/store.ts). Inactivity is measured by issue.updated_at:
+// apps/api/src/teams/store.ts). Inactivity is measured by issue.updated_at:
 // moving to a terminal column bumps it, and any later edit resets the clock, so an
 // issue is archived only after the full period with no activity. The ->> is guarded
 // by a numeric-string regex so a malformed or missing value is treated as disabled,
@@ -158,9 +158,9 @@ export async function archiveStaleIssues(): Promise<string[]> {
   const rows = await db.execute(sql`
     UPDATE issue i
     SET archived_at = now()
-    FROM project_column c, project_setting s
-    WHERE i.column_id = c.id
-      AND i.project_id = s.project_id
+    FROM workflow_state c, team_setting s
+    WHERE i.state_id = c.id
+      AND i.team_id = s.team_id
       AND s.key = 'auto_archive'
       AND i.archived_at IS NULL
       AND (

@@ -1,13 +1,4 @@
-import {
-  db,
-  issue,
-  issueActivity,
-  user,
-  projectColumn,
-  issueType,
-  label,
-  initiative,
-} from '@repo/db';
+import { db, issue, issueActivity, user, workflowState, issueType, label, project } from '@repo/db';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { emitWebhookEvent } from '../webhooks/emit';
@@ -53,7 +44,7 @@ export interface FeedPage {
 
 function mapFeedItem(row: {
   id: string;
-  // Nullable at the column level (initiative rows share this table), but the
+  // Nullable at the column level (project rows share this table), but the
   // issue feed and createComment only ever handle issue rows, so it is present.
   issueId: string | null;
   kind: string;
@@ -149,9 +140,9 @@ export interface TimelineSegment {
 // renamed column reads under the name it had at the time and splits into two lanes.
 export async function listStatusTimeline(issueId: string): Promise<TimelineSegment[]> {
   const [issueRow] = await db
-    .select({ createdAt: issue.createdAt, columnName: projectColumn.name })
+    .select({ createdAt: issue.createdAt, columnName: workflowState.name })
     .from(issue)
-    .leftJoin(projectColumn, eq(projectColumn.id, issue.columnId))
+    .leftJoin(workflowState, eq(workflowState.id, issue.stateId))
     .where(eq(issue.id, issueId));
   if (!issueRow) return [];
 
@@ -229,15 +220,15 @@ export async function createComment(input: {
     .returning();
   const comment = mapFeedItem(row);
 
-  const projectRows = await db
-    .select({ projectId: issue.projectId })
+  const teamRows = await db
+    .select({ teamId: issue.teamId })
     .from(issue)
     .where(eq(issue.id, input.issueId));
-  const projectId = projectRows[0]?.projectId;
-  if (projectId != null) {
-    await emitWebhookEvent(projectId, 'comment.created', comment);
-    await enqueueMentionRuns(projectId, comment);
-    await notifyComment(projectId, comment);
+  const teamId = teamRows[0]?.teamId;
+  if (teamId != null) {
+    await emitWebhookEvent(teamId, 'comment.created', comment);
+    await enqueueMentionRuns(teamId, comment);
+    await notifyComment(teamId, comment);
   }
 
   return comment;
@@ -247,11 +238,11 @@ export async function createComment(input: {
 // Only quick queries run here; the LLM call happens later in the poller, so creating
 // a comment is never blocked on it. Comments authored by an agent's bot user never
 // trigger runs, which stops agents from setting each other (or themselves) off.
-async function enqueueMentionRuns(projectId: string, comment: FeedItemRow): Promise<void> {
+async function enqueueMentionRuns(teamId: string, comment: FeedItemRow): Promise<void> {
   const mentionedUserIds = parseMentions(comment.body ?? '');
   if (mentionedUserIds.length === 0) return;
   if (comment.actorUserId && (await isAgentUser(comment.actorUserId))) return;
-  const agents = await listInternalAgentsByUserIds(projectId, mentionedUserIds);
+  const agents = await listInternalAgentsByUserIds(teamId, mentionedUserIds);
   for (const agent of agents) {
     await enqueueAgentRun({
       agentId: agent.id,
@@ -333,9 +324,9 @@ async function insertActivity(
 async function columnName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db
-    .select({ name: projectColumn.name })
-    .from(projectColumn)
-    .where(eq(projectColumn.id, id));
+    .select({ name: workflowState.name })
+    .from(workflowState)
+    .where(eq(workflowState.id, id));
   return rows[0]?.name ?? null;
 }
 async function typeName(id: string | null): Promise<string | null> {
@@ -346,12 +337,9 @@ async function typeName(id: string | null): Promise<string | null> {
     .where(eq(issueType.id, id));
   return rows[0]?.name ?? null;
 }
-async function initiativeName(id: string | null): Promise<string | null> {
+async function projectName(id: string | null): Promise<string | null> {
   if (id == null) return null;
-  const rows = await db
-    .select({ title: initiative.title })
-    .from(initiative)
-    .where(eq(initiative.id, id));
+  const rows = await db.select({ title: project.name }).from(project).where(eq(project.id, id));
   return rows[0]?.title ?? null;
 }
 async function userName(id: string | null): Promise<string | null> {
@@ -361,14 +349,14 @@ async function userName(id: string | null): Promise<string | null> {
 }
 // Name snapshots for a set of labels in one query, resolved at change time so a log
 // entry keeps reading correctly after a label is renamed or deleted. An id outside
-// projectId, or with no label at all, is absent from the map.
-export async function labelNames(projectId: string, ids: string[]): Promise<Map<string, string>> {
+// teamId, or with no label at all, is absent from the map.
+export async function labelNames(teamId: string, ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (ids.length === 0) return out;
   const rows = await db
     .select({ id: label.id, name: label.name })
     .from(label)
-    .where(and(eq(label.projectId, projectId), inArray(label.id, ids)));
+    .where(and(eq(label.teamId, teamId), inArray(label.id, ids)));
   for (const r of rows) out.set(r.id, r.name);
   return out;
 }
@@ -378,9 +366,9 @@ export interface IssueSnapshot {
   id: string;
   title: string;
   description: string;
-  columnId: string;
+  stateId: string;
   typeId: string | null;
-  initiativeId: string | null;
+  projectId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
   priority: number;
@@ -403,11 +391,11 @@ export async function logIssueUpdate(
     events.push({ action: 'title', fromText: before.title, toText: after.title });
   if (before.description !== after.description)
     events.push({ action: 'description', toText: after.description });
-  if (before.columnId !== after.columnId)
+  if (before.stateId !== after.stateId)
     events.push({
       action: 'status',
-      fromText: await columnName(before.columnId),
-      toText: await columnName(after.columnId),
+      fromText: await columnName(before.stateId),
+      toText: await columnName(after.stateId),
     });
   if (before.typeId !== after.typeId)
     events.push({
@@ -415,11 +403,11 @@ export async function logIssueUpdate(
       fromText: await typeName(before.typeId),
       toText: await typeName(after.typeId),
     });
-  if (before.initiativeId !== after.initiativeId)
+  if (before.projectId !== after.projectId)
     events.push({
-      action: 'initiative',
-      fromText: await initiativeName(before.initiativeId),
-      toText: await initiativeName(after.initiativeId),
+      action: 'project',
+      fromText: await projectName(before.projectId),
+      toText: await projectName(after.projectId),
     });
   if (before.assigneeUserId !== after.assigneeUserId)
     events.push({
@@ -448,16 +436,16 @@ export async function logIssueUpdate(
   // Inbox notifications for the two events with a dedicated notification type: a new
   // assignee, and a status change. Both link back to their activity row.
   const assigneeChanged = before.assigneeUserId !== after.assigneeUserId;
-  const statusChanged = before.columnId !== after.columnId;
+  const statusChanged = before.stateId !== after.stateId;
   if (assigneeChanged || statusChanged) {
     const idByAction = new Map(inserted.map((r) => [r.action, r.id]));
     const [row] = await db
-      .select({ projectId: issue.projectId })
+      .select({ teamId: issue.teamId })
       .from(issue)
       .where(eq(issue.id, after.id));
     if (row) {
       await notifyIssueChange({
-        projectId: row.projectId,
+        teamId: row.teamId,
         issueId: after.id,
         actorUserId: actorUserId ?? null,
         assignedUserId: assigneeChanged ? after.assigneeUserId : null,

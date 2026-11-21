@@ -1,4 +1,4 @@
-import { db, projectColumn } from '@repo/db';
+import { db, workflowState } from '@repo/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   archiveIssue,
@@ -8,8 +8,8 @@ import {
   updateIssue,
   type IssuePatch,
 } from '../../issues/store';
-import { archiveColumn, createColumn, updateColumn } from '../../columns/store';
-import { getProjectByKey } from '../../projects/store';
+import { archiveState, createState, updateState } from '../../states/store';
+import { getTeamByKey } from '../../teams/store';
 import { assertPermission } from '../../shared/access';
 import { UUID_RE } from '../../shared/lib';
 import { deleteObjects } from '../../shared/s3';
@@ -102,25 +102,25 @@ function toPatch(input: IssueInput): IssuePatch {
   if (input.assigneeId !== undefined) patch.assigneeUserId = input.assigneeId;
   if (input.delegateId !== undefined) patch.delegateUserId = input.delegateId;
   if (input.parentId !== undefined) patch.parentId = input.parentId;
-  if (input.stateId !== undefined) patch.columnId = input.stateId;
+  if (input.stateId !== undefined) patch.stateId = input.stateId;
   if (input.sortOrder !== undefined) patch.position = input.sortOrder;
   return patch;
 }
 
 // The column a new issue lands in when no stateId is given: the first active
 // backlog column, else the first active unstarted column.
-async function defaultColumn(projectId: string): Promise<string> {
+async function defaultColumn(teamId: string): Promise<string> {
   const rows = await db
-    .select({ id: projectColumn.id })
-    .from(projectColumn)
+    .select({ id: workflowState.id })
+    .from(workflowState)
     .where(
       and(
-        eq(projectColumn.projectId, projectId),
-        isNull(projectColumn.archivedAt),
-        sql`${projectColumn.stateType} IN ('backlog', 'unstarted')`,
+        eq(workflowState.teamId, teamId),
+        isNull(workflowState.archivedAt),
+        sql`${workflowState.stateType} IN ('backlog', 'unstarted')`,
       ),
     )
-    .orderBy(sql`${projectColumn.stateType} = 'unstarted'`, asc(projectColumn.position))
+    .orderBy(sql`${workflowState.stateType} = 'unstarted'`, asc(workflowState.position))
     .limit(1);
   if (!rows[0]) throw gqlError('INVALID_INPUT', 'The team has no backlog or unstarted state');
   return rows[0].id;
@@ -137,14 +137,14 @@ export const mutationResolvers = {
         onlySupported(input, ['teamId', ...ISSUE_FIELDS], 'input');
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
         assertIssueInput(input);
-        const team = await findTeam(input.teamId, ctx.user.id);
-        await assertPermission(team.id, ctx.user, 'work_items', 'create');
-        const project = (await getProjectByKey(team.key))!;
+        const found = await findTeam(input.teamId, ctx.user.id);
+        await assertPermission(found.id, ctx.user, 'work_items', 'create');
+        const team = (await getTeamByKey(found.key))!;
         const patch = toPatch(input);
         const created = await createIssue(
-          project,
+          team,
           {
-            columnId: patch.columnId ?? (await defaultColumn(team.id)),
+            stateId: patch.stateId ?? (await defaultColumn(team.id)),
             title: input.title,
             description: patch.description,
             priority: patch.priority,
@@ -169,7 +169,7 @@ export const mutationResolvers = {
         onlySupported(input, ISSUE_FIELDS, 'input');
         assertIssueInput(input);
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.projectId, ctx.user, 'work_items', 'edit');
+        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
         await updateIssue(row.id, toPatch(input), ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
       }),
@@ -190,7 +190,7 @@ export const mutationResolvers = {
         const rows = [];
         for (const id of ids) {
           const row = await findIssue(id, ctx.user.id);
-          await assertPermission(row.projectId, ctx.user, 'work_items', 'edit');
+          await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
           rows.push(row);
         }
         const patch = toPatch(input);
@@ -203,7 +203,7 @@ export const mutationResolvers = {
     issueArchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.projectId, ctx.user, 'work_items', 'edit');
+        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
         await archiveIssue(row.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: await issueById(row.id) };
       }),
@@ -211,7 +211,7 @@ export const mutationResolvers = {
     issueUnarchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.projectId, ctx.user, 'work_items', 'edit');
+        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
         await restoreIssue(row.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: await issueById(row.id) };
       }),
@@ -221,7 +221,7 @@ export const mutationResolvers = {
     issueDelete: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.projectId, ctx.user, 'work_items', 'delete');
+        await assertPermission(row.teamId, ctx.user, 'work_items', 'delete');
         const entity = toIssue(row);
         const attachments = await deleteIssue(row.id);
         if (attachments?.length) await deleteObjects(attachments.map((a) => a.s3Key));
@@ -250,8 +250,8 @@ export const mutationResolvers = {
           throw gqlError('INVALID_INPUT', `input.type ${input.type} is not supported`);
         const team = await findTeam(input.teamId, ctx.user.id);
         await assertPermission(team.id, ctx.user, 'states', 'create');
-        const column = await createColumn({
-          projectId: team.id,
+        const column = await createState({
+          teamId: team.id,
           name: input.name,
           stateType: input.type,
           color: input.color,
@@ -279,8 +279,8 @@ export const mutationResolvers = {
         onlySupported(input, ['name', 'color', 'description'], 'input');
         if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         const state = await findState(id, ctx.user.id);
-        await assertPermission(state.projectId, ctx.user, 'states', 'edit');
-        await updateColumn(state.id, state.projectId, {
+        await assertPermission(state.teamId, ctx.user, 'states', 'edit');
+        await updateState(state.id, state.teamId, {
           name: input.name ?? undefined,
           color: input.color ?? undefined,
           description: input.description ?? undefined,
@@ -295,14 +295,14 @@ export const mutationResolvers = {
     workflowStateArchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const state = await findState(id, ctx.user.id);
-        await assertPermission(state.projectId, ctx.user, 'states', 'edit');
-        await archiveColumn(state.id, state.projectId);
+        await assertPermission(state.teamId, ctx.user, 'states', 'edit');
+        await archiveState(state.id, state.teamId);
         return { success: true, lastSyncId: lastSyncId(), entity: await stateById(state.id) };
       }),
   },
 };
 
 async function stateById(id: string) {
-  const [row] = await db.select().from(projectColumn).where(eq(projectColumn.id, id));
+  const [row] = await db.select().from(workflowState).where(eq(workflowState.id, id));
   return toWorkflowState(row!);
 }

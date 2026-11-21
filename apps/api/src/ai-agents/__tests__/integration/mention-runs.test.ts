@@ -13,21 +13,21 @@ import { claimDueRuns } from '../../run-queue';
 // run, a plain comment does not, and a comment authored by an agent's bot user never
 // enqueues one (the loop guard). agent_run has no API surface, so it is read through
 // the db; the loop guard is exercised at the store (an agent posts via the in-process
-// add_comment tool, not the HTTP route, since it is not a project member).
+// add_comment tool, not the HTTP route, since it is not a team member).
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = view.data!.columns[0].id;
-  return { owner, asOwner, columnId };
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = view.data!.states[0].id;
+  return { owner, asOwner, stateId };
 }
 
-const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
+const agents = (api: Api) => api.teams({ teamKey: 'MKT' })['ai-agents'];
 
-function createIssue(client: Api, columnId: string) {
-  return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
+function createIssue(client: Api, stateId: string) {
+  return client.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 }
 
 async function createInternalAgent(asOwner: Api, name: string, username: string) {
@@ -48,9 +48,9 @@ describe('agent mention runs', () => {
   });
 
   it('queues a run when a member mentions an internal agent', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
 
     const res = await asOwner
       .issues({ issueId: issue.id })
@@ -63,10 +63,10 @@ describe('agent mention runs', () => {
     expect(queued[0].prompt).toContain('please review');
   });
 
-  it("makes the queued run claimable with the agent's project and bot user", async () => {
-    const { asOwner, columnId } = await setup();
+  it("makes the queued run claimable with the agent's team and bot user", async () => {
+    const { asOwner, stateId } = await setup();
     const agent = await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
     await asOwner
       .issues({ issueId: issue.id })
       .comments.post({ body: mention('Design Bot', agent.userId) });
@@ -75,23 +75,23 @@ describe('agent mention runs', () => {
     const run = claimed.find((r) => r.issueId === issue.id);
     expect(run).toBeDefined();
     expect(run).toMatchObject({ agentId: agent.id, agentUserId: agent.userId });
-    expect(typeof run!.projectId).toBe('string');
+    expect(typeof run!.teamId).toBe('string');
   });
 
   it('does not queue a run for a comment with no mention', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     await createInternalAgent(asOwner, 'Design Bot', 'design');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
 
     await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'just a plain note' });
     expect((await runsForIssue(issue.id)).length).toBe(0);
   });
 
   it('does not queue a run for an external agent mentioned in a comment', async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const ext = (await agents(asOwner).post({ name: 'Ext Bot', username: 'ext', kind: 'external' }))
       .data!.agent;
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
 
     await asOwner
       .issues({ issueId: issue.id })
@@ -100,10 +100,10 @@ describe('agent mention runs', () => {
   });
 
   it("does not queue a run when an agent's bot user authors the mention (loop guard)", async () => {
-    const { asOwner, columnId } = await setup();
+    const { asOwner, stateId } = await setup();
     const author = await createInternalAgent(asOwner, 'Author Bot', 'author');
     const target = await createInternalAgent(asOwner, 'Target Bot', 'target');
-    const issue = (await createIssue(asOwner, columnId)).data!;
+    const issue = (await createIssue(asOwner, stateId)).data!;
 
     // An agent comments via the in-process add_comment tool, i.e. createComment with
     // its own bot user as the author. Even though it mentions another internal agent,

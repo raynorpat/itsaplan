@@ -1,11 +1,11 @@
 import { Elysia } from 'elysia';
 import { HttpError, pgErrorCode, PG_INVALID_INPUT_CODES } from './shared/lib';
 import { authContext } from './shared/auth-context';
-import { projectRoutes } from './projects/routes';
+import { teamRoutes } from './teams/routes';
 import { memberRoutes } from './members/routes';
 import { roleRoutes } from './roles/routes';
 import { inviteRoutes } from './invites/routes';
-import { columnRoutes } from './columns/routes';
+import { stateRoutes } from './states/routes';
 import { issueTypeRoutes } from './issue-types/routes';
 import { labelRoutes } from './labels/routes';
 import { aiAgentRoutes } from './ai-agents/routes';
@@ -14,7 +14,7 @@ import { agentSkillRoutes } from './agent-skills/routes';
 import { agentToolRoutes } from './agent-tools/routes';
 import { customFieldRoutes } from './custom-fields/routes';
 import { issueRoutes } from './issues/routes';
-import { initiativeRoutes } from './initiatives/routes';
+import { projectRoutes } from './projects/routes';
 import { attachmentRoutes } from './attachments/routes';
 import { avatarRoutes } from './avatars/routes';
 import { viewRoutes } from './views/routes';
@@ -33,7 +33,7 @@ import { notificationPreferenceRoutes } from './notification-preferences/routes'
 import { userPreferenceRoutes } from './user-preferences/routes';
 import { telegramRoutes } from './telegram/routes';
 
-// The planner API: projects and their columns, issue types, labels, AI agents,
+// The planner API: teams and their columns, issue types, labels, AI agents,
 // custom fields, issues, attachments, saved views, and actions. Mounted on the
 // main app in ./index.ts.
 //
@@ -74,11 +74,11 @@ export const planner = new Elysia({ name: 'planner' })
     set.status = 500;
     return { error: error instanceof Error ? error.message : 'Internal server error' };
   })
-  .use(projectRoutes)
+  .use(teamRoutes)
   .use(memberRoutes)
   .use(roleRoutes)
   .use(inviteRoutes)
-  .use(columnRoutes)
+  .use(stateRoutes)
   .use(issueTypeRoutes)
   .use(labelRoutes)
   .use(aiAgentRoutes)
@@ -87,7 +87,7 @@ export const planner = new Elysia({ name: 'planner' })
   .use(agentToolRoutes)
   .use(customFieldRoutes)
   .use(issueRoutes)
-  .use(initiativeRoutes)
+  .use(projectRoutes)
   .use(attachmentRoutes)
   .use(avatarRoutes)
   .use(viewRoutes)

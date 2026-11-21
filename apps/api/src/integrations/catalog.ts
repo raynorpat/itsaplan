@@ -2,7 +2,7 @@ import type { ConfigField } from '@repo/agent-tools';
 import { integrationDescriptors } from '@repo/agent-tools';
 import { AI_PROVIDERS } from './llm-providers';
 
-// The unified integration catalog: every service a project can store a credential
+// The unified integration catalog: every service a team can store a credential
 // for. Two kinds:
 //   - "llm"  — the AI providers whose models an internal agent runs on. Their
 //              credential is an API key (plus a base URL for OpenAI-compatible

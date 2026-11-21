@@ -1,14 +1,14 @@
 import { db, issueType } from '@repo/db';
 import { and, eq, sql } from 'drizzle-orm';
 
-// Data access for issue types. An issue type belongs to one project. Deleting a
+// Data access for issue types. An issue type belongs to one team. Deleting a
 // type sets type_id NULL on its issues and cascades to its type-scoped custom
 // fields (and those fields' options and values), all via the schema's ON DELETE
 // clauses.
 
 export interface IssueTypeRow {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string;
   color: string;
@@ -19,7 +19,7 @@ export interface IssueTypeRow {
 function mapIssueType(row: typeof issueType.$inferSelect): IssueTypeRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     name: row.name,
     icon: row.icon,
     color: row.color,
@@ -28,17 +28,17 @@ function mapIssueType(row: typeof issueType.$inferSelect): IssueTypeRow {
   };
 }
 
-export async function listIssueTypes(projectId: string): Promise<IssueTypeRow[]> {
+export async function listIssueTypes(teamId: string): Promise<IssueTypeRow[]> {
   const rows = await db
     .select()
     .from(issueType)
-    .where(eq(issueType.projectId, projectId))
+    .where(eq(issueType.teamId, teamId))
     .orderBy(issueType.position);
   return rows.map(mapIssueType);
 }
 
 export async function createIssueType(input: {
-  projectId: string;
+  teamId: string;
   name: string;
   icon?: string;
   color?: string;
@@ -47,11 +47,11 @@ export async function createIssueType(input: {
   const [{ pos }] = await db
     .select({ pos: sql<number>`COALESCE(MAX(${issueType.position}), -1) + 1` })
     .from(issueType)
-    .where(eq(issueType.projectId, input.projectId));
+    .where(eq(issueType.teamId, input.teamId));
   const [row] = await db
     .insert(issueType)
     .values({
-      projectId: input.projectId,
+      teamId: input.teamId,
       name: input.name,
       icon: input.icon ?? '',
       color: input.color ?? '#6b7280',
@@ -67,14 +67,14 @@ export async function getIssueTypeById(id: string): Promise<IssueTypeRow | null>
   return rows[0] ? mapIssueType(rows[0]) : null;
 }
 
-// Scoped to projectId so an id from another project resolves to null (a 404 at
-// the route), never a cross-project edit.
+// Scoped to teamId so an id from another team resolves to null (a 404 at
+// the route), never a cross-team edit.
 export async function updateIssueType(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: { name?: string; color?: string; isDefault?: boolean },
 ): Promise<IssueTypeRow | null> {
-  const scope = and(eq(issueType.id, id), eq(issueType.projectId, projectId));
+  const scope = and(eq(issueType.id, id), eq(issueType.teamId, teamId));
   const set: Partial<typeof issueType.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.color !== undefined) set.color = patch.color;
@@ -87,7 +87,7 @@ export async function updateIssueType(
   return row ? mapIssueType(row) : null;
 }
 
-// Scoped to projectId: an id outside the project deletes nothing.
-export async function deleteIssueType(id: string, projectId: string): Promise<void> {
-  await db.delete(issueType).where(and(eq(issueType.id, id), eq(issueType.projectId, projectId)));
+// Scoped to teamId: an id outside the team deletes nothing.
+export async function deleteIssueType(id: string, teamId: string): Promise<void> {
+  await db.delete(issueType).where(and(eq(issueType.id, id), eq(issueType.teamId, teamId)));
 }

@@ -2,7 +2,7 @@ import { Elysia, t } from 'elysia';
 import { guards } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
 import { ErrorResponse } from '../shared/responses';
-import { getProjectEmailConfig } from '@repo/auth';
+import { getTeamEmailConfig } from '@repo/auth';
 import {
   ENCRYPTION_MODES,
   getNotificationSettings,
@@ -12,14 +12,14 @@ import {
 
 const encryption = t.UnionEnum([...ENCRYPTION_MODES]);
 
-// The redacted settings DTO (NotificationSettingsDto): the project's provider
+// The redacted settings DTO (NotificationSettingsDto): the team's provider
 // credentials. Secrets are never returned; each is replaced by a boolean telling
 // whether a value is stored.
 const NotificationSettingsResponse = t.Object({
-  // Deliver email through the instance provider instead of the project's own.
+  // Deliver email through the instance provider instead of the team's own.
   system: t.Object({ enabled: t.Boolean() }),
-  // Whether that instance provider exists and is shared with projects right now.
-  // The project cannot see or change it, so the UI states why sending is off.
+  // Whether that instance provider exists and is shared with teams right now.
+  // The team cannot see or change it, so the UI states why sending is off.
   systemAvailable: t.Boolean(),
   smtp: t.Object({
     enabled: t.Boolean(),
@@ -53,16 +53,16 @@ const NotificationSettingsBody = t.Object({
   telegram: t.Optional(t.Object({ enabled: t.Boolean(), botToken: t.Optional(t.String()) })),
 });
 
-// Adds whether the instance provider is available to projects right now. It is an
-// instance setting, so it is reported alongside the project's own settings rather
+// Adds whether the instance provider is available to teams right now. It is an
+// instance setting, so it is reported alongside the team's own settings rather
 // than stored with them.
 async function withSystemAvailability(settings: NotificationSettingsDto) {
-  return { ...settings, systemAvailable: (await getProjectEmailConfig()) !== null };
+  return { ...settings, systemAvailable: (await getTeamEmailConfig()) !== null };
 }
 
 // Notification provider credentials carry secrets (SMTP password, Resend key,
 // Telegram bot token), so they are managed only through the session UI and not
-// exposed as MCP tools. Gated under the danger_zone resource, the project-level
+// exposed as MCP tools. Gated under the danger_zone resource, the team-level
 // settings gate. A member's own delivery preferences live in notification-preferences.
 export const notificationSettingsRoutes = new Elysia({
   name: 'notification-settings',
@@ -72,8 +72,8 @@ export const notificationSettingsRoutes = new Elysia({
   .use(guards)
 
   .get(
-    '/projects/:projectKey/notification-settings',
-    async ({ project }) => withSystemAvailability(await getNotificationSettings(project.id)),
+    '/teams/:teamKey/notification-settings',
+    async ({ team }) => withSystemAvailability(await getNotificationSettings(team.id)),
     {
       permission: ['danger_zone', 'read'],
       response: {
@@ -84,15 +84,14 @@ export const notificationSettingsRoutes = new Elysia({
       },
       detail: {
         summary: 'Get notification provider settings',
-        description: "Get a project's notification provider settings (secrets redacted).",
+        description: "Get a team's notification provider settings (secrets redacted).",
       },
     },
   )
 
   .put(
-    '/projects/:projectKey/notification-settings',
-    async ({ project, body }) =>
-      withSystemAvailability(await setNotificationSettings(project.id, body)),
+    '/teams/:teamKey/notification-settings',
+    async ({ team, body }) => withSystemAvailability(await setNotificationSettings(team.id, body)),
     {
       body: NotificationSettingsBody,
       permission: ['danger_zone', 'edit'],
@@ -105,7 +104,7 @@ export const notificationSettingsRoutes = new Elysia({
       },
       detail: {
         summary: 'Update notification provider settings',
-        description: "Update a project's notification provider settings.",
+        description: "Update a team's notification provider settings.",
       },
     },
   );

@@ -2,11 +2,11 @@ import {
   db,
   notification,
   issueActivity,
-  projectMember,
+  teamMember,
   user,
   issue,
-  project,
-  projectColumn,
+  team,
+  workflowState,
 } from '@repo/db';
 import { and, desc, eq, inArray, lt, or, sql, isNull } from 'drizzle-orm';
 import { parseMentions } from '../ai-agents/mentions';
@@ -17,42 +17,42 @@ import { enqueueOutbound } from './outbound';
 // about an issue they are involved in. Recipients are derived from issue_activity
 // (assignee, delegate, and anyone who has acted on the issue) rather than a separate
 // subscription table. The actor is never notified about their own action, and only
-// project members receive notifications, so agent bot users (assigned via delegate,
+// team members receive notifications, so agent bot users (assigned via delegate,
 // not members) are excluded.
 
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
 
 export interface NewNotificationRow {
   userId: string;
-  projectId: string;
+  teamId: string;
   issueId: string;
   sourceActivityId: string | null;
   type: NotificationType;
   actorUserId: string | null;
 }
 
-// Keeps only the ids that are members of the project. Filters out non-members (an
+// Keeps only the ids that are members of the team. Filters out non-members (an
 // agent's bot user is assigned via delegate but is not a member) and users who have
 // lost access.
-async function keepProjectMembers(projectId: string, ids: string[]): Promise<Set<string>> {
+async function keepTeamMembers(teamId: string, ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const rows = await db
-    .select({ userId: projectMember.userId })
-    .from(projectMember)
-    .where(and(eq(projectMember.projectId, projectId), inArray(projectMember.userId, ids)));
+    .select({ userId: teamMember.userId })
+    .from(teamMember)
+    .where(and(eq(teamMember.teamId, teamId), inArray(teamMember.userId, ids)));
   return new Set(rows.map((r) => r.userId));
 }
 
 // The members who should hear about activity on an issue: its assignee and delegate,
 // plus anyone who has previously acted on it (a comment or a logged change). Bot
-// users and non-members are dropped by keepProjectMembers.
-async function issueParticipants(projectId: string, issueId: string): Promise<Set<string>> {
+// users and non-members are dropped by keepTeamMembers.
+async function issueParticipants(teamId: string, issueId: string): Promise<Set<string>> {
   const rows = await db
     .selectDistinct({ actorUserId: issueActivity.actorUserId })
     .from(issueActivity)
     .where(and(eq(issueActivity.issueId, issueId), sql`${issueActivity.actorUserId} IS NOT NULL`));
   const candidates = rows.map((r) => r.actorUserId as string);
-  return keepProjectMembers(projectId, candidates);
+  return keepTeamMembers(teamId, candidates);
 }
 
 async function actorName(id: string | null): Promise<string | null> {
@@ -65,7 +65,7 @@ async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
   if (rows.length === 0) return;
   const name = await actorName(rows[0].actorUserId);
   await db.insert(notification).values(rows.map((r) => ({ ...r, actorName: name })));
-  // Fan out to the project's enabled delivery channels (email, Telegram). Best-effort:
+  // Fan out to the team's enabled delivery channels (email, Telegram). Best-effort:
   // a delivery failure must not break the inbox insert or the domain mutation.
   try {
     await enqueueOutbound(rows, name);
@@ -78,20 +78,20 @@ async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
 // participants get 'commented'. A mentioned user gets only the 'mentioned' one. The
 // comment author is never notified.
 export async function notifyComment(
-  projectId: string,
+  teamId: string,
   comment: { issueId: string; id: string; actorUserId: string | null; body: string | null },
 ): Promise<void> {
   const actor = comment.actorUserId;
   const mentionedIds = parseMentions(comment.body ?? '');
-  const mentioned = await keepProjectMembers(projectId, mentionedIds);
-  const participants = await issueParticipants(projectId, comment.issueId);
+  const mentioned = await keepTeamMembers(teamId, mentionedIds);
+  const participants = await issueParticipants(teamId, comment.issueId);
 
   const rows: NewNotificationRow[] = [];
   for (const userId of mentioned) {
     if (userId === actor) continue;
     rows.push({
       userId,
-      projectId,
+      teamId,
       issueId: comment.issueId,
       sourceActivityId: comment.id,
       type: 'mentioned',
@@ -102,7 +102,7 @@ export async function notifyComment(
     if (userId === actor || mentioned.has(userId)) continue;
     rows.push({
       userId,
-      projectId,
+      teamId,
       issueId: comment.issueId,
       sourceActivityId: comment.id,
       type: 'commented',
@@ -116,7 +116,7 @@ export async function notifyComment(
 // not the actor) gets 'assigned'; a status change notifies the issue's participants
 // with 'state_changed'. The actor is never notified.
 export async function notifyIssueChange(input: {
-  projectId: string;
+  teamId: string;
   issueId: string;
   actorUserId: string | null;
   assignedUserId?: string | null;
@@ -124,15 +124,15 @@ export async function notifyIssueChange(input: {
   statusChanged?: boolean;
   statusActivityId?: string | null;
 }): Promise<void> {
-  const { projectId, issueId, actorUserId: actor } = input;
+  const { teamId, issueId, actorUserId: actor } = input;
   const rows: NewNotificationRow[] = [];
 
   if (input.assignedUserId && input.assignedUserId !== actor) {
-    const members = await keepProjectMembers(projectId, [input.assignedUserId]);
+    const members = await keepTeamMembers(teamId, [input.assignedUserId]);
     if (members.has(input.assignedUserId)) {
       rows.push({
         userId: input.assignedUserId,
-        projectId,
+        teamId,
         issueId,
         sourceActivityId: input.assignedActivityId ?? null,
         type: 'assigned',
@@ -143,13 +143,13 @@ export async function notifyIssueChange(input: {
 
   if (input.statusChanged) {
     const assigned = input.assignedUserId ?? null;
-    const participants = await issueParticipants(projectId, issueId);
+    const participants = await issueParticipants(teamId, issueId);
     for (const userId of participants) {
       // Skip the actor and anyone already told they were just assigned.
       if (userId === actor || userId === assigned) continue;
       rows.push({
         userId,
-        projectId,
+        teamId,
         issueId,
         sourceActivityId: input.statusActivityId ?? null,
         type: 'state_changed',
@@ -163,8 +163,8 @@ export async function notifyIssueChange(input: {
 
 // --- Inbox read + mutations ------------------------------------------------------
 
-// A notification enriched with the issue and project it points at, so the inbox can
-// render a row (identifier, title, project, actor, status) without extra calls.
+// A notification enriched with the issue and team it points at, so the inbox can
+// render a row (identifier, title, team, actor, status) without extra calls.
 export interface NotificationRow {
   id: string;
   type: NotificationType;
@@ -177,9 +177,9 @@ export interface NotificationRow {
   issueSeq: number;
   issueTitle: string;
   issueStateType: string;
-  projectId: string;
-  projectKey: string;
-  projectName: string;
+  teamId: string;
+  teamKey: string;
+  teamName: string;
 }
 
 export interface NotificationCursor {
@@ -195,7 +195,7 @@ export interface NotificationPage {
 export interface NotificationFilters {
   types?: NotificationType[];
   fromUserId?: string;
-  projectId?: string;
+  teamId?: string;
   includeRead?: boolean;
   includeSnoozed?: boolean;
 }
@@ -212,9 +212,9 @@ function mapRow(r: {
   issueSeq: number;
   issueTitle: string;
   issueStateType: string;
-  projectId: string;
-  projectKey: string;
-  projectName: string;
+  teamId: string;
+  teamKey: string;
+  teamName: string;
 }): NotificationRow {
   return {
     id: r.id,
@@ -228,9 +228,9 @@ function mapRow(r: {
     issueSeq: r.issueSeq,
     issueTitle: r.issueTitle,
     issueStateType: r.issueStateType,
-    projectId: r.projectId,
-    projectKey: r.projectKey,
-    projectName: r.projectName,
+    teamId: r.teamId,
+    teamKey: r.teamKey,
+    teamName: r.teamName,
   };
 }
 
@@ -248,7 +248,7 @@ export async function listNotifications(
   const conds = [eq(notification.userId, userId)];
   if (f.types && f.types.length) conds.push(inArray(notification.type, f.types));
   if (f.fromUserId) conds.push(eq(notification.actorUserId, f.fromUserId));
-  if (f.projectId != null) conds.push(eq(notification.projectId, f.projectId));
+  if (f.teamId != null) conds.push(eq(notification.teamId, f.teamId));
   if (f.includeRead === false) conds.push(isNull(notification.readAt));
   if (!f.includeSnoozed)
     conds.push(or(isNull(notification.snoozedUntil), lt(notification.snoozedUntil, sql`now()`))!);
@@ -270,15 +270,15 @@ export async function listNotifications(
       issueId: issue.id,
       issueSeq: issue.sequenceNumber,
       issueTitle: issue.title,
-      issueStateType: projectColumn.stateType,
-      projectId: project.id,
-      projectKey: project.key,
-      projectName: project.name,
+      issueStateType: workflowState.stateType,
+      teamId: team.id,
+      teamKey: team.key,
+      teamName: team.name,
     })
     .from(notification)
     .innerJoin(issue, eq(issue.id, notification.issueId))
-    .innerJoin(project, eq(project.id, notification.projectId))
-    .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
+    .innerJoin(team, eq(team.id, notification.teamId))
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
     .where(and(...conds))
     .orderBy(desc(notification.createdAt), desc(notification.id))
     .limit(limit + 1);
@@ -293,14 +293,14 @@ export async function listNotifications(
 }
 
 // The number of unread, non-snoozed notifications for the inbox badge, optionally
-// scoped to one project.
-export async function unreadCount(userId: string, projectId?: string): Promise<number> {
+// scoped to one team.
+export async function unreadCount(userId: string, teamId?: string): Promise<number> {
   const conds = [
     eq(notification.userId, userId),
     isNull(notification.readAt),
     or(isNull(notification.snoozedUntil), lt(notification.snoozedUntil, sql`now()`)),
   ];
-  if (projectId != null) conds.push(eq(notification.projectId, projectId));
+  if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(notification)
@@ -309,11 +309,11 @@ export async function unreadCount(userId: string, projectId?: string): Promise<n
 }
 
 // Cheap change marker for live refresh: total count, newest created_at, and unread
-// count, optionally scoped to one project. It moves on a new notification (newest),
+// count, optionally scoped to one team. It moves on a new notification (newest),
 // a delete (total), and a read/unread toggle (unread).
-export async function notificationsRev(userId: string, projectId?: string): Promise<string> {
+export async function notificationsRev(userId: string, teamId?: string): Promise<string> {
   const conds = [eq(notification.userId, userId)];
-  if (projectId != null) conds.push(eq(notification.projectId, projectId));
+  if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const [row] = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -340,11 +340,11 @@ export async function setNotificationRead(
   return rows.length > 0;
 }
 
-// Marks every unread notification of the user read, optionally scoped to a project.
+// Marks every unread notification of the user read, optionally scoped to a team.
 // Returns how many were updated.
-export async function markAllRead(userId: string, projectId?: string): Promise<number> {
+export async function markAllRead(userId: string, teamId?: string): Promise<number> {
   const conds = [eq(notification.userId, userId), isNull(notification.readAt)];
-  if (projectId != null) conds.push(eq(notification.projectId, projectId));
+  if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const rows = await db
     .update(notification)
     .set({ readAt: sql`now()` })
@@ -381,15 +381,15 @@ export async function deleteNotification(userId: string, id: string): Promise<bo
 export type DeleteScope = 'all' | 'read' | 'read-completed';
 
 // Bulk-deletes the user's notifications by scope: all, all read, or all read whose
-// issue is in a completed or canceled column. Scoped to one project when projectId
-// is given (the per-project inbox). Returns how many were deleted.
+// issue is in a completed or canceled column. Scoped to one team when teamId
+// is given (the per-team inbox). Returns how many were deleted.
 export async function deleteNotifications(
   userId: string,
   scope: DeleteScope,
-  projectId?: string,
+  teamId?: string,
 ): Promise<number> {
   const conds = [eq(notification.userId, userId)];
-  if (projectId != null) conds.push(eq(notification.projectId, projectId));
+  if (teamId != null) conds.push(eq(notification.teamId, teamId));
   if (scope === 'read' || scope === 'read-completed')
     conds.push(sql`${notification.readAt} is not null`);
   if (scope === 'read-completed') {
@@ -397,8 +397,8 @@ export async function deleteNotifications(
     const completedIssues = db
       .select({ id: issue.id })
       .from(issue)
-      .innerJoin(projectColumn, eq(projectColumn.id, issue.columnId))
-      .where(inArray(projectColumn.stateType, ['completed', 'canceled']));
+      .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+      .where(inArray(workflowState.stateType, ['completed', 'canceled']));
     conds.push(inArray(notification.issueId, completedIssues));
   }
   const rows = await db

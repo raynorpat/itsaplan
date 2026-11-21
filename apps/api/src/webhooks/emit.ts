@@ -19,11 +19,11 @@ const EVENT_SHAPE: Record<WebhookEventType, { action: string; type: string }> = 
 };
 
 // Fan-out for outgoing webhooks: queues one delivery per active webhook of the
-// project that is subscribed to eventType, all sharing a single eventId (stable
+// team that is subscribed to eventType, all sharing a single eventId (stable
 // across retries so receivers can deduplicate). Called right after a domain
 // mutation, next to the activity log, following the same post-write side-effect
 // pattern the issue store already uses. No-op when no webhook matches, so it costs
-// one indexed SELECT on projects with no webhooks.
+// one indexed SELECT on teams with no webhooks.
 //
 // The body follows Linear's webhook envelope: top-level action, type, data, plus
 // createdAt and webhookTimestamp (epoch ms). `event` is our extension carrying the
@@ -31,7 +31,7 @@ const EVENT_SHAPE: Record<WebhookEventType, { action: string; type: string }> = 
 // concept, and issues have no public URL). The shared dedup id rides on the wire in
 // the X-Itsaplan-Event-Id header, not the body.
 export async function emitWebhookEvent(
-  projectId: string,
+  teamId: string,
   eventType: WebhookEventType,
   data: unknown,
 ): Promise<void> {
@@ -40,7 +40,7 @@ export async function emitWebhookEvent(
     .from(webhook)
     .where(
       and(
-        eq(webhook.projectId, projectId),
+        eq(webhook.teamId, teamId),
         eq(webhook.isActive, true),
         // events is a jsonb array of event-type strings; @> tests membership.
         sql`${webhook.events} @> ${JSON.stringify([eventType])}::jsonb`,

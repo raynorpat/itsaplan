@@ -20,7 +20,7 @@ const actionParams = t.Object({ actionId: t.String({ format: 'uuid' }) });
 // owned by the UI, stored and returned without inspecting their shape.
 const ActionResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.String(),
   condition: t.Any(),
@@ -32,19 +32,19 @@ const ActionResponse = t.Object({
 export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Actions'] } })
   .use(authContext)
   .use(guards)
-  // Guard for routes that address an action by its own id (no :projectKey in the
+  // Guard for routes that address an action by its own id (no :teamKey in the
   // path). Set `savedAction: "<action>"` in the route options.
   .macro({
     savedAction: entityGuard(
       'actions',
       'Action not found',
-      async (p) => (await getAction(p.actionId))?.projectId ?? null,
+      async (p) => (await getAction(p.actionId))?.teamId ?? null,
     ),
   })
   .get(
-    '/projects/:projectKey/actions',
-    async ({ project }) => {
-      return listActions(project.id);
+    '/teams/:teamKey/actions',
+    async ({ team }) => {
+      return listActions(team.id);
     },
     {
       permission: ['actions', 'read'],
@@ -56,17 +56,17 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
       },
       detail: {
         summary: 'List actions',
-        description: "List a project's actions.",
+        description: "List a team's actions.",
         ...mcpTool('list_actions'),
       },
     },
   )
 
   .post(
-    '/projects/:projectKey/actions',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/actions',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createAction({ projectId: project.id, ...body });
+      return createAction({ teamId: team.id, ...body });
     },
     {
       body: t.Object({
@@ -85,7 +85,7 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
       },
       detail: {
         summary: 'Create an action',
-        description: 'Create an action in a project.',
+        description: 'Create an action in a team.',
         ...mcpTool('create_action'),
       },
     },
@@ -93,9 +93,9 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
 
   // Sets the action order to orderedIds.
   .put(
-    '/projects/:projectKey/actions/reorder',
-    async ({ project, body }) => {
-      return reorderActions(project.id, body.orderedIds);
+    '/teams/:teamKey/actions/reorder',
+    async ({ team, body }) => {
+      return reorderActions(team.id, body.orderedIds);
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
@@ -109,7 +109,7 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
       },
       detail: {
         summary: 'Reorder actions',
-        description: "Set the display order of a project's actions.",
+        description: "Set the display order of a team's actions.",
         ...mcpTool('reorder_actions'),
       },
     },

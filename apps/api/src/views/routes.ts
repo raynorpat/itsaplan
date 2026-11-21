@@ -13,7 +13,7 @@ const viewParams = t.Object({ viewId: t.String({ format: 'uuid' }) });
 // owned by the UI, returned as-is (t.Any()).
 const ViewResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.Nullable(t.String()),
   filters: t.Any(),
@@ -26,19 +26,19 @@ const ViewResponse = t.Object({
 export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] } })
   .use(authContext)
   .use(guards)
-  // Guard for routes that address a view by its own id (no :projectKey in the
+  // Guard for routes that address a view by its own id (no :teamKey in the
   // path). Set `savedView: "<action>"` in the route options.
   .macro({
     savedView: entityGuard(
       'views',
       'View not found',
-      async (p) => (await getView(p.viewId))?.projectId ?? null,
+      async (p) => (await getView(p.viewId))?.teamId ?? null,
     ),
   })
   .get(
-    '/projects/:projectKey/views',
-    async ({ project }) => {
-      return listViews(project.id);
+    '/teams/:teamKey/views',
+    async ({ team }) => {
+      return listViews(team.id);
     },
     {
       permission: ['views', 'read'],
@@ -50,17 +50,17 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       },
       detail: {
         summary: 'List saved views',
-        description: "List a project's saved views.",
+        description: "List a team's saved views.",
         ...mcpTool('list_views'),
       },
     },
   )
 
   .post(
-    '/projects/:projectKey/views',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/views',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createView({ projectId: project.id, ...body });
+      return createView({ teamId: team.id, ...body });
     },
     {
       body: t.Object({
@@ -79,7 +79,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       },
       detail: {
         summary: 'Create a saved view',
-        description: 'Create a saved view in a project.',
+        description: 'Create a saved view in a team.',
         ...mcpTool('create_view'),
       },
     },
@@ -87,9 +87,9 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
 
   // Sets the tab order to orderedIds.
   .put(
-    '/projects/:projectKey/views/reorder',
-    async ({ project, body }) => {
-      return reorderViews(project.id, body.orderedIds);
+    '/teams/:teamKey/views/reorder',
+    async ({ team, body }) => {
+      return reorderViews(team.id, body.orderedIds);
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
@@ -103,7 +103,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       },
       detail: {
         summary: 'Reorder saved views',
-        description: "Set the display order of a project's saved views.",
+        description: "Set the display order of a team's saved views.",
         ...mcpTool('reorder_views'),
       },
     },

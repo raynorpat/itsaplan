@@ -4,7 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
 // Account preferences are self-scoped: a user only ever reads and writes their own
-// row, so there is no project or permission wiring to cover. A read before any write
+// row, so there is no team or permission wiring to cover. A read before any write
 // returns the defaults instead of failing, and a patch leaves omitted fields alone.
 
 describe('user preferences', () => {
@@ -24,7 +24,7 @@ describe('user preferences', () => {
       showChatByDefault: false,
       issueStatsOpen: true,
       issueStatsView: 'compact',
-      lastProjectId: null,
+      lastTeamId: null,
       hotkeys: {},
     });
   });
@@ -54,7 +54,7 @@ describe('user preferences', () => {
       showChatByDefault: true,
       issueStatsOpen: false,
       issueStatsView: 'timeline',
-      lastProjectId: null,
+      lastTeamId: null,
       hotkeys: { 'issue.new': 'i' },
     });
   });
@@ -108,26 +108,26 @@ describe('user preferences', () => {
     expect(res.data).toMatchObject({ theme: 'system' });
   });
 
-  it('remembers a project the user belongs to', async () => {
+  it('remembers a team the user belongs to', async () => {
     const u = await signUpTestUser();
     const client = authedApi(u.cookie);
-    const created = await client.projects.post({ key: 'MKT', name: 'Marketing' });
-    const projectId = created.data!.id;
+    const created = await client.teams.post({ key: 'MKT', name: 'Marketing' });
+    const teamId = created.data!.id;
 
-    const res = await client.account.preferences.patch({ lastProjectId: projectId });
+    const res = await client.account.preferences.patch({ lastTeamId: teamId });
 
     expect(res.status).toBe(200);
     const stored = await client.account.preferences.get();
-    expect(stored.data).toMatchObject({ lastProjectId: projectId });
+    expect(stored.data).toMatchObject({ lastTeamId: teamId });
   });
 
-  it('rejects a project the user is not a member of', async () => {
+  it('rejects a team the user is not a member of', async () => {
     const owner = await signUpTestUser();
     const outsider = await signUpTestUser();
-    const created = await authedApi(owner.cookie).projects.post({ key: 'MKT', name: 'Marketing' });
+    const created = await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
 
     const res = await authedApi(outsider.cookie).account.preferences.patch({
-      lastProjectId: created.data!.id,
+      lastTeamId: created.data!.id,
     });
 
     expect(res.status).toBe(403);

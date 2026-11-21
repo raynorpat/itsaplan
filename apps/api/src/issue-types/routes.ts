@@ -6,12 +6,12 @@ import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { createIssueType, updateIssueType, deleteIssueType } from './store';
 
-const typeParams = t.Object({ projectKey: t.String(), typeId: t.String({ format: 'uuid' }) });
+const typeParams = t.Object({ teamKey: t.String(), typeId: t.String({ format: 'uuid' }) });
 
 // An issue type DTO (IssueTypeRow from the store).
 const IssueTypeResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.String(),
   color: t.String(),
@@ -25,10 +25,10 @@ export const issueTypeRoutes = new Elysia({
 })
   .use(guards)
   .post(
-    '/projects/:projectKey/issue-types',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/issue-types',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createIssueType({ projectId: project.id, ...body });
+      return createIssueType({ teamId: team.id, ...body });
     },
     {
       body: t.Object({
@@ -55,9 +55,9 @@ export const issueTypeRoutes = new Elysia({
   )
 
   .patch(
-    '/projects/:projectKey/issue-types/:typeId',
-    async ({ params, project, body }) => {
-      const type = await updateIssueType(params.typeId, project.id, body);
+    '/teams/:teamKey/issue-types/:typeId',
+    async ({ params, team, body }) => {
+      const type = await updateIssueType(params.typeId, team.id, body);
       if (!type) throw new HttpError(404, 'Issue type not found');
       return type;
     },
@@ -85,9 +85,9 @@ export const issueTypeRoutes = new Elysia({
   )
 
   .delete(
-    '/projects/:projectKey/issue-types/:typeId',
-    async ({ params, project }) => {
-      await deleteIssueType(params.typeId, project.id);
+    '/teams/:teamKey/issue-types/:typeId',
+    async ({ params, team }) => {
+      await deleteIssueType(params.typeId, team.id);
       return noContent();
     },
     {

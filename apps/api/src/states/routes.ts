@@ -7,12 +7,12 @@ import { requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
-  archiveColumn,
-  createColumn,
-  deleteColumn,
-  listColumns,
-  reorderColumns,
-  updateColumn,
+  archiveState,
+  createState,
+  deleteState,
+  listStates,
+  reorderStates,
+  updateState,
 } from './store';
 
 const stateType = t.Union([
@@ -23,12 +23,12 @@ const stateType = t.Union([
   t.Literal('canceled'),
 ]);
 
-const columnParams = t.Object({ projectKey: t.String(), columnId: t.String({ format: 'uuid' }) });
+const stateParams = t.Object({ teamKey: t.String(), stateId: t.String({ format: 'uuid' }) });
 
-// A column DTO (ColumnRow from the store).
-const ColumnResponse = t.Object({
+// A column DTO (WorkflowStateRow from the store).
+const WorkflowStateResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   stateType: t.String(),
   color: t.String(),
@@ -37,14 +37,14 @@ const ColumnResponse = t.Object({
   archivedAt: t.Nullable(t.String()),
 });
 
-export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Columns'] } })
+export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States'] } })
   .use(authContext)
   .use(guards)
   .post(
-    '/projects/:projectKey/columns',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/states',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createColumn({ projectId: project.id, ...body });
+      return createState({ teamId: team.id, ...body });
     },
     {
       body: t.Object({
@@ -55,7 +55,7 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       }),
       permission: ['states', 'create'],
       response: {
-        201: ColumnResponse,
+        201: WorkflowStateResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
@@ -66,24 +66,24 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
         description:
           'Create a column (workflow state). stateType is one of ' +
           'backlog/unstarted/started/completed/canceled.',
-        ...mcpTool('create_column'),
+        ...mcpTool('create_state'),
       },
     },
   )
 
-  // Reorders the project's columns. Body carries the full desired left-to-right
+  // Reorders the team's columns. Body carries the full desired left-to-right
   // order of column ids; the store renumbers positions to match.
   .put(
-    '/projects/:projectKey/columns/reorder',
-    async ({ project, body }) => {
-      await reorderColumns(project.id, body.orderedIds);
-      return listColumns(project.id);
+    '/teams/:teamKey/states/reorder',
+    async ({ team, body }) => {
+      await reorderStates(team.id, body.orderedIds);
+      return listStates(team.id);
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
       permission: ['states', 'edit'],
       response: {
-        200: t.Array(ColumnResponse),
+        200: t.Array(WorkflowStateResponse),
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
@@ -92,17 +92,17 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       detail: {
         summary: 'Reorder columns',
         description:
-          "Reorder a project's columns. orderedIds is the full left-to-right list of " +
+          "Reorder a team's columns. orderedIds is the full left-to-right list of " +
           'column ids. Returns the reordered columns.',
-        ...mcpTool('reorder_columns'),
+        ...mcpTool('reorder_states'),
       },
     },
   )
 
   .patch(
-    '/projects/:projectKey/columns/:columnId',
-    async ({ params, project, body }) => {
-      const column = await updateColumn(params.columnId, project.id, body);
+    '/teams/:teamKey/states/:stateId',
+    async ({ params, team, body }) => {
+      const column = await updateState(params.stateId, team.id, body);
       if (!column) throw new HttpError(404, 'Column not found');
       return column;
     },
@@ -113,10 +113,10 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
         color: t.Optional(t.String()),
         description: t.Optional(t.String()),
       }),
-      params: columnParams,
+      params: stateParams,
       permission: ['states', 'edit'],
       response: {
-        200: ColumnResponse,
+        200: WorkflowStateResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
@@ -125,19 +125,19 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       detail: {
         summary: 'Update a column',
         description: "Update a column's name, stateType, color, or description.",
-        ...mcpTool('update_column'),
+        ...mcpTool('update_state'),
       },
     },
   )
 
   .post(
-    '/projects/:projectKey/columns/:columnId/archive',
-    async ({ params, project }) => archiveColumn(params.columnId, project.id),
+    '/teams/:teamKey/states/:stateId/archive',
+    async ({ params, team }) => archiveState(params.stateId, team.id),
     {
-      params: columnParams,
+      params: stateParams,
       permission: ['states', 'edit'],
       response: {
-        200: ColumnResponse,
+        200: WorkflowStateResponse,
         401: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
@@ -148,26 +148,26 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
         description:
           'Archive a column (workflow state). It must hold no active issues and must ' +
           'not be the last active column of its state type.',
-        ...mcpTool('archive_column'),
+        ...mcpTool('archive_state'),
       },
     },
   )
 
   // Deletes a column. Body picks what happens to its issues: mode 'move' reassigns
-  // them to targetColumnId, mode 'delete' removes them. Backlog columns are
+  // them to targetStateId, mode 'delete' removes them. Backlog columns are
   // rejected by the store layer.
   .delete(
-    '/projects/:projectKey/columns/:columnId',
-    async ({ params, project, body, user }) => {
-      await deleteColumn(params.columnId, project.id, body, requireUser(user).id);
+    '/teams/:teamKey/states/:stateId',
+    async ({ params, team, body, user }) => {
+      await deleteState(params.stateId, team.id, body, requireUser(user).id);
       return noContent();
     },
     {
       body: t.Union([
-        t.Object({ mode: t.Literal('move'), targetColumnId: t.String({ format: 'uuid' }) }),
+        t.Object({ mode: t.Literal('move'), targetStateId: t.String({ format: 'uuid' }) }),
         t.Object({ mode: t.Literal('delete') }),
       ]),
-      params: columnParams,
+      params: stateParams,
       permission: ['states', 'delete'],
       response: {
         204: t.Void(),
@@ -179,9 +179,9 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       detail: {
         summary: 'Delete a column',
         description:
-          "Delete a column. Body mode 'move' reassigns its issues to targetColumnId, " +
+          "Delete a column. Body mode 'move' reassigns its issues to targetStateId, " +
           "'delete' removes them. Backlog columns cannot be deleted.",
-        ...mcpTool('delete_column'),
+        ...mcpTool('delete_state'),
       },
     },
   );

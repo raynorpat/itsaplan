@@ -5,20 +5,20 @@ import { resetDb } from '../../../__tests__/helpers/db';
 
 // Public read-only sharing. Enabling sharing on an issue or a saved view sets an
 // unguessable token; the /share/* GET routes then return a self-contained bundle
-// (project scaffold + entity) with no session. Revoking clears the token, so the
+// (team scaffold + entity) with no session. Revoking clears the token, so the
 // link stops working. The enable/revoke routes are gated by the same permission as
 // editing the entity (work_items edit / views edit).
 
 async function setup() {
   const owner = await signUpTestUser();
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const board = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = board.data!.columns[0].id;
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const board = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = board.data!.states[0].id;
   const issue = await asOwner
-    .projects({ projectKey: 'MKT' })
-    .issues.post({ columnId, title: 'Shared thing' });
-  return { asOwner, issueId: issue.data!.id, columnId };
+    .teams({ teamKey: 'MKT' })
+    .issues.post({ stateId, title: 'Shared thing' });
+  return { asOwner, issueId: issue.data!.id, stateId };
 }
 
 describe('share', () => {
@@ -38,7 +38,7 @@ describe('share', () => {
       const shared = await api.share.issue({ token }).get();
       expect(shared.status).toBe(200);
       expect(shared.data.issue).toMatchObject({ id: issueId, title: 'Shared thing' });
-      expect(shared.data.project.project).toMatchObject({ key: 'MKT' });
+      expect(shared.data.team.team).toMatchObject({ key: 'MKT' });
       expect(Array.isArray(shared.data.feed)).toBe(true);
 
       const revoked = await asOwner.issues({ issueId }).share.delete();
@@ -59,7 +59,7 @@ describe('share', () => {
       const { asOwner, issueId } = await setup();
       const token = (await asOwner.issues({ issueId }).share.post()).data!.token;
       const shared = await api.share.issue({ token }).get();
-      for (const a of shared.data.project.assignees) {
+      for (const a of shared.data.team.assignees) {
         expect((a as Record<string, unknown>).email).toBeUndefined();
       }
     });
@@ -93,7 +93,7 @@ describe('share', () => {
   describe('view sharing', () => {
     async function sharedView() {
       const { asOwner, issueId } = await setup();
-      const view = await asOwner.projects({ projectKey: 'MKT' }).views.post({ name: 'Board' });
+      const view = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Board' });
       const viewId = view.data!.id;
       const token = (await asOwner.views({ viewId }).share.post()).data!.token;
       return { asOwner, viewId, token, issueId };
@@ -126,15 +126,15 @@ describe('share', () => {
 
     it('excludes issues the view filter hides, and refuses to open them by id', async () => {
       const { asOwner, issueId } = await setup();
-      const board = await asOwner.projects({ projectKey: 'MKT' }).get();
-      const shownColumn = board.data!.columns[0].id;
-      const hiddenColumn = board.data!.columns[1].id;
+      const board = await asOwner.teams({ teamKey: 'MKT' }).get();
+      const shownColumn = board.data!.states[0].id;
+      const hiddenColumn = board.data!.states[1].id;
       // A second issue in another column, which the view's status filter excludes.
       const hidden = await asOwner
-        .projects({ projectKey: 'MKT' })
-        .issues.post({ columnId: hiddenColumn, title: 'Hidden' });
+        .teams({ teamKey: 'MKT' })
+        .issues.post({ stateId: hiddenColumn, title: 'Hidden' });
       const hiddenId = hidden.data!.id;
-      const view = await asOwner.projects({ projectKey: 'MKT' }).views.post({
+      const view = await asOwner.teams({ teamKey: 'MKT' }).views.post({
         name: 'Filtered',
         filters: { conditions: [{ id: 'c1', field: 'status', op: 'is', values: [shownColumn] }] },
       });
@@ -150,12 +150,12 @@ describe('share', () => {
     });
 
     it('applies a priority filter saved with priority names', async () => {
-      const { asOwner, columnId, issueId } = await setup();
+      const { asOwner, stateId, issueId } = await setup();
       const urgent = await asOwner
-        .projects({ projectKey: 'MKT' })
-        .issues.post({ columnId, title: 'Urgent one', priority: 1 });
+        .teams({ teamKey: 'MKT' })
+        .issues.post({ stateId, title: 'Urgent one', priority: 1 });
       // The web app saves priority filter values by name; null means "no priority".
-      const view = await asOwner.projects({ projectKey: 'MKT' }).views.post({
+      const view = await asOwner.teams({ teamKey: 'MKT' }).views.post({
         name: 'Urgent',
         filters: { conditions: [{ id: 'c1', field: 'priority', op: 'is', values: ['urgent'] }] },
       });
@@ -167,13 +167,13 @@ describe('share', () => {
       expect(ids).not.toContain(issueId);
     });
 
-    it('refuses to open an issue from another project via a board token', async () => {
+    it('refuses to open an issue from another team via a board token', async () => {
       const { asOwner, token } = await sharedView();
-      await asOwner.projects.post({ key: 'OPS', name: 'Operations' });
-      const opsBoard = await asOwner.projects({ projectKey: 'OPS' }).get();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const opsBoard = await asOwner.teams({ teamKey: 'OPS' }).get();
       const other = await asOwner
-        .projects({ projectKey: 'OPS' })
-        .issues.post({ columnId: opsBoard.data!.columns[0].id, title: 'Foreign' });
+        .teams({ teamKey: 'OPS' })
+        .issues.post({ stateId: opsBoard.data!.states[0].id, title: 'Foreign' });
       const res = await api.share.view({ token }).issues({ issueId: other.data!.id }).get();
       expect(res.status).toBe(404);
     });
@@ -188,8 +188,7 @@ describe('share', () => {
 
     it('denies a non-member enabling view sharing', async () => {
       const { asOwner } = await setup();
-      const viewId = (await asOwner.projects({ projectKey: 'MKT' }).views.post({ name: 'V' })).data!
-        .id;
+      const viewId = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'V' })).data!.id;
       const outsider = authedApi((await signUpTestUser()).cookie);
       const res = await outsider.views({ viewId }).share.post();
       expect(res.status).toBe(403);

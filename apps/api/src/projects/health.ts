@@ -1,5 +1,5 @@
-// Initiative health is not stored — it is computed on the fly from the
-// initiative's issue progress against its timeline. The idea: compare how much
+// Project health is not stored — it is computed on the fly from the
+// project's issue progress against its timeline. The idea: compare how much
 // work is done (share of completed issues) with how much of the timeline has
 // elapsed. Being ahead of, or level with, the schedule is on_track; falling
 // behind is at_risk, then off_track.
@@ -15,7 +15,7 @@ const HEALTH_THRESHOLDS = {
 
 export interface HealthInput {
   completed: number; // issues in a 'completed' state
-  total: number; // all issues linked to the initiative
+  total: number; // all issues linked to the project
   canceled: number; // issues in a 'canceled' state (excluded from progress)
   startDate: string | null; // 'YYYY-MM-DD'; falls back to createdAt
   targetDate: string | null; // 'YYYY-MM-DD'

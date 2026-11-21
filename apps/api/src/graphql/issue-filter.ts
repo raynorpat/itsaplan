@@ -1,4 +1,4 @@
-import { db, issue, project, projectColumn, user } from '@repo/db';
+import { db, issue, team, workflowState, user } from '@repo/db';
 import { eq, inArray, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { teamFilter } from './resolvers/team';
@@ -60,18 +60,18 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     dueDate: (v, p) => compare(issue.dueDate, v, p),
     team: (v, p) =>
       inArray(
-        issue.projectId,
+        issue.teamId,
         db
-          .select({ id: project.id })
-          .from(project)
+          .select({ id: team.id })
+          .from(team)
           .where(filterSql(v, teamFilter, p)),
       ),
     state: (v, p) =>
       inArray(
-        issue.columnId,
+        issue.stateId,
         db
-          .select({ id: projectColumn.id })
-          .from(projectColumn)
+          .select({ id: workflowState.id })
+          .from(workflowState)
           .where(filterSql(v, stateFilter, p)),
       ),
     assignee: userOn(issue.assigneeUserId, viewerId),

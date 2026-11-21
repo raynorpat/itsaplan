@@ -4,16 +4,16 @@ import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
-// Teams (projects), users, and workflow states (columns) over the Linear API, and
+// Teams (teams), users, and workflow states (columns) over the Linear API, and
 // the Relay pagination they share.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  // A second project the owner is not a member of.
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  // A second team the owner is not a member of.
   const other = await signUpTestUser({ name: 'Other' });
-  await authedApi(other.cookie).projects.post({ key: 'OPS', name: 'Operations' });
+  await authedApi(other.cookie).teams.post({ key: 'OPS', name: 'Operations' });
   const client = linearClient(await createApiKey(owner.cookie));
   return { owner, asOwner, other, client };
 }
@@ -49,10 +49,10 @@ describe('graphql teams, users and workflow states', () => {
 
     it("counts the team's issues", async () => {
       const { asOwner, client } = await setup();
-      const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-      const columnId = view.data!.columns[0].id;
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'a' });
-      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'b' });
+      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+      const stateId = view.data!.states[0].id;
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'a' });
+      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'b' });
       expect((await client.team('MKT')).issueCount).toBe(2);
     });
 
@@ -92,12 +92,9 @@ describe('graphql teams, users and workflow states', () => {
     it('lists an archived state only with includeArchived', async () => {
       const { asOwner, client } = await setup();
       const review = await asOwner
-        .projects({ projectKey: 'MKT' })
-        .columns.post({ name: 'Review', stateType: 'started' });
-      await asOwner
-        .projects({ projectKey: 'MKT' })
-        .columns({ columnId: review.data!.id })
-        .archive.post();
+        .teams({ teamKey: 'MKT' })
+        .states.post({ name: 'Review', stateType: 'started' });
+      await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: review.data!.id }).archive.post();
       const active = await client.workflowStates();
       expect(active.nodes.map((s) => s.id)).not.toContain(review.data!.id);
       const all = await client.workflowStates({ includeArchived: true });
@@ -173,11 +170,11 @@ describe('graphql teams, users and workflow states', () => {
   });
 
   describe('users', () => {
-    it('lists the viewer and users who share a project, not others', async () => {
+    it('lists the viewer and users who share a team, not others', async () => {
       const { owner, asOwner, other, client } = await setup();
       const member: TestUser = await signUpTestUser({ name: 'Member' });
       const invite = await asOwner
-        .projects({ projectKey: 'MKT' })
+        .teams({ teamKey: 'MKT' })
         .invites.post({ email: member.email, role: 'member' });
       await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
 
@@ -188,7 +185,7 @@ describe('graphql teams, users and workflow states', () => {
       expect(ids).not.toContain(other.userId);
     });
 
-    it('hides a user who shares no project', async () => {
+    it('hides a user who shares no team', async () => {
       const { owner, other } = await setup();
       const res = await gql({ cookie: owner.cookie }, `{ user(id: "${other.userId}") { id } }`);
       expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');

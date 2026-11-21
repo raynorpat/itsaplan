@@ -2,8 +2,8 @@ import { describe, it, expect } from 'bun:test';
 import { requireUser } from '../../access';
 import { HttpError } from '../../lib';
 
-// Only requireUser is a pure function. The rest of access.ts (requireProjectAccess,
-// requireProjectOwner, assertPermission, requireProjectPermission) resolves
+// Only requireUser is a pure function. The rest of access.ts (requireTeamAccess,
+// requireTeamOwner, assertPermission, requireTeamPermission) resolves
 // membership from the database and is covered by the feature integration tests
 // through the guards.
 describe('requireUser', () => {

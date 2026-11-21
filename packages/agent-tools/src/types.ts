@@ -6,7 +6,7 @@ import type { z } from 'zod';
 //
 //   - credentialSchema — the fields a human configures once per credential (the
 //     secret, e.g. a Jina apiKey or a Telegram botToken, plus any non-secret
-//     connection setting). A project can hold several credentials per integration.
+//     connection setting). A team can hold several credentials per integration.
 //   - tools — each tool declares only what the model provides at call time
 //     (inputSchema) and how to run it (execute); the credential is passed in.
 //

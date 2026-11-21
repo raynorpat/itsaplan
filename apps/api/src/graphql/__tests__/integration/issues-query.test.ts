@@ -10,18 +10,18 @@ import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/line
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
   const col: Record<string, string> = {};
-  for (const c of view.data!.columns) col[c.stateType] ??= c.id;
+  for (const c of view.data!.states) col[c.stateType] ??= c.id;
   const client = linearClient(await createApiKey(owner.cookie));
   return { owner, asOwner, col, client };
 }
 
-function create(api: Api, columnId: string, body: Record<string, unknown> = {}) {
+function create(api: Api, stateId: string, body: Record<string, unknown> = {}) {
   return api
-    .projects({ projectKey: 'MKT' })
-    .issues.post({ columnId, title: 'Task', ...body })
+    .teams({ teamKey: 'MKT' })
+    .issues.post({ stateId, title: 'Task', ...body })
     .then((r) => r.data!);
 }
 
@@ -53,7 +53,7 @@ describe('graphql issue queries', () => {
     expect(issue.priorityLabel).toBe('High');
     expect(issue.estimate).toBe(3);
     expect(issue.startedAt).toBeTruthy();
-    expect(issue.url).toContain(`/project/MKT/issue/${rest.sequenceNumber}`);
+    expect(issue.url).toContain(`/team/MKT/issue/${rest.sequenceNumber}`);
     expect(issue.branchName).toMatch(/^mkt-\d+-ship-docs$/);
     expect((await issue.state)?.id).toBe(col.started);
     expect((await issue.team)?.key).toBe('MKT');
@@ -75,16 +75,16 @@ describe('graphql issue queries', () => {
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
   });
 
-  it("hides another project's issue", async () => {
+  it("hides another team's issue", async () => {
     const { owner } = await setup();
     const other = await signUpTestUser();
     const asOther = authedApi(other.cookie);
-    await asOther.projects.post({ key: 'OPS', name: 'Operations' });
-    const opsView = await asOther.projects({ projectKey: 'OPS' }).get();
+    await asOther.teams.post({ key: 'OPS', name: 'Operations' });
+    const opsView = await asOther.teams({ teamKey: 'OPS' }).get();
     const hidden = (
       await asOther
-        .projects({ projectKey: 'OPS' })
-        .issues.post({ columnId: opsView.data!.columns[0].id, title: 'Secret' })
+        .teams({ teamKey: 'OPS' })
+        .issues.post({ stateId: opsView.data!.states[0].id, title: 'Secret' })
     ).data!;
     const res = await gql({ cookie: owner.cookie }, `{ issue(id: "${hidden.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
@@ -167,17 +167,17 @@ describe('graphql issue queries', () => {
     expect(none.nodes).toHaveLength(0);
   });
 
-  it('hides the creator once they no longer share a project', async () => {
+  it('hides the creator once they no longer share a team', async () => {
     const { owner, asOwner, col } = await setup();
     const member = await signUpTestUser({ name: 'Leaver' });
     const invite = await asOwner
-      .projects({ projectKey: 'MKT' })
+      .teams({ teamKey: 'MKT' })
       .invites.post({ email: member.email, role: 'member' });
     await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
     const created = await create(authedApi(member.cookie), col.backlog, {
       assigneeUserId: member.userId,
     });
-    await asOwner.projects({ projectKey: 'MKT' }).members({ userId: member.userId }).delete();
+    await asOwner.teams({ teamKey: 'MKT' }).members({ userId: member.userId }).delete();
 
     const res = await gql(
       { cookie: owner.cookie },

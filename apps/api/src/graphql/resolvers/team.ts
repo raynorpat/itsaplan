@@ -1,4 +1,4 @@
-import { db, aiAgent, project, projectMember, user } from '@repo/db';
+import { db, aiAgent, team, teamMember, user } from '@repo/db';
 import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -8,18 +8,15 @@ import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
 import { UUID_RE } from '../../shared/lib';
 
-// Linear's Team is a project. A team is visible only to its members.
+// Linear's Team is a team. A team is visible only to its members.
 
-type ProjectRecord = typeof project.$inferSelect;
+type TeamRecord = typeof team.$inferSelect;
 
-// The projects the user is a member of, as a subquery for `inArray`.
-export const visibleProjectIds = (userId: string) =>
-  db
-    .select({ id: projectMember.projectId })
-    .from(projectMember)
-    .where(eq(projectMember.userId, userId));
+// The teams the user is a member of, as a subquery for `inArray`.
+export const visibleTeamIds = (userId: string) =>
+  db.select({ id: teamMember.teamId }).from(teamMember).where(eq(teamMember.userId, userId));
 
-export function toTeam(row: ProjectRecord) {
+export function toTeam(row: TeamRecord) {
   return {
     id: row.id,
     key: row.key,
@@ -33,41 +30,39 @@ export function toTeam(row: ProjectRecord) {
 }
 
 // A visible team by uuid or key, or ENTITY_NOT_FOUND.
-export async function findTeam(idOrKey: string, userId: string): Promise<ProjectRecord> {
-  const match = UUID_RE.test(idOrKey)
-    ? eq(project.id, idOrKey)
-    : eq(project.key, idOrKey.toUpperCase());
+export async function findTeam(idOrKey: string, userId: string): Promise<TeamRecord> {
+  const match = UUID_RE.test(idOrKey) ? eq(team.id, idOrKey) : eq(team.key, idOrKey.toUpperCase());
   const rows = await db
     .select()
-    .from(project)
-    .where(and(match, inArray(project.id, visibleProjectIds(userId))));
+    .from(team)
+    .where(and(match, inArray(team.id, visibleTeamIds(userId))));
   if (!rows[0]) throw gqlError('ENTITY_NOT_FOUND', `Team ${idOrKey} not found`);
   return rows[0];
 }
 
-// TeamFilter fields this API supports, as SQL over the project table.
+// TeamFilter fields this API supports, as SQL over the team table.
 export const teamFilter: FieldHandlers = {
-  id: (v, p) => compareId(project.id, v, p),
-  key: (v, p) => compare(project.key, v, p),
-  name: (v, p) => compare(project.name, v, p),
+  id: (v, p) => compareId(team.id, v, p),
+  key: (v, p) => compare(team.key, v, p),
+  name: (v, p) => compare(team.name, v, p),
 };
 
-// Users visible to the viewer: themselves, the members of their projects, and the
-// agents of their projects.
+// Users visible to the viewer: themselves, the members of their teams, and the
+// agents of their teams.
 export function visibleUsers(viewerId: string): SQL {
-  const projects = visibleProjectIds(viewerId);
+  const teams = visibleTeamIds(viewerId);
   return or(
     eq(user.id, viewerId),
     inArray(
       user.id,
       db
-        .select({ id: projectMember.userId })
-        .from(projectMember)
-        .where(inArray(projectMember.projectId, projects)),
+        .select({ id: teamMember.userId })
+        .from(teamMember)
+        .where(inArray(teamMember.teamId, teams)),
     ),
     inArray(
       user.id,
-      db.select({ id: aiAgent.userId }).from(aiAgent).where(inArray(aiAgent.projectId, projects)),
+      db.select({ id: aiAgent.userId }).from(aiAgent).where(inArray(aiAgent.teamId, teams)),
     ),
   )!;
 }
@@ -102,15 +97,12 @@ export const teamResolvers = {
     teams: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       paginate(
         args,
-        { id: project.id, createdAt: project.createdAt, updatedAt: project.createdAt },
-        and(
-          inArray(project.id, visibleProjectIds(ctx.user.id)),
-          filterSql(args.filter, teamFilter),
-        ),
+        { id: team.id, createdAt: team.createdAt, updatedAt: team.createdAt },
+        and(inArray(team.id, visibleTeamIds(ctx.user.id)), filterSql(args.filter, teamFilter)),
         (w, order, limit) =>
           db
             .select()
-            .from(project)
+            .from(team)
             .where(w)
             .orderBy(...order)
             .limit(limit)
@@ -139,9 +131,9 @@ export const teamResolvers = {
         inArray(
           user.id,
           db
-            .select({ id: projectMember.userId })
-            .from(projectMember)
-            .where(eq(projectMember.projectId, team.id)),
+            .select({ id: teamMember.userId })
+            .from(teamMember)
+            .where(eq(teamMember.teamId, team.id)),
         ),
         args,
         ctx.user.id,

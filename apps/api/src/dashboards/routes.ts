@@ -20,7 +20,7 @@ const dashboardParams = t.Object({ dashboardId: t.String({ format: 'uuid' }) });
 // the UI and returned verbatim, so it is typed as t.Any().
 const DashboardResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.Nullable(t.String()),
   layout: t.Any(),
@@ -34,19 +34,19 @@ export const dashboardRoutes = new Elysia({
 })
   .use(authContext)
   .use(guards)
-  // Guard for routes that address a dashboard by its own id (no :projectKey in
+  // Guard for routes that address a dashboard by its own id (no :teamKey in
   // the path). Set `dashboard: "<action>"` in the route options.
   .macro({
     dashboard: entityGuard(
       'dashboards',
       'Dashboard not found',
-      async (p) => (await getDashboard(p.dashboardId))?.projectId ?? null,
+      async (p) => (await getDashboard(p.dashboardId))?.teamId ?? null,
     ),
   })
   .get(
-    '/projects/:projectKey/dashboards',
-    async ({ project }) => {
-      return listDashboards(project.id);
+    '/teams/:teamKey/dashboards',
+    async ({ team }) => {
+      return listDashboards(team.id);
     },
     {
       permission: ['dashboards', 'read'],
@@ -56,15 +56,15 @@ export const dashboardRoutes = new Elysia({
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "List a project's dashboards", ...mcpTool('list_dashboards') },
+      detail: { summary: "List a team's dashboards", ...mcpTool('list_dashboards') },
     },
   )
 
   .post(
-    '/projects/:projectKey/dashboards',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/dashboards',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createDashboard({ projectId: project.id, ...body });
+      return createDashboard({ teamId: team.id, ...body });
     },
     {
       body: t.Object({
@@ -86,9 +86,9 @@ export const dashboardRoutes = new Elysia({
 
   // Sets the tab order to orderedIds.
   .put(
-    '/projects/:projectKey/dashboards/reorder',
-    async ({ project, body }) => {
-      return reorderDashboards(project.id, body.orderedIds);
+    '/teams/:teamKey/dashboards/reorder',
+    async ({ team, body }) => {
+      return reorderDashboards(team.id, body.orderedIds);
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),

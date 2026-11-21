@@ -1,6 +1,6 @@
-import { db, notificationDelivery, issue, project, user } from '@repo/db';
+import { db, notificationDelivery, issue, team, user } from '@repo/db';
 import { eq, inArray } from 'drizzle-orm';
-import { getProjectEmailConfig } from '@repo/auth';
+import { getTeamEmailConfig } from '@repo/auth';
 import { emailSource, readRedactedSettings } from '../notification-settings/store';
 import { getPreferencesForUsers } from '../notification-preferences/store';
 import { getTelegramChatIds, hasUsableInstanceBot } from '../telegram/store';
@@ -11,7 +11,7 @@ import type { NotificationType, NewNotificationRow } from './store';
 // issue event into notification_delivery outbox rows. Delivery is per member and per
 // their own preferences: for each inbox row (already one per recipient), the member's
 // notification-preferences decide whether it goes by email (to their account address)
-// and/or Telegram (to the chat of the Telegram account they linked). The project
+// and/or Telegram (to the chat of the Telegram account they linked). The team
 // supplies the provider credentials (SMTP/Resend, and optionally its own bot token —
 // Telegram otherwise goes through the instance bot). The message text is composed
 // here at enqueue time and stored on the row; the worker drains the outbox and the
@@ -31,22 +31,22 @@ export interface DeliveryPayload {
 }
 
 interface OutboxRow {
-  projectId: string;
+  teamId: string;
   channel: 'email' | 'telegram';
   recipient: string;
   payload: DeliveryPayload;
 }
 
 // The issue reference shown in messages, e.g. "IAP-42".
-function issueRef(projectKey: string, seq: number): string {
-  return `${projectKey}-${seq}`;
+function issueRef(teamKey: string, seq: number): string {
+  return `${teamKey}-${seq}`;
 }
 
 // The public URL of an issue, or undefined when the web origin is not configured
 // (then messages carry no link rather than a localhost fallback).
-function issueUrl(projectKey: string, seq: number): string | undefined {
+function issueUrl(teamKey: string, seq: number): string | undefined {
   const base = process.env.APP_URL;
-  return base ? `${base}/project/${projectKey}/issue/${seq}` : undefined;
+  return base ? `${base}/team/${teamKey}/issue/${seq}` : undefined;
 }
 
 // Email copy, addressed to the recipient in the second person.
@@ -104,19 +104,19 @@ function telegramPayload(
 
 // Enqueues outbound delivery rows for the inbox notifications just created for one
 // issue event. All rows in `notifications` share the same issue and actor (both call
-// sites operate on a single issue). No-op when the project has no enabled provider or
+// sites operate on a single issue). No-op when the team has no enabled provider or
 // no member wants any of the event types present.
 export async function enqueueOutbound(
   notifications: NewNotificationRow[],
   actorName: string | null,
 ): Promise<void> {
   if (notifications.length === 0) return;
-  const projectId = notifications[0].projectId;
+  const teamId = notifications[0].teamId;
 
-  const settings = await readRedactedSettings(projectId);
+  const settings = await readRedactedSettings(teamId);
 
-  // The project's own provider when it configured one, otherwise the instance
-  // provider when the project asked for it and the instance shares it.
+  // The team's own provider when it configured one, otherwise the instance
+  // provider when the team asked for it and the instance shares it.
   const source = emailSource(settings);
   const emailEnabled =
     source === 'smtp'
@@ -124,9 +124,9 @@ export async function enqueueOutbound(
       : source === 'resend'
         ? settings.resend.hasApiKey
         : source === 'system'
-          ? (await getProjectEmailConfig()) !== null
+          ? (await getTeamEmailConfig()) !== null
           : false;
-  // The project turns Telegram on; the bot that sends is either its own or, when it
+  // The team turns Telegram on; the bot that sends is either its own or, when it
   // set no token, the instance bot.
   const telegramEnabled =
     settings.telegram.enabled && (settings.telegram.hasBotToken || (await hasUsableInstanceBot()));
@@ -137,20 +137,20 @@ export async function enqueueOutbound(
     .select({ seq: issue.sequenceNumber, title: issue.title })
     .from(issue)
     .where(eq(issue.id, issueId));
-  const [projectRow] = await db
-    .select({ key: project.key, name: project.name })
-    .from(project)
-    .where(eq(project.id, projectId));
-  if (!issueRow || !projectRow) return;
+  const [teamRow] = await db
+    .select({ key: team.key, name: team.name })
+    .from(team)
+    .where(eq(team.id, teamId));
+  if (!issueRow || !teamRow) return;
 
-  const ref = issueRef(projectRow.key, issueRow.seq);
-  const url = issueUrl(projectRow.key, issueRow.seq);
+  const ref = issueRef(teamRow.key, issueRow.seq);
+  const url = issueUrl(teamRow.key, issueRow.seq);
   const actor = actorName ?? 'Someone';
 
   const userIds = [...new Set(notifications.map((n) => n.userId))];
   const [users, prefsByUser, chatIdByUser] = await Promise.all([
     db.select({ id: user.id, email: user.email }).from(user).where(inArray(user.id, userIds)),
-    getPreferencesForUsers(projectId, userIds),
+    getPreferencesForUsers(teamId, userIds),
     telegramEnabled ? getTelegramChatIds(userIds) : Promise.resolve(new Map<string, string>()),
   ]);
   const emailById = new Map(users.map((u) => [u.id, u.email]));
@@ -164,7 +164,7 @@ export async function enqueueOutbound(
       const email = emailById.get(n.userId);
       if (email) {
         out.push({
-          projectId,
+          teamId,
           channel: 'email',
           recipient: email,
           payload: emailPayload(n.type, ref, issueRow.title, actor, url),
@@ -173,11 +173,11 @@ export async function enqueueOutbound(
     }
     if (telegramEnabled && prefs.telegramEvents[n.type]) {
       // No linked Telegram account means nowhere to send; the member sees the prompt
-      // to link one in the project's notification settings.
+      // to link one in the team's notification settings.
       const chatId = chatIdByUser.get(n.userId);
       if (chatId) {
         out.push({
-          projectId,
+          teamId,
           channel: 'telegram',
           recipient: chatId,
           payload: telegramPayload(n.type, ref, issueRow.title, actor, url),

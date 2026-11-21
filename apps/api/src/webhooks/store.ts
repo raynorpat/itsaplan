@@ -4,7 +4,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { afterCursor, encodeCursor } from '../shared/keyset';
 
-// Outgoing webhook subscriptions on a project. A subscription targets a `url`,
+// Outgoing webhook subscriptions on a team. A subscription targets a `url`,
 // carries a per-subscription `secret` used to sign delivered payloads, and lists
 // the event types it wants. Delivery is handled separately; this layer only
 // stores and returns the subscription.
@@ -28,7 +28,7 @@ export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 export interface WebhookRow {
   id: string;
-  projectId: string;
+  teamId: string;
   url: string;
   secret: string;
   events: WebhookEventType[];
@@ -39,7 +39,7 @@ export interface WebhookRow {
 function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     url: row.url,
     secret: row.secret,
     events: (row.events as WebhookEventType[]) ?? [],
@@ -54,17 +54,17 @@ function generateSecret(): string {
   return `whsec_${randomBytes(24).toString('hex')}`;
 }
 
-export async function listWebhooks(projectId: string): Promise<WebhookRow[]> {
+export async function listWebhooks(teamId: string): Promise<WebhookRow[]> {
   const rows = await db
     .select()
     .from(webhook)
-    .where(eq(webhook.projectId, projectId))
+    .where(eq(webhook.teamId, teamId))
     .orderBy(webhook.createdAt, webhook.id);
   return rows.map(mapWebhook);
 }
 
 export async function createWebhook(input: {
-  projectId: string;
+  teamId: string;
   url: string;
   events: WebhookEventType[];
   isActive?: boolean;
@@ -72,7 +72,7 @@ export async function createWebhook(input: {
   const [row] = await db
     .insert(webhook)
     .values({
-      projectId: input.projectId,
+      teamId: input.teamId,
       url: input.url,
       secret: generateSecret(),
       events: input.events,

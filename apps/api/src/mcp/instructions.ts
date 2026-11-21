@@ -3,33 +3,34 @@
 // what to call first, how ids are resolved, how an issue is expected to move — so
 // that individual tool descriptions stay a plain statement of what one tool does.
 //
-// Keep it short and true for every project. Anything project-specific (column
-// names, issue types, labels) is data, and the model reads it from get_project.
+// Keep it short and true for every team. Anything team-specific (state
+// names, issue types, labels) is data, and the model reads it from get_team.
 export const SERVER_INSTRUCTIONS = `
-Itsaplan is a project tracker. A project holds issues, and defines its own columns
-(states), issue types, labels, custom fields, and members.
+Itsaplan is an issue tracker organized in teams. A team holds issues, and defines
+its own workflow states, issue types, labels, custom fields, and members. Projects
+group issues across one or more teams.
 
 ## Resolving ids
 
 An identifier a person writes is "KEY-42": the part before the dash is the
-projectKey, the number after it is the sequenceNumber. Given one, call
-get_issue_by_number directly with those two values — do not call list_projects or
-get_project first, the key needs no resolving. Most issue tools take the issue's
+teamKey, the number after it is the sequenceNumber. Given one, call
+get_issue_by_number directly with those two values — do not call list_teams or
+get_team first, the key needs no resolving. Most issue tools take the issue's
 id (a UUID), which comes back in that result.
 
-When you have no identifier, start with list_projects to find the project, then
-get_project to resolve its ids. Every id another tool takes — columnId, typeId,
+When you have no identifier, start with list_teams to find the team, then
+get_team to resolve its ids. Every id another tool takes — stateId, typeId,
 labelIds, assigneeUserId, custom field ids, member user ids — comes from
-get_project. Never invent an id, and never reuse one across projects: ids are per
-project.
+get_team. Never invent an id, and never reuse one across teams: ids are per
+team.
 
 search_issues and list_issues are for finding issues by text or by field, not for
 resolving an identifier.
 
 ## Columns and state
 
-Column names are chosen per project and cannot be assumed. The stable part is the
-stateType each column carries in get_project: backlog, unstarted, started,
+Column names are chosen per team and cannot be assumed. The stable part is the
+stateType each column carries in get_team: backlog, unstarted, started,
 completed, canceled. Select a column by its stateType, never by its name.
 
 ## Working on an issue
@@ -42,7 +43,7 @@ When asked to actually work on an issue, keep its state honest as you go:
    applies, how to tell it is done. If anything is missing or can be read two ways,
    ask the person in the chat and wait for the answer before starting.
 3. Before starting, move it to a column whose stateType is "started"
-   (update_issue with that columnId).
+   (update_issue with that stateId).
 4. When the work is finished, move it to a "completed" column; if it is abandoned,
    "canceled". Do not leave an issue in "started" once you have stopped.
 5. Add a comment only when part of the issue was not done: say what is left and why,
@@ -55,7 +56,7 @@ the change" — the issue's identifier, then what the change does, at the level 
 whole task. Keep it to the outcome; do not list files, functions, or each edit.
 
 Read list_issue_activity before commenting on a long-running issue, so you do not
-repeat what is already there. A comment is for the people on the project: keep it
+repeat what is already there. A comment is for the people on the team: keep it
 short and readable, no file paths, no code, no lists of edits.
 
 ## Restraint

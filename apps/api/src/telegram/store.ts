@@ -6,8 +6,8 @@ import { randomBytes } from 'node:crypto';
 // The instance Telegram bot and the account links it creates.
 //
 // One bot serves the whole instance: it is what a user talks to when linking their
-// Telegram account, and the default sender for Telegram notifications (a project may
-// still set its own bot token, which wins for that project's deliveries). The token
+// Telegram account, and the default sender for Telegram notifications (a team may
+// still set its own bot token, which wins for that team's deliveries). The token
 // is a secret, so it lives encrypted in app_secret under 'telegram.bot' with a
 // `redacted` mirror for the settings UI, the same shape as the instance mail and
 // Google credentials in @repo/auth.

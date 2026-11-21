@@ -6,7 +6,7 @@ import { confirmLink } from './api';
 // "Connect" in their account settings, and the link opens this chat with it attached.
 
 const HELP =
-  'This bot delivers notifications from your project tracker.\n\n' +
+  'This bot delivers notifications from your team tracker.\n\n' +
   'To connect it, open Accounts in your profile and press Connect for Telegram.';
 
 export function createBot(token: string): Bot {

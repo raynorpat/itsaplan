@@ -23,8 +23,8 @@ export interface StorageSettings {
   // Accepted attachment content types. An entry is a full type ('application/pdf')
   // or a wildcard ('image/*'). An empty list accepts any type.
   attachmentMimeTypes: string[];
-  // Total stored attachment bytes allowed per project, in MB. 0 means unlimited.
-  projectQuotaMb: number;
+  // Total stored attachment bytes allowed per team, in MB. 0 means unlimited.
+  teamQuotaMb: number;
 }
 
 // Served by GET /settings/storage (any signed-in user) and the god routes.
@@ -32,7 +32,7 @@ export const StorageSettingsSchema = t.Object({
   maxAttachmentMb: t.Number(),
   maxAvatarMb: t.Number(),
   attachmentMimeTypes: t.Array(t.String()),
-  projectQuotaMb: t.Number(),
+  teamQuotaMb: t.Number(),
 });
 
 // Images, video, PDF, office documents and plain text formats. Executables,
@@ -60,7 +60,7 @@ function defaultStorageSettings(): StorageSettings {
     maxAttachmentMb: 25,
     maxAvatarMb: 5,
     attachmentMimeTypes: DEFAULT_ATTACHMENT_MIME_TYPES,
-    projectQuotaMb: 50 * 1024,
+    teamQuotaMb: 50 * 1024,
   };
 }
 

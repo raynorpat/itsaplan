@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 
 export const THEMES = ['light', 'dark', 'system'] as const;
 export const ISSUE_OPEN_MODES = ['panel', 'page'] as const;
-export const START_PAGES = ['inbox', 'dashboard', 'work-items', 'initiatives', 'ai-chat'] as const;
+export const START_PAGES = ['inbox', 'dashboard', 'work-items', 'projects', 'ai-chat'] as const;
 export const ISSUE_STATS_VIEWS = ['compact', 'timeline'] as const;
 
 export type Theme = (typeof THEMES)[number];
@@ -28,9 +28,9 @@ export interface UserPreferenceDto {
   // in the compact bar or the full timeline. Switching it on an issue is not stored.
   issueStatsOpen: boolean;
   issueStatsView: IssueStatsView;
-  // The project the user was in last, or null before they opened one. The app root
-  // reopens it; a deleted project clears it through the FK.
-  lastProjectId: string | null;
+  // The team the user was in last, or null before they opened one. The app root
+  // reopens it; a deleted team clears it through the FK.
+  lastTeamId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
   // changed ones are stored; the rest come from the instance settings and then the
   // web app's built-in bindings.
@@ -48,7 +48,7 @@ export function defaults(): UserPreferenceDto {
     showChatByDefault: false,
     issueStatsOpen: true,
     issueStatsView: 'compact',
-    lastProjectId: null,
+    lastTeamId: null,
     hotkeys: {},
   };
 }
@@ -72,7 +72,7 @@ function toDto(row: {
   showChatByDefault: boolean;
   issueStatsOpen: boolean;
   issueStatsView: string;
-  lastProjectId: string | null;
+  lastTeamId: string | null;
   hotkeys: Record<string, string> | null;
 }): UserPreferenceDto {
   return {
@@ -83,7 +83,7 @@ function toDto(row: {
     showChatByDefault: row.showChatByDefault,
     issueStatsOpen: row.issueStatsOpen,
     issueStatsView: row.issueStatsView as IssueStatsView,
-    lastProjectId: row.lastProjectId,
+    lastTeamId: row.lastTeamId,
     hotkeys: row.hotkeys ?? {},
   };
 }
@@ -99,7 +99,7 @@ export async function getPreferences(userId: string): Promise<UserPreferenceDto>
       showChatByDefault: userPreference.showChatByDefault,
       issueStatsOpen: userPreference.issueStatsOpen,
       issueStatsView: userPreference.issueStatsView,
-      lastProjectId: userPreference.lastProjectId,
+      lastTeamId: userPreference.lastTeamId,
       hotkeys: userPreference.hotkeys,
     })
     .from(userPreference)

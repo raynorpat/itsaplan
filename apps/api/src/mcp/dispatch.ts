@@ -19,8 +19,8 @@ const BASE = 'http://localhost';
 // viaMcpEndpoint says whether the call came from POST /mcp. It is explicit at both
 // call sites because it selects a real behaviour: only an MCP call carries the
 // loopback header, and only a request carrying that header is subject to the
-// per-project MCP toggle. An internal agent run dispatches through the same routes
-// but is not MCP, so disabling MCP on a project must not disarm its agents.
+// per-team MCP toggle. An internal agent run dispatches through the same routes
+// but is not MCP, so disabling MCP on a team must not disarm its agents.
 export async function dispatchTool(
   app: McpApp,
   tool: McpRouteTool,
@@ -55,7 +55,7 @@ export async function dispatchTool(
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey,
-      // Marks this as an MCP call so guards enforce the per-project MCP toggle.
+      // Marks this as an MCP call so guards enforce the per-team MCP toggle.
       ...(opts.viaMcpEndpoint ? { [MCP_LOOPBACK_HEADER]: '1' } : {}),
     },
     body,

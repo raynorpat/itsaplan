@@ -18,7 +18,7 @@ import { credentialSchemaFor } from './catalog';
 
 export interface CredentialRow {
   id: string;
-  projectId: string;
+  teamId: string;
   integrationKey: string;
   label: string | null;
   redacted: Record<string, unknown>;
@@ -27,7 +27,7 @@ export interface CredentialRow {
 
 const dtoColumns = {
   id: integrationCredential.id,
-  projectId: integrationCredential.projectId,
+  teamId: integrationCredential.teamId,
   integrationKey: integrationCredential.integrationKey,
   label: integrationCredential.label,
   redacted: integrationCredential.redacted,
@@ -36,7 +36,7 @@ const dtoColumns = {
 
 function mapRow(row: {
   id: string;
-  projectId: string;
+  teamId: string;
   integrationKey: string;
   label: string | null;
   redacted: unknown;
@@ -44,7 +44,7 @@ function mapRow(row: {
 }): CredentialRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     integrationKey: row.integrationKey,
     label: row.label,
     redacted:
@@ -66,27 +66,24 @@ function coerce(fields: ConfigField[], input: unknown): ToolConfig {
   }
 }
 
-export async function listCredentials(projectId: string): Promise<CredentialRow[]> {
+export async function listCredentials(teamId: string): Promise<CredentialRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(integrationCredential)
-    .where(eq(integrationCredential.projectId, projectId))
+    .where(eq(integrationCredential.teamId, teamId))
     .orderBy(integrationCredential.integrationKey);
   return rows.map(mapRow);
 }
 
-export async function getCredentialById(
-  id: string,
-  projectId: string,
-): Promise<CredentialRow | null> {
+export async function getCredentialById(id: string, teamId: string): Promise<CredentialRow | null> {
   const rows = await db
     .select(dtoColumns)
     .from(integrationCredential)
-    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.projectId, projectId)));
+    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.teamId, teamId)));
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-async function decrypt(id: string, projectId: string): Promise<ToolConfig | null> {
+async function decrypt(id: string, teamId: string): Promise<ToolConfig | null> {
   const rows = await db
     .select({
       ciphertext: integrationCredential.ciphertext,
@@ -94,7 +91,7 @@ async function decrypt(id: string, projectId: string): Promise<ToolConfig | null
       authTag: integrationCredential.authTag,
     })
     .from(integrationCredential)
-    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.projectId, projectId)));
+    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.teamId, teamId)));
   const row = rows[0];
   if (!row) return null;
   return JSON.parse(decryptSecret(row)) as ToolConfig;
@@ -107,7 +104,7 @@ export interface NewCredentialInput {
 }
 
 export async function createCredential(
-  projectId: string,
+  teamId: string,
   input: NewCredentialInput,
 ): Promise<CredentialRow> {
   const schema = credentialSchemaFor(input.integrationKey);
@@ -117,7 +114,7 @@ export async function createCredential(
   const [row] = await db
     .insert(integrationCredential)
     .values({
-      projectId,
+      teamId,
       integrationKey: input.integrationKey,
       label: input.label ?? null,
       ciphertext: enc.ciphertext,
@@ -137,10 +134,10 @@ export interface CredentialPatch {
 
 export async function updateCredential(
   id: string,
-  projectId: string,
+  teamId: string,
   patch: CredentialPatch,
 ): Promise<CredentialRow | null> {
-  const existing = await getCredentialById(id, projectId);
+  const existing = await getCredentialById(id, teamId);
   if (!existing) return null;
   const schema = credentialSchemaFor(existing.integrationKey);
   if (!schema) throw new HttpError(400, `Unknown integration: ${existing.integrationKey}`);
@@ -151,7 +148,7 @@ export async function updateCredential(
   if (patch.credential !== undefined) {
     // Merge the submitted fields over the stored credential so unchanged secrets (left
     // out by the form) are preserved, then re-validate the whole credential.
-    const current = (await decrypt(id, projectId)) ?? {};
+    const current = (await decrypt(id, teamId)) ?? {};
     const merged = coerce(schema, { ...current, ...patch.credential });
     const enc = encryptSecret(JSON.stringify(merged));
     set.ciphertext = enc.ciphertext;
@@ -164,28 +161,28 @@ export async function updateCredential(
     await db
       .update(integrationCredential)
       .set(set)
-      .where(and(eq(integrationCredential.id, id), eq(integrationCredential.projectId, projectId)));
+      .where(and(eq(integrationCredential.id, id), eq(integrationCredential.teamId, teamId)));
   }
-  return getCredentialById(id, projectId);
+  return getCredentialById(id, teamId);
 }
 
-export async function deleteCredential(id: string, projectId: string): Promise<boolean> {
-  const existing = await getCredentialById(id, projectId);
+export async function deleteCredential(id: string, teamId: string): Promise<boolean> {
+  const existing = await getCredentialById(id, teamId);
   if (!existing) return false;
   await db
     .delete(integrationCredential)
-    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.projectId, projectId)));
+    .where(and(eq(integrationCredential.id, id), eq(integrationCredential.teamId, teamId)));
   return true;
 }
 
 // The decrypted credential for the runtime: its integration key and config. Not
-// exposed over HTTP. Returns null when the credential does not exist in the project.
+// exposed over HTTP. Returns null when the credential does not exist in the team.
 export async function getCredentialSecret(
   id: string,
-  projectId: string,
+  teamId: string,
 ): Promise<{ integrationKey: string; config: ToolConfig } | null> {
-  const existing = await getCredentialById(id, projectId);
+  const existing = await getCredentialById(id, teamId);
   if (!existing) return null;
-  const config = (await decrypt(id, projectId)) ?? {};
+  const config = (await decrypt(id, teamId)) ?? {};
   return { integrationKey: existing.integrationKey, config };
 }

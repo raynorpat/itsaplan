@@ -1,4 +1,4 @@
-// The AI providers a project can store credentials for. Backs the config UI and
+// The AI providers a team can store credentials for. Backs the config UI and
 // bounds the `provider` value on a credential. This list mirrors the model providers
 // Mastra's model router can resolve (its bundled models.dev registry): the runtime
 // passes the stored key as { providerId, modelId, apiKey } and Mastra resolves the

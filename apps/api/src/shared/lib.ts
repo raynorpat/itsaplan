@@ -1,4 +1,4 @@
-// Shared helpers for the planner API (projects, issues, and their dependent
+// Shared helpers for the planner API (teams, issues, and their dependent
 // entities). Each feature folder holds a store.ts (Drizzle data access) and a
 // routes.ts (Elysia routes) that exposes it over HTTP.
 

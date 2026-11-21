@@ -81,13 +81,13 @@ describe('mcp tool table', () => {
     const app = appWith([
       {
         method: 'GET',
-        path: '/projects/:projectKey/issues/:issueId',
+        path: '/teams/:teamKey/issues/:issueId',
         detail: { summary: 'Nested', ...mcpTool('nested') },
       },
     ]);
     const { inputSchema } = routeTools(app)[0]!;
-    expect(inputSchema.required).toEqual(['projectKey', 'issueId']);
-    expect(inputSchema.properties).toHaveProperty('projectKey');
+    expect(inputSchema.required).toEqual(['teamKey', 'issueId']);
+    expect(inputSchema.properties).toHaveProperty('teamKey');
   });
 
   it('prefers the long description over the summary', () => {

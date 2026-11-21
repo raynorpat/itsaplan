@@ -17,10 +17,10 @@ const PreferenceBody = t.Object({
   telegramEvents: EventToggles,
 });
 
-// A member's own notification preferences for a project: which issue events they want
+// A member's own notification preferences for a team: which issue events they want
 // by email and/or Telegram. Every route is self-scoped to the session user, so bare
-// project membership is enough (no admin gate) — a member only ever reads or writes
-// their own row. The project's provider credentials are a separate, owner-only
+// team membership is enough (no admin gate) — a member only ever reads or writes
+// their own row. The team's provider credentials are a separate, owner-only
 // concern (notification-settings), and the Telegram chat to reach the member at comes
 // from their linked account (/telegram/account), not from here.
 export const notificationPreferenceRoutes = new Elysia({
@@ -31,10 +31,10 @@ export const notificationPreferenceRoutes = new Elysia({
   .use(guards)
 
   .get(
-    '/projects/:projectKey/notification-preferences',
-    ({ project, user }) => getPreferences(requireUser(user).id, project.id),
+    '/teams/:teamKey/notification-preferences',
+    ({ team, user }) => getPreferences(requireUser(user).id, team.id),
     {
-      projectMember: true,
+      teamMember: true,
       response: {
         200: PreferenceBody,
         401: ErrorResponse,
@@ -43,17 +43,17 @@ export const notificationPreferenceRoutes = new Elysia({
       },
       detail: {
         summary: 'Get notification preferences',
-        description: "Get the current user's notification preferences for a project.",
+        description: "Get the current user's notification preferences for a team.",
       },
     },
   )
 
   .put(
-    '/projects/:projectKey/notification-preferences',
-    ({ project, user, body }) => setPreferences(requireUser(user).id, project.id, body),
+    '/teams/:teamKey/notification-preferences',
+    ({ team, user, body }) => setPreferences(requireUser(user).id, team.id, body),
     {
       body: PreferenceBody,
-      projectMember: true,
+      teamMember: true,
       response: {
         200: PreferenceBody,
         400: ErrorResponse,
@@ -63,7 +63,7 @@ export const notificationPreferenceRoutes = new Elysia({
       },
       detail: {
         summary: 'Update notification preferences',
-        description: "Update the current user's notification preferences for a project.",
+        description: "Update the current user's notification preferences for a team.",
       },
     },
   );

@@ -44,8 +44,8 @@ const InviteRowResponse = t.Object({
 // The invitee-facing invite view (InviteView from the store).
 const InviteViewResponse = t.Object({
   token: t.String(),
-  projectKey: t.String(),
-  projectName: t.String(),
+  teamKey: t.String(),
+  teamName: t.String(),
   email: t.String(),
   role: inviteRole,
   roleId: t.Nullable(t.String({ format: 'uuid' })),
@@ -55,10 +55,10 @@ const InviteViewResponse = t.Object({
   hasAccount: t.Boolean(),
 });
 
-// The result of accepting an invite: the joined project's context.
+// The result of accepting an invite: the joined team's context.
 const AcceptInviteResponse = t.Object({
-  projectKey: t.String(),
-  projectName: t.String(),
+  teamKey: t.String(),
+  teamName: t.String(),
   role: inviteRole,
 });
 
@@ -80,23 +80,23 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
   .use(authContext)
   .use(guards)
 
-  // --- Owner-side: manage a project's invites ---
+  // --- Owner-side: manage a team's invites ---
 
   // Create an invite link for an email + role. Owner only. A second pending
-  // invite for the same email in the same project is a 409.
+  // invite for the same email in the same team is a 409.
   .post(
-    '/projects/:projectKey/invites',
-    async ({ project, body, user, set }) => {
-      // For a member invite, an explicit roleId must name a role in this project;
-      // null (or omitted) falls back to the project's default role on accept. An
+    '/teams/:teamKey/invites',
+    async ({ team, body, user, set }) => {
+      // For a member invite, an explicit roleId must name a role in this team;
+      // null (or omitted) falls back to the team's default role on accept. An
       // owner invite ignores roleId (owners bypass roles).
       const roleId = body.role === 'member' ? (body.roleId ?? null) : null;
       if (roleId != null) {
-        const role = await getRole(project.id, roleId);
-        if (!role) throw new HttpError(400, 'roleId does not belong to this project');
+        const role = await getRole(team.id, roleId);
+        if (!role) throw new HttpError(400, 'roleId does not belong to this team');
       }
       const invite = await createInvite({
-        projectId: project.id,
+        teamId: team.id,
         email: body.email,
         role: body.role,
         roleId,
@@ -106,7 +106,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       return invite;
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       body: t.Object({
         email: t.String({ format: 'email' }),
         role: inviteRole,
@@ -132,12 +132,12 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
   )
 
   .get(
-    '/projects/:projectKey/invites',
-    async ({ project }) => {
-      return listInvites(project.id);
+    '/teams/:teamKey/invites',
+    async ({ team }) => {
+      return listInvites(team.id);
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       permission: ['members_invite', 'read'],
       response: {
         200: t.Array(InviteRowResponse),
@@ -145,20 +145,20 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "List a project's invites", ...mcpTool('list_invites') },
+      detail: { summary: "List a team's invites", ...mcpTool('list_invites') },
     },
   )
 
   // Revoke a pending invite (or remove a resolved one). Owner only.
   .delete(
-    '/projects/:projectKey/invites/:inviteId',
-    async ({ project, params }) => {
-      const removed = await deleteInvite(project.id, params.inviteId);
+    '/teams/:teamKey/invites/:inviteId',
+    async ({ team, params }) => {
+      const removed = await deleteInvite(team.id, params.inviteId);
       if (!removed) throw new HttpError(404, 'Invite not found');
       return noContent();
     },
     {
-      params: t.Object({ projectKey: t.String(), inviteId: t.String({ format: 'uuid' }) }),
+      params: t.Object({ teamKey: t.String(), inviteId: t.String({ format: 'uuid' }) }),
       permission: ['members_invite', 'delete'],
       response: {
         204: t.Void(),
@@ -169,7 +169,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       },
       detail: {
         summary: 'Delete an invite',
-        description: 'Revoke a project invite.',
+        description: 'Revoke a team invite.',
         ...mcpTool('delete_invite'),
       },
     },
@@ -197,7 +197,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       },
       detail: {
         summary: 'Get an invite',
-        description: 'Get an invite by its token, with its project and role.',
+        description: 'Get an invite by its token, with its team and role.',
         ...mcpTool('get_invite'),
       },
     },
@@ -209,7 +209,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       const { invite, current } = await loadActionableInvite(params.token, user);
       await acceptInvite(invite, current.id);
       const view = await getInviteByToken(params.token);
-      return { projectKey: view!.projectKey, projectName: view!.projectName, role: view!.role };
+      return { teamKey: view!.teamKey, teamName: view!.teamName, role: view!.role };
     },
     {
       params: tokenParams,

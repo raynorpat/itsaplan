@@ -9,17 +9,15 @@ import { resetDb } from '../../../__tests__/helpers/db';
 // public, unauthenticated route (GET /attachments/:publicId/raw), which is the
 // auth-context session-gate exception.
 
-// Owner with a project and one issue to attach files to. createProject seeds the
-// default columns; an issue needs a columnId and a title.
+// Owner with a team and one issue to attach files to. createTeam seeds the
+// default columns; an issue needs a stateId and a title.
 async function setupIssue() {
   const owner = await signUpTestUser();
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = view.data!.columns[0].id;
-  const issue = await asOwner
-    .projects({ projectKey: 'MKT' })
-    .issues.post({ columnId, title: 'Task' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = view.data!.states[0].id;
+  const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
   return { asOwner, issueId: issue.data!.id };
 }
 

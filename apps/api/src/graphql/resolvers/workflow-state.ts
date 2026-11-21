@@ -1,15 +1,15 @@
-import { db, project, projectColumn } from '@repo/db';
+import { db, team, workflowState } from '@repo/db';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
-import { teamFilter, toTeam, visibleProjectIds } from './team';
+import { teamFilter, toTeam, visibleTeamIds } from './team';
 import { UUID_RE } from '../../shared/lib';
 
-// Linear's WorkflowState is a project column; its team is the column's project.
+// Linear's WorkflowState is a team column; its team is the column's team.
 
-type ColumnRecord = typeof projectColumn.$inferSelect;
+type ColumnRecord = typeof workflowState.$inferSelect;
 
 export function toWorkflowState(row: ColumnRecord) {
   return {
@@ -23,21 +23,21 @@ export function toWorkflowState(row: ColumnRecord) {
     updatedAt: row.createdAt.toISOString(),
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     // Read by WorkflowState.team; not a schema field.
-    projectId: row.projectId,
+    teamId: row.teamId,
   };
 }
 
 // WorkflowStateFilter fields this API supports, as SQL over the column table.
 export const stateFilter: FieldHandlers = {
-  id: (v, p) => compareId(projectColumn.id, v, p),
-  name: (v, p) => compare(projectColumn.name, v, p),
-  type: (v, p) => compare(projectColumn.stateType, v, p),
+  id: (v, p) => compareId(workflowState.id, v, p),
+  name: (v, p) => compare(workflowState.name, v, p),
+  type: (v, p) => compare(workflowState.stateType, v, p),
   team: (v, p) =>
     inArray(
-      projectColumn.projectId,
+      workflowState.teamId,
       db
-        .select({ id: project.id })
-        .from(project)
+        .select({ id: team.id })
+        .from(team)
         .where(filterSql(v, teamFilter, p)),
     ),
 };
@@ -49,19 +49,19 @@ export function listStates(where: SQL | undefined, args: ConnectionArgs) {
   return paginate(
     args,
     {
-      id: projectColumn.id,
-      createdAt: projectColumn.createdAt,
-      updatedAt: projectColumn.createdAt,
+      id: workflowState.id,
+      createdAt: workflowState.createdAt,
+      updatedAt: workflowState.createdAt,
     },
     and(
       where,
-      args.includeArchived ? undefined : isNull(projectColumn.archivedAt),
+      args.includeArchived ? undefined : isNull(workflowState.archivedAt),
       filterSql(args.filter, stateFilter),
     ),
     (w, order, limit) =>
       db
         .select()
-        .from(projectColumn)
+        .from(workflowState)
         .where(w)
         .orderBy(...order)
         .limit(limit)
@@ -75,13 +75,8 @@ export async function findState(id: string, userId: string): Promise<ColumnRecor
   const rows = UUID_RE.test(id)
     ? await db
         .select()
-        .from(projectColumn)
-        .where(
-          and(
-            eq(projectColumn.id, id),
-            inArray(projectColumn.projectId, visibleProjectIds(userId)),
-          ),
-        )
+        .from(workflowState)
+        .where(and(eq(workflowState.id, id), inArray(workflowState.teamId, visibleTeamIds(userId))))
     : [];
   if (!rows[0]) throw gqlError('ENTITY_NOT_FOUND', `Workflow state ${id} not found`);
   return rows[0];
@@ -90,17 +85,17 @@ export async function findState(id: string, userId: string): Promise<ColumnRecor
 export const workflowStateResolvers = {
   Query: {
     workflowStates: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listStates(inArray(projectColumn.projectId, visibleProjectIds(ctx.user.id)), args),
+      listStates(inArray(workflowState.teamId, visibleTeamIds(ctx.user.id)), args),
     workflowState: async (_: unknown, args: { id: string }, ctx: GraphQLContext) =>
       toWorkflowState(await findState(args.id, ctx.user.id)),
   },
   Team: {
     states: (team: { id: string }, args: ConnectionArgs) =>
-      listStates(eq(projectColumn.projectId, team.id), args),
+      listStates(eq(workflowState.teamId, team.id), args),
   },
   WorkflowState: {
-    team: async (state: { projectId: string }) => {
-      const [row] = await db.select().from(project).where(eq(project.id, state.projectId));
+    team: async (state: { teamId: string }) => {
+      const [row] = await db.select().from(team).where(eq(team.id, state.teamId));
       return toTeam(row!);
     },
   },

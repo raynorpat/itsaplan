@@ -21,9 +21,9 @@ import { listAgentRuns } from './run-queue';
 import { listChatThreads, getChatThreadMessages, deleteChatThread } from './runtime/memory';
 import { isOwnChatThread } from './runtime/thread-ids';
 
-const agentParams = t.Object({ projectKey: t.String(), agentId: t.String({ format: 'uuid' }) });
+const agentParams = t.Object({ teamKey: t.String(), agentId: t.String({ format: 'uuid' }) });
 const threadParams = t.Object({
-  projectKey: t.String(),
+  teamKey: t.String(),
   agentId: t.String({ format: 'uuid' }),
   threadId: t.String(),
 });
@@ -89,7 +89,7 @@ const configFields = {
     t.Nullable(
       t.String({
         format: 'uuid',
-        description: 'project_role the bot acts under; null uses the default role.',
+        description: 'team_role the bot acts under; null uses the default role.',
       }),
     ),
   ),
@@ -98,7 +98,7 @@ const configFields = {
 // An agent DTO (AiAgentRow from the store).
 const AiAgentResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   userId: t.String({ format: 'uuid' }),
   name: t.String(),
   username: t.String(),
@@ -188,7 +188,7 @@ const ChatMessagesResponse = t.Object({
 export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['AI Agents'] } })
   .use(authContext)
   .use(guards)
-  .get('/projects/:projectKey/ai-agents', ({ project }) => listAgents(project.id), {
+  .get('/teams/:teamKey/ai-agents', ({ team }) => listAgents(team.id), {
     permission: ['ai_agents', 'read'],
     response: {
       200: t.Array(AiAgentResponse),
@@ -198,15 +198,15 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
     },
     detail: {
       summary: 'List AI agents',
-      description: "List a project's AI agents with their config.",
+      description: "List a team's AI agents with their config.",
       ...mcpTool('list_ai_agents'),
     },
   })
 
   .get(
-    '/projects/:projectKey/ai-agents/:agentId',
-    async ({ params, project }) => {
-      const agent = await getAgentById(params.agentId, project.id);
+    '/teams/:teamKey/ai-agents/:agentId',
+    async ({ params, team }) => {
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       return agent;
     },
@@ -232,10 +232,10 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // here and never available again (regenerate to get a new one); an internal agent
   // runs in-process and has no key, so apiKey comes back null.
   .post(
-    '/projects/:projectKey/ai-agents',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/ai-agents',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createAgent(project.id, body);
+      return createAgent(team.id, body);
     },
     {
       body: t.Object({
@@ -266,9 +266,9 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   )
 
   .patch(
-    '/projects/:projectKey/ai-agents/:agentId',
-    async ({ params, project, body }) => {
-      const agent = await updateAgent(params.agentId, project.id, body);
+    '/teams/:teamKey/ai-agents/:agentId',
+    async ({ params, team, body }) => {
+      const agent = await updateAgent(params.agentId, team.id, body);
       if (!agent) throw new HttpError(404, 'Agent not found');
       return agent;
     },
@@ -299,13 +299,13 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // Rotates the agent's API key (delete + create) and returns the new secret once.
   // Only external agents have a key; regenerating on an internal agent is a 400.
   .post(
-    '/projects/:projectKey/ai-agents/:agentId/regenerate-key',
-    async ({ params, project }) => {
-      const agent = await getAgentById(params.agentId, project.id);
+    '/teams/:teamKey/ai-agents/:agentId/regenerate-key',
+    async ({ params, team }) => {
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       if (agent.kind !== 'external')
         throw new HttpError(400, 'Internal agents do not use an API key');
-      const apiKey = await regenerateKey(params.agentId, project.id);
+      const apiKey = await regenerateKey(params.agentId, team.id);
       if (apiKey == null) throw new HttpError(404, 'Agent not found');
       return { apiKey };
     },
@@ -331,9 +331,9 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // The agent's run history: the triggered runs (a mention or a delegation) queued for
   // it, newest first, paginated. Test-chat runs are not recorded here.
   .get(
-    '/projects/:projectKey/ai-agents/:agentId/runs',
-    async ({ params, project, query }) => {
-      const agent = await getAgentById(params.agentId, project.id);
+    '/teams/:teamKey/ai-agents/:agentId/runs',
+    async ({ params, team, query }) => {
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       return listAgentRuns(params.agentId, { before: query.before, limit: query.limit });
     },
@@ -359,9 +359,9 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   )
 
   .delete(
-    '/projects/:projectKey/ai-agents/:agentId',
-    async ({ params, project }) => {
-      const ok = await deleteAgent(params.agentId, project.id);
+    '/teams/:teamKey/ai-agents/:agentId',
+    async ({ params, team }) => {
+      const ok = await deleteAgent(params.agentId, team.id);
       if (!ok) throw new HttpError(404, 'Agent not found');
       return noContent();
     },
@@ -387,11 +387,11 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // agent is built from its stored model configuration (Mastra). External agents
   // have no config and return 400.
   .post(
-    '/projects/:projectKey/ai-agents/:agentId/run',
-    async ({ params, project, body, user }) =>
+    '/teams/:teamKey/ai-agents/:agentId/run',
+    async ({ params, team, body, user }) =>
       runAgent(
         params.agentId,
-        project.id,
+        team.id,
         body.prompt,
         chatRunOpts(user, params.agentId, body.threadId),
       ),
@@ -419,11 +419,11 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // final `done` with the thread id). Lets the UI show the answer and what the
   // agent is doing as it happens. Errors mid-stream arrive as an `error` event.
   .post(
-    '/projects/:projectKey/ai-agents/:agentId/run/stream',
-    ({ params, project, body, user }) => {
+    '/teams/:teamKey/ai-agents/:agentId/run/stream',
+    ({ params, team, body, user }) => {
       const events = streamAgent(
         params.agentId,
-        project.id,
+        team.id,
         body.prompt,
         chatRunOpts(user, params.agentId, body.threadId),
       );
@@ -470,10 +470,10 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // The caller's own chat threads with this agent, newest first. Scoped to the
   // caller (the thread's owner), so a user only sees their own conversations.
   .get(
-    '/projects/:projectKey/ai-agents/:agentId/threads',
-    async ({ params, project, user }) => {
+    '/teams/:teamKey/ai-agents/:agentId/threads',
+    async ({ params, team, user }) => {
       const caller = requireUser(user);
-      const agent = await getAgentById(params.agentId, project.id);
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       return listChatThreads(caller.id, params.agentId);
     },
@@ -494,10 +494,10 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // The transcript of one of the caller's chat threads, to restore the conversation
   // in the UI. 404 when the thread does not exist or is not owned by the caller.
   .get(
-    '/projects/:projectKey/ai-agents/:agentId/threads/:threadId/messages',
-    async ({ params, project, query, user }) => {
+    '/teams/:teamKey/ai-agents/:agentId/threads/:threadId/messages',
+    async ({ params, team, query, user }) => {
       const caller = requireUser(user);
-      const agent = await getAgentById(params.agentId, project.id);
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       const messages = await getChatThreadMessages(params.threadId, caller.id, query.page ?? 0);
       if (messages === null) throw new HttpError(404, 'Thread not found');
@@ -521,10 +521,10 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
   // Deletes one of the caller's chat threads with its messages. Scoped the same way as
   // reading it: a thread owned by another user is a 404.
   .delete(
-    '/projects/:projectKey/ai-agents/:agentId/threads/:threadId',
-    async ({ params, project, user }) => {
+    '/teams/:teamKey/ai-agents/:agentId/threads/:threadId',
+    async ({ params, team, user }) => {
       const caller = requireUser(user);
-      const agent = await getAgentById(params.agentId, project.id);
+      const agent = await getAgentById(params.agentId, team.id);
       if (!agent) throw new HttpError(404, 'Agent not found');
       if (!(await deleteChatThread(params.threadId, caller.id))) {
         throw new HttpError(404, 'Thread not found');

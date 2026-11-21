@@ -3,7 +3,7 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// Integration credentials for a project: one store for LLM provider keys (kind 'llm')
+// Integration credentials for a team: one store for LLM provider keys (kind 'llm')
 // and tool credentials (kind 'tool'). The secret is stored encrypted and never
 // returned — a response carries only a redacted view. Access is the integrations
 // permission resource.
@@ -11,11 +11,11 @@ import { resetDb } from '../../../__tests__/helpers/db';
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   return { owner, asOwner };
 }
 
-const integrations = (api: Api) => api.projects({ projectKey: 'MKT' }).integrations;
+const integrations = (api: Api) => api.teams({ teamKey: 'MKT' }).integrations;
 
 describe('integrations', () => {
   beforeEach(async () => {

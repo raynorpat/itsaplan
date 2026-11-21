@@ -4,7 +4,7 @@ import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { getIssueProjectId } from '../issues/store';
+import { getIssueTeamId } from '../issues/store';
 import { getView } from '../views/store';
 import {
   enableIssueShare,
@@ -23,7 +23,7 @@ const tokenParams = t.Object({ token: t.String({ format: 'uuid' }) });
 // The share link's token, returned when sharing is enabled.
 const ShareTokenResponse = t.Object({ token: t.String() });
 
-// The public read-only bundles mirror the store DTOs (project scaffold + entity),
+// The public read-only bundles mirror the store DTOs (team scaffold + entity),
 // which the read-only web pages type themselves. They are self-contained reads,
 // so the response is passed through rather than re-declaring the five feature DTOs
 // they compose.
@@ -35,11 +35,11 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
   // Guards for the enable/revoke routes, which address an issue or a view by its
   // own id. Sharing an issue is a work_items edit; sharing a view is a views edit.
   .macro({
-    workItem: entityGuard('work_items', 'Issue not found', (p) => getIssueProjectId(p.issueId)),
+    workItem: entityGuard('work_items', 'Issue not found', (p) => getIssueTeamId(p.issueId)),
     savedView: entityGuard(
       'views',
       'View not found',
-      async (p) => (await getView(p.viewId))?.projectId ?? null,
+      async (p) => (await getView(p.viewId))?.teamId ?? null,
     ),
   })
 

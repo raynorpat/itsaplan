@@ -63,25 +63,25 @@ function mapSchedule(row: SelectedSchedule): AgentScheduleRow {
   };
 }
 
-export async function listAgentSchedules(projectId: string): Promise<AgentScheduleRow[]> {
+export async function listAgentSchedules(teamId: string): Promise<AgentScheduleRow[]> {
   const rows = await baseQuery()
-    .where(eq(aiAgent.projectId, projectId))
+    .where(eq(aiAgent.teamId, teamId))
     .orderBy(desc(agentSchedule.createdAt), desc(agentSchedule.id));
   return rows.map(mapSchedule);
 }
 
 export async function getAgentSchedule(
-  projectId: string,
+  teamId: string,
   scheduleId: string,
 ): Promise<AgentScheduleRow | null> {
   const rows = await baseQuery().where(
-    and(eq(aiAgent.projectId, projectId), eq(agentSchedule.id, scheduleId)),
+    and(eq(aiAgent.teamId, teamId), eq(agentSchedule.id, scheduleId)),
   );
   return rows[0] ? mapSchedule(rows[0]) : null;
 }
 
 export async function createAgentSchedule(input: {
-  projectId: string;
+  teamId: string;
   agentId: string;
   name: string;
   prompt: string;
@@ -95,7 +95,7 @@ export async function createAgentSchedule(input: {
     .where(
       and(
         eq(aiAgent.id, input.agentId),
-        eq(aiAgent.projectId, input.projectId),
+        eq(aiAgent.teamId, input.teamId),
         eq(aiAgent.kind, 'internal'),
       ),
     );
@@ -112,11 +112,11 @@ export async function createAgentSchedule(input: {
       nextRunAt: input.nextRunAt,
     })
     .returning({ id: agentSchedule.id });
-  return getAgentSchedule(input.projectId, row.id);
+  return getAgentSchedule(input.teamId, row.id);
 }
 
 export async function updateAgentSchedule(
-  projectId: string,
+  teamId: string,
   scheduleId: string,
   patch: {
     agentId?: string;
@@ -127,7 +127,7 @@ export async function updateAgentSchedule(
     nextRunAt?: Date;
   },
 ): Promise<AgentScheduleRow | null> {
-  const current = await getAgentSchedule(projectId, scheduleId);
+  const current = await getAgentSchedule(teamId, scheduleId);
   if (!current) return null;
   if (patch.agentId !== undefined) {
     const agent = await db
@@ -136,7 +136,7 @@ export async function updateAgentSchedule(
       .where(
         and(
           eq(aiAgent.id, patch.agentId),
-          eq(aiAgent.projectId, projectId),
+          eq(aiAgent.teamId, teamId),
           eq(aiAgent.kind, 'internal'),
         ),
       );
@@ -146,13 +146,13 @@ export async function updateAgentSchedule(
     .update(agentSchedule)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(agentSchedule.id, scheduleId));
-  return getAgentSchedule(projectId, scheduleId);
+  return getAgentSchedule(teamId, scheduleId);
 }
 
 // Deletes a schedule and the conversation thread its runs shared, which lives outside
 // the database cascades (see ai-agents/runtime/memory).
-export async function deleteAgentSchedule(projectId: string, scheduleId: string): Promise<boolean> {
-  const current = await getAgentSchedule(projectId, scheduleId);
+export async function deleteAgentSchedule(teamId: string, scheduleId: string): Promise<boolean> {
+  const current = await getAgentSchedule(teamId, scheduleId);
   if (!current) return false;
   await db.delete(agentSchedule).where(eq(agentSchedule.id, scheduleId));
   await deleteThreadsWhere({ scheduleId });
@@ -160,10 +160,10 @@ export async function deleteAgentSchedule(projectId: string, scheduleId: string)
 }
 
 export async function enqueueManualScheduleRun(
-  projectId: string,
+  teamId: string,
   scheduleId: string,
 ): Promise<string | null> {
-  const schedule = await getAgentSchedule(projectId, scheduleId);
+  const schedule = await getAgentSchedule(teamId, scheduleId);
   if (!schedule) return null;
   const [run] = await db
     .insert(agentRun)
@@ -192,10 +192,10 @@ export interface ScheduleRunRow {
 }
 
 export async function listScheduleRuns(
-  projectId: string,
+  teamId: string,
   scheduleId: string,
 ): Promise<ScheduleRunRow[] | null> {
-  const schedule = await getAgentSchedule(projectId, scheduleId);
+  const schedule = await getAgentSchedule(teamId, scheduleId);
   if (!schedule) return null;
   const rows = await db
     .select()

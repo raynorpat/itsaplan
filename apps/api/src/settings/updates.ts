@@ -17,7 +17,7 @@ const UPDATES_CACHE_KEY = 'updates.latest';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
 
-// Fixed: an instance checks the project it is built from, so there is nothing to
+// Fixed: an instance checks the team it is built from, so there is nothing to
 // configure.
 const FEED_URL = 'https://github.com/croffasia/itsaplan/releases.atom';
 

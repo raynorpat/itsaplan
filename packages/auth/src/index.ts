@@ -111,7 +111,7 @@ async function assertRegistrationAllowed(email: string): Promise<void> {
   if (settings.registration === 'invite' && !(await hasPendingInvite(email))) {
     throw new APIError('FORBIDDEN', {
       code: 'INVITE_ONLY',
-      message: 'This instance is invite-only. Ask a project owner to invite this address.',
+      message: 'This instance is invite-only. Ask a team owner to invite this address.',
     });
   }
 }
@@ -367,7 +367,7 @@ export {
   getEmailSettings,
   setEmailSettings,
   getEmailConfig,
-  getProjectEmailConfig,
+  getTeamEmailConfig,
   hasConfiguredEmailProvider,
   getGoogleSettings,
   setGoogleSettings,

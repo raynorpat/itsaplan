@@ -1,10 +1,10 @@
-import { db, projectRole, projectMember } from '@repo/db';
+import { db, teamRole, teamMember } from '@repo/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { normalizePermissions, type Permissions } from '../shared/permissions';
 
-// Data access for project roles: the per-project permission matrices assigned to
-// members. Owners bypass roles. Exactly one role per project is the default
+// Data access for team roles: the per-team permission matrices assigned to
+// members. Owners bypass roles. Exactly one role per team is the default
 // (isDefault), assigned to members that join through an invite and used as the
 // fallback for a member with no explicit role.
 
@@ -16,7 +16,7 @@ export interface RoleRow {
   createdAt: string;
 }
 
-function mapRole(row: typeof projectRole.$inferSelect): RoleRow {
+function mapRole(row: typeof teamRole.$inferSelect): RoleRow {
   return {
     id: row.id,
     name: row.name,
@@ -26,31 +26,31 @@ function mapRole(row: typeof projectRole.$inferSelect): RoleRow {
   };
 }
 
-export async function listRoles(projectId: string): Promise<RoleRow[]> {
+export async function listRoles(teamId: string): Promise<RoleRow[]> {
   const rows = await db
     .select()
-    .from(projectRole)
-    .where(eq(projectRole.projectId, projectId))
-    .orderBy(asc(projectRole.createdAt), asc(projectRole.id));
+    .from(teamRole)
+    .where(eq(teamRole.teamId, teamId))
+    .orderBy(asc(teamRole.createdAt), asc(teamRole.id));
   return rows.map(mapRole);
 }
 
-export async function getRole(projectId: string, roleId: string): Promise<RoleRow | null> {
+export async function getRole(teamId: string, roleId: string): Promise<RoleRow | null> {
   const rows = await db
     .select()
-    .from(projectRole)
-    .where(and(eq(projectRole.projectId, projectId), eq(projectRole.id, roleId)));
+    .from(teamRole)
+    .where(and(eq(teamRole.teamId, teamId), eq(teamRole.id, roleId)));
   return rows[0] ? mapRole(rows[0]) : null;
 }
 
 export async function createRole(
-  projectId: string,
+  teamId: string,
   input: { name: string; permissions: unknown },
 ): Promise<RoleRow> {
   const [row] = await db
-    .insert(projectRole)
+    .insert(teamRole)
     .values({
-      projectId,
+      teamId,
       name: input.name,
       isDefault: false,
       permissions: normalizePermissions(input.permissions),
@@ -60,37 +60,35 @@ export async function createRole(
 }
 
 export async function updateRole(
-  projectId: string,
+  teamId: string,
   roleId: string,
   input: { name?: string; permissions?: unknown },
 ): Promise<RoleRow | null> {
   const set: { name?: string; permissions?: Permissions } = {};
   if (input.name !== undefined) set.name = input.name;
   if (input.permissions !== undefined) set.permissions = normalizePermissions(input.permissions);
-  if (Object.keys(set).length === 0) return getRole(projectId, roleId);
+  if (Object.keys(set).length === 0) return getRole(teamId, roleId);
   const [row] = await db
-    .update(projectRole)
+    .update(teamRole)
     .set(set)
-    .where(and(eq(projectRole.projectId, projectId), eq(projectRole.id, roleId)))
+    .where(and(eq(teamRole.teamId, teamId), eq(teamRole.id, roleId)))
     .returning();
   return row ? mapRole(row) : null;
 }
 
-// Deletes a role after reassigning every member on it to the project's default
+// Deletes a role after reassigning every member on it to the team's default
 // role, so no member is left with a dangling role. Runs in one transaction. The
 // caller guards against deleting the default role itself.
-export async function deleteRole(projectId: string, roleId: string): Promise<void> {
+export async function deleteRole(teamId: string, roleId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const [def] = await tx
-      .select({ id: projectRole.id })
-      .from(projectRole)
-      .where(and(eq(projectRole.projectId, projectId), eq(projectRole.isDefault, true)));
+      .select({ id: teamRole.id })
+      .from(teamRole)
+      .where(and(eq(teamRole.teamId, teamId), eq(teamRole.isDefault, true)));
     await tx
-      .update(projectMember)
+      .update(teamMember)
       .set({ roleId: def?.id ?? null })
-      .where(and(eq(projectMember.projectId, projectId), eq(projectMember.roleId, roleId)));
-    await tx
-      .delete(projectRole)
-      .where(and(eq(projectRole.projectId, projectId), eq(projectRole.id, roleId)));
+      .where(and(eq(teamMember.teamId, teamId), eq(teamMember.roleId, roleId)));
+    await tx.delete(teamRole).where(and(eq(teamRole.teamId, teamId), eq(teamRole.id, roleId)));
   });
 }

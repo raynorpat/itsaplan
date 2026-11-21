@@ -1,15 +1,15 @@
-import { db, projectAction } from '@repo/db';
+import { db, teamAction } from '@repo/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { iso, num } from '../shared/lib';
 
-// Manual actions: saved macros on a project. condition is a filter set deciding
+// Manual actions: saved macros on a team. condition is a filter set deciding
 // which issues the action applies to (empty = always); effect is a partial issue
 // patch applied in one update. Both jsonb blobs are owned by the UI; this layer
 // stores and returns them without inspecting their shape.
 
 export interface ActionRow {
   id: string;
-  projectId: string;
+  teamId: string;
   name: string;
   icon: string;
   condition: unknown;
@@ -18,10 +18,10 @@ export interface ActionRow {
   createdAt: string;
 }
 
-function mapAction(row: typeof projectAction.$inferSelect): ActionRow {
+function mapAction(row: typeof teamAction.$inferSelect): ActionRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     name: row.name,
     icon: row.icon,
     condition: row.condition,
@@ -31,32 +31,32 @@ function mapAction(row: typeof projectAction.$inferSelect): ActionRow {
   };
 }
 
-export async function listActions(projectId: string): Promise<ActionRow[]> {
+export async function listActions(teamId: string): Promise<ActionRow[]> {
   const rows = await db
     .select()
-    .from(projectAction)
-    .where(eq(projectAction.projectId, projectId))
-    .orderBy(projectAction.position, projectAction.id);
+    .from(teamAction)
+    .where(eq(teamAction.teamId, teamId))
+    .orderBy(teamAction.position, teamAction.id);
   return rows.map(mapAction);
 }
 
 // New actions go to the end of the list (max position + 1). condition/effect are
 // stored verbatim in the jsonb columns.
 export async function createAction(input: {
-  projectId: string;
+  teamId: string;
   name: string;
   icon?: string;
   condition?: unknown;
   effect?: unknown;
 }): Promise<ActionRow> {
   const [{ pos }] = await db
-    .select({ pos: sql<number>`COALESCE(MAX(${projectAction.position}) + 1, 0)` })
-    .from(projectAction)
-    .where(eq(projectAction.projectId, input.projectId));
+    .select({ pos: sql<number>`COALESCE(MAX(${teamAction.position}) + 1, 0)` })
+    .from(teamAction)
+    .where(eq(teamAction.teamId, input.teamId));
   const [row] = await db
-    .insert(projectAction)
+    .insert(teamAction)
     .values({
-      projectId: input.projectId,
+      teamId: input.teamId,
       name: input.name,
       icon: input.icon ?? '',
       condition: input.condition ?? {},
@@ -68,7 +68,7 @@ export async function createAction(input: {
 }
 
 export async function getAction(id: string): Promise<ActionRow | null> {
-  const rows = await db.select().from(projectAction).where(eq(projectAction.id, id));
+  const rows = await db.select().from(teamAction).where(eq(teamAction.id, id));
   return rows[0] ? mapAction(rows[0]) : null;
 }
 
@@ -78,33 +78,30 @@ export async function updateAction(
   id: string,
   patch: { name?: string; icon?: string; condition?: unknown; effect?: unknown },
 ): Promise<ActionRow | null> {
-  const set: Partial<typeof projectAction.$inferInsert> = {};
+  const set: Partial<typeof teamAction.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.icon !== undefined) set.icon = patch.icon;
   if (patch.condition !== undefined) set.condition = patch.condition;
   if (patch.effect !== undefined) set.effect = patch.effect;
   if (Object.keys(set).length === 0) return getAction(id);
-  const [row] = await db.update(projectAction).set(set).where(eq(projectAction.id, id)).returning();
+  const [row] = await db.update(teamAction).set(set).where(eq(teamAction.id, id)).returning();
   return row ? mapAction(row) : null;
 }
 
 export async function deleteAction(id: string): Promise<void> {
-  await db.delete(projectAction).where(eq(projectAction.id, id));
+  await db.delete(teamAction).where(eq(teamAction.id, id));
 }
 
 // Sets each action's position to its index in orderedIds, in one transaction, so
-// the order the UI sends is stored exactly. Ids not on the project are ignored.
-export async function reorderActions(
-  projectId: string,
-  orderedIds: string[],
-): Promise<ActionRow[]> {
+// the order the UI sends is stored exactly. Ids not on the team are ignored.
+export async function reorderActions(teamId: string, orderedIds: string[]): Promise<ActionRow[]> {
   await db.transaction(async (tx) => {
     for (const [position, id] of orderedIds.entries()) {
       await tx
-        .update(projectAction)
+        .update(teamAction)
         .set({ position })
-        .where(and(eq(projectAction.id, id), eq(projectAction.projectId, projectId)));
+        .where(and(eq(teamAction.id, id), eq(teamAction.teamId, teamId)));
     }
   });
-  return listActions(projectId);
+  return listActions(teamId);
 }

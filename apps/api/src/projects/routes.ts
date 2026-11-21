@@ -1,375 +1,258 @@
 import { Elysia, t } from 'elysia';
+import { PROJECT_STATUSES, type ProjectStatusType } from '@repo/db';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
-import { HttpError } from '../shared/lib';
+import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
-import { guards } from '../shared/guards';
 import { requireUser } from '../shared/access';
-import { isMcpRequest } from '../shared/mcp-request';
+import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { getMemberContext, listAssigneeCandidates } from '../members/store';
 import {
   listProjects,
+  projectStatusCounts,
+  getProject,
+  getProjectTeamId,
   createProject,
   updateProject,
   deleteProject,
-  setProjectMcpEnabled,
-  projectFeatures,
-  setProjectFeatures,
-  getAutoArchiveSettings,
-  setAutoArchiveSettings,
-  ISSUE_TYPE_PRESET_KEYS,
+  projectRev,
 } from './store';
-import { copyProject, COPY_INCLUDE_KEYS } from './copy';
-import { listColumns } from '../columns/store';
-import { listIssueTypes } from '../issue-types/store';
-import { listLabels, listLabelGroups } from '../labels/store';
-import { listCustomFields } from '../custom-fields/store';
+import { listFeed } from './activity';
 
-const projectBody = t.Object({
-  // Letters and digits, starting with a letter; stored uppercased. The key is the
-  // prefix of issue identifiers ("MKT-42") and Linear's team key.
-  key: t.String({ pattern: '^[A-Za-z][A-Za-z0-9]*$' }),
-  name: t.String({ minLength: 1 }),
-  description: t.Optional(t.String()),
-});
+const projectParams = t.Object({ projectId: t.String({ format: 'uuid' }) });
 
-// Create adds the issue-type preset: which set of types the new project starts with.
-// Omitted → "general" (a single Task). Copy takes its types from the source project,
-// so the preset applies to create only.
-const createProjectBody = t.Composite([
-  projectBody,
-  t.Object({
-    preset: t.Optional(
-      t.Union(
-        ISSUE_TYPE_PRESET_KEYS.map((k) => t.Literal(k)),
-        { description: `Issue-type preset: ${ISSUE_TYPE_PRESET_KEYS.join(', ')}.` },
-      ),
-    ),
-  }),
+// The project lifecycle enum, validated at the edge so an invalid value is a
+// 400 (not a Postgres CHECK violation → 500). Mirrors the DB check constraint.
+const PROJECT_STATUS_TYPES = new Set<string>(PROJECT_STATUSES.map((s) => s.type));
+
+const ProjectStatus = t.Union([
+  t.Literal('backlog'),
+  t.Literal('planned'),
+  t.Literal('started'),
+  t.Literal('paused'),
+  t.Literal('completed'),
+  t.Literal('canceled'),
 ]);
 
-// Copy adds an optional selection of which parts of the source project to carry over.
-// Omitted → the source project's structure (states, types, labels, custom fields,
-// views, dashboards, actions), matching the copy's original behavior. Each flag maps
-// to a section of the project settings menu; the store force-enables dependencies.
-const copyProjectBody = t.Composite([
-  projectBody,
-  t.Object({
-    include: t.Optional(
-      t.Object(Object.fromEntries(COPY_INCLUDE_KEYS.map((k) => [k, t.Optional(t.Boolean())]))),
-    ),
-  }),
-]);
-
-// A project DTO (ProjectRow from the store).
+// ProjectRow from the store. progress is derived issue counts; health is
+// computed on the fly (on_track/at_risk/off_track, or null when there is nothing
+// to judge).
 const ProjectResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  key: t.String(),
+  teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   description: t.String(),
-  mcpEnabled: t.Boolean(),
-  // The optional sections, toggled in Settings -> General. All on by default; a
-  // disabled section is hidden in the web app and its rows are kept.
-  initiativesEnabled: t.Boolean(),
-  dashboardsEnabled: t.Boolean(),
-  notesEnabled: t.Boolean(),
+  content: t.String(),
+  status: t.String(),
+  statusId: t.String({ format: 'uuid' }),
+  leadUserId: t.Nullable(t.String({ format: 'uuid' })),
+  priority: t.Integer(),
+  startDate: t.Nullable(t.String()),
+  targetDate: t.Nullable(t.String()),
+  sortOrder: t.Number(),
+  slugId: t.String(),
+  archivedAt: t.Nullable(t.String()),
   createdAt: t.String(),
+  updatedAt: t.String(),
+  labelIds: t.Array(t.String({ format: 'uuid' })),
+  progress: t.Object({ completed: t.Number(), canceled: t.Number(), total: t.Number() }),
+  health: t.Nullable(t.String()),
 });
 
-// The permission matrix as resolved for a member: for each resource, the
-// create/edit/read/delete flags.
-const PermissionMatrix = t.Record(t.String(), t.Record(t.String(), t.Boolean()));
-
-// A project in the caller's list (ProjectListItem): ProjectRow plus the caller's
-// own role in it, and the caller's permission matrix when requested with
-// ?permissions=true.
-const ProjectListItemResponse = t.Composite([
-  ProjectResponse,
-  t.Object({
-    role: t.Union([t.Literal('owner'), t.Literal('member')]),
-    permissions: t.Optional(PermissionMatrix),
-  }),
-]);
-
-// A column (ColumnRow from columns/store).
-const ColumnResponse = t.Object({
+// ProjectFeedItemRow from activity.ts: one timeline entry, from the project
+// itself (source 'project') or a linked issue (source 'issue').
+const FeedItemResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  stateType: t.String(),
-  color: t.String(),
-  position: t.Number(),
+  source: t.String(),
+  kind: t.String(),
+  actorUserId: t.Nullable(t.String({ format: 'uuid' })),
+  actorName: t.Nullable(t.String()),
+  body: t.Nullable(t.String()),
+  action: t.Nullable(t.String()),
+  subject: t.Nullable(t.String()),
+  fromText: t.Nullable(t.String()),
+  toText: t.Nullable(t.String()),
+  createdAt: t.String(),
+  issueId: t.Nullable(t.String({ format: 'uuid' })),
+  issueIdentifier: t.Nullable(t.String()),
 });
 
-// An issue type (IssueTypeRow from issue-types/store).
-const IssueTypeResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  icon: t.String(),
-  color: t.String(),
-  isDefault: t.Boolean(),
-  position: t.Number(),
+const FeedPageResponse = t.Object({
+  items: t.Array(FeedItemResponse),
+  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.String({ format: 'uuid' }) })),
 });
 
-// A label (LabelRow from labels/store).
-const LabelResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
-  groupId: t.Nullable(t.String({ format: 'uuid' })),
-  name: t.String(),
-  color: t.String(),
-});
-
-// A label group (LabelGroupRow from labels/store).
-const LabelGroupResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  color: t.String(),
-});
-
-// An assignable candidate (AssigneeCandidate from members/store): a project
-// member or an AI agent's bot user.
-const AssigneeCandidateResponse = t.Object({
-  userId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  email: t.String(),
-  image: t.Nullable(t.String()),
-  kind: t.Union([t.Literal('member'), t.Literal('agent')]),
-  agentKind: t.Nullable(t.Union([t.Literal('external'), t.Literal('internal')])),
-});
-
-// A custom field option (CustomFieldOptionRow from custom-fields/store).
-const CustomFieldOptionResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  value: t.String(),
-  color: t.String(),
-  position: t.Number(),
-});
-
-// A custom field (CustomFieldRow from custom-fields/store). The board carries every
-// field of the project; the client filters by issueTypeId.
-const CustomFieldResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  issueTypeId: t.Nullable(t.String({ format: 'uuid' })),
-  name: t.String(),
-  fieldType: t.String(),
-  showInBody: t.Boolean(),
-  position: t.Number(),
-  options: t.Array(CustomFieldOptionResponse),
-});
-
-// Auto-archive thresholds (AutoArchiveSettings from the store): days of inactivity
-// in a completed/canceled column before the worker archives an issue; null = off.
-const AutoArchiveResponse = t.Object({
-  completedDays: t.Nullable(t.Number()),
-  canceledDays: t.Nullable(t.Number()),
-});
-
-// Which optional sections the project shows (ProjectFeatures from the store).
-const FeaturesResponse = t.Object({
-  initiatives: t.Boolean(),
-  dashboards: t.Boolean(),
-  notes: t.Boolean(),
-});
-
-// The project's settings: MCP reachability, the enabled sections and the
-// auto-archive thresholds.
-const ProjectSettingsResponse = t.Object({
-  mcpEnabled: t.Boolean(),
-  features: FeaturesResponse,
-  autoArchive: AutoArchiveResponse,
-});
-
-// The caller's own role in a project (from MemberContext in members/store). The
-// resolved permission matrix is a sibling `permissions` key on the board payload.
-const ViewerResponse = t.Object({
-  role: t.Union([t.Literal('owner'), t.Literal('member')]),
-});
-
-// The project board scaffold (GET /projects/:projectKey): the project plus its
-// columns, issue types, labels, label groups, assignable users, custom fields, and
-// the caller's own effective access. The issues themselves come from
-// GET /projects/:projectKey/issues/board.
-const ProjectBoardResponse = t.Object({
-  project: ProjectResponse,
-  columns: t.Array(ColumnResponse),
-  issueTypes: t.Array(IssueTypeResponse),
-  labels: t.Array(LabelResponse),
-  labelGroups: t.Array(LabelGroupResponse),
-  assignees: t.Array(AssigneeCandidateResponse),
-  customFields: t.Array(CustomFieldResponse),
-  viewer: ViewerResponse,
-  // The caller's resolved permission matrix (owners get every flag).
-  permissions: PermissionMatrix,
-});
-
-export const projectRoutes = new Elysia({ name: 'projects', detail: { tags: ['Projects'] } })
+export const projectRoutes = new Elysia({
+  name: 'projects',
+  detail: { tags: ['Projects'] },
+})
   .use(authContext)
   .use(guards)
+  // Guard for routes that address an project by its own id (no :teamKey in
+  // the path). Set `project: "<action>"` in the route options.
+  .macro({
+    project: entityGuard('projects', 'Project not found', (p) => getProjectTeamId(p.projectId)),
+  })
+
   .get(
-    '/projects',
-    ({ user, request, query }) =>
-      listProjects(requireUser(user).id, {
-        mcpOnly: isMcpRequest(request.headers),
-        withPermissions: query.permissions === 'true',
-      }),
+    '/teams/:teamKey/projects',
+    async ({ team, query }) => {
+      const statuses = query.status
+        ? query.status
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s): s is ProjectStatusType => PROJECT_STATUS_TYPES.has(s))
+        : undefined;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 25;
+      const { items, total } = await listProjects(team.id, {
+        statuses,
+        search: query.search,
+        sort: query.sort,
+        dir: query.dir,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
+      return { items, total, page, pageSize };
+    },
     {
+      params: t.Object({ teamKey: t.String() }),
       query: t.Object({
-        permissions: t.Optional(
+        status: t.Optional(
           t.String({
-            description: "'true' to include the caller's permission matrix per project.",
+            description:
+              'Filter by status type: a comma-separated subset of backlog,planned,started,paused,completed,canceled. Omit for all.',
+          }),
+        ),
+        search: t.Optional(t.String({ description: 'Case-insensitive match on the name.' })),
+        sort: t.Optional(
+          t.Union(
+            [t.Literal('name'), t.Literal('priority'), t.Literal('targetDate'), t.Literal('lead')],
+            { description: 'Sort column. Omit for the manual sort order.' },
+          ),
+        ),
+        dir: t.Optional(
+          t.Union([t.Literal('asc'), t.Literal('desc')], {
+            description: 'Sort direction. Default asc.',
+          }),
+        ),
+        page: t.Optional(t.Numeric({ minimum: 1, description: '1-based page. Default 1.' })),
+        pageSize: t.Optional(
+          t.Numeric({
+            minimum: 1,
+            maximum: 100,
+            description: 'Items per page (1-100). Default 25.',
           }),
         ),
       }),
+      permission: ['projects', 'read'],
       response: {
-        200: t.Array(ProjectListItemResponse),
+        200: t.Object({
+          items: t.Array(ProjectResponse),
+          total: t.Number(),
+          page: t.Number(),
+          pageSize: t.Number(),
+        }),
+        400: ErrorResponse,
         401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
       },
       detail: {
         summary: 'List projects',
-        description:
-          'List the projects you are a member of. Pass permissions=true to include your ' +
-          'permission matrix on each.',
+        description: "List a team's projects, filtered, sorted and paged.",
         ...mcpTool('list_projects'),
       },
     },
   )
 
+  .get('/teams/:teamKey/projects/counts', async ({ team }) => projectStatusCounts(team.id), {
+    params: t.Object({ teamKey: t.String() }),
+    permission: ['projects', 'read'],
+    response: {
+      200: t.Object({
+        total: t.Number(),
+        backlog: t.Number(),
+        planned: t.Number(),
+        started: t.Number(),
+        paused: t.Number(),
+        completed: t.Number(),
+        canceled: t.Number(),
+      }),
+      400: ErrorResponse,
+      401: ErrorResponse,
+      403: ErrorResponse,
+      404: ErrorResponse,
+    },
+    detail: {
+      summary: 'Project status counts',
+      description: "Per-status project counts for a team, for the list's tabs.",
+    },
+  })
+
   .post(
-    '/projects',
-    async ({ body, user, set }) => {
+    '/teams/:teamKey/projects',
+    async ({ team, body, user, set }) => {
       set.status = 201;
-      return createProject(body, requireUser(user).id);
+      return createProject(team.id, body, requireUser(user).id);
     },
     {
-      body: createProjectBody,
+      params: t.Object({ teamKey: t.String() }),
+      body: t.Object({
+        name: t.String({ minLength: 1, description: 'Project name.' }),
+        description: t.Optional(t.String({ description: 'Short plain-text summary.' })),
+        content: t.Optional(t.String({ description: 'Markdown overview.' })),
+        status: t.Optional(ProjectStatus),
+        leadUserId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Lead user id (a team member), or null.' }),
+          ),
+        ),
+        priority: t.Optional(
+          t.Integer({
+            minimum: 0,
+            maximum: 4,
+            description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
+          }),
+        ),
+        startDate: t.Optional(
+          t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
+        ),
+        targetDate: t.Optional(
+          t.Nullable(t.String({ description: "Target date 'YYYY-MM-DD', or null." })),
+        ),
+        labelIds: t.Optional(
+          t.Array(t.String({ format: 'uuid' }), {
+            description: 'Project label ids to attach. From list_project_labels.',
+          }),
+        ),
+      }),
+      permission: ['projects', 'create'],
       response: {
         201: ProjectResponse,
         400: ErrorResponse,
         401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
       },
       detail: {
-        summary: 'Create a project',
-        description:
-          'Create a project you own. `key` is the unique, immutable prefix for issue ids ' +
-          "(e.g. 'MKT' -> 'MKT-1'). Seeds the default columns and the issue types of the " +
-          'chosen `preset`.',
+        summary: 'Create an project',
+        description: 'Create an project in a team.',
         ...mcpTool('create_project'),
       },
     },
   )
 
-  // Creates a new project copying the selected parts of the source project's
-  // configuration (states, issue types, labels, custom fields, views, dashboards,
-  // actions, roles, settings, notification providers, webhooks, integrations, tools,
-  // skills, agents, schedules) but none of its issues. `include` picks the sections;
-  // omitted, the project structure is copied as before.
-  .post(
-    '/projects/:projectKey/copy',
-    async ({ project, body, user, set }) => {
-      const { include, ...meta } = body;
-      try {
-        set.status = 201;
-        return await copyProject(project.id, meta, requireUser(user).id, include);
-      } catch (err) {
-        // Return the real cause in the body so the UI shows the actual error.
-        console.error('copyProject failed:', err);
-        set.status = 400;
-        return { error: err instanceof Error ? err.message : 'Failed to copy project' };
-      }
-    },
-    {
-      body: copyProjectBody,
-      permission: ['work_items', 'read'],
-      response: {
-        201: ProjectResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'Copy a project',
-        description:
-          "Copy a project's configuration into a new project you own, without its issues. " +
-          'By default the structure (states, issue types, labels, custom fields, views, ' +
-          'dashboards, actions) is copied. Pass `include` to choose sections; the API ' +
-          'force-enables dependencies (e.g. a view pulls in the states it references).',
-        ...mcpTool('copy_project'),
-      },
-    },
-  )
-
-  // Full project view: columns, issue types, labels, issues, and the caller's own
-  // effective access (role + resolved permission matrix) — everything the work
-  // items UI needs in one call. Assignee options come from the project's members
-  // and AI agents, fetched separately. The web app gates its UI off `viewer`; the
-  // API still enforces the same matrix on every request.
   .get(
-    '/projects/:projectKey',
-    async ({ project, user }) => {
-      const [columns, issueTypes, labels, labelGroups, assignees, customFields, viewer] =
-        await Promise.all([
-          listColumns(project.id),
-          listIssueTypes(project.id),
-          listLabels(project.id),
-          listLabelGroups(project.id),
-          listAssigneeCandidates(project.id),
-          listCustomFields(project.id, { allTypes: true }),
-          getMemberContext(project.id, requireUser(user).id),
-        ]);
-      // The permission guard already asserted membership, so a context always
-      // exists here; guard against a race (membership revoked mid-request).
-      if (!viewer) throw new HttpError(403, 'You do not have access to this project');
-      return {
-        project,
-        columns,
-        issueTypes,
-        labels,
-        labelGroups,
-        assignees,
-        customFields,
-        viewer: { role: viewer.role },
-        permissions: viewer.permissions,
-      };
+    '/projects/:projectId',
+    async ({ params }) => {
+      const found = await getProject(params.projectId);
+      if (!found) throw new HttpError(404, 'Project not found');
+      return found;
     },
     {
-      permission: ['work_items', 'read'],
-      response: {
-        200: ProjectBoardResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'Get a project',
-        description:
-          'Get a project setup by key: columns, issue types, labels, custom fields, and ' +
-          'assignable users and agents. Resolves the ids create_issue and update_issue ' +
-          'take. For issues use list_issues or search_issues.',
-        ...mcpTool('get_project'),
-      },
-    },
-  )
-
-  // Updates a project's editable metadata (name, description). The key is the
-  // immutable issue-identifier prefix and cannot change. Owner-only.
-  .patch(
-    '/projects/:projectKey',
-    async ({ project, body }) => {
-      const updated = await updateProject(project.id, body);
-      if (!updated) throw new HttpError(404, 'Project not found');
-      return updated;
-    },
-    {
-      body: t.Object({
-        name: t.Optional(t.String({ minLength: 1 })),
-        description: t.Optional(t.String()),
-      }),
-      projectOwner: true,
+      params: projectParams,
+      project: 'read',
       response: {
         200: ProjectResponse,
         400: ErrorResponse,
@@ -378,111 +261,143 @@ export const projectRoutes = new Elysia({ name: 'projects', detail: { tags: ['Pr
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Update a project',
-        description: "Update a project's name and/or description. The key is immutable.",
-        ...mcpTool('update_project'),
+        summary: 'Get an project',
+        description: 'Get an project by its id (a UUID).',
+        ...mcpTool('get_project'),
       },
     },
   )
 
-  // Reads the project's settings: whether it is reachable over MCP, which optional
-  // sections are enabled, and the auto-archive thresholds (days of inactivity in a
-  // completed/canceled column before the worker archives an issue; null = off).
-  // Any member may read.
-  .get(
-    '/projects/:projectKey/settings',
-    async ({ project }) => ({
-      mcpEnabled: project.mcpEnabled,
-      features: projectFeatures(project),
-      autoArchive: await getAutoArchiveSettings(project.id),
-    }),
-    {
-      projectMember: true,
-      response: {
-        200: ProjectSettingsResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: { summary: "Get a project's settings" },
-    },
-  )
-
-  // Updates the project's settings. Each field is optional; only the supplied ones
-  // change. mcpEnabled toggles MCP access to the project. features turns the
-  // optional sections (initiatives, dashboards, notes) on or off. autoArchive sets
-  // the day count per state group (positive integer) or disables it (null).
-  // Owner-only. Not an MCP tool: it governs MCP access, so an agent must not
-  // change it.
   .patch(
-    '/projects/:projectKey/settings',
-    async ({ project, body }) => {
-      let current = project;
-      if (body.mcpEnabled !== undefined) {
-        const updated = await setProjectMcpEnabled(project.id, body.mcpEnabled);
-        if (!updated) throw new HttpError(404, 'Project not found');
-        current = updated;
-      }
-      if (body.features !== undefined) {
-        const updated = await setProjectFeatures(project.id, body.features);
-        if (!updated) throw new HttpError(404, 'Project not found');
-        current = updated;
-      }
-      const autoArchive =
-        body.autoArchive !== undefined
-          ? await setAutoArchiveSettings(project.id, body.autoArchive)
-          : await getAutoArchiveSettings(project.id);
-      return { mcpEnabled: current.mcpEnabled, features: projectFeatures(current), autoArchive };
+    '/projects/:projectId',
+    async ({ params, body, user }) => {
+      const actorUserId = requireUser(user).id;
+      const updated = await updateProject(params.projectId, body, actorUserId);
+      if (!updated) throw new HttpError(404, 'Project not found');
+      return updated;
     },
     {
+      params: projectParams,
       body: t.Object({
-        mcpEnabled: t.Optional(t.Boolean()),
-        features: t.Optional(
-          t.Object({
-            initiatives: t.Optional(t.Boolean()),
-            dashboards: t.Optional(t.Boolean()),
-            notes: t.Optional(t.Boolean()),
+        name: t.Optional(t.String({ minLength: 1, description: 'New name.' })),
+        description: t.Optional(t.String({ description: 'Short plain-text summary.' })),
+        content: t.Optional(t.String({ description: 'Markdown overview.' })),
+        status: t.Optional(ProjectStatus),
+        leadUserId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Lead user id (a team member), or null.' }),
+          ),
+        ),
+        priority: t.Optional(
+          t.Integer({
+            minimum: 0,
+            maximum: 4,
+            description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
           }),
         ),
-        autoArchive: t.Optional(
-          t.Object({
-            completedDays: t.Nullable(t.Integer({ minimum: 1 })),
-            canceledDays: t.Nullable(t.Integer({ minimum: 1 })),
+        startDate: t.Optional(
+          t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
+        ),
+        targetDate: t.Optional(
+          t.Nullable(t.String({ description: "Target date 'YYYY-MM-DD', or null." })),
+        ),
+        labelIds: t.Optional(
+          t.Array(t.String({ format: 'uuid' }), {
+            description: "Replace the project's labels with these ids.",
           }),
         ),
       }),
-      projectOwner: true,
+      project: 'edit',
       response: {
-        200: ProjectSettingsResponse,
+        200: ProjectResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "Update a project's settings" },
+      detail: {
+        summary: 'Update an project',
+        description: 'Update an project by its id (a UUID).',
+        ...mcpTool('update_project'),
+      },
     },
   )
 
-  // Permanently removes the project and everything scoped to it. Irreversible.
-  // Owner-only.
   .delete(
-    '/projects/:projectKey',
-    async ({ project }) => {
-      await deleteProject(project.id);
+    '/projects/:projectId',
+    async ({ params }) => {
+      await deleteProject(params.projectId);
       return noContent();
     },
     {
-      permission: ['danger_zone', 'delete'],
+      params: projectParams,
+      project: 'delete',
       response: {
         204: t.Void(),
+        400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Delete a project',
-        description: 'Permanently delete a project and everything in it. Irreversible.',
+        summary: 'Delete an project',
+        description: 'Delete an project by its id (a UUID). Irreversible.',
         ...mcpTool('delete_project'),
       },
+    },
+  )
+
+  .get(
+    '/projects/:projectId/feed',
+    async ({ params, query }) => {
+      const limit = query.limit != null ? Number(query.limit) : 25;
+      let before = null;
+      if (query.cursor) {
+        try {
+          before = JSON.parse(query.cursor);
+        } catch {
+          // Ignore a malformed cursor and serve the first page.
+        }
+      }
+      return listFeed(params.projectId, { before, limit });
+    },
+    {
+      params: projectParams,
+      query: t.Object({
+        limit: t.Optional(t.String({ description: 'Max items per page (1-100). Default 25.' })),
+        cursor: t.Optional(
+          t.String({ description: 'nextCursor from the previous page, for paging.' }),
+        ),
+      }),
+      project: 'read',
+      response: {
+        200: FeedPageResponse,
+        400: ErrorResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: {
+        summary: 'Get an project feed',
+        description: "Get an project's activity feed by its id (a UUID).",
+        ...mcpTool('list_project_activity'),
+      },
+    },
+  )
+
+  .get(
+    '/projects/:projectId/rev',
+    async ({ params }) => ({ rev: await projectRev(params.projectId) }),
+    {
+      params: projectParams,
+      project: 'read',
+      response: {
+        200: t.Object({ rev: t.String() }),
+        400: ErrorResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: { summary: 'Get project revision' },
     },
   );

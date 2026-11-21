@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { getAgentById, getInternalAgentApiKey, type AiAgentRow } from '../store';
-import { getProjectById, type ProjectRow } from '../../projects/store';
+import { getTeamById, type TeamRow } from '../../teams/store';
 import { getCredentialSecret } from '../../integrations/store';
 import { listAgentSkills } from '../../agent-skills/store';
 import { listAgentToolsForRun } from '../../agent-tools/store';
@@ -15,19 +15,19 @@ import { HttpError } from '../../shared/lib';
 
 // Runtime execution of internal agents via Mastra. An agent is built on demand
 // from its stored configuration (provider/model/instructions) and run against a
-// prompt. It is given the work-item system tools for its project (see tools/agent-tools),
-// so it can read and manage that project's issues, comments, labels, custom field
+// prompt. It is given the work-item system tools for its team (see tools/agent-tools),
+// so it can read and manage that team's issues, comments, labels, custom field
 // values, and attachments — acting as its own bot user, plus a read_skill tool for
 // any skills enabled on it.
 //
-// The model is addressed through Mastra's model router. When the project has a
+// The model is addressed through Mastra's model router. When the team has a
 // stored credential for the agent's provider (ai_provider_credential), its key is
 // decrypted and passed to the model config; otherwise the provider/model string
 // form is used, which falls back to the provider key in the environment.
 
 // Default OpenAI mini model used when an OpenAI agent has no model set.
 const DEFAULT_MODEL = 'gpt-5-mini';
-const DEFAULT_INSTRUCTIONS = "You are a helpful assistant that manages this project's work items.";
+const DEFAULT_INSTRUCTIONS = "You are a helpful assistant that manages this team's work items.";
 // Upper bound on the agent's tool-use loop when the agent has no maxSteps set.
 const DEFAULT_MAX_STEPS = 12;
 
@@ -42,7 +42,7 @@ async function resolveModel(row: AiAgentRow): Promise<ModelConfig> {
   if (row.modelCredentialId == null) {
     throw new HttpError(400, 'Agent has no model credential set');
   }
-  const secret = await getCredentialSecret(row.modelCredentialId, row.projectId);
+  const secret = await getCredentialSecret(row.modelCredentialId, row.teamId);
   if (!secret) throw new HttpError(400, "Agent's model credential not found");
   const provider = secret.integrationKey;
   const modelId = row.model ?? (provider === 'openai' ? DEFAULT_MODEL : null);
@@ -69,29 +69,29 @@ export type AgentRunEvent =
   | { type: 'done'; threadId: string | null }
   | { type: 'error'; message: string };
 
-// A leading system-instruction block naming the project the agent works in. Grounds
+// A leading system-instruction block naming the team the agent works in. Grounds
 // every run (the test chat and the issue-triggered runs) so the agent knows which
-// project its work-item tools act on and how issue keys are formed.
-function projectPreamble(project: ProjectRow): string {
+// team its work-item tools act on and how issue keys are formed.
+function teamPreamble(team: TeamRow): string {
   return [
-    '## Current project',
-    `You are working in the project "${project.name}" (key ${project.key}). All your`,
-    `work-item tools act on this project only, and its issues are addressed by keys`,
-    `like ${project.key}-123.`,
+    '## Current team',
+    `You are working in the team "${team.name}" (key ${team.key}). All your`,
+    `work-item tools act on this team only, and its issues are addressed by keys`,
+    `like ${team.key}-123.`,
     '',
     '',
   ].join('\n');
 }
 
 async function buildAgent(row: AiAgentRow, contextPreamble: string): Promise<Agent> {
-  const project = await getProjectById(row.projectId);
-  if (!project) throw new HttpError(404, 'Project not found');
+  const team = await getTeamById(row.teamId);
+  if (!team) throw new HttpError(404, 'Team not found');
   const model = await resolveModel(row);
   const skills = await listAgentSkills(row.id);
   const customTools = await listAgentToolsForRun(row.id);
   const apiKey = await getInternalAgentApiKey(row);
   const instructions =
-    projectPreamble(project) +
+    teamPreamble(team) +
     contextPreamble +
     (row.instructions ?? DEFAULT_INSTRUCTIONS) +
     skillsPreamble(skills);
@@ -100,14 +100,14 @@ async function buildAgent(row: AiAgentRow, contextPreamble: string): Promise<Age
     name: row.name,
     instructions,
     model,
-    // The agent acts as its own bot user, scoped to its project. Route tools call the
-    // real API with its key, so its project role applies; get_current_date is the one
+    // The agent acts as its own bot user, scoped to its team. Route tools call the
+    // real API with its key, so its team role applies; get_current_date is the one
     // tool with no route; read_skill loads any enabled skills on demand; custom tools
-    // are the external integrations configured on the project and enabled here.
+    // are the external integrations configured on the team and enabled here.
     tools: {
-      ...buildRouteTools(project, apiKey, row.tools),
+      ...buildRouteTools(team, apiKey, row.tools),
       ...buildLocalTools(),
-      ...(skills.length > 0 ? buildSkillTool(row.projectId, skills) : {}),
+      ...(skills.length > 0 ? buildSkillTool(row.teamId, skills) : {}),
       ...buildCustomTools(customTools),
     },
     // Conversation memory (last N messages of a thread) when enabled.
@@ -117,9 +117,9 @@ async function buildAgent(row: AiAgentRow, contextPreamble: string): Promise<Age
   });
 }
 
-// Runs the internal agent identified by (agentId, projectId) against the prompt
+// Runs the internal agent identified by (agentId, teamId) against the prompt
 // and returns the generated text. Throws 404 if the agent does not exist in the
-// project and 400 if it is an external agent (which carries no model config).
+// team and 400 if it is an external agent (which carries no model config).
 //
 // When the agent has memory enabled, the run participates in a conversation
 // thread: threadId identifies the conversation (a new one is created when omitted)
@@ -127,11 +127,11 @@ async function buildAgent(row: AiAgentRow, contextPreamble: string): Promise<Age
 // caller can continue the conversation; it is null when memory is off.
 export async function runAgent(
   agentId: string,
-  projectId: string,
+  teamId: string,
   prompt: string,
   opts: RunOpts,
 ): Promise<{ text: string; threadId: string | null }> {
-  const { agent, options, threadId } = await prepareRun(agentId, projectId, prompt, opts);
+  const { agent, options, threadId } = await prepareRun(agentId, teamId, prompt, opts);
   const result = await agent.generate(prompt, options);
   return { text: (result.text ?? '').trim(), threadId };
 }
@@ -143,12 +143,12 @@ export async function runAgent(
 // so a caller consuming the stream sees it inline and the stream still ends.
 export async function* streamAgent(
   agentId: string,
-  projectId: string,
+  teamId: string,
   prompt: string,
   opts: RunOpts,
 ): AsyncGenerator<AgentRunEvent> {
   try {
-    const { agent, options, threadId } = await prepareRun(agentId, projectId, prompt, opts);
+    const { agent, options, threadId } = await prepareRun(agentId, teamId, prompt, opts);
     const result = await agent.stream(prompt, options);
     for await (const chunk of result.fullStream) {
       switch (chunk.type) {
@@ -185,11 +185,11 @@ export async function* streamAgent(
 // caller owns). Shared by runAgent and streamAgent.
 async function prepareRun(
   agentId: string,
-  projectId: string,
+  teamId: string,
   prompt: string,
   opts: RunOpts,
 ): Promise<{ agent: Agent; options: RunOptions; threadId: string | null }> {
-  const row = await getAgentById(agentId, projectId);
+  const row = await getAgentById(agentId, teamId);
   if (!row) throw new HttpError(404, 'Agent not found');
   if (row.kind !== 'internal') {
     throw new HttpError(400, 'Only internal agents can be run');
@@ -206,7 +206,7 @@ async function prepareRun(
     // A chat run with no threadId starts a new conversation; every other run continues
     // the thread its caller named (see thread-ids). The thread is created up front with
     // what it is bound to and a title, so the chat history can list it and deleting the
-    // agent, project or issue can find it. The threadId used is returned so the caller
+    // agent, team or issue can find it. The threadId used is returned so the caller
     // can continue.
     threadId = opts.threadId ?? newChatThreadId(row.id, opts.callerUserId);
     await ensureThread(
@@ -214,7 +214,7 @@ async function prepareRun(
       opts.callerUserId,
       {
         agentId: row.id,
-        projectId,
+        teamId,
         kind: isChatThreadId(threadId) ? 'chat' : 'run',
         ...(opts.issueId != null ? { issueId: opts.issueId } : {}),
         ...(opts.scheduleId != null ? { scheduleId: opts.scheduleId } : {}),

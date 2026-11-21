@@ -13,7 +13,7 @@ import { postInternal } from './internal-api';
 
 interface ClaimedNotification {
   id: string;
-  projectId: string;
+  teamId: string;
   channel: string;
   recipient: string | null;
   payload: unknown;
@@ -51,7 +51,7 @@ async function claimDueDeliveries(): Promise<ClaimedNotification[]> {
     )
     RETURNING
       d.id,
-      d.project_id AS "projectId",
+      d.team_id AS "teamId",
       d.channel,
       d.recipient,
       d.payload,
@@ -98,7 +98,7 @@ async function send(d: ClaimedNotification): Promise<SendResult> {
   const res = await postInternal(
     '/internal/notification-deliveries/send',
     {
-      projectId: d.projectId,
+      teamId: d.teamId,
       channel: d.channel,
       recipient: d.recipient,
       payload: d.payload,

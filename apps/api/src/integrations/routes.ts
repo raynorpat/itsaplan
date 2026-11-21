@@ -9,14 +9,14 @@ import { listModelsForProvider } from './models';
 import { listCredentials, createCredential, updateCredential, deleteCredential } from './store';
 
 const credentialParams = t.Object({
-  projectKey: t.String(),
+  teamKey: t.String(),
   credentialId: t.String({ format: 'uuid' }),
 });
 
 // A stored credential DTO — never carries the secret, only the redacted view.
 const CredentialResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  projectId: t.String({ format: 'uuid' }),
+  teamId: t.String({ format: 'uuid' }),
   integrationKey: t.String(),
   label: t.Nullable(t.String()),
   redacted: t.Record(t.String(), t.Any()),
@@ -60,7 +60,7 @@ export const integrationRoutes = new Elysia({
 
   // The catalog of integrations (LLM providers + tool integrations). The frontend
   // builds the credential form from credentialSchema.
-  .get('/projects/:projectKey/integrations/catalog', () => INTEGRATION_CATALOG, {
+  .get('/teams/:teamKey/integrations/catalog', () => INTEGRATION_CATALOG, {
     permission: ['integrations', 'read'],
     response: {
       200: t.Array(IntegrationResponse),
@@ -77,10 +77,10 @@ export const integrationRoutes = new Elysia({
   // The models an LLM provider offers, from the models.dev registry. Backs the model
   // select in the agent config UI. Empty when the registry is unavailable.
   .get(
-    '/projects/:projectKey/integrations/models/:provider',
+    '/teams/:teamKey/integrations/models/:provider',
     ({ params }) => listModelsForProvider(params.provider),
     {
-      params: t.Object({ projectKey: t.String(), provider: t.String() }),
+      params: t.Object({ teamKey: t.String(), provider: t.String() }),
       permission: ['integrations', 'read'],
       response: {
         200: t.Array(ProviderModelResponse),
@@ -95,7 +95,7 @@ export const integrationRoutes = new Elysia({
     },
   )
 
-  .get('/projects/:projectKey/integrations', ({ project }) => listCredentials(project.id), {
+  .get('/teams/:teamKey/integrations', ({ team }) => listCredentials(team.id), {
     permission: ['integrations', 'read'],
     response: {
       200: t.Array(CredentialResponse),
@@ -105,15 +105,15 @@ export const integrationRoutes = new Elysia({
     },
     detail: {
       summary: 'List credentials',
-      description: "List a project's integration credentials (secrets redacted).",
+      description: "List a team's integration credentials (secrets redacted).",
     },
   })
 
   .post(
-    '/projects/:projectKey/integrations',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/integrations',
+    async ({ team, body, set }) => {
       set.status = 201;
-      return createCredential(project.id, body);
+      return createCredential(team.id, body);
     },
     {
       body: t.Object({
@@ -139,9 +139,9 @@ export const integrationRoutes = new Elysia({
   // Updates the label and/or the credential. Secret fields left out of `credential`
   // keep their stored value. The integration is fixed once created (delete + re-add).
   .patch(
-    '/projects/:projectKey/integrations/:credentialId',
-    async ({ params, project, body }) => {
-      const row = await updateCredential(params.credentialId, project.id, body);
+    '/teams/:teamKey/integrations/:credentialId',
+    async ({ params, team, body }) => {
+      const row = await updateCredential(params.credentialId, team.id, body);
       if (!row) throw new HttpError(404, 'Credential not found');
       return row;
     },
@@ -167,9 +167,9 @@ export const integrationRoutes = new Elysia({
   )
 
   .delete(
-    '/projects/:projectKey/integrations/:credentialId',
-    async ({ params, project }) => {
-      const ok = await deleteCredential(params.credentialId, project.id);
+    '/teams/:teamKey/integrations/:credentialId',
+    async ({ params, team }) => {
+      const ok = await deleteCredential(params.credentialId, team.id);
       if (!ok) throw new HttpError(404, 'Credential not found');
       return noContent();
     },

@@ -1,11 +1,11 @@
-import { db, issue, project, projectColumn, user } from '@repo/db';
+import { db, issue, team, workflowState, user } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
 import { and, eq, getTableColumns, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { issueFilterSql } from '../issue-filter';
-import { findTeam, toTeam, visibleProjectIds, visibleUsers } from './team';
+import { findTeam, toTeam, visibleTeamIds, visibleUsers } from './team';
 import { toGraphQLUser } from './user';
 import { toWorkflowState } from './workflow-state';
 import { UUID_RE } from '../../shared/lib';
@@ -18,11 +18,11 @@ const IDENTIFIER = /^([A-Za-z0-9]+)-(\d{1,9})$/;
 
 const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
 
-const issueColumns = { ...getTableColumns(issue), projectKey: project.key };
-type IssueRecord = typeof issue.$inferSelect & { projectKey: string };
+const issueColumns = { ...getTableColumns(issue), teamKey: team.key };
+type IssueRecord = typeof issue.$inferSelect & { teamKey: string };
 
 const issueSelect = () =>
-  db.select(issueColumns).from(issue).innerJoin(project, eq(project.id, issue.projectId));
+  db.select(issueColumns).from(issue).innerJoin(team, eq(team.id, issue.teamId));
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
@@ -34,7 +34,7 @@ function slug(text: string): string {
 }
 
 export function toIssue(row: IssueRecord) {
-  const identifier = `${row.projectKey}-${row.sequenceNumber}`;
+  const identifier = `${row.teamKey}-${row.sequenceNumber}`;
   return {
     id: row.id,
     identifier,
@@ -55,12 +55,12 @@ export function toIssue(row: IssueRecord) {
     startedAt: iso(row.startedAt),
     completedAt: iso(row.completedAt),
     canceledAt: iso(row.canceledAt),
-    url: `${trustedOrigins[0]}/project/${row.projectKey}/issue/${row.sequenceNumber}`,
+    url: `${trustedOrigins[0]}/team/${row.teamKey}/issue/${row.sequenceNumber}`,
     branchName: `${identifier.toLowerCase()}-${slug(row.title)}`.slice(0, 60).replace(/-+$/, ''),
     trashed: false,
     // Read by the Issue relation resolvers; not schema fields.
-    projectId: row.projectId,
-    columnId: row.columnId,
+    teamId: row.teamId,
+    stateId: row.stateId,
     parentId: row.parentId,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
@@ -83,11 +83,10 @@ export async function findIssue(idOrIdentifier: string, userId: string): Promise
   if (UUID_RE.test(idOrIdentifier)) match = eq(issue.id, idOrIdentifier);
   else {
     const m = IDENTIFIER.exec(idOrIdentifier);
-    if (m)
-      match = and(eq(project.key, m[1]!.toUpperCase()), eq(issue.sequenceNumber, Number(m[2])));
+    if (m) match = and(eq(team.key, m[1]!.toUpperCase()), eq(issue.sequenceNumber, Number(m[2])));
   }
   const rows = match
-    ? await issueSelect().where(and(match, inArray(issue.projectId, visibleProjectIds(userId))))
+    ? await issueSelect().where(and(match, inArray(issue.teamId, visibleTeamIds(userId))))
     : [];
   if (!rows[0]) throw gqlError('ENTITY_NOT_FOUND', `Issue ${idOrIdentifier} not found`);
   return rows[0];
@@ -98,7 +97,7 @@ type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean |
 // The viewer's visible issues matching `where`, the filter and includeArchived.
 function issueScope(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
   return and(
-    inArray(issue.projectId, visibleProjectIds(viewerId)),
+    inArray(issue.teamId, visibleTeamIds(viewerId)),
     where,
     args.includeArchived ? undefined : isNull(issue.archivedAt),
     issueFilterSql(args.filter, viewerId),
@@ -121,7 +120,7 @@ export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerI
 }
 
 // A user the viewer may see (see visibleUsers), or null. A former member who no
-// longer shares a project with the viewer resolves to null, as user(id:) does.
+// longer shares a team with the viewer resolves to null, as user(id:) does.
 async function userById(id: string | null, viewerId: string) {
   if (!id) return null;
   const [row] = await db
@@ -135,11 +134,11 @@ async function userById(id: string | null, viewerId: string) {
 // metadata).
 const issueRelations = {
   team: async (i: GraphQLIssue) => {
-    const [row] = await db.select().from(project).where(eq(project.id, i.projectId));
+    const [row] = await db.select().from(team).where(eq(team.id, i.teamId));
     return toTeam(row!);
   },
   state: async (i: GraphQLIssue) => {
-    const [row] = await db.select().from(projectColumn).where(eq(projectColumn.id, i.columnId));
+    const [row] = await db.select().from(workflowState).where(eq(workflowState.id, i.stateId));
     return toWorkflowState(row!);
   },
   parent: async (i: GraphQLIssue) => {
@@ -174,7 +173,7 @@ export const issueResolvers = {
       let team: SQL | undefined;
       if (args.teamId) {
         const found = await findTeam(args.teamId, ctx.user.id).catch(() => null);
-        team = found ? eq(issue.projectId, found.id) : sql`false`;
+        team = found ? eq(issue.teamId, found.id) : sql`false`;
       }
       const where = and(or(ilike(issue.title, pattern), ilike(issue.description, pattern)), team);
       const page = await listIssues(where, args, ctx.user.id);
@@ -192,15 +191,15 @@ export const issueResolvers = {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(issue)
-        .where(eq(issue.projectId, team.id));
+        .where(eq(issue.teamId, team.id));
       return count;
     },
     issues: (team: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listIssues(eq(issue.projectId, team.id), args, ctx.user.id),
+      listIssues(eq(issue.teamId, team.id), args, ctx.user.id),
   },
   WorkflowState: {
     issues: (state: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listIssues(eq(issue.columnId, state.id), args, ctx.user.id),
+      listIssues(eq(issue.stateId, state.id), args, ctx.user.id),
   },
   User: {
     assignedIssues: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>

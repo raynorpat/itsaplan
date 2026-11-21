@@ -15,7 +15,7 @@ import {
   updateAgentSchedule,
 } from './store';
 
-const params = t.Object({ projectKey: t.String(), scheduleId: t.String({ format: 'uuid' }) });
+const params = t.Object({ teamKey: t.String(), scheduleId: t.String({ format: 'uuid' }) });
 const status = t.UnionEnum(['active', 'paused']);
 const scheduleBody = t.Object({
   agentId: t.String({ format: 'uuid' }),
@@ -37,16 +37,16 @@ export const agentScheduleRoutes = new Elysia({
 })
   .use(authContext)
   .use(guards)
-  .get('/projects/:projectKey/agent-schedules', ({ project }) => listAgentSchedules(project.id), {
+  .get('/teams/:teamKey/agent-schedules', ({ team }) => listAgentSchedules(team.id), {
     permission: ['ai_agents', 'read'],
     detail: { summary: 'List agent schedules' },
   })
   .post(
-    '/projects/:projectKey/agent-schedules',
-    async ({ project, body, set }) => {
+    '/teams/:teamKey/agent-schedules',
+    async ({ team, body, set }) => {
       const cron = body.cron.trim();
       const row = await createAgentSchedule({
-        projectId: project.id,
+        teamId: team.id,
         agentId: body.agentId,
         name: requiredText(body.name, 'Name'),
         prompt: requiredText(body.prompt, 'Task'),
@@ -54,7 +54,7 @@ export const agentScheduleRoutes = new Elysia({
         status: body.status ?? 'active',
         nextRunAt: nextCronRun(cron),
       });
-      if (!row) throw new HttpError(400, 'Select an internal agent from this project');
+      if (!row) throw new HttpError(400, 'Select an internal agent from this team');
       set.status = 201;
       return row;
     },
@@ -66,17 +66,17 @@ export const agentScheduleRoutes = new Elysia({
     },
   )
   .patch(
-    '/projects/:projectKey/agent-schedules/:scheduleId',
-    async ({ project, params, body }) => {
+    '/teams/:teamKey/agent-schedules/:scheduleId',
+    async ({ team, params, body }) => {
       const cron = body.cron?.trim();
-      const current = await getAgentSchedule(project.id, params.scheduleId);
+      const current = await getAgentSchedule(team.id, params.scheduleId);
       if (!current) throw new HttpError(404, 'Schedule not found');
       // Recompute the next run when the cron changes, or when resuming a paused schedule.
       const resuming = body.status === 'active' && current.status === 'paused';
       let nextRunAt: Date | undefined;
       if (cron !== undefined) nextRunAt = nextCronRun(cron);
       else if (resuming) nextRunAt = nextCronRun(current.cron);
-      const row = await updateAgentSchedule(project.id, params.scheduleId, {
+      const row = await updateAgentSchedule(team.id, params.scheduleId, {
         ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
         ...(body.name !== undefined ? { name: requiredText(body.name, 'Name') } : {}),
         ...(body.prompt !== undefined ? { prompt: requiredText(body.prompt, 'Task') } : {}),
@@ -96,9 +96,9 @@ export const agentScheduleRoutes = new Elysia({
     },
   )
   .delete(
-    '/projects/:projectKey/agent-schedules/:scheduleId',
-    async ({ project, params }) => {
-      if (!(await deleteAgentSchedule(project.id, params.scheduleId))) {
+    '/teams/:teamKey/agent-schedules/:scheduleId',
+    async ({ team, params }) => {
+      if (!(await deleteAgentSchedule(team.id, params.scheduleId))) {
         throw new HttpError(404, 'Schedule not found');
       }
       return noContent();
@@ -110,9 +110,9 @@ export const agentScheduleRoutes = new Elysia({
     },
   )
   .post(
-    '/projects/:projectKey/agent-schedules/:scheduleId/run',
-    async ({ project, params, set }) => {
-      const runId = await enqueueManualScheduleRun(project.id, params.scheduleId);
+    '/teams/:teamKey/agent-schedules/:scheduleId/run',
+    async ({ team, params, set }) => {
+      const runId = await enqueueManualScheduleRun(team.id, params.scheduleId);
       if (runId == null) throw new HttpError(404, 'Schedule not found');
       set.status = 202;
       return { runId };
@@ -120,9 +120,9 @@ export const agentScheduleRoutes = new Elysia({
     { params, permission: ['ai_agents', 'edit'], detail: { summary: 'Run an agent schedule now' } },
   )
   .get(
-    '/projects/:projectKey/agent-schedules/:scheduleId/runs',
-    async ({ project, params }) => {
-      const rows = await listScheduleRuns(project.id, params.scheduleId);
+    '/teams/:teamKey/agent-schedules/:scheduleId/runs',
+    async ({ team, params }) => {
+      const rows = await listScheduleRuns(team.id, params.scheduleId);
       if (!rows) throw new HttpError(404, 'Schedule not found');
       return rows;
     },

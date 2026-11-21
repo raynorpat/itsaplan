@@ -10,12 +10,11 @@ import { gql } from '../../../__tests__/helpers/linear';
 async function setup() {
   const owner = await signUpTestUser();
   const asOwner = authedApi(owner.cookie);
-  await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.projects({ projectKey: 'MKT' }).get();
-  const columnId = view.data!.columns[0].id;
-  const issue = (
-    await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'x' })
-  ).data!;
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
+  const stateId = view.data!.states[0].id;
+  const issue = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'x' }))
+    .data!;
   const run = (query: string) => gql({ cookie: owner.cookie }, query);
   return { run, issue };
 }

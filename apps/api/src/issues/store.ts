@@ -1,18 +1,19 @@
 import {
   db,
-  project as projectTable,
+  team as teamTable,
   issue,
   issueActivity,
   issueLabel,
   label,
-  projectColumn,
+  workflowState,
   issueType,
   issueFieldValue,
   issueFieldOption,
   issueAttachment,
   customField,
   customFieldOption,
-  initiative,
+  project,
+  projectTeam,
 } from '@repo/db';
 import {
   and,
@@ -31,7 +32,7 @@ import {
 import type { IssueQuery } from '../ai-agents/issue-query';
 import { iso, num, HttpError } from '../shared/lib';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
-import type { ProjectRow } from '../projects/store';
+import type { TeamRow } from '../teams/store';
 import { getCustomFieldById, type CustomFieldType } from '../custom-fields/store';
 import {
   recordActivity,
@@ -43,15 +44,15 @@ import {
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
 import { emitWebhookEvent } from '../webhooks/emit';
-import { getAssignTriggerAgent, isProjectAgent } from '../ai-agents/store';
+import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
-import { getInitiativeProjectId } from '../initiatives/store';
+import { getProjectTeamId } from '../projects/store';
 import { getMembership } from '../members/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
 
 // Data access for issues and their per-issue data: labels, custom field values,
-// and selected options. The human identifier (e.g. "MKT-42") is the project key
-// plus the issue's project-scoped sequence number.
+// and selected options. The human identifier (e.g. "MKT-42") is the team key
+// plus the issue's team-scoped sequence number.
 
 // Compact custom field value for the work items payload: the scalar value (null for
 // select/multi_select and unset fields) and the selected option ids.
@@ -63,18 +64,18 @@ export interface IssueFieldValueEntry {
 
 export interface IssueRow {
   id: string;
-  projectId: string;
-  // Project-scoped sequence number (the "42" in "MKT-42"). Used to address the
-  // issue by its human number in URLs (/project/MKT/issue/42).
+  teamId: string;
+  // Team-scoped sequence number (the "42" in "MKT-42"). Used to address the
+  // issue by its human number in URLs (/team/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
   typeId: string | null;
-  // The initiative this issue is linked to, expanded to id + title for rendering,
-  // or null. Filled by attachInitiatives; mapIssue alone leaves it null.
-  initiative: { id: string; title: string } | null;
+  // The project this issue is linked to, expanded to id + title for rendering,
+  // or null. Filled by attachProjects; mapIssue alone leaves it null.
+  project: { id: string; title: string } | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  columnId: string;
+  stateId: string;
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
   creatorUserId: string | null;
@@ -110,17 +111,17 @@ export interface IssueRow {
   fieldValues: IssueFieldValueEntry[];
 }
 
-function mapIssue(row: typeof issue.$inferSelect, projectKey: string): IssueRow {
+function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
   return {
     id: row.id,
-    projectId: row.projectId,
+    teamId: row.teamId,
     sequenceNumber: row.sequenceNumber,
-    identifier: `${projectKey}-${row.sequenceNumber}`,
+    identifier: `${teamKey}-${row.sequenceNumber}`,
     typeId: row.typeId,
-    initiative: null,
+    project: null,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
-    columnId: row.columnId,
+    stateId: row.stateId,
     parentId: row.parentId,
     creatorUserId: row.creatorUserId,
     title: row.title,
@@ -180,9 +181,9 @@ function snapshot(row: IssueRow): IssueSnapshot {
     id: row.id,
     title: row.title,
     description: row.description,
-    columnId: row.columnId,
+    stateId: row.stateId,
     typeId: row.typeId,
-    initiativeId: row.initiative?.id ?? null,
+    projectId: row.project?.id ?? null,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     priority: row.priority,
@@ -191,33 +192,33 @@ function snapshot(row: IssueRow): IssueSnapshot {
   };
 }
 
-export async function listIssues(project: ProjectRow): Promise<IssueRow[]> {
+export async function listIssues(team: TeamRow): Promise<IssueRow[]> {
   const rows = await db
     .select()
     .from(issue)
-    .where(and(eq(issue.projectId, project.id), isNull(issue.archivedAt)))
-    .orderBy(issue.columnId, issue.position);
-  const issues = rows.map((row) => mapIssue(row, project.key));
+    .where(and(eq(issue.teamId, team.id), isNull(issue.archivedAt)))
+    .orderBy(issue.stateId, issue.position);
+  const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
   await attachFieldValues(issues);
   await attachStatusSince(issues);
-  await attachInitiatives(issues);
+  await attachProjects(issues);
   return issues;
 }
 
-// The project's archived issues, newest archived first. The archive view lists
+// The team's archived issues, newest archived first. The archive view lists
 // these so an owner can restore one. Same per-issue enrichment as the board.
-export async function listArchivedIssues(project: ProjectRow): Promise<IssueRow[]> {
+export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
   const rows = await db
     .select()
     .from(issue)
-    .where(and(eq(issue.projectId, project.id), isNotNull(issue.archivedAt)))
+    .where(and(eq(issue.teamId, team.id), isNotNull(issue.archivedAt)))
     .orderBy(sql`${issue.archivedAt} desc`);
-  const issues = rows.map((row) => mapIssue(row, project.key));
+  const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
   await attachFieldValues(issues);
   await attachStatusSince(issues);
-  await attachInitiatives(issues);
+  await attachProjects(issues);
   return issues;
 }
 
@@ -230,9 +231,9 @@ export interface IssueSearchHit {
   sequenceNumber: number;
   identifier: string;
   title: string;
-  columnId: string;
+  stateId: string;
   typeId: string | null;
-  initiativeId: string | null;
+  projectId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
   priority: number;
@@ -250,16 +251,16 @@ function escapeLike(value: string): string {
 // Server-side issue read backing two routes: text search (search_issues) and the
 // filtered list (list_issues). Text search (filters.query) matches, case-
 // insensitively, the title, description, the issue number (a bare number, or
-// "KEY-42" for this project), scalar custom field text values, and
+// "KEY-42" for this team), scalar custom field text values, and
 // select/multi_select option labels. The other fields apply as exact filters (used
 // by list_issues). includeArchived adds archived issues to the result (search always
 // sets it; list defaults to active only).
 export async function searchIssues(
-  project: ProjectRow,
+  team: TeamRow,
   filters: IssueQuery,
   opts: { includeArchived?: boolean } = {},
 ): Promise<IssueSearchHit[]> {
-  const conds: SQL[] = [eq(issue.projectId, project.id)];
+  const conds: SQL[] = [eq(issue.teamId, team.id)];
   if (!opts.includeArchived) conds.push(isNull(issue.archivedAt));
 
   const raw = filters.query?.trim();
@@ -267,12 +268,12 @@ export async function searchIssues(
   if (raw) {
     const pattern = `%${escapeLike(raw)}%`;
     // Recognise the issue number: a bare number, or "KEY-42" whose key matches this
-    // project. Matched against sequence_number (the identifier is not a column).
+    // team. Matched against sequence_number (the identifier is not a column).
     if (/^\d+$/.test(raw)) {
       seqMatch = Number(raw);
     } else {
       const m = raw.match(/^([A-Za-z][A-Za-z0-9]*)-(\d+)$/);
-      if (m && m[1].toLowerCase() === project.key.toLowerCase()) seqMatch = Number(m[2]);
+      if (m && m[1].toLowerCase() === team.key.toLowerCase()) seqMatch = Number(m[2]);
     }
     const textConds: SQL[] = [
       ilike(issue.title, pattern),
@@ -301,14 +302,12 @@ export async function searchIssues(
 
   // Exact filters, mirroring matchesIssue: undefined skips the filter, null matches
   // rows where the column is null, a value matches equality.
-  if (filters.columnId !== undefined) conds.push(eq(issue.columnId, filters.columnId));
+  if (filters.stateId !== undefined) conds.push(eq(issue.stateId, filters.stateId));
   if (filters.typeId !== undefined)
     conds.push(filters.typeId === null ? isNull(issue.typeId) : eq(issue.typeId, filters.typeId));
-  if (filters.initiativeId !== undefined)
+  if (filters.projectId !== undefined)
     conds.push(
-      filters.initiativeId === null
-        ? isNull(issue.initiativeId)
-        : eq(issue.initiativeId, filters.initiativeId),
+      filters.projectId === null ? isNull(issue.projectId) : eq(issue.projectId, filters.projectId),
     );
   if (filters.assigneeUserId !== undefined)
     conds.push(
@@ -352,10 +351,10 @@ export async function searchIssues(
       id: issue.id,
       sequenceNumber: issue.sequenceNumber,
       typeId: issue.typeId,
-      initiativeId: issue.initiativeId,
+      projectId: issue.projectId,
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
-      columnId: issue.columnId,
+      stateId: issue.stateId,
       title: issue.title,
       priority: issue.priority,
       dueDate: issue.dueDate,
@@ -369,11 +368,11 @@ export async function searchIssues(
   const hits: IssueSearchHit[] = rows.map((r) => ({
     id: r.id,
     sequenceNumber: r.sequenceNumber,
-    identifier: `${project.key}-${r.sequenceNumber}`,
+    identifier: `${team.key}-${r.sequenceNumber}`,
     title: r.title,
-    columnId: r.columnId,
+    stateId: r.stateId,
     typeId: r.typeId,
-    initiativeId: r.initiativeId,
+    projectId: r.projectId,
     assigneeUserId: r.assigneeUserId,
     delegateUserId: r.delegateUserId,
     priority: r.priority,
@@ -412,7 +411,7 @@ export async function archiveIssue(
 
 // Restores an archived issue back onto the board (archived_at -> null). Records a
 // feed entry. If its column was archived meanwhile, the issue moves to the first
-// active column of the same state type (archiveColumn keeps one per type), so it
+// active column of the same state type (archiveState keeps one per type), so it
 // never sits in a hidden column. Returns the updated issue, or null if it does not
 // exist.
 export async function restoreIssue(
@@ -423,41 +422,41 @@ export async function restoreIssue(
     .update(issue)
     .set({ archivedAt: null })
     .where(and(eq(issue.id, id), isNotNull(issue.archivedAt)))
-    .returning({ id: issue.id, columnId: issue.columnId, projectId: issue.projectId });
+    .returning({ id: issue.id, stateId: issue.stateId, teamId: issue.teamId });
   if (!row) return getIssue(id);
   await recordActivity(id, [{ action: 'restored' }], actorUserId);
   const [column] = await db
-    .select({ archivedAt: projectColumn.archivedAt, stateType: projectColumn.stateType })
-    .from(projectColumn)
-    .where(eq(projectColumn.id, row.columnId));
+    .select({ archivedAt: workflowState.archivedAt, stateType: workflowState.stateType })
+    .from(workflowState)
+    .where(eq(workflowState.id, row.stateId));
   if (column?.archivedAt) {
     const [target] = await db
-      .select({ id: projectColumn.id })
-      .from(projectColumn)
+      .select({ id: workflowState.id })
+      .from(workflowState)
       .where(
         and(
-          eq(projectColumn.projectId, row.projectId),
-          eq(projectColumn.stateType, column.stateType),
-          isNull(projectColumn.archivedAt),
+          eq(workflowState.teamId, row.teamId),
+          eq(workflowState.stateType, column.stateType),
+          isNull(workflowState.archivedAt),
         ),
       )
-      .orderBy(projectColumn.position)
+      .orderBy(workflowState.position)
       .limit(1);
-    if (target) return updateIssue(id, { columnId: target.id }, actorUserId);
+    if (target) return updateIssue(id, { stateId: target.id }, actorUserId);
   }
   return getIssue(id);
 }
 
-// Expands each issue's linked initiative to { id, title } in place, in one query
-// joining the issue to its initiative. Issues with no initiative keep the null
-// mapIssue set. Rendering the initiative name on a board card needs no separate
+// Expands each issue's linked project to { id, title } in place, in one query
+// joining the issue to its project. Issues with no project keep the null
+// mapIssue set. Rendering the project name on a board card needs no separate
 // scaffold lookup this way.
-async function attachInitiatives(issues: IssueRow[]): Promise<void> {
+async function attachProjects(issues: IssueRow[]): Promise<void> {
   if (issues.length === 0) return;
   const rows = await db
-    .select({ issueId: issue.id, id: initiative.id, title: initiative.title })
+    .select({ issueId: issue.id, id: project.id, title: project.name })
     .from(issue)
-    .innerJoin(initiative, eq(initiative.id, issue.initiativeId))
+    .innerJoin(project, eq(project.id, issue.projectId))
     .where(
       inArray(
         issue.id,
@@ -466,7 +465,7 @@ async function attachInitiatives(issues: IssueRow[]): Promise<void> {
     );
   const byIssue = new Map<string, { id: string; title: string }>();
   for (const r of rows) byIssue.set(r.issueId, { id: r.id, title: r.title });
-  for (const i of issues) i.initiative = byIssue.get(i.id) ?? null;
+  for (const i of issues) i.project = byIssue.get(i.id) ?? null;
 }
 
 // Loads every issue's label ids and merges them onto the issues in place. Generic
@@ -542,20 +541,20 @@ async function attachFieldValues(issues: IssueRow[]): Promise<void> {
   }
 }
 
-// The snapshot columns of an issue, without the label and project-key joins a
+// The snapshot columns of an issue, without the label and team-key joins a
 // full load does. Used as the "before" state for the change-log diff, which
-// needs only these columns, plus the project id the update's scope checks run
+// needs only these columns, plus the team id the update's scope checks run
 // against.
-async function loadSnapshot(id: string): Promise<(IssueSnapshot & { projectId: string }) | null> {
+async function loadSnapshot(id: string): Promise<(IssueSnapshot & { teamId: string }) | null> {
   const rows = await db
     .select({
       id: issue.id,
-      projectId: issue.projectId,
+      teamId: issue.teamId,
       title: issue.title,
       description: issue.description,
-      columnId: issue.columnId,
+      stateId: issue.stateId,
       typeId: issue.typeId,
-      initiativeId: issue.initiativeId,
+      projectId: issue.projectId,
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
       priority: issue.priority,
@@ -569,51 +568,51 @@ async function loadSnapshot(id: string): Promise<(IssueSnapshot & { projectId: s
 
 export async function getIssue(id: string): Promise<IssueRow | null> {
   const rows = await db
-    .select({ issue, projectKey: projectTable.key })
+    .select({ issue, teamKey: teamTable.key })
     .from(issue)
-    .innerJoin(projectTable, eq(projectTable.id, issue.projectId))
+    .innerJoin(teamTable, eq(teamTable.id, issue.teamId))
     .where(eq(issue.id, id));
   if (!rows[0]) return null;
-  const mapped = mapIssue(rows[0].issue, rows[0].projectKey);
+  const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
   await attachLabels([mapped]);
   await attachStatusSince([mapped]);
-  await attachInitiatives([mapped]);
+  await attachProjects([mapped]);
   return mapped;
 }
 
-// Loads an issue by its project-scoped sequence number (the human number in a URL
-// like /project/MKT/issue/42). Returns null if the project has no issue with that
+// Loads an issue by its team-scoped sequence number (the human number in a URL
+// like /team/MKT/issue/42). Returns null if the team has no issue with that
 // number. Archived issues resolve too, so a link to one still opens.
 export async function getIssueBySequence(
-  projectId: string,
+  teamId: string,
   sequenceNumber: number,
 ): Promise<IssueRow | null> {
   const rows = await db
-    .select({ issue, projectKey: projectTable.key })
+    .select({ issue, teamKey: teamTable.key })
     .from(issue)
-    .innerJoin(projectTable, eq(projectTable.id, issue.projectId))
-    .where(and(eq(issue.projectId, projectId), eq(issue.sequenceNumber, sequenceNumber)));
+    .innerJoin(teamTable, eq(teamTable.id, issue.teamId))
+    .where(and(eq(issue.teamId, teamId), eq(issue.sequenceNumber, sequenceNumber)));
   if (!rows[0]) return null;
-  const mapped = mapIssue(rows[0].issue, rows[0].projectKey);
+  const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
   await attachLabels([mapped]);
   await attachStatusSince([mapped]);
-  await attachInitiatives([mapped]);
+  await attachProjects([mapped]);
   return mapped;
 }
 
-// The project an issue belongs to, or null if the issue does not exist. Used by
+// The team an issue belongs to, or null if the issue does not exist. Used by
 // the access check on routes that address an issue by its own id.
-export async function getIssueProjectId(id: string): Promise<string | null> {
-  const rows = await db.select({ projectId: issue.projectId }).from(issue).where(eq(issue.id, id));
-  return rows[0]?.projectId ?? null;
+export async function getIssueTeamId(id: string): Promise<string | null> {
+  const rows = await db.select({ teamId: issue.teamId }).from(issue).where(eq(issue.id, id));
+  return rows[0]?.teamId ?? null;
 }
 
 export interface NewIssueInput {
   typeId?: string | null;
-  initiativeId?: string | null;
+  projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
-  columnId: string;
+  stateId: string;
   title: string;
   description?: string;
   priority?: number;
@@ -626,58 +625,55 @@ export interface NewIssueInput {
   position?: number;
 }
 
-// Enforces that assignee holds a project member and delegate holds an agent of the
-// same project. Only checks the fields present in the patch, and only when set to a
+// Enforces that assignee holds a team member and delegate holds an agent of the
+// same team. Only checks the fields present in the patch, and only when set to a
 // non-null value (clearing a field is always allowed). Throws 400 otherwise.
 async function assertAssignments(
-  projectId: string,
+  teamId: string,
   patch: { assigneeUserId?: string | null; delegateUserId?: string | null },
 ): Promise<void> {
   if (patch.assigneeUserId) {
-    const role = await getMembership(projectId, patch.assigneeUserId);
-    if (!role) throw new HttpError(400, 'Assignee must be a project member');
+    const role = await getMembership(teamId, patch.assigneeUserId);
+    if (!role) throw new HttpError(400, 'Assignee must be a team member');
   }
   if (patch.delegateUserId) {
-    if (!(await isProjectAgent(projectId, patch.delegateUserId)))
-      throw new HttpError(400, 'Delegate must be an agent of this project');
+    if (!(await isTeamAgent(teamId, patch.delegateUserId)))
+      throw new HttpError(400, 'Delegate must be an agent of this team');
   }
 }
 
-// Enforces that a linked initiative belongs to the same project. Only checks when
+// Enforces that a linked project belongs to the same team. Only checks when
 // set to a non-null value (clearing the link is always allowed). Throws 400
 // otherwise.
-async function assertInitiative(
-  projectId: string,
-  initiativeId: string | null | undefined,
-): Promise<void> {
-  if (initiativeId == null) return;
-  if ((await getInitiativeProjectId(initiativeId)) !== projectId)
-    throw new HttpError(400, 'Initiative must belong to this project');
+async function assertProject(teamId: string, projectId: string | null | undefined): Promise<void> {
+  if (projectId == null) return;
+  if ((await getProjectTeamId(projectId)) !== teamId)
+    throw new HttpError(400, 'Project must belong to this team');
 }
 
-// Enforces that a column belongs to the issue's project and is not archived —
-// issue.column_id only requires the column to exist somewhere, so an issue could
-// otherwise sit on another project's board. Throws 400 otherwise. Returns the
+// Enforces that a column belongs to the issue's team and is not archived —
+// issue.state_id only requires the column to exist somewhere, so an issue could
+// otherwise sit on another team's board. Throws 400 otherwise. Returns the
 // column's state type, or null when no column is given.
 async function assertColumn(
-  projectId: string,
-  columnId: string | undefined,
+  teamId: string,
+  stateId: string | undefined,
 ): Promise<StateType | null> {
-  if (columnId === undefined) return null;
+  if (stateId === undefined) return null;
   const rows = await db
-    .select({ stateType: projectColumn.stateType, archivedAt: projectColumn.archivedAt })
-    .from(projectColumn)
-    .where(and(eq(projectColumn.id, columnId), eq(projectColumn.projectId, projectId)));
-  if (rows.length === 0) throw new HttpError(400, 'Column must belong to this project');
+    .select({ stateType: workflowState.stateType, archivedAt: workflowState.archivedAt })
+    .from(workflowState)
+    .where(and(eq(workflowState.id, stateId), eq(workflowState.teamId, teamId)));
+  if (rows.length === 0) throw new HttpError(400, 'Column must belong to this team');
   if (rows[0].archivedAt) throw new HttpError(400, 'Column is archived');
   return rows[0].stateType as StateType;
 }
 
-// Enforces that a parent issue is in the same project and is neither the issue
+// Enforces that a parent issue is in the same team and is neither the issue
 // itself nor one of its descendants (which would make a cycle). Only checks when
 // set to a non-null value. issueId is null on create. Throws 400 otherwise.
 async function assertParent(
-  projectId: string,
+  teamId: string,
   issueId: string | null,
   parentId: string | null | undefined,
 ): Promise<void> {
@@ -686,8 +682,8 @@ async function assertParent(
   const rows = await db
     .select({ id: issue.id })
     .from(issue)
-    .where(and(eq(issue.id, parentId), eq(issue.projectId, projectId)));
-  if (rows.length === 0) throw new HttpError(400, 'Parent issue must belong to this project');
+    .where(and(eq(issue.id, parentId), eq(issue.teamId, teamId)));
+  if (rows.length === 0) throw new HttpError(400, 'Parent issue must belong to this team');
   if (!issueId) return;
   // Walk up from the proposed parent; reaching the issue means a cycle.
   const ancestors = (await db.execute(sql`
@@ -701,73 +697,70 @@ async function assertParent(
   if (ancestors.length > 0) throw new HttpError(400, 'Parent cannot be a sub-issue of this issue');
 }
 
-// Enforces that an issue type belongs to the issue's project. Only checks when set
+// Enforces that an issue type belongs to the issue's team. Only checks when set
 // to a non-null value (clearing the type is always allowed). Throws 400 otherwise.
-async function assertIssueType(
-  projectId: string,
-  typeId: string | null | undefined,
-): Promise<void> {
+async function assertIssueType(teamId: string, typeId: string | null | undefined): Promise<void> {
   if (typeId == null) return;
   const rows = await db
     .select({ id: issueType.id })
     .from(issueType)
-    .where(and(eq(issueType.id, typeId), eq(issueType.projectId, projectId)));
-  if (rows.length === 0) throw new HttpError(400, 'Issue type must belong to this project');
+    .where(and(eq(issueType.id, typeId), eq(issueType.teamId, teamId)));
+  if (rows.length === 0) throw new HttpError(400, 'Issue type must belong to this team');
 }
 
-// Enforces that every label belongs to the issue's project — the issue_label
+// Enforces that every label belongs to the issue's team — the issue_label
 // foreign key only requires the label to exist somewhere. Throws 400 otherwise.
-async function assertIssueLabels(projectId: string, labelIds?: string[]): Promise<void> {
+async function assertIssueLabels(teamId: string, labelIds?: string[]): Promise<void> {
   const ids = [...new Set(labelIds ?? [])];
   if (ids.length === 0) return;
   const rows = await db
     .select({ id: label.id })
     .from(label)
-    .where(and(eq(label.projectId, projectId), inArray(label.id, ids)));
-  if (rows.length !== ids.length) throw new HttpError(400, 'Labels must belong to this project');
+    .where(and(eq(label.teamId, teamId), inArray(label.id, ids)));
+  if (rows.length !== ids.length) throw new HttpError(400, 'Labels must belong to this team');
 }
 
-// Atomic per-project sequence number (the "-42" in "MKT-42"): the UPDATE takes a
-// row lock on project, so concurrent createIssue calls for the same project never
+// Atomic per-team sequence number (the "-42" in "MKT-42"): the UPDATE takes a
+// row lock on team, so concurrent createIssue calls for the same team never
 // hand out the same number.
 export async function createIssue(
-  project: ProjectRow,
+  team: TeamRow,
   input: NewIssueInput,
   actorUserId?: string | null,
 ): Promise<IssueRow> {
-  await assertAssignments(project.id, input);
-  await assertInitiative(project.id, input.initiativeId);
-  const stateType = (await assertColumn(project.id, input.columnId))!;
-  await assertParent(project.id, null, input.parentId);
+  await assertAssignments(team.id, input);
+  await assertProject(team.id, input.projectId);
+  const stateType = (await assertColumn(team.id, input.stateId))!;
+  await assertParent(team.id, null, input.parentId);
   const timestamps = nextStatusTimestamps(
     { startedAt: null, completedAt: null, canceledAt: null },
     stateType,
     new Date(),
   );
-  await assertIssueType(project.id, input.typeId);
+  await assertIssueType(team.id, input.typeId);
   // Also checked by setIssueLabels below, but here it fails before the issue exists.
-  await assertIssueLabels(project.id, input.labelIds);
+  await assertIssueLabels(team.id, input.labelIds);
   const issueId = await db.transaction(async (tx) => {
     const [seqRow] = await tx
-      .update(projectTable)
+      .update(teamTable)
       .set({ nextSequence: sql`next_sequence + 1` })
-      .where(eq(projectTable.id, project.id))
+      .where(eq(teamTable.id, team.id))
       .returning({ seq: sql<number>`next_sequence - 1` });
     const sequenceNumber = Number(seqRow.seq);
     const [posRow] = await tx
       .select({ pos: sql<number>`COALESCE(MAX(${issue.position}), 0) + 1000` })
       .from(issue)
-      .where(eq(issue.columnId, input.columnId));
+      .where(eq(issue.stateId, input.stateId));
     const [row] = await tx
       .insert(issue)
       .values({
-        projectId: project.id,
+        teamId: team.id,
         sequenceNumber,
         typeId: input.typeId ?? null,
-        initiativeId: input.initiativeId ?? null,
+        projectId: input.projectId ?? null,
         assigneeUserId: input.assigneeUserId ?? null,
         delegateUserId: input.delegateUserId ?? null,
-        columnId: input.columnId,
+        stateId: input.stateId,
         parentId: input.parentId ?? null,
         creatorUserId: actorUserId ?? null,
         title: input.title,
@@ -787,9 +780,9 @@ export async function createIssue(
   // Suppress the label_changed event on creation — the initial labels are part of
   // the issue.created payload, so a separate change event would be redundant.
   if (input.labelIds?.length)
-    await setIssueLabels(project.id, issueId, input.labelIds, actorUserId, false);
+    await setIssueLabels(team.id, issueId, input.labelIds, actorUserId, false);
   const created = (await getIssue(issueId))!;
-  await emitWebhookEvent(project.id, 'issue.created', created);
+  await emitWebhookEvent(team.id, 'issue.created', created);
   // An issue created already delegated to an agent enqueues a run, the same as
   // delegating one later does.
   await enqueueDelegateRun(created, actorUserId);
@@ -797,7 +790,7 @@ export async function createIssue(
   // assigning one later does.
   if (created.assigneeUserId) {
     await notifyIssueChange({
-      projectId: project.id,
+      teamId: team.id,
       issueId,
       actorUserId: actorUserId ?? null,
       assignedUserId: created.assigneeUserId,
@@ -807,10 +800,10 @@ export async function createIssue(
 }
 
 export interface IssuePatch {
-  columnId?: string;
+  stateId?: string;
   position?: number;
   typeId?: string | null;
-  initiativeId?: string | null;
+  projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
@@ -830,17 +823,17 @@ export async function updateIssue(
   const before = await loadSnapshot(id);
   if (!before) return null;
 
-  await assertAssignments(before.projectId, patch);
-  await assertInitiative(before.projectId, patch.initiativeId);
-  const stateType = await assertColumn(before.projectId, patch.columnId);
-  await assertParent(before.projectId, id, patch.parentId);
-  await assertIssueType(before.projectId, patch.typeId);
+  await assertAssignments(before.teamId, patch);
+  await assertProject(before.teamId, patch.projectId);
+  const stateType = await assertColumn(before.teamId, patch.stateId);
+  await assertParent(before.teamId, id, patch.parentId);
+  await assertIssueType(before.teamId, patch.typeId);
 
   const set: Partial<typeof issue.$inferInsert> = {};
-  if (patch.columnId !== undefined) set.columnId = patch.columnId;
+  if (patch.stateId !== undefined) set.stateId = patch.stateId;
   if (patch.position !== undefined) set.position = patch.position;
   if (patch.typeId !== undefined) set.typeId = patch.typeId;
-  if (patch.initiativeId !== undefined) set.initiativeId = patch.initiativeId;
+  if (patch.projectId !== undefined) set.projectId = patch.projectId;
   if (patch.assigneeUserId !== undefined) set.assigneeUserId = patch.assigneeUserId;
   if (patch.delegateUserId !== undefined) set.delegateUserId = patch.delegateUserId;
   if (patch.title !== undefined) set.title = patch.title;
@@ -848,7 +841,7 @@ export async function updateIssue(
   if (patch.priority !== undefined) set.priority = patch.priority;
   if (patch.estimate !== undefined) set.estimate = patch.estimate;
   if (patch.parentId !== undefined) set.parentId = patch.parentId;
-  if (stateType && patch.columnId !== before.columnId) {
+  if (stateType && patch.stateId !== before.stateId) {
     const [prev] = await db
       .select({
         startedAt: issue.startedAt,
@@ -871,14 +864,14 @@ export async function updateIssue(
   if (after) {
     await logIssueUpdate(before, snapshot(after), actorUserId);
     if (changed) {
-      await emitWebhookEvent(after.projectId, 'issue.updated', after);
+      await emitWebhookEvent(after.teamId, 'issue.updated', after);
       // Granular events fire in addition to issue.updated when their field changed.
       if (before.assigneeUserId !== after.assigneeUserId)
-        await emitWebhookEvent(after.projectId, 'issue.assigned', after);
+        await emitWebhookEvent(after.teamId, 'issue.assigned', after);
       if (before.delegateUserId !== after.delegateUserId)
         await enqueueDelegateRun(after, actorUserId);
-      if (before.columnId !== after.columnId)
-        await emitWebhookEvent(after.projectId, 'issue.state_changed', after);
+      if (before.stateId !== after.stateId)
+        await emitWebhookEvent(after.teamId, 'issue.state_changed', after);
     }
   }
   return after;
@@ -908,9 +901,9 @@ async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null):
 export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | null> {
   const result = await db.transaction(async (tx) => {
     const rows = await tx
-      .select({ projectId: issue.projectId, seq: issue.sequenceNumber, key: projectTable.key })
+      .select({ teamId: issue.teamId, seq: issue.sequenceNumber, key: teamTable.key })
       .from(issue)
-      .innerJoin(projectTable, eq(projectTable.id, issue.projectId))
+      .innerJoin(teamTable, eq(teamTable.id, issue.teamId))
       .where(eq(issue.id, issueId));
     if (rows.length === 0) return null;
     const attachmentRows = await tx
@@ -920,12 +913,12 @@ export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | nu
     await tx.delete(issue).where(eq(issue.id, issueId));
     return {
       attachments: attachmentRows.map(mapAttachment),
-      projectId: rows[0].projectId,
+      teamId: rows[0].teamId,
       identifier: `${rows[0].key}-${rows[0].seq}`,
     };
   });
   if (!result) return null;
-  await emitWebhookEvent(result.projectId, 'issue.deleted', {
+  await emitWebhookEvent(result.teamId, 'issue.deleted', {
     id: issueId,
     identifier: result.identifier,
   });
@@ -933,16 +926,16 @@ export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | nu
 }
 
 // Replaces the issue's full label set (not an add/remove diff) and logs the
-// added/removed labels to the activity feed. projectId is the issue's project: a
+// added/removed labels to the activity feed. teamId is the issue's team: a
 // label outside it is rejected before anything is written.
 export async function setIssueLabels(
-  projectId: string,
+  teamId: string,
   issueId: string,
   labelIds: string[],
   actorUserId?: string | null,
   emitEvent = true,
 ): Promise<void> {
-  await assertIssueLabels(projectId, labelIds);
+  await assertIssueLabels(teamId, labelIds);
   const beforeRows = await db
     .select({ labelId: issueLabel.labelId })
     .from(issueLabel)
@@ -962,7 +955,7 @@ export async function setIssueLabels(
   const removed = before.filter((x) => !next.includes(x));
 
   // Labels show on the board card, so a label change must bump the issue's
-  // updated_at: the board's change marker (projectBoardRev) is derived from it.
+  // updated_at: the board's change marker (teamBoardRev) is derived from it.
   if (added.length > 0 || removed.length > 0) {
     await db
       .update(issue)
@@ -970,7 +963,7 @@ export async function setIssueLabels(
       .where(eq(issue.id, issueId));
   }
 
-  const names = await labelNames(projectId, [...added, ...removed]);
+  const names = await labelNames(teamId, [...added, ...removed]);
   const events: ActivityInput[] = [];
   for (const labelId of added)
     events.push({ action: 'label_add', toText: names.get(labelId) ?? null });
@@ -980,7 +973,7 @@ export async function setIssueLabels(
 
   if (emitEvent && (added.length > 0 || removed.length > 0)) {
     const issueRow = await getIssue(issueId);
-    if (issueRow) await emitWebhookEvent(issueRow.projectId, 'issue.label_changed', issueRow);
+    if (issueRow) await emitWebhookEvent(issueRow.teamId, 'issue.label_changed', issueRow);
   }
 }
 
@@ -990,26 +983,26 @@ export async function setIssueLabels(
 // (activity feed, webhooks, delegate runs) still fire, but the client makes one
 // request and refetches the board once instead of N times.
 
-// The subset of `ids` that belong to this project (active or archived). The bulk
-// routes are project-scoped by their guard; filtering here drops any id the client
-// sent that is not in this project, so a bulk action can never reach across projects.
-async function issuesInProject(projectId: string, ids: string[]): Promise<string[]> {
+// The subset of `ids` that belong to this team (active or archived). The bulk
+// routes are team-scoped by their guard; filtering here drops any id the client
+// sent that is not in this team, so a bulk action can never reach across teams.
+async function issuesInTeam(teamId: string, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
   const rows = await db
     .select({ id: issue.id })
     .from(issue)
-    .where(and(eq(issue.projectId, projectId), inArray(issue.id, ids)));
+    .where(and(eq(issue.teamId, teamId), inArray(issue.id, ids)));
   return rows.map((r) => r.id);
 }
 
 // Applies the same patch to every listed issue. Returns how many were updated.
 export async function bulkUpdateIssues(
-  projectId: string,
+  teamId: string,
   ids: string[],
   patch: IssuePatch,
   actorUserId?: string | null,
 ): Promise<number> {
-  const valid = await issuesInProject(projectId, ids);
+  const valid = await issuesInTeam(teamId, ids);
   for (const id of valid) await updateIssue(id, patch, actorUserId);
   return valid.length;
 }
@@ -1018,14 +1011,14 @@ export async function bulkUpdateIssues(
 // labels. An issue that already carries all of them is left untouched. Returns how
 // many issues changed.
 export async function bulkAddLabels(
-  projectId: string,
+  teamId: string,
   ids: string[],
   labelIds: string[],
   actorUserId?: string | null,
 ): Promise<number> {
   const add = [...new Set(labelIds)];
-  await assertIssueLabels(projectId, add);
-  const valid = await issuesInProject(projectId, ids);
+  await assertIssueLabels(teamId, add);
+  const valid = await issuesInTeam(teamId, ids);
   if (add.length === 0 || valid.length === 0) return 0;
 
   const rows = await db
@@ -1044,7 +1037,7 @@ export async function bulkAddLabels(
     const have = current.get(id) ?? [];
     const missing = add.filter((l) => !have.includes(l));
     if (missing.length === 0) continue;
-    await setIssueLabels(projectId, id, [...have, ...missing], actorUserId);
+    await setIssueLabels(teamId, id, [...have, ...missing], actorUserId);
     changed++;
   }
   return changed;
@@ -1053,11 +1046,11 @@ export async function bulkAddLabels(
 // Archives every listed issue. Returns how many were archived (already-archived
 // issues re-stamp to a no-op and still count).
 export async function bulkArchiveIssues(
-  projectId: string,
+  teamId: string,
   ids: string[],
   actorUserId?: string | null,
 ): Promise<number> {
-  const valid = await issuesInProject(projectId, ids);
+  const valid = await issuesInTeam(teamId, ids);
   for (const id of valid) await archiveIssue(id, actorUserId);
   return valid.length;
 }
@@ -1065,10 +1058,10 @@ export async function bulkArchiveIssues(
 // Deletes every listed issue. Returns the count deleted and their attachment rows
 // so the caller can remove the objects from the store.
 export async function bulkDeleteIssues(
-  projectId: string,
+  teamId: string,
   ids: string[],
 ): Promise<{ deleted: number; attachments: AttachmentRow[] }> {
-  const valid = await issuesInProject(projectId, ids);
+  const valid = await issuesInTeam(teamId, ids);
   const attachments: AttachmentRow[] = [];
   for (const id of valid) {
     const rows = await deleteIssue(id);
@@ -1082,24 +1075,24 @@ export async function bulkDeleteIssues(
 // Clients poll these cheaply and refetch the heavy payload only when the marker
 // moved, so a live board / open issue stays current without constant full reads.
 
-// The board's marker: changes when any issue or initiative in the project is
+// The board's marker: changes when any issue or project in the team is
 // created, updated, or deleted. Issue label changes bump updated_at too (see
-// setIssueLabels). Initiative metadata is part of the work-items board payload.
-export async function projectBoardRev(projectId: string): Promise<string> {
+// setIssueLabels). Project metadata is part of the work-items board payload.
+export async function teamBoardRev(teamId: string): Promise<string> {
   const [row] = await db
     .select({
       n: sql<number>`count(*)`,
       m: sql<string | null>`max(${issue.updatedAt})::text`,
-      initiativeCount: sql<number>`(select count(*) from ${initiative} where ${initiative.projectId} = ${projectId})`,
-      initiativeMax: sql<
+      projectCount: sql<number>`(select count(*) from ${projectTeam} where ${projectTeam.teamId} = ${teamId})`,
+      projectMax: sql<
         string | null
-      >`(select max(${initiative.updatedAt})::text from ${initiative} where ${initiative.projectId} = ${projectId})`,
+      >`(select max(${project.updatedAt})::text from ${project} where ${project.id} in (select ${projectTeam.projectId} from ${projectTeam} where ${projectTeam.teamId} = ${teamId}))`,
     })
     // Only active issues count: archiving one (manual or the worker's sweep) drops
     // the count, which moves the marker and makes the board refetch it away.
     .from(issue)
-    .where(and(eq(issue.projectId, projectId), isNull(issue.archivedAt)));
-  return `${row?.n ?? 0}:${row?.m ?? ''}:${row?.initiativeCount ?? 0}:${row?.initiativeMax ?? ''}`;
+    .where(and(eq(issue.teamId, teamId), isNull(issue.archivedAt)));
+  return `${row?.n ?? 0}:${row?.m ?? ''}:${row?.projectCount ?? 0}:${row?.projectMax ?? ''}`;
 }
 
 // One issue's marker: changes on any edit or new timeline entry (comment or
@@ -1139,7 +1132,7 @@ function pickScalarValue(row: {
   return null;
 }
 
-// The fields of the issue's project that apply to it (the project-wide ones plus
+// The fields of the issue's team that apply to it (the team-wide ones plus
 // its type's own), each joined with whatever value has been set for it (null if
 // unset).
 export async function getIssueFieldValues(issueId: string): Promise<IssueFieldValueRow[]> {
@@ -1157,7 +1150,7 @@ export async function getIssueFieldValues(issueId: string): Promise<IssueFieldVa
     .innerJoin(
       customField,
       and(
-        eq(customField.projectId, issue.projectId),
+        eq(customField.teamId, issue.teamId),
         or(isNull(customField.issueTypeId), eq(customField.issueTypeId, issue.typeId)),
       ),
     )
@@ -1200,18 +1193,18 @@ function isHttpUrl(value: string): boolean {
   return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
-// Sets one field's value on one issue. projectId is the issue's project: the field
-// is resolved inside it, so a field id belonging to another project does not match.
+// Sets one field's value on one issue. teamId is the issue's team: the field
+// is resolved inside it, so a field id belonging to another team does not match.
 // For select/multi_select fields, pass optionIds (replaces the full selection); for
 // every other field type, pass value matching the field's type.
 export async function setIssueFieldValue(
-  projectId: string,
+  teamId: string,
   issueId: string,
   fieldId: string,
   input: { value?: string | number | boolean | null; optionIds?: string[] },
   actorUserId?: string | null,
 ): Promise<void> {
-  const field = await getCustomFieldById(projectId, fieldId);
+  const field = await getCustomFieldById(teamId, fieldId);
   if (!field) throw new HttpError(404, 'Custom field not found');
 
   // A url field stores its value as text but must hold a valid http(s) URL.

@@ -1,20 +1,20 @@
-import { db, issue, issueActivity, project, user } from '@repo/db';
+import { db, issue, issueActivity, team, user } from '@repo/db';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
-// An initiative's activity feed merges two kinds of rows from issue_activity:
-// events of the initiative itself (initiative_id set) and the activity of the
-// issues linked to it (issue_id set, resolved through issue.initiative_id). Both
+// An project's activity feed merges two kinds of rows from issue_activity:
+// events of the project itself (project_id set) and the activity of the
+// issues linked to it (issue_id set, resolved through issue.project_id). Both
 // live in one table, so the feed is one keyset-paginated query over a single id
-// space. Initiative-level events are written by recordActivity/logInitiativeUpdate.
+// space. Project-level events are written by recordActivity/logProjectUpdate.
 
 export type FeedKind = 'comment' | 'activity';
 
-export interface InitiativeFeedItemRow {
+export interface ProjectFeedItemRow {
   id: string;
-  // 'initiative' for an event of the initiative itself, 'issue' for the activity
+  // 'project' for an event of the project itself, 'issue' for the activity
   // of a linked issue. Derived from which owner column is set.
-  source: 'initiative' | 'issue';
+  source: 'project' | 'issue';
   kind: FeedKind;
   actorUserId: string | null;
   actorName: string | null;
@@ -37,13 +37,13 @@ export interface FeedCursor {
 }
 
 export interface FeedPage {
-  items: InitiativeFeedItemRow[];
+  items: ProjectFeedItemRow[];
   nextCursor: FeedCursor | null;
 }
 
-// One page of an initiative's feed, newest first. limit is clamped to 1..100.
+// One page of an project's feed, newest first. limit is clamped to 1..100.
 export async function listFeed(
-  initiativeId: string,
+  projectId: string,
   opts: { before?: FeedCursor | null; limit?: number } = {},
 ): Promise<FeedPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 100);
@@ -51,12 +51,12 @@ export async function listFeed(
   const linkedIssueIds = db
     .select({ id: issue.id })
     .from(issue)
-    .where(eq(issue.initiativeId, initiativeId));
+    .where(eq(issue.projectId, projectId));
   const rows = await db
     .select({
       id: issueActivity.id,
       issueId: issueActivity.issueId,
-      initiativeId: issueActivity.initiativeId,
+      projectId: issueActivity.projectId,
       kind: issueActivity.kind,
       actorUserId: issueActivity.actorUserId,
       actorName: issueActivity.actorName,
@@ -68,17 +68,14 @@ export async function listFeed(
       createdAt: issueActivity.createdAt,
       cursorTs: sql<string>`${issueActivity.createdAt}::text`,
       seq: issue.sequenceNumber,
-      projectKey: project.key,
+      teamKey: team.key,
     })
     .from(issueActivity)
     .leftJoin(issue, eq(issue.id, issueActivity.issueId))
-    .leftJoin(project, eq(project.id, issue.projectId))
+    .leftJoin(team, eq(team.id, issue.teamId))
     .where(
       and(
-        or(
-          eq(issueActivity.initiativeId, initiativeId),
-          inArray(issueActivity.issueId, linkedIssueIds),
-        ),
+        or(eq(issueActivity.projectId, projectId), inArray(issueActivity.issueId, linkedIssueIds)),
         before
           ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
           : undefined,
@@ -93,7 +90,7 @@ export async function listFeed(
   return {
     items: page.map((row) => ({
       id: row.id,
-      source: row.initiativeId != null ? ('initiative' as const) : ('issue' as const),
+      source: row.projectId != null ? ('project' as const) : ('issue' as const),
       kind: row.kind as FeedKind,
       actorUserId: row.actorUserId,
       actorName: row.actorName,
@@ -104,15 +101,15 @@ export async function listFeed(
       toText: row.toText,
       createdAt: iso(row.createdAt),
       issueId: row.issueId,
-      issueIdentifier: row.seq != null && row.projectKey ? `${row.projectKey}-${row.seq}` : null,
+      issueIdentifier: row.seq != null && row.teamKey ? `${row.teamKey}-${row.seq}` : null,
     })),
     nextCursor: hasMore && last ? { ts: last.cursorTs, id: last.id } : null,
   };
 }
 
 // --- Activity log ----------------------------------------------------------------
-// recordActivity writes initiative-level change-log entries (kind 'activity',
-// initiative_id set). The initiative mutation functions call it.
+// recordActivity writes project-level change-log entries (kind 'activity',
+// project_id set). The project mutation functions call it.
 
 export interface ActivityInput {
   action: string;
@@ -128,7 +125,7 @@ async function userName(id: string | null): Promise<string | null> {
 }
 
 export async function recordActivity(
-  initiativeId: string,
+  projectId: string,
   events: ActivityInput[],
   actorUserId?: string | null,
 ): Promise<void> {
@@ -138,7 +135,7 @@ export async function recordActivity(
   await db.insert(issueActivity).values(
     events.map((e) => ({
       issueId: null,
-      initiativeId,
+      projectId,
       kind: 'activity' as const,
       actorUserId: resolvedActorId,
       actorName,
@@ -150,41 +147,45 @@ export async function recordActivity(
   );
 }
 
-// The subset of an initiative's fields the change log diffs.
-export interface InitiativeSnapshot {
+// The subset of a project's fields the change log diffs. status is the status
+// type; priority is Linear's 0..4.
+export interface ProjectSnapshot {
   id: string;
-  title: string;
-  description: string;
+  name: string;
+  content: string;
   status: string;
-  ownerUserId: string | null;
-  priority: string | null;
+  leadUserId: string | null;
+  priority: number;
   startDate: string | null;
   targetDate: string | null;
 }
 
-// Diffs an initiative's before/after state and records one event per changed
-// field. Owner resolves to a name snapshot (kept correct after a rename/delete);
-// the rest store their raw value (the UI formats status/priority/dates).
-export async function logInitiativeUpdate(
-  before: InitiativeSnapshot,
-  after: InitiativeSnapshot,
+// Diffs a project's before/after state and records one event per changed field.
+// The lead resolves to a name snapshot (kept correct after a rename/delete); the
+// rest store their raw value (the UI formats status/priority/dates).
+export async function logProjectUpdate(
+  before: ProjectSnapshot,
+  after: ProjectSnapshot,
   actorUserId?: string | null,
 ): Promise<void> {
   const events: ActivityInput[] = [];
-  if (before.title !== after.title)
-    events.push({ action: 'title', fromText: before.title, toText: after.title });
-  if (before.description !== after.description)
-    events.push({ action: 'description', toText: after.description });
+  if (before.name !== after.name)
+    events.push({ action: 'name', fromText: before.name, toText: after.name });
+  if (before.content !== after.content) events.push({ action: 'content', toText: after.content });
   if (before.status !== after.status)
     events.push({ action: 'status', fromText: before.status, toText: after.status });
-  if (before.ownerUserId !== after.ownerUserId)
+  if (before.leadUserId !== after.leadUserId)
     events.push({
-      action: 'owner',
-      fromText: await userName(before.ownerUserId),
-      toText: await userName(after.ownerUserId),
+      action: 'lead',
+      fromText: await userName(before.leadUserId),
+      toText: await userName(after.leadUserId),
     });
-  if ((before.priority ?? '') !== (after.priority ?? ''))
-    events.push({ action: 'priority', fromText: before.priority, toText: after.priority });
+  if (before.priority !== after.priority)
+    events.push({
+      action: 'priority',
+      fromText: String(before.priority),
+      toText: String(after.priority),
+    });
   if (before.startDate !== after.startDate)
     events.push({ action: 'start_date', fromText: before.startDate, toText: after.startDate });
   if (before.targetDate !== after.targetDate)

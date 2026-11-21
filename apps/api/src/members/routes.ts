@@ -16,7 +16,7 @@ import {
 } from './store';
 import { getRole } from '../roles/store';
 
-const memberParams = t.Object({ projectKey: t.String(), userId: t.String({ format: 'uuid' }) });
+const memberParams = t.Object({ teamKey: t.String(), userId: t.String({ format: 'uuid' }) });
 const memberRole = t.Union([t.Literal('owner'), t.Literal('member')]);
 
 // A member DTO (MemberRow from the store).
@@ -36,14 +36,14 @@ const MemberResponse = t.Object({
 export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Members'] } })
   .use(authContext)
   .use(guards)
-  // Members with members_manage read may see who else is on the project.
+  // Members with members_manage read may see who else is on the team.
   .get(
-    '/projects/:projectKey/members',
-    async ({ project }) => {
-      return listMembers(project.id);
+    '/teams/:teamKey/members',
+    async ({ team }) => {
+      return listMembers(team.id);
     },
     {
-      params: t.Object({ projectKey: t.String() }),
+      params: t.Object({ teamKey: t.String() }),
       permission: ['members_manage', 'read'],
       response: {
         200: t.Array(MemberResponse),
@@ -51,7 +51,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: 'List project members', ...mcpTool('list_members') },
+      detail: { summary: 'List team members', ...mcpTool('list_members') },
     },
   )
 
@@ -59,31 +59,31 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
   // bypass roles); role "member" assigns a custom role by roleId (null falls back
   // to the default role). Demoting the last owner is refused.
   .patch(
-    '/projects/:projectKey/members/:userId',
-    async ({ project, params, body, user }) => {
+    '/teams/:teamKey/members/:userId',
+    async ({ team, params, body, user }) => {
       // An owner cannot change their own role — leaving owner is done by removing
       // the membership, and it keeps the last-owner guard from being bypassed.
       if (params.userId === requireUser(user).id) {
         throw new HttpError(400, 'You cannot change your own role');
       }
-      const target = await getMembership(project.id, params.userId);
+      const target = await getMembership(team.id, params.userId);
       if (!target) throw new HttpError(404, 'Member not found');
 
       if (body.role === 'owner') {
-        await setMembership(project.id, params.userId, 'owner', null);
+        await setMembership(team.id, params.userId, 'owner', null);
         return noContent();
       }
 
       const roleId = body.roleId ?? null;
       if (roleId != null) {
-        const role = await getRole(project.id, roleId);
-        if (!role) throw new HttpError(400, 'roleId does not belong to this project');
+        const role = await getRole(team.id, roleId);
+        if (!role) throw new HttpError(400, 'roleId does not belong to this team');
       }
-      // Demoting an owner to a member must keep at least one owner on the project.
-      if (target === 'owner' && (await countOwners(project.id)) === 1) {
-        throw new HttpError(400, 'A project must have at least one owner');
+      // Demoting an owner to a member must keep at least one owner on the team.
+      if (target === 'owner' && (await countOwners(team.id)) === 1) {
+        throw new HttpError(400, 'A team must have at least one owner');
       }
-      await setMembership(project.id, params.userId, 'member', roleId);
+      await setMembership(team.id, params.userId, 'member', roleId);
       return noContent();
     },
     {
@@ -92,7 +92,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         role: memberRole,
         roleId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
-      projectOwner: true,
+      teamOwner: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -110,27 +110,27 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
     },
   )
 
-  // Set a member's project description (what they do). A member may edit their own;
+  // Set a member's team description (what they do). A member may edit their own;
   // an owner may edit anyone's. The description is shown on the members page and
   // given to agents so they can pick who to tag on an unassigned issue.
   .patch(
-    '/projects/:projectKey/members/:userId/description',
-    async ({ project, params, body, user }) => {
+    '/teams/:teamKey/members/:userId/description',
+    async ({ team, params, body, user }) => {
       const current = requireUser(user);
       if (params.userId !== current.id) {
-        const role = await getMembership(project.id, current.id);
+        const role = await getMembership(team.id, current.id);
         if (role !== 'owner') {
-          throw new HttpError(403, "Only a project owner can edit another member's description");
+          throw new HttpError(403, "Only a team owner can edit another member's description");
         }
       }
-      const ok = await setMemberDescription(project.id, params.userId, body.description);
+      const ok = await setMemberDescription(team.id, params.userId, body.description);
       if (!ok) throw new HttpError(404, 'Member not found');
       return noContent();
     },
     {
       params: memberParams,
       body: t.Object({ description: t.String({ maxLength: 500 }) }),
-      projectMember: true,
+      teamMember: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -141,35 +141,35 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
       detail: {
         summary: "Set a member's description",
         description:
-          'Set what a member does in the project. Up to 500 characters; empty string clears it.',
+          'Set what a member does in the team. Up to 500 characters; empty string clears it.',
         ...mcpTool('set_member_description'),
       },
     },
   )
 
-  // Revoke a member's access, or leave the project yourself. Removing someone
+  // Revoke a member's access, or leave the team yourself. Removing someone
   // else requires members_manage delete (owners bypass); a member may always
   // remove themselves. The last owner cannot be removed. New members join through
   // invites, so there is no direct add here.
   .delete(
-    '/projects/:projectKey/members/:userId',
-    async ({ project, params, user }) => {
+    '/teams/:teamKey/members/:userId',
+    async ({ team, params, user }) => {
       const current = requireUser(user);
       const isSelf = params.userId === current.id;
       if (!isSelf) {
-        await assertPermission(project.id, user, 'members_manage', 'delete');
+        await assertPermission(team.id, user, 'members_manage', 'delete');
       }
-      const target = await getMembership(project.id, params.userId);
+      const target = await getMembership(team.id, params.userId);
       if (!target) throw new HttpError(404, 'Member not found');
-      if (target === 'owner' && (await countOwners(project.id)) === 1) {
-        throw new HttpError(400, 'A project must have at least one owner');
+      if (target === 'owner' && (await countOwners(team.id)) === 1) {
+        throw new HttpError(400, 'A team must have at least one owner');
       }
-      await removeMember(project.id, params.userId);
+      await removeMember(team.id, params.userId);
       return noContent();
     },
     {
       params: memberParams,
-      projectMember: true,
+      teamMember: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -179,7 +179,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
       },
       detail: {
         summary: 'Remove a member',
-        description: 'Remove a member from the project, or leave it yourself.',
+        description: 'Remove a member from the team, or leave it yourself.',
         ...mcpTool('remove_member'),
       },
     },

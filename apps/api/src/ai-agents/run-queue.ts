@@ -1,4 +1,4 @@
-import { db, agentRun, issue, project } from '@repo/db';
+import { db, agentRun, issue, team } from '@repo/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { afterCursor, encodeCursor } from '../shared/keyset';
@@ -44,9 +44,9 @@ export interface ClaimedRun {
   // The source comment id when the run was triggered by a mention, null for a
   // delegation. The poller frames the task differently for each.
   sourceActivityId: string | null;
-  // The agent's project and bot user, read inline so the poller can run it without a
+  // The agent's team and bot user, read inline so the poller can run it without a
   // second query.
-  projectId: string;
+  teamId: string;
   agentUserId: string;
   // The issue's human-readable key ("MKT-42") and title, read inline so the poller can
   // frame the run with them. Null if the issue was deleted after enqueue.
@@ -65,7 +65,7 @@ export interface ClaimedRun {
 // one API replica run without ever claiming the same row. Claiming bumps attempts
 // and pushes next_attempt_at forward by the lease while keeping status 'pending', so
 // a run whose poller crashes mid-flight becomes claimable again after the lease — no
-// separate recovery pass. The agent's project_id and user_id are read inline.
+// separate recovery pass. The agent's team_id and user_id are read inline.
 export async function claimDueRuns(): Promise<ClaimedRun[]> {
   const batchSize = agentRunConfig.batchSize();
   const leaseSeconds = agentRunConfig.leaseSeconds();
@@ -87,10 +87,10 @@ export async function claimDueRuns(): Promise<ClaimedRun[]> {
       r.prompt,
       r.attempts,
       r.source_activity_id AS "sourceActivityId",
-      (SELECT project_id FROM ai_agent a WHERE a.id = r.agent_id) AS "projectId",
+      (SELECT team_id FROM ai_agent a WHERE a.id = r.agent_id) AS "teamId",
       (SELECT user_id FROM ai_agent a WHERE a.id = r.agent_id) AS "agentUserId",
       (SELECT p.key || '-' || i.sequence_number
-         FROM issue i JOIN project p ON p.id = i.project_id
+         FROM issue i JOIN team p ON p.id = i.team_id
          WHERE i.id = r.issue_id) AS "issueIdentifier",
       (SELECT title FROM issue i WHERE i.id = r.issue_id) AS "issueTitle",
       (SELECT assignee_user_id FROM issue i WHERE i.id = r.issue_id) AS "assigneeUserId",
@@ -172,11 +172,11 @@ export async function listAgentRuns(
       cursorTs: sql<string>`${agentRun.createdAt}::text`,
       issueSeq: issue.sequenceNumber,
       issueTitle: issue.title,
-      projectKey: project.key,
+      teamKey: team.key,
     })
     .from(agentRun)
     .leftJoin(issue, eq(issue.id, agentRun.issueId))
-    .leftJoin(project, eq(project.id, issue.projectId))
+    .leftJoin(team, eq(team.id, issue.teamId))
     .where(
       and(eq(agentRun.agentId, agentId), afterCursor(agentRun.createdAt, agentRun.id, opts.before)),
     )
@@ -190,7 +190,7 @@ export async function listAgentRuns(
       status: r.status,
       trigger: r.trigger as AgentRunRow['trigger'],
       issueId: r.issueId,
-      issueIdentifier: r.projectKey && r.issueSeq != null ? `${r.projectKey}-${r.issueSeq}` : null,
+      issueIdentifier: r.teamKey && r.issueSeq != null ? `${r.teamKey}-${r.issueSeq}` : null,
       issueTitle: r.issueTitle ?? null,
       prompt: renderMentionsPlain(r.prompt),
       attempts: r.attempts,

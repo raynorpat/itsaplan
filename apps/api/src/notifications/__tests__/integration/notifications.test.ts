@@ -5,7 +5,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 
 // Notifications are fanned out when an issue changes and read back through the
 // session user's inbox. The actor is never notified about their own action, and
-// only project members receive notifications. New members join through invites, so
+// only team members receive notifications. New members join through invites, so
 // a second member is added by creating and accepting an invite.
 
 interface Member {
@@ -13,28 +13,28 @@ interface Member {
   userId: string;
 }
 
-async function setup(): Promise<{ owner: Member; columnId: string; doneColumnId: string }> {
+async function setup(): Promise<{ owner: Member; stateId: string; doneColumnId: string }> {
   const u = await signUpTestUser();
   const api = authedApi(u.cookie);
-  await api.projects.post({ key: 'MKT', name: 'Marketing' });
-  const view = await api.projects({ projectKey: 'MKT' }).get();
-  const columns = view.data!.columns;
+  await api.teams.post({ key: 'MKT', name: 'Marketing' });
+  const view = await api.teams({ teamKey: 'MKT' }).get();
+  const columns = view.data!.states;
   const done = columns.find((c) => c.stateType === 'completed') ?? columns[columns.length - 1];
-  return { owner: { api, userId: u.userId }, columnId: columns[0].id, doneColumnId: done.id };
+  return { owner: { api, userId: u.userId }, stateId: columns[0].id, doneColumnId: done.id };
 }
 
 async function addMember(owner: Member): Promise<Member> {
   const u = await signUpTestUser();
   const invite = await owner.api
-    .projects({ projectKey: 'MKT' })
+    .teams({ teamKey: 'MKT' })
     .invites.post({ email: u.email, role: 'member' });
   const api = authedApi(u.cookie);
   await api.invites({ token: invite.data!.token }).accept.post();
   return { api, userId: u.userId };
 }
 
-function createIssue(client: Api, columnId: string, patch: Record<string, unknown> = {}) {
-  return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task', ...patch });
+function createIssue(client: Api, stateId: string, patch: Record<string, unknown> = {}) {
+  return client.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task', ...patch });
 }
 
 describe('notifications', () => {
@@ -43,10 +43,10 @@ describe('notifications', () => {
   });
 
   it('notifies the new assignee, not the actor', async () => {
-    const { owner, columnId } = await setup();
+    const { owner, stateId } = await setup();
     const member = await addMember(owner);
 
-    await createIssue(owner.api, columnId, {
+    await createIssue(owner.api, stateId, {
       title: 'Ship it',
       assigneeUserId: member.userId,
     });
@@ -58,7 +58,7 @@ describe('notifications', () => {
       type: 'assigned',
       actorUserId: owner.userId,
       issueTitle: 'Ship it',
-      projectKey: 'MKT',
+      teamKey: 'MKT',
       readAt: null,
     });
 
@@ -68,12 +68,12 @@ describe('notifications', () => {
   });
 
   it('notifies participants on a comment', async () => {
-    const { owner, columnId } = await setup();
+    const { owner, stateId } = await setup();
     const member = await addMember(owner);
 
     // Owner creates the issue assigned to member (owner is now a participant via
     // the create/assign activity; member via assignment).
-    const issue = await createIssue(owner.api, columnId, { assigneeUserId: member.userId });
+    const issue = await createIssue(owner.api, stateId, { assigneeUserId: member.userId });
     const issueId = issue.data!.id;
 
     // Member comments -> owner (a participant) gets a 'commented' notification.
@@ -89,9 +89,9 @@ describe('notifications', () => {
   });
 
   it('rev and unread count track reads', async () => {
-    const { owner, columnId } = await setup();
+    const { owner, stateId } = await setup();
     const member = await addMember(owner);
-    await createIssue(owner.api, columnId, { assigneeUserId: member.userId });
+    await createIssue(owner.api, stateId, { assigneeUserId: member.userId });
 
     const rev1 = await member.api.notifications.rev.get();
     expect(rev1.data!.unread).toBe(1);
@@ -111,9 +111,9 @@ describe('notifications', () => {
   });
 
   it("a member cannot read or mutate another user's notification", async () => {
-    const { owner, columnId } = await setup();
+    const { owner, stateId } = await setup();
     const member = await addMember(owner);
-    await createIssue(owner.api, columnId, { assigneeUserId: member.userId });
+    await createIssue(owner.api, stateId, { assigneeUserId: member.userId });
     const inbox = await member.api.notifications.get({ query: {} });
     const id = inbox.data!.items[0].id;
 
@@ -125,6 +125,6 @@ describe('notifications', () => {
   it('answers 400 for ids that are not UUIDs in the query', async () => {
     const user = authedApi((await signUpTestUser()).cookie);
     expect((await user.notifications.get({ query: { from: 'abc' } })).status).toBe(400);
-    expect((await user.notifications.get({ query: { projectId: 'abc' } })).status).toBe(400);
+    expect((await user.notifications.get({ query: { teamId: 'abc' } })).status).toBe(400);
   });
 });

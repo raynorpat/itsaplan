@@ -28,9 +28,9 @@ export interface McpRouteTool {
   name: string;
   description: string;
   method: string;
-  // The route path template, e.g. "/projects/:projectKey/issues".
+  // The route path template, e.g. "/teams/:teamKey/issues".
   path: string;
-  // Path param names parsed from the template, e.g. ["projectKey"].
+  // Path param names parsed from the template, e.g. ["teamKey"].
   pathParams: string[];
   inputSchema: McpInputSchema;
   annotations: McpToolAnnotations;
