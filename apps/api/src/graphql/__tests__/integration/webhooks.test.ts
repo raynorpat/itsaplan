@@ -1,0 +1,116 @@
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { authedApi } from '../../../__tests__/helpers/app';
+import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { resetDb } from '../../../__tests__/helpers/db';
+import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+
+// Webhook management over the Linear API, with the same access rules as REST.
+
+const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
+  res.body.errors?.[0]?.extensions?.code;
+const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
+  res.body.errors?.[0]?.message ?? '';
+
+async function setup() {
+  const owner = await signUpTestUser({ name: 'Owner' });
+  const asOwner = authedApi(owner.cookie);
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  const client = linearClient(await createApiKey(owner.cookie));
+  return { owner, asOwner, teamId, client };
+}
+
+describe('graphql webhooks', () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it('creates a team webhook and reads it back', async () => {
+    const { teamId, client } = await setup();
+    const created = await client.createWebhook({
+      url: 'https://example.com/hook',
+      teamId,
+      resourceTypes: ['Issue'],
+      label: 'CI',
+    });
+    const webhook = await created.webhook;
+    expect(webhook).toMatchObject({ resourceTypes: ['Issue'], label: 'CI', enabled: true });
+    expect(webhook!.allPublicTeams).toBe(false);
+    expect((await webhook!.team)?.id).toBe(teamId);
+    expect(webhook!.secret).toMatch(/^whsec_/);
+    expect((await client.webhook(webhook!.id)).url).toBe('https://example.com/hook');
+    expect((await client.webhooks()).nodes.map((w) => w.id)).toEqual([webhook!.id]);
+  });
+
+  it('lets the god user create an all-teams webhook and refuses an owner of some teams', async () => {
+    const { owner } = await setup();
+    const res = await gql(
+      { cookie: owner.cookie },
+      'mutation { webhookCreate(input: { url: "https://example.com/all", allPublicTeams: true, resourceTypes: ["Project"] }) { success webhook { allPublicTeams team { id } } } }',
+    );
+    expect(res.body.data).toMatchObject({
+      webhookCreate: { success: true, webhook: { allPublicTeams: true, team: null } },
+    });
+
+    const other = await signUpTestUser();
+    await authedApi(other.cookie).teams.post({ key: 'OPS', name: 'Operations' });
+    const denied = await gql(
+      { cookie: other.cookie },
+      'mutation { webhookCreate(input: { url: "https://example.com/all", allPublicTeams: true, resourceTypes: ["Project"] }) { success } }',
+    );
+    expect(errorCode(denied)).toBe('FORBIDDEN');
+  });
+
+  it('rejects an unknown resource type and a missing scope', async () => {
+    const { owner, teamId } = await setup();
+    const bad = await gql(
+      { cookie: owner.cookie },
+      `mutation { webhookCreate(input: { url: "https://example.com/h", teamId: "${teamId}", resourceTypes: ["Cycle"] }) { success } }`,
+    );
+    expect(errorCode(bad)).toBe('INVALID_INPUT');
+    expect(errorMessage(bad)).toContain('Cycle');
+    const noScope = await gql(
+      { cookie: owner.cookie },
+      'mutation { webhookCreate(input: { url: "https://example.com/h", resourceTypes: ["Issue"] }) { success } }',
+    );
+    expect(errorCode(noScope)).toBe('INVALID_INPUT');
+  });
+
+  it('updates, rotates the secret of and deletes a webhook', async () => {
+    const { teamId, client } = await setup();
+    const webhook = (await (
+      await client.createWebhook({
+        url: 'https://example.com/hook',
+        teamId,
+        resourceTypes: ['Issue'],
+      })
+    ).webhook)!;
+    const updated = await (
+      await client.updateWebhook(webhook.id, { enabled: false, label: 'x' })
+    ).webhook;
+    expect(updated).toMatchObject({ enabled: false, label: 'x' });
+    const rotated = await client.rotateSecretWebhook(webhook.id);
+    expect(rotated.secret).not.toBe(webhook.secret);
+    expect((await client.deleteWebhook(webhook.id)).success).toBe(true);
+    expect((await client.webhooks()).nodes).toEqual([]);
+  });
+
+  it("hides a team's webhooks from a member without webhooks.read", async () => {
+    const { asOwner, teamId, client } = await setup();
+    await client.createWebhook({
+      url: 'https://example.com/hook',
+      teamId,
+      resourceTypes: ['Issue'],
+    });
+    const role = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .roles.post({ name: 'Viewer', permissions: {} });
+    const member = await signUpTestUser();
+    const invite = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
+    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    const res = await gql({ cookie: member.cookie }, '{ webhooks { nodes { id } } }');
+    expect(res.body.data).toEqual({ webhooks: { nodes: [] } });
+  });
+});

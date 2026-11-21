@@ -1,11 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
-import { assertMcpEnabled, assertPermission, requireUser, type AuthUser } from '../shared/access';
+import { requireUser, type AuthUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
-import { getTeamById } from '../teams/store';
 import type { PermissionAction } from '../shared/permissions';
-import { assertAllTeamsManager } from './access';
+import { assertAllTeamsManager, assertWebhookAccess } from './access';
+import { validateWebhookUrl } from './url';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { mcpTool } from '../mcp/generate';
@@ -15,7 +15,6 @@ import {
   listWebhooks,
   listAllTeamsWebhooks,
   createWebhook,
-  getWebhook,
   updateWebhook,
   rotateWebhookSecret,
   deleteWebhook,
@@ -49,29 +48,6 @@ const createBody = t.Object({
   enabled: t.Optional(t.Boolean()),
 });
 
-// Access to a webhook addressed by id: a team webhook through its team's
-// `webhooks.<action>` permission (and MCP gating), an all-teams webhook through
-// the all-teams rule. 404 when it does not exist.
-async function assertWebhookAccess(
-  webhookId: string,
-  user: AuthUser | null | undefined,
-  action: PermissionAction,
-  request: Request,
-) {
-  const found = await getWebhook(webhookId);
-  if (!found) throw new HttpError(404, 'Webhook not found');
-  if (found.teamId === null) {
-    await assertAllTeamsManager(requireUser(user));
-  } else {
-    await assertPermission(found.teamId, user, 'webhooks', action);
-    if (isMcpRequest(request.headers)) {
-      const team = await getTeamById(found.teamId);
-      if (team) assertMcpEnabled(team, true);
-    }
-  }
-  return found;
-}
-
 // A webhook delivery attempt DTO (WebhookDeliveryRow from the store).
 const WebhookDeliveryResponse = t.Object({
   id: t.String({ format: 'uuid' }),
@@ -93,59 +69,6 @@ const WebhookDeliveryPageResponse = t.Object({
   nextCursor: t.Nullable(t.String()),
 });
 
-// A local, loopback, or private-range host — the SSRF-sensitive targets.
-function isLocalHost(host: string): boolean {
-  return (
-    host === 'localhost' ||
-    host.endsWith('.local') ||
-    host === '0.0.0.0' ||
-    host === '::1' ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^f[cd][0-9a-f]{2}:/.test(host)
-  );
-}
-
-// An IPv4 or IPv6 literal (as opposed to a DNS name).
-function isIpLiteral(host: string): boolean {
-  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':');
-}
-
-// Rejects urls that are not https or that point at a local/private address, so a
-// subscription cannot be pointed at internal services (SSRF). The DNS-level check
-// belongs to the delivery side; this is the syntactic guard at registration time.
-//
-// Exception for local development (NODE_ENV neither production nor test): a
-// localhost / 0.0.0.0 / IP-literal target is allowed over http, so a local test
-// receiver (e.g. http://localhost:3000/webhook-test/sink) can be registered.
-// Production and the test suite stay strict.
-function validateWebhookUrl(raw: string): string {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new HttpError(400, 'Webhook url must be a valid URL');
-  }
-  const host = url.hostname.toLowerCase();
-
-  const devRelaxed =
-    process.env.NODE_ENV !== 'production' &&
-    process.env.NODE_ENV !== 'test' &&
-    (isLocalHost(host) || isIpLiteral(host));
-  if (devRelaxed) return raw;
-
-  if (url.protocol !== 'https:') {
-    throw new HttpError(400, 'Webhook url must use https');
-  }
-  if (isLocalHost(host)) {
-    throw new HttpError(400, 'Webhook url must not point to a private or local address');
-  }
-  return raw;
-}
-
 export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['Webhooks'] } })
   .use(authContext)
   .use(guards)
@@ -163,7 +86,9 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         user?: AuthUser | null;
         request: Request;
       }) {
-        await assertWebhookAccess(String(params.webhookId), user, action, request);
+        await assertWebhookAccess(String(params.webhookId), user, action, {
+          mcp: isMcpRequest(request.headers),
+        });
         return {};
       },
     }),

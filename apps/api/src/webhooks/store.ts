@@ -34,7 +34,7 @@ export interface WebhookRow {
   updatedAt: string;
 }
 
-function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
+export function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
   return {
     id: row.id,
     teamId: row.teamId,

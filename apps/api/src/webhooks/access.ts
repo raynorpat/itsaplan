@@ -1,6 +1,10 @@
 import { db, team, teamMember } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
+import { assertMcpEnabled, assertPermission, requireUser, type AuthUser } from '../shared/access';
+import type { PermissionAction } from '../shared/permissions';
+import { getTeamById } from '../teams/store';
+import { getWebhook, type WebhookRow } from './store';
 
 // All-teams webhooks receive events of every team, so only the instance owner
 // (the "god" user) or a user who is owner of every team may manage them. The rule
@@ -29,4 +33,27 @@ export async function assertAllTeamsManager(user: {
       403,
       'All-teams webhooks need the instance owner or an owner of every team',
     );
+}
+
+// Access to a webhook addressed by id: a team webhook through its team's
+// `webhooks.<action>` permission (and MCP gating when `mcp`), an all-teams
+// webhook through the all-teams rule. 404 when it does not exist.
+export async function assertWebhookAccess(
+  webhookId: string,
+  user: AuthUser | null | undefined,
+  action: PermissionAction,
+  opts: { mcp?: boolean } = {},
+): Promise<WebhookRow> {
+  const found = await getWebhook(webhookId);
+  if (!found) throw new HttpError(404, 'Webhook not found');
+  if (found.teamId === null) {
+    await assertAllTeamsManager(requireUser(user));
+  } else {
+    await assertPermission(found.teamId, user, 'webhooks', action);
+    if (opts.mcp) {
+      const team = await getTeamById(found.teamId);
+      if (team) assertMcpEnabled(team, true);
+    }
+  }
+  return found;
 }

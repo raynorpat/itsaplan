@@ -10,6 +10,7 @@ import { issueResolvers } from './resolvers/issue';
 import { mutationResolvers } from './resolvers/mutations';
 import { projectResolvers } from './resolvers/project';
 import { projectMutationResolvers } from './resolvers/project-mutations';
+import { webhookResolvers } from './resolvers/webhook';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -25,6 +26,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   projectResolvers,
   mutationResolvers,
   projectMutationResolvers,
+  webhookResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
