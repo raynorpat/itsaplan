@@ -16,6 +16,7 @@ import { setMcpApp } from './mcp/app-ref';
 import { internalAgentRunRoutes } from './ai-agents/internal-routes';
 import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalTelegramRoutes } from './telegram/internal-routes';
+import { internalWebhookRoutes } from './webhooks/internal-routes';
 
 // The assembled Elysia app, without `.listen()`. `index.ts` imports this and
 // binds the port; tests import it and pass it to Eden Treaty to drive routes in
@@ -145,6 +146,7 @@ export const app = new Elysia()
   .use(internalAgentRunRoutes)
   .use(internalNotificationRoutes)
   .use(internalTelegramRoutes)
+  .use(internalWebhookRoutes)
   // Test receiver for inspecting webhook deliveries (unauthenticated, dev aid).
   .use(webhookTestRoutes)
   // Planner API: teams, issues, and their dependent entities.

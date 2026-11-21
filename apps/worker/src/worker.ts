@@ -3,6 +3,7 @@ import { deliver } from './delivery';
 import { processNotificationDeliveries } from './notification-delivery';
 import { equalJitterBackoffMs } from './backoff';
 import { deleteIssueAgentThreads } from './agent-runs';
+import { notifyIssuesArchived } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
 import { TELEMETRY_CHECK_EVERY_TICKS, processTelemetry } from './telemetry';
 import {
@@ -51,6 +52,11 @@ async function tick(): Promise<void> {
         await deleteIssueAgentThreads(archived);
       } catch (error) {
         console.error('[worker] deleting agent threads of archived issues failed:', error);
+      }
+      try {
+        await notifyIssuesArchived(archived);
+      } catch (error) {
+        console.error('[worker] reporting archived issues for webhooks failed:', error);
       }
     }
   }
