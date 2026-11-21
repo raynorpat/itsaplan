@@ -1,32 +1,37 @@
 import { describe, it, expect } from 'bun:test';
 import { createHmac } from 'node:crypto';
-import { signPayload } from '../../signature';
-import { isRetryableStatus } from '../../delivery';
+import { signBody } from '../../signature';
+import { nextRetryDelayS, renderBody } from '../../delivery';
 
-describe('signPayload', () => {
-  it('produces t=<ts>,v1=<hmac> over `${ts}.${body}`', () => {
-    const secret = 'whsec_test';
+describe('signBody', () => {
+  it('is the hex HMAC-SHA256 of the raw body', () => {
     const body = JSON.stringify({ a: 1 });
-    const ts = 1_700_000_000;
-    const expected = createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex');
-    expect(signPayload(secret, ts, body)).toBe(`t=${ts},v1=${expected}`);
+    expect(signBody('whsec_test', body)).toBe(
+      createHmac('sha256', 'whsec_test').update(body).digest('hex'),
+    );
   });
 
-  it('changes when the body changes', () => {
-    expect(signPayload('s', 1, '{}')).not.toBe(signPayload('s', 1, '{ }'));
-  });
-
-  it('changes when the secret changes', () => {
-    expect(signPayload('a', 1, '{}')).not.toBe(signPayload('b', 1, '{}'));
+  it('changes when the body or the secret changes', () => {
+    expect(signBody('s', '{}')).not.toBe(signBody('s', '{ }'));
+    expect(signBody('a', '{}')).not.toBe(signBody('b', '{}'));
   });
 });
 
-describe('isRetryableStatus', () => {
-  it('retries 408, 429, and 5xx', () => {
-    for (const s of [408, 429, 500, 502, 503]) expect(isRetryableStatus(s)).toBe(true);
+describe('renderBody', () => {
+  it('sets a fresh webhookTimestamp on each attempt', () => {
+    const payload = { action: 'create', type: 'Issue' };
+    const a = JSON.parse(renderBody(payload, 1000));
+    const b = JSON.parse(renderBody(payload, 2000));
+    expect(a).toEqual({ ...payload, webhookTimestamp: 1000 });
+    expect(b).toEqual({ ...payload, webhookTimestamp: 2000 });
   });
+});
 
-  it('does not retry other 4xx', () => {
-    for (const s of [400, 401, 403, 404, 410, 422]) expect(isRetryableStatus(s)).toBe(false);
+describe('nextRetryDelayS', () => {
+  it("follows Linear's schedule: 1 minute, 1 hour, 6 hours, then final", () => {
+    expect(nextRetryDelayS(1)).toBe(60);
+    expect(nextRetryDelayS(2)).toBe(3600);
+    expect(nextRetryDelayS(3)).toBe(21600);
+    expect(nextRetryDelayS(4)).toBeNull();
   });
 });

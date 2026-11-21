@@ -12,8 +12,6 @@ export interface WorkerConfig {
   batchSize: number;
   // Per-delivery HTTP timeout.
   timeoutMs: number;
-  // After this many attempts a failing delivery is marked failed (dead-letter).
-  maxAttempts: number;
   // After this many consecutive failures a webhook is auto-disabled.
   disableThreshold: number;
   // How long a claimed row is leased before it becomes claimable again (crash
@@ -35,8 +33,8 @@ export function workerConfig(): WorkerConfig {
   cached = {
     pollIntervalMs: intEnv('WEBHOOK_POLL_INTERVAL_MS', 2000),
     batchSize: intEnv('WEBHOOK_BATCH_SIZE', 20),
-    timeoutMs: intEnv('WEBHOOK_TIMEOUT_MS', 10_000),
-    maxAttempts: intEnv('WEBHOOK_MAX_ATTEMPTS', 8),
+    // Linear fails a delivery that takes longer than 5 seconds.
+    timeoutMs: intEnv('WEBHOOK_TIMEOUT_MS', 5000),
     disableThreshold: intEnv('WEBHOOK_DISABLE_THRESHOLD', 20),
     leaseSeconds: intEnv('WEBHOOK_LEASE_SECONDS', 120),
     cleanupDays: intEnv('WEBHOOK_CLEANUP_DAYS', 30),

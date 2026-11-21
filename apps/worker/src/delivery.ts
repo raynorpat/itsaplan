@@ -1,10 +1,11 @@
-import { signPayload } from './signature';
+import { signBody } from './signature';
 
 export interface DeliverInput {
   url: string;
   secret: string;
-  deliveryId: string;
+  // Sent as Linear-Delivery; stable across retries so the receiver can deduplicate.
   eventId: string;
+  // The Linear resource type, sent as Linear-Event.
   eventType: string;
   body: string;
   timeoutMs: number;
@@ -12,8 +13,6 @@ export interface DeliverInput {
 
 export interface DeliveryResult {
   ok: boolean;
-  // Only meaningful when ok is false: whether the failure is worth retrying.
-  retryable?: boolean;
   status?: number;
   error?: string;
   // The receiver's response body, truncated. Absent on a network/timeout error.
@@ -23,49 +22,43 @@ export interface DeliveryResult {
 // Response bodies are stored for the history view; cap what we keep.
 const MAX_RESPONSE_CHARS = 2000;
 
-// Which HTTP statuses are worth retrying: request timeout, rate limit, and any
-// server error. Other 4xx are the receiver rejecting the request (bad URL, auth,
-// gone) — retrying will not help, so they fail permanently.
-export function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || status >= 500;
+// Linear retries a failed delivery 3 times, after 1 minute, 1 hour and 6 hours.
+const RETRY_DELAYS_S = [60, 3600, 21600];
+
+// Seconds until the next attempt after `attempts` failed attempts, or null when
+// the delivery has failed for good.
+export function nextRetryDelayS(attempts: number): number | null {
+  return RETRY_DELAYS_S[attempts - 1] ?? null;
 }
 
-// Posts the signed payload to the webhook URL with a hard timeout. A 2xx is
-// success; a retryable status or a network/timeout error is a transient failure;
-// anything else is a permanent failure.
+// The request body: the stored payload with webhookTimestamp set at send time, so
+// a receiver's one-minute replay check passes on a retry hours later.
+export function renderBody(payload: unknown, now: number): string {
+  return JSON.stringify({ ...(payload as object), webhookTimestamp: now });
+}
+
+// Posts the signed payload with Linear's headers and a hard timeout. Only HTTP 200
+// is success (Linear); any other status, a network error or the timeout fails the
+// attempt.
 export async function deliver(input: DeliverInput): Promise<DeliveryResult> {
-  const ts = Math.floor(Date.now() / 1000);
-  const signature = signPayload(input.secret, ts, input.body);
   try {
     const res = await fetch(input.url, {
       method: 'POST',
       signal: AbortSignal.timeout(input.timeoutMs),
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'itsaplan-webhooks/1',
-        'X-Itsaplan-Event': input.eventType,
-        'X-Itsaplan-Delivery': String(input.deliveryId),
-        'X-Itsaplan-Event-Id': input.eventId,
-        'X-Itsaplan-Signature': signature,
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'Linear-Webhook',
+        'Linear-Delivery': input.eventId,
+        'Linear-Event': input.eventType,
+        'Linear-Timestamp': String(Date.now()),
+        'Linear-Signature': signBody(input.secret, input.body),
       },
       body: input.body,
     });
     const responseBody = (await res.text().catch(() => '')).slice(0, MAX_RESPONSE_CHARS);
-    if (res.status >= 200 && res.status < 300)
-      return { ok: true, status: res.status, responseBody };
-    return {
-      ok: false,
-      retryable: isRetryableStatus(res.status),
-      status: res.status,
-      error: `HTTP ${res.status}`,
-      responseBody,
-    };
+    if (res.status === 200) return { ok: true, status: res.status, responseBody };
+    return { ok: false, status: res.status, error: `HTTP ${res.status}`, responseBody };
   } catch (err) {
-    // Network error, DNS failure, or the AbortSignal timeout — all transient.
-    return {
-      ok: false,
-      retryable: true,
-      error: err instanceof Error ? err.message : 'request failed',
-    };
+    return { ok: false, error: err instanceof Error ? err.message : 'request failed' };
   }
 }

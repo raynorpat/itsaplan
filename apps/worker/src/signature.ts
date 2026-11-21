@@ -1,10 +1,9 @@
 import { createHmac } from 'node:crypto';
 
-// HMAC-SHA256 over `${timestamp}.${body}` with the webhook's secret, formatted as
-// the X-Itsaplan-Signature header value (`t=<ts>,v1=<hex>`). The timestamp lets
-// the receiver reject replays; the receiver recomputes the HMAC over the exact
-// bytes it received and compares in constant time.
-export function signPayload(secret: string, timestampSeconds: number, body: string): string {
-  const digest = createHmac('sha256', secret).update(`${timestampSeconds}.${body}`).digest('hex');
-  return `t=${timestampSeconds},v1=${digest}`;
+// Linear's webhook signature: the hex HMAC-SHA256 of the raw request body, keyed
+// with the webhook's secret, sent as Linear-Signature. The receiver recomputes it
+// over the exact bytes it received and compares in constant time; replay is
+// checked against the body's webhookTimestamp.
+export function signBody(secret: string, body: string): string {
+  return createHmac('sha256', secret).update(body).digest('hex');
 }

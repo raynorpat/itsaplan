@@ -1,7 +1,6 @@
 import { workerConfig } from './config';
-import { deliver } from './delivery';
+import { deliver, nextRetryDelayS, renderBody } from './delivery';
 import { processNotificationDeliveries } from './notification-delivery';
-import { equalJitterBackoffMs } from './backoff';
 import { deleteIssueAgentThreads } from './agent-runs';
 import { notifyIssuesArchived } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
@@ -77,14 +76,12 @@ async function processDelivery(d: ClaimedDelivery): Promise<void> {
     await markSkippedInactive(d.id);
     return;
   }
-  const body = JSON.stringify(d.payload);
   const result = await deliver({
     url: d.url,
     secret: d.secret,
-    deliveryId: d.id,
     eventId: d.eventId,
     eventType: d.eventType,
-    body,
+    body: renderBody(d.payload, Date.now()),
     timeoutMs: cfg.timeoutMs,
   });
   const response = { status: result.status, body: result.responseBody };
@@ -92,11 +89,12 @@ async function processDelivery(d: ClaimedDelivery): Promise<void> {
     await markSuccess(d.id, d.webhookId, response);
     return;
   }
-  if (result.retryable && d.attempts < cfg.maxAttempts) {
+  const delayS = nextRetryDelayS(d.attempts);
+  if (delayS !== null) {
     await scheduleRetry(
       d.id,
       d.webhookId,
-      equalJitterBackoffMs(d.attempts),
+      delayS * 1000,
       result.error ?? 'delivery failed',
       response,
     );
