@@ -306,6 +306,84 @@ describe('columns', () => {
   // permission guard runs on :projectKey, so the store must also scope the column
   // to that project — otherwise a member of one project could edit or delete a
   // column of another project by passing its id.
+  describe('description', () => {
+    it('stores a description on create and update', async () => {
+      const { asOwner } = await setupProject();
+      const created = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .columns.post({ name: 'Review', stateType: 'started', description: 'Waiting on review' });
+      expect(created.data).toMatchObject({ description: 'Waiting on review' });
+      const patched = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .columns({ columnId: created.data!.id })
+        .patch({ description: 'Code review' });
+      expect(patched.data).toMatchObject({ description: 'Code review' });
+    });
+  });
+
+  describe('archive', () => {
+    async function addColumn(client: Api, name: string, stateType: 'started' | 'completed') {
+      const res = await client.projects({ projectKey: 'MKT' }).columns.post({ name, stateType });
+      return res.data!;
+    }
+
+    it('archives an empty column and hides it from the project', async () => {
+      const { asOwner } = await setupProject();
+      const review = await addColumn(asOwner, 'Review', 'started');
+      const res = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .columns({ columnId: review.id })
+        .archive.post();
+      expect(res.status).toBe(200);
+      expect(res.data!.archivedAt).toBeTruthy();
+      expect((await columnsOf(asOwner)).map((c) => c.id)).not.toContain(review.id);
+    });
+
+    it('refuses to archive a column that still has issues', async () => {
+      const { asOwner } = await setupProject();
+      const review = await addColumn(asOwner, 'Review', 'started');
+      await createIssue(asOwner, review.id);
+      const res = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .columns({ columnId: review.id })
+        .archive.post();
+      expect(res.status).toBe(409);
+    });
+
+    it('refuses to archive the last column of its type', async () => {
+      const { asOwner } = await setupProject();
+      const done = (await columnsOf(asOwner)).find((c) => c.stateType === 'completed')!;
+      const res = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .columns({ columnId: done.id })
+        .archive.post();
+      expect(res.status).toBe(409);
+    });
+
+    it('refuses an archived column as an issue target', async () => {
+      const { asOwner } = await setupProject();
+      const review = await addColumn(asOwner, 'Review', 'started');
+      await asOwner.projects({ projectKey: 'MKT' }).columns({ columnId: review.id }).archive.post();
+
+      expect((await createIssue(asOwner, review.id)).status).toBe(400);
+      const todo = await columnByName(asOwner, 'Todo');
+      const issue = (await createIssue(asOwner, todo.id)).data!;
+      const moved = await asOwner.issues({ issueId: issue.id }).patch({ columnId: review.id });
+      expect(moved.status).toBe(400);
+    });
+
+    it('denies a non-member', async () => {
+      const { asOwner } = await setupProject();
+      const review = await addColumn(asOwner, 'Review', 'started');
+      const outsider = authedApi((await signUpTestUser()).cookie);
+      const res = await outsider
+        .projects({ projectKey: 'MKT' })
+        .columns({ columnId: review.id })
+        .archive.post();
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('cross-project isolation', () => {
     it('does not patch a column that belongs to another project', async () => {
       const { asOwner } = await setupProject();

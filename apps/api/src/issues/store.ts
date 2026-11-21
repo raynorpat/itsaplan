@@ -634,17 +634,19 @@ async function assertInitiative(
 // Enforces that a column belongs to the issue's project — issue.column_id only
 // requires the column to exist somewhere, so an issue could otherwise sit on
 // another project's board. Throws 400 otherwise.
-// Returns the column's state type, or null when no column is given.
+// Enforces that a column belongs to the issue's project and is not archived.
+// Returns its state type, or null when no column is given.
 async function assertColumn(
   projectId: string,
   columnId: string | undefined,
 ): Promise<StateType | null> {
   if (columnId === undefined) return null;
   const rows = await db
-    .select({ stateType: projectColumn.stateType })
+    .select({ stateType: projectColumn.stateType, archivedAt: projectColumn.archivedAt })
     .from(projectColumn)
     .where(and(eq(projectColumn.id, columnId), eq(projectColumn.projectId, projectId)));
   if (rows.length === 0) throw new HttpError(400, 'Column must belong to this project');
+  if (rows[0].archivedAt) throw new HttpError(400, 'Column is archived');
   return rows[0].stateType as StateType;
 }
 

@@ -1,6 +1,6 @@
 import { db, projectColumn, issue, issueLabel, issueFieldValue, issueFieldOption } from '@repo/db';
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { HttpError } from '../shared/lib';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { HttpError, iso } from '../shared/lib';
 import { recordActivityForIssues } from '../issues/activity';
 
 // Data access for columns (kanban states). A column belongs to one project and
@@ -12,7 +12,11 @@ export interface ColumnRow {
   name: string;
   stateType: string;
   color: string;
+  description: string;
   position: number;
+  // When the column was archived, or null while it is active. Archived columns are
+  // hidden from the board and cannot hold issues.
+  archivedAt: string | null;
 }
 
 function mapColumn(row: typeof projectColumn.$inferSelect): ColumnRow {
@@ -22,7 +26,9 @@ function mapColumn(row: typeof projectColumn.$inferSelect): ColumnRow {
     name: row.name,
     stateType: row.stateType,
     color: row.color,
+    description: row.description,
     position: row.position,
+    archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
   };
 }
 
@@ -39,11 +45,20 @@ const STATE_TYPE_ORDER = sql`CASE ${projectColumn.stateType}
     ELSE 5
   END`;
 
-export async function listColumns(projectId: string): Promise<ColumnRow[]> {
+// Active columns only, unless includeArchived is set.
+export async function listColumns(
+  projectId: string,
+  opts: { includeArchived?: boolean } = {},
+): Promise<ColumnRow[]> {
   const rows = await db
     .select()
     .from(projectColumn)
-    .where(eq(projectColumn.projectId, projectId))
+    .where(
+      and(
+        eq(projectColumn.projectId, projectId),
+        opts.includeArchived ? undefined : isNull(projectColumn.archivedAt),
+      ),
+    )
     .orderBy(STATE_TYPE_ORDER, projectColumn.position);
   return rows.map(mapColumn);
 }
@@ -53,6 +68,7 @@ export async function createColumn(input: {
   name: string;
   stateType: string;
   color?: string;
+  description?: string;
 }): Promise<ColumnRow> {
   const [{ pos }] = await db
     .select({ pos: sql<number>`COALESCE(MAX(${projectColumn.position}), -1) + 1` })
@@ -65,6 +81,7 @@ export async function createColumn(input: {
       name: input.name,
       stateType: input.stateType,
       color: input.color ?? '#6b7280',
+      description: input.description ?? '',
       position: Number(pos),
     })
     .returning();
@@ -81,13 +98,14 @@ export async function getColumnById(id: string): Promise<ColumnRow | null> {
 export async function updateColumn(
   id: string,
   projectId: string,
-  patch: { name?: string; color?: string; stateType?: string },
+  patch: { name?: string; color?: string; stateType?: string; description?: string },
 ): Promise<ColumnRow | null> {
   const scope = and(eq(projectColumn.id, id), eq(projectColumn.projectId, projectId));
   const set: Partial<typeof projectColumn.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.color !== undefined) set.color = patch.color;
   if (patch.stateType !== undefined) set.stateType = patch.stateType;
+  if (patch.description !== undefined) set.description = patch.description;
   if (Object.keys(set).length === 0) {
     const rows = await db.select().from(projectColumn).where(scope);
     return rows[0] ? mapColumn(rows[0]) : null;
@@ -96,10 +114,46 @@ export async function updateColumn(
   return row ? mapColumn(row) : null;
 }
 
-// Renumbers the project's columns to match orderedIds (the desired left-to-right
+// Archives a column (Linear's workflowStateArchive). Refused with 409 while any
+// active issue is in it, and for the last active column of its type, so every
+// project keeps one column per type. Scoped to projectId; another project's column
+// is a 404. Archiving an archived column returns it unchanged.
+export async function archiveColumn(id: string, projectId: string): Promise<ColumnRow> {
+  const column = await getColumnById(id);
+  if (!column || column.projectId !== projectId) throw new HttpError(404, 'Column not found');
+  if (column.archivedAt) return column;
+  const [{ issues }] = await db
+    .select({ issues: sql<number>`count(*)::int` })
+    .from(issue)
+    .where(and(eq(issue.columnId, id), isNull(issue.archivedAt)));
+  if (issues > 0)
+    throw new HttpError(409, 'Move the issues out of this column before archiving it');
+  const [{ others }] = await db
+    .select({ others: sql<number>`count(*)::int` })
+    .from(projectColumn)
+    .where(
+      and(
+        eq(projectColumn.projectId, projectId),
+        eq(projectColumn.stateType, column.stateType),
+        isNull(projectColumn.archivedAt),
+        ne(projectColumn.id, id),
+      ),
+    );
+  if (others === 0)
+    throw new HttpError(409, `The last ${column.stateType} column cannot be archived`);
+  const [row] = await db
+    .update(projectColumn)
+    .set({ archivedAt: sql`now()` })
+    .where(eq(projectColumn.id, id))
+    .returning();
+  return mapColumn(row);
+}
+
+// Renumbers the project's active columns to match orderedIds (the desired left-to-right
 // order). Any column not listed is appended in its current order. Runs a two-pass
 // update — first shift every position out of range, then assign 0..n-1 — so the
-// UNIQUE(project_id, position) constraint never sees a transient duplicate.
+// unique (project_id, position) index over active columns never sees a transient
+// duplicate.
 export async function reorderColumns(projectId: string, orderedIds: string[]): Promise<void> {
   const existing = await listColumns(projectId);
   const known = new Set(existing.map((c) => c.id));
@@ -110,7 +164,7 @@ export async function reorderColumns(projectId: string, orderedIds: string[]): P
     await tx
       .update(projectColumn)
       .set({ position: sql`${projectColumn.position} + 1000000` })
-      .where(eq(projectColumn.projectId, projectId));
+      .where(and(eq(projectColumn.projectId, projectId), isNull(projectColumn.archivedAt)));
     for (const [index, id] of finalOrder.entries()) {
       await tx
         .update(projectColumn)

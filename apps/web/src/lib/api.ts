@@ -105,7 +105,9 @@ export interface Column {
   name: string;
   stateType: StateType;
   color: string;
+  description: string;
   position: number;
+  archivedAt: string | null;
 }
 
 export interface IssueType {

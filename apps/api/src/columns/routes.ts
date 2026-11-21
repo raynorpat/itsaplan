@@ -6,7 +6,14 @@ import { guards } from '../shared/guards';
 import { requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { listColumns, createColumn, updateColumn, reorderColumns, deleteColumn } from './store';
+import {
+  archiveColumn,
+  createColumn,
+  deleteColumn,
+  listColumns,
+  reorderColumns,
+  updateColumn,
+} from './store';
 
 const stateType = t.Union([
   t.Literal('backlog'),
@@ -25,7 +32,9 @@ const ColumnResponse = t.Object({
   name: t.String(),
   stateType: t.String(),
   color: t.String(),
+  description: t.String(),
   position: t.Number(),
+  archivedAt: t.Nullable(t.String()),
 });
 
 export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Columns'] } })
@@ -42,6 +51,7 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
         name: t.String({ minLength: 1 }),
         stateType,
         color: t.Optional(t.String()),
+        description: t.Optional(t.String()),
       }),
       permission: ['states', 'create'],
       response: {
@@ -101,6 +111,7 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
         name: t.Optional(t.String({ minLength: 1 })),
         stateType: t.Optional(stateType),
         color: t.Optional(t.String()),
+        description: t.Optional(t.String()),
       }),
       params: columnParams,
       permission: ['states', 'edit'],
@@ -113,8 +124,31 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       },
       detail: {
         summary: 'Update a column',
-        description: "Update a column's name, stateType, or color.",
+        description: "Update a column's name, stateType, color, or description.",
         ...mcpTool('update_column'),
+      },
+    },
+  )
+
+  .post(
+    '/projects/:projectKey/columns/:columnId/archive',
+    async ({ params, project }) => archiveColumn(params.columnId, project.id),
+    {
+      params: columnParams,
+      permission: ['states', 'edit'],
+      response: {
+        200: ColumnResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+      },
+      detail: {
+        summary: 'Archive a column',
+        description:
+          'Archive a column (workflow state). It must hold no active issues and must ' +
+          'not be the last active column of its state type.',
+        ...mcpTool('archive_column'),
       },
     },
   )
