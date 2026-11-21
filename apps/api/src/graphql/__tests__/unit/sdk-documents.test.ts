@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { buildSchema, parse, validate } from 'graphql';
 import { LinearDocument } from '@linear/sdk';
+import { maxDepthRule } from '../../depth';
 
 // Every query and mutation the Linear SDK can send must validate against the
 // vendored schema the endpoint serves. A schema update that drops or renames a
@@ -22,6 +23,15 @@ describe('Linear SDK documents', () => {
     const failures: string[] = [];
     for (const [name, doc] of operations) {
       const errors = validate(schema, parse(String(doc)));
+      if (errors.length > 0) failures.push(`${name}: ${errors[0].message}`);
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it('keeps every SDK operation within the depth limit', () => {
+    const failures: string[] = [];
+    for (const [name, doc] of operations) {
+      const errors = validate(schema, parse(String(doc)), [maxDepthRule]);
       if (errors.length > 0) failures.push(`${name}: ${errors[0].message}`);
     }
     expect(failures).toEqual([]);

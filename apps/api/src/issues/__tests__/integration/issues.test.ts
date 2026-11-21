@@ -326,6 +326,15 @@ describe('issues', () => {
       expect(res.status).toBe(404);
     });
 
+    it('answers 400 for a feed cursor whose id is not a UUID', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const issue = (await createIssue(asOwner, columnId)).data!;
+      const res = await asOwner
+        .issues({ issueId: issue.id })
+        .feed.get({ query: { cursor: JSON.stringify({ ts: '2020-01-01', id: 'abc' }) } });
+      expect(res.status).toBe(400);
+    });
+
     it('rejects an issue id that is not a UUID', async () => {
       const { asOwner } = await setupProject();
       const res = await asOwner.issues({ issueId: 'abc' }).get();
@@ -1022,6 +1031,13 @@ describe('issues', () => {
     function list(client: Api, query: Record<string, string | number> = {}, projectKey = 'MKT') {
       return client.projects({ projectKey }).issues.get({ query });
     }
+
+    it('treats a placeholder priority 0 as "any"', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const urgent = (await createIssue(asOwner, columnId, { priority: 1 })).data!;
+      const res = await list(asOwner, { priority: 0 });
+      expect(res.data!.map((i) => i.id)).toContain(urgent.id);
+    });
 
     it('lists active issues by default and excludes archived', async () => {
       const { asOwner, columnId } = await setupProject();

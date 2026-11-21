@@ -121,4 +121,10 @@ describe('notifications', () => {
     const res = await owner.api.notifications({ id }).read.post({ read: true } as never);
     expect(res.status).toBe(404);
   });
+
+  it('answers 400 for ids that are not UUIDs in the query', async () => {
+    const user = authedApi((await signUpTestUser()).cookie);
+    expect((await user.notifications.get({ query: { from: 'abc' } })).status).toBe(400);
+    expect((await user.notifications.get({ query: { projectId: 'abc' } })).status).toBe(400);
+  });
 });

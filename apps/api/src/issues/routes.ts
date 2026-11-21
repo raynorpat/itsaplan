@@ -33,8 +33,8 @@ import {
 } from './store';
 import { listFeed, listFeedRange, listStatusTimeline, createComment } from './activity';
 
-// Numeric path params are validated (and coerced string -> number) with t.Numeric,
-// so a non-numeric id is rejected with a 400 before reaching the store.
+// Id path params are validated as UUIDs (t.String({ format: "uuid" })),
+// so a malformed id is rejected with a 400 before reaching the store.
 const issueParams = t.Object({ issueId: t.String({ format: 'uuid' }) });
 
 // --- Response DTO schemas (mirror the store interfaces the handlers return) -------
@@ -432,8 +432,9 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       // A filter is "not set" when its value is empty. An LLM calling this as a tool
       // tends to fill every optional field with a placeholder ("" or 0) rather than
       // omitting it; those must mean "any", not a filter on the placeholder. An id
-      // filter that is not a UUID is never a real filter. This keeps the list robust
-      // to any model.
+      // filter that is not a UUID is never a real filter, and priority 0 is treated as
+      // the placeholder, so this tool cannot filter for "no priority". This keeps the
+      // list robust to any model.
       const str = (v: string | undefined) => (v ? v : undefined);
       const id = (v: string | undefined) => (v && UUID_RE.test(v) ? v : undefined);
       const limit = Math.min(Math.max(query.limit ?? 50, 1), 500);
@@ -445,7 +446,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           initiativeId: id(query.initiativeId),
           assigneeUserId: id(query.assigneeUserId),
           delegateUserId: id(query.delegateUserId),
-          priority: query.priority,
+          priority: query.priority || undefined,
           labelIds: labelIds && labelIds.length ? labelIds : undefined,
           dueFrom: str(query.dueFrom),
           dueTo: str(query.dueTo),
@@ -580,7 +581,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Get an issue by number',
         description:
-          'Get an issue by its project-scoped number: the 42 in "MKT-42". Use this when you were given an identifier; get_issue takes the internal numeric id instead.',
+          'Get an issue by its project-scoped number: the 42 in "MKT-42". Use this when you were given an identifier; get_issue takes the issue id (a UUID) instead.',
         ...mcpTool('get_issue_by_number'),
       },
     },
@@ -615,7 +616,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Get an issue',
-        description: 'Get an issue by its numeric id.',
+        description: 'Get an issue by its id (a UUID).',
         ...mcpTool('get_issue'),
       },
     },
@@ -709,7 +710,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Update an issue',
-        description: 'Update an issue by its numeric id.',
+        description: 'Update an issue by its id (a UUID).',
         ...mcpTool('update_issue'),
       },
     },
@@ -748,7 +749,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Delete an issue',
-        description: 'Permanently delete an issue by its numeric id. Irreversible.',
+        description: 'Permanently delete an issue by its id (a UUID). Irreversible.',
         ...mcpTool('delete_issue'),
       },
     },
@@ -776,7 +777,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Archive an issue',
-        description: 'Archive an issue by its numeric id.',
+        description: 'Archive an issue by its id (a UUID).',
         ...mcpTool('archive_issue'),
       },
     },
@@ -802,7 +803,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Restore an archived issue',
-        description: 'Restore an archived issue by its numeric id.',
+        description: 'Restore an archived issue by its id (a UUID).',
         ...mcpTool('restore_issue'),
       },
     },
@@ -842,7 +843,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Set a custom field value',
-        description: 'Set a custom field value on an issue by its numeric id.',
+        description: 'Set a custom field value on an issue by its id (a UUID).',
         ...mcpTool('set_issue_field_value'),
       },
     },
@@ -885,7 +886,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Get an issue feed',
-        description: "Get an issue's activity feed by its numeric id.",
+        description: "Get an issue's activity feed by its id (a UUID).",
         ...mcpTool('list_issue_activity'),
       },
     },
@@ -979,7 +980,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
       detail: {
         summary: 'Add a comment',
-        description: 'Add a comment to an issue by its numeric id.',
+        description: 'Add a comment to an issue by its id (a UUID).',
         ...mcpTool('add_comment'),
       },
     },

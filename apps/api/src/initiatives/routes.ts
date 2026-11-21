@@ -259,7 +259,7 @@ export const initiativeRoutes = new Elysia({
       },
       detail: {
         summary: 'Get an initiative',
-        description: 'Get an initiative by its numeric id.',
+        description: 'Get an initiative by its id (a UUID).',
         ...mcpTool('get_initiative'),
       },
     },
@@ -312,7 +312,7 @@ export const initiativeRoutes = new Elysia({
       },
       detail: {
         summary: 'Update an initiative',
-        description: 'Update an initiative by its numeric id.',
+        description: 'Update an initiative by its id (a UUID).',
         ...mcpTool('update_initiative'),
       },
     },
@@ -336,7 +336,7 @@ export const initiativeRoutes = new Elysia({
       },
       detail: {
         summary: 'Delete an initiative',
-        description: 'Delete an initiative by its numeric id. Irreversible.',
+        description: 'Delete an initiative by its id (a UUID). Irreversible.',
         ...mcpTool('delete_initiative'),
       },
     },
@@ -374,7 +374,7 @@ export const initiativeRoutes = new Elysia({
       },
       detail: {
         summary: 'Get an initiative feed',
-        description: "Get an initiative's activity feed by its numeric id.",
+        description: "Get an initiative's activity feed by its id (a UUID).",
         ...mcpTool('list_initiative_activity'),
       },
     },

@@ -1,7 +1,11 @@
-import { createYoga } from 'graphql-yoga';
+import { createYoga, maskError, type Plugin } from 'graphql-yoga';
+import { GraphQLError } from 'graphql';
+import { PG_INVALID_INPUT_CODES, pgErrorCode } from '../shared/lib';
 import type { SessionUser } from '../shared/auth-context';
 import { resolveGraphQLUser, type GraphQLContext } from './context';
 import { buildSchema } from './schema';
+import { maxDepthRule } from './depth';
+import { gqlError } from './errors';
 import { issueResolvers } from './resolvers/issue';
 import { mutationResolvers } from './resolvers/mutations';
 import { organizationResolvers } from './resolvers/organization';
@@ -26,6 +30,11 @@ function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
   return merged;
 }
 
+// Adds maxDepthRule to Yoga's validation (Yoga takes rules through a plugin hook).
+const depthLimit: Plugin = {
+  onValidate: ({ addValidationRule }) => addValidationRule(maxDepthRule),
+};
+
 const AUTH_MESSAGE = 'Authentication required, not authenticated';
 
 // Adds the Linear-compatible GraphQL endpoint (/graphql) to the app. Mounted on the
@@ -41,6 +50,19 @@ export function mountGraphql(app: any): void {
     graphiql: false,
     landingPage: false,
     context: ({ user }) => ({ user }),
+    plugins: [depthLimit],
+    maskedErrors: {
+      // A value Postgres cannot store or read (bad uuid/date/number text, a value
+      // out of range, a violated check) is the client's error, not an internal one.
+      maskError(error, message, isDev) {
+        const cause = error instanceof GraphQLError ? error.originalError : error;
+        const code = pgErrorCode(cause);
+        if (code && PG_INVALID_INPUT_CODES.has(code))
+          return gqlError('INVALID_INPUT', 'Invalid input');
+        if (code === '23505') return gqlError('CONFLICT', 'A conflicting record already exists');
+        return maskError(error, message, isDev);
+      },
+    },
   });
 
   app.all(

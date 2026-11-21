@@ -11,6 +11,7 @@ import {
 import { archiveColumn, createColumn, updateColumn } from '../../columns/store';
 import { getProjectByKey } from '../../projects/store';
 import { assertPermission } from '../../shared/access';
+import { UUID_RE } from '../../shared/lib';
 import { deleteObjects } from '../../shared/s3';
 import type { GraphQLContext } from '../context';
 import { fromHttpError, gqlError } from '../errors';
@@ -70,6 +71,27 @@ type IssueInput = Record<string, unknown> & {
   sortOrder?: number;
 };
 
+const ID_FIELDS = ['stateId', 'parentId', 'assigneeId', 'delegateId'] as const;
+
+// The checks REST does in its route schema: ids are UUIDs, priority is 0..4, a
+// title is not empty, dueDate is YYYY-MM-DD. Postgres would reject the rest.
+function assertIssueInput(input: IssueInput): void {
+  for (const field of ID_FIELDS) {
+    const v = input[field];
+    if (v != null && !UUID_RE.test(String(v)))
+      throw gqlError('INVALID_INPUT', `input.${field} must be a UUID`);
+  }
+  if (
+    input.priority != null &&
+    !(Number.isInteger(input.priority) && input.priority >= 0 && input.priority <= 4)
+  )
+    throw gqlError('INVALID_INPUT', 'input.priority must be an integer from 0 to 4');
+  if (input.title !== undefined && !input.title)
+    throw gqlError('INVALID_INPUT', 'input.title must not be empty');
+  if (input.dueDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate))
+    throw gqlError('INVALID_INPUT', 'input.dueDate must be YYYY-MM-DD');
+}
+
 function toPatch(input: IssueInput): IssuePatch {
   const patch: IssuePatch = {};
   if (input.title !== undefined) patch.title = input.title;
@@ -114,6 +136,7 @@ export const mutationResolvers = {
       guard(async () => {
         onlySupported(input, ['teamId', ...ISSUE_FIELDS], 'input');
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
+        assertIssueInput(input);
         const team = await findTeam(input.teamId, ctx.user.id);
         await assertPermission(team.id, ctx.user, 'work_items', 'create');
         const project = (await getProjectByKey(team.key))!;
@@ -144,6 +167,7 @@ export const mutationResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ISSUE_FIELDS, 'input');
+        assertIssueInput(input);
         const row = await findIssue(id, ctx.user.id);
         await assertPermission(row.projectId, ctx.user, 'work_items', 'edit');
         await updateIssue(row.id, toPatch(input), ctx.user.id);
@@ -160,6 +184,7 @@ export const mutationResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ISSUE_FIELDS, 'input');
+        assertIssueInput(input);
         if (ids.length < 1 || ids.length > 50)
           throw gqlError('INVALID_INPUT', 'ids must hold between 1 and 50 issues');
         const rows = [];
@@ -220,6 +245,7 @@ export const mutationResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ['teamId', 'name', 'type', 'color', 'description'], 'input');
+        if (!input.name) throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         if (!STATE_TYPES.has(input.type))
           throw gqlError('INVALID_INPUT', `input.type ${input.type} is not supported`);
         const team = await findTeam(input.teamId, ctx.user.id);
@@ -251,6 +277,7 @@ export const mutationResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ['name', 'color', 'description'], 'input');
+        if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         const state = await findState(id, ctx.user.id);
         await assertPermission(state.projectId, ctx.user, 'states', 'edit');
         await updateColumn(state.id, state.projectId, {

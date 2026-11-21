@@ -191,7 +191,7 @@ describe('god projects', () => {
       expect(bot?.isAgent).toBe(true);
     });
 
-    it('returns 404 for an unknown project and 400 for a non-numeric id', async () => {
+    it('returns 404 for an unknown project and 400 for an id that is not a UUID', async () => {
       const { god } = await setup();
 
       expect(

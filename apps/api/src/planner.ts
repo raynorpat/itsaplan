@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { HttpError, pgErrorCode } from './shared/lib';
+import { HttpError, pgErrorCode, PG_INVALID_INPUT_CODES } from './shared/lib';
 import { authContext } from './shared/auth-context';
 import { projectRoutes } from './projects/routes';
 import { memberRoutes } from './members/routes';
@@ -65,6 +65,10 @@ export const planner = new Elysia({ name: 'planner' })
     if (pgErrorCode(error) === '23505') {
       set.status = 409;
       return { error: 'A record with this name already exists.' };
+    }
+    if (PG_INVALID_INPUT_CODES.has(pgErrorCode(error) ?? '')) {
+      set.status = 400;
+      return { error: 'Invalid input' };
     }
     console.error('[planner] unhandled error:', error);
     set.status = 500;

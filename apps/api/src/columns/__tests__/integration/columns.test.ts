@@ -372,6 +372,20 @@ describe('columns', () => {
       expect(moved.status).toBe(400);
     });
 
+    it('restores an archived issue of an archived column into an active column of the same type', async () => {
+      const { asOwner } = await setupProject();
+      const review = await addColumn(asOwner, 'Review', 'started');
+      const issue = (await createIssue(asOwner, review.id)).data!;
+      await asOwner.issues({ issueId: issue.id }).archive.post();
+      await asOwner.projects({ projectKey: 'MKT' }).columns({ columnId: review.id }).archive.post();
+
+      await asOwner.issues({ issueId: issue.id }).restore.post();
+      const restored = await asOwner.issues({ issueId: issue.id }).get();
+      const active = await columnsOf(asOwner);
+      const target = active.find((c) => c.id === restored.data!.columnId);
+      expect(target?.stateType).toBe('started');
+    });
+
     it('denies a non-member', async () => {
       const { asOwner } = await setupProject();
       const review = await addColumn(asOwner, 'Review', 'started');

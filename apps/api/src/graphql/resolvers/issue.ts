@@ -13,7 +13,8 @@ import { UUID_RE } from '../../shared/lib';
 // Linear's Issue over the issue table. Fields the app has no data for resolve to
 // their neutral value (see schema.ts).
 
-const IDENTIFIER = /^([A-Za-z0-9]+)-(\d+)$/;
+// Sequence numbers are int4; more than 9 digits can never match.
+const IDENTIFIER = /^([A-Za-z0-9]+)-(\d{1,9})$/;
 
 const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
 

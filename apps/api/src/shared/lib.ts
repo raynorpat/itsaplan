@@ -49,6 +49,18 @@ export function pgErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
+// Postgres SQLSTATEs caused by a client value the database cannot store or read: a
+// bad uuid/date/number text, a number out of range, a check or not-null violation.
+// Both the REST error handler and the GraphQL endpoint answer these as bad input.
+export const PG_INVALID_INPUT_CODES = new Set([
+  '22P02',
+  '22003',
+  '22007',
+  '22008',
+  '23502',
+  '23514',
+]);
+
 // Maps a Postgres unique_violation (a duplicate name on a UNIQUE constraint) to
 // a clean 409, so the UI shows "already exists" instead of an opaque 500. Any
 // other error is rethrown unchanged.

@@ -411,7 +411,10 @@ export async function archiveIssue(
 }
 
 // Restores an archived issue back onto the board (archived_at -> null). Records a
-// feed entry. Returns the updated issue, or null if it does not exist.
+// feed entry. If its column was archived meanwhile, the issue moves to the first
+// active column of the same state type (archiveColumn keeps one per type), so it
+// never sits in a hidden column. Returns the updated issue, or null if it does not
+// exist.
 export async function restoreIssue(
   id: string,
   actorUserId?: string | null,
@@ -420,9 +423,28 @@ export async function restoreIssue(
     .update(issue)
     .set({ archivedAt: null })
     .where(and(eq(issue.id, id), isNotNull(issue.archivedAt)))
-    .returning({ id: issue.id });
+    .returning({ id: issue.id, columnId: issue.columnId, projectId: issue.projectId });
   if (!row) return getIssue(id);
   await recordActivity(id, [{ action: 'restored' }], actorUserId);
+  const [column] = await db
+    .select({ archivedAt: projectColumn.archivedAt, stateType: projectColumn.stateType })
+    .from(projectColumn)
+    .where(eq(projectColumn.id, row.columnId));
+  if (column?.archivedAt) {
+    const [target] = await db
+      .select({ id: projectColumn.id })
+      .from(projectColumn)
+      .where(
+        and(
+          eq(projectColumn.projectId, row.projectId),
+          eq(projectColumn.stateType, column.stateType),
+          isNull(projectColumn.archivedAt),
+        ),
+      )
+      .orderBy(projectColumn.position)
+      .limit(1);
+    if (target) return updateIssue(id, { columnId: target.id }, actorUserId);
+  }
   return getIssue(id);
 }
 

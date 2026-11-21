@@ -15,7 +15,7 @@ An identifier a person writes is "KEY-42": the part before the dash is the
 projectKey, the number after it is the sequenceNumber. Given one, call
 get_issue_by_number directly with those two values — do not call list_projects or
 get_project first, the key needs no resolving. Most issue tools take the issue's
-internal numeric id, which comes back in that result.
+id (a UUID), which comes back in that result.
 
 When you have no identifier, start with list_projects to find the project, then
 get_project to resolve its ids. Every id another tool takes — columnId, typeId,

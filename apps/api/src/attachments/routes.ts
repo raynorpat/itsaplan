@@ -117,7 +117,7 @@ export const attachmentRoutes = new Elysia({
       },
       detail: {
         summary: 'List attachments',
-        description: "List an issue's attachments by its numeric id.",
+        description: "List an issue's attachments by its id (a UUID).",
         ...mcpTool('list_attachments'),
       },
     },
