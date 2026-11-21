@@ -1,5 +1,5 @@
 {
-  "id": "2dff258d-7212-4153-b601-41c99859b1c5",
+  "id": "826c5217-6692-40a3-bab7-e6924c78d732",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1087,8 +1087,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1140,11 +1140,11 @@
         }
       },
       "indexes": {
-        "agent_skill_project_idx": {
-          "name": "agent_skill_project_idx",
+        "agent_skill_team_idx": {
+          "name": "agent_skill_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1157,12 +1157,12 @@
         }
       },
       "foreignKeys": {
-        "agent_skill_project_id_project_id_fk": {
-          "name": "agent_skill_project_id_project_id_fk",
+        "agent_skill_team_id_team_id_fk": {
+          "name": "agent_skill_team_id_team_id_fk",
           "tableFrom": "agent_skill",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -1173,11 +1173,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "agent_skill_project_id_name_unique": {
-          "name": "agent_skill_project_id_name_unique",
+        "agent_skill_team_id_name_unique": {
+          "name": "agent_skill_team_id_name_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "name"
           ]
         }
@@ -1278,8 +1278,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1305,11 +1305,11 @@
         }
       },
       "indexes": {
-        "agent_tool_project_idx": {
-          "name": "agent_tool_project_idx",
+        "agent_tool_team_idx": {
+          "name": "agent_tool_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1337,12 +1337,12 @@
         }
       },
       "foreignKeys": {
-        "agent_tool_project_id_project_id_fk": {
-          "name": "agent_tool_project_id_project_id_fk",
+        "agent_tool_team_id_team_id_fk": {
+          "name": "agent_tool_team_id_team_id_fk",
           "tableFrom": "agent_tool",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -1366,11 +1366,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "agent_tool_project_id_tool_key_credential_id_unique": {
-          "name": "agent_tool_project_id_tool_key_credential_id_unique",
+        "agent_tool_team_id_tool_key_credential_id_unique": {
+          "name": "agent_tool_team_id_tool_key_credential_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "tool_key",
             "credential_id"
           ]
@@ -1467,8 +1467,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1588,11 +1588,11 @@
         }
       },
       "indexes": {
-        "ai_agent_project_idx": {
-          "name": "ai_agent_project_idx",
+        "ai_agent_team_idx": {
+          "name": "ai_agent_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1605,12 +1605,12 @@
         }
       },
       "foreignKeys": {
-        "ai_agent_project_id_project_id_fk": {
-          "name": "ai_agent_project_id_project_id_fk",
+        "ai_agent_team_id_team_id_fk": {
+          "name": "ai_agent_team_id_team_id_fk",
           "tableFrom": "ai_agent",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -1644,10 +1644,10 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "ai_agent_role_id_project_role_id_fk": {
-          "name": "ai_agent_role_id_project_role_id_fk",
+        "ai_agent_role_id_team_role_id_fk": {
+          "name": "ai_agent_role_id_team_role_id_fk",
           "tableFrom": "ai_agent",
-          "tableTo": "project_role",
+          "tableTo": "team_role",
           "columnsFrom": [
             "role_id"
           ],
@@ -1660,11 +1660,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "ai_agent_project_id_username_unique": {
-          "name": "ai_agent_project_id_username_unique",
+        "ai_agent_team_id_username_unique": {
+          "name": "ai_agent_team_id_username_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "username"
           ]
         },
@@ -1778,8 +1778,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1826,12 +1826,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "custom_field_project_id_project_id_fk": {
-          "name": "custom_field_project_id_project_id_fk",
+        "custom_field_team_id_team_id_fk": {
+          "name": "custom_field_team_id_team_id_fk",
           "tableFrom": "custom_field",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -1933,211 +1933,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.initiative": {
-      "name": "initiative",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'planned'"
-        },
-        "owner_user_id": {
-          "name": "owner_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "priority": {
-          "name": "priority",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "target_date": {
-          "name": "target_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "initiative_project_idx": {
-          "name": "initiative_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "initiative_project_id_project_id_fk": {
-          "name": "initiative_project_id_project_id_fk",
-          "tableFrom": "initiative",
-          "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "initiative_owner_user_id_user_id_fk": {
-          "name": "initiative_owner_user_id_user_id_fk",
-          "tableFrom": "initiative",
-          "tableTo": "user",
-          "columnsFrom": [
-            "owner_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "initiative_status_check": {
-          "name": "initiative_status_check",
-          "value": "\"initiative\".\"status\" IN ('proposed', 'planned', 'active', 'completed', 'canceled')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.initiative_label": {
-      "name": "initiative_label",
-      "schema": "",
-      "columns": {
-        "initiative_id": {
-          "name": "initiative_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label_id": {
-          "name": "label_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "initiative_label_initiative_id_initiative_id_fk": {
-          "name": "initiative_label_initiative_id_initiative_id_fk",
-          "tableFrom": "initiative_label",
-          "tableTo": "initiative",
-          "columnsFrom": [
-            "initiative_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "initiative_label_label_id_label_id_fk": {
-          "name": "initiative_label_label_id_label_id_fk",
-          "tableFrom": "initiative_label",
-          "tableTo": "label",
-          "columnsFrom": [
-            "label_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "initiative_label_initiative_id_label_id_pk": {
-          "name": "initiative_label_initiative_id_label_id_pk",
-          "columns": [
-            "initiative_id",
-            "label_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.integration_credential": {
       "name": "integration_credential",
       "schema": "",
@@ -2149,8 +1944,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2201,11 +1996,11 @@
         }
       },
       "indexes": {
-        "integration_credential_project_idx": {
-          "name": "integration_credential_project_idx",
+        "integration_credential_team_idx": {
+          "name": "integration_credential_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2218,12 +2013,12 @@
         }
       },
       "foreignKeys": {
-        "integration_credential_project_id_project_id_fk": {
-          "name": "integration_credential_project_id_project_id_fk",
+        "integration_credential_team_id_team_id_fk": {
+          "name": "integration_credential_team_id_team_id_fk",
           "tableFrom": "integration_credential",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -2249,8 +2044,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2267,14 +2062,20 @@
           "primaryKey": false,
           "notNull": false
         },
-        "initiative_id": {
-          "name": "initiative_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
-        "column_id": {
-          "name": "column_id",
+        "project_milestone_id": {
+          "name": "project_milestone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state_id": {
+          "name": "state_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2394,17 +2195,17 @@
         }
       },
       "indexes": {
-        "issue_project_active_idx": {
-          "name": "issue_project_active_idx",
+        "issue_team_active_idx": {
+          "name": "issue_team_active_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "column_id",
+              "expression": "state_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2418,12 +2219,12 @@
         }
       },
       "foreignKeys": {
-        "issue_project_id_project_id_fk": {
-          "name": "issue_project_id_project_id_fk",
+        "issue_team_id_team_id_fk": {
+          "name": "issue_team_id_team_id_fk",
           "tableFrom": "issue",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -2444,12 +2245,12 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "issue_initiative_id_initiative_id_fk": {
-          "name": "issue_initiative_id_initiative_id_fk",
+        "issue_project_id_project_id_fk": {
+          "name": "issue_project_id_project_id_fk",
           "tableFrom": "issue",
-          "tableTo": "initiative",
+          "tableTo": "project",
           "columnsFrom": [
-            "initiative_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -2457,12 +2258,25 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "issue_column_id_project_column_id_fk": {
-          "name": "issue_column_id_project_column_id_fk",
+        "issue_project_milestone_id_project_milestone_id_fk": {
+          "name": "issue_project_milestone_id_project_milestone_id_fk",
           "tableFrom": "issue",
-          "tableTo": "project_column",
+          "tableTo": "project_milestone",
           "columnsFrom": [
-            "column_id"
+            "project_milestone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "issue_state_id_workflow_state_id_fk": {
+          "name": "issue_state_id_workflow_state_id_fk",
+          "tableFrom": "issue",
+          "tableTo": "workflow_state",
+          "columnsFrom": [
+            "state_id"
           ],
           "columnsTo": [
             "id"
@@ -2532,11 +2346,11 @@
             "share_token"
           ]
         },
-        "issue_project_id_sequence_number_unique": {
-          "name": "issue_project_id_sequence_number_unique",
+        "issue_team_id_sequence_number_unique": {
+          "name": "issue_team_id_sequence_number_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "sequence_number"
           ]
         }
@@ -2567,8 +2381,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "initiative_id": {
-          "name": "initiative_id",
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -2657,11 +2471,11 @@
           "method": "btree",
           "with": {}
         },
-        "issue_activity_initiative_idx": {
-          "name": "issue_activity_initiative_idx",
+        "issue_activity_project_idx": {
+          "name": "issue_activity_project_idx",
           "columns": [
             {
-              "expression": "initiative_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2699,12 +2513,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "issue_activity_initiative_id_initiative_id_fk": {
-          "name": "issue_activity_initiative_id_initiative_id_fk",
+        "issue_activity_project_id_project_id_fk": {
+          "name": "issue_activity_project_id_project_id_fk",
           "tableFrom": "issue_activity",
-          "tableTo": "initiative",
+          "tableTo": "project",
           "columnsFrom": [
-            "initiative_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -2736,7 +2550,7 @@
         },
         "issue_activity_owner_check": {
           "name": "issue_activity_owner_check",
-          "value": "(\"issue_activity\".\"issue_id\" IS NOT NULL) <> (\"issue_activity\".\"initiative_id\" IS NOT NULL)"
+          "value": "(\"issue_activity\".\"issue_id\" IS NOT NULL) <> (\"issue_activity\".\"project_id\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -3086,8 +2900,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3136,12 +2950,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "issue_type_project_id_project_id_fk": {
-          "name": "issue_type_project_id_project_id_fk",
+        "issue_type_team_id_team_id_fk": {
+          "name": "issue_type_team_id_team_id_fk",
           "tableFrom": "issue_type",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3152,11 +2966,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "issue_type_project_id_name_unique": {
-          "name": "issue_type_project_id_name_unique",
+        "issue_type_team_id_name_unique": {
+          "name": "issue_type_team_id_name_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "name"
           ]
         }
@@ -3176,8 +2990,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3211,12 +3025,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "label_project_id_project_id_fk": {
-          "name": "label_project_id_project_id_fk",
+        "label_team_id_team_id_fk": {
+          "name": "label_team_id_team_id_fk",
           "tableFrom": "label",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3240,11 +3054,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "label_project_id_name_unique": {
-          "name": "label_project_id_name_unique",
+        "label_team_id_name_unique": {
+          "name": "label_team_id_name_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "name"
           ]
         }
@@ -3264,8 +3078,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3293,12 +3107,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "label_group_project_id_project_id_fk": {
-          "name": "label_group_project_id_project_id_fk",
+        "label_group_team_id_team_id_fk": {
+          "name": "label_group_team_id_team_id_fk",
           "tableFrom": "label_group",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3309,11 +3123,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "label_group_project_id_name_unique": {
-          "name": "label_group_project_id_name_unique",
+        "label_group_team_id_name_unique": {
+          "name": "label_group_team_id_name_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "name"
           ]
         }
@@ -3333,8 +3147,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3374,11 +3188,11 @@
         }
       },
       "indexes": {
-        "note_board_project_idx": {
-          "name": "note_board_project_idx",
+        "note_board_team_idx": {
+          "name": "note_board_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3397,12 +3211,12 @@
         }
       },
       "foreignKeys": {
-        "note_board_project_id_project_id_fk": {
-          "name": "note_board_project_id_project_id_fk",
+        "note_board_team_id_team_id_fk": {
+          "name": "note_board_team_id_team_id_fk",
           "tableFrom": "note_board",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3447,8 +3261,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3568,12 +3382,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "notification_project_id_project_id_fk": {
-          "name": "notification_project_id_project_id_fk",
+        "notification_team_id_team_id_fk": {
+          "name": "notification_team_id_team_id_fk",
           "tableFrom": "notification",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3643,8 +3457,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3721,12 +3535,12 @@
         }
       },
       "foreignKeys": {
-        "notification_delivery_project_id_project_id_fk": {
-          "name": "notification_delivery_project_id_project_id_fk",
+        "notification_delivery_team_id_team_id_fk": {
+          "name": "notification_delivery_team_id_team_id_fk",
           "tableFrom": "notification_delivery",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3748,6 +3562,709 @@
     },
     "public.project": {
       "name": "project",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_id": {
+          "name": "status_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_user_id": {
+          "name": "lead_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_user_id": {
+          "name": "creator_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "slug_id": {
+          "name": "slug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "substr(md5(gen_random_uuid()::text), 1, 12)"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_status_id_project_status_id_fk": {
+          "name": "project_status_id_project_status_id_fk",
+          "tableFrom": "project",
+          "tableTo": "project_status",
+          "columnsFrom": [
+            "status_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_lead_user_id_user_id_fk": {
+          "name": "project_lead_user_id_user_id_fk",
+          "tableFrom": "project",
+          "tableTo": "user",
+          "columnsFrom": [
+            "lead_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "project_creator_user_id_user_id_fk": {
+          "name": "project_creator_user_id_user_id_fk",
+          "tableFrom": "project",
+          "tableTo": "user",
+          "columnsFrom": [
+            "creator_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_slug_id_unique": {
+          "name": "project_slug_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "project_priority_check": {
+          "name": "project_priority_check",
+          "value": "\"project\".\"priority\" BETWEEN 0 AND 4"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_label": {
+      "name": "project_label",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#4EA7FC'"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_group": {
+          "name": "is_group",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_label_parent_id_project_label_id_fk": {
+          "name": "project_label_parent_id_project_label_id_fk",
+          "tableFrom": "project_label",
+          "tableTo": "project_label",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_label_sibling_name_unique": {
+          "name": "project_label_sibling_name_unique",
+          "nullsNotDistinct": true,
+          "columns": [
+            "parent_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_label_link": {
+      "name": "project_label_link",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label_id": {
+          "name": "label_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_label_link_project_id_project_id_fk": {
+          "name": "project_label_link_project_id_project_id_fk",
+          "tableFrom": "project_label_link",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_label_link_label_id_project_label_id_fk": {
+          "name": "project_label_link_label_id_project_label_id_fk",
+          "tableFrom": "project_label_link",
+          "tableTo": "project_label",
+          "columnsFrom": [
+            "label_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_label_link_project_id_label_id_pk": {
+          "name": "project_label_link_project_id_label_id_pk",
+          "columns": [
+            "project_id",
+            "label_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_milestone": {
+      "name": "project_milestone",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_milestone_project_idx": {
+          "name": "project_milestone_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_milestone_project_id_project_id_fk": {
+          "name": "project_milestone_project_id_project_id_fk",
+          "tableFrom": "project_milestone",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_status": {
+      "name": "project_status",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "indefinite": {
+          "name": "indefinite",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_status_type_check": {
+          "name": "project_status_type_check",
+          "value": "\"project_status\".\"type\" IN ('backlog', 'planned', 'started', 'paused', 'completed', 'canceled')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_team": {
+      "name": "project_team",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_team_team_idx": {
+          "name": "project_team_team_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_team_project_id_project_id_fk": {
+          "name": "project_team_project_id_project_id_fk",
+          "tableFrom": "project_team",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_team_team_id_team_id_fk": {
+          "name": "project_team_team_id_team_id_fk",
+          "tableFrom": "project_team",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_team_project_id_team_id_pk": {
+          "name": "project_team_project_id_team_id_pk",
+          "columns": [
+            "project_id",
+            "team_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_update": {
+      "name": "project_update",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health": {
+          "name": "health",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edited_at": {
+          "name": "edited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_update_project_idx": {
+          "name": "project_update_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_update_project_id_project_id_fk": {
+          "name": "project_update_project_id_project_id_fk",
+          "tableFrom": "project_update",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_update_user_id_user_id_fk": {
+          "name": "project_update_user_id_user_id_fk",
+          "tableFrom": "project_update",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_update_health_check": {
+          "name": "project_update_health_check",
+          "value": "\"project_update\".\"health\" IN ('onTrack', 'atRisk', 'offTrack')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.team": {
+      "name": "team",
       "schema": "",
       "columns": {
         "id": {
@@ -3790,8 +4307,8 @@
           "notNull": true,
           "default": false
         },
-        "initiatives_enabled": {
-          "name": "initiatives_enabled",
+        "projects_enabled": {
+          "name": "projects_enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -3823,8 +4340,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "project_key_unique": {
-          "name": "project_key_unique",
+        "team_key_unique": {
+          "name": "team_key_unique",
           "nullsNotDistinct": false,
           "columns": [
             "key"
@@ -3835,8 +4352,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_action": {
-      "name": "project_action",
+    "public.team_action": {
+      "name": "team_action",
       "schema": "",
       "columns": {
         "id": {
@@ -3846,8 +4363,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3895,11 +4412,11 @@
         }
       },
       "indexes": {
-        "project_action_project_idx": {
-          "name": "project_action_project_idx",
+        "team_action_team_idx": {
+          "name": "team_action_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3918,12 +4435,12 @@
         }
       },
       "foreignKeys": {
-        "project_action_project_id_project_id_fk": {
-          "name": "project_action_project_id_project_id_fk",
-          "tableFrom": "project_action",
-          "tableTo": "project",
+        "team_action_team_id_team_id_fk": {
+          "name": "team_action_team_id_team_id_fk",
+          "tableFrom": "team_action",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -3938,8 +4455,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_column": {
-      "name": "project_column",
+    "public.team_dashboard": {
+      "name": "team_dashboard",
       "schema": "",
       "columns": {
         "id": {
@@ -3949,122 +4466,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state_type": {
-          "name": "state_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unstarted'"
-        },
-        "color": {
-          "name": "color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'#6b7280'"
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "project_column_active_position_idx": {
-          "name": "project_column_active_position_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"project_column\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_column_project_id_project_id_fk": {
-          "name": "project_column_project_id_project_id_fk",
-          "tableFrom": "project_column",
-          "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_column_state_type_check": {
-          "name": "project_column_state_type_check",
-          "value": "\"project_column\".\"state_type\" IN ('backlog', 'unstarted', 'started', 'completed', 'canceled')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_dashboard": {
-      "name": "project_dashboard",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4104,11 +4507,11 @@
         }
       },
       "indexes": {
-        "project_dashboard_project_idx": {
-          "name": "project_dashboard_project_idx",
+        "team_dashboard_team_idx": {
+          "name": "team_dashboard_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4127,12 +4530,12 @@
         }
       },
       "foreignKeys": {
-        "project_dashboard_project_id_project_id_fk": {
-          "name": "project_dashboard_project_id_project_id_fk",
-          "tableFrom": "project_dashboard",
-          "tableTo": "project",
+        "team_dashboard_team_id_team_id_fk": {
+          "name": "team_dashboard_team_id_team_id_fk",
+          "tableFrom": "team_dashboard",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4147,8 +4550,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_invite": {
-      "name": "project_invite",
+    "public.team_invite": {
+      "name": "team_invite",
       "schema": "",
       "columns": {
         "id": {
@@ -4165,8 +4568,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4224,11 +4627,11 @@
         }
       },
       "indexes": {
-        "project_invite_pending_uq": {
-          "name": "project_invite_pending_uq",
+        "team_invite_pending_uq": {
+          "name": "team_invite_pending_uq",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4241,16 +4644,16 @@
             }
           ],
           "isUnique": true,
-          "where": "\"project_invite\".\"status\" = 'pending'",
+          "where": "\"team_invite\".\"status\" = 'pending'",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "project_invite_project_idx": {
-          "name": "project_invite_project_idx",
+        "team_invite_team_idx": {
+          "name": "team_invite_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4263,12 +4666,12 @@
         }
       },
       "foreignKeys": {
-        "project_invite_project_id_project_id_fk": {
-          "name": "project_invite_project_id_project_id_fk",
-          "tableFrom": "project_invite",
-          "tableTo": "project",
+        "team_invite_team_id_team_id_fk": {
+          "name": "team_invite_team_id_team_id_fk",
+          "tableFrom": "team_invite",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4276,10 +4679,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "project_invite_role_id_project_role_id_fk": {
-          "name": "project_invite_role_id_project_role_id_fk",
-          "tableFrom": "project_invite",
-          "tableTo": "project_role",
+        "team_invite_role_id_team_role_id_fk": {
+          "name": "team_invite_role_id_team_role_id_fk",
+          "tableFrom": "team_invite",
+          "tableTo": "team_role",
           "columnsFrom": [
             "role_id"
           ],
@@ -4289,9 +4692,9 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "project_invite_invited_by_user_id_user_id_fk": {
-          "name": "project_invite_invited_by_user_id_user_id_fk",
-          "tableFrom": "project_invite",
+        "team_invite_invited_by_user_id_user_id_fk": {
+          "name": "team_invite_invited_by_user_id_user_id_fk",
+          "tableFrom": "team_invite",
           "tableTo": "user",
           "columnsFrom": [
             "invited_by_user_id"
@@ -4302,9 +4705,9 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "project_invite_accepted_by_user_id_user_id_fk": {
-          "name": "project_invite_accepted_by_user_id_user_id_fk",
-          "tableFrom": "project_invite",
+        "team_invite_accepted_by_user_id_user_id_fk": {
+          "name": "team_invite_accepted_by_user_id_user_id_fk",
+          "tableFrom": "team_invite",
           "tableTo": "user",
           "columnsFrom": [
             "accepted_by_user_id"
@@ -4318,8 +4721,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "project_invite_token_unique": {
-          "name": "project_invite_token_unique",
+        "team_invite_token_unique": {
+          "name": "team_invite_token_unique",
           "nullsNotDistinct": false,
           "columns": [
             "token"
@@ -4328,23 +4731,23 @@
       },
       "policies": {},
       "checkConstraints": {
-        "project_invite_role_check": {
-          "name": "project_invite_role_check",
-          "value": "\"project_invite\".\"role\" IN ('owner', 'member')"
+        "team_invite_role_check": {
+          "name": "team_invite_role_check",
+          "value": "\"team_invite\".\"role\" IN ('owner', 'member')"
         },
-        "project_invite_status_check": {
-          "name": "project_invite_status_check",
-          "value": "\"project_invite\".\"status\" IN ('pending', 'accepted', 'rejected')"
+        "team_invite_status_check": {
+          "name": "team_invite_status_check",
+          "value": "\"team_invite\".\"status\" IN ('pending', 'accepted', 'rejected')"
         }
       },
       "isRLSEnabled": false
     },
-    "public.project_member": {
-      "name": "project_member",
+    "public.team_member": {
+      "name": "team_member",
       "schema": "",
       "columns": {
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4384,8 +4787,8 @@
         }
       },
       "indexes": {
-        "project_member_user_idx": {
-          "name": "project_member_user_idx",
+        "team_member_user_idx": {
+          "name": "team_member_user_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -4401,12 +4804,12 @@
         }
       },
       "foreignKeys": {
-        "project_member_project_id_project_id_fk": {
-          "name": "project_member_project_id_project_id_fk",
-          "tableFrom": "project_member",
-          "tableTo": "project",
+        "team_member_team_id_team_id_fk": {
+          "name": "team_member_team_id_team_id_fk",
+          "tableFrom": "team_member",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4414,9 +4817,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "project_member_user_id_user_id_fk": {
-          "name": "project_member_user_id_user_id_fk",
-          "tableFrom": "project_member",
+        "team_member_user_id_user_id_fk": {
+          "name": "team_member_user_id_user_id_fk",
+          "tableFrom": "team_member",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
@@ -4427,10 +4830,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "project_member_role_id_project_role_id_fk": {
-          "name": "project_member_role_id_project_role_id_fk",
-          "tableFrom": "project_member",
-          "tableTo": "project_role",
+        "team_member_role_id_team_role_id_fk": {
+          "name": "team_member_role_id_team_role_id_fk",
+          "tableFrom": "team_member",
+          "tableTo": "team_role",
           "columnsFrom": [
             "role_id"
           ],
@@ -4442,10 +4845,10 @@
         }
       },
       "compositePrimaryKeys": {
-        "project_member_project_id_user_id_pk": {
-          "name": "project_member_project_id_user_id_pk",
+        "team_member_team_id_user_id_pk": {
+          "name": "team_member_team_id_user_id_pk",
           "columns": [
-            "project_id",
+            "team_id",
             "user_id"
           ]
         }
@@ -4453,19 +4856,19 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "project_member_role_check": {
-          "name": "project_member_role_check",
-          "value": "\"project_member\".\"role\" IN ('owner', 'member')"
+        "team_member_role_check": {
+          "name": "team_member_role_check",
+          "value": "\"team_member\".\"role\" IN ('owner', 'member')"
         }
       },
       "isRLSEnabled": false
     },
-    "public.project_notification_setting": {
-      "name": "project_notification_setting",
+    "public.team_notification_setting": {
+      "name": "team_notification_setting",
       "schema": "",
       "columns": {
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": true,
           "notNull": true
@@ -4505,12 +4908,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "project_notification_setting_project_id_project_id_fk": {
-          "name": "project_notification_setting_project_id_project_id_fk",
-          "tableFrom": "project_notification_setting",
-          "tableTo": "project",
+        "team_notification_setting_team_id_team_id_fk": {
+          "name": "team_notification_setting_team_id_team_id_fk",
+          "tableFrom": "team_notification_setting",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4525,8 +4928,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_role": {
-      "name": "project_role",
+    "public.team_role": {
+      "name": "team_role",
       "schema": "",
       "columns": {
         "id": {
@@ -4536,8 +4939,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4571,27 +4974,27 @@
         }
       },
       "indexes": {
-        "project_role_default_uq": {
-          "name": "project_role_default_uq",
+        "team_role_default_uq": {
+          "name": "team_role_default_uq",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "\"project_role\".\"is_default\"",
+          "where": "\"team_role\".\"is_default\"",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "project_role_project_idx": {
-          "name": "project_role_project_idx",
+        "team_role_team_idx": {
+          "name": "team_role_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4604,12 +5007,12 @@
         }
       },
       "foreignKeys": {
-        "project_role_project_id_project_id_fk": {
-          "name": "project_role_project_id_project_id_fk",
-          "tableFrom": "project_role",
-          "tableTo": "project",
+        "team_role_team_id_team_id_fk": {
+          "name": "team_role_team_id_team_id_fk",
+          "tableFrom": "team_role",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4620,11 +5023,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "project_role_project_id_name_unique": {
-          "name": "project_role_project_id_name_unique",
+        "team_role_team_id_name_unique": {
+          "name": "team_role_team_id_name_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "project_id",
+            "team_id",
             "name"
           ]
         }
@@ -4633,12 +5036,12 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_setting": {
-      "name": "project_setting",
+    "public.team_setting": {
+      "name": "team_setting",
       "schema": "",
       "columns": {
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4665,12 +5068,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "project_setting_project_id_project_id_fk": {
-          "name": "project_setting_project_id_project_id_fk",
-          "tableFrom": "project_setting",
-          "tableTo": "project",
+        "team_setting_team_id_team_id_fk": {
+          "name": "team_setting_team_id_team_id_fk",
+          "tableFrom": "team_setting",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4680,10 +5083,10 @@
         }
       },
       "compositePrimaryKeys": {
-        "project_setting_project_id_key_pk": {
-          "name": "project_setting_project_id_key_pk",
+        "team_setting_team_id_key_pk": {
+          "name": "team_setting_team_id_key_pk",
           "columns": [
-            "project_id",
+            "team_id",
             "key"
           ]
         }
@@ -4693,8 +5096,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_view": {
-      "name": "project_view",
+    "public.team_view": {
+      "name": "team_view",
       "schema": "",
       "columns": {
         "id": {
@@ -4704,8 +5107,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4758,11 +5161,11 @@
         }
       },
       "indexes": {
-        "project_view_project_idx": {
-          "name": "project_view_project_idx",
+        "team_view_team_idx": {
+          "name": "team_view_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4781,12 +5184,12 @@
         }
       },
       "foreignKeys": {
-        "project_view_project_id_project_id_fk": {
-          "name": "project_view_project_id_project_id_fk",
-          "tableFrom": "project_view",
-          "tableTo": "project",
+        "team_view_team_id_team_id_fk": {
+          "name": "team_view_team_id_team_id_fk",
+          "tableFrom": "team_view",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4797,8 +5200,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "project_view_share_token_unique": {
-          "name": "project_view_share_token_unique",
+        "team_view_share_token_unique": {
+          "name": "team_view_share_token_unique",
           "nullsNotDistinct": false,
           "columns": [
             "share_token"
@@ -4826,8 +5229,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -4876,12 +5279,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "user_notification_preference_project_id_project_id_fk": {
-          "name": "user_notification_preference_project_id_project_id_fk",
+        "user_notification_preference_team_id_team_id_fk": {
+          "name": "user_notification_preference_team_id_team_id_fk",
           "tableFrom": "user_notification_preference",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -4892,12 +5295,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_notification_pref_user_project_unique": {
-          "name": "user_notification_pref_user_project_unique",
+        "user_notification_pref_user_team_unique": {
+          "name": "user_notification_pref_user_team_unique",
           "nullsNotDistinct": false,
           "columns": [
             "user_id",
-            "project_id"
+            "team_id"
           ]
         }
       },
@@ -4970,8 +5373,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "last_project_id": {
-          "name": "last_project_id",
+        "last_team_id": {
+          "name": "last_team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -5006,12 +5409,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "user_preference_last_project_id_project_id_fk": {
-          "name": "user_preference_last_project_id_project_id_fk",
+        "user_preference_last_team_id_team_id_fk": {
+          "name": "user_preference_last_team_id_team_id_fk",
           "tableFrom": "user_preference",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "last_project_id"
+            "last_team_id"
           ],
           "columnsTo": [
             "id"
@@ -5034,7 +5437,7 @@
         },
         "user_preference_start_page_check": {
           "name": "user_preference_start_page_check",
-          "value": "\"user_preference\".\"start_page\" IN ('inbox', 'dashboard', 'work-items', 'initiatives', 'ai-chat')"
+          "value": "\"user_preference\".\"start_page\" IN ('inbox', 'dashboard', 'work-items', 'projects', 'ai-chat')"
         },
         "user_preference_issue_stats_view_check": {
           "name": "user_preference_issue_stats_view_check",
@@ -5163,8 +5566,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "project_id": {
-          "name": "project_id",
+        "team_id": {
+          "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -5211,11 +5614,11 @@
         }
       },
       "indexes": {
-        "webhook_project_idx": {
-          "name": "webhook_project_idx",
+        "webhook_team_idx": {
+          "name": "webhook_team_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "team_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5228,12 +5631,12 @@
         }
       },
       "foreignKeys": {
-        "webhook_project_id_project_id_fk": {
-          "name": "webhook_project_id_project_id_fk",
+        "webhook_team_id_team_id_fk": {
+          "name": "webhook_team_id_team_id_fk",
           "tableFrom": "webhook",
-          "tableTo": "project",
+          "tableTo": "team",
           "columnsFrom": [
-            "project_id"
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -5382,6 +5785,120 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workflow_state": {
+      "name": "workflow_state",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state_type": {
+          "name": "state_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unstarted'"
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#6b7280'"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workflow_state_active_position_idx": {
+          "name": "workflow_state_active_position_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workflow_state\".\"archived_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_state_team_id_team_id_fk": {
+          "name": "workflow_state_team_id_team_id_fk",
+          "tableFrom": "workflow_state",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workflow_state_state_type_check": {
+          "name": "workflow_state_state_type_check",
+          "value": "\"workflow_state\".\"state_type\" IN ('backlog', 'unstarted', 'started', 'completed', 'canceled')"
+        }
+      },
       "isRLSEnabled": false
     }
   },
