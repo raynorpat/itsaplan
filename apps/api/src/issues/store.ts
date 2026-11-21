@@ -32,6 +32,7 @@ import {
 import type { IssueQuery } from '../ai-agents/issue-query';
 import { iso, num, HttpError } from '../shared/lib';
 import { projectTeamIds } from '../projects/access';
+import { milestoneProjectId } from '../projects/milestones';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
 import type { TeamRow } from '../teams/store';
 import { getCustomFieldById, type CustomFieldType } from '../custom-fields/store';
@@ -79,6 +80,8 @@ export interface IssueRow {
   stateId: string;
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
+  // The project milestone, which belongs to the issue's project; or null.
+  projectMilestoneId: string | null;
   creatorUserId: string | null;
   title: string;
   description: string;
@@ -124,6 +127,7 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     delegateUserId: row.delegateUserId,
     stateId: row.stateId,
     parentId: row.parentId,
+    projectMilestoneId: row.projectMilestoneId,
     creatorUserId: row.creatorUserId,
     title: row.title,
     description: row.description,
@@ -611,6 +615,7 @@ export async function getIssueTeamId(id: string): Promise<string | null> {
 export interface NewIssueInput {
   typeId?: string | null;
   projectId?: string | null;
+  projectMilestoneId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   stateId: string;
@@ -646,6 +651,17 @@ async function assertAssignments(
 // Enforces that a linked project belongs to the same team. Only checks when
 // set to a non-null value (clearing the link is always allowed). Throws 400
 // otherwise.
+// Enforces that a milestone belongs to the issue's (resulting) project. Only
+// checks when set to a non-null value. Throws 400 otherwise.
+async function assertMilestone(
+  projectId: string | null,
+  milestoneId: string | null | undefined,
+): Promise<void> {
+  if (!milestoneId) return;
+  if (!projectId || (await milestoneProjectId(milestoneId)) !== projectId)
+    throw new HttpError(400, "The milestone must belong to the issue's project");
+}
+
 // Enforces that the project includes the issue's team. Throws 400 otherwise.
 async function assertProject(teamId: string, projectId: string | null | undefined): Promise<void> {
   if (projectId == null) return;
@@ -732,6 +748,7 @@ export async function createIssue(
 ): Promise<IssueRow> {
   await assertAssignments(team.id, input);
   await assertProject(team.id, input.projectId);
+  await assertMilestone(input.projectId ?? null, input.projectMilestoneId);
   const stateType = (await assertColumn(team.id, input.stateId))!;
   await assertParent(team.id, null, input.parentId);
   const timestamps = nextStatusTimestamps(
@@ -760,6 +777,7 @@ export async function createIssue(
         sequenceNumber,
         typeId: input.typeId ?? null,
         projectId: input.projectId ?? null,
+        projectMilestoneId: input.projectMilestoneId ?? null,
         assigneeUserId: input.assigneeUserId ?? null,
         delegateUserId: input.delegateUserId ?? null,
         stateId: input.stateId,
@@ -806,6 +824,7 @@ export interface IssuePatch {
   position?: number;
   typeId?: string | null;
   projectId?: string | null;
+  projectMilestoneId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
@@ -827,6 +846,8 @@ export async function updateIssue(
 
   await assertAssignments(before.teamId, patch);
   await assertProject(before.teamId, patch.projectId);
+  const projectAfter = patch.projectId !== undefined ? patch.projectId : before.projectId;
+  await assertMilestone(projectAfter, patch.projectMilestoneId);
   const stateType = await assertColumn(before.teamId, patch.stateId);
   await assertParent(before.teamId, id, patch.parentId);
   await assertIssueType(before.teamId, patch.typeId);
@@ -836,6 +857,11 @@ export async function updateIssue(
   if (patch.position !== undefined) set.position = patch.position;
   if (patch.typeId !== undefined) set.typeId = patch.typeId;
   if (patch.projectId !== undefined) set.projectId = patch.projectId;
+  // Moving the issue to another project (or out of one) clears its milestone,
+  // unless the patch sets a milestone of the new project.
+  if (patch.projectMilestoneId !== undefined) set.projectMilestoneId = patch.projectMilestoneId;
+  else if (patch.projectId !== undefined && patch.projectId !== before.projectId)
+    set.projectMilestoneId = null;
   if (patch.assigneeUserId !== undefined) set.assigneeUserId = patch.assigneeUserId;
   if (patch.delegateUserId !== undefined) set.delegateUserId = patch.delegateUserId;
   if (patch.title !== undefined) set.title = patch.title;

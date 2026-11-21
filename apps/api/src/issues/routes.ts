@@ -61,6 +61,7 @@ const IssueResponse = t.Object({
   delegateUserId: t.Nullable(t.String({ format: 'uuid' })),
   stateId: t.String({ format: 'uuid' }),
   parentId: t.Nullable(t.String({ format: 'uuid' })),
+  projectMilestoneId: t.Nullable(t.String({ format: 'uuid' })),
   creatorUserId: t.Nullable(t.String({ format: 'uuid' })),
   title: t.String(),
   description: t.String(),
@@ -171,6 +172,11 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
               format: 'uuid',
               description: 'Project id to link this issue to, or null. From list_projects.',
             }),
+          ),
+        ),
+        projectMilestoneId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: "Milestone of the issue's project, or null." }),
           ),
         ),
         assigneeUserId: t.Optional(
@@ -645,6 +651,11 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
               description:
                 'Link this issue to an project id, or null to unlink. From list_projects.',
             }),
+          ),
+        ),
+        projectMilestoneId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: "Milestone of the issue's project, or null." }),
           ),
         ),
         assigneeUserId: t.Optional(

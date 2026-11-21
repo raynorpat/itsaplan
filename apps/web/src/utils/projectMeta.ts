@@ -28,9 +28,9 @@ export const LINKABLE_STATUSES: ProjectStatus[] = ['backlog', 'planned', 'starte
 
 // Health (computed server-side). null means there is nothing to judge yet.
 export const HEALTH_META: Record<ProjectHealth, { label: string; color: string }> = {
-  on_track: { label: 'On track', color: '#22c55e' },
-  at_risk: { label: 'At risk', color: '#eab308' },
-  off_track: { label: 'Off track', color: '#ef4444' },
+  onTrack: { label: 'On track', color: '#22c55e' },
+  atRisk: { label: 'At risk', color: '#eab308' },
+  offTrack: { label: 'Off track', color: '#ef4444' },
 };
 
 export function healthMeta(health: ProjectHealth | null): { label: string; color: string } {

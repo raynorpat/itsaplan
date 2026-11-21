@@ -17,6 +17,7 @@ import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { projectsInTeams, projectTeamIds } from './access';
 import { HttpError, iso, num } from '../shared/lib';
 import { computeHealth, type Health } from './health';
+import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
 
 // Data access for projects (Linear's Project): a body of work linked to teams
@@ -56,7 +57,10 @@ export interface ProjectRow {
   updatedAt: string;
   labelIds: string[];
   progress: ProjectProgress;
-  health: Health | null;
+  // The latest project update's health (Linear's Project.health), or null.
+  health: UpdateHealth | null;
+  // Derived from issue progress against the timeline (see health.ts).
+  computedHealth: Health | null;
 }
 
 const projectColumns = { row: project, statusType: projectStatus.type };
@@ -139,6 +143,7 @@ function mapProject(
   teams: ProjectTeam[],
   labelIds: string[],
   progress: ProjectProgress,
+  health: UpdateHealth | null,
 ): ProjectRow {
   const row = sel.row;
   return {
@@ -160,7 +165,8 @@ function mapProject(
     updatedAt: iso(row.updatedAt),
     labelIds,
     progress,
-    health: computeHealth({
+    health,
+    computedHealth: computeHealth({
       ...progress,
       startDate: row.startDate,
       targetDate: row.targetDate,
@@ -178,10 +184,11 @@ async function enrich(
   visibleTeamIds: string[] | null,
 ): Promise<ProjectRow[]> {
   const ids = rows.map((r) => r.row.id);
-  const [teams, counts, labels] = await Promise.all([
+  const [teams, counts, labels, healths] = await Promise.all([
     teamsFor(ids, visibleTeamIds),
     countsFor(ids),
     labelsFor(ids),
+    latestHealthFor(ids),
   ]);
   return rows.map((r) =>
     mapProject(
@@ -189,6 +196,7 @@ async function enrich(
       teams.get(r.row.id) ?? [],
       labels.get(r.row.id) ?? [],
       counts.get(r.row.id) ?? EMPTY_PROGRESS,
+      healths.get(r.row.id) ?? null,
     ),
   );
 }

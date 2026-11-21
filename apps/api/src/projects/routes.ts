@@ -40,7 +40,7 @@ const ProjectStatus = t.Union([
 ]);
 
 // ProjectRow from the store. progress is derived issue counts; health is
-// computed on the fly (on_track/at_risk/off_track, or null when there is nothing
+// computed on the fly (onTrack/atRisk/offTrack, or null when there is nothing
 // to judge).
 const ProjectTeamResponse = t.Object({
   id: t.String({ format: 'uuid' }),
@@ -68,6 +68,7 @@ const ProjectResponse = t.Object({
   labelIds: t.Array(t.String({ format: 'uuid' })),
   progress: t.Object({ completed: t.Number(), canceled: t.Number(), total: t.Number() }),
   health: t.Nullable(t.String()),
+  computedHealth: t.Nullable(t.String()),
 });
 
 // ProjectFeedItemRow from activity.ts: one timeline entry, from the project

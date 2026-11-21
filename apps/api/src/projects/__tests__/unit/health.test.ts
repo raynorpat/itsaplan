@@ -3,7 +3,7 @@ import { computeHealth, type HealthInput } from '../../health';
 
 // computeHealth compares progress (share of completed issues) with elapsed time
 // (share of the start->target window that has passed). Ahead of or level with the
-// schedule is on_track; falling behind is at_risk then off_track. It returns null
+// schedule is onTrack; falling behind is atRisk then offTrack. It returns null
 // when there is nothing to judge (no active issues, or no target date).
 
 const base: HealthInput = {
@@ -23,8 +23,8 @@ describe('computeHealth', () => {
     expect(computeHealth({ ...base, total: 3, completed: 0, canceled: 3 })).toBeNull();
   });
 
-  it('returns on_track when everything is completed', () => {
-    expect(computeHealth({ ...base, total: 5, completed: 5, canceled: 0 })).toBe('on_track');
+  it('returns onTrack when everything is completed', () => {
+    expect(computeHealth({ ...base, total: 5, completed: 5, canceled: 0 })).toBe('onTrack');
   });
 
   it('returns null when there is no target date', () => {
@@ -33,8 +33,8 @@ describe('computeHealth', () => {
     ).toBeNull();
   });
 
-  it('is on_track when progress keeps up with elapsed time', () => {
-    // Half the window elapsed, half the work done -> gap 0 -> on_track.
+  it('is onTrack when progress keeps up with elapsed time', () => {
+    // Half the window elapsed, half the work done -> gap 0 -> onTrack.
     expect(
       computeHealth({
         ...base,
@@ -42,11 +42,11 @@ describe('computeHealth', () => {
         completed: 2,
         now: new Date('2026-01-16T00:00:00.000Z'),
       }),
-    ).toBe('on_track');
+    ).toBe('onTrack');
   });
 
-  it('is at_risk when moderately behind schedule', () => {
-    // ~48% elapsed, 25% done -> gap ~ -0.23 -> at_risk.
+  it('is atRisk when moderately behind schedule', () => {
+    // ~48% elapsed, 25% done -> gap ~ -0.23 -> atRisk.
     expect(
       computeHealth({
         ...base,
@@ -54,11 +54,11 @@ describe('computeHealth', () => {
         completed: 1,
         now: new Date('2026-01-16T00:00:00.000Z'),
       }),
-    ).toBe('at_risk');
+    ).toBe('atRisk');
   });
 
-  it('is off_track when far behind schedule', () => {
-    // ~90% elapsed, nothing done -> gap ~ -0.9 -> off_track.
+  it('is offTrack when far behind schedule', () => {
+    // ~90% elapsed, nothing done -> gap ~ -0.9 -> offTrack.
     expect(
       computeHealth({
         ...base,
@@ -66,10 +66,10 @@ describe('computeHealth', () => {
         completed: 0,
         now: new Date('2026-01-28T00:00:00.000Z'),
       }),
-    ).toBe('off_track');
+    ).toBe('offTrack');
   });
 
-  it('is off_track when the target date has passed and work remains', () => {
+  it('is offTrack when the target date has passed and work remains', () => {
     expect(
       computeHealth({
         ...base,
@@ -77,7 +77,7 @@ describe('computeHealth', () => {
         completed: 3,
         now: new Date('2026-02-05T00:00:00.000Z'),
       }),
-    ).toBe('off_track');
+    ).toBe('offTrack');
   });
 
   it('falls back to createdAt when startDate is null', () => {
@@ -91,6 +91,6 @@ describe('computeHealth', () => {
         completed: 2,
         now: new Date('2026-01-16T00:00:00.000Z'),
       }),
-    ).toBe('on_track');
+    ).toBe('onTrack');
   });
 });

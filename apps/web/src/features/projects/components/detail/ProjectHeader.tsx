@@ -81,7 +81,7 @@ export default function ProjectHeader({ project, team }: { project: Project; tea
       <div className="flex shrink-0 items-center gap-3">
         <div className="flex items-center gap-1">
           <HealthInfoPopover />
-          <HealthBadge health={project.health} />
+          <HealthBadge health={project.health ?? project.computedHealth} />
         </div>
         <ProgressBar progress={project.progress} />
         <ProjectActions project={project} teamKey={team.team.key} />

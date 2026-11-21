@@ -79,7 +79,7 @@ export default function ProjectRow({
       </TableCell>
 
       <TableCell className="px-3 py-2.5 align-middle">
-        <HealthBadge health={project.health} />
+        <HealthBadge health={project.health ?? project.computedHealth} />
       </TableCell>
     </TableRow>
   );

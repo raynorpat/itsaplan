@@ -292,7 +292,7 @@ describe('projects', () => {
       await asOwner.issues({ issueId: a.id }).patch({ stateId: doneColumnId });
       got = await asOwner.projects({ projectId: project.id }).get();
       expect(got.data?.progress).toMatchObject({ completed: 1, total: 2 });
-      expect(typeof got.data?.health).toBe('string');
+      expect(typeof got.data?.computedHealth).toBe('string');
     });
 
     it('links and unlinks an issue through update_issue', async () => {

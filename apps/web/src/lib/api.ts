@@ -519,6 +519,7 @@ export interface Issue {
   stateId: string;
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
+  projectMilestoneId: string | null;
   creatorUserId: string | null;
   title: string;
   description: string;
@@ -1434,12 +1435,12 @@ export interface IssuePatch {
 }
 
 // --- Projects -----------------------------------------------------------------
-// A team-scoped grouping of issues. progress and health are derived server-side
-// from the linked issues' states (health is null when there is nothing to judge).
+// A project (Linear's Project) across one or more teams. progress and
+// computedHealth are derived server-side from the linked issues' states.
 
 // A project status type (Linear's six project status types).
 export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled';
-export type ProjectHealth = 'on_track' | 'at_risk' | 'off_track';
+export type ProjectHealth = 'onTrack' | 'atRisk' | 'offTrack';
 
 export interface ProjectProgress {
   completed: number;
@@ -1470,7 +1471,10 @@ export interface Project {
   updatedAt: string;
   labelIds: string[];
   progress: ProjectProgress;
+  // The latest project update's health, or null when there is no update.
   health: ProjectHealth | null;
+  // Derived from issue progress against the timeline; shown when there is no update.
+  computedHealth: ProjectHealth | null;
 }
 
 // Columns the project list can be sorted by, server-side. progress and health

@@ -7,9 +7,9 @@ import { healthMeta } from '@/utils/projectMeta';
 
 // The health values explained in the info popover, in severity order.
 const HEALTH_LEGEND: { health: ProjectHealth | null; desc: string }[] = [
-  { health: 'on_track', desc: 'Work is keeping pace with the schedule.' },
-  { health: 'at_risk', desc: 'Work is slipping behind the schedule.' },
-  { health: 'off_track', desc: 'Work is well behind, or the target date has passed.' },
+  { health: 'onTrack', desc: 'Work is keeping pace with the schedule.' },
+  { health: 'atRisk', desc: 'Work is slipping behind the schedule.' },
+  { health: 'offTrack', desc: 'Work is well behind, or the target date has passed.' },
   { health: null, desc: 'Not enough data yet: no issues or no target date.' },
 ];
 
