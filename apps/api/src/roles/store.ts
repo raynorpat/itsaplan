@@ -9,7 +9,7 @@ import { normalizePermissions, type Permissions } from '../shared/permissions';
 // fallback for a member with no explicit role.
 
 export interface RoleRow {
-  id: number;
+  id: string;
   name: string;
   isDefault: boolean;
   permissions: Permissions;
@@ -26,16 +26,16 @@ function mapRole(row: typeof projectRole.$inferSelect): RoleRow {
   };
 }
 
-export async function listRoles(projectId: number): Promise<RoleRow[]> {
+export async function listRoles(projectId: string): Promise<RoleRow[]> {
   const rows = await db
     .select()
     .from(projectRole)
     .where(eq(projectRole.projectId, projectId))
-    .orderBy(asc(projectRole.id));
+    .orderBy(asc(projectRole.createdAt), asc(projectRole.id));
   return rows.map(mapRole);
 }
 
-export async function getRole(projectId: number, roleId: number): Promise<RoleRow | null> {
+export async function getRole(projectId: string, roleId: string): Promise<RoleRow | null> {
   const rows = await db
     .select()
     .from(projectRole)
@@ -44,7 +44,7 @@ export async function getRole(projectId: number, roleId: number): Promise<RoleRo
 }
 
 export async function createRole(
-  projectId: number,
+  projectId: string,
   input: { name: string; permissions: unknown },
 ): Promise<RoleRow> {
   const [row] = await db
@@ -60,8 +60,8 @@ export async function createRole(
 }
 
 export async function updateRole(
-  projectId: number,
-  roleId: number,
+  projectId: string,
+  roleId: string,
   input: { name?: string; permissions?: unknown },
 ): Promise<RoleRow | null> {
   const set: { name?: string; permissions?: Permissions } = {};
@@ -79,7 +79,7 @@ export async function updateRole(
 // Deletes a role after reassigning every member on it to the project's default
 // role, so no member is left with a dangling role. Runs in one transaction. The
 // caller guards against deleting the default role itself.
-export async function deleteRole(projectId: number, roleId: number): Promise<void> {
+export async function deleteRole(projectId: string, roleId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const [def] = await tx
       .select({ id: projectRole.id })

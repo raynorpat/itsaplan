@@ -43,7 +43,7 @@ describe('initiatives', () => {
         progress: { completed: 0, total: 0, canceled: 0 },
         health: null,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const list = await initiatives(asOwner).get();
       expect(list.data!.items.map((i) => i.title)).toEqual(['Q3 Launch']);
@@ -207,7 +207,9 @@ describe('initiatives', () => {
 
     it('returns 404 for a missing initiative', async () => {
       const { asOwner } = await setup();
-      const res = await asOwner.initiatives({ initiativeId: 999999 }).get();
+      const res = await asOwner
+        .initiatives({ initiativeId: '00000000-0000-4000-8000-000000000000' })
+        .get();
       expect(res.status).toBe(404);
     });
   });
@@ -234,7 +236,9 @@ describe('initiatives', () => {
 
     it('returns 404 for a missing initiative', async () => {
       const { asOwner } = await setup();
-      const res = await asOwner.initiatives({ initiativeId: 999999 }).patch({ title: 'x' });
+      const res = await asOwner
+        .initiatives({ initiativeId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ title: 'x' });
       expect(res.status).toBe(404);
     });
   });

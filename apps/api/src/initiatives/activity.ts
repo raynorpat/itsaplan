@@ -11,7 +11,7 @@ import { iso } from '../shared/lib';
 export type FeedKind = 'comment' | 'activity';
 
 export interface InitiativeFeedItemRow {
-  id: number;
+  id: string;
   // 'initiative' for an event of the initiative itself, 'issue' for the activity
   // of a linked issue. Derived from which owner column is set.
   source: 'initiative' | 'issue';
@@ -25,7 +25,7 @@ export interface InitiativeFeedItemRow {
   toText: string | null;
   createdAt: string;
   // Set only for 'issue' rows, so the UI can link the entry to its issue.
-  issueId: number | null;
+  issueId: string | null;
   issueIdentifier: string | null;
 }
 
@@ -33,7 +33,7 @@ export interface InitiativeFeedItemRow {
 // ties when two entries share a created_at (bulk activity from one edit).
 export interface FeedCursor {
   ts: string;
-  id: number;
+  id: string;
 }
 
 export interface FeedPage {
@@ -43,7 +43,7 @@ export interface FeedPage {
 
 // One page of an initiative's feed, newest first. limit is clamped to 1..100.
 export async function listFeed(
-  initiativeId: number,
+  initiativeId: string,
   opts: { before?: FeedCursor | null; limit?: number } = {},
 ): Promise<FeedPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 100);
@@ -80,7 +80,7 @@ export async function listFeed(
           inArray(issueActivity.issueId, linkedIssueIds),
         ),
         before
-          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::integer)`
+          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
           : undefined,
       ),
     )
@@ -128,7 +128,7 @@ async function userName(id: string | null): Promise<string | null> {
 }
 
 export async function recordActivity(
-  initiativeId: number,
+  initiativeId: string,
   events: ActivityInput[],
   actorUserId?: string | null,
 ): Promise<void> {
@@ -152,7 +152,7 @@ export async function recordActivity(
 
 // The subset of an initiative's fields the change log diffs.
 export interface InitiativeSnapshot {
-  id: number;
+  id: string;
   title: string;
   description: string;
   status: string;

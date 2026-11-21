@@ -33,14 +33,14 @@ import { deleteThreadsWhere } from './runtime/memory';
 export type AgentKind = 'external' | 'internal';
 
 export interface AiAgentRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   userId: string;
   // name lives on the bot user; username is the project-scoped handle.
   name: string;
   username: string;
   kind: AgentKind;
-  modelCredentialId: number | null;
+  modelCredentialId: string | null;
   model: string | null;
   instructions: string | null;
   tools: string[];
@@ -54,7 +54,7 @@ export interface AiAgentRow {
   triggerOnAssign: boolean;
   // The project_role the bot user acts under. NULL falls back to the project's
   // default member permissions.
-  roleId: number | null;
+  roleId: string | null;
   createdAt: string;
   // The agent's current API key, for display only — the secret is never returned
   // after creation. start is the key's leading characters kept for identification.
@@ -71,13 +71,13 @@ export interface AiAgentRow {
 }
 
 function mapAgent(row: {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   userId: string;
   name: string;
   username: string;
   kind: string;
-  modelCredentialId: number | null;
+  modelCredentialId: string | null;
   model: string | null;
   instructions: string | null;
   tools: unknown;
@@ -87,7 +87,7 @@ function mapAgent(row: {
   memoryLastMessages: number | null;
   triggerOnMention: boolean;
   triggerOnAssign: boolean;
-  roleId: number | null;
+  roleId: string | null;
   createdAt: Date;
   apiKeyStart: string | null;
   modelProvider: string | null;
@@ -153,12 +153,13 @@ const agentColumns = {
     ),
 };
 
-export async function listAgents(projectId: number): Promise<AiAgentRow[]> {
+export async function listAgents(projectId: string): Promise<AiAgentRow[]> {
   const rows = await db
     .select(agentColumns)
     .from(aiAgent)
     .innerJoin(user, eq(user.id, aiAgent.userId))
-    .leftJoin(apikey, eq(apikey.referenceId, aiAgent.userId))
+    // better-auth stores apikey.reference_id as text; the user id is a uuid.
+    .leftJoin(apikey, eq(apikey.referenceId, sql`${aiAgent.userId}::text`))
     .leftJoin(integrationCredential, eq(integrationCredential.id, aiAgent.modelCredentialId))
     .where(eq(aiAgent.projectId, projectId))
     .orderBy(user.name);
@@ -166,12 +167,13 @@ export async function listAgents(projectId: number): Promise<AiAgentRow[]> {
 }
 
 // Scoped to projectId so an id from another project resolves to null.
-export async function getAgentById(id: number, projectId: number): Promise<AiAgentRow | null> {
+export async function getAgentById(id: string, projectId: string): Promise<AiAgentRow | null> {
   const rows = await db
     .select(agentColumns)
     .from(aiAgent)
     .innerJoin(user, eq(user.id, aiAgent.userId))
-    .leftJoin(apikey, eq(apikey.referenceId, aiAgent.userId))
+    // better-auth stores apikey.reference_id as text; the user id is a uuid.
+    .leftJoin(apikey, eq(apikey.referenceId, sql`${aiAgent.userId}::text`))
     .leftJoin(integrationCredential, eq(integrationCredential.id, aiAgent.modelCredentialId))
     .where(and(eq(aiAgent.id, id), eq(aiAgent.projectId, projectId)));
   return rows[0] ? mapAgent(rows[0]) : null;
@@ -181,9 +183,9 @@ export async function getAgentById(id: number, projectId: number): Promise<AiAge
 // react to mentions. Turns the user ids parsed from a comment's mentions into the
 // agents that should run.
 export async function listInternalAgentsByUserIds(
-  projectId: number,
+  projectId: string,
   userIds: string[],
-): Promise<{ id: number; userId: string }[]> {
+): Promise<{ id: string; userId: string }[]> {
   if (userIds.length === 0) return [];
   return db
     .select({ id: aiAgent.id, userId: aiAgent.userId })
@@ -200,7 +202,7 @@ export async function listInternalAgentsByUserIds(
 
 // The internal agent whose bot user is userId and that reacts to being delegated to,
 // or null. Turns a new delegate into the agent that should run on delegation.
-export async function getAssignTriggerAgent(userId: string): Promise<{ id: number } | null> {
+export async function getAssignTriggerAgent(userId: string): Promise<{ id: string } | null> {
   const rows = await db
     .select({ id: aiAgent.id })
     .from(aiAgent)
@@ -217,7 +219,7 @@ export async function getAssignTriggerAgent(userId: string): Promise<{ id: numbe
 
 // True if the user id is the bot user of an agent in this project. Validates that a
 // delegate is an agent of the same project before it is written to an issue.
-export async function isProjectAgent(projectId: number, userId: string): Promise<boolean> {
+export async function isProjectAgent(projectId: string, userId: string): Promise<boolean> {
   const rows = await db
     .select({ id: aiAgent.id })
     .from(aiAgent)
@@ -241,7 +243,7 @@ export interface NewAgentInput {
   name: string;
   username: string;
   kind: AgentKind;
-  modelCredentialId?: number | null;
+  modelCredentialId?: string | null;
   model?: string | null;
   instructions?: string | null;
   tools?: string[];
@@ -253,7 +255,7 @@ export interface NewAgentInput {
   triggerOnMention?: boolean;
   triggerOnAssign?: boolean;
   // External-agent authorization role.
-  roleId?: number | null;
+  roleId?: string | null;
 }
 
 // Issues a fresh API key owned by the agent's bot user and returns its plaintext
@@ -272,7 +274,7 @@ async function issueKey(userId: string, name: string): Promise<string> {
 // an external agent, whose operator must copy it — an internal agent's key is kept
 // encrypted on the row for its own runtime and is never surfaced to a caller.
 export async function createAgent(
-  projectId: number,
+  projectId: string,
   input: NewAgentInput,
 ): Promise<{ agent: AiAgentRow; apiKey: string | null }> {
   const userId = crypto.randomUUID();
@@ -327,7 +329,7 @@ export async function createAgent(
 
 // Saves an internal agent's key secret, encrypted at rest, so its runtime can replay
 // it on every tool call.
-async function storeAgentKey(agentId: number, apiKey: string): Promise<void> {
+async function storeAgentKey(agentId: string, apiKey: string): Promise<void> {
   const enc = encryptSecret(apiKey);
   await db
     .update(aiAgent)
@@ -336,11 +338,11 @@ async function storeAgentKey(agentId: number, apiKey: string): Promise<void> {
 }
 
 // Namespace for the provisioning advisory lock, so its keys cannot collide with an
-// advisory lock taken anywhere else. The second key is the agent id.
+// advisory lock taken anywhere else. The second key is a hash of the agent id.
 const KEY_PROVISION_LOCK_NS = 8241;
 
 // Reads and decrypts an agent's stored key, or null when it has none yet.
-async function readAgentKey(agentId: number): Promise<string | null> {
+async function readAgentKey(agentId: string): Promise<string | null> {
   const rows = await db
     .select({
       ciphertext: aiAgent.apiKeyCiphertext,
@@ -373,7 +375,9 @@ export async function getInternalAgentApiKey(agent: AiAgentRow): Promise<string>
   return db.transaction(async (tx) => {
     // Held until this transaction ends. A concurrent run blocks here and then finds
     // the key the winner stored, instead of issuing a second one.
-    await tx.execute(sql`select pg_advisory_xact_lock(${KEY_PROVISION_LOCK_NS}, ${agent.id})`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${KEY_PROVISION_LOCK_NS}, hashtext(${agent.id}))`,
+    );
     const won = await readAgentKey(agent.id);
     if (won) return won;
 
@@ -398,7 +402,7 @@ export async function getInternalAgentApiKey(agent: AiAgentRow): Promise<string>
 export interface AgentPatch {
   name?: string;
   username?: string;
-  modelCredentialId?: number | null;
+  modelCredentialId?: string | null;
   model?: string | null;
   instructions?: string | null;
   tools?: string[];
@@ -408,12 +412,12 @@ export interface AgentPatch {
   memoryLastMessages?: number | null;
   triggerOnMention?: boolean;
   triggerOnAssign?: boolean;
-  roleId?: number | null;
+  roleId?: string | null;
 }
 
 export async function updateAgent(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   patch: AgentPatch,
 ): Promise<AiAgentRow | null> {
   const agent = await getAgentById(id, projectId);
@@ -465,7 +469,7 @@ export async function updateAgent(
 // and issues a new one. Returns the new plaintext secret, or null if the agent
 // does not exist. There is no atomic rotate in the plugin, so this is delete+create.
 // An internal agent's new secret is re-encrypted onto its row for its runtime.
-export async function regenerateKey(id: number, projectId: number): Promise<string | null> {
+export async function regenerateKey(id: string, projectId: string): Promise<string | null> {
   const agent = await getAgentById(id, projectId);
   if (!agent) return null;
   await db.delete(apikey).where(eq(apikey.referenceId, agent.userId));
@@ -478,7 +482,7 @@ export async function regenerateKey(id: number, projectId: number): Promise<stri
 // Deleting the user cascades to the ai_agent row (ON DELETE CASCADE on user_id), sets
 // assignee_user_id to NULL on every issue the agent was on, and nulls the actor on its
 // activity.
-export async function deleteAgent(id: number, projectId: number): Promise<boolean> {
+export async function deleteAgent(id: string, projectId: string): Promise<boolean> {
   const agent = await getAgentById(id, projectId);
   if (!agent) return false;
   await deleteThreadsWhere({ agentId: id });

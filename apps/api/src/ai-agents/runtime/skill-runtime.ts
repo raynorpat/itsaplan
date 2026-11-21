@@ -31,7 +31,7 @@ export function skillsPreamble(skills: SkillRow[]): string {
 // A read_skill tool restricted to the agent's enabled skills. Reads the SKILL.md by
 // default, or a named reference file. Reading is scoped to (projectId, enabled ids)
 // so an agent cannot pull skills it was not granted.
-export function buildSkillTool(projectId: number, skills: SkillRow[]) {
+export function buildSkillTool(projectId: string, skills: SkillRow[]) {
   const allowed = new Set(skills.map((s) => s.id));
   return {
     read_skill: createTool({
@@ -40,7 +40,7 @@ export function buildSkillTool(projectId: number, skills: SkillRow[]) {
         'Load the full instructions of one of your skills by its id, or a reference ' +
         'file of that skill by passing its path. Use this before applying a skill.',
       inputSchema: z.object({
-        skillId: z.number().describe('The id of the skill to load (from the Skills list).'),
+        skillId: z.string().describe('The id of the skill to load (from the Skills list).'),
         path: z
           .string()
           .optional()

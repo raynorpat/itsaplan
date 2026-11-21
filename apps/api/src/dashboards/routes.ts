@@ -14,13 +14,13 @@ import {
   reorderDashboards,
 } from './store';
 
-const dashboardParams = t.Object({ dashboardId: t.Numeric() });
+const dashboardParams = t.Object({ dashboardId: t.String({ format: 'uuid' }) });
 
 // A dashboard DTO (DashboardRow from the store). layout is a jsonb blob owned by
 // the UI and returned verbatim, so it is typed as t.Any().
 const DashboardResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.Nullable(t.String()),
   layout: t.Any(),
@@ -40,7 +40,7 @@ export const dashboardRoutes = new Elysia({
     dashboard: entityGuard(
       'dashboards',
       'Dashboard not found',
-      async (p) => (await getDashboard(Number(p.dashboardId)))?.projectId ?? null,
+      async (p) => (await getDashboard(p.dashboardId))?.projectId ?? null,
     ),
   })
   .get(
@@ -91,7 +91,7 @@ export const dashboardRoutes = new Elysia({
       return reorderDashboards(project.id, body.orderedIds);
     },
     {
-      body: t.Object({ orderedIds: t.Array(t.Integer(), { minItems: 1 }) }),
+      body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
       permission: ['dashboards', 'edit'],
       response: {
         200: t.Array(DashboardResponse),

@@ -7,8 +7,8 @@ import { recordActivityForIssues } from '../issues/activity';
 // has a state type that fixes its place in the work items view's left-to-right order.
 
 export interface ColumnRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   stateType: string;
   color: string;
@@ -39,7 +39,7 @@ const STATE_TYPE_ORDER = sql`CASE ${projectColumn.stateType}
     ELSE 5
   END`;
 
-export async function listColumns(projectId: number): Promise<ColumnRow[]> {
+export async function listColumns(projectId: string): Promise<ColumnRow[]> {
   const rows = await db
     .select()
     .from(projectColumn)
@@ -49,7 +49,7 @@ export async function listColumns(projectId: number): Promise<ColumnRow[]> {
 }
 
 export async function createColumn(input: {
-  projectId: number;
+  projectId: string;
   name: string;
   stateType: string;
   color?: string;
@@ -71,7 +71,7 @@ export async function createColumn(input: {
   return mapColumn(row);
 }
 
-export async function getColumnById(id: number): Promise<ColumnRow | null> {
+export async function getColumnById(id: string): Promise<ColumnRow | null> {
   const rows = await db.select().from(projectColumn).where(eq(projectColumn.id, id));
   return rows[0] ? mapColumn(rows[0]) : null;
 }
@@ -79,8 +79,8 @@ export async function getColumnById(id: number): Promise<ColumnRow | null> {
 // Scoped to projectId so a column id from another project resolves to null (the
 // route turns that into a 404), never a cross-project edit.
 export async function updateColumn(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   patch: { name?: string; color?: string; stateType?: string },
 ): Promise<ColumnRow | null> {
   const scope = and(eq(projectColumn.id, id), eq(projectColumn.projectId, projectId));
@@ -100,7 +100,7 @@ export async function updateColumn(
 // order). Any column not listed is appended in its current order. Runs a two-pass
 // update — first shift every position out of range, then assign 0..n-1 — so the
 // UNIQUE(project_id, position) constraint never sees a transient duplicate.
-export async function reorderColumns(projectId: number, orderedIds: number[]): Promise<void> {
+export async function reorderColumns(projectId: string, orderedIds: string[]): Promise<void> {
   const existing = await listColumns(projectId);
   const known = new Set(existing.map((c) => c.id));
   const finalOrder = orderedIds.filter((id) => known.has(id));
@@ -125,11 +125,11 @@ export async function reorderColumns(projectId: number, orderedIds: number[]): P
 // (labels, custom field values/options) first. Backlog columns cannot be deleted,
 // which keeps at least one column on every project. Runs in one transaction so the
 // column and its issues are never left half-deleted.
-export type DeleteColumnOptions = { mode: 'move'; targetColumnId: number } | { mode: 'delete' };
+export type DeleteColumnOptions = { mode: 'move'; targetColumnId: string } | { mode: 'delete' };
 
 export async function deleteColumn(
-  columnId: number,
-  projectId: number,
+  columnId: string,
+  projectId: string,
   opts: DeleteColumnOptions,
   actorUserId?: string | null,
 ): Promise<void> {
@@ -150,7 +150,7 @@ export async function deleteColumn(
   }
 
   const movedIssueIds = await db.transaction(async (tx) => {
-    let moved: number[] = [];
+    let moved: string[] = [];
     if (opts.mode === 'move') {
       const rows = await tx
         .update(issue)

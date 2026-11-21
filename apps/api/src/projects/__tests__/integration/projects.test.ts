@@ -39,7 +39,7 @@ describe('projects', () => {
       const created = await api.projects.post({ key: 'MKT', name: 'Marketing' });
       expect(created.status).toBe(201);
       expect(created.data).toMatchObject({ key: 'MKT', name: 'Marketing', description: '' });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const list = await api.projects.get();
       expect(list.status).toBe(200);
@@ -320,7 +320,7 @@ describe('projects', () => {
       expect(dstBacklog.id).not.toBe(srcBacklog.id);
       const dstViews = await api.projects({ projectKey: 'DST' }).views.get();
       const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: number[] }[];
+        conditions: { field: string; values: string[] }[];
       };
       expect(filters.conditions[0].values).toEqual([dstBacklog.id]);
     });
@@ -371,7 +371,7 @@ describe('projects', () => {
       expect(dstReview.id).not.toBe(review.id);
       const dstViews = await api.projects({ projectKey: 'DST' }).views.get();
       const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: number[] }[];
+        conditions: { field: string; values: string[] }[];
       };
       expect(filters.conditions[0].values).toEqual([dstReview.id]);
     });

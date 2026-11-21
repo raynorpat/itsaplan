@@ -9,10 +9,10 @@ import { renderMentionsPlain, parseMentionedUsers } from '../mentions';
 // The fields of a claimed run this module reads. The HTTP body in internal-routes.ts
 // is structurally compatible.
 export interface RunForPrompt {
-  id: number;
+  id: string;
   trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
   prompt: string;
-  issueId: number | null;
+  issueId: string | null;
   issueIdentifier: string | null;
   issueTitle: string | null;
   assigneeUserId: string | null;

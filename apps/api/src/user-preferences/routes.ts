@@ -27,7 +27,7 @@ const PreferenceResponse = t.Object({
   showChatByDefault: t.Boolean(),
   issueStatsOpen: t.Boolean(),
   issueStatsView: IssueStatsView,
-  lastProjectId: t.Nullable(t.Number()),
+  lastProjectId: t.Nullable(t.String({ format: 'uuid' })),
   hotkeys: HotkeyCombosSchema,
 });
 
@@ -39,7 +39,7 @@ const PreferencePatch = t.Object({
   showChatByDefault: t.Optional(t.Boolean()),
   issueStatsOpen: t.Optional(t.Boolean()),
   issueStatsView: t.Optional(IssueStatsView),
-  lastProjectId: t.Optional(t.Nullable(t.Number())),
+  lastProjectId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
   // The full set of the user's overrides: a shortcut left out falls back to the
   // instance binding.
   hotkeys: t.Optional(HotkeyCombosSchema),

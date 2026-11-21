@@ -24,7 +24,7 @@ import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 // "owner" and only members can reach a project's entities.
 
 export interface ProjectRow {
-  id: number;
+  id: string;
   key: string;
   name: string;
   description: string;
@@ -117,7 +117,7 @@ export async function getProjectByKey(key: string): Promise<ProjectRow | null> {
   return rows[0] ? mapProject(rows[0]) : null;
 }
 
-export async function getProjectById(id: number): Promise<ProjectRow | null> {
+export async function getProjectById(id: string): Promise<ProjectRow | null> {
   const rows = await db.select().from(project).where(eq(project.id, id));
   return rows[0] ? mapProject(rows[0]) : null;
 }
@@ -254,7 +254,7 @@ export async function createProject(
 // issue-identifier prefix (e.g. "MKT-42") and is immutable, so it is not editable
 // here. Only the provided fields change.
 export async function updateProject(
-  projectId: number,
+  projectId: string,
   patch: { name?: string; description?: string },
 ): Promise<ProjectRow | null> {
   const values: Partial<typeof project.$inferInsert> = {};
@@ -268,7 +268,7 @@ export async function updateProject(
 // Toggles whether the project is reachable through the MCP server. Owner-only at
 // the route; the flag gates every MCP tool call scoped to this project.
 export async function setProjectMcpEnabled(
-  projectId: number,
+  projectId: string,
   enabled: boolean,
 ): Promise<ProjectRow | null> {
   const [row] = await db
@@ -291,7 +291,7 @@ export function projectFeatures(row: ProjectRow): ProjectFeatures {
 // Turns the optional sections on or off. Only the supplied ones change; a section
 // that is turned off keeps its rows and shows again when it is turned back on.
 export async function setProjectFeatures(
-  projectId: number,
+  projectId: string,
   patch: Partial<ProjectFeatures>,
 ): Promise<ProjectRow | null> {
   const values: Partial<typeof project.$inferInsert> = {};
@@ -328,7 +328,7 @@ function normalizeDays(value: unknown): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export async function getAutoArchiveSettings(projectId: number): Promise<AutoArchiveSettings> {
+export async function getAutoArchiveSettings(projectId: string): Promise<AutoArchiveSettings> {
   const stored = await getProjectSetting<Partial<AutoArchiveSettings>>(projectId, AUTO_ARCHIVE_KEY);
   return {
     completedDays: normalizeDays(stored?.completedDays),
@@ -337,7 +337,7 @@ export async function getAutoArchiveSettings(projectId: number): Promise<AutoArc
 }
 
 export async function setAutoArchiveSettings(
-  projectId: number,
+  projectId: string,
   input: { completedDays?: number | null; canceledDays?: number | null },
 ): Promise<AutoArchiveSettings> {
   const next: AutoArchiveSettings = {
@@ -357,7 +357,7 @@ export async function setAutoArchiveSettings(
 // issues and their columns are deleted by the same cascade, so it is satisfied. The
 // conversation threads of the project's agents are deleted first, since they live
 // outside those cascades.
-export async function deleteProject(projectId: number): Promise<void> {
+export async function deleteProject(projectId: string): Promise<void> {
   await deleteThreadsWhere({ projectId });
   await db.delete(project).where(eq(project.id, projectId));
 }

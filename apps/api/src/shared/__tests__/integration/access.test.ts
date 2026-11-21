@@ -24,7 +24,7 @@ async function setupOwnerProject(): Promise<Owner> {
 // acting as the new member.
 async function addMember(
   owner: Owner,
-  opts: { roleId?: number } = {},
+  opts: { roleId?: string } = {},
 ): Promise<{ userId: string; api: ReturnType<typeof authedApi> }> {
   const user = await signUpTestUser();
   const invite = await owner.api

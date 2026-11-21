@@ -11,15 +11,15 @@ export type CustomFieldType =
   'text' | 'markdown' | 'url' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select';
 
 export interface CustomFieldOptionRow {
-  id: number;
+  id: string;
   value: string;
   color: string;
   position: number;
 }
 
 export interface CustomFieldRow {
-  id: number;
-  issueTypeId: number | null;
+  id: string;
+  issueTypeId: string | null;
   name: string;
   fieldType: CustomFieldType;
   showInBody: boolean;
@@ -44,8 +44,8 @@ function mapField(
 
 // Loads the options for the given field ids, grouped by field, each list ordered
 // by position. Returns an empty map for no ids.
-async function optionsByField(fieldIds: number[]): Promise<Map<number, CustomFieldOptionRow[]>> {
-  const byField = new Map<number, CustomFieldOptionRow[]>();
+async function optionsByField(fieldIds: string[]): Promise<Map<string, CustomFieldOptionRow[]>> {
+  const byField = new Map<string, CustomFieldOptionRow[]>();
   if (fieldIds.length === 0) return byField;
   const rows = await db
     .select()
@@ -65,8 +65,8 @@ async function optionsByField(fieldIds: number[]): Promise<Map<number, CustomFie
 // returns every field of the project regardless of type scope (used by the board
 // payload, which filters by type on the client).
 export async function listCustomFields(
-  projectId: number,
-  opts: { issueTypeId?: number; allTypes?: boolean } = {},
+  projectId: string,
+  opts: { issueTypeId?: string; allTypes?: boolean } = {},
 ): Promise<CustomFieldRow[]> {
   const scope = opts.allTypes
     ? undefined
@@ -89,8 +89,8 @@ export async function listCustomFields(
 // One field by id, scoped to its project so a field id from another project is
 // not matched. Returns null when no field of that id exists in the project.
 export async function getCustomFieldById(
-  projectId: number,
-  id: number,
+  projectId: string,
+  id: string,
 ): Promise<CustomFieldRow | null> {
   const rows = await db
     .select()
@@ -102,8 +102,8 @@ export async function getCustomFieldById(
 }
 
 export async function createCustomField(input: {
-  projectId: number;
-  issueTypeId?: number | null;
+  projectId: string;
+  issueTypeId?: string | null;
   name: string;
   fieldType: CustomFieldType;
   showInBody?: boolean;
@@ -142,8 +142,8 @@ export async function createCustomField(input: {
 // Updates a field, scoped to its project. Returns null when no field of that id
 // exists in the project.
 export async function updateCustomField(
-  projectId: number,
-  id: number,
+  projectId: string,
+  id: string,
   patch: { name?: string; showInBody?: boolean },
 ): Promise<CustomFieldRow | null> {
   const scope = and(eq(customField.id, id), eq(customField.projectId, projectId));
@@ -165,7 +165,7 @@ export async function updateCustomField(
 }
 
 // Deletes a field, scoped to its project. Returns true when a row was removed.
-export async function deleteCustomField(projectId: number, id: number): Promise<boolean> {
+export async function deleteCustomField(projectId: string, id: string): Promise<boolean> {
   const deleted = await db
     .delete(customField)
     .where(and(eq(customField.id, id), eq(customField.projectId, projectId)))

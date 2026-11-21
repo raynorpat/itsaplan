@@ -195,7 +195,7 @@ describe('ai agents', () => {
 
   it('returns 404 for a missing agent', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).get();
+    const res = await agents(asOwner)({ agentId: '00000000-0000-4000-8000-000000000000' }).get();
     expect(res.status).toBe(404);
   });
 
@@ -295,19 +295,23 @@ describe('ai agents', () => {
 
   it('returns 404 when updating a missing agent', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).patch({ name: 'x' });
+    const res = await agents(asOwner)({ agentId: '00000000-0000-4000-8000-000000000000' }).patch({
+      name: 'x',
+    });
     expect(res.status).toBe(404);
   });
 
   it('returns 404 when regenerating the key of a missing agent', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 })['regenerate-key'].post();
+    const res = await agents(asOwner)({ agentId: '00000000-0000-4000-8000-000000000000' })[
+      'regenerate-key'
+    ].post();
     expect(res.status).toBe(404);
   });
 
   it('returns 404 when deleting a missing agent', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).delete();
+    const res = await agents(asOwner)({ agentId: '00000000-0000-4000-8000-000000000000' }).delete();
     expect(res.status).toBe(404);
   });
 
@@ -345,7 +349,9 @@ describe('ai agents', () => {
   // not in this suite. Here we only assert the guards that run before any model call.
   it('returns 404 when running a missing agent', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).run.post({ prompt: 'hi' });
+    const res = await agents(asOwner)({ agentId: '00000000-0000-4000-8000-000000000000' }).run.post(
+      { prompt: 'hi' },
+    );
     expect(res.status).toBe(404);
   });
 

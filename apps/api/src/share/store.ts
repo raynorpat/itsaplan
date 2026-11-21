@@ -78,7 +78,7 @@ async function buildScaffold(project: ProjectRow): Promise<ShareScaffold> {
 // The read-only feed shows the newest activity; a public share never paginates,
 // so it is capped at the store's max page (100). An issue with more than that
 // shows its latest 100 entries.
-async function issueFeed(issueId: number): Promise<FeedItemRow[]> {
+async function issueFeed(issueId: string): Promise<FeedItemRow[]> {
   const page = await listFeed(issueId, { limit: 100 });
   return page.items;
 }
@@ -109,7 +109,7 @@ async function issueBundle(
 
 // Enables sharing for an issue. Idempotent: an already-shared issue keeps its
 // token. Returns the token, or null if the issue does not exist.
-export async function enableIssueShare(issueId: number): Promise<string | null> {
+export async function enableIssueShare(issueId: string): Promise<string | null> {
   const rows = await db
     .select({ token: issue.shareToken })
     .from(issue)
@@ -122,7 +122,7 @@ export async function enableIssueShare(issueId: number): Promise<string | null> 
 }
 
 // Revokes sharing for an issue. Returns false if the issue does not exist.
-export async function disableIssueShare(issueId: number): Promise<boolean> {
+export async function disableIssueShare(issueId: string): Promise<boolean> {
   const rows = await db
     .update(issue)
     .set({ shareToken: null })
@@ -131,7 +131,7 @@ export async function disableIssueShare(issueId: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function enableViewShare(viewId: number): Promise<string | null> {
+export async function enableViewShare(viewId: string): Promise<string | null> {
   const rows = await db
     .select({ token: projectView.shareToken })
     .from(projectView)
@@ -143,7 +143,7 @@ export async function enableViewShare(viewId: number): Promise<string | null> {
   return token;
 }
 
-export async function disableViewShare(viewId: number): Promise<boolean> {
+export async function disableViewShare(viewId: string): Promise<boolean> {
   const rows = await db
     .update(projectView)
     .set({ shareToken: null })
@@ -156,7 +156,8 @@ export async function disableViewShare(viewId: number): Promise<boolean> {
 
 // The bundle for a shared issue link, or null if no issue carries the token.
 export async function getSharedIssue(token: string): Promise<SharedIssueBundle | null> {
-  const issueRow = await getIssue(await issueIdByToken(token));
+  const issueId = await issueIdByToken(token);
+  const issueRow = issueId ? await getIssue(issueId) : null;
   if (!issueRow) return null;
   return issueBundle(issueRow, true);
 }
@@ -188,7 +189,7 @@ export async function getSharedView(token: string): Promise<SharedViewBundle | n
 // unknown or the issue is not on the shared board.
 export async function getSharedViewIssue(
   token: string,
-  issueId: number,
+  issueId: string,
 ): Promise<SharedIssueBundle | null> {
   const rows = await db
     .select({ projectId: projectView.projectId, filters: projectView.filters })
@@ -203,9 +204,8 @@ export async function getSharedViewIssue(
   return issueBundle(issueRow, false);
 }
 
-// Resolves an issue share token to its issue id, or 0 (never a real id) when
-// unknown, so getIssue then returns null.
-async function issueIdByToken(token: string): Promise<number> {
+// Resolves an issue share token to its issue id, or null when unknown.
+async function issueIdByToken(token: string): Promise<string | null> {
   const rows = await db.select({ id: issue.id }).from(issue).where(eq(issue.shareToken, token));
-  return rows[0]?.id ?? 0;
+  return rows[0]?.id ?? null;
 }

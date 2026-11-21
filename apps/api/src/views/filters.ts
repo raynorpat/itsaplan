@@ -37,8 +37,8 @@ interface FilterSet {
 
 const DATE_FIELDS: FilterField[] = ['dueDate', 'startDate', 'created', 'updated'];
 
-function parseCustomFieldKey(field: string): number | null {
-  return field.startsWith('cf:') ? Number(field.slice(3)) : null;
+function parseCustomFieldKey(field: string): string | null {
+  return field.startsWith('cf:') ? field.slice(3) : null;
 }
 
 // A condition constrains the result only when it has a value (presence operators
@@ -67,7 +67,7 @@ function toDay(value: string | null): string | null {
 function builtinSetValues(
   issue: IssueRow,
   field: FilterField,
-  columnStateType: Map<number, string>,
+  columnStateType: Map<string, string>,
 ): FilterValue[] {
   switch (field) {
     case 'status':
@@ -104,14 +104,14 @@ function builtinDate(issue: IssueRow, field: FilterField): string | null {
   }
 }
 
-function customFieldValues(issue: IssueRow, fieldId: number): FilterValue[] {
+function customFieldValues(issue: IssueRow, fieldId: string): FilterValue[] {
   const entry = issue.fieldValues.find((v) => v.fieldId === fieldId);
   if (!entry) return [null];
   if (entry.optionIds.length) return entry.optionIds;
   return [entry.value];
 }
 
-function customFieldScalar(issue: IssueRow, fieldId: number): FilterValue {
+function customFieldScalar(issue: IssueRow, fieldId: string): FilterValue {
   const entry = issue.fieldValues.find((v) => v.fieldId === fieldId);
   return entry ? entry.value : null;
 }
@@ -123,7 +123,7 @@ function hasValue(values: FilterValue[]): boolean {
 function matchCondition(
   issue: IssueRow,
   cond: FilterCondition,
-  columnStateType: Map<number, string>,
+  columnStateType: Map<string, string>,
 ): boolean {
   const cfId = parseCustomFieldKey(cond.field);
   const isDate = cfId == null && DATE_FIELDS.includes(cond.field as FilterField);

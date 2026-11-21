@@ -31,7 +31,7 @@ export interface DeliveryPayload {
 }
 
 interface OutboxRow {
-  projectId: number;
+  projectId: string;
   channel: 'email' | 'telegram';
   recipient: string;
   payload: DeliveryPayload;

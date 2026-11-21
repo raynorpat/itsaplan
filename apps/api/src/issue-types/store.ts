@@ -7,8 +7,8 @@ import { and, eq, sql } from 'drizzle-orm';
 // clauses.
 
 export interface IssueTypeRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string;
   color: string;
@@ -28,7 +28,7 @@ function mapIssueType(row: typeof issueType.$inferSelect): IssueTypeRow {
   };
 }
 
-export async function listIssueTypes(projectId: number): Promise<IssueTypeRow[]> {
+export async function listIssueTypes(projectId: string): Promise<IssueTypeRow[]> {
   const rows = await db
     .select()
     .from(issueType)
@@ -38,7 +38,7 @@ export async function listIssueTypes(projectId: number): Promise<IssueTypeRow[]>
 }
 
 export async function createIssueType(input: {
-  projectId: number;
+  projectId: string;
   name: string;
   icon?: string;
   color?: string;
@@ -62,7 +62,7 @@ export async function createIssueType(input: {
   return mapIssueType(row);
 }
 
-export async function getIssueTypeById(id: number): Promise<IssueTypeRow | null> {
+export async function getIssueTypeById(id: string): Promise<IssueTypeRow | null> {
   const rows = await db.select().from(issueType).where(eq(issueType.id, id));
   return rows[0] ? mapIssueType(rows[0]) : null;
 }
@@ -70,8 +70,8 @@ export async function getIssueTypeById(id: number): Promise<IssueTypeRow | null>
 // Scoped to projectId so an id from another project resolves to null (a 404 at
 // the route), never a cross-project edit.
 export async function updateIssueType(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   patch: { name?: string; color?: string; isDefault?: boolean },
 ): Promise<IssueTypeRow | null> {
   const scope = and(eq(issueType.id, id), eq(issueType.projectId, projectId));
@@ -88,6 +88,6 @@ export async function updateIssueType(
 }
 
 // Scoped to projectId: an id outside the project deletes nothing.
-export async function deleteIssueType(id: number, projectId: number): Promise<void> {
+export async function deleteIssueType(id: string, projectId: string): Promise<void> {
   await db.delete(issueType).where(and(eq(issueType.id, id), eq(issueType.projectId, projectId)));
 }

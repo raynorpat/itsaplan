@@ -4,7 +4,7 @@
 
 // A chat thread belongs to one (agent, user) pair; the uuid separates a user's several
 // conversations with the same agent.
-export function newChatThreadId(agentId: number, userId: string): string {
+export function newChatThreadId(agentId: string, userId: string): string {
   return `chat:${agentId}:${userId}:${crypto.randomUUID()}`;
 }
 
@@ -15,7 +15,7 @@ export function isChatThreadId(threadId: string): boolean {
 // Whether the chat thread id was issued for this (agent, caller) pair. A caller can
 // only mint an id carrying their own user id, so a mismatch means the thread is someone
 // else's chat or an autonomous run thread, and the caller gets a 404.
-export function isOwnChatThread(threadId: string, agentId: number, userId: string): boolean {
+export function isOwnChatThread(threadId: string, agentId: string, userId: string): boolean {
   return threadId.startsWith(`chat:${agentId}:${userId}:`);
 }
 
@@ -25,10 +25,10 @@ export function isOwnChatThread(threadId: string, agentId: number, userId: strin
 // a retry sees how the failed attempt ended. The run-scoped id is the fallback for a
 // run with neither, which nothing enqueues today — both columns are nullable.
 export function runThreadId(run: {
-  id: number;
-  agentId: number;
-  issueId: number | null;
-  scheduleId: number | null;
+  id: string;
+  agentId: string;
+  issueId: string | null;
+  scheduleId: string | null;
 }): string {
   if (run.issueId != null) return `issue:${run.issueId}:${run.agentId}`;
   if (run.scheduleId != null) return `schedule:${run.scheduleId}`;

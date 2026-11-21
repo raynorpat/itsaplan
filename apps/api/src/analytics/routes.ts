@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { guards } from '../shared/guards';
 import { mcpTool } from '../mcp/generate';
 import { ErrorResponse } from '../shared/responses';
+import { UUID_RE } from '../shared/lib';
 import {
   getStats,
   getBreakdown,
@@ -48,12 +49,12 @@ const ThroughputWeek = t.Object({
 
 // One activity feed entry (ActivityItem from the store).
 const ActivityItem = t.Object({
-  id: t.Number(),
-  issueId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  issueId: t.String({ format: 'uuid' }),
   issueSequence: t.Number(),
   issueTitle: t.String(),
   kind: t.String(),
-  actorUserId: t.Nullable(t.String()),
+  actorUserId: t.Nullable(t.String({ format: 'uuid' })),
   actorName: t.Nullable(t.String()),
   body: t.Nullable(t.String()),
   action: t.Nullable(t.String()),
@@ -66,7 +67,7 @@ const ActivityItem = t.Object({
 // The keyset cursor for the next activity page (ActivityCursor from the store).
 const ActivityCursorDto = t.Object({
   ts: t.String(),
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
 });
 
 // One page of the activity feed (ActivityPage from the store).
@@ -77,7 +78,7 @@ const ActivityPage = t.Object({
 
 // One agent run in the project-wide feed (AgentRunFeedItem from the store).
 const AgentRunFeedItem = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   status: t.String(),
   trigger: t.Union([
     t.Literal('mention'),
@@ -85,9 +86,9 @@ const AgentRunFeedItem = t.Object({
     t.Literal('schedule'),
     t.Literal('manual'),
   ]),
-  agentId: t.Number(),
+  agentId: t.String({ format: 'uuid' }),
   agentName: t.String(),
-  issueId: t.Nullable(t.Number()),
+  issueId: t.Nullable(t.String({ format: 'uuid' })),
   issueSequence: t.Nullable(t.Number()),
   lastError: t.Nullable(t.String()),
   createdAt: t.String(),
@@ -113,7 +114,7 @@ const WebhookStatsDto = t.Object({
 
 // One agent's workload row (AgentWorkloadItem from the store).
 const AgentWorkloadItem = t.Object({
-  agentId: t.Number(),
+  agentId: t.String({ format: 'uuid' }),
   agentName: t.String(),
   kind: t.String(),
   delegatedOpen: t.Number(),
@@ -251,12 +252,7 @@ export const analyticsRoutes = new Elysia({
         }
       }
       const issueIds =
-        query.issueIds != null
-          ? query.issueIds
-              .split(',')
-              .map(Number)
-              .filter((n) => Number.isInteger(n))
-          : null;
+        query.issueIds != null ? query.issueIds.split(',').filter((id) => UUID_RE.test(id)) : null;
       return listActivity(project.id, {
         before,
         limit,
@@ -269,7 +265,7 @@ export const analyticsRoutes = new Elysia({
       query: t.Object({
         limit: t.Optional(t.Numeric()),
         cursor: t.Optional(t.String()),
-        actorUserId: t.Optional(t.String()),
+        actorUserId: t.Optional(t.String({ format: 'uuid' })),
         action: t.Optional(t.String()),
         // Comma-separated issue ids the client resolved from the widget's work items
         // filter; absent means no issue-scope restriction.

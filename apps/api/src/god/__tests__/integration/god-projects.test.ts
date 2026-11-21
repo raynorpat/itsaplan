@@ -194,7 +194,10 @@ describe('god projects', () => {
     it('returns 404 for an unknown project and 400 for a non-numeric id', async () => {
       const { god } = await setup();
 
-      expect((await god.api.god.projects({ projectId: 999999 }).get()).status).toBe(404);
+      expect(
+        (await god.api.god.projects({ projectId: '00000000-0000-4000-8000-000000000000' }).get())
+          .status,
+      ).toBe(404);
       expect((await god.api.god.projects({ projectId: 'abc' }).get()).status).toBe(400);
     });
   });

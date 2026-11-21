@@ -31,7 +31,7 @@ const EVENT_SHAPE: Record<WebhookEventType, { action: string; type: string }> = 
 // concept, and issues have no public URL). The shared dedup id rides on the wire in
 // the X-Itsaplan-Event-Id header, not the body.
 export async function emitWebhookEvent(
-  projectId: number,
+  projectId: string,
   eventType: WebhookEventType,
   data: unknown,
 ): Promise<void> {

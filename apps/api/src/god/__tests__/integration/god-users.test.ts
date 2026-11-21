@@ -200,7 +200,7 @@ describe('god users', () => {
     it('404s for an unknown id', async () => {
       const { god } = await setup();
 
-      const res = await god.api.god.users({ userId: 'no-such-user' }).get();
+      const res = await god.api.god.users({ userId: '00000000-0000-4000-8000-000000000000' }).get();
 
       expect(res.status).toBe(404);
     });
@@ -226,7 +226,9 @@ describe('god users', () => {
     it('404s for an unknown id', async () => {
       const { god } = await setup();
 
-      const res = await god.api.god.users({ userId: 'no-such-user' })['verify-email'].post();
+      const res = await god.api.god
+        .users({ userId: '00000000-0000-4000-8000-000000000000' })
+        ['verify-email'].post();
 
       expect(res.status).toBe(404);
     });
@@ -337,7 +339,9 @@ describe('god users', () => {
     it('404s for an unknown id', async () => {
       const { god } = await setup();
 
-      const res = await god.api.god.users({ userId: 'no-such-user' }).delete();
+      const res = await god.api.god
+        .users({ userId: '00000000-0000-4000-8000-000000000000' })
+        .delete();
 
       expect(res.status).toBe(404);
     });

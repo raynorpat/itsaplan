@@ -7,9 +7,9 @@ import { iso, num } from '../shared/lib';
 // the unguessable id used in the public download URL.
 
 export interface AttachmentRow {
-  id: number;
+  id: string;
   publicId: string;
-  issueId: number;
+  issueId: string;
   s3Key: string;
   filename: string;
   contentType: string;
@@ -31,7 +31,7 @@ export function mapAttachment(row: typeof issueAttachment.$inferSelect): Attachm
 }
 
 export async function createAttachment(input: {
-  issueId: number;
+  issueId: string;
   s3Key: string;
   filename: string;
   contentType: string;
@@ -50,7 +50,7 @@ export async function createAttachment(input: {
   return mapAttachment(row);
 }
 
-export async function listAttachments(issueId: number): Promise<AttachmentRow[]> {
+export async function listAttachments(issueId: string): Promise<AttachmentRow[]> {
   const rows = await db
     .select()
     .from(issueAttachment)
@@ -61,7 +61,7 @@ export async function listAttachments(issueId: number): Promise<AttachmentRow[]>
 
 // Bytes currently stored for a project, across every issue in it. Read before an
 // upload to enforce the instance project quota.
-export async function getProjectAttachmentBytes(projectId: number): Promise<number> {
+export async function getProjectAttachmentBytes(projectId: string): Promise<number> {
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${issueAttachment.sizeBytes}), 0)` })
     .from(issueAttachment)
@@ -106,7 +106,7 @@ function stripEmbeds(text: string, publicId: string): string {
 // Remove embeds of one attachment from the issue description and its markdown
 // custom field values. Called on delete so a removed attachment leaves no broken
 // image behind.
-export async function removeAttachmentEmbeds(issueId: number, publicId: string): Promise<void> {
+export async function removeAttachmentEmbeds(issueId: string, publicId: string): Promise<void> {
   let changed = false;
 
   const [row] = await db

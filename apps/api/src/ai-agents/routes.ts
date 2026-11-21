@@ -21,10 +21,10 @@ import { listAgentRuns } from './run-queue';
 import { listChatThreads, getChatThreadMessages, deleteChatThread } from './runtime/memory';
 import { isOwnChatThread } from './runtime/thread-ids';
 
-const agentParams = t.Object({ projectKey: t.String(), agentId: t.Numeric() });
+const agentParams = t.Object({ projectKey: t.String(), agentId: t.String({ format: 'uuid' }) });
 const threadParams = t.Object({
   projectKey: t.String(),
-  agentId: t.Numeric(),
+  agentId: t.String({ format: 'uuid' }),
   threadId: t.String(),
 });
 
@@ -40,7 +40,7 @@ const runBody = t.Object({
 // thread and is named to the agent as the requester. A supplied thread id must be one
 // issued to this caller for this agent — anyone else's chat, and the threads of the
 // autonomous runs, read as not found.
-function chatRunOpts(user: SessionUser | null, agentId: number, threadId?: string): RunOpts {
+function chatRunOpts(user: SessionUser | null, agentId: string, threadId?: string): RunOpts {
   const caller = requireUser(user);
   if (threadId != null && !isOwnChatThread(threadId, agentId, caller.id)) {
     throw new HttpError(404, 'Thread not found');
@@ -66,7 +66,9 @@ const username = t.String({
 // over time. Ignored (stored as null/empty) for an external agent.
 const configFields = {
   modelCredentialId: t.Optional(
-    t.Nullable(t.Number({ description: 'Integration credential id for the LLM provider.' })),
+    t.Nullable(
+      t.String({ format: 'uuid', description: 'Integration credential id for the LLM provider.' }),
+    ),
   ),
   model: t.Optional(t.Nullable(t.String({ description: 'Model id, e.g. claude-sonnet-5.' }))),
   instructions: t.Optional(t.Nullable(t.String({ description: 'System prompt for the agent.' }))),
@@ -85,20 +87,23 @@ const configFields = {
   triggerOnAssign: t.Optional(t.Boolean({ description: 'Run when assigned to an issue.' })),
   roleId: t.Optional(
     t.Nullable(
-      t.Integer({ description: 'project_role the bot acts under; null uses the default role.' }),
+      t.String({
+        format: 'uuid',
+        description: 'project_role the bot acts under; null uses the default role.',
+      }),
     ),
   ),
 };
 
 // An agent DTO (AiAgentRow from the store).
 const AiAgentResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
-  userId: t.String(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
+  userId: t.String({ format: 'uuid' }),
   name: t.String(),
   username: t.String(),
   kind: t.Union([t.Literal('external'), t.Literal('internal')]),
-  modelCredentialId: t.Nullable(t.Number()),
+  modelCredentialId: t.Nullable(t.String({ format: 'uuid' })),
   model: t.Nullable(t.String()),
   instructions: t.Nullable(t.String()),
   tools: t.Array(t.String()),
@@ -108,7 +113,7 @@ const AiAgentResponse = t.Object({
   memoryLastMessages: t.Nullable(t.Number()),
   triggerOnMention: t.Boolean(),
   triggerOnAssign: t.Boolean(),
-  roleId: t.Nullable(t.Number()),
+  roleId: t.Nullable(t.String({ format: 'uuid' })),
   createdAt: t.String(),
   apiKeyStart: t.Nullable(t.String()),
   modelProvider: t.Nullable(t.String()),
@@ -135,7 +140,7 @@ const RunAgentResponse = t.Object({
 
 // One row of an agent's run history (AgentRunRow from run-queue).
 const AgentRunResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   status: t.String(),
   trigger: t.Union([
     t.Literal('mention'),
@@ -143,7 +148,7 @@ const AgentRunResponse = t.Object({
     t.Literal('schedule'),
     t.Literal('manual'),
   ]),
-  issueId: t.Nullable(t.Number()),
+  issueId: t.Nullable(t.String({ format: 'uuid' })),
   issueIdentifier: t.Nullable(t.String()),
   issueTitle: t.Nullable(t.String()),
   prompt: t.String(),
@@ -156,7 +161,7 @@ const AgentRunResponse = t.Object({
 // One page of an agent's runs (AgentRunPage from run-queue).
 const AgentRunPageResponse = t.Object({
   items: t.Array(AgentRunResponse),
-  nextCursor: t.Nullable(t.Number()),
+  nextCursor: t.Nullable(t.String()),
 });
 
 // One chat thread in the caller's history with an agent (ChatThreadSummary).
@@ -335,7 +340,7 @@ export const aiAgentRoutes = new Elysia({ name: 'ai-agents', detail: { tags: ['A
     {
       params: agentParams,
       query: t.Object({
-        before: t.Optional(t.Numeric()),
+        before: t.Optional(t.String()),
         limit: t.Optional(t.Numeric()),
       }),
       permission: ['ai_agents', 'read'],

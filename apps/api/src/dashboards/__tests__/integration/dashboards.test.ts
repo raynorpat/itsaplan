@@ -30,7 +30,7 @@ describe('dashboards', () => {
         layout: [],
         position: 0,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const list = await asOwner.projects({ projectKey: 'MKT' }).dashboards.get();
       expect(list.status).toBe(200);
@@ -111,7 +111,9 @@ describe('dashboards', () => {
 
     it('returns 404 when patching a missing dashboard', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.dashboards({ dashboardId: 999999 }).patch({ name: 'Nope' });
+      const res = await asOwner
+        .dashboards({ dashboardId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ name: 'Nope' });
       expect(res.status).toBe(404);
     });
   });
@@ -177,7 +179,9 @@ describe('dashboards', () => {
 
     it('returns 404 when deleting a missing dashboard', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.dashboards({ dashboardId: 999999 }).delete();
+      const res = await asOwner
+        .dashboards({ dashboardId: '00000000-0000-4000-8000-000000000000' })
+        .delete();
       expect(res.status).toBe(404);
     });
   });

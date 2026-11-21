@@ -36,13 +36,13 @@ type EntityGuardCtx = {
 //
 //   .macro({
 //     workItem: entityGuard("work_items", "Issue not found",
-//       (p) => getIssueProjectId(Number(p.issueId))),
+//       (p) => getIssueProjectId(p.issueId)),
 //   })
 //   .patch("/issues/:issueId", handler, { workItem: "edit" })
 export function entityGuard(
   resource: PermissionResource,
   notFound: string,
-  resolveProjectId: (params: Record<string, string>) => Promise<number | null>,
+  resolveProjectId: (params: Record<string, string>) => Promise<string | null>,
 ) {
   return (action: PermissionAction) => ({
     async resolve({ params, user, request }: EntityGuardCtx) {

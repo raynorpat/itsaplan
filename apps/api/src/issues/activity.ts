@@ -26,8 +26,8 @@ import { notifyComment, notifyIssueChange } from '../notifications/store';
 export type FeedKind = 'comment' | 'activity';
 
 export interface FeedItemRow {
-  id: number;
-  issueId: number;
+  id: string;
+  issueId: string;
   kind: FeedKind;
   actorUserId: string | null;
   actorName: string | null;
@@ -43,7 +43,7 @@ export interface FeedItemRow {
 // ties when two entries share a created_at (bulk activity from one edit).
 export interface FeedCursor {
   ts: string;
-  id: number;
+  id: string;
 }
 
 export interface FeedPage {
@@ -52,10 +52,10 @@ export interface FeedPage {
 }
 
 function mapFeedItem(row: {
-  id: number;
+  id: string;
   // Nullable at the column level (initiative rows share this table), but the
   // issue feed and createComment only ever handle issue rows, so it is present.
-  issueId: number | null;
+  issueId: string | null;
   kind: string;
   actorUserId: string | null;
   actorName: string | null;
@@ -68,7 +68,7 @@ function mapFeedItem(row: {
 }): FeedItemRow {
   return {
     id: row.id,
-    issueId: row.issueId as number,
+    issueId: row.issueId as string,
     kind: row.kind as FeedKind,
     actorUserId: row.actorUserId,
     actorName: row.actorName,
@@ -85,7 +85,7 @@ function mapFeedItem(row: {
 // precision text so the returned nextCursor round-trips without the millisecond
 // truncation iso() would apply. limit is clamped to 1..100.
 export async function listFeed(
-  issueId: number,
+  issueId: string,
   opts: { before?: FeedCursor | null; limit?: number } = {},
 ): Promise<FeedPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 100);
@@ -110,7 +110,7 @@ export async function listFeed(
       and(
         eq(issueActivity.issueId, issueId),
         before
-          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::integer)`
+          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
           : undefined,
       ),
     )
@@ -147,7 +147,7 @@ export interface TimelineSegment {
 // creation. The opening column is the first status change's from_text, or — for an
 // issue that never changed column — its current one. Both are name snapshots, so a
 // renamed column reads under the name it had at the time and splits into two lanes.
-export async function listStatusTimeline(issueId: number): Promise<TimelineSegment[]> {
+export async function listStatusTimeline(issueId: string): Promise<TimelineSegment[]> {
   const [issueRow] = await db
     .select({ createdAt: issue.createdAt, columnName: projectColumn.name })
     .from(issue)
@@ -193,7 +193,7 @@ export async function listStatusTimeline(issueId: number): Promise<TimelineSegme
 // status change belongs to the stretch that change opens, which is what the
 // half-open range gives.
 export async function listFeedRange(
-  issueId: number,
+  issueId: string,
   from: string,
   to?: string | null,
 ): Promise<FeedItemRow[]> {
@@ -217,7 +217,7 @@ export async function listFeedRange(
 }
 
 export async function createComment(input: {
-  issueId: number;
+  issueId: string;
   actorUserId?: string | null;
   body: string;
 }): Promise<FeedItemRow> {
@@ -247,7 +247,7 @@ export async function createComment(input: {
 // Only quick queries run here; the LLM call happens later in the poller, so creating
 // a comment is never blocked on it. Comments authored by an agent's bot user never
 // trigger runs, which stops agents from setting each other (or themselves) off.
-async function enqueueMentionRuns(projectId: number, comment: FeedItemRow): Promise<void> {
+async function enqueueMentionRuns(projectId: string, comment: FeedItemRow): Promise<void> {
   const mentionedUserIds = parseMentions(comment.body ?? '');
   if (mentionedUserIds.length === 0) return;
   if (comment.actorUserId && (await isAgentUser(comment.actorUserId))) return;
@@ -279,10 +279,10 @@ export interface ActivityInput {
 // no user. actor_name is snapshotted from that user so the entry survives the user
 // being renamed or deleted.
 export async function recordActivity(
-  issueId: number,
+  issueId: string,
   events: ActivityInput[],
   actorUserId?: string | null,
-): Promise<{ id: number; action: string | null }[]> {
+): Promise<{ id: string; action: string | null }[]> {
   return insertActivity(
     events.map((event) => ({ issueId, event })),
     actorUserId,
@@ -294,7 +294,7 @@ export async function recordActivity(
 // reassigns all of its issues), where a recordActivity per issue would be a pair of
 // queries each.
 export async function recordActivityForIssues(
-  issueIds: number[],
+  issueIds: string[],
   event: ActivityInput,
   actorUserId?: string | null,
 ): Promise<void> {
@@ -305,9 +305,9 @@ export async function recordActivityForIssues(
 }
 
 async function insertActivity(
-  entries: { issueId: number; event: ActivityInput }[],
+  entries: { issueId: string; event: ActivityInput }[],
   actorUserId?: string | null,
-): Promise<{ id: number; action: string | null }[]> {
+): Promise<{ id: string; action: string | null }[]> {
   if (!entries.length) return [];
   const resolvedActorId = actorUserId ?? null;
   const actorName = await userName(resolvedActorId);
@@ -330,7 +330,7 @@ async function insertActivity(
 
 // Name snapshots for the referenced rows, resolved at change time so a log entry
 // keeps reading correctly after the column/type/user/label is renamed or deleted.
-async function columnName(id: number | null): Promise<string | null> {
+async function columnName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db
     .select({ name: projectColumn.name })
@@ -338,7 +338,7 @@ async function columnName(id: number | null): Promise<string | null> {
     .where(eq(projectColumn.id, id));
   return rows[0]?.name ?? null;
 }
-async function typeName(id: number | null): Promise<string | null> {
+async function typeName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db
     .select({ name: issueType.name })
@@ -346,7 +346,7 @@ async function typeName(id: number | null): Promise<string | null> {
     .where(eq(issueType.id, id));
   return rows[0]?.name ?? null;
 }
-async function initiativeName(id: number | null): Promise<string | null> {
+async function initiativeName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db
     .select({ title: initiative.title })
@@ -362,8 +362,8 @@ async function userName(id: string | null): Promise<string | null> {
 // Name snapshots for a set of labels in one query, resolved at change time so a log
 // entry keeps reading correctly after a label is renamed or deleted. An id outside
 // projectId, or with no label at all, is absent from the map.
-export async function labelNames(projectId: number, ids: number[]): Promise<Map<number, string>> {
-  const out = new Map<number, string>();
+export async function labelNames(projectId: string, ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
   if (ids.length === 0) return out;
   const rows = await db
     .select({ id: label.id, name: label.name })
@@ -375,15 +375,15 @@ export async function labelNames(projectId: number, ids: number[]): Promise<Map<
 
 // The subset of an issue's fields the change log diffs.
 export interface IssueSnapshot {
-  id: number;
+  id: string;
   title: string;
   description: string;
-  columnId: number;
-  typeId: number | null;
-  initiativeId: number | null;
+  columnId: string;
+  typeId: string | null;
+  initiativeId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  priority: string | null;
+  priority: number;
   startDate: string | null;
   dueDate: string | null;
 }
@@ -433,8 +433,12 @@ export async function logIssueUpdate(
       fromText: await userName(before.delegateUserId),
       toText: await userName(after.delegateUserId),
     });
-  if ((before.priority ?? '') !== (after.priority ?? ''))
-    events.push({ action: 'priority', fromText: before.priority, toText: after.priority });
+  if (before.priority !== after.priority)
+    events.push({
+      action: 'priority',
+      fromText: String(before.priority),
+      toText: String(after.priority),
+    });
   if (before.startDate !== after.startDate)
     events.push({ action: 'start_date', fromText: before.startDate, toText: after.startDate });
   if (before.dueDate !== after.dueDate)

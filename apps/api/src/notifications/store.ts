@@ -24,9 +24,9 @@ export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_c
 
 export interface NewNotificationRow {
   userId: string;
-  projectId: number;
-  issueId: number;
-  sourceActivityId: number | null;
+  projectId: string;
+  issueId: string;
+  sourceActivityId: string | null;
   type: NotificationType;
   actorUserId: string | null;
 }
@@ -34,7 +34,7 @@ export interface NewNotificationRow {
 // Keeps only the ids that are members of the project. Filters out non-members (an
 // agent's bot user is assigned via delegate but is not a member) and users who have
 // lost access.
-async function keepProjectMembers(projectId: number, ids: string[]): Promise<Set<string>> {
+async function keepProjectMembers(projectId: string, ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const rows = await db
     .select({ userId: projectMember.userId })
@@ -46,7 +46,7 @@ async function keepProjectMembers(projectId: number, ids: string[]): Promise<Set
 // The members who should hear about activity on an issue: its assignee and delegate,
 // plus anyone who has previously acted on it (a comment or a logged change). Bot
 // users and non-members are dropped by keepProjectMembers.
-async function issueParticipants(projectId: number, issueId: number): Promise<Set<string>> {
+async function issueParticipants(projectId: string, issueId: string): Promise<Set<string>> {
   const rows = await db
     .selectDistinct({ actorUserId: issueActivity.actorUserId })
     .from(issueActivity)
@@ -78,8 +78,8 @@ async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
 // participants get 'commented'. A mentioned user gets only the 'mentioned' one. The
 // comment author is never notified.
 export async function notifyComment(
-  projectId: number,
-  comment: { issueId: number; id: number; actorUserId: string | null; body: string | null },
+  projectId: string,
+  comment: { issueId: string; id: string; actorUserId: string | null; body: string | null },
 ): Promise<void> {
   const actor = comment.actorUserId;
   const mentionedIds = parseMentions(comment.body ?? '');
@@ -116,13 +116,13 @@ export async function notifyComment(
 // not the actor) gets 'assigned'; a status change notifies the issue's participants
 // with 'state_changed'. The actor is never notified.
 export async function notifyIssueChange(input: {
-  projectId: number;
-  issueId: number;
+  projectId: string;
+  issueId: string;
   actorUserId: string | null;
   assignedUserId?: string | null;
-  assignedActivityId?: number | null;
+  assignedActivityId?: string | null;
   statusChanged?: boolean;
-  statusActivityId?: number | null;
+  statusActivityId?: string | null;
 }): Promise<void> {
   const { projectId, issueId, actorUserId: actor } = input;
   const rows: NewNotificationRow[] = [];
@@ -166,25 +166,25 @@ export async function notifyIssueChange(input: {
 // A notification enriched with the issue and project it points at, so the inbox can
 // render a row (identifier, title, project, actor, status) without extra calls.
 export interface NotificationRow {
-  id: number;
+  id: string;
   type: NotificationType;
   actorUserId: string | null;
   actorName: string | null;
   readAt: string | null;
   snoozedUntil: string | null;
   createdAt: string;
-  issueId: number;
+  issueId: string;
   issueSeq: number;
   issueTitle: string;
   issueStateType: string;
-  projectId: number;
+  projectId: string;
   projectKey: string;
   projectName: string;
 }
 
 export interface NotificationCursor {
   ts: string;
-  id: number;
+  id: string;
 }
 
 export interface NotificationPage {
@@ -195,24 +195,24 @@ export interface NotificationPage {
 export interface NotificationFilters {
   types?: NotificationType[];
   fromUserId?: string;
-  projectId?: number;
+  projectId?: string;
   includeRead?: boolean;
   includeSnoozed?: boolean;
 }
 
 function mapRow(r: {
-  id: number;
+  id: string;
   type: string;
   actorUserId: string | null;
   actorName: string | null;
   readAt: Date | null;
   snoozedUntil: Date | null;
   createdAt: Date;
-  issueId: number;
+  issueId: string;
   issueSeq: number;
   issueTitle: string;
   issueStateType: string;
-  projectId: number;
+  projectId: string;
   projectKey: string;
   projectName: string;
 }): NotificationRow {
@@ -254,7 +254,7 @@ export async function listNotifications(
     conds.push(or(isNull(notification.snoozedUntil), lt(notification.snoozedUntil, sql`now()`))!);
   if (before)
     conds.push(
-      sql`(${notification.createdAt}, ${notification.id}) < (${before.ts}::timestamptz, ${before.id}::integer)`,
+      sql`(${notification.createdAt}, ${notification.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`,
     );
 
   const rows = await db
@@ -294,7 +294,7 @@ export async function listNotifications(
 
 // The number of unread, non-snoozed notifications for the inbox badge, optionally
 // scoped to one project.
-export async function unreadCount(userId: string, projectId?: number): Promise<number> {
+export async function unreadCount(userId: string, projectId?: string): Promise<number> {
   const conds = [
     eq(notification.userId, userId),
     isNull(notification.readAt),
@@ -308,28 +308,28 @@ export async function unreadCount(userId: string, projectId?: number): Promise<n
   return row?.n ?? 0;
 }
 
-// Cheap change marker for live refresh: total count, max id, and unread count,
-// optionally scoped to one project. It moves on a new notification (max id), a
-// delete (total), and a read/unread toggle (unread).
-export async function notificationsRev(userId: string, projectId?: number): Promise<string> {
+// Cheap change marker for live refresh: total count, newest created_at, and unread
+// count, optionally scoped to one project. It moves on a new notification (newest),
+// a delete (total), and a read/unread toggle (unread).
+export async function notificationsRev(userId: string, projectId?: string): Promise<string> {
   const conds = [eq(notification.userId, userId)];
   if (projectId != null) conds.push(eq(notification.projectId, projectId));
   const [row] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      maxId: sql<number>`coalesce(max(${notification.id}), 0)::int`,
+      newest: sql<string>`coalesce(max(${notification.createdAt})::text, '')`,
       unread: sql<number>`count(*) filter (where ${notification.readAt} is null)::int`,
     })
     .from(notification)
     .where(and(...conds));
-  return `${row?.total ?? 0}:${row?.maxId ?? 0}:${row?.unread ?? 0}`;
+  return `${row?.total ?? 0}:${row?.newest ?? ''}:${row?.unread ?? 0}`;
 }
 
 // Marks one of the user's notifications read or unread. Returns false if no such
 // notification belongs to the user.
 export async function setNotificationRead(
   userId: string,
-  id: number,
+  id: string,
   read: boolean,
 ): Promise<boolean> {
   const rows = await db
@@ -342,7 +342,7 @@ export async function setNotificationRead(
 
 // Marks every unread notification of the user read, optionally scoped to a project.
 // Returns how many were updated.
-export async function markAllRead(userId: string, projectId?: number): Promise<number> {
+export async function markAllRead(userId: string, projectId?: string): Promise<number> {
   const conds = [eq(notification.userId, userId), isNull(notification.readAt)];
   if (projectId != null) conds.push(eq(notification.projectId, projectId));
   const rows = await db
@@ -357,7 +357,7 @@ export async function markAllRead(userId: string, projectId?: number): Promise<n
 // Returns false if no such notification belongs to the user.
 export async function snoozeNotification(
   userId: string,
-  id: number,
+  id: string,
   until: Date | null,
 ): Promise<boolean> {
   const rows = await db
@@ -370,7 +370,7 @@ export async function snoozeNotification(
 
 // Deletes one of the user's notifications. Returns false if it did not belong to
 // the user.
-export async function deleteNotification(userId: string, id: number): Promise<boolean> {
+export async function deleteNotification(userId: string, id: string): Promise<boolean> {
   const rows = await db
     .delete(notification)
     .where(and(eq(notification.id, id), eq(notification.userId, userId)))
@@ -386,7 +386,7 @@ export type DeleteScope = 'all' | 'read' | 'read-completed';
 export async function deleteNotifications(
   userId: string,
   scope: DeleteScope,
-  projectId?: number,
+  projectId?: string,
 ): Promise<number> {
   const conds = [eq(notification.userId, userId)];
   if (projectId != null) conds.push(eq(notification.projectId, projectId));

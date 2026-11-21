@@ -16,17 +16,17 @@ import {
 } from './store';
 import { getRole } from '../roles/store';
 
-const memberParams = t.Object({ projectKey: t.String(), userId: t.String() });
+const memberParams = t.Object({ projectKey: t.String(), userId: t.String({ format: 'uuid' }) });
 const memberRole = t.Union([t.Literal('owner'), t.Literal('member')]);
 
 // A member DTO (MemberRow from the store).
 const MemberResponse = t.Object({
-  userId: t.String(),
+  userId: t.String({ format: 'uuid' }),
   name: t.String(),
   email: t.String(),
   image: t.Nullable(t.String()),
   role: memberRole,
-  roleId: t.Nullable(t.Number()),
+  roleId: t.Nullable(t.String({ format: 'uuid' })),
   roleName: t.Nullable(t.String()),
   description: t.String(),
   isAgent: t.Boolean(),
@@ -88,7 +88,10 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
     },
     {
       params: memberParams,
-      body: t.Object({ role: memberRole, roleId: t.Optional(t.Nullable(t.Integer())) }),
+      body: t.Object({
+        role: memberRole,
+        roleId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+      }),
       projectOwner: true,
       response: {
         204: t.Void(),

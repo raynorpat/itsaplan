@@ -4,8 +4,8 @@ import { eq, sql } from 'drizzle-orm';
 import { parseScheduleTimestamp } from './schedule-timestamp';
 
 type DueSchedule = {
-  id: number;
-  agentId: number;
+  id: string;
+  agentId: string;
   prompt: string;
   cron: string;
   nextRunAt: string;

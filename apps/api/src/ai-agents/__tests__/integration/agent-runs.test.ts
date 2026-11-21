@@ -20,7 +20,7 @@ async function setup() {
 
 const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
 
-function createIssue(client: Api, columnId: number, title = 'Task') {
+function createIssue(client: Api, columnId: string, title = 'Task') {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title });
 }
 
@@ -32,7 +32,7 @@ async function createInternalAgent(asOwner: Api, name: string, username: string)
 const mention = (name: string, userId: string) => `@[${name}](user:${userId})`;
 
 // Queues a mention run by commenting on the issue with the agent tagged.
-async function mentionAgent(asOwner: Api, issueId: number, agentName: string, agentUserId: string) {
+async function mentionAgent(asOwner: Api, issueId: string, agentName: string, agentUserId: string) {
   await asOwner
     .issues({ issueId })
     .comments.post({ body: `please review ${mention(agentName, agentUserId)}` });
@@ -99,15 +99,18 @@ describe('agent run history', () => {
     const first = await agents(asOwner)({ agentId: agent.id }).runs.get({ query: { limit: 2 } });
     expect(first.data!.items.length).toBe(2);
     expect(first.data!.nextCursor).not.toBeNull();
-    // Newest first: ids strictly decreasing.
-    expect(first.data!.items[0].id).toBeGreaterThan(first.data!.items[1].id);
+    // Newest first.
+    expect(new Date(first.data!.items[0].createdAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(first.data!.items[1].createdAt).getTime(),
+    );
 
     const second = await agents(asOwner)({ agentId: agent.id }).runs.get({
       query: { before: first.data!.nextCursor!, limit: 2 },
     });
     expect(second.data!.items.length).toBe(1);
     expect(second.data!.nextCursor).toBeNull();
-    expect(second.data!.items[0].id).toBeLessThan(first.data!.items[1].id);
+    // The cursor page holds the remaining item, not a repeat of the first page.
+    expect(first.data!.items.map((i) => i.id)).not.toContain(second.data!.items[0].id);
   });
 
   it('scopes runs to the requested agent', async () => {
@@ -125,7 +128,9 @@ describe('agent run history', () => {
 
   it('404s for an agent that does not exist in the project', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).runs.get();
+    const res = await agents(asOwner)({
+      agentId: '00000000-0000-4000-8000-000000000000',
+    }).runs.get();
     expect(res.status).toBe(404);
   });
 

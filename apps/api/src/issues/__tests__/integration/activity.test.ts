@@ -12,8 +12,8 @@ import { resetDb } from '../../../__tests__/helpers/db';
 interface Setup {
   asOwner: Api;
   owner: TestUser;
-  columnId: number;
-  columnIds: number[];
+  columnId: string;
+  columnIds: string[];
 }
 
 async function setupProject(): Promise<Setup> {
@@ -25,12 +25,12 @@ async function setupProject(): Promise<Setup> {
   return { asOwner, owner, columnId: columnIds[0], columnIds };
 }
 
-function createIssue(client: Api, columnId: number, patch: Record<string, unknown> = {}) {
+function createIssue(client: Api, columnId: string, patch: Record<string, unknown> = {}) {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task', ...patch });
 }
 
 // One page of the feed (newest first).
-async function feed(client: Api, issueId: number, query: Record<string, string> = {}) {
+async function feed(client: Api, issueId: string, query: Record<string, string> = {}) {
   const res = await client.issues({ issueId }).feed.get({ query });
   return res;
 }
@@ -79,7 +79,9 @@ describe('issue activity', () => {
 
     it('returns 404 when commenting on a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).comments.post({ body: 'x' });
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .comments.post({ body: 'x' });
       expect(res.status).toBe(404);
     });
   });
@@ -140,7 +142,7 @@ describe('issue activity', () => {
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await feed(asOwner, 999999);
+      const res = await feed(asOwner, '00000000-0000-4000-8000-000000000000');
       expect(res.status).toBe(404);
     });
   });
@@ -148,7 +150,7 @@ describe('issue activity', () => {
   // Change-log entries are written by the issue mutation routes and read back
   // through the feed. Assert the action and its from/to text.
   describe('change log', () => {
-    async function actions(client: Api, issueId: number) {
+    async function actions(client: Api, issueId: string) {
       const res = await feed(client, issueId, { limit: '100' });
       return res.data!.items.filter((i) => i.kind === 'activity');
     }
@@ -234,7 +236,7 @@ describe('issue activity', () => {
   // The stretches the issue spent in one column, oldest first and without their
   // entries (GET /issues/:issueId/timeline).
   describe('timeline', () => {
-    async function timeline(client: Api, issueId: number) {
+    async function timeline(client: Api, issueId: string) {
       return client.issues({ issueId }).timeline.get();
     }
 
@@ -280,14 +282,14 @@ describe('issue activity', () => {
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      expect((await timeline(asOwner, 999999)).status).toBe(404);
+      expect((await timeline(asOwner, '00000000-0000-4000-8000-000000000000')).status).toBe(404);
     });
   });
 
   // The entries of one stretch, read when it is opened
   // (GET /issues/:issueId/timeline/items).
   describe('timeline items', () => {
-    function itemsOf(client: Api, issueId: number, from: string, to?: string | null) {
+    function itemsOf(client: Api, issueId: string, from: string, to?: string | null) {
       return client.issues({ issueId }).timeline.items.get({ query: to ? { from, to } : { from } });
     }
 

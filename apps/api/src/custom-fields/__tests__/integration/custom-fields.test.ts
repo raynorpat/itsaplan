@@ -23,7 +23,7 @@ function fields(client: Api, projectKey = 'MKT') {
 }
 
 // The project's custom fields, optionally scoped to an issue type.
-async function listFields(client: Api, issueTypeId?: number, projectKey = 'MKT') {
+async function listFields(client: Api, issueTypeId?: string, projectKey = 'MKT') {
   const res = await fields(client, projectKey).get(
     issueTypeId != null ? { query: { issueTypeId } } : {},
   );
@@ -52,7 +52,7 @@ describe('custom-fields', () => {
         showInBody: false,
         options: [],
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const list = await listFields(asOwner);
       expect(list.map((f) => f.name)).toContain('Severity');
@@ -118,7 +118,7 @@ describe('custom-fields', () => {
       const res = await fields(asOwner).post({
         name: 'Steps',
         fieldType: 'text',
-        issueTypeId: 999999,
+        issueTypeId: '00000000-0000-4000-8000-000000000000',
       });
       expect(res.status).toBe(400);
     });
@@ -217,7 +217,9 @@ describe('custom-fields', () => {
 
     it('returns 404 for a missing field', async () => {
       const { asOwner } = await setupProject();
-      const res = await fields(asOwner)({ fieldId: 999999 }).patch({ name: 'Nope' });
+      const res = await fields(asOwner)({ fieldId: '00000000-0000-4000-8000-000000000000' }).patch({
+        name: 'Nope',
+      });
       expect(res.status).toBe(404);
     });
 
@@ -257,7 +259,9 @@ describe('custom-fields', () => {
 
     it('returns 404 for a missing field', async () => {
       const { asOwner } = await setupProject();
-      const res = await fields(asOwner)({ fieldId: 999999 }).delete();
+      const res = await fields(asOwner)({
+        fieldId: '00000000-0000-4000-8000-000000000000',
+      }).delete();
       expect(res.status).toBe(404);
     });
   });

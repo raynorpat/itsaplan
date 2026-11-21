@@ -178,7 +178,7 @@ describe('invites', () => {
       const owner = await setupOwner();
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
-        .invites({ inviteId: 999999 })
+        .invites({ inviteId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(404);
     });

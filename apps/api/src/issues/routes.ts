@@ -6,7 +6,7 @@ import { authContext } from '../shared/auth-context';
 import { assertPermission, assertMcpEnabled, requireUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
 import { getProjectById } from '../projects/store';
-import { HttpError } from '../shared/lib';
+import { HttpError, UUID_RE } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { deleteObject } from '../shared/s3';
 import {
@@ -35,34 +35,34 @@ import { listFeed, listFeedRange, listStatusTimeline, createComment } from './ac
 
 // Numeric path params are validated (and coerced string -> number) with t.Numeric,
 // so a non-numeric id is rejected with a 400 before reaching the store.
-const issueParams = t.Object({ issueId: t.Numeric() });
+const issueParams = t.Object({ issueId: t.String({ format: 'uuid' }) });
 
 // --- Response DTO schemas (mirror the store interfaces the handlers return) -------
 
 // IssueFieldValueEntry from the store: a compact custom field value carried on an
 // issue (scalar value plus selected option ids).
 const IssueFieldValueEntry = t.Object({
-  fieldId: t.Number(),
+  fieldId: t.String({ format: 'uuid' }),
   value: t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()])),
-  optionIds: t.Array(t.Number()),
+  optionIds: t.Array(t.String({ format: 'uuid' })),
 });
 
 // IssueRow from the store.
 const IssueResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   sequenceNumber: t.Number(),
   identifier: t.String(),
-  typeId: t.Nullable(t.Number()),
+  typeId: t.Nullable(t.String({ format: 'uuid' })),
   // The linked initiative expanded to id + title (for rendering), or null. Set
   // through create/update by initiativeId.
-  initiative: t.Nullable(t.Object({ id: t.Number(), title: t.String() })),
-  assigneeUserId: t.Nullable(t.String()),
-  delegateUserId: t.Nullable(t.String()),
-  columnId: t.Number(),
+  initiative: t.Nullable(t.Object({ id: t.String({ format: 'uuid' }), title: t.String() })),
+  assigneeUserId: t.Nullable(t.String({ format: 'uuid' })),
+  delegateUserId: t.Nullable(t.String({ format: 'uuid' })),
+  columnId: t.String({ format: 'uuid' }),
   title: t.String(),
   description: t.String(),
-  priority: t.Nullable(t.String()),
+  priority: t.Integer(),
   startDate: t.Nullable(t.String()),
   dueDate: t.Nullable(t.String()),
   position: t.Number(),
@@ -71,18 +71,18 @@ const IssueResponse = t.Object({
   archivedAt: t.Nullable(t.String()),
   statusSince: t.String(),
   shareToken: t.Nullable(t.String()),
-  labelIds: t.Array(t.Number()),
+  labelIds: t.Array(t.String({ format: 'uuid' })),
   fieldValues: t.Array(IssueFieldValueEntry),
 });
 
 // IssueFieldValueRow from the store: one applicable custom field joined with its
 // value on the issue. fieldType is the CustomFieldType union (a string).
 const IssueFieldValueRow = t.Object({
-  fieldId: t.Number(),
+  fieldId: t.String({ format: 'uuid' }),
   name: t.String(),
   fieldType: t.String(),
   value: t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()])),
-  optionIds: t.Array(t.Number()),
+  optionIds: t.Array(t.String({ format: 'uuid' })),
 });
 
 // GET /issues/:issueId returns the full issue plus its custom field values.
@@ -93,28 +93,28 @@ const IssueWithFieldsResponse = t.Composite([
 
 // IssueSearchHit from the store: a light search result (no description/field values).
 const IssueSearchHitResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   sequenceNumber: t.Number(),
   identifier: t.String(),
   title: t.String(),
-  columnId: t.Number(),
-  typeId: t.Nullable(t.Number()),
-  initiativeId: t.Nullable(t.Number()),
-  assigneeUserId: t.Nullable(t.String()),
-  delegateUserId: t.Nullable(t.String()),
-  priority: t.Nullable(t.String()),
+  columnId: t.String({ format: 'uuid' }),
+  typeId: t.Nullable(t.String({ format: 'uuid' })),
+  initiativeId: t.Nullable(t.String({ format: 'uuid' })),
+  assigneeUserId: t.Nullable(t.String({ format: 'uuid' })),
+  delegateUserId: t.Nullable(t.String({ format: 'uuid' })),
+  priority: t.Integer(),
   dueDate: t.Nullable(t.String()),
-  labelIds: t.Array(t.Number()),
+  labelIds: t.Array(t.String({ format: 'uuid' })),
   archived: t.Boolean(),
 });
 
 // FeedItemRow from activity.ts: one timeline entry (comment or change-log).
 // kind is the FeedKind union (a string).
 const FeedItemResponse = t.Object({
-  id: t.Number(),
-  issueId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  issueId: t.String({ format: 'uuid' }),
   kind: t.String(),
-  actorUserId: t.Nullable(t.String()),
+  actorUserId: t.Nullable(t.String({ format: 'uuid' })),
   actorName: t.Nullable(t.String()),
   body: t.Nullable(t.String()),
   action: t.Nullable(t.String()),
@@ -127,7 +127,7 @@ const FeedItemResponse = t.Object({
 // FeedPage from activity.ts: one page of the feed with the keyset cursor.
 const FeedPageResponse = t.Object({
   items: t.Array(FeedItemResponse),
-  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.Number() })),
+  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.String({ format: 'uuid' }) })),
 });
 
 // TimelineSegment from activity.ts: one stretch the issue spent in a column.
@@ -144,9 +144,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // Guard for routes that address an issue by its own id (no :projectKey in the
   // path). Set `workItem: "<action>"` in the route options.
   .macro({
-    workItem: entityGuard('work_items', 'Issue not found', (p) =>
-      getIssueProjectId(Number(p.issueId)),
-    ),
+    workItem: entityGuard('work_items', 'Issue not found', (p) => getIssueProjectId(p.issueId)),
   })
   .post(
     '/projects/:projectKey/issues',
@@ -157,11 +155,14 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       body: t.Object({
         typeId: t.Optional(
-          t.Nullable(t.Integer({ description: 'Issue type id, or null. From get_project.' })),
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Issue type id, or null. From get_project.' }),
+          ),
         ),
         initiativeId: t.Optional(
           t.Nullable(
-            t.Integer({
+            t.String({
+              format: 'uuid',
               description: 'Initiative id to link this issue to, or null. From list_initiatives.',
             }),
           ),
@@ -169,6 +170,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         assigneeUserId: t.Optional(
           t.Nullable(
             t.String({
+              format: 'uuid',
               description:
                 "Assignee user id (a project member), or null. From get_project.assignees where kind is 'member'.",
             }),
@@ -177,18 +179,26 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         delegateUserId: t.Optional(
           t.Nullable(
             t.String({
+              format: 'uuid',
               description:
                 "Delegate user id (an AI agent), or null. From get_project.assignees where kind is 'agent'.",
             }),
           ),
         ),
-        columnId: t.Integer({ description: 'Target column (state) id. From get_project.columns.' }),
+        columnId: t.String({
+          format: 'uuid',
+          description: 'Target column (state) id. From get_project.columns.',
+        }),
         title: t.String({ minLength: 1, description: 'Issue title.' }),
         description: t.Optional(
           t.String({ description: 'Issue description (plain text or markdown).' }),
         ),
         priority: t.Optional(
-          t.Nullable(t.String({ description: 'One of: urgent, high, medium, low. Or null.' })),
+          t.Integer({
+            minimum: 0,
+            maximum: 4,
+            description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
+          }),
         ),
         startDate: t.Optional(
           t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
@@ -197,7 +207,9 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
         ),
         labelIds: t.Optional(
-          t.Array(t.Integer(), { description: 'Label ids to attach. From get_project.labels.' }),
+          t.Array(t.String({ format: 'uuid' }), {
+            description: 'Label ids to attach. From get_project.labels.',
+          }),
         ),
       }),
       permission: ['work_items', 'create'],
@@ -236,14 +248,17 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       params: t.Object({ projectKey: t.String() }),
       body: t.Object({
-        ids: t.Array(t.Integer(), { minItems: 1, description: 'Issue ids to update.' }),
+        ids: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'Issue ids to update.',
+        }),
         patch: t.Object({
-          columnId: t.Optional(t.Integer()),
-          typeId: t.Optional(t.Nullable(t.Integer())),
-          initiativeId: t.Optional(t.Nullable(t.Integer())),
-          assigneeUserId: t.Optional(t.Nullable(t.String())),
-          delegateUserId: t.Optional(t.Nullable(t.String())),
-          priority: t.Optional(t.Nullable(t.String())),
+          columnId: t.Optional(t.String({ format: 'uuid' })),
+          typeId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+          initiativeId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+          assigneeUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+          delegateUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
+          priority: t.Optional(t.Integer({ minimum: 0, maximum: 4 })),
           startDate: t.Optional(t.Nullable(t.String())),
           dueDate: t.Optional(t.Nullable(t.String())),
         }),
@@ -270,8 +285,14 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       params: t.Object({ projectKey: t.String() }),
       body: t.Object({
-        ids: t.Array(t.Integer(), { minItems: 1, description: 'Issue ids to label.' }),
-        add: t.Array(t.Integer(), { minItems: 1, description: 'Label ids to add.' }),
+        ids: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'Issue ids to label.',
+        }),
+        add: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'Label ids to add.',
+        }),
       }),
       permission: ['work_items', 'edit'],
       response: {
@@ -295,7 +316,10 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       params: t.Object({ projectKey: t.String() }),
       body: t.Object({
-        ids: t.Array(t.Integer(), { minItems: 1, description: 'Issue ids to archive.' }),
+        ids: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'Issue ids to archive.',
+        }),
       }),
       permission: ['work_items', 'edit'],
       response: {
@@ -329,7 +353,10 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       params: t.Object({ projectKey: t.String() }),
       body: t.Object({
-        ids: t.Array(t.Integer(), { minItems: 1, description: 'Issue ids to delete.' }),
+        ids: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'Issue ids to delete.',
+        }),
       }),
       permission: ['work_items', 'delete'],
       response: {
@@ -388,25 +415,25 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     '/projects/:projectKey/issues',
     async ({ project, query }) => {
       const labelIds = query.labelIds
-        ? query.labelIds.split(',').map(Number).filter(Number.isFinite)
+        ? query.labelIds.split(',').filter((id) => UUID_RE.test(id))
         : undefined;
       // A filter is "not set" when its value is empty. An LLM calling this as a tool
-      // tends to fill every optional field with a placeholder (0 for a numeric id,
-      // "" for a string) rather than omitting it; those must mean "any", not a filter
-      // on id 0 / the empty string. Serial ids are always positive, so a non-positive
-      // id is never a real filter. This keeps the list robust to any model.
-      const posId = (v: number | undefined) => (v && v > 0 ? v : undefined);
+      // tends to fill every optional field with a placeholder ("" or 0) rather than
+      // omitting it; those must mean "any", not a filter on the placeholder. An id
+      // filter that is not a UUID is never a real filter. This keeps the list robust
+      // to any model.
       const str = (v: string | undefined) => (v ? v : undefined);
+      const id = (v: string | undefined) => (v && UUID_RE.test(v) ? v : undefined);
       const limit = Math.min(Math.max(query.limit ?? 50, 1), 500);
       return searchIssues(
         project,
         {
-          columnId: posId(query.columnId),
-          typeId: posId(query.typeId),
-          initiativeId: posId(query.initiativeId),
-          assigneeUserId: str(query.assigneeUserId),
-          delegateUserId: str(query.delegateUserId),
-          priority: str(query.priority),
+          columnId: id(query.columnId),
+          typeId: id(query.typeId),
+          initiativeId: id(query.initiativeId),
+          assigneeUserId: id(query.assigneeUserId),
+          delegateUserId: id(query.delegateUserId),
+          priority: query.priority,
           labelIds: labelIds && labelIds.length ? labelIds : undefined,
           dueFrom: str(query.dueFrom),
           dueTo: str(query.dueTo),
@@ -418,12 +445,18 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       params: t.Object({ projectKey: t.String() }),
       query: t.Object({
-        columnId: t.Optional(t.Numeric({ description: 'Exact column (state) id.' })),
-        typeId: t.Optional(t.Numeric({ description: 'Exact issue type id.' })),
-        initiativeId: t.Optional(t.Numeric({ description: 'Exact initiative id.' })),
+        columnId: t.Optional(t.String({ description: 'Exact column (state) id.' })),
+        typeId: t.Optional(t.String({ description: 'Exact issue type id.' })),
+        initiativeId: t.Optional(t.String({ description: 'Exact initiative id.' })),
         assigneeUserId: t.Optional(t.String({ description: 'Exact assignee user id.' })),
         delegateUserId: t.Optional(t.String({ description: 'Exact delegate agent id.' })),
-        priority: t.Optional(t.String({ description: 'Exact priority value.' })),
+        priority: t.Optional(
+          t.Numeric({
+            minimum: 0,
+            maximum: 4,
+            description: 'Exact priority (0 none, 1 urgent, 2 high, 3 medium, 4 low).',
+          }),
+        ),
         labelIds: t.Optional(
           t.String({ description: 'CSV of label ids; the issue must carry all.' }),
         ),
@@ -595,13 +628,16 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       body: t.Object({
         columnId: t.Optional(
-          t.Integer({ description: 'Move the issue to this column (state) id.' }),
+          t.String({ format: 'uuid', description: 'Move the issue to this column (state) id.' }),
         ),
         position: t.Optional(t.Number({ description: 'Ordering position within the column.' })),
-        typeId: t.Optional(t.Nullable(t.Integer({ description: 'New issue type id, or null.' }))),
+        typeId: t.Optional(
+          t.Nullable(t.String({ format: 'uuid', description: 'New issue type id, or null.' })),
+        ),
         initiativeId: t.Optional(
           t.Nullable(
-            t.Integer({
+            t.String({
+              format: 'uuid',
               description:
                 'Link this issue to an initiative id, or null to unlink. From list_initiatives.',
             }),
@@ -609,16 +645,28 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         ),
         assigneeUserId: t.Optional(
           t.Nullable(
-            t.String({ description: 'New assignee user id (a project member), or null.' }),
+            t.String({
+              format: 'uuid',
+              description: 'New assignee user id (a project member), or null.',
+            }),
           ),
         ),
         delegateUserId: t.Optional(
-          t.Nullable(t.String({ description: 'New delegate user id (an AI agent), or null.' })),
+          t.Nullable(
+            t.String({
+              format: 'uuid',
+              description: 'New delegate user id (an AI agent), or null.',
+            }),
+          ),
         ),
         title: t.Optional(t.String({ minLength: 1, description: 'New title.' })),
         description: t.Optional(t.String({ description: 'New description.' })),
         priority: t.Optional(
-          t.Nullable(t.String({ description: 'One of: urgent, high, medium, low. Or null.' })),
+          t.Integer({
+            minimum: 0,
+            maximum: 4,
+            description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
+          }),
         ),
         startDate: t.Optional(
           t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
@@ -627,7 +675,9 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
         ),
         labelIds: t.Optional(
-          t.Array(t.Integer(), { description: "Replace the issue's labels with these ids." }),
+          t.Array(t.String({ format: 'uuid' }), {
+            description: "Replace the issue's labels with these ids.",
+          }),
         ),
       }),
       params: issueParams,
@@ -758,9 +808,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       body: t.Object({
         value: t.Optional(t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()]))),
-        optionIds: t.Optional(t.Array(t.Integer())),
+        optionIds: t.Optional(t.Array(t.String({ format: 'uuid' }))),
       }),
-      params: t.Object({ issueId: t.Numeric(), fieldId: t.Numeric() }),
+      params: t.Object({
+        issueId: t.String({ format: 'uuid' }),
+        fieldId: t.String({ format: 'uuid' }),
+      }),
       workItem: 'edit',
       response: {
         200: t.Object({ ok: t.Boolean() }),

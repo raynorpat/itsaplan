@@ -8,8 +8,8 @@ import { iso } from '../shared/lib';
 // sees it); a set ownerUserId is a personal board only its owner sees.
 
 export interface NoteBoardRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   ownerUserId: string | null;
   name: string;
   canvas: unknown;
@@ -38,7 +38,7 @@ function mapNoteBoard(row: typeof noteBoard.$inferSelect): NoteBoardRow {
 // board plus the user's own personal boards, optionally filtered by a name
 // substring, most-recently-updated first. Canvas is omitted from the list.
 export async function listNoteBoards(
-  projectId: number,
+  projectId: string,
   userId: string,
   opts: { q?: string; limit: number; offset: number },
 ): Promise<NoteBoardSummary[]> {
@@ -71,14 +71,14 @@ export async function listNoteBoards(
   }));
 }
 
-export async function getNoteBoard(id: number): Promise<NoteBoardRow | null> {
+export async function getNoteBoard(id: string): Promise<NoteBoardRow | null> {
   const [row] = await db.select().from(noteBoard).where(eq(noteBoard.id, id));
   return row ? mapNoteBoard(row) : null;
 }
 
 // ownerUserId set makes the board personal to that user; null makes it public.
 export async function createNoteBoard(input: {
-  projectId: number;
+  projectId: string;
   ownerUserId: string | null;
   name: string;
   canvas?: unknown;
@@ -96,7 +96,7 @@ export async function createNoteBoard(input: {
 }
 
 export async function updateNoteBoard(
-  id: number,
+  id: string,
   patch: { name?: string; canvas?: unknown; ownerUserId?: string | null },
 ): Promise<NoteBoardRow | null> {
   const [row] = await db
@@ -107,6 +107,6 @@ export async function updateNoteBoard(
   return row ? mapNoteBoard(row) : null;
 }
 
-export async function deleteNoteBoard(id: number): Promise<void> {
+export async function deleteNoteBoard(id: string): Promise<void> {
   await db.delete(noteBoard).where(eq(noteBoard.id, id));
 }

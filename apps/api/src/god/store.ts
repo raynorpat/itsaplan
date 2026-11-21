@@ -65,11 +65,11 @@ export interface InstanceUserRow {
 
 // A project the user can reach, with the access their membership resolves to.
 export interface InstanceUserProject {
-  projectId: number;
+  projectId: string;
   projectKey: string;
   projectName: string;
   role: 'owner' | 'member';
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   // The effective matrix: full for an owner, the assigned role's matrix for a
   // member, the default member matrix when no role is assigned.
@@ -268,7 +268,7 @@ export async function getInstanceUser(userId: string): Promise<InstanceUserDetai
 }
 
 // How many owners each of the given projects has, keyed by project id.
-async function countOwnersByProject(projectIds: number[]): Promise<Map<number, number>> {
+async function countOwnersByProject(projectIds: string[]): Promise<Map<string, number>> {
   if (projectIds.length === 0) return new Map();
   const rows = await db
     .select({ projectId: projectMember.projectId, count: sql<number>`count(*)::int` })
@@ -304,7 +304,7 @@ export interface InstanceProjectCounts {
 }
 
 export interface InstanceProjectRow extends InstanceProjectCounts {
-  id: number;
+  id: string;
   key: string;
   name: string;
   description: string;
@@ -324,7 +324,7 @@ export interface InstanceProjectMember {
   image: string | null;
   isAgent: boolean;
   role: 'owner' | 'member';
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   permissions: Permissions;
   joinedAt: string;
@@ -344,15 +344,15 @@ export interface InstanceProjectPage {
 async function countByProject(
   table: PgTable,
   projectIdColumn: AnyPgColumn,
-  projectIds: number[],
+  projectIds: string[],
   extra?: SQL,
-): Promise<Map<number, number>> {
+): Promise<Map<string, number>> {
   const rows = await db
     .select({ projectId: projectIdColumn, count: sql<number>`count(*)::int` })
     .from(table)
     .where(and(inArray(projectIdColumn, projectIds), extra))
     .groupBy(projectIdColumn);
-  return new Map(rows.map((r) => [r.projectId as number, r.count]));
+  return new Map(rows.map((r) => [r.projectId as string, r.count]));
 }
 
 type ProjectFacts = InstanceProjectCounts & { lastActivityAt: string | null };
@@ -373,9 +373,9 @@ const EMPTY_FACTS: ProjectFacts = {
 
 // The counts and the last feed entry for the given projects, each in one grouped
 // query and joined in memory, so the project query stays a plain select.
-async function loadProjectFacts(projectIds: number[]): Promise<(id: number) => ProjectFacts> {
+async function loadProjectFacts(projectIds: string[]): Promise<(id: string) => ProjectFacts> {
   if (projectIds.length === 0) return () => EMPTY_FACTS;
-  const counts = (map: Map<number, number>, id: number) => map.get(id) ?? 0;
+  const counts = (map: Map<string, number>, id: string) => map.get(id) ?? 0;
 
   const [
     members,
@@ -410,13 +410,13 @@ async function loadProjectFacts(projectIds: number[]): Promise<(id: number) => P
       .where(inArray(issue.projectId, projectIds)),
   ]);
 
-  const lastActivity = new Map<number, Date>();
+  const lastActivity = new Map<string, Date>();
   for (const r of activityRows) {
     const current = lastActivity.get(r.projectId);
     if (!current || r.createdAt > current) lastActivity.set(r.projectId, r.createdAt);
   }
 
-  return (id: number): ProjectFacts => {
+  return (id: string): ProjectFacts => {
     const activeAt = lastActivity.get(id);
     return {
       memberCount: counts(members, id),
@@ -481,7 +481,7 @@ export async function listInstanceProjects(options: {
 
 // One project with its members and the access each membership resolves to. Returns
 // null for an unknown id.
-export async function getInstanceProject(projectId: number): Promise<InstanceProjectDetail | null> {
+export async function getInstanceProject(projectId: string): Promise<InstanceProjectDetail | null> {
   const rows = await db.select().from(project).where(eq(project.id, projectId));
   const row = rows[0];
   if (!row) return null;

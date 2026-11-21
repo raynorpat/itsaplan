@@ -18,11 +18,11 @@ const fieldType = t.Union([
   t.Literal('multi_select'),
 ]);
 
-const fieldParams = t.Object({ projectKey: t.String(), fieldId: t.Numeric() });
+const fieldParams = t.Object({ projectKey: t.String(), fieldId: t.String({ format: 'uuid' }) });
 
 // A field option DTO (CustomFieldOptionRow from the store).
 const CustomFieldOptionResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   value: t.String(),
   color: t.String(),
   position: t.Number(),
@@ -30,8 +30,8 @@ const CustomFieldOptionResponse = t.Object({
 
 // A custom field DTO (CustomFieldRow from the store).
 const CustomFieldResponse = t.Object({
-  id: t.Number(),
-  issueTypeId: t.Nullable(t.Number()),
+  id: t.String({ format: 'uuid' }),
+  issueTypeId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   fieldType,
   showInBody: t.Boolean(),
@@ -53,7 +53,7 @@ export const customFieldRoutes = new Elysia({
     },
     {
       params: t.Object({ projectKey: t.String() }),
-      query: t.Object({ issueTypeId: t.Optional(t.Numeric()) }),
+      query: t.Object({ issueTypeId: t.Optional(t.String({ format: 'uuid' })) }),
       permission: ['custom_fields', 'read'],
       response: {
         200: t.Array(CustomFieldResponse),
@@ -86,7 +86,7 @@ export const customFieldRoutes = new Elysia({
     {
       params: t.Object({ projectKey: t.String() }),
       body: t.Object({
-        issueTypeId: t.Optional(t.Nullable(t.Integer())),
+        issueTypeId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
         name: t.String({ minLength: 1 }),
         fieldType,
         showInBody: t.Optional(t.Boolean()),

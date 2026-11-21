@@ -5,19 +5,19 @@ import { runThreadId } from './runtime/thread-ids';
 import { framePrompt, runModePreamble, peopleContext } from './prompt/framing';
 
 const runBody = t.Object({
-  id: t.Number(),
-  agentId: t.Number(),
-  issueId: t.Nullable(t.Number()),
-  scheduleId: t.Nullable(t.Number()),
+  id: t.String({ format: 'uuid' }),
+  agentId: t.String({ format: 'uuid' }),
+  issueId: t.Nullable(t.String({ format: 'uuid' })),
+  scheduleId: t.Nullable(t.String({ format: 'uuid' })),
   trigger: t.UnionEnum(['mention', 'delegation', 'schedule', 'manual']),
   prompt: t.String(),
-  projectId: t.Number(),
-  agentUserId: t.String(),
+  projectId: t.String({ format: 'uuid' }),
+  agentUserId: t.String({ format: 'uuid' }),
   issueIdentifier: t.Nullable(t.String()),
   issueTitle: t.Nullable(t.String()),
-  assigneeUserId: t.Nullable(t.String()),
+  assigneeUserId: t.Nullable(t.String({ format: 'uuid' })),
   assigneeName: t.Nullable(t.String()),
-  requesterUserId: t.Nullable(t.String()),
+  requesterUserId: t.Nullable(t.String({ format: 'uuid' })),
   requesterName: t.Nullable(t.String()),
 });
 
@@ -60,5 +60,5 @@ export const internalAgentRunRoutes = new Elysia({ name: 'internal-agent-runs' }
       for (const issueId of body.issueIds) deleted += await deleteThreadsWhere({ issueId });
       return { deleted };
     },
-    { body: t.Object({ issueIds: t.Array(t.Number()) }) },
+    { body: t.Object({ issueIds: t.Array(t.String({ format: 'uuid' })) }) },
   );

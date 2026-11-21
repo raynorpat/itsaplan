@@ -12,14 +12,14 @@ export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 // Row shown to the owner managing invites. Includes the token so the owner can
 // share the link, and who sent it.
 export interface InviteRow {
-  id: number;
+  id: string;
   token: string;
   email: string;
   role: MemberRole;
   // The custom role the invitee joins on (for a "member" invite). roleId is null
   // when the invite falls back to the default role; roleName resolves it for
   // display. An "owner" invite has both null.
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   status: InviteStatus;
   createdAt: string;
@@ -36,7 +36,7 @@ export interface InviteView {
   projectName: string;
   email: string;
   role: MemberRole;
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   status: InviteStatus;
   createdAt: string;
@@ -49,10 +49,10 @@ export interface InviteView {
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export async function createInvite(input: {
-  projectId: number;
+  projectId: string;
   email: string;
   role: MemberRole;
-  roleId: number | null;
+  roleId: string | null;
   invitedByUserId: string;
 }): Promise<InviteRow> {
   const email = normalizeEmail(input.email);
@@ -79,7 +79,7 @@ export async function createInvite(input: {
   return (await getInviteById(input.projectId, row.id))!;
 }
 
-export async function getInviteById(projectId: number, id: number): Promise<InviteRow | null> {
+export async function getInviteById(projectId: string, id: string): Promise<InviteRow | null> {
   const rows = await db
     .select({
       id: projectInvite.id,
@@ -115,7 +115,7 @@ export async function getInviteById(projectId: number, id: number): Promise<Invi
   };
 }
 
-export async function listInvites(projectId: number): Promise<InviteRow[]> {
+export async function listInvites(projectId: string): Promise<InviteRow[]> {
   const rows = await db
     .select({
       id: projectInvite.id,
@@ -152,7 +152,7 @@ export async function listInvites(projectId: number): Promise<InviteRow[]> {
 
 // Removes an invite row. Returns true when one existed. Used to revoke a pending
 // invite or clean up a resolved one.
-export async function deleteInvite(projectId: number, id: number): Promise<boolean> {
+export async function deleteInvite(projectId: string, id: string): Promise<boolean> {
   const deleted = await db
     .delete(projectInvite)
     .where(and(eq(projectInvite.projectId, projectId), eq(projectInvite.id, id)))
@@ -222,13 +222,13 @@ export async function getInviteRowByToken(token: string) {
 // invite accepted, in one transaction. The caller has already checked the
 // invite is pending and the session email matches.
 export async function acceptInvite(
-  invite: { id: number; projectId: number; role: string; roleId: number | null },
+  invite: { id: string; projectId: string; role: string; roleId: string | null },
   userId: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
     // A member joins on the invite's chosen role, falling back to the project's
     // default role when none was set; an owner bypasses roles.
-    let roleId: number | null = null;
+    let roleId: string | null = null;
     if (invite.role === 'member') {
       if (invite.roleId != null) {
         roleId = invite.roleId;
@@ -254,7 +254,7 @@ export async function acceptInvite(
   });
 }
 
-export async function rejectInvite(inviteId: number): Promise<void> {
+export async function rejectInvite(inviteId: string): Promise<void> {
   await db
     .update(projectInvite)
     .set({ status: 'rejected', respondedAt: new Date() })

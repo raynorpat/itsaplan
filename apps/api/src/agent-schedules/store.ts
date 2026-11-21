@@ -6,8 +6,8 @@ import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 export type AgentScheduleStatus = 'active' | 'paused';
 
 export interface AgentScheduleRow {
-  id: number;
-  agentId: number;
+  id: string;
+  agentId: string;
   agentName: string;
   name: string;
   prompt: string;
@@ -63,16 +63,16 @@ function mapSchedule(row: SelectedSchedule): AgentScheduleRow {
   };
 }
 
-export async function listAgentSchedules(projectId: number): Promise<AgentScheduleRow[]> {
+export async function listAgentSchedules(projectId: string): Promise<AgentScheduleRow[]> {
   const rows = await baseQuery()
     .where(eq(aiAgent.projectId, projectId))
-    .orderBy(desc(agentSchedule.id));
+    .orderBy(desc(agentSchedule.createdAt), desc(agentSchedule.id));
   return rows.map(mapSchedule);
 }
 
 export async function getAgentSchedule(
-  projectId: number,
-  scheduleId: number,
+  projectId: string,
+  scheduleId: string,
 ): Promise<AgentScheduleRow | null> {
   const rows = await baseQuery().where(
     and(eq(aiAgent.projectId, projectId), eq(agentSchedule.id, scheduleId)),
@@ -81,8 +81,8 @@ export async function getAgentSchedule(
 }
 
 export async function createAgentSchedule(input: {
-  projectId: number;
-  agentId: number;
+  projectId: string;
+  agentId: string;
   name: string;
   prompt: string;
   cron: string;
@@ -116,10 +116,10 @@ export async function createAgentSchedule(input: {
 }
 
 export async function updateAgentSchedule(
-  projectId: number,
-  scheduleId: number,
+  projectId: string,
+  scheduleId: string,
   patch: {
-    agentId?: number;
+    agentId?: string;
     name?: string;
     prompt?: string;
     cron?: string;
@@ -151,7 +151,7 @@ export async function updateAgentSchedule(
 
 // Deletes a schedule and the conversation thread its runs shared, which lives outside
 // the database cascades (see ai-agents/runtime/memory).
-export async function deleteAgentSchedule(projectId: number, scheduleId: number): Promise<boolean> {
+export async function deleteAgentSchedule(projectId: string, scheduleId: string): Promise<boolean> {
   const current = await getAgentSchedule(projectId, scheduleId);
   if (!current) return false;
   await db.delete(agentSchedule).where(eq(agentSchedule.id, scheduleId));
@@ -160,9 +160,9 @@ export async function deleteAgentSchedule(projectId: number, scheduleId: number)
 }
 
 export async function enqueueManualScheduleRun(
-  projectId: number,
-  scheduleId: number,
-): Promise<number | null> {
+  projectId: string,
+  scheduleId: string,
+): Promise<string | null> {
   const schedule = await getAgentSchedule(projectId, scheduleId);
   if (!schedule) return null;
   const [run] = await db
@@ -178,7 +178,7 @@ export async function enqueueManualScheduleRun(
 }
 
 export interface ScheduleRunRow {
-  id: number;
+  id: string;
   status: string;
   trigger: string;
   prompt: string;
@@ -192,8 +192,8 @@ export interface ScheduleRunRow {
 }
 
 export async function listScheduleRuns(
-  projectId: number,
-  scheduleId: number,
+  projectId: string,
+  scheduleId: string,
 ): Promise<ScheduleRunRow[] | null> {
   const schedule = await getAgentSchedule(projectId, scheduleId);
   if (!schedule) return null;
@@ -201,7 +201,7 @@ export async function listScheduleRuns(
     .select()
     .from(agentRun)
     .where(eq(agentRun.scheduleId, scheduleId))
-    .orderBy(desc(agentRun.id))
+    .orderBy(desc(agentRun.createdAt), desc(agentRun.id))
     .limit(50);
   return rows.map((row) => ({
     id: row.id,

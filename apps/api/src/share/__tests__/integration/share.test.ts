@@ -83,7 +83,9 @@ describe('share', () => {
 
     it('404s enabling a missing issue', async () => {
       const { asOwner } = await setup();
-      const res = await asOwner.issues({ issueId: 999999 }).share.post();
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .share.post();
       expect(res.status).toBe(404);
     });
   });
@@ -102,7 +104,7 @@ describe('share', () => {
       const shared = await api.share.view({ token }).get();
       expect(shared.status).toBe(200);
       expect(shared.data.view).toMatchObject({ name: 'Board' });
-      expect(shared.data.issues.map((i: { id: number }) => i.id)).toContain(issueId);
+      expect(shared.data.issues.map((i: { id: string }) => i.id)).toContain(issueId);
     });
 
     it('opens an issue from a shared board under the same token', async () => {
@@ -139,7 +141,7 @@ describe('share', () => {
       const token = (await asOwner.views({ viewId: view.data!.id }).share.post()).data!.token;
 
       const shared = await api.share.view({ token }).get();
-      const ids = shared.data.issues.map((i: { id: number }) => i.id);
+      const ids = shared.data.issues.map((i: { id: string }) => i.id);
       expect(ids).toContain(issueId);
       expect(ids).not.toContain(hiddenId);
 

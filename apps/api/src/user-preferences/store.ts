@@ -30,7 +30,7 @@ export interface UserPreferenceDto {
   issueStatsView: IssueStatsView;
   // The project the user was in last, or null before they opened one. The app root
   // reopens it; a deleted project clears it through the FK.
-  lastProjectId: number | null;
+  lastProjectId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
   // changed ones are stored; the rest come from the instance settings and then the
   // web app's built-in bindings.
@@ -72,7 +72,7 @@ function toDto(row: {
   showChatByDefault: boolean;
   issueStatsOpen: boolean;
   issueStatsView: string;
-  lastProjectId: number | null;
+  lastProjectId: string | null;
   hotkeys: Record<string, string> | null;
 }): UserPreferenceDto {
   return {

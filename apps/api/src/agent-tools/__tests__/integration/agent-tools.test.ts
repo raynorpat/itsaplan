@@ -19,7 +19,7 @@ const integrations = (api: Api) => api.projects({ projectKey: 'MKT' }).integrati
 const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
 
 // Creates a Jina credential and returns its id.
-async function jinaCredential(asOwner: Api): Promise<number> {
+async function jinaCredential(asOwner: Api): Promise<string> {
   const res = await integrations(asOwner).post({
     integrationKey: 'jina',
     credential: { apiKey: 'jina-key-1234' },
@@ -120,8 +120,13 @@ describe('agent tools', () => {
     const outsider = await signUpTestUser({ name: 'Outsider' });
     const asOutsider = authedApi(outsider.cookie);
     expect((await tools(asOutsider).get()).status).toBe(403);
-    expect((await tools(asOutsider).post({ toolKey: 'jina_reader', credentialId: 1 })).status).toBe(
-      403,
-    );
+    expect(
+      (
+        await tools(asOutsider).post({
+          toolKey: 'jina_reader',
+          credentialId: '00000000-0000-4000-8000-000000000000',
+        })
+      ).status,
+    ).toBe(403);
   });
 });

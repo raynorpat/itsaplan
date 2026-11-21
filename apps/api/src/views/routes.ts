@@ -7,13 +7,13 @@ import { ErrorResponse } from '../shared/responses';
 import { mcpTool } from '../mcp/generate';
 import { listViews, createView, getView, updateView, deleteView, reorderViews } from './store';
 
-const viewParams = t.Object({ viewId: t.Numeric() });
+const viewParams = t.Object({ viewId: t.String({ format: 'uuid' }) });
 
 // A saved view DTO (ViewRow from the store). filters and display are jsonb blobs
 // owned by the UI, returned as-is (t.Any()).
 const ViewResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.Nullable(t.String()),
   filters: t.Any(),
@@ -32,7 +32,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
     savedView: entityGuard(
       'views',
       'View not found',
-      async (p) => (await getView(Number(p.viewId)))?.projectId ?? null,
+      async (p) => (await getView(p.viewId))?.projectId ?? null,
     ),
   })
   .get(
@@ -92,7 +92,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       return reorderViews(project.id, body.orderedIds);
     },
     {
-      body: t.Object({ orderedIds: t.Array(t.Integer(), { minItems: 1 }) }),
+      body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
       permission: ['views', 'edit'],
       response: {
         200: t.Array(ViewResponse),

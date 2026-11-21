@@ -46,7 +46,7 @@ describe('labels', () => {
         color: '#6b7280',
         groupId: null,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const labels = await labelsOf(asOwner);
       expect(labels.map((l) => l.name)).toEqual(['urgent']);
@@ -170,7 +170,7 @@ describe('labels', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .labels({ labelId: 999999 })
+        .labels({ labelId: '00000000-0000-4000-8000-000000000000' })
         .patch({ name: 'nope' });
       expect(res.status).toBe(404);
     });
@@ -222,7 +222,7 @@ describe('labels', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .labels({ labelId: 999999 })
+        .labels({ labelId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(204);
     });
@@ -237,7 +237,7 @@ describe('labels', () => {
         ['label-groups'].post({ name: 'severity' });
       expect(created.status).toBe(201);
       expect(created.data).toMatchObject({ name: 'severity', color: '#6b7280' });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const groups = await groupsOf(asOwner);
       expect(groups.map((g) => g.name)).toEqual(['severity']);
@@ -288,7 +288,7 @@ describe('labels', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        ['label-groups']({ groupId: 999999 })
+        ['label-groups']({ groupId: '00000000-0000-4000-8000-000000000000' })
         .patch({ name: 'nope' });
       expect(res.status).toBe(404);
     });
@@ -348,7 +348,7 @@ describe('labels', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        ['label-groups']({ groupId: 999999 })
+        ['label-groups']({ groupId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(204);
     });

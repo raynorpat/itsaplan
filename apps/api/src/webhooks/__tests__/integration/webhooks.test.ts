@@ -18,7 +18,7 @@ async function createWebhook(
   client: Api,
   events: WebhookEventType[],
   opts: { isActive?: boolean } = {},
-): Promise<number> {
+): Promise<string> {
   const res = await client.projects({ projectKey: 'MKT' }).webhooks.post({
     url: 'https://example.com/hook',
     events,
@@ -47,7 +47,7 @@ describe('webhooks', () => {
         events: ['issue.created', 'issue.updated'],
         isActive: true,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
       expect(created.data?.secret).toMatch(/^whsec_/);
 
       const list = await asOwner.projects({ projectKey: 'MKT' }).webhooks.get();
@@ -159,7 +159,9 @@ describe('webhooks', () => {
 
     it('returns 404 when patching a missing webhook', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.webhooks({ webhookId: 999999 }).patch({ isActive: false });
+      const res = await asOwner
+        .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ isActive: false });
       expect(res.status).toBe(404);
     });
   });
@@ -183,7 +185,9 @@ describe('webhooks', () => {
 
     it('returns 404 when deleting a missing webhook', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.webhooks({ webhookId: 999999 }).delete();
+      const res = await asOwner
+        .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
+        .delete();
       expect(res.status).toBe(404);
     });
   });
@@ -200,7 +204,9 @@ describe('webhooks', () => {
 
     it('returns 404 for a missing webhook', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.webhooks({ webhookId: 999999 }).deliveries.get();
+      const res = await asOwner
+        .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
+        .deliveries.get();
       expect(res.status).toBe(404);
     });
 
@@ -225,16 +231,18 @@ describe('webhooks', () => {
       expect(first.status).toBe(200);
       expect(first.data?.items).toHaveLength(2);
       expect(first.data?.nextCursor).not.toBeNull();
-      // Newest first: ids strictly descending.
-      expect(first.data!.items[0].id).toBeGreaterThan(first.data!.items[1].id);
+      // Newest first.
+      expect(new Date(first.data!.items[0].createdAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(first.data!.items[1].createdAt).getTime(),
+      );
 
       const second = await asOwner
         .webhooks({ webhookId: id })
         .deliveries.get({ query: { before: first.data!.nextCursor!, limit: 2 } });
       expect(second.data?.items).toHaveLength(1);
       expect(second.data?.nextCursor).toBeNull();
-      // The cursor page continues below the first page's last id.
-      expect(second.data!.items[0].id).toBeLessThan(first.data!.items[1].id);
+      // The cursor page holds the remaining item, not a repeat of the first page.
+      expect(first.data!.items.map((i) => i.id)).not.toContain(second.data!.items[0].id);
     });
   });
 

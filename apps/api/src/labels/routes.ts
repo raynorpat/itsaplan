@@ -13,22 +13,22 @@ import {
   deleteLabelGroup,
 } from './store';
 
-const labelParams = t.Object({ projectKey: t.String(), labelId: t.Numeric() });
-const groupParams = t.Object({ projectKey: t.String(), groupId: t.Numeric() });
+const labelParams = t.Object({ projectKey: t.String(), labelId: t.String({ format: 'uuid' }) });
+const groupParams = t.Object({ projectKey: t.String(), groupId: t.String({ format: 'uuid' }) });
 
 // A label DTO (LabelRow from the store).
 const LabelResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
-  groupId: t.Nullable(t.Number()),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
+  groupId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
 });
 
 // A label group DTO (LabelGroupRow from the store).
 const LabelGroupResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   color: t.String(),
 });
@@ -50,7 +50,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       body: t.Object({
         name: t.String({ minLength: 1 }),
         color: t.Optional(t.String()),
-        groupId: t.Optional(t.Nullable(t.Integer())),
+        groupId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
       permission: ['labels', 'create'],
       response: {
@@ -85,7 +85,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
         color: t.Optional(t.String()),
-        groupId: t.Optional(t.Nullable(t.Integer())),
+        groupId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
       params: labelParams,
       permission: ['labels', 'edit'],

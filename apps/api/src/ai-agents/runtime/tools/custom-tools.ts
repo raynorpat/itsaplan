@@ -8,7 +8,7 @@ import { errorMessage } from '../../helpers/errors';
 // catalog is skipped. When the same tool is enabled more than once (bound to different
 // credentials), the ids are suffixed so they do not collide.
 export function buildCustomTools(
-  items: { id: number; toolKey: string; credential: ToolConfig }[],
+  items: { id: string; toolKey: string; credential: ToolConfig }[],
 ): Record<string, ReturnType<typeof createTool>> {
   const counts = new Map<string, number>();
   for (const it of items) counts.set(it.toolKey, (counts.get(it.toolKey) ?? 0) + 1);

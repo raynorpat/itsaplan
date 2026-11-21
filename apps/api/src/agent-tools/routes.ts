@@ -15,8 +15,8 @@ import {
   setAgentTools,
 } from './store';
 
-const toolParams = t.Object({ projectKey: t.String(), agentToolId: t.Numeric() });
-const agentParams = t.Object({ projectKey: t.String(), agentId: t.Numeric() });
+const toolParams = t.Object({ projectKey: t.String(), agentToolId: t.String({ format: 'uuid' }) });
+const agentParams = t.Object({ projectKey: t.String(), agentId: t.String({ format: 'uuid' }) });
 
 // A built-in agent action in the catalog (ToolMeta from ai-agents/runtime/tools).
 // `always` marks the read-only actions granted unconditionally, that cannot be
@@ -32,10 +32,10 @@ const ToolMetaResponse = t.Object({
 // integration and label for display. The tool catalog itself is served by the
 // integrations catalog (kind 'tool').
 const AgentToolResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   toolKey: t.String(),
-  credentialId: t.Number(),
+  credentialId: t.String({ format: 'uuid' }),
   integrationKey: t.String(),
   credentialLabel: t.Nullable(t.String()),
   createdAt: t.String(),
@@ -94,7 +94,10 @@ export const agentToolRoutes = new Elysia({
       return createAgentTool(project.id, body);
     },
     {
-      body: t.Object({ toolKey: t.String({ minLength: 1 }), credentialId: t.Number() }),
+      body: t.Object({
+        toolKey: t.String({ minLength: 1 }),
+        credentialId: t.String({ format: 'uuid' }),
+      }),
       permission: ['agent_tools', 'create'],
       response: {
         201: AgentToolResponse,
@@ -167,7 +170,7 @@ export const agentToolRoutes = new Elysia({
       return listAgentToolLinks(params.agentId);
     },
     {
-      body: t.Object({ agentToolIds: t.Array(t.Number()) }),
+      body: t.Object({ agentToolIds: t.Array(t.String({ format: 'uuid' })) }),
       params: agentParams,
       permission: ['agent_tools', 'edit'],
       response: {

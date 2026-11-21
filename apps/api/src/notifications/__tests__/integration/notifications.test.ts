@@ -13,7 +13,7 @@ interface Member {
   userId: string;
 }
 
-async function setup(): Promise<{ owner: Member; columnId: number; doneColumnId: number }> {
+async function setup(): Promise<{ owner: Member; columnId: string; doneColumnId: string }> {
   const u = await signUpTestUser();
   const api = authedApi(u.cookie);
   await api.projects.post({ key: 'MKT', name: 'Marketing' });
@@ -33,7 +33,7 @@ async function addMember(owner: Member): Promise<Member> {
   return { api, userId: u.userId };
 }
 
-function createIssue(client: Api, columnId: number, patch: Record<string, unknown> = {}) {
+function createIssue(client: Api, columnId: string, patch: Record<string, unknown> = {}) {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task', ...patch });
 }
 

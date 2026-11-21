@@ -49,7 +49,7 @@ function toDto(row: { emailEvents: unknown; telegramEvents: unknown }): Notifica
 // they have no row yet.
 export async function getPreferences(
   userId: string,
-  projectId: number,
+  projectId: string,
 ): Promise<NotificationPreferenceDto> {
   const rows = await db
     .select({
@@ -69,7 +69,7 @@ export async function getPreferences(
 // Upserts a member's preferences for a project and returns the normalized result.
 export async function setPreferences(
   userId: string,
-  projectId: number,
+  projectId: string,
   input: NotificationPreferenceDto,
 ): Promise<NotificationPreferenceDto> {
   const values = { emailEvents: input.emailEvents, telegramEvents: input.telegramEvents };
@@ -87,7 +87,7 @@ export async function setPreferences(
 // (no row) are omitted; the caller treats them as opted out. Used by the outbound
 // enqueue path to decide, per inbox row, which channels that member wants.
 export async function getPreferencesForUsers(
-  projectId: number,
+  projectId: string,
   userIds: string[],
 ): Promise<Map<string, NotificationPreferenceDto>> {
   if (userIds.length === 0) return new Map();

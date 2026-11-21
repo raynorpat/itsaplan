@@ -34,7 +34,7 @@ const AttachmentSchema = t.Object({
 // request so a change in god mode takes effect without a restart.
 async function assertUploadAllowed(
   limits: StorageSettings,
-  projectId: number,
+  projectId: string,
   size: number,
   contentType: string,
 ): Promise<void> {
@@ -58,7 +58,7 @@ async function assertUploadAllowed(
 // Object keys are grouped by project so a project's bytes sit under one prefix in
 // the bucket, which is what makes per-project listing, cleanup, and policies
 // possible. Keys already stored keep their old form; the full key lives in the row.
-function attachmentKey(projectId: number, issueId: number, filename: string): string {
+function attachmentKey(projectId: string, issueId: string, filename: string): string {
   // Keep the original filename as the last key segment so the extension is visible
   // in the bucket and to any tool that sniffs the key by suffix.
   const safeName = filename.replace(/[^\w.-]+/g, '_').slice(-100);
@@ -79,7 +79,7 @@ function attachmentDto(a: AttachmentRow) {
   };
 }
 
-const issueParams = t.Object({ issueId: t.Numeric() });
+const issueParams = t.Object({ issueId: t.String({ format: 'uuid' }) });
 
 export const attachmentRoutes = new Elysia({
   name: 'attachments',
@@ -91,7 +91,7 @@ export const attachmentRoutes = new Elysia({
   // /attachments/:publicId. Both assert a work_items action on the owning project.
   .macro({
     issueAttachment: entityGuard('work_items', 'Issue not found', (p) =>
-      getIssueProjectId(Number(p.issueId)),
+      getIssueProjectId(p.issueId),
     ),
     attachment: entityGuard('work_items', 'Attachment not found', async (p) => {
       const existing = await getAttachmentByPublicId(p.publicId);

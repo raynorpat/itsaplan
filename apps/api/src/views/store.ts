@@ -7,8 +7,8 @@ import { iso, num } from '../shared/lib';
 // their shape. position orders the tabs.
 
 export interface ViewRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string | null;
   filters: unknown;
@@ -34,7 +34,7 @@ function mapView(row: typeof projectView.$inferSelect): ViewRow {
   };
 }
 
-export async function listViews(projectId: number): Promise<ViewRow[]> {
+export async function listViews(projectId: string): Promise<ViewRow[]> {
   const rows = await db
     .select()
     .from(projectView)
@@ -46,7 +46,7 @@ export async function listViews(projectId: number): Promise<ViewRow[]> {
 // New views go to the end of the tab row (max position + 1). filters/display are
 // stored verbatim in the jsonb columns.
 export async function createView(input: {
-  projectId: number;
+  projectId: string;
   name: string;
   icon?: string | null;
   filters?: unknown;
@@ -70,7 +70,7 @@ export async function createView(input: {
   return mapView(row);
 }
 
-export async function getView(id: number): Promise<ViewRow | null> {
+export async function getView(id: string): Promise<ViewRow | null> {
   const rows = await db.select().from(projectView).where(eq(projectView.id, id));
   return rows[0] ? mapView(rows[0]) : null;
 }
@@ -78,7 +78,7 @@ export async function getView(id: number): Promise<ViewRow | null> {
 // Updates only the provided fields. filters/display are replaced wholesale (not
 // merged), since the UI always sends the full blob.
 export async function updateView(
-  id: number,
+  id: string,
   patch: { name?: string; icon?: string | null; filters?: unknown; display?: unknown },
 ): Promise<ViewRow | null> {
   const set: Partial<typeof projectView.$inferInsert> = {};
@@ -91,13 +91,13 @@ export async function updateView(
   return row ? mapView(row) : null;
 }
 
-export async function deleteView(id: number): Promise<void> {
+export async function deleteView(id: string): Promise<void> {
   await db.delete(projectView).where(eq(projectView.id, id));
 }
 
 // Sets each view's position to its index in orderedIds, in one transaction, so
 // the tab order the UI sends is stored exactly. Ids not on the project are ignored.
-export async function reorderViews(projectId: number, orderedIds: number[]): Promise<ViewRow[]> {
+export async function reorderViews(projectId: string, orderedIds: string[]): Promise<ViewRow[]> {
   await db.transaction(async (tx) => {
     for (const [position, id] of orderedIds.entries()) {
       await tx

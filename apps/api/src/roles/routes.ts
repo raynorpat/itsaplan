@@ -7,7 +7,7 @@ import { PERMISSION_RESOURCES, PERMISSION_ACTIONS } from '../shared/permissions'
 import { ErrorResponse } from '../shared/responses';
 import { listRoles, getRole, createRole, updateRole, deleteRole } from './store';
 
-const roleParams = t.Object({ projectKey: t.String(), roleId: t.Numeric() });
+const roleParams = t.Object({ projectKey: t.String(), roleId: t.String({ format: 'uuid' }) });
 
 // Permission matrix carried on create/update. Kept loose (a jsonb blob) and
 // sanitized by normalizePermissions in the store: unknown keys are dropped,
@@ -20,7 +20,7 @@ const PermissionMatrix = t.Record(t.String(), t.Record(t.String(), t.Boolean()))
 
 // A role DTO (RoleRow from the store).
 const RoleResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   name: t.String(),
   isDefault: t.Boolean(),
   permissions: PermissionMatrix,

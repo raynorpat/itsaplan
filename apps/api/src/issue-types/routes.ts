@@ -6,12 +6,12 @@ import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { createIssueType, updateIssueType, deleteIssueType } from './store';
 
-const typeParams = t.Object({ projectKey: t.String(), typeId: t.Numeric() });
+const typeParams = t.Object({ projectKey: t.String(), typeId: t.String({ format: 'uuid' }) });
 
 // An issue type DTO (IssueTypeRow from the store).
 const IssueTypeResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.String(),
   color: t.String(),

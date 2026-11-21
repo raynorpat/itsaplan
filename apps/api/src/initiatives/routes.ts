@@ -18,7 +18,7 @@ import {
 } from './store';
 import { listFeed } from './activity';
 
-const initiativeParams = t.Object({ initiativeId: t.Numeric() });
+const initiativeParams = t.Object({ initiativeId: t.String({ format: 'uuid' }) });
 
 // The initiative lifecycle enum, validated at the edge so an invalid value is a
 // 400 (not a Postgres CHECK violation → 500). Mirrors the DB check constraint.
@@ -34,19 +34,19 @@ const InitiativeStatus = t.Union([
 // computed on the fly (on_track/at_risk/off_track, or null when there is nothing
 // to judge).
 const InitiativeResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   title: t.String(),
   description: t.String(),
   status: t.String(),
-  ownerUserId: t.Nullable(t.String()),
+  ownerUserId: t.Nullable(t.String({ format: 'uuid' })),
   priority: t.Nullable(t.String()),
   startDate: t.Nullable(t.String()),
   targetDate: t.Nullable(t.String()),
   position: t.Number(),
   createdAt: t.String(),
   updatedAt: t.String(),
-  labelIds: t.Array(t.Number()),
+  labelIds: t.Array(t.String({ format: 'uuid' })),
   progress: t.Object({ completed: t.Number(), canceled: t.Number(), total: t.Number() }),
   health: t.Nullable(t.String()),
 });
@@ -54,10 +54,10 @@ const InitiativeResponse = t.Object({
 // InitiativeFeedItemRow from activity.ts: one timeline entry, from the initiative
 // itself (source 'initiative') or a linked issue (source 'issue').
 const FeedItemResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   source: t.String(),
   kind: t.String(),
-  actorUserId: t.Nullable(t.String()),
+  actorUserId: t.Nullable(t.String({ format: 'uuid' })),
   actorName: t.Nullable(t.String()),
   body: t.Nullable(t.String()),
   action: t.Nullable(t.String()),
@@ -65,13 +65,13 @@ const FeedItemResponse = t.Object({
   fromText: t.Nullable(t.String()),
   toText: t.Nullable(t.String()),
   createdAt: t.String(),
-  issueId: t.Nullable(t.Number()),
+  issueId: t.Nullable(t.String({ format: 'uuid' })),
   issueIdentifier: t.Nullable(t.String()),
 });
 
 const FeedPageResponse = t.Object({
   items: t.Array(FeedItemResponse),
-  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.Number() })),
+  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.String({ format: 'uuid' }) })),
 });
 
 export const initiativeRoutes = new Elysia({
@@ -84,7 +84,7 @@ export const initiativeRoutes = new Elysia({
   // the path). Set `initiative: "<action>"` in the route options.
   .macro({
     initiative: entityGuard('initiatives', 'Initiative not found', (p) =>
-      getInitiativeProjectId(Number(p.initiativeId)),
+      getInitiativeProjectId(p.initiativeId),
     ),
   })
 
@@ -205,7 +205,9 @@ export const initiativeRoutes = new Elysia({
         description: t.Optional(t.String({ description: 'Initiative description.' })),
         status: t.Optional(InitiativeStatus),
         ownerUserId: t.Optional(
-          t.Nullable(t.String({ description: 'Owner user id (a project member), or null.' })),
+          t.Nullable(
+            t.String({ format: 'uuid', description: 'Owner user id (a project member), or null.' }),
+          ),
         ),
         priority: t.Optional(
           t.Nullable(t.String({ description: 'One of: urgent, high, medium, low. Or null.' })),
@@ -217,7 +219,9 @@ export const initiativeRoutes = new Elysia({
           t.Nullable(t.String({ description: "Target date 'YYYY-MM-DD', or null." })),
         ),
         labelIds: t.Optional(
-          t.Array(t.Integer(), { description: 'Label ids to attach. From get_project.labels.' }),
+          t.Array(t.String({ format: 'uuid' }), {
+            description: 'Label ids to attach. From get_project.labels.',
+          }),
         ),
       }),
       permission: ['initiatives', 'create'],
@@ -276,7 +280,12 @@ export const initiativeRoutes = new Elysia({
         description: t.Optional(t.String({ description: 'New description.' })),
         status: t.Optional(InitiativeStatus),
         ownerUserId: t.Optional(
-          t.Nullable(t.String({ description: 'New owner user id (a project member), or null.' })),
+          t.Nullable(
+            t.String({
+              format: 'uuid',
+              description: 'New owner user id (a project member), or null.',
+            }),
+          ),
         ),
         priority: t.Optional(
           t.Nullable(t.String({ description: 'One of: urgent, high, medium, low. Or null.' })),
@@ -288,7 +297,9 @@ export const initiativeRoutes = new Elysia({
           t.Nullable(t.String({ description: "Target date 'YYYY-MM-DD', or null." })),
         ),
         labelIds: t.Optional(
-          t.Array(t.Integer(), { description: "Replace the initiative's labels with these ids." }),
+          t.Array(t.String({ format: 'uuid' }), {
+            description: "Replace the initiative's labels with these ids.",
+          }),
         ),
       }),
       initiative: 'edit',

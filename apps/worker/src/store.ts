@@ -3,8 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { workerConfig } from './config';
 
 export interface ClaimedDelivery {
-  id: number;
-  webhookId: number;
+  id: string;
+  webhookId: string;
   eventId: string;
   eventType: string;
   payload: unknown;
@@ -54,8 +54,8 @@ export interface DeliveryResponse {
 }
 
 export async function markSuccess(
-  deliveryId: number,
-  webhookId: number,
+  deliveryId: string,
+  webhookId: string,
   response: DeliveryResponse,
 ): Promise<void> {
   await db
@@ -71,8 +71,8 @@ export async function markSuccess(
 }
 
 export async function scheduleRetry(
-  deliveryId: number,
-  webhookId: number,
+  deliveryId: string,
+  webhookId: string,
   delayMs: number,
   error: string,
   response: DeliveryResponse,
@@ -92,8 +92,8 @@ export async function scheduleRetry(
 }
 
 export async function markFailed(
-  deliveryId: number,
-  webhookId: number,
+  deliveryId: string,
+  webhookId: string,
   error: string,
   response: DeliveryResponse,
 ): Promise<void> {
@@ -112,7 +112,7 @@ export async function markFailed(
 // A delivery claimed for a webhook that is no longer active (auto-disabled or
 // disabled by a user after the row was queued). Drop it without counting another
 // failure against the already-disabled webhook.
-export async function markSkippedInactive(deliveryId: number): Promise<void> {
+export async function markSkippedInactive(deliveryId: string): Promise<void> {
   await db
     .update(webhookDelivery)
     .set({ status: 'failed', lastError: 'webhook disabled' })
@@ -121,7 +121,7 @@ export async function markSkippedInactive(deliveryId: number): Promise<void> {
 
 // Increments the webhook's consecutive-failure counter and auto-disables it once
 // the counter reaches the threshold, in one statement.
-async function bumpWebhookFailure(webhookId: number): Promise<void> {
+async function bumpWebhookFailure(webhookId: string): Promise<void> {
   const { disableThreshold } = workerConfig();
   await db
     .update(webhook)
@@ -154,7 +154,7 @@ export async function cleanupOldDeliveries(): Promise<number> {
 // by a numeric-string regex so a malformed or missing value is treated as disabled,
 // never cast. Returns the ids archived, which the caller uses to drop the agent
 // conversation threads of those issues. Idempotent (archived_at IS NULL filter).
-export async function archiveStaleIssues(): Promise<number[]> {
+export async function archiveStaleIssues(): Promise<string[]> {
   const rows = await db.execute(sql`
     UPDATE issue i
     SET archived_at = now()
@@ -174,5 +174,5 @@ export async function archiveStaleIssues(): Promise<number[]> {
       )
     RETURNING i.id
   `);
-  return (rows as unknown as Array<{ id: number }>).map((row) => row.id);
+  return (rows as unknown as Array<{ id: string }>).map((row) => row.id);
 }

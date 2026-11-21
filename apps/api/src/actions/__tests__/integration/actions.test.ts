@@ -31,7 +31,7 @@ describe('actions', () => {
         effect: {},
         position: 0,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const list = await asOwner.projects({ projectKey: 'MKT' }).actions.get();
       expect(list.status).toBe(200);
@@ -113,7 +113,9 @@ describe('actions', () => {
 
     it('returns 404 when patching a missing action', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.actions({ actionId: 999999 }).patch({ name: 'Nope' });
+      const res = await asOwner
+        .actions({ actionId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ name: 'Nope' });
       expect(res.status).toBe(404);
     });
   });
@@ -175,7 +177,9 @@ describe('actions', () => {
 
     it('returns 404 when deleting a missing action', async () => {
       const { asOwner } = await setupOwnerProject();
-      const res = await asOwner.actions({ actionId: 999999 }).delete();
+      const res = await asOwner
+        .actions({ actionId: '00000000-0000-4000-8000-000000000000' })
+        .delete();
       expect(res.status).toBe(404);
     });
   });

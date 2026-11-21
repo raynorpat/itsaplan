@@ -89,7 +89,7 @@ function resourceLabel(resource: PermissionResource): string {
 // underlying permission check behind the permission guard and the feature-local
 // entity guards.
 export async function assertPermission(
-  projectId: number,
+  projectId: string,
   user: AuthUser | undefined | null,
   resource: PermissionResource,
   action: PermissionAction,

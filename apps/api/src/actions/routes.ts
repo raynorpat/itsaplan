@@ -14,13 +14,13 @@ import {
   reorderActions,
 } from './store';
 
-const actionParams = t.Object({ actionId: t.Numeric() });
+const actionParams = t.Object({ actionId: t.String({ format: 'uuid' }) });
 
 // An action DTO (ActionRow from the store). condition and effect are jsonb blobs
 // owned by the UI, stored and returned without inspecting their shape.
 const ActionResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.String(),
   condition: t.Any(),
@@ -38,7 +38,7 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
     savedAction: entityGuard(
       'actions',
       'Action not found',
-      async (p) => (await getAction(Number(p.actionId)))?.projectId ?? null,
+      async (p) => (await getAction(p.actionId))?.projectId ?? null,
     ),
   })
   .get(
@@ -98,7 +98,7 @@ export const actionRoutes = new Elysia({ name: 'actions', detail: { tags: ['Acti
       return reorderActions(project.id, body.orderedIds);
     },
     {
-      body: t.Object({ orderedIds: t.Array(t.Integer(), { minItems: 1 }) }),
+      body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
       permission: ['actions', 'edit'],
       response: {
         200: t.Array(ActionResponse),

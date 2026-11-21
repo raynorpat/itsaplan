@@ -28,11 +28,11 @@ const inviteStatus = t.Union([t.Literal('pending'), t.Literal('accepted'), t.Lit
 
 // The owner-facing invite row (InviteRow from the store).
 const InviteRowResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   token: t.String(),
   email: t.String(),
   role: inviteRole,
-  roleId: t.Nullable(t.Number()),
+  roleId: t.Nullable(t.String({ format: 'uuid' })),
   roleName: t.Nullable(t.String()),
   status: inviteStatus,
   createdAt: t.String(),
@@ -48,7 +48,7 @@ const InviteViewResponse = t.Object({
   projectName: t.String(),
   email: t.String(),
   role: inviteRole,
-  roleId: t.Nullable(t.Number()),
+  roleId: t.Nullable(t.String({ format: 'uuid' })),
   roleName: t.Nullable(t.String()),
   status: inviteStatus,
   createdAt: t.String(),
@@ -110,7 +110,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       body: t.Object({
         email: t.String({ format: 'email' }),
         role: inviteRole,
-        roleId: t.Optional(t.Nullable(t.Integer())),
+        roleId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
       permission: ['members_invite', 'create'],
       response: {
@@ -158,7 +158,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       return noContent();
     },
     {
-      params: t.Object({ projectKey: t.String(), inviteId: t.Numeric() }),
+      params: t.Object({ projectKey: t.String(), inviteId: t.String({ format: 'uuid' }) }),
       permission: ['members_invite', 'delete'],
       response: {
         204: t.Void(),

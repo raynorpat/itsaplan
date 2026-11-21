@@ -7,14 +7,14 @@ import { postInternal } from './internal-api';
 type Trigger = 'mention' | 'delegation' | 'schedule' | 'manual';
 
 interface ClaimedRun {
-  id: number;
-  agentId: number;
-  issueId: number | null;
-  scheduleId: number | null;
+  id: string;
+  agentId: string;
+  issueId: string | null;
+  scheduleId: string | null;
   trigger: Trigger;
   prompt: string;
   attempts: number;
-  projectId: number;
+  projectId: string;
   agentUserId: string;
   issueIdentifier: string | null;
   issueTitle: string | null;
@@ -93,7 +93,7 @@ async function processRun(run: ClaimedRun): Promise<void> {
 // internal route it uses to run an agent. The api looks the threads up per issue, so
 // the ids go in batches: the first sweep of an instance that just enabled auto-archive
 // can carry thousands of them, and one request for all would run past the timeout.
-export async function deleteIssueAgentThreads(issueIds: number[]): Promise<void> {
+export async function deleteIssueAgentThreads(issueIds: string[]): Promise<void> {
   for (let from = 0; from < issueIds.length; from += 200) {
     const response = await postInternal(
       '/internal/agent-threads/delete-for-issues',

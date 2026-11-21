@@ -15,15 +15,15 @@ import {
   listWebhookDeliveries,
 } from './store';
 
-const webhookParams = t.Object({ webhookId: t.Numeric() });
+const webhookParams = t.Object({ webhookId: t.String({ format: 'uuid' }) });
 
 const eventType = t.UnionEnum([...WEBHOOK_EVENT_TYPES]);
 const eventsSchema = t.Array(eventType, { minItems: 1 });
 
 // A webhook subscription DTO (WebhookRow from the store).
 const WebhookResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   url: t.String(),
   secret: t.String(),
   events: t.Array(eventType),
@@ -33,7 +33,7 @@ const WebhookResponse = t.Object({
 
 // A webhook delivery attempt DTO (WebhookDeliveryRow from the store).
 const WebhookDeliveryResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   eventId: t.String(),
   eventType: t.String(),
   status: t.String(),
@@ -49,7 +49,7 @@ const WebhookDeliveryResponse = t.Object({
 // One page of deliveries (WebhookDeliveryPage from the store).
 const WebhookDeliveryPageResponse = t.Object({
   items: t.Array(WebhookDeliveryResponse),
-  nextCursor: t.Nullable(t.Number()),
+  nextCursor: t.Nullable(t.String()),
 });
 
 // A local, loopback, or private-range host — the SSRF-sensitive targets.
@@ -114,7 +114,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     webhook: entityGuard(
       'webhooks',
       'Webhook not found',
-      async (p) => (await getWebhook(Number(p.webhookId)))?.projectId ?? null,
+      async (p) => (await getWebhook(p.webhookId))?.projectId ?? null,
     ),
   })
   .get(
@@ -221,7 +221,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     {
       params: webhookParams,
       query: t.Object({
-        before: t.Optional(t.Numeric()),
+        before: t.Optional(t.String()),
         limit: t.Optional(t.Numeric()),
       }),
       webhook: 'read',

@@ -51,11 +51,11 @@ function getReadMemory(): Memory {
 // conversation from an autonomous run thread; `issueId` and `scheduleId` are set for
 // an issue run and a scheduled run.
 type ThreadMeta = {
-  agentId: number;
-  projectId: number;
+  agentId: string;
+  projectId: string;
   kind: 'chat' | 'run';
-  issueId?: number;
-  scheduleId?: number;
+  issueId?: string;
+  scheduleId?: string;
 };
 
 // Creates the thread with its bindings and an initial title (the first prompt,
@@ -92,7 +92,7 @@ export async function deleteChatThread(threadId: string, resourceId: string): Pr
 // messages, and returns how many were deleted. Called when that binding goes away.
 export async function deleteThreadsWhere(
   binding:
-    { agentId: number } | { projectId: number } | { issueId: number } | { scheduleId: number },
+    { agentId: string } | { projectId: string } | { issueId: string } | { scheduleId: string },
 ): Promise<number> {
   const memory = getReadMemory();
   const { threads } = await memory.listThreads({ filter: { metadata: binding }, perPage: false });
@@ -113,7 +113,7 @@ export type ChatThreadSummary = {
 // own conversations with that agent.
 export async function listChatThreads(
   resourceId: string,
-  agentId: number,
+  agentId: string,
 ): Promise<ChatThreadSummary[]> {
   const res = await getReadMemory().listThreads({
     filter: { resourceId, metadata: { agentId, kind: 'chat' } },

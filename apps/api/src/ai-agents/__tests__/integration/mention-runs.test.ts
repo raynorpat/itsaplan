@@ -26,7 +26,7 @@ async function setup() {
 
 const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
 
-function createIssue(client: Api, columnId: number) {
+function createIssue(client: Api, columnId: string) {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task' });
 }
 
@@ -38,7 +38,7 @@ async function createInternalAgent(asOwner: Api, name: string, username: string)
 // The mention token as stored in a comment body.
 const mention = (name: string, userId: string) => `@[${name}](user:${userId})`;
 
-async function runsForIssue(issueId: number) {
+async function runsForIssue(issueId: string) {
   return db.select().from(agentRun).where(eq(agentRun.issueId, issueId));
 }
 
@@ -75,7 +75,7 @@ describe('agent mention runs', () => {
     const run = claimed.find((r) => r.issueId === issue.id);
     expect(run).toBeDefined();
     expect(run).toMatchObject({ agentId: agent.id, agentUserId: agent.userId });
-    expect(typeof run!.projectId).toBe('number');
+    expect(typeof run!.projectId).toBe('string');
   });
 
   it('does not queue a run for a comment with no mention', async () => {

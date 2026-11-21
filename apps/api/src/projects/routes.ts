@@ -62,7 +62,7 @@ const copyProjectBody = t.Composite([
 
 // A project DTO (ProjectRow from the store).
 const ProjectResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   key: t.String(),
   name: t.String(),
   description: t.String(),
@@ -92,8 +92,8 @@ const ProjectListItemResponse = t.Composite([
 
 // A column (ColumnRow from columns/store).
 const ColumnResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   stateType: t.String(),
   color: t.String(),
@@ -102,8 +102,8 @@ const ColumnResponse = t.Object({
 
 // An issue type (IssueTypeRow from issue-types/store).
 const IssueTypeResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.String(),
   color: t.String(),
@@ -113,17 +113,17 @@ const IssueTypeResponse = t.Object({
 
 // A label (LabelRow from labels/store).
 const LabelResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
-  groupId: t.Nullable(t.Number()),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
+  groupId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   color: t.String(),
 });
 
 // A label group (LabelGroupRow from labels/store).
 const LabelGroupResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   color: t.String(),
 });
@@ -131,7 +131,7 @@ const LabelGroupResponse = t.Object({
 // An assignable candidate (AssigneeCandidate from members/store): a project
 // member or an AI agent's bot user.
 const AssigneeCandidateResponse = t.Object({
-  userId: t.String(),
+  userId: t.String({ format: 'uuid' }),
   name: t.String(),
   email: t.String(),
   image: t.Nullable(t.String()),
@@ -141,7 +141,7 @@ const AssigneeCandidateResponse = t.Object({
 
 // A custom field option (CustomFieldOptionRow from custom-fields/store).
 const CustomFieldOptionResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   value: t.String(),
   color: t.String(),
   position: t.Number(),
@@ -150,8 +150,8 @@ const CustomFieldOptionResponse = t.Object({
 // A custom field (CustomFieldRow from custom-fields/store). The board carries every
 // field of the project; the client filters by issueTypeId.
 const CustomFieldResponse = t.Object({
-  id: t.Number(),
-  issueTypeId: t.Nullable(t.Number()),
+  id: t.String({ format: 'uuid' }),
+  issueTypeId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   fieldType: t.String(),
   showInBody: t.Boolean(),

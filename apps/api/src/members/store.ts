@@ -22,7 +22,7 @@ export interface MemberRow {
   role: MemberRole;
   // The custom role assigned to a member, or null. Owners bypass roles, so their
   // roleId is always null.
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   // What this member does in the project, free text set by an owner. Empty when unset.
   description: string;
@@ -43,7 +43,7 @@ export interface MemberContext {
 }
 
 // The current user's role in a project, or null when they are not a member.
-export async function getMembership(projectId: number, userId: string): Promise<MemberRole | null> {
+export async function getMembership(projectId: string, userId: string): Promise<MemberRole | null> {
   const rows = await db
     .select({ role: projectMember.role })
     .from(projectMember)
@@ -54,7 +54,7 @@ export async function getMembership(projectId: number, userId: string): Promise<
 // The current user's role and resolved permission matrix in a project, or null
 // when they are not a member. This is the single lookup behind assertPermission.
 export async function getMemberContext(
-  projectId: number,
+  projectId: string,
   userId: string,
 ): Promise<MemberContext | null> {
   const rows = await db
@@ -91,7 +91,7 @@ export interface AssigneeCandidate {
   description: string | null;
 }
 
-export async function listAssigneeCandidates(projectId: number): Promise<AssigneeCandidate[]> {
+export async function listAssigneeCandidates(projectId: string): Promise<AssigneeCandidate[]> {
   const [memberRows, agentRows] = await Promise.all([
     db
       .select({
@@ -144,7 +144,7 @@ export async function listAssigneeCandidates(projectId: number): Promise<Assigne
   return [...members, ...agents].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function listMembers(projectId: number): Promise<MemberRow[]> {
+export async function listMembers(projectId: string): Promise<MemberRow[]> {
   const rows = await db
     .select({
       userId: projectMember.userId,
@@ -181,7 +181,7 @@ export async function listMembers(projectId: number): Promise<MemberRow[]> {
 // Sets a member's project description (what they do). Returns false when the user is
 // not a member of the project.
 export async function setMemberDescription(
-  projectId: number,
+  projectId: string,
   userId: string,
   description: string,
 ): Promise<boolean> {
@@ -196,7 +196,7 @@ export async function setMemberDescription(
 // Adds a user to a project. Upserts the role when the user is already a member,
 // so re-adding is idempotent and doubles as a role change.
 export async function upsertMember(
-  projectId: number,
+  projectId: string,
   userId: string,
   role: MemberRole,
 ): Promise<void> {
@@ -214,10 +214,10 @@ export async function upsertMember(
 // a member keeps roleId (null falls back to the default role). Returns false when
 // the user is not a member of the project.
 export async function setMembership(
-  projectId: number,
+  projectId: string,
   userId: string,
   role: MemberRole,
-  roleId: number | null,
+  roleId: string | null,
 ): Promise<boolean> {
   const updated = await db
     .update(projectMember)
@@ -227,13 +227,13 @@ export async function setMembership(
   return updated.length > 0;
 }
 
-export async function removeMember(projectId: number, userId: string): Promise<void> {
+export async function removeMember(projectId: string, userId: string): Promise<void> {
   await db
     .delete(projectMember)
     .where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, userId)));
 }
 
-export async function countOwners(projectId: number): Promise<number> {
+export async function countOwners(projectId: string): Promise<number> {
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(projectMember)

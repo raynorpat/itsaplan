@@ -22,8 +22,8 @@ import {
   agentInProject,
 } from './store';
 
-const skillParams = t.Object({ projectKey: t.String(), skillId: t.Numeric() });
-const agentParams = t.Object({ projectKey: t.String(), agentId: t.Numeric() });
+const skillParams = t.Object({ projectKey: t.String(), skillId: t.String({ format: 'uuid' }) });
+const agentParams = t.Object({ projectKey: t.String(), agentId: t.String({ format: 'uuid' }) });
 
 const SkillRefSchema = t.Object({
   path: t.String(),
@@ -32,8 +32,8 @@ const SkillRefSchema = t.Object({
 });
 
 const SkillResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   description: t.String(),
   source: t.Union([t.Literal('upload'), t.Literal('inline'), t.Literal('github')]),
@@ -414,7 +414,7 @@ export const agentSkillRoutes = new Elysia({
       return listAgentSkills(params.agentId);
     },
     {
-      body: t.Object({ skillIds: t.Array(t.Number()) }),
+      body: t.Object({ skillIds: t.Array(t.String({ format: 'uuid' })) }),
       params: agentParams,
       permission: ['agent_skills', 'edit'],
       response: {

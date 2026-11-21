@@ -9,7 +9,7 @@ import { sendDelivery } from './send';
 // shared WORKER_INTERNAL_TOKEN. Returns the SendResult so the worker records the
 // outcome and decides whether to retry.
 const sendBody = t.Object({
-  projectId: t.Number(),
+  projectId: t.String({ format: 'uuid' }),
   channel: t.UnionEnum(['email', 'telegram']),
   recipient: t.Nullable(t.String()),
   payload: t.Object({

@@ -12,8 +12,8 @@ import { postInternal } from './internal-api';
 // is left as 'failed' with its last error for debugging.
 
 interface ClaimedNotification {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   channel: string;
   recipient: string | null;
   payload: unknown;

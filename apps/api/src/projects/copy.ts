@@ -121,18 +121,18 @@ function normalizeInclude(raw?: Partial<CopyProjectInclude>): CopyProjectInclude
 // Old id → new id maps built while copying, used to rewrite the id references that
 // views and actions hold in their filters.
 interface CopyIdMaps {
-  column: Map<number, number>;
-  labelGroup: Map<number, number>;
-  label: Map<number, number>;
-  type: Map<number, number>;
-  field: Map<number, number>;
-  option: Map<number, number>;
+  column: Map<string, string>;
+  labelGroup: Map<string, string>;
+  label: Map<string, string>;
+  type: Map<string, string>;
+  field: Map<string, string>;
+  option: Map<string, string>;
 }
 
-// Returns the mapped id for a numeric value present in the map; any other value
-// passes through unchanged.
-function remapId(map: Map<number, number>, v: unknown): unknown {
-  return typeof v === 'number' && map.has(v) ? map.get(v) : v;
+// Returns the mapped id for an id present in the map; any other value passes
+// through unchanged.
+function remapId(map: Map<string, string>, v: unknown): unknown {
+  return typeof v === 'string' && map.has(v) ? map.get(v) : v;
 }
 
 // Rewrites the entity ids a view's filter set references so they point at the copied
@@ -140,10 +140,10 @@ function remapId(map: Map<number, number>, v: unknown): unknown {
 // by remapViewDisplay.
 //
 // The filter shape is owned by the UI: a FilterSet is { conditions: [{ field, op,
-// values }] }. Which map a condition's numeric values use is decided by its field:
+// values }] }. Which map a condition's id values use is decided by its field:
 // status → column, type → type, labels → label, cf:<fieldId> → the field id is
 // remapped in the key, and select values are option ids, so they use the option map.
-// Non-numeric values (priority/statusType strings, assignee user ids, dates,
+// Other values (priorities, statusType strings, assignee user ids, dates,
 // custom-field text) are left as-is. Values whose id is absent from the map are kept
 // unchanged.
 function remapViewFilters(filters: unknown, maps: CopyIdMaps): unknown {
@@ -155,13 +155,13 @@ function remapViewFilters(filters: unknown, maps: CopyIdMaps): unknown {
     if (!cond || typeof cond !== 'object') return cond;
     const field: unknown = cond.field;
     let newField = field;
-    let valueMap: Map<number, number> | null = null;
+    let valueMap: Map<string, string> | null = null;
 
     if (field === 'status') valueMap = maps.column;
     else if (field === 'type') valueMap = maps.type;
     else if (field === 'labels') valueMap = maps.label;
     else if (typeof field === 'string' && field.startsWith('cf:')) {
-      const newFieldId = maps.field.get(Number(field.slice(3)));
+      const newFieldId = maps.field.get(field.slice(3));
       if (newFieldId != null) newField = `cf:${newFieldId}`;
       valueMap = maps.option;
     }
@@ -177,13 +177,13 @@ function remapViewFilters(filters: unknown, maps: CopyIdMaps): unknown {
 }
 
 // Remaps one work items group key to the copied project's entities. Group keys are
-// namespaced by grouping field: c<columnId> and t<typeId> carry a numeric id and are
-// remapped; a<userId> (assignee), p<priority>, the *-none buckets and 'all' carry no
-// project-scoped numeric id and pass through.
+// namespaced by grouping field: c<columnId> and t<typeId> carry a project-scoped id
+// and are remapped; a<userId> (assignee), p<priority>, the *-none buckets and 'all'
+// carry none and pass through.
 function remapGroupKey(key: string, maps: CopyIdMaps): string {
-  const m = /^([ct])(\d+)$/.exec(key);
+  const m = /^([ct])([0-9a-f-]{36})$/i.exec(key);
   if (!m) return key;
-  const id = Number(m[2]);
+  const id = m[2];
   const map = m[1] === 'c' ? maps.column : maps.type;
   const newId = map.get(id);
   return newId != null ? `${m[1]}${newId}` : key;
@@ -249,7 +249,7 @@ async function readObjectBytes(key: string): Promise<{ bytes: Buffer; contentTyp
 // their object-store files, agents create their own bot user and API key, and both go
 // through the same store functions the UI uses.
 export async function copyProject(
-  sourceProjectId: number,
+  sourceProjectId: string,
   input: { key: string; name: string; description?: string },
   ownerId: string,
   rawInclude?: Partial<CopyProjectInclude>,
@@ -264,11 +264,11 @@ export async function copyProject(
     field: new Map(),
     option: new Map(),
   };
-  const roleMap = new Map<number, number>();
-  const integrationMap = new Map<number, number>();
-  const toolMap = new Map<number, number>();
-  const skillMap = new Map<number, number>();
-  const agentMap = new Map<number, number>();
+  const roleMap = new Map<string, string>();
+  const integrationMap = new Map<string, string>();
+  const toolMap = new Map<string, string>();
+  const skillMap = new Map<string, string>();
+  const agentMap = new Map<string, string>();
 
   const newProject = await db.transaction(async (tx) => {
     // The optional sections the source project shows are part of its configuration,
@@ -666,13 +666,13 @@ export async function copyProject(
       if (inc.skills) {
         const skillIds = (await listAgentSkills(a.id))
           .map((s) => skillMap.get(s.id))
-          .filter((id): id is number => id != null);
+          .filter((id): id is string => id != null);
         if (skillIds.length > 0) await setAgentSkills(agent.id, newProject.id, skillIds);
       }
       if (inc.tools) {
         const toolIds = (await listAgentToolLinks(a.id))
           .map((tRow) => toolMap.get(tRow.id))
-          .filter((id): id is number => id != null);
+          .filter((id): id is string => id != null);
         if (toolIds.length > 0) await setAgentTools(agent.id, newProject.id, toolIds);
       }
     }

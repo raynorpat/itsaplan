@@ -187,7 +187,7 @@ describe('roles', () => {
 
   describe('update — PATCH /projects/:projectKey/roles/:roleId', () => {
     // Creates a custom role on MKT and returns its id.
-    async function createRole(owner: Actor, name = 'Editor'): Promise<number> {
+    async function createRole(owner: Actor, name = 'Editor'): Promise<string> {
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
         .roles.post({ name, permissions: {} });
@@ -250,7 +250,7 @@ describe('roles', () => {
 
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
-        .roles({ roleId: 999999 })
+        .roles({ roleId: '00000000-0000-4000-8000-000000000000' })
         .patch({ name: 'Nope' });
       expect(res.status).toBe(404);
     });
@@ -307,7 +307,7 @@ describe('roles', () => {
 
   describe('delete — DELETE /projects/:projectKey/roles/:roleId', () => {
     // Creates a custom role on MKT and returns its id.
-    async function createRole(owner: Actor, name = 'Editor'): Promise<number> {
+    async function createRole(owner: Actor, name = 'Editor'): Promise<string> {
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
         .roles.post({ name, permissions: {} });
@@ -366,7 +366,7 @@ describe('roles', () => {
 
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
-        .roles({ roleId: 999999 })
+        .roles({ roleId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(404);
     });

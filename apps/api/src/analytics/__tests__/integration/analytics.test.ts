@@ -19,20 +19,20 @@ async function setupProject() {
   await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
   const view = await asOwner.projects({ projectKey: 'MKT' }).get();
   const columns = view.data!.columns;
-  const col: Record<string, number> = {};
+  const col: Record<string, string> = {};
   for (const c of columns) col[c.stateType] = c.id;
   return { asOwner, owner, columns, col };
 }
 
 async function createIssue(
   asOwner: Api,
-  columnId: number,
+  columnId: string,
   extra: {
     title?: string;
-    priority?: string | null;
+    priority?: number;
     dueDate?: string | null;
     assigneeUserId?: string | null;
-    typeId?: number | null;
+    typeId?: string | null;
   } = {},
 ) {
   const { title = 'Task', ...rest } = extra;
@@ -45,7 +45,7 @@ async function createIssue(
 
 // Moving an issue to another column writes a "status" activity whose toText is the
 // destination column name — the signal closed/throughput metrics read.
-function moveIssue(asOwner: Api, issueId: number, columnId: number) {
+function moveIssue(asOwner: Api, issueId: string, columnId: string) {
   return asOwner.issues({ issueId }).patch({ columnId });
 }
 
@@ -141,18 +141,18 @@ describe('analytics', () => {
 
     it('groups by priority with a labelled No-priority bucket', async () => {
       const { asOwner, col } = await setupProject();
-      await createIssue(asOwner, col.started, { priority: 'high' });
-      await createIssue(asOwner, col.started, { priority: 'high' });
-      await createIssue(asOwner, col.started, { priority: 'low' });
+      await createIssue(asOwner, col.started, { priority: 2 });
+      await createIssue(asOwner, col.started, { priority: 2 });
+      await createIssue(asOwner, col.started, { priority: 4 });
       await createIssue(asOwner, col.started);
 
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
         .analytics.breakdown.get({ query: { by: 'priority' } });
       expect(res.status).toBe(200);
-      expect(res.data?.find((i) => i.key === 'high')).toMatchObject({ label: 'High', count: 2 });
-      expect(res.data?.find((i) => i.key === 'low')).toMatchObject({ label: 'Low', count: 1 });
-      expect(res.data?.find((i) => i.key === 'none')).toMatchObject({
+      expect(res.data?.find((i) => i.key === '2')).toMatchObject({ label: 'High', count: 2 });
+      expect(res.data?.find((i) => i.key === '4')).toMatchObject({ label: 'Low', count: 1 });
+      expect(res.data?.find((i) => i.key === '0')).toMatchObject({
         label: 'No priority',
         count: 1,
       });
@@ -374,7 +374,7 @@ describe('analytics', () => {
 
       const other = await asOwner
         .projects({ projectKey: 'MKT' })
-        .analytics.activity.get({ query: { actorUserId: 'no-such-user' } });
+        .analytics.activity.get({ query: { actorUserId: '00000000-0000-4000-8000-000000000000' } });
       expect(other.data?.items).toHaveLength(0);
     });
 

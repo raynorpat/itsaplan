@@ -19,8 +19,8 @@ export interface SkillRef {
 }
 
 export interface SkillRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   description: string;
   source: SkillSource;
@@ -41,8 +41,8 @@ const dtoColumns = {
 };
 
 function mapRow(row: {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   description: string;
   source: string;
@@ -66,7 +66,7 @@ function skillMdKey(prefix: string): string {
   return `${prefix}/SKILL.md`;
 }
 
-export async function listSkills(projectId: number): Promise<SkillRow[]> {
+export async function listSkills(projectId: string): Promise<SkillRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentSkill)
@@ -75,7 +75,7 @@ export async function listSkills(projectId: number): Promise<SkillRow[]> {
   return rows.map(mapRow);
 }
 
-export async function getSkill(id: number, projectId: number): Promise<SkillRow | null> {
+export async function getSkill(id: string, projectId: string): Promise<SkillRow | null> {
   const rows = await db
     .select(dtoColumns)
     .from(agentSkill)
@@ -84,15 +84,15 @@ export async function getSkill(id: number, projectId: number): Promise<SkillRow 
 }
 
 // The full SKILL.md markdown from the object store. 404 if the skill is missing.
-export async function getSkillMarkdown(id: number, projectId: number): Promise<string> {
+export async function getSkillMarkdown(id: string, projectId: string): Promise<string> {
   const skill = await getSkillRow(id, projectId);
   return getObjectText(skillMdKey(skill.s3Prefix));
 }
 
 // The content of one reference file of a skill, addressed by its relative path.
 export async function getSkillRefContent(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   path: string,
 ): Promise<string> {
   const skill = await getSkillRow(id, projectId);
@@ -102,7 +102,7 @@ export async function getSkillRefContent(
 }
 
 // Loads the raw row (including s3_prefix, not in the DTO) or throws 404.
-async function getSkillRow(id: number, projectId: number) {
+async function getSkillRow(id: string, projectId: string) {
   const rows = await db
     .select()
     .from(agentSkill)
@@ -124,7 +124,7 @@ export interface NewSkillInput {
 // Creates a skill: writes SKILL.md to the object store, then inserts the row. name
 // and description default to the frontmatter values; a skill with no resolvable name
 // is a 400.
-export async function createSkill(projectId: number, input: NewSkillInput): Promise<SkillRow> {
+export async function createSkill(projectId: string, input: NewSkillInput): Promise<SkillRow> {
   return createSkillFromFiles(projectId, { ...input, refs: [] });
 }
 
@@ -154,7 +154,7 @@ function sanitizeRefPath(path: string): string | null {
 // their relative paths preserved, then the row is inserted. On any failure the
 // written objects are removed so no orphans remain.
 export async function createSkillFromFiles(
-  projectId: number,
+  projectId: string,
   input: NewSkillFromFilesInput,
 ): Promise<SkillRow> {
   const fm = parseFrontmatter(input.markdown);
@@ -208,8 +208,8 @@ export interface SkillPatch {
 }
 
 export async function updateSkill(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   patch: SkillPatch,
 ): Promise<SkillRow | null> {
   const skill = await getSkillRow(id, projectId);
@@ -240,8 +240,8 @@ export async function updateSkill(
 // Adds a reference file to a skill. Rejects executable files (no scripts in a
 // skill). The path is the sanitized file name under refs/.
 export async function addReference(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   filename: string,
   bytes: Buffer,
   contentType: string,
@@ -264,8 +264,8 @@ export async function addReference(
 // Overwrites the content of an existing reference file, keeping its object key and
 // updating its recorded size. 404 if the skill or the reference path is unknown.
 export async function updateReference(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   path: string,
   bytes: Buffer,
   contentType: string,
@@ -281,8 +281,8 @@ export async function updateReference(
 }
 
 export async function deleteReference(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   path: string,
 ): Promise<SkillRow | null> {
   const skill = await getSkillRow(id, projectId);
@@ -296,7 +296,7 @@ export async function deleteReference(
 
 // Deletes a skill: its object-store contents (SKILL.md + references), then the row.
 // The link rows go by ON DELETE CASCADE.
-export async function deleteSkill(id: number, projectId: number): Promise<boolean> {
+export async function deleteSkill(id: string, projectId: string): Promise<boolean> {
   const rows = await db
     .select()
     .from(agentSkill)
@@ -310,7 +310,7 @@ export async function deleteSkill(id: number, projectId: number): Promise<boolea
 }
 
 // The skills enabled on an agent, as DTOs. Used by the agent editor and the runtime.
-export async function listAgentSkills(agentId: number): Promise<SkillRow[]> {
+export async function listAgentSkills(agentId: string): Promise<SkillRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentSkillLink)
@@ -324,9 +324,9 @@ export async function listAgentSkills(agentId: number): Promise<SkillRow[]> {
 // are accepted; unknown or cross-project ids are ignored. Both the agent and skills
 // are validated against projectId by the caller's route guard.
 export async function setAgentSkills(
-  agentId: number,
-  projectId: number,
-  skillIds: number[],
+  agentId: string,
+  projectId: string,
+  skillIds: string[],
 ): Promise<void> {
   const unique = [...new Set(skillIds)];
   // Keep only ids that are real skills in this project.
@@ -349,7 +349,7 @@ export async function setAgentSkills(
 }
 
 // True if the agent belongs to the project (guards addressing an agent by id).
-export async function agentInProject(agentId: number, projectId: number): Promise<boolean> {
+export async function agentInProject(agentId: string, projectId: string): Promise<boolean> {
   const rows = await db
     .select({ id: aiAgent.id })
     .from(aiAgent)

@@ -29,7 +29,7 @@ async function setup() {
 const agents = (api: Api) => api.projects({ projectKey: 'MKT' })['ai-agents'];
 
 // Creates an internal agent and an issue, then enqueues a pending run for the pair.
-async function enqueueRun(asOwner: Api, columnId: number) {
+async function enqueueRun(asOwner: Api, columnId: string) {
   const agent = (await agents(asOwner).post({ name: 'Bot', username: 'bot', kind: 'internal' }))
     .data!.agent;
   const issue = (
@@ -45,7 +45,7 @@ async function enqueueRun(asOwner: Api, columnId: number) {
   return { agent, issue, runId: row.id };
 }
 
-async function readRun(runId: number) {
+async function readRun(runId: string) {
   const [row] = await db.select().from(agentRun).where(eq(agentRun.id, runId));
   return row;
 }

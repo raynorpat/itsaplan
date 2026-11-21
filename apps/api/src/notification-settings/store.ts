@@ -170,7 +170,7 @@ function applyPatch(
 }
 
 // Reads and decrypts the stored config, or null when the project has none yet.
-async function readConfig(projectId: number): Promise<NotificationConfig | null> {
+async function readConfig(projectId: string): Promise<NotificationConfig | null> {
   const rows = await db
     .select({
       ciphertext: projectNotificationSetting.ciphertext,
@@ -187,14 +187,14 @@ async function readConfig(projectId: number): Promise<NotificationConfig | null>
 
 // The redacted settings for a project. Defaults (all channels off, no secrets)
 // when nothing has been saved.
-export async function getNotificationSettings(projectId: number): Promise<NotificationSettingsDto> {
+export async function getNotificationSettings(projectId: string): Promise<NotificationSettingsDto> {
   const config = (await readConfig(projectId)) ?? defaultConfig();
   return toDto(config);
 }
 
 // Applies a patch and returns the redacted result. Upserts the single row.
 export async function setNotificationSettings(
-  projectId: number,
+  projectId: string,
   patch: NotificationSettingsPatch,
 ): Promise<NotificationSettingsDto> {
   const current = (await readConfig(projectId)) ?? defaultConfig();
@@ -226,7 +226,7 @@ export async function setNotificationSettings(
 // decrypting. Used by the outbound enqueue path to decide which channels are enabled.
 // Cheaper than getNotificationSettings, which decrypts the secret blob. A project that
 // saved nothing gets the defaults, so it delivers through the instance provider.
-export async function readRedactedSettings(projectId: number): Promise<NotificationSettingsDto> {
+export async function readRedactedSettings(projectId: string): Promise<NotificationSettingsDto> {
   const rows = await db
     .select({ redacted: projectNotificationSetting.redacted })
     .from(projectNotificationSetting)
@@ -239,6 +239,6 @@ export async function readRedactedSettings(projectId: number): Promise<Notificat
 
 // The full decrypted config, for the sender that actually delivers a notification.
 // Carries secrets, so it is only called server-side by the delivery sender.
-export async function getDeliveryConfig(projectId: number): Promise<NotificationConfig> {
+export async function getDeliveryConfig(projectId: string): Promise<NotificationConfig> {
   return (await readConfig(projectId)) ?? defaultConfig();
 }

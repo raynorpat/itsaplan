@@ -28,7 +28,7 @@ async function createInternalAgent(asOwner: Api, name: string, username: string)
   return res.data!.agent;
 }
 
-async function createIssue(asOwner: Api, columnId: number, title: string) {
+async function createIssue(asOwner: Api, columnId: string, title: string) {
   const res = await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title });
   return res.data!;
 }
@@ -36,7 +36,7 @@ async function createIssue(asOwner: Api, columnId: number, title: string) {
 async function seedChatThread(
   threadId: string,
   resourceId: string,
-  agent: { id: number; projectId: number },
+  agent: { id: string; projectId: string },
 ) {
   await ensureThread(
     threadId,
@@ -46,7 +46,7 @@ async function seedChatThread(
   );
 }
 
-async function seedIssueThread(agent: { id: number; projectId: number }, issueId: number) {
+async function seedIssueThread(agent: { id: string; projectId: string }, issueId: string) {
   const threadId = `issue:${issueId}:${agent.id}`;
   await ensureThread(
     threadId,
@@ -57,7 +57,7 @@ async function seedIssueThread(agent: { id: number; projectId: number }, issueId
   return threadId;
 }
 
-async function seedScheduleThread(agent: { id: number; projectId: number }, scheduleId: number) {
+async function seedScheduleThread(agent: { id: string; projectId: string }, scheduleId: string) {
   const threadId = `schedule:${scheduleId}`;
   await ensureThread(
     threadId,

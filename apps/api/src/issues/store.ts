@@ -55,28 +55,28 @@ import { enqueueAgentRun } from '../ai-agents/run-queue';
 // Compact custom field value for the work items payload: the scalar value (null for
 // select/multi_select and unset fields) and the selected option ids.
 export interface IssueFieldValueEntry {
-  fieldId: number;
+  fieldId: string;
   value: string | number | boolean | null;
-  optionIds: number[];
+  optionIds: string[];
 }
 
 export interface IssueRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   // Project-scoped sequence number (the "42" in "MKT-42"). Used to address the
   // issue by its human number in URLs (/project/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
-  typeId: number | null;
+  typeId: string | null;
   // The initiative this issue is linked to, expanded to id + title for rendering,
   // or null. Filled by attachInitiatives; mapIssue alone leaves it null.
-  initiative: { id: number; title: string } | null;
+  initiative: { id: string; title: string } | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  columnId: number;
+  columnId: string;
   title: string;
   description: string;
-  priority: string | null;
+  priority: number;
   startDate: string | null;
   dueDate: string | null;
   position: number;
@@ -93,7 +93,7 @@ export interface IssueRow {
   // Unguessable token for the public read-only share link, or null when the issue
   // is not shared. Populated by mapIssue from the row.
   shareToken: string | null;
-  labelIds: number[];
+  labelIds: string[];
   // Custom field values set on this issue, one entry per field that has a scalar
   // value or selected options (unset fields are omitted). Included so the planner
   // UI can filter by custom fields without a per-issue fetch. Only listIssues
@@ -153,7 +153,7 @@ async function attachStatusSince(issues: IssueRow[]): Promise<void> {
       ),
     )
     .groupBy(issueActivity.issueId);
-  const byIssue = new Map<number, string>();
+  const byIssue = new Map<string, string>();
   for (const r of rows)
     if (r.issueId != null && r.lastStatusAt) byIssue.set(r.issueId, iso(new Date(r.lastStatusAt)));
   for (const i of issues) i.statusSince = byIssue.get(i.id) ?? i.statusSince;
@@ -211,18 +211,18 @@ export async function listArchivedIssues(project: ProjectRow): Promise<IssueRow[
 // description (which may embed large data URIs) and no field values, so the payload
 // stays small.
 export interface IssueSearchHit {
-  id: number;
+  id: string;
   sequenceNumber: number;
   identifier: string;
   title: string;
-  columnId: number;
-  typeId: number | null;
-  initiativeId: number | null;
+  columnId: string;
+  typeId: string | null;
+  initiativeId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  priority: string | null;
+  priority: number;
   dueDate: string | null;
-  labelIds: number[];
+  labelIds: string[];
   archived: boolean;
 }
 
@@ -307,10 +307,7 @@ export async function searchIssues(
         ? isNull(issue.delegateUserId)
         : eq(issue.delegateUserId, filters.delegateUserId),
     );
-  if (filters.priority !== undefined)
-    conds.push(
-      filters.priority === null ? isNull(issue.priority) : eq(issue.priority, filters.priority),
-    );
+  if (filters.priority !== undefined) conds.push(eq(issue.priority, filters.priority));
   // labelIds is AND: the issue must carry every supplied label.
   for (const labelId of filters.labelIds ?? []) {
     conds.push(
@@ -381,7 +378,7 @@ export async function searchIssues(
 // The agents' conversation threads for the issue are deleted with it. Archiving is
 // reversible and this is not: a restored issue starts with empty agent memory.
 export async function archiveIssue(
-  id: number,
+  id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
   const [row] = await db
@@ -401,7 +398,7 @@ export async function archiveIssue(
 // Restores an archived issue back onto the board (archived_at -> null). Records a
 // feed entry. Returns the updated issue, or null if it does not exist.
 export async function restoreIssue(
-  id: number,
+  id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
   const [row] = await db
@@ -430,14 +427,14 @@ async function attachInitiatives(issues: IssueRow[]): Promise<void> {
         issues.map((i) => i.id),
       ),
     );
-  const byIssue = new Map<number, { id: number; title: string }>();
+  const byIssue = new Map<string, { id: string; title: string }>();
   for (const r of rows) byIssue.set(r.issueId, { id: r.id, title: r.title });
   for (const i of issues) i.initiative = byIssue.get(i.id) ?? null;
 }
 
 // Loads every issue's label ids and merges them onto the issues in place. Generic
 // so it also enriches the lighter IssueSearchHit rows, which carry id + labelIds.
-async function attachLabels<T extends { id: number; labelIds: number[] }>(
+async function attachLabels<T extends { id: string; labelIds: string[] }>(
   issues: T[],
 ): Promise<void> {
   if (issues.length === 0) return;
@@ -450,7 +447,7 @@ async function attachLabels<T extends { id: number; labelIds: number[] }>(
         issues.map((i) => i.id),
       ),
     );
-  const byIssue = new Map<number, number[]>();
+  const byIssue = new Map<string, string[]>();
   for (const r of rows) {
     let list = byIssue.get(r.issueId);
     if (!list) byIssue.set(r.issueId, (list = []));
@@ -490,8 +487,8 @@ async function attachFieldValues(issues: IssueRow[]): Promise<void> {
 
   // issueId -> fieldId -> entry, built up from both queries then flushed onto
   // each issue. Keyed maps keep the merge O(rows) rather than O(issues*rows).
-  const byIssue = new Map<number, Map<number, IssueFieldValueEntry>>();
-  const entryFor = (issueId: number, fieldId: number): IssueFieldValueEntry => {
+  const byIssue = new Map<string, Map<string, IssueFieldValueEntry>>();
+  const entryFor = (issueId: string, fieldId: string): IssueFieldValueEntry => {
     let fields = byIssue.get(issueId);
     if (!fields) byIssue.set(issueId, (fields = new Map()));
     let entry = fields.get(fieldId);
@@ -512,7 +509,7 @@ async function attachFieldValues(issues: IssueRow[]): Promise<void> {
 // full load does. Used as the "before" state for the change-log diff, which
 // needs only these columns, plus the project id the update's scope checks run
 // against.
-async function loadSnapshot(id: number): Promise<(IssueSnapshot & { projectId: number }) | null> {
+async function loadSnapshot(id: string): Promise<(IssueSnapshot & { projectId: string }) | null> {
   const rows = await db
     .select({
       id: issue.id,
@@ -533,7 +530,7 @@ async function loadSnapshot(id: number): Promise<(IssueSnapshot & { projectId: n
   return rows[0] ?? null;
 }
 
-export async function getIssue(id: number): Promise<IssueRow | null> {
+export async function getIssue(id: string): Promise<IssueRow | null> {
   const rows = await db
     .select({ issue, projectKey: projectTable.key })
     .from(issue)
@@ -551,7 +548,7 @@ export async function getIssue(id: number): Promise<IssueRow | null> {
 // like /project/MKT/issue/42). Returns null if the project has no issue with that
 // number. Archived issues resolve too, so a link to one still opens.
 export async function getIssueBySequence(
-  projectId: number,
+  projectId: string,
   sequenceNumber: number,
 ): Promise<IssueRow | null> {
   const rows = await db
@@ -569,30 +566,30 @@ export async function getIssueBySequence(
 
 // The project an issue belongs to, or null if the issue does not exist. Used by
 // the access check on routes that address an issue by its own id.
-export async function getIssueProjectId(id: number): Promise<number | null> {
+export async function getIssueProjectId(id: string): Promise<string | null> {
   const rows = await db.select({ projectId: issue.projectId }).from(issue).where(eq(issue.id, id));
   return rows[0]?.projectId ?? null;
 }
 
 export interface NewIssueInput {
-  typeId?: number | null;
-  initiativeId?: number | null;
+  typeId?: string | null;
+  initiativeId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
-  columnId: number;
+  columnId: string;
   title: string;
   description?: string;
-  priority?: string | null;
+  priority?: number;
   startDate?: string | null;
   dueDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 // Enforces that assignee holds a project member and delegate holds an agent of the
 // same project. Only checks the fields present in the patch, and only when set to a
 // non-null value (clearing a field is always allowed). Throws 400 otherwise.
 async function assertAssignments(
-  projectId: number,
+  projectId: string,
   patch: { assigneeUserId?: string | null; delegateUserId?: string | null },
 ): Promise<void> {
   if (patch.assigneeUserId) {
@@ -609,8 +606,8 @@ async function assertAssignments(
 // set to a non-null value (clearing the link is always allowed). Throws 400
 // otherwise.
 async function assertInitiative(
-  projectId: number,
-  initiativeId: number | null | undefined,
+  projectId: string,
+  initiativeId: string | null | undefined,
 ): Promise<void> {
   if (initiativeId == null) return;
   if ((await getInitiativeProjectId(initiativeId)) !== projectId)
@@ -620,7 +617,7 @@ async function assertInitiative(
 // Enforces that a column belongs to the issue's project — issue.column_id only
 // requires the column to exist somewhere, so an issue could otherwise sit on
 // another project's board. Throws 400 otherwise.
-async function assertColumn(projectId: number, columnId: number | undefined): Promise<void> {
+async function assertColumn(projectId: string, columnId: string | undefined): Promise<void> {
   if (columnId === undefined) return;
   const rows = await db
     .select({ id: projectColumn.id })
@@ -632,8 +629,8 @@ async function assertColumn(projectId: number, columnId: number | undefined): Pr
 // Enforces that an issue type belongs to the issue's project. Only checks when set
 // to a non-null value (clearing the type is always allowed). Throws 400 otherwise.
 async function assertIssueType(
-  projectId: number,
-  typeId: number | null | undefined,
+  projectId: string,
+  typeId: string | null | undefined,
 ): Promise<void> {
   if (typeId == null) return;
   const rows = await db
@@ -645,7 +642,7 @@ async function assertIssueType(
 
 // Enforces that every label belongs to the issue's project — the issue_label
 // foreign key only requires the label to exist somewhere. Throws 400 otherwise.
-async function assertIssueLabels(projectId: number, labelIds?: number[]): Promise<void> {
+async function assertIssueLabels(projectId: string, labelIds?: string[]): Promise<void> {
   const ids = [...new Set(labelIds ?? [])];
   if (ids.length === 0) return;
   const rows = await db
@@ -692,7 +689,7 @@ export async function createIssue(
         columnId: input.columnId,
         title: input.title,
         description: input.description ?? '',
-        priority: input.priority ?? null,
+        priority: input.priority ?? 0,
         startDate: input.startDate ?? null,
         dueDate: input.dueDate ?? null,
         position: Number(posRow.pos),
@@ -725,21 +722,21 @@ export async function createIssue(
 }
 
 export interface IssuePatch {
-  columnId?: number;
+  columnId?: string;
   position?: number;
-  typeId?: number | null;
-  initiativeId?: number | null;
+  typeId?: string | null;
+  initiativeId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
   description?: string;
-  priority?: string | null;
+  priority?: number;
   startDate?: string | null;
   dueDate?: string | null;
 }
 
 export async function updateIssue(
-  id: number,
+  id: string,
   patch: IssuePatch,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
@@ -807,7 +804,7 @@ async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null):
 // attachments, and activity all go by their ON DELETE CASCADE on issue_id. Returns
 // the deleted attachment rows so the caller can remove their objects from the store.
 // Returns null if the issue did not exist.
-export async function deleteIssue(issueId: number): Promise<AttachmentRow[] | null> {
+export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | null> {
   const result = await db.transaction(async (tx) => {
     const rows = await tx
       .select({ projectId: issue.projectId, seq: issue.sequenceNumber, key: projectTable.key })
@@ -838,9 +835,9 @@ export async function deleteIssue(issueId: number): Promise<AttachmentRow[] | nu
 // added/removed labels to the activity feed. projectId is the issue's project: a
 // label outside it is rejected before anything is written.
 export async function setIssueLabels(
-  projectId: number,
-  issueId: number,
-  labelIds: number[],
+  projectId: string,
+  issueId: string,
+  labelIds: string[],
   actorUserId?: string | null,
   emitEvent = true,
 ): Promise<void> {
@@ -895,7 +892,7 @@ export async function setIssueLabels(
 // The subset of `ids` that belong to this project (active or archived). The bulk
 // routes are project-scoped by their guard; filtering here drops any id the client
 // sent that is not in this project, so a bulk action can never reach across projects.
-async function issuesInProject(projectId: number, ids: number[]): Promise<number[]> {
+async function issuesInProject(projectId: string, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
   const rows = await db
     .select({ id: issue.id })
@@ -906,8 +903,8 @@ async function issuesInProject(projectId: number, ids: number[]): Promise<number
 
 // Applies the same patch to every listed issue. Returns how many were updated.
 export async function bulkUpdateIssues(
-  projectId: number,
-  ids: number[],
+  projectId: string,
+  ids: string[],
   patch: IssuePatch,
   actorUserId?: string | null,
 ): Promise<number> {
@@ -920,9 +917,9 @@ export async function bulkUpdateIssues(
 // labels. An issue that already carries all of them is left untouched. Returns how
 // many issues changed.
 export async function bulkAddLabels(
-  projectId: number,
-  ids: number[],
-  labelIds: number[],
+  projectId: string,
+  ids: string[],
+  labelIds: string[],
   actorUserId?: string | null,
 ): Promise<number> {
   const add = [...new Set(labelIds)];
@@ -934,7 +931,7 @@ export async function bulkAddLabels(
     .select({ issueId: issueLabel.issueId, labelId: issueLabel.labelId })
     .from(issueLabel)
     .where(inArray(issueLabel.issueId, valid));
-  const current = new Map<number, number[]>();
+  const current = new Map<string, string[]>();
   for (const r of rows) {
     let list = current.get(r.issueId);
     if (!list) current.set(r.issueId, (list = []));
@@ -955,8 +952,8 @@ export async function bulkAddLabels(
 // Archives every listed issue. Returns how many were archived (already-archived
 // issues re-stamp to a no-op and still count).
 export async function bulkArchiveIssues(
-  projectId: number,
-  ids: number[],
+  projectId: string,
+  ids: string[],
   actorUserId?: string | null,
 ): Promise<number> {
   const valid = await issuesInProject(projectId, ids);
@@ -967,8 +964,8 @@ export async function bulkArchiveIssues(
 // Deletes every listed issue. Returns the count deleted and their attachment rows
 // so the caller can remove the objects from the store.
 export async function bulkDeleteIssues(
-  projectId: number,
-  ids: number[],
+  projectId: string,
+  ids: string[],
 ): Promise<{ deleted: number; attachments: AttachmentRow[] }> {
   const valid = await issuesInProject(projectId, ids);
   const attachments: AttachmentRow[] = [];
@@ -987,7 +984,7 @@ export async function bulkDeleteIssues(
 // The board's marker: changes when any issue or initiative in the project is
 // created, updated, or deleted. Issue label changes bump updated_at too (see
 // setIssueLabels). Initiative metadata is part of the work-items board payload.
-export async function projectBoardRev(projectId: number): Promise<string> {
+export async function projectBoardRev(projectId: string): Promise<string> {
   const [row] = await db
     .select({
       n: sql<number>`count(*)`,
@@ -1005,12 +1002,12 @@ export async function projectBoardRev(projectId: number): Promise<string> {
 }
 
 // One issue's marker: changes on any edit or new timeline entry (comment or
-// activity), including an agent's reply. max(activity.id) covers the feed and every
-// logged edit; updated_at covers in-place field edits.
-export async function issueRev(issueId: number): Promise<string> {
+// activity), including an agent's reply. The activity count and newest created_at
+// cover the feed and every logged edit; updated_at covers in-place field edits.
+export async function issueRev(issueId: string): Promise<string> {
   const [row] = await db
     .select({
-      a: sql<number | null>`(select max(id) from issue_activity where issue_id = ${issueId})`,
+      a: sql<string>`(select count(*) || '-' || coalesce(max(created_at)::text, '') from issue_activity where issue_id = ${issueId})`,
       u: sql<string>`${issue.updatedAt}::text`,
     })
     .from(issue)
@@ -1021,11 +1018,11 @@ export async function issueRev(issueId: number): Promise<string> {
 // --- Custom field values on an issue ---------------------------------------------
 
 export interface IssueFieldValueRow {
-  fieldId: number;
+  fieldId: string;
   name: string;
   fieldType: CustomFieldType;
   value: string | number | boolean | null;
-  optionIds: number[];
+  optionIds: string[];
 }
 
 function pickScalarValue(row: {
@@ -1044,7 +1041,7 @@ function pickScalarValue(row: {
 // The fields of the issue's project that apply to it (the project-wide ones plus
 // its type's own), each joined with whatever value has been set for it (null if
 // unset).
-export async function getIssueFieldValues(issueId: number): Promise<IssueFieldValueRow[]> {
+export async function getIssueFieldValues(issueId: string): Promise<IssueFieldValueRow[]> {
   const rows = await db
     .select({
       fieldId: customField.id,
@@ -1074,7 +1071,7 @@ export async function getIssueFieldValues(issueId: number): Promise<IssueFieldVa
     .select({ fieldId: issueFieldOption.fieldId, optionId: issueFieldOption.optionId })
     .from(issueFieldOption)
     .where(eq(issueFieldOption.issueId, issueId));
-  const optionsByField = new Map<number, number[]>();
+  const optionsByField = new Map<string, string[]>();
   for (const r of optionRows) {
     let list = optionsByField.get(r.fieldId);
     if (!list) optionsByField.set(r.fieldId, (list = []));
@@ -1107,10 +1104,10 @@ function isHttpUrl(value: string): boolean {
 // For select/multi_select fields, pass optionIds (replaces the full selection); for
 // every other field type, pass value matching the field's type.
 export async function setIssueFieldValue(
-  projectId: number,
-  issueId: number,
-  fieldId: number,
-  input: { value?: string | number | boolean | null; optionIds?: number[] },
+  projectId: string,
+  issueId: string,
+  fieldId: string,
+  input: { value?: string | number | boolean | null; optionIds?: string[] },
   actorUserId?: string | null,
 ): Promise<void> {
   const field = await getCustomFieldById(projectId, fieldId);

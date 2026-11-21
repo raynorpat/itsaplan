@@ -88,7 +88,7 @@ describe('members', () => {
 
   describe('assign role — PATCH /projects/:projectKey/members/:userId', () => {
     // Creates a custom role on MKT and returns its id.
-    async function createRole(owner: Actor, name = 'Editor'): Promise<number> {
+    async function createRole(owner: Actor, name = 'Editor'): Promise<string> {
       const res = await owner.api
         .projects({ projectKey: 'MKT' })
         .roles.post({ name, permissions: {} });

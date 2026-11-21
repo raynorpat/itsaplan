@@ -35,13 +35,11 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
   // Guards for the enable/revoke routes, which address an issue or a view by its
   // own id. Sharing an issue is a work_items edit; sharing a view is a views edit.
   .macro({
-    workItem: entityGuard('work_items', 'Issue not found', (p) =>
-      getIssueProjectId(Number(p.issueId)),
-    ),
+    workItem: entityGuard('work_items', 'Issue not found', (p) => getIssueProjectId(p.issueId)),
     savedView: entityGuard(
       'views',
       'View not found',
-      async (p) => (await getView(Number(p.viewId)))?.projectId ?? null,
+      async (p) => (await getView(p.viewId))?.projectId ?? null,
     ),
   })
 
@@ -55,7 +53,7 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
       return { token };
     },
     {
-      params: t.Object({ issueId: t.Numeric() }),
+      params: t.Object({ issueId: t.String({ format: 'uuid' }) }),
       workItem: 'edit',
       response: {
         200: ShareTokenResponse,
@@ -76,7 +74,7 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
       return noContent();
     },
     {
-      params: t.Object({ issueId: t.Numeric() }),
+      params: t.Object({ issueId: t.String({ format: 'uuid' }) }),
       workItem: 'edit',
       response: {
         204: t.Void(),
@@ -97,7 +95,7 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
       return { token };
     },
     {
-      params: t.Object({ viewId: t.Numeric() }),
+      params: t.Object({ viewId: t.String({ format: 'uuid' }) }),
       savedView: 'edit',
       response: {
         200: ShareTokenResponse,
@@ -118,7 +116,7 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
       return noContent();
     },
     {
-      params: t.Object({ viewId: t.Numeric() }),
+      params: t.Object({ viewId: t.String({ format: 'uuid' }) }),
       savedView: 'edit',
       response: {
         204: t.Void(),
@@ -169,7 +167,10 @@ export const shareRoutes = new Elysia({ name: 'share', detail: { tags: ['Share']
       return bundle;
     },
     {
-      params: t.Object({ token: t.String({ format: 'uuid' }), issueId: t.Numeric() }),
+      params: t.Object({
+        token: t.String({ format: 'uuid' }),
+        issueId: t.String({ format: 'uuid' }),
+      }),
       response: { 200: BundleResponse, 400: ErrorResponse, 404: ErrorResponse },
       detail: { summary: 'Get an issue from a shared view' },
     },

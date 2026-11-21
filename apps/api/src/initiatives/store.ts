@@ -18,8 +18,8 @@ export interface InitiativeProgress {
 }
 
 export interface InitiativeRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   title: string;
   description: string;
   status: string;
@@ -30,15 +30,15 @@ export interface InitiativeRow {
   position: number;
   createdAt: string;
   updatedAt: string;
-  labelIds: number[];
+  labelIds: string[];
   progress: InitiativeProgress;
   health: Health | null;
 }
 
 // Issue counts per initiative, grouped by the linked issues' state type. Empty
 // entries (an initiative with no issues) are simply absent from the map.
-async function countsFor(initiativeIds: number[]): Promise<Map<number, InitiativeProgress>> {
-  const out = new Map<number, InitiativeProgress>();
+async function countsFor(initiativeIds: string[]): Promise<Map<string, InitiativeProgress>> {
+  const out = new Map<string, InitiativeProgress>();
   if (initiativeIds.length === 0) return out;
   const rows = await db
     .select({
@@ -63,8 +63,8 @@ async function countsFor(initiativeIds: number[]): Promise<Map<number, Initiativ
 }
 
 // Label ids per initiative, in one query.
-async function labelsFor(initiativeIds: number[]): Promise<Map<number, number[]>> {
-  const out = new Map<number, number[]>();
+async function labelsFor(initiativeIds: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
   if (initiativeIds.length === 0) return out;
   const rows = await db
     .select({ initiativeId: initiativeLabel.initiativeId, labelId: initiativeLabel.labelId })
@@ -80,7 +80,7 @@ async function labelsFor(initiativeIds: number[]): Promise<Map<number, number[]>
 
 function mapInitiative(
   row: typeof initiative.$inferSelect,
-  labelIds: number[],
+  labelIds: string[],
   progress: InitiativeProgress,
 ): InitiativeRow {
   return {
@@ -147,7 +147,7 @@ function orderExpr(sort: InitiativeSort) {
 }
 
 export async function listInitiatives(
-  projectId: number,
+  projectId: string,
   opts: ListInitiativesOpts = {},
 ): Promise<InitiativeListPage> {
   const conds = [eq(initiative.projectId, projectId)];
@@ -202,7 +202,7 @@ export interface InitiativeStatusCounts {
 
 // Per-status row counts for the whole project, for the list's status tabs. Kept
 // separate from listInitiatives so the tab counts stay correct under paging.
-export async function initiativeStatusCounts(projectId: number): Promise<InitiativeStatusCounts> {
+export async function initiativeStatusCounts(projectId: string): Promise<InitiativeStatusCounts> {
   const rows = await db
     .select({ status: initiative.status, c: sql<number>`count(*)` })
     .from(initiative)
@@ -228,7 +228,7 @@ export async function initiativeStatusCounts(projectId: number): Promise<Initiat
   return out;
 }
 
-export async function getInitiative(id: number): Promise<InitiativeRow | null> {
+export async function getInitiative(id: string): Promise<InitiativeRow | null> {
   const rows = await db.select().from(initiative).where(eq(initiative.id, id));
   if (!rows[0]) return null;
   const [counts, labels] = await Promise.all([countsFor([id]), labelsFor([id])]);
@@ -237,7 +237,7 @@ export async function getInitiative(id: number): Promise<InitiativeRow | null> {
 
 // The project an initiative belongs to, or null if it does not exist. Used by the
 // access check on routes that address an initiative by its own id.
-export async function getInitiativeProjectId(id: number): Promise<number | null> {
+export async function getInitiativeProjectId(id: string): Promise<string | null> {
   const rows = await db
     .select({ projectId: initiative.projectId })
     .from(initiative)
@@ -253,11 +253,11 @@ export interface NewInitiativeInput {
   priority?: string | null;
   startDate?: string | null;
   targetDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 async function assertInitiativeOwner(
-  projectId: number,
+  projectId: string,
   ownerUserId?: string | null,
 ): Promise<void> {
   if (!ownerUserId) return;
@@ -266,7 +266,7 @@ async function assertInitiativeOwner(
   }
 }
 
-async function assertInitiativeLabels(projectId: number, labelIds?: number[]): Promise<void> {
+async function assertInitiativeLabels(projectId: string, labelIds?: string[]): Promise<void> {
   const ids = [...new Set(labelIds ?? [])];
   if (ids.length === 0) return;
   const rows = await db
@@ -279,8 +279,8 @@ async function assertInitiativeLabels(projectId: number, labelIds?: number[]): P
 }
 
 async function assertInitiativeReferences(
-  projectId: number,
-  input: { ownerUserId?: string | null; labelIds?: number[] },
+  projectId: string,
+  input: { ownerUserId?: string | null; labelIds?: string[] },
 ): Promise<void> {
   await Promise.all([
     assertInitiativeOwner(projectId, input.ownerUserId),
@@ -289,7 +289,7 @@ async function assertInitiativeReferences(
 }
 
 export async function createInitiative(
-  projectId: number,
+  projectId: string,
   input: NewInitiativeInput,
   actorUserId?: string | null,
 ): Promise<InitiativeRow> {
@@ -326,7 +326,7 @@ export interface InitiativePatch {
   priority?: string | null;
   startDate?: string | null;
   targetDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 function snapshot(row: typeof initiative.$inferSelect): InitiativeSnapshot {
@@ -346,7 +346,7 @@ function snapshot(row: typeof initiative.$inferSelect): InitiativeSnapshot {
 // project and asserted permission). Returns null if the initiative does not
 // exist, which the route maps to a 404.
 export async function updateInitiative(
-  id: number,
+  id: string,
   patch: InitiativePatch,
   actorUserId?: string | null,
 ): Promise<InitiativeRow | null> {
@@ -377,7 +377,7 @@ export async function updateInitiative(
 
 // Linked issues keep existing (issue.initiative_id is set null by the FK); the
 // initiative's own activity rows and label links cascade.
-export async function deleteInitiative(id: number): Promise<void> {
+export async function deleteInitiative(id: string): Promise<void> {
   await db.delete(initiative).where(eq(initiative.id, id));
 }
 
@@ -385,9 +385,9 @@ export async function deleteInitiative(id: number): Promise<void> {
 // added/removed labels to the activity feed. Bumps updated_at so initiativeRev
 // moves.
 async function setInitiativeLabels(
-  projectId: number,
-  initiativeId: number,
-  labelIds: number[],
+  projectId: string,
+  initiativeId: string,
+  labelIds: string[],
   actorUserId?: string | null,
 ): Promise<void> {
   const beforeRows = await db
@@ -426,12 +426,10 @@ async function setInitiativeLabels(
 // One initiative's change marker: moves on any initiative-level event, any
 // activity of a linked issue, and any in-place edit (updated_at). Clients poll
 // this and refetch the detail/feed only when it changes.
-export async function initiativeRev(id: number): Promise<string> {
+export async function initiativeRev(id: string): Promise<string> {
   const [row] = await db
     .select({
-      a: sql<
-        number | null
-      >`(select max(id) from issue_activity where initiative_id = ${id} or issue_id in (select id from issue where initiative_id = ${id}))`,
+      a: sql<string>`(select count(*) || '-' || coalesce(max(created_at)::text, '') from issue_activity where initiative_id = ${id} or issue_id in (select id from issue where initiative_id = ${id}))`,
       u: sql<string>`${initiative.updatedAt}::text`,
     })
     .from(initiative)

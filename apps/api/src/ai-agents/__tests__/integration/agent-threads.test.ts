@@ -38,7 +38,7 @@ async function createInternalAgent(asOwner: Api, name: string, username: string)
 async function seedThread(
   threadId: string,
   resourceId: string,
-  agent: { id: number; projectId: number },
+  agent: { id: string; projectId: string },
   title: string,
   turns: Array<{ role: 'user' | 'assistant'; text: string }> = [],
 ) {
@@ -125,7 +125,9 @@ describe('agent chat history', () => {
 
   it('404s the thread list for an agent that does not exist', async () => {
     const { asOwner } = await setup();
-    const res = await agents(asOwner)({ agentId: 999999 }).threads.get();
+    const res = await agents(asOwner)({
+      agentId: '00000000-0000-4000-8000-000000000000',
+    }).threads.get();
     expect(res.status).toBe(404);
   });
 

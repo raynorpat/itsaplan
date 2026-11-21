@@ -25,7 +25,7 @@ async function setup() {
 }
 
 // Builds the tool set of a freshly created internal agent, the way the runtime does.
-async function toolsFor(asOwner: Api, tools: string[], roleId?: number) {
+async function toolsFor(asOwner: Api, tools: string[], roleId?: string) {
   const created = await agents(asOwner).post({
     name: 'Triage Bot',
     username: `triage-${tools.length}-${roleId ?? 'default'}`,

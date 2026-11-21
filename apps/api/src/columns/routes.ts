@@ -16,12 +16,12 @@ const stateType = t.Union([
   t.Literal('canceled'),
 ]);
 
-const columnParams = t.Object({ projectKey: t.String(), columnId: t.Numeric() });
+const columnParams = t.Object({ projectKey: t.String(), columnId: t.String({ format: 'uuid' }) });
 
 // A column DTO (ColumnRow from the store).
 const ColumnResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   name: t.String(),
   stateType: t.String(),
   color: t.String(),
@@ -70,7 +70,7 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
       return listColumns(project.id);
     },
     {
-      body: t.Object({ orderedIds: t.Array(t.Integer(), { minItems: 1 }) }),
+      body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
       permission: ['states', 'edit'],
       response: {
         200: t.Array(ColumnResponse),
@@ -130,7 +130,7 @@ export const columnRoutes = new Elysia({ name: 'columns', detail: { tags: ['Colu
     },
     {
       body: t.Union([
-        t.Object({ mode: t.Literal('move'), targetColumnId: t.Integer() }),
+        t.Object({ mode: t.Literal('move'), targetColumnId: t.String({ format: 'uuid' }) }),
         t.Object({ mode: t.Literal('delete') }),
       ]),
       params: columnParams,

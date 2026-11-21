@@ -27,7 +27,7 @@ async function columnByName(client: Api, name: string, projectKey = 'MKT') {
   return cols.find((c) => c.name === name)!;
 }
 
-function createIssue(client: Api, columnId: number, title = 'Task') {
+function createIssue(client: Api, columnId: string, title = 'Task') {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title });
 }
 
@@ -50,7 +50,7 @@ describe('columns', () => {
         stateType: 'started',
         color: '#6b7280',
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const cols = await columnsOf(asOwner);
       expect(cols.map((c) => c.name)).toContain('Review');
@@ -165,7 +165,7 @@ describe('columns', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .columns({ columnId: 999999 })
+        .columns({ columnId: '00000000-0000-4000-8000-000000000000' })
         .patch({ name: 'Nope' });
       expect(res.status).toBe(404);
     });
@@ -285,7 +285,7 @@ describe('columns', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .columns({ columnId: 999999 })
+        .columns({ columnId: '00000000-0000-4000-8000-000000000000' })
         .delete({ mode: 'delete' });
       expect(res.status).toBe(404);
     });

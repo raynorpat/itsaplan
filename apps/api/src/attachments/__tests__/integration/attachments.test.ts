@@ -25,7 +25,7 @@ async function setupIssue() {
 
 function uploadFile(
   client: ReturnType<typeof authedApi>,
-  issueId: number,
+  issueId: string,
   name: string,
   type: string,
   content = 'x',
@@ -93,7 +93,9 @@ describe('attachments', () => {
 
     it('returns 404 for an unknown issue', async () => {
       const { asOwner } = await setupIssue();
-      const res = await asOwner.issues({ issueId: 999999 }).attachments.get();
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .attachments.get();
       expect(res.status).toBe(404);
     });
 

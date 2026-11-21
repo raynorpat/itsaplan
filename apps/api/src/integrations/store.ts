@@ -17,8 +17,8 @@ import { credentialSchemaFor } from './catalog';
 // read by the runtime through getCredentialSecret, never returned over HTTP.
 
 export interface CredentialRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   integrationKey: string;
   label: string | null;
   redacted: Record<string, unknown>;
@@ -35,8 +35,8 @@ const dtoColumns = {
 };
 
 function mapRow(row: {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   integrationKey: string;
   label: string | null;
   redacted: unknown;
@@ -66,7 +66,7 @@ function coerce(fields: ConfigField[], input: unknown): ToolConfig {
   }
 }
 
-export async function listCredentials(projectId: number): Promise<CredentialRow[]> {
+export async function listCredentials(projectId: string): Promise<CredentialRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(integrationCredential)
@@ -76,8 +76,8 @@ export async function listCredentials(projectId: number): Promise<CredentialRow[
 }
 
 export async function getCredentialById(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
 ): Promise<CredentialRow | null> {
   const rows = await db
     .select(dtoColumns)
@@ -86,7 +86,7 @@ export async function getCredentialById(
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-async function decrypt(id: number, projectId: number): Promise<ToolConfig | null> {
+async function decrypt(id: string, projectId: string): Promise<ToolConfig | null> {
   const rows = await db
     .select({
       ciphertext: integrationCredential.ciphertext,
@@ -107,7 +107,7 @@ export interface NewCredentialInput {
 }
 
 export async function createCredential(
-  projectId: number,
+  projectId: string,
   input: NewCredentialInput,
 ): Promise<CredentialRow> {
   const schema = credentialSchemaFor(input.integrationKey);
@@ -136,8 +136,8 @@ export interface CredentialPatch {
 }
 
 export async function updateCredential(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
   patch: CredentialPatch,
 ): Promise<CredentialRow | null> {
   const existing = await getCredentialById(id, projectId);
@@ -169,7 +169,7 @@ export async function updateCredential(
   return getCredentialById(id, projectId);
 }
 
-export async function deleteCredential(id: number, projectId: number): Promise<boolean> {
+export async function deleteCredential(id: string, projectId: string): Promise<boolean> {
   const existing = await getCredentialById(id, projectId);
   if (!existing) return false;
   await db
@@ -181,8 +181,8 @@ export async function deleteCredential(id: number, projectId: number): Promise<b
 // The decrypted credential for the runtime: its integration key and config. Not
 // exposed over HTTP. Returns null when the credential does not exist in the project.
 export async function getCredentialSecret(
-  id: number,
-  projectId: number,
+  id: string,
+  projectId: string,
 ): Promise<{ integrationKey: string; config: ToolConfig } | null> {
   const existing = await getCredentialById(id, projectId);
   if (!existing) return null;

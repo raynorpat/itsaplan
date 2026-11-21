@@ -150,11 +150,11 @@ const InstanceUserDetailResponse = t.Composite([
   t.Object({
     projects: t.Array(
       t.Object({
-        projectId: t.Number(),
+        projectId: t.String({ format: 'uuid' }),
         projectKey: t.String(),
         projectName: t.String(),
         role: t.UnionEnum(['owner', 'member']),
-        roleId: t.Nullable(t.Number()),
+        roleId: t.Nullable(t.String({ format: 'uuid' })),
         roleName: t.Nullable(t.String()),
         permissions: PermissionMatrix,
         ownerCount: t.Number(),
@@ -167,7 +167,7 @@ const InstanceUserDetailResponse = t.Composite([
 // One project in the instance project directory, with what it holds counted across
 // its dependent tables.
 const InstanceProjectResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   key: t.String(),
   name: t.String(),
   description: t.String(),
@@ -191,13 +191,13 @@ const InstanceProjectDetailResponse = t.Composite([
   t.Object({
     members: t.Array(
       t.Object({
-        userId: t.String(),
+        userId: t.String({ format: 'uuid' }),
         name: t.String(),
         email: t.String(),
         image: t.Nullable(t.String()),
         isAgent: t.Boolean(),
         role: t.UnionEnum(['owner', 'member']),
-        roleId: t.Nullable(t.Number()),
+        roleId: t.Nullable(t.String({ format: 'uuid' })),
         roleName: t.Nullable(t.String()),
         permissions: PermissionMatrix,
         joinedAt: t.String(),
@@ -470,7 +470,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       return found;
     },
     {
-      params: t.Object({ userId: t.String() }),
+      params: t.Object({ userId: t.String({ format: 'uuid' }) }),
       response: {
         200: InstanceUserDetailResponse,
         401: ErrorResponse,
@@ -493,7 +493,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       return updated;
     },
     {
-      params: t.Object({ userId: t.String() }),
+      params: t.Object({ userId: t.String({ format: 'uuid' }) }),
       response: {
         200: InstanceUserDetailResponse,
         401: ErrorResponse,
@@ -538,7 +538,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       return noContent();
     },
     {
-      params: t.Object({ userId: t.String() }),
+      params: t.Object({ userId: t.String({ format: 'uuid' }) }),
       query: t.Object({
         // Delete the projects this user owns alone along with the account. Every
         // issue, comment and attachment in them goes too.
@@ -595,7 +595,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       return found;
     },
     {
-      params: t.Object({ projectId: t.Numeric() }),
+      params: t.Object({ projectId: t.String({ format: 'uuid' }) }),
       response: {
         200: InstanceProjectDetailResponse,
         400: ErrorResponse,

@@ -7,8 +7,8 @@ import { iso, num } from '../shared/lib';
 // without inspecting its shape. position orders the tabs.
 
 export interface DashboardRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string | null;
   layout: unknown;
@@ -28,7 +28,7 @@ function mapDashboard(row: typeof projectDashboard.$inferSelect): DashboardRow {
   };
 }
 
-export async function listDashboards(projectId: number): Promise<DashboardRow[]> {
+export async function listDashboards(projectId: string): Promise<DashboardRow[]> {
   const rows = await db
     .select()
     .from(projectDashboard)
@@ -40,7 +40,7 @@ export async function listDashboards(projectId: number): Promise<DashboardRow[]>
 // New dashboards go to the end of the tab row (max position + 1). layout is stored
 // verbatim in the jsonb column.
 export async function createDashboard(input: {
-  projectId: number;
+  projectId: string;
   name: string;
   icon?: string | null;
   layout?: unknown;
@@ -62,7 +62,7 @@ export async function createDashboard(input: {
   return mapDashboard(row);
 }
 
-export async function getDashboard(id: number): Promise<DashboardRow | null> {
+export async function getDashboard(id: string): Promise<DashboardRow | null> {
   const rows = await db.select().from(projectDashboard).where(eq(projectDashboard.id, id));
   return rows[0] ? mapDashboard(rows[0]) : null;
 }
@@ -70,7 +70,7 @@ export async function getDashboard(id: number): Promise<DashboardRow | null> {
 // Updates only the provided fields. layout is replaced wholesale (not merged),
 // since the UI always sends the full blob.
 export async function updateDashboard(
-  id: number,
+  id: string,
   patch: { name?: string; icon?: string | null; layout?: unknown },
 ): Promise<DashboardRow | null> {
   const set: Partial<typeof projectDashboard.$inferInsert> = {};
@@ -86,15 +86,15 @@ export async function updateDashboard(
   return row ? mapDashboard(row) : null;
 }
 
-export async function deleteDashboard(id: number): Promise<void> {
+export async function deleteDashboard(id: string): Promise<void> {
   await db.delete(projectDashboard).where(eq(projectDashboard.id, id));
 }
 
 // Sets each dashboard's position to its index in orderedIds, in one transaction,
 // so the tab order the UI sends is stored exactly. Ids not on the project are ignored.
 export async function reorderDashboards(
-  projectId: number,
-  orderedIds: number[],
+  projectId: string,
+  orderedIds: string[],
 ): Promise<DashboardRow[]> {
   await db.transaction(async (tx) => {
     for (const [position, id] of orderedIds.entries()) {

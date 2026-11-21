@@ -9,14 +9,20 @@ export const issueQuerySchema = z.object({
     .min(1)
     .optional()
     .describe('Case-insensitive text search in the issue identifier, title, and description.'),
-  columnId: z.number().optional().describe('Exact workflow state (column) id from get_project.'),
+  columnId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Exact workflow state (column) id from get_project.'),
   typeId: z
-    .number()
+    .string()
+    .uuid()
     .nullable()
     .optional()
     .describe('Exact issue type id from get_project, or null for issues without a type.'),
   initiativeId: z
-    .number()
+    .string()
+    .uuid()
     .nullable()
     .optional()
     .describe(
@@ -33,12 +39,14 @@ export const issueQuerySchema = z.object({
     .optional()
     .describe('Exact agent user id from get_project, or null for issues without a delegate.'),
   priority: z
-    .string()
-    .nullable()
+    .number()
+    .int()
+    .min(0)
+    .max(4)
     .optional()
-    .describe('Exact priority value, or null for issues without a priority.'),
+    .describe('Exact priority: 0 none, 1 urgent, 2 high, 3 medium, 4 low.'),
   labelIds: z
-    .array(z.number())
+    .array(z.string().uuid())
     .min(1)
     .optional()
     .describe('Label ids from get_project. An issue must contain every supplied label.'),

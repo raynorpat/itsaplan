@@ -15,10 +15,10 @@ import {
   updateAgentSchedule,
 } from './store';
 
-const params = t.Object({ projectKey: t.String(), scheduleId: t.Numeric() });
+const params = t.Object({ projectKey: t.String(), scheduleId: t.String({ format: 'uuid' }) });
 const status = t.UnionEnum(['active', 'paused']);
 const scheduleBody = t.Object({
-  agentId: t.Number(),
+  agentId: t.String({ format: 'uuid' }),
   name: t.String({ minLength: 1, maxLength: 120 }),
   prompt: t.String({ minLength: 1, maxLength: 20_000 }),
   cron: t.String({ minLength: 1, maxLength: 120 }),

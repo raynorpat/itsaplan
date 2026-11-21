@@ -3,7 +3,7 @@ import { signPayload } from './signature';
 export interface DeliverInput {
   url: string;
   secret: string;
-  deliveryId: number;
+  deliveryId: string;
   eventId: string;
   eventType: string;
   body: string;

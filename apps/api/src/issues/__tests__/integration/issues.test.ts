@@ -12,8 +12,8 @@ import { resetDb } from '../../../__tests__/helpers/db';
 
 interface Setup {
   asOwner: Api;
-  columnId: number;
-  columnIds: number[];
+  columnId: string;
+  columnIds: string[];
 }
 
 // A fresh project plus the ids of its seeded columns. columnIds[0] is used as the
@@ -27,7 +27,7 @@ async function setupProject(): Promise<Setup> {
   return { asOwner, columnId: columnIds[0], columnIds };
 }
 
-function createIssue(client: Api, columnId: number, patch: Record<string, unknown> = {}) {
+function createIssue(client: Api, columnId: string, patch: Record<string, unknown> = {}) {
   return client.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'Task', ...patch });
 }
 
@@ -73,7 +73,7 @@ describe('issues', () => {
         labelIds: [],
       });
       expect(created.data?.identifier).toMatch(/^MKT-\d+$/);
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
       expect(typeof created.data?.position).toBe('number');
 
       const list = await issuesOf(asOwner);
@@ -95,17 +95,29 @@ describe('issues', () => {
       expect(onBoard?.initiative).toEqual({ id: initiative.id, title: 'Q3 Launch' });
     });
 
+    it('defaults priority to 0 (no priority)', async () => {
+      const { asOwner, columnId } = await setupProject();
+      const created = await createIssue(asOwner, columnId, { title: 'Plain' });
+      expect(created.data).toMatchObject({ priority: 0 });
+    });
+
+    it('rejects a priority outside 0..4', async () => {
+      const { asOwner, columnId } = await setupProject();
+      expect((await createIssue(asOwner, columnId, { priority: 5 })).status).toBe(400);
+      expect((await createIssue(asOwner, columnId, { priority: -1 })).status).toBe(400);
+    });
+
     it('stores the optional fields when provided', async () => {
       const { asOwner, columnId } = await setupProject();
       const created = await createIssue(asOwner, columnId, {
         title: 'With details',
         description: 'the body',
-        priority: 'high',
+        priority: 2,
         startDate: '2026-01-01',
         dueDate: '2026-02-01',
       });
       expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ description: 'the body', priority: 'high' });
+      expect(created.data).toMatchObject({ description: 'the body', priority: 2 });
       // `date` columns come back as 'YYYY-MM-DD', which Eden Treaty revives into a Date.
       expect(new Date(created.data!.startDate!).getTime()).toBe(new Date('2026-01-01').getTime());
       expect(new Date(created.data!.dueDate!).getTime()).toBe(new Date('2026-02-01').getTime());
@@ -178,7 +190,7 @@ describe('issues', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .issues.post({ title: 'No column' } as unknown as { columnId: number; title: string });
+        .issues.post({ title: 'No column' } as unknown as { columnId: string; title: string });
       expect(res.status).toBe(400);
     });
 
@@ -209,13 +221,13 @@ describe('issues', () => {
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).get();
+      const res = await asOwner.issues({ issueId: '00000000-0000-4000-8000-000000000000' }).get();
       expect(res.status).toBe(404);
     });
 
-    it('rejects a non-numeric issue id', async () => {
+    it('rejects an issue id that is not a UUID', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 'abc' as unknown as number }).get();
+      const res = await asOwner.issues({ issueId: 'abc' }).get();
       expect(res.status).toBe(400);
     });
   });
@@ -348,16 +360,17 @@ describe('issues', () => {
 
     it('changes only the given fields', async () => {
       const { asOwner, columnId } = await setupProject();
-      const issue = (await createIssue(asOwner, columnId, { title: 'Keep', priority: 'low' }))
-        .data!;
+      const issue = (await createIssue(asOwner, columnId, { title: 'Keep', priority: 4 })).data!;
 
-      const patched = await asOwner.issues({ issueId: issue.id }).patch({ priority: 'high' });
-      expect(patched.data).toMatchObject({ title: 'Keep', priority: 'high' });
+      const patched = await asOwner.issues({ issueId: issue.id }).patch({ priority: 2 });
+      expect(patched.data).toMatchObject({ title: 'Keep', priority: 2 });
     });
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).patch({ title: 'Nope' });
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .patch({ title: 'Nope' });
       expect(res.status).toBe(404);
     });
 
@@ -393,7 +406,9 @@ describe('issues', () => {
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).delete();
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .delete();
       expect(res.status).toBe(404);
     });
   });
@@ -443,7 +458,9 @@ describe('issues', () => {
 
     it('returns 404 archiving a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).archive.post();
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .archive.post();
       expect(res.status).toBe(404);
     });
 
@@ -459,7 +476,7 @@ describe('issues', () => {
   // PUT /issues/:issueId/fields/:fieldId sets one custom field's value. Read back
   // through GET /issues/:issueId (the `fields` array).
   describe('custom field values', () => {
-    async function fieldValue(client: Api, issueId: number, fieldId: number) {
+    async function fieldValue(client: Api, issueId: string, fieldId: string) {
       const res = await client.issues({ issueId }).get();
       return res.data?.fields.find((f) => f.fieldId === fieldId);
     }
@@ -748,7 +765,9 @@ describe('issues', () => {
 
     it('returns 404 for a missing issue', async () => {
       const { asOwner } = await setupProject();
-      const res = await asOwner.issues({ issueId: 999999 }).rev.get();
+      const res = await asOwner
+        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
+        .rev.get();
       expect(res.status).toBe(404);
     });
 
@@ -955,13 +974,13 @@ describe('issues', () => {
       const { asOwner, columnId } = await setupProject();
       const one = (await createIssue(asOwner, columnId, { title: 'Real one' })).data!;
 
-      // A tool-calling model tends to fill every optional field: 0 for numeric ids,
-      // "" for strings. These must mean "any", not a filter on id 0 / empty priority.
+      // A tool-calling model tends to fill every optional field with a placeholder.
+      // An id that is not a UUID must mean "any", not a filter.
       const res = await list(asOwner, {
-        columnId: 0,
-        typeId: 0,
-        initiativeId: 0,
-        priority: '',
+        columnId: '',
+        typeId: '0',
+        initiativeId: '',
+        assigneeUserId: '',
       });
       expect(res.status).toBe(200);
       expect(res.data!.map((i) => i.id)).toContain(one.id);
@@ -1098,7 +1117,7 @@ describe('issues', () => {
 
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        .issues.bulk.patch({ ids: [], patch: { priority: 'high' } });
+        .issues.bulk.patch({ ids: [], patch: { priority: 2 } });
       expect(res.status).toBe(400);
     });
 
@@ -1111,7 +1130,7 @@ describe('issues', () => {
         (
           await outsider
             .projects({ projectKey: 'MKT' })
-            .issues.bulk.patch({ ids: [issue.id], patch: { priority: 'high' } })
+            .issues.bulk.patch({ ids: [issue.id], patch: { priority: 2 } })
         ).status,
       ).toBe(403);
       expect(

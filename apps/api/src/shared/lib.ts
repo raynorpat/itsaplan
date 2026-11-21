@@ -16,6 +16,9 @@ export class HttpError extends Error {
 // A timestamptz column comes back from Drizzle as a JS Date; callers return it
 // as an ISO string. `date` columns come back as raw 'YYYY-MM-DD' strings
 // (Drizzle's default mode for date), so no timezone is ever applied to them.
+// Matches a canonical UUID string, the format of every entity id.
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const iso = (value: Date): string => value.toISOString();
 
 // numeric columns come back as strings; coerce to a JS number.

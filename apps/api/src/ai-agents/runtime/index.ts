@@ -126,8 +126,8 @@ async function buildAgent(row: AiAgentRow, contextPreamble: string): Promise<Age
 // and the caller (callerUserId) owns it. The thread id used is returned so the
 // caller can continue the conversation; it is null when memory is off.
 export async function runAgent(
-  agentId: number,
-  projectId: number,
+  agentId: string,
+  projectId: string,
   prompt: string,
   opts: RunOpts,
 ): Promise<{ text: string; threadId: string | null }> {
@@ -142,8 +142,8 @@ export async function runAgent(
 // failure raised while streaming is yielded as an `error` event rather than thrown,
 // so a caller consuming the stream sees it inline and the stream still ends.
 export async function* streamAgent(
-  agentId: number,
-  projectId: number,
+  agentId: string,
+  projectId: string,
   prompt: string,
   opts: RunOpts,
 ): AsyncGenerator<AgentRunEvent> {
@@ -184,8 +184,8 @@ export async function* streamAgent(
 // options (tool-use step bound and, when memory is on, the conversation thread the
 // caller owns). Shared by runAgent and streamAgent.
 async function prepareRun(
-  agentId: number,
-  projectId: number,
+  agentId: string,
+  projectId: string,
   prompt: string,
   opts: RunOpts,
 ): Promise<{ agent: Agent; options: RunOptions; threadId: string | null }> {
@@ -234,8 +234,8 @@ async function prepareRun(
 export type RunOpts = {
   callerUserId: string;
   threadId?: string | null;
-  issueId?: number | null;
-  scheduleId?: number | null;
+  issueId?: string | null;
+  scheduleId?: string | null;
   contextPreamble?: string;
 };
 

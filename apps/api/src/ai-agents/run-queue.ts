@@ -1,6 +1,7 @@
 import { db, agentRun, issue, project } from '@repo/db';
-import { and, desc, eq, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
+import { afterCursor, encodeCursor } from '../shared/keyset';
 import { intEnv } from './helpers/env';
 import { renderMentionsPlain } from './mentions';
 
@@ -19,9 +20,9 @@ export const agentRunConfig = {
 };
 
 export async function enqueueAgentRun(input: {
-  agentId: number;
-  issueId: number;
-  sourceActivityId: number | null;
+  agentId: string;
+  issueId: string;
+  sourceActivityId: string | null;
   prompt: string;
   trigger?: 'mention' | 'delegation';
 }): Promise<void> {
@@ -35,17 +36,17 @@ export async function enqueueAgentRun(input: {
 }
 
 export interface ClaimedRun {
-  id: number;
-  agentId: number;
-  issueId: number;
+  id: string;
+  agentId: string;
+  issueId: string;
   prompt: string;
   attempts: number;
   // The source comment id when the run was triggered by a mention, null for a
   // delegation. The poller frames the task differently for each.
-  sourceActivityId: number | null;
+  sourceActivityId: string | null;
   // The agent's project and bot user, read inline so the poller can run it without a
   // second query.
-  projectId: number;
+  projectId: string;
   agentUserId: string;
   // The issue's human-readable key ("MKT-42") and title, read inline so the poller can
   // frame the run with them. Null if the issue was deleted after enqueue.
@@ -101,11 +102,11 @@ export async function claimDueRuns(): Promise<ClaimedRun[]> {
   return rows as unknown as ClaimedRun[];
 }
 
-export async function markRunSuccess(id: number): Promise<void> {
+export async function markRunSuccess(id: string): Promise<void> {
   await db.update(agentRun).set({ status: 'success', lastError: null }).where(eq(agentRun.id, id));
 }
 
-export async function scheduleRunRetry(id: number, delayMs: number, error: string): Promise<void> {
+export async function scheduleRunRetry(id: string, delayMs: number, error: string): Promise<void> {
   const delaySeconds = Math.max(1, Math.ceil(delayMs / 1000));
   await db
     .update(agentRun)
@@ -117,7 +118,7 @@ export async function scheduleRunRetry(id: number, delayMs: number, error: strin
     .where(eq(agentRun.id, id));
 }
 
-export async function markRunFailed(id: number, error: string): Promise<void> {
+export async function markRunFailed(id: string, error: string): Promise<void> {
   await db
     .update(agentRun)
     .set({ status: 'failed', lastError: error.slice(0, 500) })
@@ -129,10 +130,10 @@ export async function markRunFailed(id: number, error: string): Promise<void> {
 // its human key and title. `prompt` is the enqueued task with mention tokens rendered
 // to @Name for display.
 export interface AgentRunRow {
-  id: number;
+  id: string;
   status: string;
   trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
-  issueId: number | null;
+  issueId: string | null;
   issueIdentifier: string | null;
   issueTitle: string | null;
   prompt: string;
@@ -144,16 +145,16 @@ export interface AgentRunRow {
 
 export interface AgentRunPage {
   items: AgentRunRow[];
-  // The id to pass as `before` to load the next page, or null when at the end.
-  nextCursor: number | null;
+  // The cursor to pass as `before` to load the next page, or null when at the end.
+  nextCursor: string | null;
 }
 
-// One page of an agent's runs, newest first. Keyset pagination by id (runs are
-// id-monotonic): pass the previous page's nextCursor as `before`. limit is clamped to
-// 1..50.
+// One page of an agent's runs, newest first. Keyset pagination on (created_at, id)
+// (see shared/keyset.ts): pass the previous page's nextCursor as `before`. limit is
+// clamped to 1..50.
 export async function listAgentRuns(
-  agentId: number,
-  opts: { before?: number; limit?: number } = {},
+  agentId: string,
+  opts: { before?: string; limit?: number } = {},
 ): Promise<AgentRunPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 50);
   const rows = await db
@@ -168,6 +169,7 @@ export async function listAgentRuns(
       lastError: agentRun.lastError,
       nextAttemptAt: agentRun.nextAttemptAt,
       createdAt: agentRun.createdAt,
+      cursorTs: sql<string>`${agentRun.createdAt}::text`,
       issueSeq: issue.sequenceNumber,
       issueTitle: issue.title,
       projectKey: project.key,
@@ -176,9 +178,9 @@ export async function listAgentRuns(
     .leftJoin(issue, eq(issue.id, agentRun.issueId))
     .leftJoin(project, eq(project.id, issue.projectId))
     .where(
-      and(eq(agentRun.agentId, agentId), opts.before ? lt(agentRun.id, opts.before) : undefined),
+      and(eq(agentRun.agentId, agentId), afterCursor(agentRun.createdAt, agentRun.id, opts.before)),
     )
-    .orderBy(desc(agentRun.id))
+    .orderBy(desc(agentRun.createdAt), desc(agentRun.id))
     .limit(limit + 1);
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
@@ -196,6 +198,6 @@ export async function listAgentRuns(
       nextAttemptAt: iso(r.nextAttemptAt),
       createdAt: iso(r.createdAt),
     })),
-    nextCursor: hasMore ? page[page.length - 1].id : null,
+    nextCursor: hasMore ? encodeCursor(page[page.length - 1]) : null,
   };
 }

@@ -44,7 +44,7 @@ describe('issue-types', () => {
         // first user-created type lands at position 1.
         position: 1,
       });
-      expect(typeof created.data?.id).toBe('number');
+      expect(typeof created.data?.id).toBe('string');
 
       const types = await typesOf(asOwner);
       expect(types.map((t) => t.name)).toEqual(['Task', 'Bug']);
@@ -154,7 +154,7 @@ describe('issue-types', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        ['issue-types']({ typeId: 999999 })
+        ['issue-types']({ typeId: '00000000-0000-4000-8000-000000000000' })
         .patch({ name: 'Nope' });
       expect(res.status).toBe(404);
     });
@@ -208,7 +208,7 @@ describe('issue-types', () => {
       const { asOwner } = await setupProject();
       const res = await asOwner
         .projects({ projectKey: 'MKT' })
-        ['issue-types']({ typeId: 999999 })
+        ['issue-types']({ typeId: '00000000-0000-4000-8000-000000000000' })
         .delete();
       expect(res.status).toBe(204);
     });

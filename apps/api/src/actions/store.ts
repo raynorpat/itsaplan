@@ -8,8 +8,8 @@ import { iso, num } from '../shared/lib';
 // stores and returns them without inspecting their shape.
 
 export interface ActionRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string;
   condition: unknown;
@@ -31,7 +31,7 @@ function mapAction(row: typeof projectAction.$inferSelect): ActionRow {
   };
 }
 
-export async function listActions(projectId: number): Promise<ActionRow[]> {
+export async function listActions(projectId: string): Promise<ActionRow[]> {
   const rows = await db
     .select()
     .from(projectAction)
@@ -43,7 +43,7 @@ export async function listActions(projectId: number): Promise<ActionRow[]> {
 // New actions go to the end of the list (max position + 1). condition/effect are
 // stored verbatim in the jsonb columns.
 export async function createAction(input: {
-  projectId: number;
+  projectId: string;
   name: string;
   icon?: string;
   condition?: unknown;
@@ -67,7 +67,7 @@ export async function createAction(input: {
   return mapAction(row);
 }
 
-export async function getAction(id: number): Promise<ActionRow | null> {
+export async function getAction(id: string): Promise<ActionRow | null> {
   const rows = await db.select().from(projectAction).where(eq(projectAction.id, id));
   return rows[0] ? mapAction(rows[0]) : null;
 }
@@ -75,7 +75,7 @@ export async function getAction(id: number): Promise<ActionRow | null> {
 // Updates only the provided fields. condition/effect are replaced wholesale (not
 // merged), since the UI always sends the full blob.
 export async function updateAction(
-  id: number,
+  id: string,
   patch: { name?: string; icon?: string; condition?: unknown; effect?: unknown },
 ): Promise<ActionRow | null> {
   const set: Partial<typeof projectAction.$inferInsert> = {};
@@ -88,15 +88,15 @@ export async function updateAction(
   return row ? mapAction(row) : null;
 }
 
-export async function deleteAction(id: number): Promise<void> {
+export async function deleteAction(id: string): Promise<void> {
   await db.delete(projectAction).where(eq(projectAction.id, id));
 }
 
 // Sets each action's position to its index in orderedIds, in one transaction, so
 // the order the UI sends is stored exactly. Ids not on the project are ignored.
 export async function reorderActions(
-  projectId: number,
-  orderedIds: number[],
+  projectId: string,
+  orderedIds: string[],
 ): Promise<ActionRow[]> {
   await db.transaction(async (tx) => {
     for (const [position, id] of orderedIds.entries()) {

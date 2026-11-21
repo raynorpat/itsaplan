@@ -26,28 +26,28 @@ const NOTIFICATION_TYPES: NotificationType[] = [
 ];
 
 const NotificationResponse = t.Object({
-  id: t.Number(),
+  id: t.String({ format: 'uuid' }),
   type: t.String(),
-  actorUserId: t.Nullable(t.String()),
+  actorUserId: t.Nullable(t.String({ format: 'uuid' })),
   actorName: t.Nullable(t.String()),
   readAt: t.Nullable(t.String()),
   snoozedUntil: t.Nullable(t.String()),
   createdAt: t.String(),
-  issueId: t.Number(),
+  issueId: t.String({ format: 'uuid' }),
   issueSeq: t.Number(),
   issueTitle: t.String(),
   issueStateType: t.String(),
-  projectId: t.Number(),
+  projectId: t.String({ format: 'uuid' }),
   projectKey: t.String(),
   projectName: t.String(),
 });
 
 const NotificationPageResponse = t.Object({
   items: t.Array(NotificationResponse),
-  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.Number() })),
+  nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.String({ format: 'uuid' }) })),
 });
 
-const idParams = t.Object({ id: t.Numeric() });
+const idParams = t.Object({ id: t.String({ format: 'uuid' }) });
 
 // Inbox: the session user's own notifications across every project they are a
 // member of. Every route is scoped to that user (no project permission needed to
@@ -80,7 +80,7 @@ export const notificationRoutes = new Elysia({
         if (types.length) filters.types = types;
       }
       if (query.from) filters.fromUserId = query.from;
-      if (query.projectId) filters.projectId = Number(query.projectId);
+      if (query.projectId) filters.projectId = query.projectId;
       filters.includeRead = query.includeRead !== 'false';
       filters.includeSnoozed = query.includeSnoozed === 'true';
       return listNotifications(userId, { before, limit, filters });
@@ -110,7 +110,7 @@ export const notificationRoutes = new Elysia({
     '/notifications/rev',
     async ({ user, query }) => {
       const userId = requireUser(user).id;
-      const projectId = query.projectId ? Number(query.projectId) : undefined;
+      const projectId = query.projectId ? query.projectId : undefined;
       const [rev, unread] = await Promise.all([
         notificationsRev(userId, projectId),
         unreadCount(userId, projectId),
@@ -134,7 +134,7 @@ export const notificationRoutes = new Elysia({
       return { count };
     },
     {
-      body: t.Optional(t.Object({ projectId: t.Optional(t.Number()) })),
+      body: t.Optional(t.Object({ projectId: t.Optional(t.String({ format: 'uuid' })) })),
       response: { 200: t.Object({ count: t.Number() }), 401: ErrorResponse },
       detail: { summary: 'Mark all notifications read' },
     },
@@ -145,7 +145,7 @@ export const notificationRoutes = new Elysia({
     async ({ user, query }) => {
       const userId = requireUser(user).id;
       const scope = (query.scope ?? 'read') as DeleteScope;
-      const projectId = query.projectId ? Number(query.projectId) : undefined;
+      const projectId = query.projectId ? query.projectId : undefined;
       const count = await deleteNotifications(userId, scope, projectId);
       return { count };
     },

@@ -8,7 +8,7 @@ import { and, eq, sql } from 'drizzle-orm';
 // project. Typed accessors per key live in the feature that owns the key (e.g.
 // auto-archive in projects/store.ts).
 
-export async function getProjectSetting<T>(projectId: number, key: string): Promise<T | null> {
+export async function getProjectSetting<T>(projectId: string, key: string): Promise<T | null> {
   const rows = await db
     .select({ value: projectSetting.value })
     .from(projectSetting)
@@ -17,7 +17,7 @@ export async function getProjectSetting<T>(projectId: number, key: string): Prom
 }
 
 export async function setProjectSetting(
-  projectId: number,
+  projectId: string,
   key: string,
   value: unknown,
 ): Promise<void> {

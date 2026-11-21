@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { db, webhook, webhookDelivery } from '@repo/db';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
+import { afterCursor, encodeCursor } from '../shared/keyset';
 
 // Outgoing webhook subscriptions on a project. A subscription targets a `url`,
 // carries a per-subscription `secret` used to sign delivered payloads, and lists
@@ -26,8 +27,8 @@ export const WEBHOOK_EVENT_TYPES = [
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 export interface WebhookRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   url: string;
   secret: string;
   events: WebhookEventType[];
@@ -53,7 +54,7 @@ function generateSecret(): string {
   return `whsec_${randomBytes(24).toString('hex')}`;
 }
 
-export async function listWebhooks(projectId: number): Promise<WebhookRow[]> {
+export async function listWebhooks(projectId: string): Promise<WebhookRow[]> {
   const rows = await db
     .select()
     .from(webhook)
@@ -63,7 +64,7 @@ export async function listWebhooks(projectId: number): Promise<WebhookRow[]> {
 }
 
 export async function createWebhook(input: {
-  projectId: number;
+  projectId: string;
   url: string;
   events: WebhookEventType[];
   isActive?: boolean;
@@ -81,14 +82,14 @@ export async function createWebhook(input: {
   return mapWebhook(row);
 }
 
-export async function getWebhook(id: number): Promise<WebhookRow | null> {
+export async function getWebhook(id: string): Promise<WebhookRow | null> {
   const rows = await db.select().from(webhook).where(eq(webhook.id, id));
   return rows[0] ? mapWebhook(rows[0]) : null;
 }
 
 // Updates only the provided fields. The secret is not user-editable here.
 export async function updateWebhook(
-  id: number,
+  id: string,
   patch: { url?: string; events?: WebhookEventType[]; isActive?: boolean },
 ): Promise<WebhookRow | null> {
   const set: Partial<typeof webhook.$inferInsert> = {};
@@ -100,14 +101,14 @@ export async function updateWebhook(
   return row ? mapWebhook(row) : null;
 }
 
-export async function deleteWebhook(id: number): Promise<void> {
+export async function deleteWebhook(id: string): Promise<void> {
   await db.delete(webhook).where(eq(webhook.id, id));
 }
 
 // --- Delivery history ------------------------------------------------------------
 
 export interface WebhookDeliveryRow {
-  id: number;
+  id: string;
   eventId: string;
   eventType: string;
   status: string;
@@ -124,7 +125,7 @@ export interface WebhookDeliveryRow {
 export interface WebhookDeliveryPage {
   items: WebhookDeliveryRow[];
   // The id to pass as `before` to load the next page, or null when at the end.
-  nextCursor: number | null;
+  nextCursor: string | null;
 }
 
 function mapDelivery(row: typeof webhookDelivery.$inferSelect): WebhookDeliveryRow {
@@ -143,29 +144,31 @@ function mapDelivery(row: typeof webhookDelivery.$inferSelect): WebhookDeliveryR
   };
 }
 
-// One page of the webhook's deliveries, newest first. Keyset pagination by id
-// (deliveries are id-monotonic): pass the previous page's nextCursor as `before`
-// to get the next page. limit is clamped to 1..50.
+// One page of the webhook's deliveries, newest first. Keyset pagination on
+// (created_at, id) (see shared/keyset.ts): pass the previous page's nextCursor as
+// `before` to get the next page. limit is clamped to 1..50.
 export async function listWebhookDeliveries(
-  webhookId: number,
-  opts: { before?: number; limit?: number } = {},
+  webhookId: string,
+  opts: { before?: string; limit?: number } = {},
 ): Promise<WebhookDeliveryPage> {
   const limit = Math.min(Math.max(opts.limit ?? 25, 1), 50);
   const rows = await db
-    .select()
+    .select({ row: webhookDelivery, cursorTs: sql<string>`${webhookDelivery.createdAt}::text` })
     .from(webhookDelivery)
     .where(
       and(
         eq(webhookDelivery.webhookId, webhookId),
-        opts.before ? lt(webhookDelivery.id, opts.before) : undefined,
+        afterCursor(webhookDelivery.createdAt, webhookDelivery.id, opts.before),
       ),
     )
-    .orderBy(desc(webhookDelivery.id))
+    .orderBy(desc(webhookDelivery.createdAt), desc(webhookDelivery.id))
     .limit(limit + 1);
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
   return {
-    items: page.map(mapDelivery),
-    nextCursor: hasMore ? page[page.length - 1].id : null,
+    items: page.map((r) => mapDelivery(r.row)),
+    nextCursor: hasMore
+      ? encodeCursor({ cursorTs: page[page.length - 1].cursorTs, id: page[page.length - 1].row.id })
+      : null,
   };
 }

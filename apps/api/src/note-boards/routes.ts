@@ -15,14 +15,14 @@ import {
   type NoteBoardRow,
 } from './store';
 
-const boardParams = t.Object({ projectKey: t.String(), boardId: t.Numeric() });
+const boardParams = t.Object({ projectKey: t.String(), boardId: t.String({ format: 'uuid' }) });
 
 // A note board DTO (NoteBoardRow from the store). canvas is a jsonb blob owned by
 // the UI (React Flow nodes/edges) and returned verbatim, so it is typed t.Any().
 const NoteBoardResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
-  ownerUserId: t.Nullable(t.String()),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
+  ownerUserId: t.Nullable(t.String({ format: 'uuid' })),
   name: t.String(),
   canvas: t.Any(),
   createdAt: t.String(),
@@ -36,8 +36,8 @@ const NoteBoardSummaryResponse = t.Omit(NoteBoardResponse, ['canvas']);
 // public board (no owner) is open to any member; a personal board only to its
 // owner. Anything else is a 404 so a personal board's existence does not leak.
 async function loadAccessibleBoard(
-  boardId: number,
-  projectId: number,
+  boardId: string,
+  projectId: string,
   userId: string,
 ): Promise<NoteBoardRow> {
   const board = await getNoteBoard(boardId);

@@ -8,12 +8,15 @@ import { INTEGRATION_CATALOG } from './catalog';
 import { listModelsForProvider } from './models';
 import { listCredentials, createCredential, updateCredential, deleteCredential } from './store';
 
-const credentialParams = t.Object({ projectKey: t.String(), credentialId: t.Numeric() });
+const credentialParams = t.Object({
+  projectKey: t.String(),
+  credentialId: t.String({ format: 'uuid' }),
+});
 
 // A stored credential DTO — never carries the secret, only the redacted view.
 const CredentialResponse = t.Object({
-  id: t.Number(),
-  projectId: t.Number(),
+  id: t.String({ format: 'uuid' }),
+  projectId: t.String({ format: 'uuid' }),
   integrationKey: t.String(),
   label: t.Nullable(t.String()),
   redacted: t.Record(t.String(), t.Any()),

@@ -11,10 +11,10 @@ import { getCredentialById } from '../integrations/store';
 // DTO enriches a row with its credential's integration and label for display.
 
 export interface AgentToolRow {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   toolKey: string;
-  credentialId: number;
+  credentialId: string;
   integrationKey: string;
   credentialLabel: string | null;
   createdAt: string;
@@ -34,7 +34,7 @@ function mapRow(row: Omit<AgentToolRow, 'createdAt'> & { createdAt: Date }): Age
   return { ...row, createdAt: iso(row.createdAt) };
 }
 
-export async function listAgentTools(projectId: number): Promise<AgentToolRow[]> {
+export async function listAgentTools(projectId: string): Promise<AgentToolRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentTool)
@@ -44,7 +44,7 @@ export async function listAgentTools(projectId: number): Promise<AgentToolRow[]>
   return rows.map(mapRow);
 }
 
-async function getAgentToolById(id: number, projectId: number): Promise<AgentToolRow | null> {
+async function getAgentToolById(id: string, projectId: string): Promise<AgentToolRow | null> {
   const rows = await db
     .select(dtoColumns)
     .from(agentTool)
@@ -55,11 +55,11 @@ async function getAgentToolById(id: number, projectId: number): Promise<AgentToo
 
 export interface NewAgentToolInput {
   toolKey: string;
-  credentialId: number;
+  credentialId: string;
 }
 
 export async function createAgentTool(
-  projectId: number,
+  projectId: string,
   input: NewAgentToolInput,
 ): Promise<AgentToolRow> {
   const found = getTool(input.toolKey);
@@ -85,7 +85,7 @@ export async function createAgentTool(
   }
 }
 
-export async function deleteAgentTool(id: number, projectId: number): Promise<boolean> {
+export async function deleteAgentTool(id: string, projectId: string): Promise<boolean> {
   const deleted = await db
     .delete(agentTool)
     .where(and(eq(agentTool.id, id), eq(agentTool.projectId, projectId)))
@@ -95,7 +95,7 @@ export async function deleteAgentTool(id: number, projectId: number): Promise<bo
 
 // The configured tools enabled on an agent, as DTOs (no secret). Used by the agent
 // editor.
-export async function listAgentToolLinks(agentId: number): Promise<AgentToolRow[]> {
+export async function listAgentToolLinks(agentId: string): Promise<AgentToolRow[]> {
   const rows = await db
     .select(dtoColumns)
     .from(agentToolLink)
@@ -109,8 +109,8 @@ export async function listAgentToolLinks(agentId: number): Promise<AgentToolRow[
 // The decrypted tools enabled on an agent, for the runtime to build tools: each tool's
 // key and its bound credential. Not exposed over HTTP.
 export async function listAgentToolsForRun(
-  agentId: number,
-): Promise<{ id: number; toolKey: string; credential: ToolConfig }[]> {
+  agentId: string,
+): Promise<{ id: string; toolKey: string; credential: ToolConfig }[]> {
   const rows = await db
     .select({
       id: agentTool.id,
@@ -135,9 +135,9 @@ export async function listAgentToolsForRun(
 // Replaces the set of configured tools enabled on an agent. Only tools in the agent's
 // project are accepted; unknown or cross-project ids are ignored.
 export async function setAgentTools(
-  agentId: number,
-  projectId: number,
-  agentToolIds: number[],
+  agentId: string,
+  projectId: string,
+  agentToolIds: string[],
 ): Promise<void> {
   const unique = [...new Set(agentToolIds)];
   const valid =
