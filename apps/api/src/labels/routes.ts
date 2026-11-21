@@ -1,7 +1,9 @@
 import { Elysia, t } from 'elysia';
+import { requireUser } from '../shared/access';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
+import { authContext } from '../shared/auth-context';
 import { HttpError, rethrowDuplicate } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
@@ -34,14 +36,15 @@ const LabelGroupResponse = t.Object({
 });
 
 export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels'] } })
+  .use(authContext)
   .use(guards)
   // --- Labels ------------------------------------------------------------------
   .post(
     '/teams/:teamKey/labels',
-    async ({ team, body, set }) => {
+    async ({ team, body, set, user }) => {
       try {
         set.status = 201;
-        return await createLabel({ teamId: team.id, ...body });
+        return await createLabel({ teamId: team.id, ...body, actorUserId: requireUser(user).id });
       } catch (err) {
         rethrowDuplicate(err, 'label');
       }
@@ -71,10 +74,10 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
 
   .patch(
     '/teams/:teamKey/labels/:labelId',
-    async ({ params, team, body }) => {
+    async ({ params, team, body, user }) => {
       let label;
       try {
-        label = await updateLabel(params.labelId, team.id, body);
+        label = await updateLabel(params.labelId, team.id, body, requireUser(user).id);
       } catch (err) {
         rethrowDuplicate(err, 'label');
       }
@@ -108,8 +111,8 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
 
   .delete(
     '/teams/:teamKey/labels/:labelId',
-    async ({ params, team }) => {
-      await deleteLabel(params.labelId, team.id);
+    async ({ params, team, user }) => {
+      await deleteLabel(params.labelId, team.id, requireUser(user).id);
       return noContent();
     },
     {
@@ -133,10 +136,14 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
   // --- Label groups ------------------------------------------------------------
   .post(
     '/teams/:teamKey/label-groups',
-    async ({ team, body, set }) => {
+    async ({ team, body, set, user }) => {
       try {
         set.status = 201;
-        return await createLabelGroup({ teamId: team.id, ...body });
+        return await createLabelGroup({
+          teamId: team.id,
+          ...body,
+          actorUserId: requireUser(user).id,
+        });
       } catch (err) {
         rethrowDuplicate(err, 'label group');
       }
@@ -162,10 +169,10 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
 
   .patch(
     '/teams/:teamKey/label-groups/:groupId',
-    async ({ params, team, body }) => {
+    async ({ params, team, body, user }) => {
       let group;
       try {
-        group = await updateLabelGroup(params.groupId, team.id, body);
+        group = await updateLabelGroup(params.groupId, team.id, body, requireUser(user).id);
       } catch (err) {
         rethrowDuplicate(err, 'label group');
       }
@@ -197,8 +204,8 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
 
   .delete(
     '/teams/:teamKey/label-groups/:groupId',
-    async ({ params, team }) => {
-      await deleteLabelGroup(params.groupId, team.id);
+    async ({ params, team, user }) => {
+      await deleteLabelGroup(params.groupId, team.id, requireUser(user).id);
       return noContent();
     },
     {

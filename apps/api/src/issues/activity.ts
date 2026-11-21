@@ -1,7 +1,8 @@
 import { db, issue, issueActivity, user, workflowState, issueType, label, project } from '@repo/db';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
-import { emitWebhookEvent } from '../webhooks/emit';
+import { emitEvent } from '../webhooks/event';
+import { commentData } from '../webhooks/data';
 import { parseMentions } from '../ai-agents/mentions';
 import { isAgentUser, listInternalAgentsByUserIds } from '../ai-agents/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
@@ -226,7 +227,9 @@ export async function createComment(input: {
     .where(eq(issue.id, input.issueId));
   const teamId = teamRows[0]?.teamId;
   if (teamId != null) {
-    await emitWebhookEvent(teamId, 'comment.created', comment);
+    const data = await commentData(comment.id);
+    if (data)
+      await emitEvent({ type: 'Comment', action: 'create', teamIds: [teamId], actorUserId, data });
     await enqueueMentionRuns(teamId, comment);
     await notifyComment(teamId, comment);
   }

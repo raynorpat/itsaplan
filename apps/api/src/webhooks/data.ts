@@ -1,6 +1,17 @@
-import { db, issueLabel, label, team, user, workflowState } from '@repo/db';
+import {
+  db,
+  issueActivity,
+  issueLabel,
+  label,
+  labelGroup,
+  team,
+  user,
+  workflowState,
+} from '@repo/db';
 import { asc, eq } from 'drizzle-orm';
+import { toComment } from '../graphql/resolvers/comment';
 import { issueById } from '../graphql/resolvers/issue';
+import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -49,4 +60,21 @@ export async function issueData(issueId: string): Promise<WebhookData | null> {
     assignee,
     labels,
   };
+}
+
+export async function commentData(commentId: string): Promise<WebhookData | null> {
+  const [row] = await db.select().from(issueActivity).where(eq(issueActivity.id, commentId));
+  if (!row?.issueId) return null;
+  const found = await issueById(row.issueId);
+  return found ? toComment(row, found.url) : null;
+}
+
+export async function issueLabelData(labelId: string): Promise<WebhookData | null> {
+  const [row] = await db.select().from(label).where(eq(label.id, labelId));
+  return row ? toIssueLabel(row) : null;
+}
+
+export async function labelGroupData(groupId: string): Promise<WebhookData | null> {
+  const [row] = await db.select().from(labelGroup).where(eq(labelGroup.id, groupId));
+  return row ? toLabelGroupAsIssueLabel(row) : null;
 }
