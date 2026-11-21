@@ -59,7 +59,7 @@ export async function listWebhooks(projectId: string): Promise<WebhookRow[]> {
     .select()
     .from(webhook)
     .where(eq(webhook.projectId, projectId))
-    .orderBy(webhook.id);
+    .orderBy(webhook.createdAt, webhook.id);
   return rows.map(mapWebhook);
 }
 

@@ -160,13 +160,14 @@ export async function listInitiatives(
   const where = and(...conds);
 
   // A chosen sort orders by that column (nulls last); the default is the manual
-  // position. desc(id) breaks ties for a stable page order.
+  // position. Newest first (created_at, then id) breaks ties for a stable page order.
   const orderBy = opts.sort
     ? [
         sql`${orderExpr(opts.sort)} ${opts.dir === 'desc' ? sql`desc` : sql`asc`} nulls last`,
+        desc(initiative.createdAt),
         desc(initiative.id),
       ]
-    : [asc(initiative.position), desc(initiative.id)];
+    : [asc(initiative.position), desc(initiative.createdAt), desc(initiative.id)];
 
   const q = db
     .select()

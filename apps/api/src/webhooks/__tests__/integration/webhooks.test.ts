@@ -32,6 +32,16 @@ describe('webhooks', () => {
     await resetDb();
   });
 
+  it('lists webhooks in creation order', async () => {
+    const owner = await signUpTestUser();
+    const asOwner = authedApi(owner.cookie);
+    await asOwner.projects.post({ key: 'MKT', name: 'Marketing' });
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) ids.push(await createWebhook(asOwner, ['issue.created']));
+    const list = await asOwner.projects({ projectKey: 'MKT' }).webhooks.get();
+    expect(list.data!.map((w) => w.id)).toEqual(ids);
+  });
+
   describe('create and list', () => {
     it('creates a webhook with a generated secret and lists it', async () => {
       const { asOwner, projectId } = await setupOwnerProject();
