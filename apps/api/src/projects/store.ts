@@ -320,6 +320,18 @@ export async function projectStatusCounts(
   return out;
 }
 
+// Several projects in the order of `ids` (missing ones are skipped); `teams` lists
+// only visibleTeamIds when given.
+export async function getProjectsByIds(
+  ids: string[],
+  visibleTeamIds: string[] | null = null,
+): Promise<ProjectRow[]> {
+  if (ids.length === 0) return [];
+  const rows = await selectProjects().where(inArray(project.id, ids));
+  const byId = new Map((await enrich(rows, visibleTeamIds)).map((p) => [p.id, p]));
+  return ids.map((id) => byId.get(id)).filter((p): p is ProjectRow => p != null);
+}
+
 // One project; `teams` lists only visibleTeamIds when given.
 export async function getProject(
   id: string,

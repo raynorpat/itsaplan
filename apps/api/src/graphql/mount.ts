@@ -8,6 +8,7 @@ import { maxDepthRule } from './depth';
 import { gqlError } from './errors';
 import { issueResolvers } from './resolvers/issue';
 import { mutationResolvers } from './resolvers/mutations';
+import { projectResolvers } from './resolvers/project';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -20,6 +21,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   teamResolvers,
   workflowStateResolvers,
   issueResolvers,
+  projectResolvers,
   mutationResolvers,
 ];
 

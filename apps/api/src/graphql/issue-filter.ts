@@ -1,4 +1,4 @@
-import { db, issue, team, workflowState, user } from '@repo/db';
+import { db, issue, project, projectMilestone, team, workflowState, user } from '@repo/db';
 import { eq, inArray, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { teamFilter } from './resolvers/team';
@@ -46,6 +46,24 @@ function parentFilter(value: unknown, path: string): SQL {
   return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : sql`true`;
 }
 
+// A nullable reference filter ({ null, ...fields }) on an issue column pointing at
+// `table`'s id: `null: true` matches unset, the other fields match the referenced row.
+function nullableRef(
+  column: AnyColumn,
+  value: unknown,
+  path: string,
+  handlers: FieldHandlers,
+  table: typeof project | typeof projectMilestone,
+): SQL {
+  const { null: isNullFilter, ...rest } = value as Record<string, unknown>;
+  const parts: SQL[] = [];
+  if (isNullFilter !== undefined)
+    parts.push(isNullFilter ? isNull(column) : sql`${column} IS NOT NULL`);
+  const match = filterSql(rest, handlers, path);
+  if (match) parts.push(inArray(column, db.select({ id: table.id }).from(table).where(match)));
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : sql`true`;
+}
+
 export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefined {
   const handlers: FieldHandlers = {
     id: (v, p) => compareId(issue.id, v, p),
@@ -77,6 +95,28 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     assignee: userOn(issue.assigneeUserId, viewerId),
     delegate: userOn(issue.delegateUserId, viewerId),
     parent: parentFilter,
+    project: (v, p) =>
+      nullableRef(
+        issue.projectId,
+        v,
+        p,
+        {
+          id: (x, q) => compareId(project.id, x, q),
+          name: (x, q) => compare(project.name, x, q),
+        },
+        project,
+      ),
+    projectMilestone: (v, p) =>
+      nullableRef(
+        issue.projectMilestoneId,
+        v,
+        p,
+        {
+          id: (x, q) => compareId(projectMilestone.id, x, q),
+          name: (x, q) => compare(projectMilestone.name, x, q),
+        },
+        projectMilestone,
+      ),
   };
   return filterSql(filter, handlers);
 }

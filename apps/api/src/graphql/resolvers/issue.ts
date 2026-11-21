@@ -62,6 +62,8 @@ export function toIssue(row: IssueRecord) {
     teamId: row.teamId,
     stateId: row.stateId,
     parentId: row.parentId,
+    projectId: row.projectId,
+    projectMilestoneId: row.projectMilestoneId,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     creatorUserId: row.creatorUserId,
@@ -121,7 +123,7 @@ export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerI
 
 // A user the viewer may see (see visibleUsers), or null. A former member who no
 // longer shares a team with the viewer resolves to null, as user(id:) does.
-async function userById(id: string | null, viewerId: string) {
+export async function userById(id: string | null, viewerId: string) {
   if (!id) return null;
   const [row] = await db
     .select()
