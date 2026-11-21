@@ -143,6 +143,7 @@
         "drizzle-orm": "^0.45.2",
       },
       "devDependencies": {
+        "@linear/sdk": "103.0.0",
         "@repo/eslint-config": "workspace:*",
         "@types/bun": "latest",
         "eslint": "^9.39.0",

@@ -36,6 +36,7 @@ function send(timeoutMs = 5000) {
     secret: SECRET,
     eventId: 'evt-1',
     eventType: 'Issue',
+    sentAt: Date.now(),
     body: renderBody(payload, Date.now()),
     timeoutMs,
   });

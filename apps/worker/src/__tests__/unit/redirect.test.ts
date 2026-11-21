@@ -30,6 +30,7 @@ describe('deliver and redirects', () => {
       secret: 's',
       eventId: 'e',
       eventType: 'Issue',
+      sentAt: Date.now(),
       body: renderBody({}, Date.now()),
       timeoutMs: 2000,
     });

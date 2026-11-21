@@ -17,8 +17,10 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
   `User-Agent: Linear-Webhook`.
 - Only HTTP 200 is success. Any other status, a network error or the 5 s timeout
   fails the attempt; it is retried 3 times, after 1 minute, 1 hour and 6 hours,
-  then marked failed. After `WEBHOOK_DISABLE_THRESHOLD` consecutive failures the
-  webhook is auto-disabled.
+  then marked failed. After `WEBHOOK_DISABLE_THRESHOLD` consecutive failed
+  deliveries the webhook is auto-disabled; a webhook a user disabled stays disabled.
+- In production a URL whose host resolves to a private address is not called
+  (`public-host.ts`); the attempt fails like any other.
 - After the auto-archive sweep, reports the archived issue ids to the API
   (`/internal/webhooks/issues-archived`), which sends their Issue events.
 
@@ -34,8 +36,8 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
 - **Claim leases, not a status flag.** Claiming pushes `next_attempt_at` forward
   by `WEBHOOK_LEASE_SECONDS`; a crashed delivery is reclaimed after the lease. Keep
   the lease comfortably larger than `WEBHOOK_TIMEOUT_MS`.
-- **Pure logic stays dependency-free.** `backoff.ts`, `signature.ts`, and
-  `nextRetryDelayS` / `renderBody` import nothing from `@repo/db`, so unit tests run without a
+- **Pure logic stays dependency-free.** `backoff.ts`, `signature.ts`, `public-host.ts`
+  and `nextRetryDelayS` / `renderBody` import nothing from `@repo/db`, so unit tests run without a
   database. Keep DB access in `store.ts`.
 
 ## Config

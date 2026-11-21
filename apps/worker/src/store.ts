@@ -72,7 +72,6 @@ export async function markSuccess(
 
 export async function scheduleRetry(
   deliveryId: string,
-  webhookId: string,
   delayMs: number,
   error: string,
   response: DeliveryResponse,
@@ -88,7 +87,6 @@ export async function scheduleRetry(
       responseBody: response.body ?? null,
     })
     .where(eq(webhookDelivery.id, deliveryId));
-  await bumpWebhookFailure(webhookId);
 }
 
 export async function markFailed(
@@ -119,15 +117,16 @@ export async function markSkippedInactive(deliveryId: string): Promise<void> {
     .where(eq(webhookDelivery.id, deliveryId));
 }
 
-// Increments the webhook's consecutive-failure counter and auto-disables it once
-// the counter reaches the threshold, in one statement.
+// Counts a delivery that failed for good (after its retries) and auto-disables the
+// webhook once the count of consecutive failed deliveries reaches the threshold, in
+// one statement. A webhook a user disabled meanwhile stays disabled.
 async function bumpWebhookFailure(webhookId: string): Promise<void> {
   const { disableThreshold } = workerConfig();
   await db
     .update(webhook)
     .set({
       consecutiveFailures: sql`${webhook.consecutiveFailures} + 1`,
-      enabled: sql`(${webhook.consecutiveFailures} + 1) < ${disableThreshold}`,
+      enabled: sql`${webhook.enabled} AND (${webhook.consecutiveFailures} + 1) < ${disableThreshold}`,
     })
     .where(eq(webhook.id, webhookId));
 }

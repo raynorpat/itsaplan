@@ -1,5 +1,6 @@
 import { workerConfig } from './config';
 import { deliver, nextRetryDelayS, renderBody } from './delivery';
+import { resolvesToPrivate } from './public-host';
 import { processNotificationDeliveries } from './notification-delivery';
 import { deleteIssueAgentThreads } from './agent-runs';
 import { notifyIssuesArchived } from './internal-api';
@@ -70,20 +71,36 @@ async function tick(): Promise<void> {
   }
 }
 
+// In production a webhook URL that resolves to a private address is not called
+// (development and the test suite post to local receivers). An unresolvable host
+// fails the attempt the same way.
+async function refusedHost(url: string): Promise<boolean> {
+  if (process.env.NODE_ENV !== 'production') return false;
+  try {
+    return await resolvesToPrivate(new URL(url).hostname);
+  } catch {
+    return true;
+  }
+}
+
 async function processDelivery(d: ClaimedDelivery): Promise<void> {
   const cfg = workerConfig();
   if (!d.isActive) {
     await markSkippedInactive(d.id);
     return;
   }
-  const result = await deliver({
-    url: d.url,
-    secret: d.secret,
-    eventId: d.eventId,
-    eventType: d.eventType,
-    body: renderBody(d.payload, Date.now()),
-    timeoutMs: cfg.timeoutMs,
-  });
+  const sentAt = Date.now();
+  const result = (await refusedHost(d.url))
+    ? { ok: false as const, error: 'url resolves to a private address' }
+    : await deliver({
+        url: d.url,
+        secret: d.secret,
+        eventId: d.eventId,
+        eventType: d.eventType,
+        sentAt,
+        body: renderBody(d.payload, sentAt),
+        timeoutMs: cfg.timeoutMs,
+      });
   const response = { status: result.status, body: result.responseBody };
   if (result.ok) {
     await markSuccess(d.id, d.webhookId, response);
@@ -91,13 +108,7 @@ async function processDelivery(d: ClaimedDelivery): Promise<void> {
   }
   const delayS = nextRetryDelayS(d.attempts);
   if (delayS !== null) {
-    await scheduleRetry(
-      d.id,
-      d.webhookId,
-      delayS * 1000,
-      result.error ?? 'delivery failed',
-      response,
-    );
+    await scheduleRetry(d.id, delayS * 1000, result.error ?? 'delivery failed', response);
     return;
   }
   await markFailed(d.id, d.webhookId, result.error ?? 'delivery failed', response);

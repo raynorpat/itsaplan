@@ -7,6 +7,8 @@ export interface DeliverInput {
   eventId: string;
   // The Linear resource type, sent as Linear-Event.
   eventType: string;
+  // Send time (Unix ms): Linear-Timestamp, and the webhookTimestamp in `body`.
+  sentAt: number;
   body: string;
   timeoutMs: number;
 }
@@ -53,7 +55,7 @@ export async function deliver(input: DeliverInput): Promise<DeliveryResult> {
         'User-Agent': 'Linear-Webhook',
         'Linear-Delivery': input.eventId,
         'Linear-Event': input.eventType,
-        'Linear-Timestamp': String(Date.now()),
+        'Linear-Timestamp': String(input.sentAt),
         'Linear-Signature': signBody(input.secret, input.body),
       },
       body: input.body,
