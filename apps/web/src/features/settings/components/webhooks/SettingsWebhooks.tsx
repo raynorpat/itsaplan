@@ -9,6 +9,7 @@ import {
   useDeleteWebhook,
 } from '@/services/webhooks.service';
 import { EmptyState } from '@/components/common/page/EmptyState';
+import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
 import { SettingsWebhookDialog, type WebhookFormValue } from './SettingsWebhookDialog';
 import { SettingsWebhooksTable } from './SettingsWebhooksTable';
@@ -38,6 +39,7 @@ export default function SettingsWebhooks({
   const deleteWebhook = useDeleteWebhook();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
+  const [rotating, setRotating] = useState<Webhook | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Webhook | null>(null);
 
   // The "New webhook" button lives in the page header; opening is signalled here.
@@ -74,7 +76,7 @@ export default function SettingsWebhooks({
             webhooks={webhooks}
             onShowDeliveries={setDeliveriesFor}
             onEdit={setEditing}
-            onRotateSecret={(w) => rotateSecret.mutate(w.id)}
+            onRotateSecret={setRotating}
             onDelete={setDeleting}
           />
         </div>
@@ -108,6 +110,24 @@ export default function SettingsWebhooks({
             setDeleting(null);
           }}
         />
+      )}
+
+      {rotating && (
+        <ConfirmDialog
+          title="Rotate secret"
+          confirmLabel="Rotate secret"
+          onClose={() => setRotating(null)}
+          onConfirm={async () => {
+            await rotateSecret.mutateAsync(rotating.id);
+            setRotating(null);
+          }}
+        >
+          <div className="text-sm text-muted-foreground">
+            A new secret replaces the current one at once. Deliveries to{' '}
+            <span className="font-medium">{rotating.url}</span> fail verification until the receiver
+            uses the new secret.
+          </div>
+        </ConfirmDialog>
       )}
 
       <SettingsWebhookDeliveriesSheet

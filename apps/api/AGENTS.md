@@ -150,8 +150,11 @@ receiver works against the instance.
   GraphQL mapper's output plus Linear's relation ids; `updatedFrom` holds the
   previous values of changed fields. A label group is sent as an `IssueLabel` with
   `isGroup: true`. A project event reaches the webhooks of every team it includes;
-  an update also reaches the teams it had before. A new write path for these
-  entities must call `emitEvent` too.
+  an update also reaches the teams it had before. One user edit sends one event
+  (`updateIssue` takes `labelIds`; a project team change passes its before-data to
+  `updateProject`). Issue paths check `isWatched` first, so no data is built for a
+  team without webhooks. A new write path for these entities must call `emitEvent`
+  too.
 - **Delivery** is the worker's (`apps/worker`): it adds `webhookTimestamp`, signs
   the body and retries on Linear's schedule.
 
