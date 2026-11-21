@@ -2,6 +2,7 @@ import { createYoga } from 'graphql-yoga';
 import type { SessionUser } from '../shared/auth-context';
 import { resolveGraphQLUser, type GraphQLContext } from './context';
 import { buildSchema } from './schema';
+import { issueResolvers } from './resolvers/issue';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -13,6 +14,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   userResolvers,
   teamResolvers,
   workflowStateResolvers,
+  issueResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
