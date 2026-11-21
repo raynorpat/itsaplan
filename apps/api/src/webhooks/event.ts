@@ -40,6 +40,26 @@ async function actorFor(userId: string | null) {
   return row ? { id: row.id, type: 'user', name: row.name, email: row.email } : null;
 }
 
+// Whether any enabled webhook receives `type` events of these teams. Lets a caller
+// skip building webhook data on an instance or team with no such webhook.
+export async function isWatched(type: WebhookResourceType, teamIds: string[]): Promise<boolean> {
+  const rows = await db
+    .select({ id: webhook.id })
+    .from(webhook)
+    .where(
+      and(
+        eq(webhook.enabled, true),
+        sql`${webhook.resourceTypes} @> ${JSON.stringify([type])}::jsonb`,
+        or(
+          eq(webhook.allPublicTeams, true),
+          teamIds.length ? inArray(webhook.teamId, teamIds) : undefined,
+        ),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function emitEvent(input: {
   type: WebhookResourceType;
   action: WebhookAction;

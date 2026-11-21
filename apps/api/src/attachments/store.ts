@@ -1,6 +1,8 @@
 import { db, issue, issueAttachment, issueFieldValue } from '@repo/db';
 import { eq, sql } from 'drizzle-orm';
 import { iso, num } from '../shared/lib';
+import { emitEvent, isWatched } from '../webhooks/event';
+import { issueData } from '../webhooks/data';
 
 // Data access for issue attachments. File bytes live in the S3-compatible object
 // store (../shared/s3.ts); these rows hold the metadata and the object key. publicId is
@@ -108,6 +110,12 @@ function stripEmbeds(text: string, publicId: string): string {
 // image behind.
 export async function removeAttachmentEmbeds(issueId: string, publicId: string): Promise<void> {
   let changed = false;
+  const [owner] = await db
+    .select({ teamId: issue.teamId })
+    .from(issue)
+    .where(eq(issue.id, issueId));
+  const watched = !!owner && (await isWatched('Issue', [owner.teamId]));
+  const beforeData = watched ? await issueData(issueId) : null;
 
   const [row] = await db
     .select({ description: issue.description })
@@ -141,5 +149,15 @@ export async function removeAttachmentEmbeds(issueId: string, publicId: string):
       .update(issue)
       .set({ updatedAt: sql`now()` })
       .where(eq(issue.id, issueId));
+    const data = beforeData ? await issueData(issueId) : null;
+    if (data && beforeData)
+      await emitEvent({
+        type: 'Issue',
+        action: 'update',
+        teamIds: [data.teamId as string],
+        actorUserId: null,
+        data,
+        before: beforeData,
+      });
   }
 }

@@ -1,7 +1,9 @@
 import { Elysia, t } from 'elysia';
 import { workerTokenValid } from '../shared/http';
 import { issueData } from './data';
-import { emitEvent } from './event';
+import { db, issue } from '@repo/db';
+import { inArray } from 'drizzle-orm';
+import { emitEvent, isWatched } from './event';
 
 // The worker's auto-archive sweep sets archived_at with raw SQL and cannot build
 // webhook payloads, so it reports the archived issue ids here. Each sends an
@@ -14,6 +16,24 @@ export const internalWebhookRoutes = new Elysia({ name: 'internal-webhooks' }).p
       set.status = 401;
       return { error: 'Unauthorized' };
     }
+    const teams = body.issues.length
+      ? await db
+          .selectDistinct({ teamId: issue.teamId })
+          .from(issue)
+          .where(
+            inArray(
+              issue.id,
+              body.issues.map((i) => i.id),
+            ),
+          )
+      : [];
+    if (
+      !(await isWatched(
+        'Issue',
+        teams.map((t) => t.teamId),
+      ))
+    )
+      return { sent: 0 };
     for (const { id, previousUpdatedAt } of body.issues) {
       const data = await issueData(id);
       if (!data) continue;

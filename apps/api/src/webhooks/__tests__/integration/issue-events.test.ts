@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { removeAttachmentEmbeds } from '../../../attachments/store';
 
 // Issue events in Linear's webhook format, read back through the deliveries
 // endpoint (the worker does not run in tests, so deliveries stay pending).
@@ -204,5 +205,65 @@ describe('issue webhooks', () => {
     await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: from.id }).delete({ mode: 'delete' });
     const removes = (await payloads(asOwner, hookId)).filter((p) => p.action === 'remove');
     expect(removes.map((p) => p.data.id)).toEqual([a.id]);
+  });
+
+  it('sends one Issue update for a PATCH that changes fields and labels', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const label = (await asOwner.teams({ teamKey: 'MKT' }).labels.post({ name: 'bug' })).data!;
+    const issue = await createIssue(asOwner, team.states[0].id);
+    await asOwner.issues({ issueId: issue.id }).patch({ title: 'Renamed', labelIds: [label.id] });
+    const updates = (await payloads(asOwner, hookId)).filter((p) => p.action === 'update');
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.updatedFrom).toMatchObject({ title: 'Task', labelIds: [] });
+  });
+
+  it('sends one Issue update when a restore also moves the issue out of an archived state', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const from = team.states.find((s) => s.stateType === 'started')!;
+    // A second started state, so the issue's state can be archived.
+    await asOwner.teams({ teamKey: 'MKT' }).states.post({ name: 'Review', stateType: 'started' });
+    const issue = await createIssue(asOwner, from.id);
+    await asOwner.issues({ issueId: issue.id }).archive.post();
+    await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: from.id }).archive.post();
+    const before = (await payloads(asOwner, hookId)).length;
+    await asOwner.issues({ issueId: issue.id }).restore.post();
+    const after = (await payloads(asOwner, hookId)).slice(before);
+    expect(after).toHaveLength(1);
+    expect(Object.keys(after[0]!.updatedFrom!)).toEqual(
+      expect.arrayContaining(['archivedAt', 'stateId']),
+    );
+  });
+
+  it('sends an Issue update when deleting an attachment strips its embed', async () => {
+    const { asOwner, team, hookId } = await setup();
+    const issue = await createIssue(asOwner, team.states[0].id);
+    await asOwner
+      .issues({ issueId: issue.id })
+      .patch({ description: 'See ![shot](/attachments/abc123/raw) here' });
+    const before = (await payloads(asOwner, hookId)).length;
+    await removeAttachmentEmbeds(issue.id, 'abc123');
+    const after = (await payloads(asOwner, hookId)).slice(before);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ action: 'update', data: { description: 'See  here' } });
+  });
+
+  it('keeps an issue’s events in its own team when it moves between projects', async () => {
+    const { asOwner, team, hookId } = await setup();
+    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
+    const opsHook = (
+      await asOwner
+        .teams({ teamKey: 'OPS' })
+        .webhooks.post({ url: 'https://example.com/ops', resourceTypes: ['Issue'] })
+    ).data!;
+    const shared = (
+      await asOwner.projects.post({ name: 'Shared', teamIds: [team.team.id, ops.team.id] })
+    ).data!;
+    const own = (await asOwner.projects.post({ name: 'Own', teamIds: [team.team.id] })).data!;
+    const issue = await createIssue(asOwner, team.states[0].id);
+    await asOwner.issues({ issueId: issue.id }).patch({ projectId: shared.id });
+    await asOwner.issues({ issueId: issue.id }).patch({ projectId: own.id });
+    expect(await payloads(asOwner, opsHook.id)).toEqual([]);
+    expect((await payloads(asOwner, hookId)).filter((p) => p.action === 'update')).toHaveLength(2);
   });
 });

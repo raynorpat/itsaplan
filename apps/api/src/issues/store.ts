@@ -45,8 +45,8 @@ import {
 } from './activity';
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
-import { emitEvent } from '../webhooks/event';
-import { issueData } from '../webhooks/data';
+import { emitEvent, isWatched } from '../webhooks/event';
+import { issueData, type WebhookData } from '../webhooks/data';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 
@@ -401,7 +401,7 @@ export async function archiveIssue(
   id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
-  const beforeData = await issueData(id);
+  const beforeData = await watchedIssueData(id);
   const [row] = await db
     .update(issue)
     .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
@@ -427,7 +427,7 @@ export async function restoreIssue(
   id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
-  const beforeData = await issueData(id);
+  const beforeData = await watchedIssueData(id);
   const [row] = await db
     .update(issue)
     .set({ archivedAt: null, updatedAt: sql`now()` })
@@ -435,7 +435,6 @@ export async function restoreIssue(
     .returning({ id: issue.id, stateId: issue.stateId, teamId: issue.teamId });
   if (!row) return getIssue(id);
   await recordActivity(id, [{ action: 'restored' }], actorUserId);
-  await emitIssue('update', id, row.teamId, actorUserId, beforeData);
   const [column] = await db
     .select({ archivedAt: workflowState.archivedAt, stateType: workflowState.stateType })
     .from(workflowState)
@@ -453,8 +452,10 @@ export async function restoreIssue(
       )
       .orderBy(workflowState.position)
       .limit(1);
-    if (target) return updateIssue(id, { stateId: target.id }, actorUserId);
+    // One webhook update covers the restore and the move.
+    if (target) return updateIssue(id, { stateId: target.id }, actorUserId, { before: beforeData });
   }
+  await emitIssue('update', id, row.teamId, actorUserId, beforeData);
   return getIssue(id);
 }
 
@@ -741,6 +742,14 @@ async function assertIssueLabels(teamId: string, labelIds?: string[]): Promise<v
   if (rows.length !== ids.length) throw new HttpError(400, 'Labels must belong to this team');
 }
 
+// The issue's webhook data, or null when no webhook receives Issue events of its
+// team (so nothing is built for a later event).
+async function watchedIssueData(issueId: string, teamId?: string | null) {
+  const team = teamId ?? (await getIssueTeamId(issueId));
+  if (!team || !(await isWatched('Issue', [team]))) return null;
+  return issueData(issueId);
+}
+
 // Sends an Issue webhook event with the issue's current data. `before` is the
 // issue's data before the change, for an update.
 async function emitIssue(
@@ -750,6 +759,7 @@ async function emitIssue(
   actorUserId: string | null | undefined,
   before?: Record<string, unknown> | null,
 ): Promise<void> {
+  if (!(await isWatched('Issue', [teamId]))) return;
   const data = await issueData(issueId);
   if (!data) return;
   await emitEvent({
@@ -885,16 +895,21 @@ export async function validateIssuePatch(id: string, patch: IssuePatch): Promise
   await checkPatch(id, before, patch);
 }
 
+// opts.labelIds also replaces the issue's labels, so a field and label edit sends
+// one Issue webhook update. opts.before is the issue's webhook data from before an
+// earlier write of the same change (a restore), which this update's event covers.
 export async function updateIssue(
   id: string,
   patch: IssuePatch,
   actorUserId?: string | null,
+  opts: { labelIds?: string[]; before?: WebhookData | null } = {},
 ): Promise<IssueRow | null> {
   const before = await loadSnapshot(id);
   if (!before) return null;
 
   const stateType = await checkPatch(id, before, patch);
-  const beforeData = await issueData(id);
+  if (opts.labelIds) await assertIssueLabels(before.teamId, opts.labelIds);
+  const beforeData = opts.before ?? (await watchedIssueData(id, before.teamId));
 
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;
@@ -932,14 +947,14 @@ export async function updateIssue(
     set.updatedAt = sql`now()` as unknown as Date;
     await db.update(issue).set(set).where(eq(issue.id, id));
   }
+  if (opts.labelIds) await setIssueLabels(before.teamId, id, opts.labelIds, actorUserId, false);
   const after = await getIssue(id);
   if (after) {
     await logIssueUpdate(before, snapshot(after), actorUserId);
-    if (changed) {
+    if (changed || opts.labelIds || opts.before)
       await emitIssue('update', id, after.teamId, actorUserId, beforeData);
-      if (before.delegateUserId !== after.delegateUserId)
-        await enqueueDelegateRun(after, actorUserId);
-    }
+    if (changed && before.delegateUserId !== after.delegateUserId)
+      await enqueueDelegateRun(after, actorUserId);
   }
   return after;
 }
@@ -969,7 +984,7 @@ export async function deleteIssue(
   issueId: string,
   actorUserId?: string | null,
 ): Promise<AttachmentRow[] | null> {
-  const beforeData = await issueData(issueId);
+  const beforeData = await watchedIssueData(issueId);
   const result = await db.transaction(async (tx) => {
     const rows = await tx
       .select({ teamId: issue.teamId, seq: issue.sequenceNumber, key: teamTable.key })
@@ -1011,7 +1026,7 @@ export async function setIssueLabels(
   sendEvent = true,
 ): Promise<void> {
   await assertIssueLabels(teamId, labelIds);
-  const beforeData = sendEvent ? await issueData(issueId) : null;
+  const beforeData = sendEvent ? await watchedIssueData(issueId, teamId) : null;
   const beforeRows = await db
     .select({ labelId: issueLabel.labelId })
     .from(issueLabel)

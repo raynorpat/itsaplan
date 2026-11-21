@@ -462,11 +462,14 @@ export async function updateProject(
   id: string,
   patch: ProjectPatch,
   actorUserId?: string | null,
+  // The project's webhook data from before an earlier write of the same change
+  // (a team change), which this update's event covers.
+  beforeOverride?: WebhookData | null,
 ): Promise<ProjectRow | null> {
   const before = await getProject(id);
   if (!before) return null;
   await assertProjectLead(await projectTeamIds(id), patch.leadUserId);
-  const beforeData = await projectData(id);
+  const beforeData = beforeOverride ?? (await projectData(id));
   await assertProjectLabels(patch.labelIds);
 
   const set: Partial<typeof project.$inferInsert> = {};
@@ -502,6 +505,7 @@ export async function setProjectTeams(
   editableTeamIds: string[],
   requested: string[],
   actorUserId: string | null,
+  sendEvent = true,
 ): Promise<void> {
   const current = await projectTeamIds(projectId);
   const next = new Set(requested);
@@ -537,7 +541,7 @@ export async function setProjectTeams(
       .set({ updatedAt: sql`now()` })
       .where(eq(project.id, projectId));
   });
-  await emitProject('update', await projectData(projectId), actorUserId, beforeData);
+  if (sendEvent) await emitProject('update', await projectData(projectId), actorUserId, beforeData);
 }
 
 // Sets or clears archived_at. Archived projects are hidden from lists unless

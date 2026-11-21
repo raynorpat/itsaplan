@@ -121,6 +121,8 @@ export async function updateWebhook(
   if (patch.label !== undefined) set.label = patch.label;
   if (patch.resourceTypes !== undefined) set.resourceTypes = patch.resourceTypes;
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
+  // Re-enabling starts the auto-disable count over.
+  if (patch.enabled === true) set.consecutiveFailures = 0;
   if (patch.secret !== undefined) set.secret = patch.secret;
   if (Object.keys(set).length === 0) return getWebhook(id);
   set.updatedAt = new Date();

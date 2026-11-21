@@ -104,4 +104,21 @@ describe('comment and label webhooks', () => {
     await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [l.id] });
     expect((await payloads(asOwner, hookId)).map((p) => p.action)).toEqual(['create']);
   });
+
+  it('sends IssueLabel creates for the labels of a copied team', async () => {
+    const { asOwner, scope } = await setup();
+    const all = (
+      await asOwner.webhooks.post({ url: 'https://example.com/all', resourceTypes: ['IssueLabel'] })
+    ).data!;
+    const group = (await scope['label-groups'].post({ name: 'Area' })).data!;
+    await scope.labels.post({ name: 'api', groupId: group.id });
+    const before = (await payloads(asOwner, all.id)).length;
+    await scope.copy.post({ key: 'CPY', name: 'Copy', include: { labels: true } });
+    const copied = (await asOwner.teams({ teamKey: 'CPY' }).get()).data!;
+    const after = (await payloads(asOwner, all.id)).slice(before);
+    expect(after.map((p) => [p.action, p.data.name, p.data.teamId])).toEqual([
+      ['create', 'Area', copied.team.id],
+      ['create', 'api', copied.team.id],
+    ]);
+  });
 });

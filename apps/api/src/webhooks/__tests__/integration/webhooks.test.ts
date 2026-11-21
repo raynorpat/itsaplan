@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { db, webhook } from '@repo/db';
+import { eq } from 'drizzle-orm';
 import type { WebhookResourceType } from '../../store';
 
 async function setupOwnerTeam() {
@@ -330,6 +332,17 @@ describe('webhooks', () => {
     });
   });
 
+  describe('re-enabling', () => {
+    it('clears the failure count when a webhook is enabled again', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      const id = await createWebhook(asOwner, ['Issue'], { enabled: false });
+      await db.update(webhook).set({ consecutiveFailures: 19 }).where(eq(webhook.id, id));
+      await asOwner.webhooks({ webhookId: id }).patch({ enabled: true });
+      const [row] = await db.select().from(webhook).where(eq(webhook.id, id));
+      expect(row!.consecutiveFailures).toBe(0);
+    });
+  });
+
   describe('secret', () => {
     it('rotates the secret', async () => {
       const { asOwner } = await setupOwnerTeam();
@@ -400,6 +413,9 @@ describe('webhooks', () => {
       const id = (await user.webhooks.post(hook)).data!.id;
       await god.teams.post({ key: 'OPS', name: 'Operations' });
       expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
+      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(403);
+      expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(403);
+      expect((await user.webhooks.get()).status).toBe(403);
     });
   });
 

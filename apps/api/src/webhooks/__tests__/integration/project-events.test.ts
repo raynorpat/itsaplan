@@ -129,4 +129,14 @@ describe('project webhooks', () => {
     expect(ps[1]).toMatchObject({ updatedFrom: { body: 'Behind' } });
     expect(await payloads(asOwner, hooks.ENG!)).toEqual([]);
   });
+
+  it('sends one Project update for a GraphQL update that changes teams and fields', async () => {
+    const { owner, asOwner, ids, hooks } = await setup();
+    const project = await createProject(asOwner, [ids.MKT!]);
+    const client = linearClient(await createApiKey(owner.cookie));
+    await client.updateProject(project.id, { name: 'Renamed', teamIds: [ids.MKT!, ids.OPS!] });
+    const updates = (await payloads(asOwner, hooks.MKT!)).filter((p) => p.action === 'update');
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.updatedFrom).toMatchObject({ name: 'Launch', teamIds: [ids.MKT] });
+  });
 });

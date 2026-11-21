@@ -34,6 +34,8 @@ import { listAgentToolLinks, setAgentTools } from '../agent-tools/store';
 import { listAgentSchedules, createAgentSchedule } from '../agent-schedules/store';
 import { nextCronRun } from '../agent-schedules/cron';
 import { getObject } from '../shared/s3';
+import { emitEvent } from '../webhooks/event';
+import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
 
 // Which parts of a source team the copy carries over. Each key mirrors a section
 // of the team settings menu. A key set false skips that entity. Some sections
@@ -695,5 +697,19 @@ export async function copyTeam(
     }
   }
 
+  if (inc.labels) await emitCopiedLabels(newTeam.id, ownerId);
   return newTeam;
+}
+
+// The copied team's labels are new IssueLabels; all-teams webhooks receive their
+// creates, groups first (as the copy inserted them).
+async function emitCopiedLabels(teamId: string, actorUserId: string): Promise<void> {
+  const groups = await db.select().from(labelGroup).where(eq(labelGroup.teamId, teamId));
+  const labels = await db.select().from(label).where(eq(label.teamId, teamId));
+  const created = [
+    ...groups.map((g) => toLabelGroupAsIssueLabel(g)),
+    ...labels.map((l) => toIssueLabel(l)),
+  ];
+  for (const data of created)
+    await emitEvent({ type: 'IssueLabel', action: 'create', teamIds: [teamId], actorUserId, data });
 }

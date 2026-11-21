@@ -40,6 +40,7 @@ import type { GraphQLContext } from '../context';
 import { gqlError } from '../errors';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toLabel, toMilestone, toUpdate } from './project';
+import { projectData } from '../../webhooks/data';
 
 // Project, milestone, update and label mutations. Access follows REST: a project
 // is changed through a team that grants the projects permission (assertProjectAccess),
@@ -159,6 +160,8 @@ export const projectMutationResolvers = {
         const access = await projectAccess(found.id, ctx, 'edit');
         const patch = toProjectPatch(input);
         if (input.teamIds !== undefined) {
+          // One webhook update covers the team change and the field changes.
+          const before = await projectData(found.id);
           const editable = await teamsGranting(ctx.user.id, 'edit');
           await setProjectTeams(
             found.id,
@@ -166,9 +169,12 @@ export const projectMutationResolvers = {
             editable,
             input.teamIds,
             ctx.user.id,
+            false,
           );
+          await updateProject(found.id, patch, ctx.user.id, before);
+        } else if (Object.keys(patch).length) {
+          await updateProject(found.id, patch, ctx.user.id);
         }
-        if (Object.keys(patch).length) await updateProject(found.id, patch, ctx.user.id);
         return {
           success: true,
           lastSyncId: lastSyncId(),

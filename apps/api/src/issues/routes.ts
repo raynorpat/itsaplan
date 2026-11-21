@@ -26,7 +26,6 @@ import {
   bulkAddLabels,
   bulkArchiveIssues,
   bulkDeleteIssues,
-  setIssueLabels,
   setIssueFieldValue,
   getIssueFieldValues,
   issueRev,
@@ -627,16 +626,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // a column (position).
   .patch(
     '/issues/:issueId',
-    async ({ params, body, user, teamId }) => {
+    async ({ params, body, user }) => {
       const actorUserId = requireUser(user).id;
       const issueId = params.issueId;
       const { labelIds, ...patch } = body;
-      const issue = await updateIssue(issueId, patch, actorUserId);
+      const issue = await updateIssue(issueId, patch, actorUserId, { labelIds });
       if (!issue) throw new HttpError(404, 'Issue not found');
-      if (labelIds) {
-        await setIssueLabels(teamId, issueId, labelIds, actorUserId);
-        issue.labelIds = labelIds;
-      }
       return issue;
     },
     {

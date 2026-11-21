@@ -2,7 +2,7 @@ import { db, workflowState, issue, issueLabel, issueFieldValue, issueFieldOption
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { recordActivityForIssues } from '../issues/activity';
-import { emitEvent } from '../webhooks/event';
+import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
 
 // Data access for columns (kanban states). A column belongs to one team and
@@ -205,7 +205,9 @@ export async function deleteState(
   }
 
   // Webhook data of the column's issues before the change, for their Issue events.
-  const affected = await db.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId));
+  const affected = (await isWatched('Issue', [teamId]))
+    ? await db.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId))
+    : [];
   const beforeData = new Map<string, WebhookData>();
   for (const { id } of affected) {
     const data = await issueData(id);
