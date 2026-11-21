@@ -134,6 +134,27 @@ directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authe
   plain user, create the god user first and act as the second.
 - Don't hardcode ids or the "-42" sequence — read them from the create response.
 
+## Webhooks (Linear-compatible)
+
+Outgoing webhooks use Linear's format and subscription model, so a Linear webhook
+receiver works against the instance.
+
+- **Subscriptions** (`webhooks/store.ts`): a webhook covers one team or all teams
+  (`all_public_teams`, including teams created later) and lists resource types:
+  `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`. Team webhooks use
+  the team's `webhooks.<action>` permission; all-teams webhooks are managed only by
+  the god user or an owner of every team (`webhooks/access.ts`, checked on every
+  operation).
+- **Events:** the stores call `emitEvent` (`webhooks/event.ts`) after a change,
+  with the entity's data from `webhooks/data.ts` before and after it. `data` is the
+  GraphQL mapper's output plus Linear's relation ids; `updatedFrom` holds the
+  previous values of changed fields. A label group is sent as an `IssueLabel` with
+  `isGroup: true`. A project event reaches the webhooks of every team it includes;
+  an update also reaches the teams it had before. A new write path for these
+  entities must call `emitEvent` too.
+- **Delivery** is the worker's (`apps/worker`): it adds `webhookTimestamp`, signs
+  the body and retries on Linear's schedule.
+
 ## GraphQL (Linear-compatible)
 
 `/graphql` serves Linear's published schema so `@linear/sdk` and Linear tools work

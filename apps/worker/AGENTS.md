@@ -8,12 +8,19 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
 
 - Polls `webhook_delivery` for due `pending` rows, claims a batch with
   `FOR UPDATE SKIP LOCKED`, posts each to its webhook URL, records the outcome.
-- Signs every request: `X-Itsaplan-Signature: t=<ts>,v1=<hmac-sha256>` over
-  `${ts}.${body}` with the webhook's `secret`. Plus `X-Itsaplan-Event`,
-  `X-Itsaplan-Delivery`, `X-Itsaplan-Event-Id` (stable across retries).
-- Retries transient failures (timeout, 429, 5xx) with equal-jitter exponential
-  backoff up to `WEBHOOK_MAX_ATTEMPTS`; permanent 4xx fail immediately. After
-  `WEBHOOK_DISABLE_THRESHOLD` consecutive failures the webhook is auto-disabled.
+- Delivers in Linear's webhook format (https://linear.app/developers/webhooks), so
+  a receiver written for Linear verifies it unchanged. The API builds the payload;
+  the worker sets `webhookTimestamp` (send time, Unix ms) in the body, then sends
+  `Linear-Signature` (hex HMAC-SHA256 of the raw body, keyed with the webhook's
+  `secret`), `Linear-Delivery` (the event id, stable across retries),
+  `Linear-Event` (the resource type), `Linear-Timestamp` and
+  `User-Agent: Linear-Webhook`.
+- Only HTTP 200 is success. Any other status, a network error or the 5 s timeout
+  fails the attempt; it is retried 3 times, after 1 minute, 1 hour and 6 hours,
+  then marked failed. After `WEBHOOK_DISABLE_THRESHOLD` consecutive failures the
+  webhook is auto-disabled.
+- After the auto-archive sweep, reports the archived issue ids to the API
+  (`/internal/webhooks/issues-archived`), which sends their Issue events.
 
 ## Invariants
 
@@ -28,16 +35,15 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
   by `WEBHOOK_LEASE_SECONDS`; a crashed delivery is reclaimed after the lease. Keep
   the lease comfortably larger than `WEBHOOK_TIMEOUT_MS`.
 - **Pure logic stays dependency-free.** `backoff.ts`, `signature.ts`, and
-  `isRetryableStatus` import nothing from `@repo/db`, so unit tests run without a
+  `nextRetryDelayS` / `renderBody` import nothing from `@repo/db`, so unit tests run without a
   database. Keep DB access in `store.ts`.
 
 ## Config
 
 All via env with defaults (see `src/config.ts`): `WEBHOOK_POLL_INTERVAL_MS`,
-`WEBHOOK_BATCH_SIZE`, `WEBHOOK_TIMEOUT_MS`, `WEBHOOK_MAX_ATTEMPTS`,
-`WEBHOOK_DISABLE_THRESHOLD`, `WEBHOOK_LEASE_SECONDS`, `WEBHOOK_CLEANUP_DAYS`,
+`WEBHOOK_BATCH_SIZE`, `WEBHOOK_TIMEOUT_MS`, `WEBHOOK_DISABLE_THRESHOLD`, `WEBHOOK_LEASE_SECONDS`, `WEBHOOK_CLEANUP_DAYS`,
 `WEBHOOK_CLEANUP_EVERY_TICKS`. Only `DATABASE_URL` is required for webhook
-delivery. Agent runs and notification delivery additionally need
+delivery. Agent runs, notification delivery and the auto-archive report additionally need
 `WORKER_INTERNAL_TOKEN` and an api origin (`SERVICE_URL_API`, else
 `API_URL`); `internal-api.ts` throws when either is missing, no fallback
 origin.
