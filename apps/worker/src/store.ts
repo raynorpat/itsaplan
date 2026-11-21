@@ -18,7 +18,7 @@ export interface ClaimedDelivery {
 // multiple worker replicas run without ever grabbing the same row. Claiming
 // pushes next_attempt_at forward by the lease and bumps attempts, so a row whose
 // worker crashes mid-delivery becomes claimable again after the lease — no
-// separate recovery pass. The webhook's url/secret/is_active are read inline.
+// separate recovery pass. The webhook's url/secret/enabled are read inline.
 export async function claimDueDeliveries(): Promise<ClaimedDelivery[]> {
   const { batchSize, leaseSeconds } = workerConfig();
   const rows = await db.execute(sql`
@@ -41,7 +41,7 @@ export async function claimDueDeliveries(): Promise<ClaimedDelivery[]> {
       d.attempts,
       (SELECT url FROM webhook w WHERE w.id = d.webhook_id) AS url,
       (SELECT secret FROM webhook w WHERE w.id = d.webhook_id) AS secret,
-      (SELECT is_active FROM webhook w WHERE w.id = d.webhook_id) AS "isActive"
+      (SELECT enabled FROM webhook w WHERE w.id = d.webhook_id) AS "isActive"
   `);
   return rows as unknown as ClaimedDelivery[];
 }
@@ -127,7 +127,7 @@ async function bumpWebhookFailure(webhookId: string): Promise<void> {
     .update(webhook)
     .set({
       consecutiveFailures: sql`${webhook.consecutiveFailures} + 1`,
-      isActive: sql`(${webhook.consecutiveFailures} + 1) < ${disableThreshold}`,
+      enabled: sql`(${webhook.consecutiveFailures} + 1) < ${disableThreshold}`,
     })
     .where(eq(webhook.id, webhookId));
 }

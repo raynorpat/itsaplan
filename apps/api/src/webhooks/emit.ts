@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { db, webhook, webhookDelivery } from '@repo/db';
 import { and, eq, sql } from 'drizzle-orm';
-import type { WebhookEventType } from './store';
+// The granular event types the stores still emit; replaced by webhooks/event.ts.
+export type WebhookEventType =
+  | 'issue.created'
+  | 'issue.updated'
+  | 'issue.deleted'
+  | 'issue.assigned'
+  | 'issue.state_changed'
+  | 'issue.label_changed'
+  | 'comment.created';
 
 // Maps our granular event type to the Linear-style envelope's action + resource
 // type. action is create | update | remove; type is the PascalCase resource.
@@ -41,9 +49,9 @@ export async function emitWebhookEvent(
     .where(
       and(
         eq(webhook.teamId, teamId),
-        eq(webhook.isActive, true),
-        // events is a jsonb array of event-type strings; @> tests membership.
-        sql`${webhook.events} @> ${JSON.stringify([eventType])}::jsonb`,
+        eq(webhook.enabled, true),
+        // resource_types is a jsonb array of resource types; @> tests membership.
+        sql`${webhook.resourceTypes} @> ${JSON.stringify([EVENT_SHAPE[eventType].type])}::jsonb`,
       ),
     );
   if (matching.length === 0) return;

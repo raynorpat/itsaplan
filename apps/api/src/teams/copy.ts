@@ -557,9 +557,11 @@ export async function copyTeam(
         await tx.insert(webhook).values({
           teamId: proj.id,
           url: w.url,
+          label: w.label,
           secret: w.secret,
-          events: w.events,
-          isActive: w.isActive,
+          resourceTypes: w.resourceTypes,
+          enabled: w.enabled,
+          creatorUserId: w.creatorUserId,
         });
       }
     }

@@ -1176,47 +1176,44 @@ export interface ActionPatch {
   effect?: ActionEffect;
 }
 
-// Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The event
-// types must stay in sync with WEBHOOK_EVENT_TYPES on the server.
-export type WebhookEventType =
-  | 'issue.created'
-  | 'issue.updated'
-  | 'issue.deleted'
-  | 'issue.assigned'
-  | 'issue.state_changed'
-  | 'issue.label_changed'
-  | 'comment.created';
+// Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The
+// resource types must stay in sync with WEBHOOK_RESOURCE_TYPES on the server.
+export type WebhookResourceType = 'Issue' | 'Comment' | 'IssueLabel' | 'Project' | 'ProjectUpdate';
 
-export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
-  'issue.created',
-  'issue.updated',
-  'issue.deleted',
-  'issue.assigned',
-  'issue.state_changed',
-  'issue.label_changed',
-  'comment.created',
+export const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string }[] = [
+  { value: 'Issue', label: 'Issues' },
+  { value: 'Comment', label: 'Comments' },
+  { value: 'IssueLabel', label: 'Issue labels' },
+  { value: 'Project', label: 'Projects' },
+  { value: 'ProjectUpdate', label: 'Project updates' },
 ];
 
 export interface Webhook {
   id: string;
-  teamId: string;
+  teamId: string | null;
+  allPublicTeams: boolean;
   url: string;
+  label: string | null;
   secret: string;
-  events: WebhookEventType[];
-  isActive: boolean;
+  resourceTypes: WebhookResourceType[];
+  enabled: boolean;
+  creatorUserId: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface NewWebhookInput {
   url: string;
-  events: WebhookEventType[];
-  isActive?: boolean;
+  resourceTypes: WebhookResourceType[];
+  label?: string | null;
+  enabled?: boolean;
 }
 
 export interface WebhookPatch {
   url?: string;
-  events?: WebhookEventType[];
-  isActive?: boolean;
+  resourceTypes?: WebhookResourceType[];
+  label?: string | null;
+  enabled?: boolean;
 }
 
 // A recorded delivery attempt for the history view. payload is the request body we
@@ -1225,7 +1222,8 @@ export interface WebhookPatch {
 export interface WebhookDelivery {
   id: string;
   eventId: string;
-  eventType: WebhookEventType;
+  // The Linear resource type of the event (Issue, Comment, …).
+  eventType: string;
   status: 'pending' | 'success' | 'failed';
   attempts: number;
   payload: unknown;

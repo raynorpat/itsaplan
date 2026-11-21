@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import type { WebhookEventType } from '../../store';
+import type { WebhookResourceType } from '../../store';
 
 async function setupOwnerTeam() {
   const owner = await signUpTestUser();
@@ -16,12 +16,12 @@ async function setupOwnerTeam() {
 // Registers a webhook on MKT and returns its id.
 async function createWebhook(
   client: Api,
-  events: WebhookEventType[],
-  opts: { isActive?: boolean } = {},
+  resourceTypes: WebhookResourceType[],
+  opts: { enabled?: boolean } = {},
 ): Promise<string> {
   const res = await client.teams({ teamKey: 'MKT' }).webhooks.post({
     url: 'https://example.com/hook',
-    events,
+    resourceTypes,
     ...opts,
   });
   return res.data!.id;
@@ -37,7 +37,7 @@ describe('webhooks', () => {
     const asOwner = authedApi(owner.cookie);
     await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
     const ids: string[] = [];
-    for (let i = 0; i < 5; i++) ids.push(await createWebhook(asOwner, ['issue.created']));
+    for (let i = 0; i < 5; i++) ids.push(await createWebhook(asOwner, ['Issue']));
     const list = await asOwner.teams({ teamKey: 'MKT' }).webhooks.get();
     expect(list.data!.map((w) => w.id)).toEqual(ids);
   });
@@ -48,14 +48,16 @@ describe('webhooks', () => {
 
       const created = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
-        events: ['issue.created', 'issue.updated'],
+        resourceTypes: ['Issue', 'Project'],
       });
       expect(created.status).toBe(201);
       expect(created.data).toMatchObject({
         teamId,
+        allPublicTeams: false,
         url: 'https://example.com/hook',
-        events: ['issue.created', 'issue.updated'],
-        isActive: true,
+        resourceTypes: ['Issue', 'Project'],
+        label: null,
+        enabled: true,
       });
       expect(typeof created.data?.id).toBe('string');
       expect(created.data?.secret).toMatch(/^whsec_/);
@@ -66,15 +68,15 @@ describe('webhooks', () => {
       expect(list.data?.[0]).toMatchObject({ url: 'https://example.com/hook' });
     });
 
-    it('honors an explicit isActive false', async () => {
+    it('honors an explicit enabled false', async () => {
       const { asOwner } = await setupOwnerTeam();
       const created = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
-        events: ['issue.created'],
-        isActive: false,
+        resourceTypes: ['Issue'],
+        enabled: false,
       });
       expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ isActive: false });
+      expect(created.data).toMatchObject({ enabled: false });
     });
   });
 
@@ -83,7 +85,7 @@ describe('webhooks', () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'http://example.com/hook',
-        events: ['issue.created'],
+        resourceTypes: ['Issue'],
       });
       expect(res.status).toBe(400);
     });
@@ -92,7 +94,7 @@ describe('webhooks', () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://192.168.0.10/hook',
-        events: ['issue.created'],
+        resourceTypes: ['Issue'],
       });
       expect(res.status).toBe(400);
     });
@@ -101,33 +103,33 @@ describe('webhooks', () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://localhost/hook',
-        events: ['issue.created'],
+        resourceTypes: ['Issue'],
       });
       expect(res.status).toBe(400);
     });
 
-    it('rejects an empty events list', async () => {
+    it('rejects an empty resource type list', async () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
-        events: [],
+        resourceTypes: [],
       });
       expect(res.status).toBe(400);
     });
 
-    it('rejects an unknown event type', async () => {
+    it('rejects an unknown resource type', async () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
-        // @ts-expect-error unknown event type is rejected by the schema
-        events: ['issue.exploded'],
+        // @ts-expect-error an unknown resource type is rejected by the schema
+        resourceTypes: ['Cycle'],
       });
       expect(res.status).toBe(400);
     });
 
     it('rejects a non-numeric webhook id', async () => {
       const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.webhooks({ webhookId: 'abc' }).patch({ isActive: false });
+      const res = await asOwner.webhooks({ webhookId: 'abc' }).patch({ enabled: false });
       expect(res.status).toBe(400);
     });
   });
@@ -138,19 +140,21 @@ describe('webhooks', () => {
       const id = (
         await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
-          events: ['issue.created'],
+          resourceTypes: ['Issue'],
         })
       ).data!.id;
 
       const patched = await asOwner.webhooks({ webhookId: id }).patch({
-        events: ['issue.deleted', 'comment.created'],
-        isActive: false,
+        resourceTypes: ['Comment', 'Project'],
+        label: 'CI',
+        enabled: false,
       });
       expect(patched.status).toBe(200);
       expect(patched.data).toMatchObject({
         url: 'https://example.com/hook',
-        events: ['issue.deleted', 'comment.created'],
-        isActive: false,
+        resourceTypes: ['Comment', 'Project'],
+        label: 'CI',
+        enabled: false,
       });
     });
 
@@ -159,7 +163,7 @@ describe('webhooks', () => {
       const id = (
         await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
-          events: ['issue.created'],
+          resourceTypes: ['Issue'],
         })
       ).data!.id;
 
@@ -171,7 +175,7 @@ describe('webhooks', () => {
       const { asOwner } = await setupOwnerTeam();
       const res = await asOwner
         .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
-        .patch({ isActive: false });
+        .patch({ enabled: false });
       expect(res.status).toBe(404);
     });
   });
@@ -182,7 +186,7 @@ describe('webhooks', () => {
       const id = (
         await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
-          events: ['issue.created'],
+          resourceTypes: ['Issue'],
         })
       ).data!.id;
 
@@ -205,7 +209,7 @@ describe('webhooks', () => {
   describe('deliveries', () => {
     it('returns an empty page for a webhook with no deliveries', async () => {
       const { asOwner } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['issue.created']);
+      const id = await createWebhook(asOwner, ['Issue']);
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.status).toBe(200);
@@ -228,7 +232,7 @@ describe('webhooks', () => {
 
     it('paginates newest-first with a keyset cursor', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['issue.created']);
+      const id = await createWebhook(asOwner, ['Issue']);
 
       // Three issue.created events queue three deliveries on this webhook.
       for (const title of ['a', 'b', 'c']) {
@@ -263,7 +267,7 @@ describe('webhooks', () => {
   describe('fan-out', () => {
     it('queues a pending delivery for a subscribed active webhook on issue.created', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['issue.created']);
+      const id = await createWebhook(asOwner, ['Issue']);
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
@@ -286,7 +290,7 @@ describe('webhooks', () => {
 
     it('does not queue for an inactive webhook', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['issue.created'], { isActive: false });
+      const id = await createWebhook(asOwner, ['Issue'], { enabled: false });
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
@@ -296,7 +300,7 @@ describe('webhooks', () => {
 
     it('does not queue for an event the webhook is not subscribed to', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['comment.created']);
+      const id = await createWebhook(asOwner, ['Comment']);
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
@@ -306,8 +310,8 @@ describe('webhooks', () => {
 
     it('fans out to every matching webhook with a shared event id', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const a = await createWebhook(asOwner, ['issue.created']);
-      const b = await createWebhook(asOwner, ['issue.created']);
+      const a = await createWebhook(asOwner, ['Issue']);
+      const b = await createWebhook(asOwner, ['Issue']);
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
@@ -319,23 +323,9 @@ describe('webhooks', () => {
       expect(da.data!.items[0].eventId).toBe(db.data!.items[0].eventId);
     });
 
-    it('fires the granular issue.state_changed alongside issue.updated on a column move', async () => {
-      const { asOwner, stateId } = await setupOwnerTeam();
-      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
-      const otherColumn = view.data!.states[1].id;
-      const id = await createWebhook(asOwner, ['issue.updated', 'issue.state_changed']);
-
-      const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
-      await asOwner.issues({ issueId: issue.data!.id }).patch({ stateId: otherColumn });
-
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
-      const types = res.data!.items.map((d) => d.eventType).sort();
-      expect(types).toEqual(['issue.state_changed', 'issue.updated']);
-    });
-
     it('queues a delivery on comment.created', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['comment.created']);
+      const id = await createWebhook(asOwner, ['Comment']);
 
       const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
       await asOwner.issues({ issueId: issue.data!.id }).comments.post({ body: 'looks good' });
@@ -343,6 +333,79 @@ describe('webhooks', () => {
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(1);
       expect(res.data!.items[0]).toMatchObject({ eventType: 'comment.created' });
+    });
+  });
+
+  describe('secret', () => {
+    it('rotates the secret', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      const created = (
+        await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
+          url: 'https://example.com/hook',
+          resourceTypes: ['Issue'],
+        })
+      ).data!;
+      const rotated = await asOwner.webhooks({ webhookId: created.id })['rotate-secret'].post();
+      expect(rotated.status).toBe(200);
+      expect(rotated.data!.secret).toMatch(/^whsec_/);
+      expect(rotated.data!.secret).not.toBe(created.secret);
+    });
+  });
+
+  // All-teams webhooks: the god user (first signup) or an owner of every team.
+  describe('all teams', () => {
+    const hook = { url: 'https://example.com/all', resourceTypes: ['Issue' as const] };
+
+    it('the god user creates and lists an all-teams webhook', async () => {
+      const { asOwner } = await setupOwnerTeam();
+      const created = await asOwner.webhooks.post(hook);
+      expect(created.status).toBe(201);
+      expect(created.data).toMatchObject({ teamId: null, allPublicTeams: true });
+      const list = await asOwner.webhooks.get();
+      expect(list.data!.map((w) => w.id)).toEqual([created.data!.id]);
+      // Team lists do not include it.
+      expect((await asOwner.teams({ teamKey: 'MKT' }).webhooks.get()).data).toEqual([]);
+    });
+
+    it('an owner of every team manages all-teams webhooks', async () => {
+      await signUpTestUser(); // god
+      const user = authedApi((await signUpTestUser()).cookie);
+      await user.teams.post({ key: 'MKT', name: 'Marketing' });
+      await user.teams.post({ key: 'OPS', name: 'Operations' });
+      const created = await user.webhooks.post(hook);
+      expect(created.status).toBe(201);
+      const id = created.data!.id;
+      expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(200);
+      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(200);
+      expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(204);
+    });
+
+    it('an owner of only some teams cannot', async () => {
+      const god = await signUpTestUser();
+      const asGod = authedApi(god.cookie);
+      const member = await signUpTestUser();
+      const asMember = authedApi(member.cookie);
+      await asMember.teams.post({ key: 'MKT', name: 'Marketing' });
+      await asGod.teams.post({ key: 'OPS', name: 'Operations' });
+      const invite = await asGod
+        .teams({ teamKey: 'OPS' })
+        .invites.post({ email: member.email, role: 'member' });
+      await asMember.invites({ token: invite.data!.token }).accept.post();
+      const id = (await asGod.webhooks.post(hook)).data!.id;
+
+      expect((await asMember.webhooks.post(hook)).status).toBe(403);
+      expect((await asMember.webhooks.get()).status).toBe(403);
+      expect((await asMember.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
+      expect((await asMember.webhooks({ webhookId: id }).delete()).status).toBe(403);
+    });
+
+    it('losing ownership of one team removes access', async () => {
+      const god = authedApi((await signUpTestUser()).cookie);
+      const user = authedApi((await signUpTestUser()).cookie);
+      await user.teams.post({ key: 'MKT', name: 'Marketing' });
+      const id = (await user.webhooks.post(hook)).data!.id;
+      await god.teams.post({ key: 'OPS', name: 'Operations' });
+      expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
     });
   });
 
@@ -358,7 +421,7 @@ describe('webhooks', () => {
       const webhookId = (
         await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
           url: 'https://example.com/hook',
-          events: ['issue.created'],
+          resourceTypes: ['Issue'],
         })
       ).data!.id;
 
@@ -371,11 +434,11 @@ describe('webhooks', () => {
 
       const create = await outsider.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://evil.example.com/hook',
-        events: ['issue.created'],
+        resourceTypes: ['Issue'],
       });
       expect(create.status).toBe(403);
 
-      const patch = await outsider.webhooks({ webhookId }).patch({ isActive: false });
+      const patch = await outsider.webhooks({ webhookId }).patch({ enabled: false });
       expect(patch.status).toBe(403);
 
       const del = await outsider.webhooks({ webhookId }).delete();

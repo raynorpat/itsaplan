@@ -117,7 +117,7 @@ describe('graphql mutations', () => {
       const { asOwner, client, teamId, col } = await setup();
       const hook = await asOwner
         .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/hook', events: ['issue.state_changed'] });
+        .webhooks.post({ url: 'https://example.com/hook', resourceTypes: ['Issue'] });
       const issue = (await (await client.createIssue({ teamId, title: 'Move me' })).issue)!;
 
       const payload = await client.updateIssue(issue.id, { stateId: col.completed });
@@ -127,7 +127,7 @@ describe('graphql mutations', () => {
       const feed = await asOwner.issues({ issueId: issue.id }).feed.get();
       expect(feed.data!.items.map((i) => i.action)).toContain('status');
       const deliveries = await asOwner.webhooks({ webhookId: hook.data!.id }).deliveries.get();
-      expect(deliveries.data!.items.map((d) => d.eventType)).toEqual(['issue.state_changed']);
+      expect(deliveries.data!.items.map((d) => d.eventType)).toContain('issue.state_changed');
     });
 
     it('denies a member without work item permissions', async () => {

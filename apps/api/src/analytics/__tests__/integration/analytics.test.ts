@@ -487,11 +487,11 @@ describe('analytics', () => {
       const scope = asOwner.teams({ teamKey: 'MKT' });
       const active = await scope.webhooks.post({
         url: 'https://example.com/a',
-        events: ['issue.created'],
+        resourceTypes: ['Issue'],
       });
-      await scope.webhooks.post({ url: 'https://example.com/b', events: ['issue.created'] });
+      await scope.webhooks.post({ url: 'https://example.com/b', resourceTypes: ['Issue'] });
       // Disable one so the counts split.
-      await asOwner.webhooks({ webhookId: active.data!.id }).patch({ isActive: false });
+      await asOwner.webhooks({ webhookId: active.data!.id }).patch({ enabled: false });
 
       const res = await scope['analytics']['webhook-stats'].get();
       expect(res.status).toBe(200);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WEBHOOK_EVENT_TYPES, type Webhook, type WebhookEventType } from '@/lib/api';
+import { WEBHOOK_RESOURCE_TYPES, type Webhook, type WebhookResourceType } from '@/lib/api';
 import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 export interface WebhookFormValue {
   url: string;
-  events: WebhookEventType[];
-  isActive: boolean;
+  resourceTypes: WebhookResourceType[];
+  enabled: boolean;
 }
 
-// Add/edit dialog for a webhook: the payload URL, the set of subscribed event
-// types, and whether it is active. The secret is generated server-side and shown
+// Add/edit dialog for a webhook: the payload URL, the resource types it
+// receives, and whether it is enabled. The secret is generated server-side and shown
 // on the row, not here.
 export function SettingsWebhookDialog({
   teamKey,
@@ -29,23 +29,25 @@ export function SettingsWebhookDialog({
   onClose: () => void;
 }) {
   const [url, setUrl] = useState(initial?.url ?? '');
-  const [events, setEvents] = useState<Set<WebhookEventType>>(new Set(initial?.events ?? []));
-  const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [types, setTypes] = useState<Set<WebhookResourceType>>(
+    new Set(initial?.resourceTypes ?? []),
+  );
+  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
 
-  const valid = url.trim().length > 0 && events.size > 0;
+  const valid = url.trim().length > 0 && types.size > 0;
 
-  function toggleEvent(event: WebhookEventType, on: boolean) {
-    setEvents((prev) => {
+  function toggleType(type: WebhookResourceType, on: boolean) {
+    setTypes((prev) => {
       const next = new Set(prev);
-      if (on) next.add(event);
-      else next.delete(event);
+      if (on) next.add(type);
+      else next.delete(type);
       return next;
     });
   }
 
   async function submit() {
     if (!valid) return;
-    await onSave({ url: url.trim(), events: [...events], isActive });
+    await onSave({ url: url.trim(), resourceTypes: [...types], enabled });
   }
 
   const actionLabel = initial ? 'Save webhook' : 'Create webhook';
@@ -54,7 +56,7 @@ export function SettingsWebhookDialog({
   return (
     <Modal
       title={initial ? 'Edit webhook' : 'New webhook'}
-      description="Set the payload URL and choose which team events to send."
+      description="Set the payload URL and choose which resource types to send."
       teamKey={teamKey}
       onClose={onClose}
       wide
@@ -79,15 +81,15 @@ export function SettingsWebhookDialog({
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-sm font-medium">Events</span>
+          <span className="text-sm font-medium">Resource types</span>
           <div className="grid gap-2 sm:grid-cols-2">
-            {WEBHOOK_EVENT_TYPES.map((event) => (
-              <label key={event} className="flex cursor-pointer items-center gap-2">
+            {WEBHOOK_RESOURCE_TYPES.map((type) => (
+              <label key={type.value} className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox
-                  checked={events.has(event)}
-                  onCheckedChange={(v) => toggleEvent(event, v === true)}
+                  checked={types.has(type.value)}
+                  onCheckedChange={(v) => toggleType(type.value, v === true)}
                 />
-                <span className="font-mono text-xs">{event}</span>
+                <span>{type.label}</span>
               </label>
             ))}
           </div>
@@ -95,8 +97,8 @@ export function SettingsWebhookDialog({
 
         <div className="border-t border-border/50 pt-4">
           <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-            <Checkbox checked={isActive} onCheckedChange={(v) => setIsActive(v === true)} />
-            <span>Active</span>
+            <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
+            <span>Enabled</span>
           </label>
         </div>
 

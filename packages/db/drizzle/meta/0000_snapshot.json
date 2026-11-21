@@ -1,5 +1,5 @@
 {
-  "id": "826c5217-6692-40a3-bab7-e6924c78d732",
+  "id": "a8d29c2c-f525-478c-8233-a03c2aeb9a32",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -5570,7 +5570,14 @@
           "name": "team_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "all_public_teams": {
+          "name": "all_public_teams",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "url": {
           "name": "url",
@@ -5578,25 +5585,37 @@
           "primaryKey": false,
           "notNull": true
         },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "secret": {
           "name": "secret",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "events": {
-          "name": "events",
+        "resource_types": {
+          "name": "resource_types",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
         },
-        "is_active": {
-          "name": "is_active",
+        "enabled": {
+          "name": "enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "creator_user_id": {
+          "name": "creator_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "consecutive_failures": {
           "name": "consecutive_failures",
@@ -5607,6 +5626,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -5643,12 +5669,30 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "webhook_creator_user_id_user_id_fk": {
+          "name": "webhook_creator_user_id_user_id_fk",
+          "tableFrom": "webhook",
+          "tableTo": "user",
+          "columnsFrom": [
+            "creator_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "webhook_scope_check": {
+          "name": "webhook_scope_check",
+          "value": "(\"webhook\".\"team_id\" IS NOT NULL) <> \"webhook\".\"all_public_teams\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.webhook_delivery": {

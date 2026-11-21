@@ -4,47 +4,49 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { afterCursor, encodeCursor } from '../shared/keyset';
 
-// Outgoing webhook subscriptions on a team. A subscription targets a `url`,
-// carries a per-subscription `secret` used to sign delivered payloads, and lists
-// the event types it wants. Delivery is handled separately; this layer only
-// stores and returns the subscription.
+// Outgoing webhook subscriptions (Linear's Webhook). A subscription targets a
+// `url`, covers one team or all teams, lists the resource types it receives, and
+// carries a per-subscription `secret` that signs delivered payloads. Delivery is
+// handled separately; this layer only stores and returns the subscription.
 
-// The event types a subscription can listen to. Keep in sync with the events the
-// delivery side emits (issues/store.ts, issues/activity.ts) and the frontend list
-// (apps/web src/lib/api.ts). issue.updated fires on any field change; the granular
-// issue.assigned / issue.state_changed / issue.label_changed fire in addition,
-// only when that specific field changes on an existing issue. issue.state_changed
-// fires when the issue moves to a different state (column).
-export const WEBHOOK_EVENT_TYPES = [
-  'issue.created',
-  'issue.updated',
-  'issue.deleted',
-  'issue.assigned',
-  'issue.state_changed',
-  'issue.label_changed',
-  'comment.created',
+// The Linear resource types a webhook can receive. Keep in sync with the events
+// emitted through webhooks/event.ts and the web list (apps/web src/lib/api.ts).
+export const WEBHOOK_RESOURCE_TYPES = [
+  'Issue',
+  'Comment',
+  'IssueLabel',
+  'Project',
+  'ProjectUpdate',
 ] as const;
-export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+export type WebhookResourceType = (typeof WEBHOOK_RESOURCE_TYPES)[number];
 
 export interface WebhookRow {
   id: string;
-  teamId: string;
+  teamId: string | null;
+  allPublicTeams: boolean;
   url: string;
+  label: string | null;
   secret: string;
-  events: WebhookEventType[];
-  isActive: boolean;
+  resourceTypes: WebhookResourceType[];
+  enabled: boolean;
+  creatorUserId: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
   return {
     id: row.id,
     teamId: row.teamId,
+    allPublicTeams: row.allPublicTeams,
     url: row.url,
+    label: row.label,
     secret: row.secret,
-    events: (row.events as WebhookEventType[]) ?? [],
-    isActive: row.isActive,
+    resourceTypes: (row.resourceTypes as WebhookResourceType[]) ?? [],
+    enabled: row.enabled,
+    creatorUserId: row.creatorUserId,
     createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
   };
 }
 
@@ -63,23 +65,39 @@ export async function listWebhooks(teamId: string): Promise<WebhookRow[]> {
   return rows.map(mapWebhook);
 }
 
+export async function listAllTeamsWebhooks(): Promise<WebhookRow[]> {
+  const rows = await db
+    .select()
+    .from(webhook)
+    .where(eq(webhook.allPublicTeams, true))
+    .orderBy(webhook.createdAt, webhook.id);
+  return rows.map(mapWebhook);
+}
+
+// teamId null creates an all-teams webhook. A missing secret is generated.
 export async function createWebhook(input: {
-  teamId: string;
+  teamId: string | null;
   url: string;
-  events: WebhookEventType[];
-  isActive?: boolean;
+  resourceTypes: WebhookResourceType[];
+  label?: string | null;
+  secret?: string;
+  enabled?: boolean;
+  creatorUserId: string | null;
 }): Promise<WebhookRow> {
   const [row] = await db
     .insert(webhook)
     .values({
       teamId: input.teamId,
+      allPublicTeams: input.teamId === null,
       url: input.url,
-      secret: generateSecret(),
-      events: input.events,
-      isActive: input.isActive ?? true,
+      label: input.label ?? null,
+      secret: input.secret || generateSecret(),
+      resourceTypes: input.resourceTypes,
+      enabled: input.enabled ?? true,
+      creatorUserId: input.creatorUserId,
     })
     .returning();
-  return mapWebhook(row);
+  return mapWebhook(row!);
 }
 
 export async function getWebhook(id: string): Promise<WebhookRow | null> {
@@ -87,18 +105,32 @@ export async function getWebhook(id: string): Promise<WebhookRow | null> {
   return rows[0] ? mapWebhook(rows[0]) : null;
 }
 
-// Updates only the provided fields. The secret is not user-editable here.
+// Updates only the provided fields. Returns null when the webhook does not exist.
 export async function updateWebhook(
   id: string,
-  patch: { url?: string; events?: WebhookEventType[]; isActive?: boolean },
+  patch: {
+    url?: string;
+    label?: string | null;
+    resourceTypes?: WebhookResourceType[];
+    enabled?: boolean;
+    secret?: string;
+  },
 ): Promise<WebhookRow | null> {
   const set: Partial<typeof webhook.$inferInsert> = {};
   if (patch.url !== undefined) set.url = patch.url;
-  if (patch.events !== undefined) set.events = patch.events;
-  if (patch.isActive !== undefined) set.isActive = patch.isActive;
+  if (patch.label !== undefined) set.label = patch.label;
+  if (patch.resourceTypes !== undefined) set.resourceTypes = patch.resourceTypes;
+  if (patch.enabled !== undefined) set.enabled = patch.enabled;
+  if (patch.secret !== undefined) set.secret = patch.secret;
   if (Object.keys(set).length === 0) return getWebhook(id);
+  set.updatedAt = new Date();
   const [row] = await db.update(webhook).set(set).where(eq(webhook.id, id)).returning();
   return row ? mapWebhook(row) : null;
+}
+
+// Replaces the secret with a newly generated one.
+export async function rotateWebhookSecret(id: string): Promise<WebhookRow | null> {
+  return updateWebhook(id, { secret: generateSecret() });
 }
 
 export async function deleteWebhook(id: string): Promise<void> {

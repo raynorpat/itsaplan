@@ -562,10 +562,10 @@ export async function getWebhookStats(teamId: string, days: number): Promise<Web
     .groupBy(webhookDelivery.status);
 
   const webhookRows = await db
-    .select({ isActive: webhook.isActive, count: sql<number>`count(*)::int` })
+    .select({ enabled: webhook.enabled, count: sql<number>`count(*)::int` })
     .from(webhook)
     .where(eq(webhook.teamId, teamId))
-    .groupBy(webhook.isActive);
+    .groupBy(webhook.enabled);
 
   const stats: WebhookStatsDto = {
     total: 0,
@@ -582,7 +582,7 @@ export async function getWebhookStats(teamId: string, days: number): Promise<Web
     else if (r.status === 'pending') stats.pending = r.count;
   }
   for (const r of webhookRows) {
-    if (r.isActive) stats.activeWebhooks = r.count;
+    if (r.enabled) stats.activeWebhooks = r.count;
     else stats.disabledWebhooks = r.count;
   }
   return stats;

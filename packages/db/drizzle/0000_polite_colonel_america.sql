@@ -615,13 +615,18 @@ CREATE TABLE "user_telegram_account" (
 --> statement-breakpoint
 CREATE TABLE "webhook" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"team_id" uuid NOT NULL,
+	"team_id" uuid,
+	"all_public_teams" boolean DEFAULT false NOT NULL,
 	"url" text NOT NULL,
+	"label" text,
 	"secret" text NOT NULL,
-	"events" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"is_active" boolean DEFAULT true NOT NULL,
+	"resource_types" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"creator_user_id" uuid,
 	"consecutive_failures" integer DEFAULT 0 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "webhook_scope_check" CHECK (("webhook"."team_id" IS NOT NULL) <> "webhook"."all_public_teams")
 );
 --> statement-breakpoint
 CREATE TABLE "webhook_delivery" (
@@ -737,6 +742,7 @@ ALTER TABLE "user_preference" ADD CONSTRAINT "user_preference_user_id_user_id_fk
 ALTER TABLE "user_preference" ADD CONSTRAINT "user_preference_last_team_id_team_id_fk" FOREIGN KEY ("last_team_id") REFERENCES "public"."team"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_telegram_account" ADD CONSTRAINT "user_telegram_account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook" ADD CONSTRAINT "webhook_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "webhook" ADD CONSTRAINT "webhook_creator_user_id_user_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook_delivery" ADD CONSTRAINT "webhook_delivery_webhook_id_webhook_id_fk" FOREIGN KEY ("webhook_id") REFERENCES "public"."webhook"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_state" ADD CONSTRAINT "workflow_state_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
@@ -783,7 +789,7 @@ CREATE UNIQUE INDEX "user_telegram_account_link_code_unique" ON "user_telegram_a
 CREATE INDEX "webhook_team_idx" ON "webhook" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "webhook_delivery_due_idx" ON "webhook_delivery" USING btree ("next_attempt_at") WHERE "webhook_delivery"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "webhook_delivery_webhook_idx" ON "webhook_delivery" USING btree ("webhook_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "workflow_state_active_position_idx" ON "workflow_state" USING btree ("team_id","position") WHERE "workflow_state"."archived_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_state_active_position_idx" ON "workflow_state" USING btree ("team_id","position") WHERE "workflow_state"."archived_at" IS NULL;
 -- Seed the instance upload limits so every installation has a row to edit in god
 -- mode, from the first migration. Keep these values in sync with
 -- defaultStorageSettings() in apps/api/src/settings/storage.ts, which still applies

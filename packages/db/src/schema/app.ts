@@ -1167,28 +1167,34 @@ export const teamAction = pgTable(
   (t) => [index('team_action_team_idx').on(t.teamId, t.position)],
 );
 
-// Outgoing webhook subscription. On a subscribed event the API posts the event
-// payload to `url`, signed with `secret` (HMAC-SHA256). `events` is the list of
-// event types this subscription wants (e.g. "issue.created"); `is_active` gates
-// delivery without deleting the row. Delivery itself is handled separately.
+// Outgoing webhook subscription (Linear's Webhook). A webhook covers one team
+// (team_id) or every team, including teams created later (all_public_teams);
+// exactly one of the two is set. resource_types lists the Linear resource types it
+// receives (Issue, Comment, IssueLabel, Project, ProjectUpdate). Payloads are
+// signed with `secret` (HMAC-SHA256); `enabled` gates delivery.
 export const webhook = pgTable(
   'webhook',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'cascade' }),
+    allPublicTeams: boolean('all_public_teams').notNull().default(false),
     url: text('url').notNull(),
+    label: text('label'),
     secret: text('secret').notNull(),
-    events: jsonb('events').notNull().default([]),
-    isActive: boolean('is_active').notNull().default(true),
+    resourceTypes: jsonb('resource_types').notNull().default([]),
+    enabled: boolean('enabled').notNull().default(true),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
     // Count of consecutive failed deliveries. Reset to 0 on a successful delivery.
     // When it crosses the worker's threshold the webhook is auto-disabled
-    // (is_active set false) so one dead endpoint cannot occupy the worker.
+    // (enabled set false) so one dead endpoint cannot occupy the worker.
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('webhook_team_idx').on(t.teamId)],
+  (t) => [
+    index('webhook_team_idx').on(t.teamId),
+    check('webhook_scope_check', sql`(${t.teamId} IS NOT NULL) <> ${t.allPublicTeams}`),
+  ],
 );
 
 // Delivery queue (transactional outbox) for webhooks. One row per (event ×

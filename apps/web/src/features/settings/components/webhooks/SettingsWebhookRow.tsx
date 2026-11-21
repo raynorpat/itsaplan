@@ -48,9 +48,9 @@ export function SettingsWebhookRow({
           <span
             className={cn(
               'mt-1.5 size-2 shrink-0 rounded-full',
-              webhook.isActive ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+              webhook.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40',
             )}
-            title={webhook.isActive ? 'Active' : 'Disabled'}
+            title={webhook.enabled ? 'Active' : 'Disabled'}
           />
           <div className="min-w-0 space-y-1.5">
             <span className="block truncate text-sm font-medium" title={webhook.url}>
@@ -84,9 +84,9 @@ export function SettingsWebhookRow({
       </TableCell>
       <TableCell className="px-3 py-4 align-top whitespace-normal">
         <div className="flex flex-wrap gap-1">
-          {webhook.events.map((event) => (
-            <Badge key={event} variant="outline" className="font-mono text-[10px]">
-              {event}
+          {webhook.resourceTypes.map((type) => (
+            <Badge key={type} variant="outline" className="font-mono text-[10px]">
+              {type}
             </Badge>
           ))}
         </div>
