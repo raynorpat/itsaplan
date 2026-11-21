@@ -1449,7 +1449,8 @@ export interface ProjectProgress {
 
 export interface Project {
   id: string;
-  teamId: string;
+  // The project's teams the viewer can access.
+  teams: { id: string; key: string; name: string }[];
   name: string;
   // Short plain-text summary.
   description: string;
@@ -1946,10 +1947,11 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  // Projects — collection ops take teamKey; ops on one project take its
-  // own id and hit /projects/:id (like issues).
+  // Projects span teams: the list and counts take an optional team filter, create
+  // takes the team ids, and ops on one project take its id.
   listProjects: (teamKey: string, params: ProjectListParams = {}) => {
     const q = new URLSearchParams();
+    q.set('teamKey', teamKey);
     if (params.statuses && params.statuses.length) q.set('status', params.statuses.join(','));
     if (params.search) q.set('search', params.search);
     if (params.sort) q.set('sort', params.sort);
@@ -1957,12 +1959,13 @@ export const api = {
     if (params.page) q.set('page', String(params.page));
     if (params.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString();
-    return request<ProjectPage>(`/teams/${teamKey}/projects${qs ? `?${qs}` : ''}`);
+    return request<ProjectPage>(`/projects?${qs}`);
   },
-  projectCounts: (teamKey: string) => request<ProjectCounts>(`/teams/${teamKey}/projects/counts`),
+  projectCounts: (teamKey: string) =>
+    request<ProjectCounts>(`/projects/counts?teamKey=${encodeURIComponent(teamKey)}`),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
-  createProject: (teamKey: string, input: NewProjectInput) =>
-    request<Project>(`/teams/${teamKey}/projects`, {
+  createProject: (input: NewProjectInput & { teamIds: string[] }) =>
+    request<Project>('/projects', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

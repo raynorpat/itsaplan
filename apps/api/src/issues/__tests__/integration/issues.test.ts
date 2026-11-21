@@ -80,8 +80,8 @@ describe('issues', () => {
 
     it('returns the linked project expanded to id and title', async () => {
       const { asOwner, stateId } = await setupTeam();
-      const project = (await asOwner.teams({ teamKey: 'MKT' }).projects.post({ name: 'Q3 Launch' }))
-        .data!;
+      const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+      const project = (await asOwner.projects.post({ name: 'Q3 Launch', teamIds: [teamId] })).data!;
 
       const created = await createIssue(asOwner, stateId, { projectId: project.id });
       expect(created.status).toBe(201);
@@ -810,7 +810,8 @@ describe('issues', () => {
       const board = asOwner.teams({ teamKey: 'MKT' }).issues.board;
       const before = (await board.get()).data!.rev;
 
-      await asOwner.teams({ teamKey: 'MKT' }).projects.post({ name: 'Q3 Launch' });
+      const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+      await asOwner.projects.post({ name: 'Q3 Launch', teamIds: [teamId] });
 
       expect((await board.get()).data!.rev).not.toBe(before);
     });

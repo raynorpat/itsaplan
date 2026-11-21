@@ -3,10 +3,11 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 
-// Projects are a team-scoped grouping of issues. Issues link to one through
-// issue.projectId. status is a fixed lifecycle enum; progress and health are
-// derived from the linked issues' states and are not stored. The activity feed
-// merges the project's own events with the activity of its linked issues.
+// Projects (Linear's Project) group issues across one or more teams. Issues link
+// to one through issue.projectId and must belong to one of its teams. status is
+// one of six status types; progress and health are derived from the linked
+// issues' states. The activity feed merges the project's own events with the
+// activity of its linked issues.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
@@ -16,13 +17,39 @@ async function setup() {
   const columns = view.data!.states;
   const stateId = columns[0].id;
   const doneColumnId = columns.find((c) => c.stateType === 'completed')!.id;
-  return { owner, asOwner, stateId, doneColumnId };
+  return { owner, asOwner, stateId, doneColumnId, teamId: view.data!.team.id };
 }
 
-const projects = (api: Api) => api.teams({ teamKey: 'MKT' }).projects;
+async function teamIdOf(api: Api, teamKey: string): Promise<string> {
+  return (await api.teams({ teamKey }).get()).data!.team.id;
+}
 
-function createProject(api: Api, body: { name: string } & Record<string, unknown>) {
-  return projects(api).post(body);
+// The project list and counts filtered to one team, as the Projects area does.
+const projects = (api: Api, teamKey = 'MKT') => ({
+  get: (opts: { query?: Record<string, string | number> } = {}) =>
+    api.projects.get({ query: { teamKey, ...(opts.query ?? {}) } }),
+  counts: { get: () => api.projects.counts.get({ query: { teamKey } }) },
+});
+
+async function createProject(
+  api: Api,
+  body: { name: string } & Record<string, unknown>,
+  teamKeys: string[] = ['MKT'],
+) {
+  const teamIds = await Promise.all(teamKeys.map((k) => teamIdOf(api, k)));
+  return api.projects.post({ teamIds, ...body } as Parameters<typeof api.projects.post>[0]);
+}
+
+// Adds a fresh user to the team as a member on the given role (default role when
+// roleId is omitted).
+async function addMember(owner: Api, teamKey: string, roleId?: string) {
+  const user = await signUpTestUser();
+  const invite = await owner
+    .teams({ teamKey })
+    .invites.post({ email: user.email, role: 'member', ...(roleId ? { roleId } : {}) });
+  const api = authedApi(user.cookie);
+  await api.invites({ token: invite.data!.token }).accept.post();
+  return { user, api };
 }
 
 describe('projects', () => {
@@ -284,12 +311,10 @@ describe('projects', () => {
       expect(got.data?.progress.total).toBe(0);
     });
 
-    it('rejects linking an issue to an project from another team', async () => {
+    it("rejects linking an issue to a project that does not include the issue's team", async () => {
       const { asOwner, stateId } = await setup();
       await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-      const otherProject = (
-        await asOwner.teams({ teamKey: 'OPS' }).projects.post({ name: 'Other' })
-      ).data!;
+      const otherProject = (await createProject(asOwner, { name: 'Other' }, ['OPS'])).data!;
       const issue = (
         await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' })
       ).data!;
@@ -337,26 +362,155 @@ describe('projects', () => {
   });
 
   describe('access', () => {
-    it('returns 404 for an unknown team', async () => {
-      const { asOwner } = await setup();
-      const res = await asOwner.teams({ teamKey: 'NOPE' }).projects.post({ name: 'x' });
-      expect(res.status).toBe(404);
+    it('refuses to create a project in a team the user cannot create in', async () => {
+      const { asOwner, teamId } = await setup();
+      const outsider = authedApi((await signUpTestUser()).cookie);
+      const res = await outsider.projects.post({ name: 'x', teamIds: [teamId] });
+      expect(res.status).toBe(403);
+      const unknown = await asOwner.projects.post({
+        name: 'x',
+        teamIds: ['00000000-0000-4000-8000-000000000000'],
+      });
+      expect(unknown.status).toBe(403);
     });
 
-    it('denies a non-member on the project routes', async () => {
+    it('hides a project from a non-member', async () => {
       const { asOwner } = await setup();
       const project = (await createProject(asOwner, { name: 'Q3' })).data!;
       const outsider = authedApi((await signUpTestUser()).cookie);
 
-      expect((await outsider.teams({ teamKey: 'MKT' }).projects.post({ name: 'x' })).status).toBe(
-        403,
-      );
-      expect((await outsider.teams({ teamKey: 'MKT' }).projects.get()).status).toBe(403);
-      expect((await outsider.projects({ projectId: project.id }).get()).status).toBe(403);
+      expect((await projects(outsider).get()).data!.items).toHaveLength(0);
+      expect((await outsider.projects({ projectId: project.id }).get()).status).toBe(404);
       expect((await outsider.projects({ projectId: project.id }).patch({ name: 'x' })).status).toBe(
-        403,
+        404,
       );
-      expect((await outsider.projects({ projectId: project.id }).delete()).status).toBe(403);
+      expect((await outsider.projects({ projectId: project.id }).delete()).status).toBe(404);
+    });
+
+    it('hides a project from a member whose role cannot read projects', async () => {
+      const { asOwner } = await setup();
+      const project = (await createProject(asOwner, { name: 'Q3' })).data!;
+      const role = await asOwner
+        .teams({ teamKey: 'MKT' })
+        .roles.post({ name: 'Blind', permissions: {} });
+      const member = await addMember(asOwner, 'MKT', role.data!.id);
+      expect((await projects(member.api).get()).data!.items).toHaveLength(0);
+      expect((await member.api.projects({ projectId: project.id }).get()).status).toBe(404);
+    });
+  });
+
+  describe('teams', () => {
+    it('creates a project in two teams and lists it under both', async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const created = await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS']);
+      expect(created.status).toBe(201);
+      expect(created.data!.teams.map((t) => t.key).sort()).toEqual(['MKT', 'OPS']);
+      expect((await projects(asOwner, 'MKT').get()).data!.items.map((p) => p.id)).toEqual([
+        created.data!.id,
+      ]);
+      expect((await projects(asOwner, 'OPS').get()).data!.items.map((p) => p.id)).toEqual([
+        created.data!.id,
+      ]);
+    });
+
+    it('needs the create permission in every team listed', async () => {
+      const { asOwner } = await setup();
+      const other = authedApi((await signUpTestUser()).cookie);
+      await other.teams.post({ key: 'OPS', name: 'Operations' });
+      const opsId = await teamIdOf(other, 'OPS');
+      const mktId = await teamIdOf(asOwner, 'MKT');
+      const res = await asOwner.projects.post({ name: 'x', teamIds: [mktId, opsId] });
+      expect(res.status).toBe(403);
+    });
+
+    it('shows a member only the teams they can access, and keeps hidden teams on replace', async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      await asOwner.teams.post({ key: 'DES', name: 'Design' });
+      const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
+      const member = await addMember(asOwner, 'MKT');
+      // The MKT member also joins DES, so they can attach it.
+      const des = await asOwner.teams({ teamKey: 'DES' }).invites.post({
+        email: member.user.email,
+        role: 'member',
+      });
+      await member.api.invites({ token: des.data!.token }).accept.post();
+
+      const seen = await member.api.projects({ projectId: project.id }).get();
+      expect(seen.data!.teams.map((t) => t.key)).toEqual(['MKT']);
+
+      const desId = await teamIdOf(asOwner, 'DES');
+      const mktId = await teamIdOf(asOwner, 'MKT');
+      const res = await member.api.projects({ projectId: project.id }).teams.put({
+        teamIds: [mktId, desId],
+      });
+      expect(res.status).toBe(200);
+      const full = await asOwner.projects({ projectId: project.id }).get();
+      expect(full.data!.teams.map((t) => t.key).sort()).toEqual(['DES', 'MKT', 'OPS']);
+    });
+
+    it('refuses to remove a team whose issues are in the project, and the last team', async () => {
+      const { asOwner, stateId } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
+      await asOwner
+        .teams({ teamKey: 'MKT' })
+        .issues.post({ stateId, title: 'Task', projectId: project.id });
+      const opsId = await teamIdOf(asOwner, 'OPS');
+      const mktId = await teamIdOf(asOwner, 'MKT');
+
+      const dropMkt = await asOwner
+        .projects({ projectId: project.id })
+        .teams.put({ teamIds: [opsId] });
+      expect(dropMkt.status).toBe(409);
+      const dropAll = await asOwner.projects({ projectId: project.id }).teams.put({ teamIds: [] });
+      expect(dropAll.status).toBe(409);
+      const dropOps = await asOwner
+        .projects({ projectId: project.id })
+        .teams.put({ teamIds: [mktId] });
+      expect(dropOps.status).toBe(200);
+    });
+
+    it('refuses an issue from a team the project does not include', async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      await asOwner.teams.post({ key: 'DES', name: 'Design' });
+      const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
+      const desState = (await asOwner.teams({ teamKey: 'DES' }).get()).data!.states[0].id;
+      const res = await asOwner
+        .teams({ teamKey: 'DES' })
+        .issues.post({ stateId: desState, title: 'x', projectId: project.id });
+      expect(res.status).toBe(400);
+    });
+
+    it("deletes a team's own projects with it and keeps shared ones", async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const own = (await createProject(asOwner, { name: 'Only OPS' }, ['OPS'])).data!;
+      const shared = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
+
+      const del = await asOwner.teams({ teamKey: 'OPS' }).delete();
+      expect(del.status).toBe(204);
+
+      expect((await asOwner.projects({ projectId: own.id }).get()).status).toBe(404);
+      const kept = await asOwner.projects({ projectId: shared.id }).get();
+      expect(kept.status).toBe(200);
+      expect(kept.data!.teams.map((t) => t.key)).toEqual(['MKT']);
+    });
+
+    it('requires the lead to be a member of one of the teams', async () => {
+      const { asOwner } = await setup();
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      const opsMember = await addMember(asOwner, 'OPS');
+      const outsider = await signUpTestUser();
+      const ok = await createProject(asOwner, { name: 'A', leadUserId: opsMember.user.userId }, [
+        'MKT',
+        'OPS',
+      ]);
+      expect(ok.status).toBe(201);
+      const bad = await createProject(asOwner, { name: 'B', leadUserId: outsider.userId });
+      expect(bad.status).toBe(400);
     });
   });
 });

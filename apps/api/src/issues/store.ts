@@ -31,6 +31,7 @@ import {
 } from 'drizzle-orm';
 import type { IssueQuery } from '../ai-agents/issue-query';
 import { iso, num, HttpError } from '../shared/lib';
+import { projectTeamIds } from '../projects/access';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
 import type { TeamRow } from '../teams/store';
 import { getCustomFieldById, type CustomFieldType } from '../custom-fields/store';
@@ -46,7 +47,7 @@ import { notifyIssueChange } from '../notifications/store';
 import { emitWebhookEvent } from '../webhooks/emit';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
-import { getProjectTeamId } from '../projects/store';
+
 import { getMembership } from '../members/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
 
@@ -645,10 +646,11 @@ async function assertAssignments(
 // Enforces that a linked project belongs to the same team. Only checks when
 // set to a non-null value (clearing the link is always allowed). Throws 400
 // otherwise.
+// Enforces that the project includes the issue's team. Throws 400 otherwise.
 async function assertProject(teamId: string, projectId: string | null | undefined): Promise<void> {
   if (projectId == null) return;
-  if ((await getProjectTeamId(projectId)) !== teamId)
-    throw new HttpError(400, 'Project must belong to this team');
+  if (!(await projectTeamIds(projectId)).includes(teamId))
+    throw new HttpError(400, "The project must include the issue's team");
 }
 
 // Enforces that a column belongs to the issue's team and is not archived —

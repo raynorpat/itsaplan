@@ -56,7 +56,7 @@ describe('god teams', () => {
         title: 'First',
         stateId: view.data!.states[0]!.id,
       });
-      await god.api.teams({ teamKey: 'MKT' }).projects.post({ name: 'Launch' });
+      await god.api.projects.post({ name: 'Launch', teamIds: [view.data!.team.id] });
       await createAgentUser(god, 'MKT');
 
       const res = await god.api.god.teams.get({ query: PAGE });

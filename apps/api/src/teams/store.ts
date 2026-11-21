@@ -1,5 +1,15 @@
-import { db, issueType, team, workflowState, teamMember, teamRole, teamSetting } from '@repo/db';
-import { and, eq } from 'drizzle-orm';
+import {
+  db,
+  issueType,
+  project,
+  projectTeam,
+  team,
+  workflowState,
+  teamMember,
+  teamRole,
+  teamSetting,
+} from '@repo/db';
+import { and, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import {
   defaultMemberPermissions,
@@ -350,7 +360,21 @@ export async function setAutoArchiveSettings(
 // issues and their columns are deleted by the same cascade, so it is satisfied. The
 // conversation threads of the team's agents are deleted first, since they live
 // outside those cascades.
+// Deletes the team. Projects whose only team it is go with it (their milestones,
+// updates and label links cascade); projects shared with other teams only lose the
+// link (project_team cascades).
 export async function deleteTeam(teamId: string): Promise<void> {
   await deleteThreadsWhere({ teamId });
-  await db.delete(team).where(eq(team.id, teamId));
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      DELETE FROM ${project} WHERE ${project.id} IN (
+        SELECT ${projectTeam.projectId} FROM ${projectTeam}
+        WHERE ${projectTeam.teamId} = ${teamId}
+          AND NOT EXISTS (
+            SELECT 1 FROM ${projectTeam} other
+            WHERE other.project_id = ${projectTeam.projectId} AND other.team_id <> ${teamId}
+          )
+      )`);
+    await tx.delete(team).where(eq(team.id, teamId));
+  });
 }

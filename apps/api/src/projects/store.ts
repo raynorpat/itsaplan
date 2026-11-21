@@ -3,6 +3,8 @@ import {
   issue,
   project,
   projectLabel,
+  team,
+  teamMember,
   projectLabelLink,
   projectStatus,
   projectTeam,
@@ -12,7 +14,7 @@ import {
   type ProjectStatusType,
 } from '@repo/db';
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
-import { getMembership } from '../members/store';
+import { projectsInTeams, projectTeamIds } from './access';
 import { HttpError, iso, num } from '../shared/lib';
 import { computeHealth, type Health } from './health';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
@@ -28,9 +30,16 @@ export interface ProjectProgress {
   total: number;
 }
 
+export interface ProjectTeam {
+  id: string;
+  key: string;
+  name: string;
+}
+
 export interface ProjectRow {
   id: string;
-  teamId: string;
+  // The project's teams the viewer can access (Linear's Project.teams).
+  teams: ProjectTeam[];
   name: string;
   description: string;
   content: string;
@@ -50,12 +59,7 @@ export interface ProjectRow {
   health: Health | null;
 }
 
-const projectColumns = {
-  row: project,
-  statusType: projectStatus.type,
-  // The project's first team (projects are single-team until multi-team lands).
-  teamId: sql<string>`(select ${projectTeam.teamId} from ${projectTeam} where ${projectTeam.projectId} = ${project.id} limit 1)`,
-};
+const projectColumns = { row: project, statusType: projectStatus.type };
 
 const selectProjects = () =>
   db
@@ -108,11 +112,38 @@ async function labelsFor(projectIds: string[]): Promise<Map<string, string[]>> {
   return out;
 }
 
-function mapProject(sel: ProjectSelect, labelIds: string[], progress: ProjectProgress): ProjectRow {
+// The teams of each project, limited to `visibleTeamIds` when given.
+async function teamsFor(
+  projectIds: string[],
+  visibleTeamIds: string[] | null,
+): Promise<Map<string, ProjectTeam[]>> {
+  const out = new Map<string, ProjectTeam[]>();
+  if (projectIds.length === 0) return out;
+  const rows = await db
+    .select({ projectId: projectTeam.projectId, id: team.id, key: team.key, name: team.name })
+    .from(projectTeam)
+    .innerJoin(team, eq(team.id, projectTeam.teamId))
+    .where(inArray(projectTeam.projectId, projectIds))
+    .orderBy(team.key);
+  for (const r of rows) {
+    if (visibleTeamIds && !visibleTeamIds.includes(r.id)) continue;
+    const list = out.get(r.projectId) ?? [];
+    list.push({ id: r.id, key: r.key, name: r.name });
+    out.set(r.projectId, list);
+  }
+  return out;
+}
+
+function mapProject(
+  sel: ProjectSelect,
+  teams: ProjectTeam[],
+  labelIds: string[],
+  progress: ProjectProgress,
+): ProjectRow {
   const row = sel.row;
   return {
     id: row.id,
-    teamId: sel.teamId,
+    teams,
     name: row.name,
     description: row.description,
     content: row.content,
@@ -140,11 +171,25 @@ function mapProject(sel: ProjectSelect, labelIds: string[], progress: ProjectPro
 
 const EMPTY_PROGRESS: ProjectProgress = { completed: 0, canceled: 0, total: 0 };
 
-async function enrich(rows: ProjectSelect[]): Promise<ProjectRow[]> {
+// visibleTeamIds limits each project's `teams` to what the viewer can access;
+// null lists every team.
+async function enrich(
+  rows: ProjectSelect[],
+  visibleTeamIds: string[] | null,
+): Promise<ProjectRow[]> {
   const ids = rows.map((r) => r.row.id);
-  const [counts, labels] = await Promise.all([countsFor(ids), labelsFor(ids)]);
+  const [teams, counts, labels] = await Promise.all([
+    teamsFor(ids, visibleTeamIds),
+    countsFor(ids),
+    labelsFor(ids),
+  ]);
   return rows.map((r) =>
-    mapProject(r, labels.get(r.row.id) ?? [], counts.get(r.row.id) ?? EMPTY_PROGRESS),
+    mapProject(
+      r,
+      teams.get(r.row.id) ?? [],
+      labels.get(r.row.id) ?? [],
+      counts.get(r.row.id) ?? EMPTY_PROGRESS,
+    ),
   );
 }
 
@@ -153,6 +198,9 @@ async function enrich(rows: ProjectSelect[]): Promise<ProjectRow[]> {
 export type ProjectSort = 'name' | 'priority' | 'targetDate' | 'lead';
 
 export interface ListProjectsOpts {
+  // Only projects of this team (it must be one of the readable teams).
+  teamId?: string;
+  includeArchived?: boolean;
   statuses?: ProjectStatusType[];
   search?: string;
   sort?: ProjectSort;
@@ -183,20 +231,22 @@ function orderExpr(sort: ProjectSort) {
   }
 }
 
-const inTeam = (teamId: string) =>
-  inArray(
-    project.id,
-    db
-      .select({ id: projectTeam.projectId })
-      .from(projectTeam)
-      .where(eq(projectTeam.teamId, teamId)),
+// The projects of the readable teams, narrowed to opts.teamId when given.
+function scope(readableTeamIds: string[], opts: { teamId?: string; includeArchived?: boolean }) {
+  const teams = opts.teamId ? readableTeamIds.filter((t) => t === opts.teamId) : readableTeamIds;
+  return and(
+    inArray(project.id, projectsInTeams(teams)),
+    opts.includeArchived ? undefined : isNull(project.archivedAt),
   );
+}
 
+// The projects visible through readableTeamIds (the viewer's teams granting
+// projects.read), filtered, sorted and paged.
 export async function listProjects(
-  teamId: string,
+  readableTeamIds: string[],
   opts: ListProjectsOpts = {},
 ): Promise<ProjectListPage> {
-  const conds = [inTeam(teamId), isNull(project.archivedAt)];
+  const conds = [scope(readableTeamIds, opts)];
   if (opts.statuses && opts.statuses.length) {
     conds.push(inArray(projectStatus.type, opts.statuses));
   }
@@ -227,19 +277,23 @@ export async function listProjects(
     .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
     .where(where);
 
-  return { items: await enrich(rows), total: Number(total) };
+  return { items: await enrich(rows, readableTeamIds), total: Number(total) };
 }
 
 export type ProjectStatusCounts = Record<ProjectStatusType | 'total', number>;
 
-// Per-status-type row counts for the team, for the list's status tabs. Kept
-// separate from listProjects so the tab counts stay correct under paging.
-export async function projectStatusCounts(teamId: string): Promise<ProjectStatusCounts> {
+// Per-status-type row counts of the visible projects (optionally of one team), for
+// the list's status tabs. Kept separate from listProjects so the tab counts stay
+// correct under paging.
+export async function projectStatusCounts(
+  readableTeamIds: string[],
+  teamId?: string,
+): Promise<ProjectStatusCounts> {
   const rows = await db
     .select({ type: projectStatus.type, c: sql<number>`count(*)` })
     .from(project)
     .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-    .where(and(inTeam(teamId), isNull(project.archivedAt)))
+    .where(scope(readableTeamIds, { teamId }))
     .groupBy(projectStatus.type);
   const out: ProjectStatusCounts = {
     total: 0,
@@ -258,21 +312,14 @@ export async function projectStatusCounts(teamId: string): Promise<ProjectStatus
   return out;
 }
 
-export async function getProject(id: string): Promise<ProjectRow | null> {
+// One project; `teams` lists only visibleTeamIds when given.
+export async function getProject(
+  id: string,
+  visibleTeamIds: string[] | null = null,
+): Promise<ProjectRow | null> {
   const rows = await selectProjects().where(eq(project.id, id));
   if (!rows[0]) return null;
-  return (await enrich(rows))[0]!;
-}
-
-// The team a project belongs to, or null if it does not exist. Used by the
-// access check on routes that address a project by its own id.
-export async function getProjectTeamId(id: string): Promise<string | null> {
-  const rows = await db
-    .select({ teamId: projectTeam.teamId })
-    .from(projectTeam)
-    .where(eq(projectTeam.projectId, id))
-    .limit(1);
-  return rows[0]?.teamId ?? null;
+  return (await enrich(rows, visibleTeamIds))[0]!;
 }
 
 export interface NewProjectInput {
@@ -287,11 +334,16 @@ export interface NewProjectInput {
   labelIds?: string[];
 }
 
-async function assertProjectLead(teamId: string, leadUserId?: string | null): Promise<void> {
+// The lead must be a member of at least one of the project's teams.
+async function assertProjectLead(teamIds: string[], leadUserId?: string | null): Promise<void> {
   if (!leadUserId) return;
-  if (!(await getMembership(teamId, leadUserId))) {
-    throw new HttpError(400, 'Project lead must be a team member');
-  }
+  const rows = await db
+    .select({ id: teamMember.userId })
+    .from(teamMember)
+    .where(and(eq(teamMember.userId, leadUserId), inArray(teamMember.teamId, teamIds)))
+    .limit(1);
+  if (rows.length === 0)
+    throw new HttpError(400, "Project lead must be a member of one of the project's teams");
 }
 
 // Project labels are workspace-level; a group holds labels and cannot be applied.
@@ -305,18 +357,21 @@ async function assertProjectLabels(labelIds?: string[]): Promise<void> {
   if (rows.length !== ids.length) throw new HttpError(400, 'Unknown project label');
 }
 
+// Creates a project in the given teams (at least one; the route has checked the
+// actor's create permission in each).
 export async function createProject(
-  teamId: string,
+  teamIds: string[],
   input: NewProjectInput,
   actorUserId?: string | null,
 ): Promise<ProjectRow> {
-  await assertProjectLead(teamId, input.leadUserId);
+  const teams = [...new Set(teamIds)];
+  if (teams.length === 0) throw new HttpError(400, 'A project needs at least one team');
+  await assertProjectLead(teams, input.leadUserId);
   await assertProjectLabels(input.labelIds);
   const id = await db.transaction(async (tx) => {
     const [posRow] = await tx
       .select({ pos: sql<number>`COALESCE(MAX(${project.sortOrder}), 0) + 1000` })
-      .from(project)
-      .where(inTeam(teamId));
+      .from(project);
     const [row] = await tx
       .insert(project)
       .values({
@@ -332,7 +387,7 @@ export async function createProject(
         sortOrder: Number(posRow.pos),
       })
       .returning({ id: project.id });
-    await tx.insert(projectTeam).values({ projectId: row.id, teamId });
+    await tx.insert(projectTeam).values(teams.map((teamId) => ({ projectId: row.id, teamId })));
     return row.id;
   });
   await recordActivity(id, [{ action: 'created' }], actorUserId);
@@ -375,7 +430,7 @@ export async function updateProject(
 ): Promise<ProjectRow | null> {
   const before = await getProject(id);
   if (!before) return null;
-  await assertProjectLead(before.teamId, patch.leadUserId);
+  await assertProjectLead(await projectTeamIds(id), patch.leadUserId);
   await assertProjectLabels(patch.labelIds);
 
   const set: Partial<typeof project.$inferInsert> = {};
@@ -395,6 +450,51 @@ export async function updateProject(
   }
   if (patch.labelIds !== undefined) await setProjectLabels(id, patch.labelIds, actorUserId);
   return getProject(id);
+}
+
+// Replaces the project's teams as the viewer sees them. Teams the viewer cannot
+// read are kept. Adding or removing a team needs `editableTeamIds` to include it
+// (403 otherwise). A removed team must have no issues in the project, and the
+// project keeps at least one team (409 otherwise).
+export async function setProjectTeams(
+  projectId: string,
+  readableTeamIds: string[],
+  editableTeamIds: string[],
+  requested: string[],
+): Promise<void> {
+  const current = await projectTeamIds(projectId);
+  const next = new Set(requested);
+  const hidden = current.filter((t) => !readableTeamIds.includes(t));
+  const added = [...next].filter((t) => !current.includes(t));
+  const removed = current.filter((t) => readableTeamIds.includes(t) && !next.has(t));
+  for (const t of [...added, ...removed])
+    if (!editableTeamIds.includes(t))
+      throw new HttpError(403, 'You do not have permission to change this team on the project');
+  if (hidden.length + next.size === 0)
+    throw new HttpError(409, 'A project needs at least one team');
+  if (removed.length) {
+    const [{ n }] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(issue)
+      .where(and(eq(issue.projectId, projectId), inArray(issue.teamId, removed)));
+    if (n > 0)
+      throw new HttpError(
+        409,
+        "Move the team's issues out of the project before removing the team",
+      );
+  }
+  await db.transaction(async (tx) => {
+    if (removed.length)
+      await tx
+        .delete(projectTeam)
+        .where(and(eq(projectTeam.projectId, projectId), inArray(projectTeam.teamId, removed)));
+    if (added.length)
+      await tx.insert(projectTeam).values(added.map((teamId) => ({ projectId, teamId })));
+    await tx
+      .update(project)
+      .set({ updatedAt: sql`now()` })
+      .where(eq(project.id, projectId));
+  });
 }
 
 // Linked issues keep existing (issue.project_id is set null by the FK); the

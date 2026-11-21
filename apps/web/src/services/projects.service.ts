@@ -13,6 +13,7 @@ import {
   type NewProjectInput,
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
+import { useTeamQuery } from '@/services/teams.service';
 
 // A page of the team's projects. params filter (status/search), sort and
 // page it server-side; keepPreviousData holds the current page on screen while the
@@ -45,8 +46,10 @@ export function useProjectQuery(id: string | null) {
 
 export function useCreateProject(teamKey: string) {
   const qc = useQueryClient();
+  const team = useTeamQuery(teamKey).data;
   return useMutation({
-    mutationFn: (input: NewProjectInput) => api.createProject(teamKey, input),
+    mutationFn: (input: NewProjectInput) =>
+      api.createProject({ teamIds: team ? [team.team.id] : [], ...input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.projectsForTeam(teamKey) });
       qc.invalidateQueries({ queryKey: qk.projectCounts(teamKey) });

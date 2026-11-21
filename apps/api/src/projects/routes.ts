@@ -2,17 +2,20 @@ import { Elysia, t } from 'elysia';
 import { PROJECT_STATUSES, type ProjectStatusType } from '@repo/db';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
-import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
-import { requireUser } from '../shared/access';
+import { requireUser, type AuthUser } from '../shared/access';
+import { isMcpRequest } from '../shared/mcp-request';
+import type { PermissionAction } from '../shared/permissions';
+import { getTeamByKey } from '../teams/store';
+import { assertProjectAccess, teamsGranting } from './access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
   listProjects,
   projectStatusCounts,
   getProject,
-  getProjectTeamId,
   createProject,
+  setProjectTeams,
   updateProject,
   deleteProject,
   projectRev,
@@ -37,9 +40,15 @@ const ProjectStatus = t.Union([
 // ProjectRow from the store. progress is derived issue counts; health is
 // computed on the fly (on_track/at_risk/off_track, or null when there is nothing
 // to judge).
+const ProjectTeamResponse = t.Object({
+  id: t.String({ format: 'uuid' }),
+  key: t.String(),
+  name: t.String(),
+});
+
 const ProjectResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
+  teams: t.Array(ProjectTeamResponse),
   name: t.String(),
   description: t.String(),
   content: t.String(),
@@ -87,16 +96,40 @@ export const projectRoutes = new Elysia({
   detail: { tags: ['Projects'] },
 })
   .use(authContext)
-  .use(guards)
-  // Guard for routes that address an project by its own id (no :teamKey in
-  // the path). Set `project: "<action>"` in the route options.
+  // Guard for routes that address a project by its id. Projects span teams, so
+  // access is resolved through all of the project's teams (see access.ts) and the
+  // result is injected as `access`. Set `project: "<action>"` in the route options.
   .macro({
-    project: entityGuard('projects', 'Project not found', (p) => getProjectTeamId(p.projectId)),
+    project(action: PermissionAction) {
+      return {
+        async resolve({
+          params,
+          user,
+          request,
+        }: {
+          params: Record<string, unknown>;
+          user?: AuthUser | null;
+          request: Request;
+        }) {
+          const access = await assertProjectAccess(
+            String(params.projectId),
+            requireUser(user).id,
+            action,
+            { mcpOnly: isMcpRequest(request.headers) },
+          );
+          return { access };
+        },
+      };
+    },
   })
 
   .get(
-    '/teams/:teamKey/projects',
-    async ({ team, query }) => {
+    '/projects',
+    async ({ user, query, request }) => {
+      const readable = await teamsGranting(requireUser(user).id, 'read', {
+        mcpOnly: isMcpRequest(request.headers),
+      });
+      const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
       const statuses = query.status
         ? query.status
             .split(',')
@@ -105,7 +138,9 @@ export const projectRoutes = new Elysia({
         : undefined;
       const page = query.page ?? 1;
       const pageSize = query.pageSize ?? 25;
-      const { items, total } = await listProjects(team.id, {
+      const { items, total } = await listProjects(readable, {
+        teamId,
+        includeArchived: query.includeArchived === 'true',
         statuses,
         search: query.search,
         sort: query.sort,
@@ -116,8 +151,11 @@ export const projectRoutes = new Elysia({
       return { items, total, page, pageSize };
     },
     {
-      params: t.Object({ teamKey: t.String() }),
       query: t.Object({
+        teamKey: t.Optional(t.String({ description: 'Only projects of this team.' })),
+        includeArchived: t.Optional(
+          t.String({ description: "'true' to include archived projects." }),
+        ),
         status: t.Optional(
           t.String({
             description:
@@ -145,7 +183,6 @@ export const projectRoutes = new Elysia({
           }),
         ),
       }),
-      permission: ['projects', 'read'],
       response: {
         200: t.Object({
           items: t.Array(ProjectResponse),
@@ -160,45 +197,70 @@ export const projectRoutes = new Elysia({
       },
       detail: {
         summary: 'List projects',
-        description: "List a team's projects, filtered, sorted and paged.",
+        description:
+          'List the projects you can see across your teams, filtered (optionally to one team), sorted and paged.',
         ...mcpTool('list_projects'),
       },
     },
   )
 
-  .get('/teams/:teamKey/projects/counts', async ({ team }) => projectStatusCounts(team.id), {
-    params: t.Object({ teamKey: t.String() }),
-    permission: ['projects', 'read'],
-    response: {
-      200: t.Object({
-        total: t.Number(),
-        backlog: t.Number(),
-        planned: t.Number(),
-        started: t.Number(),
-        paused: t.Number(),
-        completed: t.Number(),
-        canceled: t.Number(),
-      }),
-      400: ErrorResponse,
-      401: ErrorResponse,
-      403: ErrorResponse,
-      404: ErrorResponse,
-    },
-    detail: {
-      summary: 'Project status counts',
-      description: "Per-status project counts for a team, for the list's tabs.",
-    },
-  })
-
-  .post(
-    '/teams/:teamKey/projects',
-    async ({ team, body, user, set }) => {
-      set.status = 201;
-      return createProject(team.id, body, requireUser(user).id);
+  .get(
+    '/projects/counts',
+    async ({ user, query, request }) => {
+      const readable = await teamsGranting(requireUser(user).id, 'read', {
+        mcpOnly: isMcpRequest(request.headers),
+      });
+      const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
+      return projectStatusCounts(readable, teamId);
     },
     {
-      params: t.Object({ teamKey: t.String() }),
+      query: t.Object({ teamKey: t.Optional(t.String()) }),
+      response: {
+        200: t.Object({
+          total: t.Number(),
+          backlog: t.Number(),
+          planned: t.Number(),
+          started: t.Number(),
+          paused: t.Number(),
+          completed: t.Number(),
+          canceled: t.Number(),
+        }),
+        400: ErrorResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: {
+        summary: 'Project status counts',
+        description: "Per-status counts of the visible projects, for the list's tabs.",
+      },
+    },
+  )
+
+  .post(
+    '/projects',
+    async ({ body, user, set, request }) => {
+      const actor = requireUser(user).id;
+      // The create permission is needed in every team listed.
+      const creatable = await teamsGranting(actor, 'create', {
+        mcpOnly: isMcpRequest(request.headers),
+      });
+      if (!body.teamIds.every((t) => creatable.includes(t)))
+        throw new HttpError(
+          403,
+          'You do not have permission to create projects in every team listed',
+        );
+      const { teamIds, ...input } = body;
+      const created = await createProject(teamIds, input, actor);
+      set.status = 201;
+      return (await getProject(created.id, await teamsGranting(actor, 'read')))!;
+    },
+    {
       body: t.Object({
+        teamIds: t.Array(t.String({ format: 'uuid' }), {
+          minItems: 1,
+          description: 'The teams the project belongs to (at least one). From list_teams.',
+        }),
         name: t.String({ minLength: 1, description: 'Project name.' }),
         description: t.Optional(t.String({ description: 'Short plain-text summary.' })),
         content: t.Optional(t.String({ description: 'Markdown overview.' })),
@@ -227,7 +289,6 @@ export const projectRoutes = new Elysia({
           }),
         ),
       }),
-      permission: ['projects', 'create'],
       response: {
         201: ProjectResponse,
         400: ErrorResponse,
@@ -236,8 +297,8 @@ export const projectRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Create an project',
-        description: 'Create an project in a team.',
+        summary: 'Create a project',
+        description: 'Create a project in one or more teams.',
         ...mcpTool('create_project'),
       },
     },
@@ -245,8 +306,8 @@ export const projectRoutes = new Elysia({
 
   .get(
     '/projects/:projectId',
-    async ({ params }) => {
-      const found = await getProject(params.projectId);
+    async ({ params, access }) => {
+      const found = await getProject(params.projectId, access.readableTeamIds);
       if (!found) throw new HttpError(404, 'Project not found');
       return found;
     },
@@ -261,8 +322,8 @@ export const projectRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get an project',
-        description: 'Get an project by its id (a UUID).',
+        summary: 'Get a project',
+        description: 'Get a project by its id (a UUID).',
         ...mcpTool('get_project'),
       },
     },
@@ -270,11 +331,11 @@ export const projectRoutes = new Elysia({
 
   .patch(
     '/projects/:projectId',
-    async ({ params, body, user }) => {
+    async ({ params, body, user, access }) => {
       const actorUserId = requireUser(user).id;
       const updated = await updateProject(params.projectId, body, actorUserId);
       if (!updated) throw new HttpError(404, 'Project not found');
-      return updated;
+      return (await getProject(params.projectId, access.readableTeamIds))!;
     },
     {
       params: projectParams,
@@ -316,9 +377,43 @@ export const projectRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Update an project',
-        description: 'Update an project by its id (a UUID).',
+        summary: 'Update a project',
+        description: 'Update a project by its id (a UUID).',
         ...mcpTool('update_project'),
+      },
+    },
+  )
+
+  .put(
+    '/projects/:projectId/teams',
+    async ({ params, body, user, access }) => {
+      const actor = requireUser(user).id;
+      const editable = await teamsGranting(actor, 'edit');
+      await setProjectTeams(params.projectId, access.readableTeamIds, editable, body.teamIds);
+      return (await getProject(params.projectId, await teamsGranting(actor, 'read')))!;
+    },
+    {
+      params: projectParams,
+      body: t.Object({
+        teamIds: t.Array(t.String({ format: 'uuid' }), {
+          description:
+            'The teams you can see that the project should belong to. Teams you cannot see are kept.',
+        }),
+      }),
+      project: 'edit',
+      response: {
+        200: ProjectResponse,
+        400: ErrorResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+      },
+      detail: {
+        summary: "Set a project's teams",
+        description:
+          "Replace the project's teams (the ones you can see). A team with issues in the project cannot be removed, and the project keeps at least one team.",
+        ...mcpTool('set_project_teams'),
       },
     },
   )
@@ -340,8 +435,8 @@ export const projectRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Delete an project',
-        description: 'Delete an project by its id (a UUID). Irreversible.',
+        summary: 'Delete a project',
+        description: 'Delete a project by its id (a UUID). Irreversible.',
         ...mcpTool('delete_project'),
       },
     },
@@ -378,8 +473,8 @@ export const projectRoutes = new Elysia({
         404: ErrorResponse,
       },
       detail: {
-        summary: 'Get an project feed',
-        description: "Get an project's activity feed by its id (a UUID).",
+        summary: 'Get a project feed',
+        description: "Get a project's activity feed by its id (a UUID).",
         ...mcpTool('list_project_activity'),
       },
     },
@@ -401,3 +496,8 @@ export const projectRoutes = new Elysia({
       detail: { summary: 'Get project revision' },
     },
   );
+
+// The id of a team by key, or a value no team has, so an unknown key lists nothing.
+async function teamIdByKey(key: string): Promise<string> {
+  return (await getTeamByKey(key.toUpperCase()))?.id ?? '00000000-0000-0000-0000-000000000000';
+}
