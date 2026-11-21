@@ -65,6 +65,8 @@ stable release.
 
 - REST API with an OpenAPI reference and API keys
 - MCP server, so an external assistant can read and change issues through the same API
+- Linear-compatible GraphQL API at `/graphql`: point the official `@linear/sdk` at your instance
+  to read and change issues and workflow states
 - Outgoing webhooks: subscribe to events, signed payloads, and retries with a delivery log
 - Email and password, passkey, and Google sign-in
 - Notifications by email (SMTP or Resend) and Telegram, with per-member preferences

@@ -127,6 +127,35 @@ directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authe
   plain user, create the god user first and act as the second.
 - Don't hardcode ids or the "-42" sequence — read them from the create response.
 
+## GraphQL (Linear-compatible)
+
+`/graphql` serves Linear's published schema so `@linear/sdk` and Linear tools work
+against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
+`mountGraphql(app)` after the chain, like MCP, so `type App` stays the REST surface.
+
+- **Schema:** `schema.graphql` is vendored unmodified (source and update steps in
+  `SCHEMA_SOURCE.md`). Never edit it. The `@linear/sdk` dev dependency is pinned to
+  the same release; `__tests__/unit/sdk-documents.test.ts` validates every SDK
+  operation against it.
+- **Auth:** `Authorization: <key>` or `Authorization: Bearer <key>` is resolved as
+  `x-api-key` through better-auth (`context.ts`); a session cookie also works. No
+  valid credentials → HTTP 401 with `extensions.code: AUTHENTICATION_ERROR`.
+- **Unimplemented parts:** a root Query/Mutation field without a resolver answers
+  `NOT_IMPLEMENTED`. Any other field without a resolver reads its parent's property
+  or resolves to a neutral value by type (`schema.ts`). Add a resolver; do not
+  edit the schema.
+- **Writes:** mutations call the same store functions and `assertPermission`
+  checks as REST (`resolvers/mutations.ts`), so activity, webhooks and agent runs
+  match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
+  `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
+- **Access:** a team (project) and its issues and states are visible to members
+  only; a user is visible when they share a project with the viewer.
+- **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
+  filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
+  page newest first, 50 by default, 250 at most.
+- **Tests:** `src/__tests__/helpers/linear.ts` serves the app on a local port and
+  returns a `LinearClient`, so tests drive the endpoint with the real SDK.
+
 ## Rules
 
 - Auth logic is in `@repo/auth`, DB access via `@repo/db` — do not re-instantiate
