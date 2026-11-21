@@ -2376,6 +2376,12 @@ export const api = {
     request<Webhook>(`/webhooks/${webhookId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteWebhook: (webhookId: string) =>
     request<void>(`/webhooks/${webhookId}`, { method: 'DELETE' }),
+  rotateWebhookSecret: (webhookId: string) =>
+    request<Webhook>(`/webhooks/${webhookId}/rotate-secret`, { method: 'POST' }),
+  // All-teams webhooks: the god user or an owner of every team (403 otherwise).
+  listAllTeamsWebhooks: () => request<Webhook[]>('/webhooks'),
+  createAllTeamsWebhook: (input: NewWebhookInput) =>
+    request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
   listWebhookDeliveries: (webhookId: string, before?: string) =>
     request<WebhookDeliveryPage>(
       `/webhooks/${webhookId}/deliveries?limit=25${before ? `&before=${before}` : ''}`,

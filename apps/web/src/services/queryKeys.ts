@@ -19,6 +19,7 @@ export const qk = {
   views: (teamKey: string) => ['views', teamKey] as const,
   actions: (teamKey: string) => ['actions', teamKey] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
+  allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
   // Saved dashboards (the analytics tabs) and the read-only metrics behind their
   // widgets. `kind` names the metric (stats/pulse/throughput/breakdown/...) and

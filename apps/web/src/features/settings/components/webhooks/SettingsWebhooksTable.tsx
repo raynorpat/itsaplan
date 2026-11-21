@@ -6,6 +6,7 @@ interface SettingsWebhooksTableProps {
   webhooks: Webhook[];
   onShowDeliveries: (webhook: Webhook) => void;
   onEdit: (webhookId: string) => void;
+  onRotateSecret: (webhook: Webhook) => void;
   onDelete: (webhook: Webhook) => void;
 }
 
@@ -13,6 +14,7 @@ export function SettingsWebhooksTable({
   webhooks,
   onShowDeliveries,
   onEdit,
+  onRotateSecret,
   onDelete,
 }: SettingsWebhooksTableProps) {
   return (
@@ -25,7 +27,9 @@ export function SettingsWebhooksTable({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead className="text-xs font-medium text-muted-foreground">Endpoint</TableHead>
-          <TableHead className="text-xs font-medium text-muted-foreground">Events</TableHead>
+          <TableHead className="text-xs font-medium text-muted-foreground">
+            Resource types
+          </TableHead>
           <TableHead className="text-right text-xs font-medium text-muted-foreground">
             Actions
           </TableHead>
@@ -38,6 +42,7 @@ export function SettingsWebhooksTable({
             webhook={webhook}
             onShowDeliveries={() => onShowDeliveries(webhook)}
             onEdit={() => onEdit(webhook.id)}
+            onRotateSecret={() => onRotateSecret(webhook)}
             onDelete={() => onDelete(webhook)}
           />
         ))}

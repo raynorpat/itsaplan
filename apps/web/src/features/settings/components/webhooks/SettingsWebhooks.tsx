@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import type { TeamDetail, Webhook } from '@/lib/api';
 import {
   useWebhooksQuery,
+  useAllTeamsWebhooksQuery,
   useCreateWebhook,
   useUpdateWebhook,
+  useRotateWebhookSecret,
   useDeleteWebhook,
 } from '@/services/webhooks.service';
 import { EmptyState } from '@/components/common/page/EmptyState';
@@ -12,9 +14,10 @@ import { SettingsWebhookDialog, type WebhookFormValue } from './SettingsWebhookD
 import { SettingsWebhooksTable } from './SettingsWebhooksTable';
 import { SettingsWebhookDeliveriesSheet } from './SettingsWebhookDeliveriesSheet';
 
-// Team settings tab for outgoing webhooks. Each webhook posts subscribed
-// team events to its URL, signed with a per-webhook secret. Delivery is handled
-// by the server; this tab manages the subscriptions.
+// Team settings tab for outgoing webhooks. Each webhook posts the events of its
+// resource types to its URL in Linear's format, signed with a per-webhook secret.
+// All-teams webhooks are listed after the team's own for users who may manage
+// them. Delivery is handled by the server; this tab manages the subscriptions.
 export default function SettingsWebhooks({
   team,
   requestNew,
@@ -26,10 +29,13 @@ export default function SettingsWebhooks({
 }) {
   const teamKey = team.team.key;
   const webhooksQuery = useWebhooksQuery(teamKey);
-  const webhooks = webhooksQuery.data ?? [];
+  const allTeamsQuery = useAllTeamsWebhooksQuery();
+  const canAllTeams = allTeamsQuery.data != null;
+  const webhooks = [...(webhooksQuery.data ?? []), ...(allTeamsQuery.data ?? [])];
   const createWebhook = useCreateWebhook(teamKey);
-  const updateWebhook = useUpdateWebhook(teamKey);
-  const deleteWebhook = useDeleteWebhook(teamKey);
+  const updateWebhook = useUpdateWebhook();
+  const rotateSecret = useRotateWebhookSecret();
+  const deleteWebhook = useDeleteWebhook();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Webhook | null>(null);
@@ -46,11 +52,11 @@ export default function SettingsWebhooks({
     editing != null && editing !== 'new' ? webhooks.find((w) => w.id === editing) : undefined;
   const showDialog = editing === 'new' || editingWebhook != null;
 
-  async function saveWebhook(value: WebhookFormValue) {
+  async function saveWebhook({ allTeams, ...input }: WebhookFormValue) {
     if (editing === 'new') {
-      await createWebhook.mutateAsync({ input: value });
-    } else if (editing != null && editing !== 'new') {
-      await updateWebhook.mutateAsync({ id: editing, input: value });
+      await createWebhook.mutateAsync({ input, allTeams });
+    } else if (editing != null) {
+      await updateWebhook.mutateAsync({ id: editing, input });
     }
     setEditing(null);
   }
@@ -60,7 +66,7 @@ export default function SettingsWebhooks({
       {webhooks.length === 0 ? (
         <EmptyState
           title="No webhooks yet"
-          description="Set a payload URL and choose which events to send."
+          description="Set a payload URL and choose which resource types to send."
         />
       ) : (
         <div className="space-y-4">
@@ -68,6 +74,7 @@ export default function SettingsWebhooks({
             webhooks={webhooks}
             onShowDeliveries={setDeliveriesFor}
             onEdit={setEditing}
+            onRotateSecret={(w) => rotateSecret.mutate(w.id)}
             onDelete={setDeleting}
           />
         </div>
@@ -78,6 +85,7 @@ export default function SettingsWebhooks({
           key={editingWebhook?.id ?? 'new'}
           teamKey={teamKey}
           initial={editingWebhook}
+          canAllTeams={canAllTeams}
           saving={saving}
           onSave={saveWebhook}
           onClose={() => setEditing(null)}

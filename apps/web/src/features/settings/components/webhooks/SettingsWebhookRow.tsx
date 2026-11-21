@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Check, Copy, Eye, EyeOff, History, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  History,
+  KeyRound,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import type { Webhook } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,14 +30,18 @@ export function SettingsWebhookRow({
   webhook,
   onShowDeliveries,
   onEdit,
+  onRotateSecret,
   onDelete,
 }: {
   webhook: Webhook;
   onShowDeliveries: () => void;
   onEdit: () => void;
+  onRotateSecret: () => void;
   onDelete: () => void;
 }) {
-  const can = useSettingsCan();
+  const settingsCan = useSettingsCan();
+  // All-teams webhooks are listed only for users who may manage them.
+  const can = (action: 'edit' | 'delete') => webhook.allPublicTeams || settingsCan(action);
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -53,9 +67,19 @@ export function SettingsWebhookRow({
             title={webhook.enabled ? 'Active' : 'Disabled'}
           />
           <div className="min-w-0 space-y-1.5">
-            <span className="block truncate text-sm font-medium" title={webhook.url}>
-              {webhook.url}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-medium" title={webhook.url}>
+                {webhook.label ?? webhook.url}
+              </span>
+              {webhook.allPublicTeams && (
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
+                  All teams
+                </Badge>
+              )}
+            </div>
+            {webhook.label && (
+              <span className="block truncate text-xs text-muted-foreground">{webhook.url}</span>
+            )}
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="truncate font-mono">
                 {revealed ? webhook.secret : maskSecret(webhook.secret)}
@@ -117,6 +141,12 @@ export function SettingsWebhookRow({
                   <DropdownMenuItem className="min-h-11 sm:min-h-8" onSelect={onEdit}>
                     <Pencil />
                     Edit webhook
+                  </DropdownMenuItem>
+                )}
+                {can('edit') && (
+                  <DropdownMenuItem className="min-h-11 sm:min-h-8" onSelect={onRotateSecret}>
+                    <KeyRound />
+                    Rotate secret
                   </DropdownMenuItem>
                 )}
                 {can('delete') && can('edit') && <DropdownMenuSeparator />}
