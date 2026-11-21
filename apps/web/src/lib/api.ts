@@ -1284,6 +1284,9 @@ export interface FeedItem {
   subject: string | null;
   fromText: string | null;
   toText: string | null;
+  // Comments only: the thread root of a reply, and when the comment was last edited.
+  parentId: string | null;
+  editedAt: string | null;
   createdAt: string;
 }
 

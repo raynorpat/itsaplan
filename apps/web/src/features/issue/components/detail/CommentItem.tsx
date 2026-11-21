@@ -19,6 +19,7 @@ export default function CommentItem({ item, image }: { item: FeedItem; image: st
           <span className="text-sm font-medium">{author}</span>
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
+            {item.editedAt && ' (edited)'}
           </span>
         </div>
         <IssueMarkdownEditor

@@ -93,7 +93,7 @@ CREATE TABLE "agent_run" (
 	"schedule_id" uuid,
 	"trigger" text DEFAULT 'delegation' NOT NULL,
 	"scheduled_for" timestamp with time zone,
-	"source_activity_id" uuid,
+	"source_comment_id" uuid,
 	"prompt" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"attempts" integer DEFAULT 0 NOT NULL,
@@ -199,6 +199,24 @@ CREATE TABLE "app_setting" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "comment" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"issue_id" uuid,
+	"project_id" uuid,
+	"project_update_id" uuid,
+	"parent_id" uuid,
+	"user_id" uuid,
+	"user_name" text,
+	"body" text NOT NULL,
+	"edited_at" timestamp with time zone,
+	"resolved_at" timestamp with time zone,
+	"resolving_user_id" uuid,
+	"resolving_comment_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "comment_parent_check" CHECK (num_nonnulls("comment"."issue_id", "comment"."project_id", "comment"."project_update_id") = 1)
+);
+--> statement-breakpoint
 CREATE TABLE "custom_field" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"team_id" uuid NOT NULL,
@@ -267,16 +285,13 @@ CREATE TABLE "issue_activity" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"issue_id" uuid,
 	"project_id" uuid,
-	"kind" text NOT NULL,
 	"actor_user_id" uuid,
 	"actor_name" text,
-	"body" text,
 	"action" text,
 	"subject" text,
 	"from_text" text,
 	"to_text" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "issue_activity_kind_check" CHECK ("issue_activity"."kind" IN ('comment', 'activity')),
 	CONSTRAINT "issue_activity_owner_check" CHECK (("issue_activity"."issue_id" IS NOT NULL) <> ("issue_activity"."project_id" IS NOT NULL))
 );
 --> statement-breakpoint
@@ -365,6 +380,7 @@ CREATE TABLE "notification" (
 	"team_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"source_activity_id" uuid,
+	"source_comment_id" uuid,
 	"type" text NOT NULL,
 	"actor_user_id" uuid,
 	"actor_name" text,
@@ -665,7 +681,7 @@ ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("
 ALTER TABLE "agent_run" ADD CONSTRAINT "agent_run_agent_id_ai_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."ai_agent"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_run" ADD CONSTRAINT "agent_run_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_run" ADD CONSTRAINT "agent_run_schedule_id_agent_schedule_id_fk" FOREIGN KEY ("schedule_id") REFERENCES "public"."agent_schedule"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_run" ADD CONSTRAINT "agent_run_source_activity_id_issue_activity_id_fk" FOREIGN KEY ("source_activity_id") REFERENCES "public"."issue_activity"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_run" ADD CONSTRAINT "agent_run_source_comment_id_comment_id_fk" FOREIGN KEY ("source_comment_id") REFERENCES "public"."comment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_schedule" ADD CONSTRAINT "agent_schedule_agent_id_ai_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."ai_agent"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_skill" ADD CONSTRAINT "agent_skill_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_skill_link" ADD CONSTRAINT "agent_skill_link_agent_id_ai_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."ai_agent"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -678,6 +694,13 @@ ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_team_id_team_id_fk" FOREIGN KEY 
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_model_credential_id_integration_credential_id_fk" FOREIGN KEY ("model_credential_id") REFERENCES "public"."integration_credential"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_role_id_team_role_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."team_role"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_project_update_id_project_update_id_fk" FOREIGN KEY ("project_update_id") REFERENCES "public"."project_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_parent_id_comment_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."comment"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_resolving_user_id_user_id_fk" FOREIGN KEY ("resolving_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_resolving_comment_id_comment_id_fk" FOREIGN KEY ("resolving_comment_id") REFERENCES "public"."comment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_issue_type_id_issue_type_id_fk" FOREIGN KEY ("issue_type_id") REFERENCES "public"."issue_type"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field_option" ADD CONSTRAINT "custom_field_option_field_id_custom_field_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."custom_field"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -712,6 +735,7 @@ ALTER TABLE "notification" ADD CONSTRAINT "notification_user_id_user_id_fk" FORE
 ALTER TABLE "notification" ADD CONSTRAINT "notification_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_source_activity_id_issue_activity_id_fk" FOREIGN KEY ("source_activity_id") REFERENCES "public"."issue_activity"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification" ADD CONSTRAINT "notification_source_comment_id_comment_id_fk" FOREIGN KEY ("source_comment_id") REFERENCES "public"."comment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_actor_user_id_user_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_delivery" ADD CONSTRAINT "notification_delivery_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project" ADD CONSTRAINT "project_status_id_project_status_id_fk" FOREIGN KEY ("status_id") REFERENCES "public"."project_status"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -766,6 +790,10 @@ CREATE INDEX "agent_tool_team_idx" ON "agent_tool" USING btree ("team_id");--> s
 CREATE INDEX "agent_tool_credential_idx" ON "agent_tool" USING btree ("credential_id");--> statement-breakpoint
 CREATE INDEX "agent_tool_link_tool_idx" ON "agent_tool_link" USING btree ("agent_tool_id");--> statement-breakpoint
 CREATE INDEX "ai_agent_team_idx" ON "ai_agent" USING btree ("team_id");--> statement-breakpoint
+CREATE INDEX "comment_issue_idx" ON "comment" USING btree ("issue_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "comment_parent_idx" ON "comment" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "integration_credential_team_idx" ON "integration_credential" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "issue_team_active_idx" ON "issue" USING btree ("team_id","state_id") WHERE "issue"."archived_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
@@ -791,7 +819,17 @@ CREATE UNIQUE INDEX "user_telegram_account_link_code_unique" ON "user_telegram_a
 CREATE INDEX "webhook_team_idx" ON "webhook" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "webhook_delivery_due_idx" ON "webhook_delivery" USING btree ("next_attempt_at") WHERE "webhook_delivery"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "webhook_delivery_webhook_idx" ON "webhook_delivery" USING btree ("webhook_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "workflow_state_active_position_idx" ON "workflow_state" USING btree ("team_id","position") WHERE "workflow_state"."archived_at" IS NULL;
+CREATE UNIQUE INDEX "workflow_state_active_position_idx" ON "workflow_state" USING btree ("team_id","position") WHERE "workflow_state"."archived_at" IS NULL;--> statement-breakpoint
+CREATE VIEW "public"."feed_entry" AS (
+  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id, 'activity' AS kind,
+    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
+    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
+  FROM issue_activity
+  UNION ALL
+  SELECT id, issue_id, project_id, project_update_id, 'comment' AS kind,
+    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
+  FROM comment
+);
 -- Seed the instance upload limits so every installation has a row to edit in god
 -- mode, from the first migration. Keep these values in sync with
 -- defaultStorageSettings() in apps/api/src/settings/storage.ts, which still applies

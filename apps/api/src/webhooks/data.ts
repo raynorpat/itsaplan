@@ -1,6 +1,5 @@
 import {
   db,
-  issueActivity,
   issueLabel,
   label,
   labelGroup,
@@ -11,6 +10,7 @@ import {
 } from '@repo/db';
 import { asc, eq } from 'drizzle-orm';
 import { toComment } from '../graphql/resolvers/comment';
+import { commentParentUrl, getComment } from '../comments/store';
 import { issueById } from '../graphql/resolvers/issue';
 import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
 import { toProject, toUpdate } from '../graphql/resolvers/project';
@@ -66,10 +66,9 @@ export async function issueData(issueId: string): Promise<WebhookData | null> {
 }
 
 export async function commentData(commentId: string): Promise<WebhookData | null> {
-  const [row] = await db.select().from(issueActivity).where(eq(issueActivity.id, commentId));
-  if (!row?.issueId) return null;
-  const found = await issueById(row.issueId);
-  return found ? toComment(row, found.url) : null;
+  const found = await getComment(commentId);
+  if (!found) return null;
+  return toComment(found, await commentParentUrl(found));
 }
 
 export async function issueLabelData(labelId: string): Promise<WebhookData | null> {

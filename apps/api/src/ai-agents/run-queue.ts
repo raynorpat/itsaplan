@@ -22,16 +22,16 @@ export const agentRunConfig = {
 export async function enqueueAgentRun(input: {
   agentId: string;
   issueId: string;
-  sourceActivityId: string | null;
+  sourceCommentId: string | null;
   prompt: string;
   trigger?: 'mention' | 'delegation';
 }): Promise<void> {
   await db.insert(agentRun).values({
     agentId: input.agentId,
     issueId: input.issueId,
-    sourceActivityId: input.sourceActivityId,
+    sourceCommentId: input.sourceCommentId,
     prompt: input.prompt,
-    trigger: input.trigger ?? (input.sourceActivityId == null ? 'delegation' : 'mention'),
+    trigger: input.trigger ?? (input.sourceCommentId == null ? 'delegation' : 'mention'),
   });
 }
 
@@ -43,7 +43,7 @@ export interface ClaimedRun {
   attempts: number;
   // The source comment id when the run was triggered by a mention, null for a
   // delegation. The poller frames the task differently for each.
-  sourceActivityId: string | null;
+  sourceCommentId: string | null;
   // The agent's team and bot user, read inline so the poller can run it without a
   // second query.
   teamId: string;
@@ -86,7 +86,7 @@ export async function claimDueRuns(): Promise<ClaimedRun[]> {
       r.issue_id AS "issueId",
       r.prompt,
       r.attempts,
-      r.source_activity_id AS "sourceActivityId",
+      r.source_comment_id AS "sourceCommentId",
       (SELECT team_id FROM ai_agent a WHERE a.id = r.agent_id) AS "teamId",
       (SELECT user_id FROM ai_agent a WHERE a.id = r.agent_id) AS "agentUserId",
       (SELECT p.key || '-' || i.sequence_number
@@ -96,8 +96,8 @@ export async function claimDueRuns(): Promise<ClaimedRun[]> {
       (SELECT assignee_user_id FROM issue i WHERE i.id = r.issue_id) AS "assigneeUserId",
       (SELECT u.name FROM issue i JOIN "user" u ON u.id = i.assignee_user_id
          WHERE i.id = r.issue_id) AS "assigneeName",
-      (SELECT actor_user_id FROM issue_activity a WHERE a.id = r.source_activity_id) AS "requesterUserId",
-      (SELECT actor_name FROM issue_activity a WHERE a.id = r.source_activity_id) AS "requesterName"
+      (SELECT user_id FROM comment c WHERE c.id = r.source_comment_id) AS "requesterUserId",
+      (SELECT user_name FROM comment c WHERE c.id = r.source_comment_id) AS "requesterName"
   `);
   return rows as unknown as ClaimedRun[];
 }
@@ -162,7 +162,7 @@ export async function listAgentRuns(
       id: agentRun.id,
       status: agentRun.status,
       trigger: agentRun.trigger,
-      sourceActivityId: agentRun.sourceActivityId,
+      sourceCommentId: agentRun.sourceCommentId,
       issueId: agentRun.issueId,
       prompt: agentRun.prompt,
       attempts: agentRun.attempts,

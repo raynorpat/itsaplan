@@ -1,19 +1,23 @@
-import type { issueActivity } from '@repo/db';
+import type { CommentRow } from '../../comments/store';
 
-// Linear's Comment over an issue_activity row of kind 'comment'. Comments cannot
-// be edited, so updatedAt is the creation time and editedAt is null. `issueUrl`
-// is the web URL of the comment's issue.
-export function toComment(row: typeof issueActivity.$inferSelect, issueUrl: string) {
-  const createdAt = row.createdAt.toISOString();
+// Linear's Comment over a comment row. `parentUrl` is the web URL of the comment's
+// issue, project or project update.
+export function toComment(row: CommentRow, parentUrl: string) {
   return {
     id: row.id,
-    body: row.body ?? '',
-    createdAt,
-    updatedAt: createdAt,
+    body: row.body,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
     archivedAt: null,
-    editedAt: null,
+    editedAt: row.editedAt,
+    resolvedAt: row.resolvedAt,
     issueId: row.issueId,
-    userId: row.actorUserId,
-    url: `${issueUrl}#comment-${row.id}`,
+    projectId: row.projectId,
+    projectUpdateId: row.projectUpdateId,
+    parentId: row.parentId,
+    userId: row.userId,
+    resolvingUserId: row.resolvingUserId,
+    resolvingCommentId: row.resolvingCommentId,
+    url: `${parentUrl}#comment-${row.id}`,
   };
 }

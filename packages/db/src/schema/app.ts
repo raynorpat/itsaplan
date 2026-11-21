@@ -14,6 +14,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  pgView,
   primaryKey,
   real,
   text,
@@ -436,7 +437,7 @@ export const agentRun = pgTable(
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     // The comment that mentioned the agent, kept for traceability. The prompt is
     // snapshotted into `prompt` so a run still works if the comment is later deleted.
-    sourceActivityId: uuid('source_activity_id').references(() => issueActivity.id, {
+    sourceCommentId: uuid('source_comment_id').references((): AnyPgColumn => comment.id, {
       onDelete: 'set null',
     }),
     // The mention comment body at enqueue time, framed into the agent's prompt.
@@ -1043,13 +1044,12 @@ export const issueAttachment = pgTable(
   (t) => [index('issue_attachment_issue_idx').on(t.issueId)],
 );
 
-// Timeline of comments and change-log activity for issues and projects, in one
-// table. Each row belongs to exactly one owner: an issue (issue_id) or an
-// project (project_id) — enforced by owner_check. kind selects which payload
-// columns a row uses — a comment sets body; activity sets action/subject/from_text/
-// to_text. actor_user_id is the author, taken from the session user (a member or an
-// agent's bot user). actor_name is a snapshot so an entry still reads correctly
-// after that user is renamed or deleted.
+// Change log of issues and projects. Each row belongs to exactly one owner: an
+// issue (issue_id) or a project (project_id) — enforced by owner_check. A row
+// records one change: action/subject/from_text/to_text. actor_user_id is the
+// author, taken from the session user (a member or an agent's bot user). actor_name
+// is a snapshot so an entry still reads correctly after that user is renamed or
+// deleted. Comments are stored in `comment`; feed_entry merges the two.
 export const issueActivity = pgTable(
   'issue_activity',
   {
@@ -1060,12 +1060,10 @@ export const issueActivity = pgTable(
     projectId: uuid('project_id').references(() => project.id, {
       onDelete: 'cascade',
     }),
-    kind: text('kind').notNull(),
     actorUserId: uuid('actor_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     actorName: text('actor_name'),
-    body: text('body'),
     action: text('action'),
     subject: text('subject'),
     fromText: text('from_text'),
@@ -1073,7 +1071,6 @@ export const issueActivity = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check('issue_activity_kind_check', sql`${t.kind} IN ('comment', 'activity')`),
     // Exactly one owner: an issue row or an project row, never both or neither.
     check(
       'issue_activity_owner_check',
@@ -1083,6 +1080,74 @@ export const issueActivity = pgTable(
     index('issue_activity_project_idx').on(t.projectId, t.createdAt.desc(), t.id.desc()),
   ],
 );
+
+// Comments (Linear's Comment) on an issue, a project or a project update — exactly
+// one of the three. A reply's parent_id is the root comment of its thread (replies
+// are one level deep); a reply has the same parent entity as its root. user_name is
+// the author's name at write time. resolved_at / resolving_* apply to root comments.
+export const comment = pgTable(
+  'comment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    projectUpdateId: uuid('project_update_id').references(() => projectUpdate.id, {
+      onDelete: 'cascade',
+    }),
+    parentId: uuid('parent_id').references((): AnyPgColumn => comment.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
+    userName: text('user_name'),
+    body: text('body').notNull(),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvingUserId: uuid('resolving_user_id').references(() => user.id, { onDelete: 'set null' }),
+    resolvingCommentId: uuid('resolving_comment_id').references((): AnyPgColumn => comment.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'comment_parent_check',
+      sql`num_nonnulls(${t.issueId}, ${t.projectId}, ${t.projectUpdateId}) = 1`,
+    ),
+    index('comment_issue_idx').on(t.issueId, t.createdAt, t.id),
+    index('comment_project_idx').on(t.projectId, t.createdAt, t.id),
+    index('comment_project_update_idx').on(t.projectUpdateId, t.createdAt, t.id),
+    index('comment_parent_idx').on(t.parentId),
+  ],
+);
+
+// The timeline of issues and projects: change-log rows and comments in one row
+// shape, for the feeds (issue, range, share, team activity, project). kind is
+// 'activity' or 'comment'; the columns a kind does not use are null.
+export const feedEntry = pgView('feed_entry', {
+  id: uuid('id').notNull(),
+  issueId: uuid('issue_id'),
+  projectId: uuid('project_id'),
+  projectUpdateId: uuid('project_update_id'),
+  kind: text('kind').notNull(),
+  actorUserId: uuid('actor_user_id'),
+  actorName: text('actor_name'),
+  body: text('body'),
+  action: text('action'),
+  subject: text('subject'),
+  fromText: text('from_text'),
+  toText: text('to_text'),
+  parentId: uuid('parent_id'),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+}).as(sql`
+  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id, 'activity' AS kind,
+    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
+    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
+  FROM issue_activity
+  UNION ALL
+  SELECT id, issue_id, project_id, project_update_id, 'comment' AS kind,
+    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
+  FROM comment
+`);
 
 // Saved views (the tabs above a team's work items view). filters and display are jsonb
 // blobs owned by the UI; the server stores and returns them without inspecting
@@ -1236,8 +1301,9 @@ export const webhookDelivery = pgTable(
 // about an issue they are involved in (assigned to them, mentioned, or a participant
 // on a comment/status change). The actor's own actions never notify the actor.
 // team_id is denormalized from the issue so the inbox can filter and scope by
-// team. source_activity_id points at the issue_activity row that produced the
-// notification (set null if that entry is later removed). type selects the kind.
+// team. source_activity_id points at the change-log row and source_comment_id at
+// the comment that produced the notification (set null if that entry is later
+// removed). type selects the kind.
 // read_at NULL means unread; snoozed_until, when set and still in the future, hides
 // the row from the default inbox until then.
 export const notification = pgTable(
@@ -1254,6 +1320,9 @@ export const notification = pgTable(
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
     sourceActivityId: uuid('source_activity_id').references(() => issueActivity.id, {
+      onDelete: 'set null',
+    }),
+    sourceCommentId: uuid('source_comment_id').references((): AnyPgColumn => comment.id, {
       onDelete: 'set null',
     }),
     type: text('type').notNull(),

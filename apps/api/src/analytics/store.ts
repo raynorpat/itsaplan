@@ -3,6 +3,7 @@ import {
   issue,
   workflowState,
   issueActivity,
+  feedEntry,
   issueType,
   user,
   aiAgent,
@@ -387,35 +388,35 @@ export async function listActivity(
   if (opts.issueIds && opts.issueIds.length === 0) return { items: [], nextCursor: null };
 
   const conds = [eq(issue.teamId, teamId)];
-  if (opts.issueIds) conds.push(inArray(issueActivity.issueId, opts.issueIds));
-  if (opts.actorUserId != null) conds.push(eq(issueActivity.actorUserId, opts.actorUserId));
-  if (opts.action) conds.push(eq(issueActivity.action, opts.action));
+  if (opts.issueIds) conds.push(inArray(feedEntry.issueId, opts.issueIds));
+  if (opts.actorUserId != null) conds.push(eq(feedEntry.actorUserId, opts.actorUserId));
+  if (opts.action) conds.push(eq(feedEntry.action, opts.action));
   if (before)
     conds.push(
-      sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`,
+      sql`(${feedEntry.createdAt}, ${feedEntry.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`,
     );
 
   const rows = await db
     .select({
-      id: issueActivity.id,
-      issueId: issueActivity.issueId,
+      id: feedEntry.id,
+      issueId: feedEntry.issueId,
       issueSequence: issue.sequenceNumber,
       issueTitle: issue.title,
-      kind: issueActivity.kind,
-      actorUserId: issueActivity.actorUserId,
-      actorName: issueActivity.actorName,
-      body: issueActivity.body,
-      action: issueActivity.action,
-      subject: issueActivity.subject,
-      fromText: issueActivity.fromText,
-      toText: issueActivity.toText,
-      createdAt: issueActivity.createdAt,
-      cursorTs: sql<string>`${issueActivity.createdAt}::text`,
+      kind: feedEntry.kind,
+      actorUserId: feedEntry.actorUserId,
+      actorName: feedEntry.actorName,
+      body: feedEntry.body,
+      action: feedEntry.action,
+      subject: feedEntry.subject,
+      fromText: feedEntry.fromText,
+      toText: feedEntry.toText,
+      createdAt: feedEntry.createdAt,
+      cursorTs: sql<string>`${feedEntry.createdAt}::text`,
     })
-    .from(issueActivity)
-    .innerJoin(issue, eq(issue.id, issueActivity.issueId))
+    .from(feedEntry)
+    .innerJoin(issue, eq(issue.id, feedEntry.issueId))
     .where(and(...conds))
-    .orderBy(desc(issueActivity.createdAt), desc(issueActivity.id))
+    .orderBy(desc(feedEntry.createdAt), desc(feedEntry.id))
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
@@ -424,7 +425,7 @@ export async function listActivity(
   return {
     items: page.map((row) => ({
       id: row.id,
-      // The inner join on issueActivity.issueId excludes project rows, so
+      // The inner join on feedEntry.issueId excludes project rows, so
       // issueId is always present here despite the column being nullable.
       issueId: row.issueId as string,
       issueSequence: row.issueSequence,

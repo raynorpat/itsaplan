@@ -1,12 +1,13 @@
-import { db, issue, issueActivity, team, user } from '@repo/db';
+import { db, feedEntry, issue, issueActivity, projectUpdate, team, user } from '@repo/db';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
-// An project's activity feed merges two kinds of rows from issue_activity:
-// events of the project itself (project_id set) and the activity of the
-// issues linked to it (issue_id set, resolved through issue.project_id). Both
-// live in one table, so the feed is one keyset-paginated query over a single id
-// space. Project-level events are written by recordActivity/logProjectUpdate.
+// A project's activity feed reads the feed_entry view (change log and comments):
+// entries of the project itself (project_id set), comments on its project updates
+// (project_update_id set), and the entries of the issues linked to it (issue_id
+// set, resolved through issue.project_id). It is one keyset-paginated query over a
+// single (created_at, id) order. Project-level events are written by
+// recordActivity/logProjectUpdate.
 
 export type FeedKind = 'comment' | 'activity';
 
@@ -63,36 +64,44 @@ export async function listFeed(
         inArray(issue.teamId, issueTeamIds.length ? issueTeamIds : [NO_ID]),
       ),
     );
+  const projectUpdateIds = db
+    .select({ id: projectUpdate.id })
+    .from(projectUpdate)
+    .where(eq(projectUpdate.projectId, projectId));
   const rows = await db
     .select({
-      id: issueActivity.id,
-      issueId: issueActivity.issueId,
-      projectId: issueActivity.projectId,
-      kind: issueActivity.kind,
-      actorUserId: issueActivity.actorUserId,
-      actorName: issueActivity.actorName,
-      body: issueActivity.body,
-      action: issueActivity.action,
-      subject: issueActivity.subject,
-      fromText: issueActivity.fromText,
-      toText: issueActivity.toText,
-      createdAt: issueActivity.createdAt,
-      cursorTs: sql<string>`${issueActivity.createdAt}::text`,
+      id: feedEntry.id,
+      issueId: feedEntry.issueId,
+      projectId: feedEntry.projectId,
+      kind: feedEntry.kind,
+      actorUserId: feedEntry.actorUserId,
+      actorName: feedEntry.actorName,
+      body: feedEntry.body,
+      action: feedEntry.action,
+      subject: feedEntry.subject,
+      fromText: feedEntry.fromText,
+      toText: feedEntry.toText,
+      createdAt: feedEntry.createdAt,
+      cursorTs: sql<string>`${feedEntry.createdAt}::text`,
       seq: issue.sequenceNumber,
       teamKey: team.key,
     })
-    .from(issueActivity)
-    .leftJoin(issue, eq(issue.id, issueActivity.issueId))
+    .from(feedEntry)
+    .leftJoin(issue, eq(issue.id, feedEntry.issueId))
     .leftJoin(team, eq(team.id, issue.teamId))
     .where(
       and(
-        or(eq(issueActivity.projectId, projectId), inArray(issueActivity.issueId, linkedIssueIds)),
+        or(
+          eq(feedEntry.projectId, projectId),
+          inArray(feedEntry.issueId, linkedIssueIds),
+          inArray(feedEntry.projectUpdateId, projectUpdateIds),
+        ),
         before
-          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
+          ? sql`(${feedEntry.createdAt}, ${feedEntry.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
           : undefined,
       ),
     )
-    .orderBy(desc(issueActivity.createdAt), desc(issueActivity.id))
+    .orderBy(desc(feedEntry.createdAt), desc(feedEntry.id))
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
@@ -101,7 +110,7 @@ export async function listFeed(
   return {
     items: page.map((row) => ({
       id: row.id,
-      source: row.projectId != null ? ('project' as const) : ('issue' as const),
+      source: row.issueId == null ? ('project' as const) : ('issue' as const),
       kind: row.kind as FeedKind,
       actorUserId: row.actorUserId,
       actorName: row.actorName,

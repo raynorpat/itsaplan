@@ -1,19 +1,27 @@
-import { db, issue, issueActivity, user, workflowState, issueType, label, project } from '@repo/db';
+import {
+  db,
+  feedEntry,
+  issue,
+  issueActivity,
+  user,
+  workflowState,
+  issueType,
+  label,
+  project,
+} from '@repo/db';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
-import { emitEvent } from '../webhooks/event';
-import { commentData } from '../webhooks/data';
 import { parseMentions } from '../ai-agents/mentions';
 import { isAgentUser, listInternalAgentsByUserIds } from '../ai-agents/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
-import { notifyComment, notifyIssueChange } from '../notifications/store';
+import { notifyIssueChange } from '../notifications/store';
 
-// Issue timeline: comments and change-log activity in one table (issue_activity).
-// kind selects which payload columns a row uses. The author is the session user
-// (a member or an agent's bot user); actor_name is a snapshot taken at write time,
-// so an entry keeps reading correctly after that user is renamed or deleted. The
-// issue detail panel renders the feed newest first and pages through it with a
-// (created_at, id) keyset cursor.
+// Issue timeline: change-log entries (issue_activity) and comments (comment), read
+// together through the feed_entry view. kind selects which payload columns a row
+// uses. The author is the session user (a member or an agent's bot user); the
+// author's name is a snapshot taken at write time, so an entry keeps reading
+// correctly after that user is renamed or deleted. The issue detail panel renders
+// the feed newest first and pages through it with a (created_at, id) keyset cursor.
 
 export type FeedKind = 'comment' | 'activity';
 
@@ -28,6 +36,9 @@ export interface FeedItemRow {
   subject: string | null;
   fromText: string | null;
   toText: string | null;
+  // Comments only: the thread root a reply belongs to, and when it was last edited.
+  parentId: string | null;
+  editedAt: string | null;
   createdAt: string;
 }
 
@@ -43,10 +54,10 @@ export interface FeedPage {
   nextCursor: FeedCursor | null;
 }
 
-function mapFeedItem(row: {
+export function mapFeedItem(row: {
   id: string;
-  // Nullable at the column level (project rows share this table), but the
-  // issue feed and createComment only ever handle issue rows, so it is present.
+  // Nullable at the column level (project rows share the view), but the issue
+  // feeds only read issue rows, so it is present.
   issueId: string | null;
   kind: string;
   actorUserId: string | null;
@@ -56,6 +67,8 @@ function mapFeedItem(row: {
   subject: string | null;
   fromText: string | null;
   toText: string | null;
+  parentId: string | null;
+  editedAt: Date | null;
   createdAt: Date;
 }): FeedItemRow {
   return {
@@ -69,6 +82,8 @@ function mapFeedItem(row: {
     subject: row.subject,
     fromText: row.fromText,
     toText: row.toText,
+    parentId: row.parentId,
+    editedAt: row.editedAt ? iso(row.editedAt) : null,
     createdAt: iso(row.createdAt),
   };
 }
@@ -84,29 +99,31 @@ export async function listFeed(
   const before = opts.before ?? null;
   const rows = await db
     .select({
-      id: issueActivity.id,
-      issueId: issueActivity.issueId,
-      kind: issueActivity.kind,
-      actorUserId: issueActivity.actorUserId,
-      actorName: issueActivity.actorName,
-      body: issueActivity.body,
-      action: issueActivity.action,
-      subject: issueActivity.subject,
-      fromText: issueActivity.fromText,
-      toText: issueActivity.toText,
-      createdAt: issueActivity.createdAt,
-      cursorTs: sql<string>`${issueActivity.createdAt}::text`,
+      id: feedEntry.id,
+      issueId: feedEntry.issueId,
+      kind: feedEntry.kind,
+      actorUserId: feedEntry.actorUserId,
+      actorName: feedEntry.actorName,
+      body: feedEntry.body,
+      action: feedEntry.action,
+      subject: feedEntry.subject,
+      fromText: feedEntry.fromText,
+      toText: feedEntry.toText,
+      parentId: feedEntry.parentId,
+      editedAt: feedEntry.editedAt,
+      createdAt: feedEntry.createdAt,
+      cursorTs: sql<string>`${feedEntry.createdAt}::text`,
     })
-    .from(issueActivity)
+    .from(feedEntry)
     .where(
       and(
-        eq(issueActivity.issueId, issueId),
+        eq(feedEntry.issueId, issueId),
         before
-          ? sql`(${issueActivity.createdAt}, ${issueActivity.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
+          ? sql`(${feedEntry.createdAt}, ${feedEntry.id}) < (${before.ts}::timestamptz, ${before.id}::uuid)`
           : undefined,
       ),
     )
-    .orderBy(desc(issueActivity.createdAt), desc(issueActivity.id))
+    .orderBy(desc(feedEntry.createdAt), desc(feedEntry.id))
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
@@ -196,62 +213,40 @@ export async function listFeedRange(
 
   const rows = await db
     .select()
-    .from(issueActivity)
+    .from(feedEntry)
     .where(
       and(
-        eq(issueActivity.issueId, issueId),
-        gte(issueActivity.createdAt, fromDate),
-        toDate ? lt(issueActivity.createdAt, toDate) : undefined,
+        eq(feedEntry.issueId, issueId),
+        gte(feedEntry.createdAt, fromDate),
+        toDate ? lt(feedEntry.createdAt, toDate) : undefined,
       ),
     )
-    .orderBy(issueActivity.createdAt, issueActivity.id);
+    .orderBy(feedEntry.createdAt, feedEntry.id);
   return rows.map(mapFeedItem);
-}
-
-export async function createComment(input: {
-  issueId: string;
-  actorUserId?: string | null;
-  body: string;
-}): Promise<FeedItemRow> {
-  const actorUserId = input.actorUserId ?? null;
-  const actorName = await userName(actorUserId);
-  const [row] = await db
-    .insert(issueActivity)
-    .values({ issueId: input.issueId, kind: 'comment', actorUserId, actorName, body: input.body })
-    .returning();
-  const comment = mapFeedItem(row);
-
-  const teamRows = await db
-    .select({ teamId: issue.teamId })
-    .from(issue)
-    .where(eq(issue.id, input.issueId));
-  const teamId = teamRows[0]?.teamId;
-  if (teamId != null) {
-    const data = await commentData(comment.id);
-    if (data)
-      await emitEvent({ type: 'Comment', action: 'create', teamIds: [teamId], actorUserId, data });
-    await enqueueMentionRuns(teamId, comment);
-    await notifyComment(teamId, comment);
-  }
-
-  return comment;
 }
 
 // If the comment mentions internal agents, queue a run for each so they can reply.
 // Only quick queries run here; the LLM call happens later in the poller, so creating
 // a comment is never blocked on it. Comments authored by an agent's bot user never
 // trigger runs, which stops agents from setting each other (or themselves) off.
-async function enqueueMentionRuns(teamId: string, comment: FeedItemRow): Promise<void> {
-  const mentionedUserIds = parseMentions(comment.body ?? '');
-  if (mentionedUserIds.length === 0) return;
-  if (comment.actorUserId && (await isAgentUser(comment.actorUserId))) return;
+// `onlyUserIds` limits the runs to those mentions (an edit runs only agents it
+// newly mentions).
+export async function enqueueMentionRuns(
+  teamId: string,
+  comment: { id: string; issueId: string | null; userId: string | null; body: string },
+  onlyUserIds?: string[],
+): Promise<void> {
+  let mentionedUserIds = parseMentions(comment.body);
+  if (onlyUserIds) mentionedUserIds = mentionedUserIds.filter((id) => onlyUserIds.includes(id));
+  if (mentionedUserIds.length === 0 || !comment.issueId) return;
+  if (comment.userId && (await isAgentUser(comment.userId))) return;
   const agents = await listInternalAgentsByUserIds(teamId, mentionedUserIds);
   for (const agent of agents) {
     await enqueueAgentRun({
       agentId: agent.id,
       issueId: comment.issueId,
-      sourceActivityId: comment.id,
-      prompt: comment.body ?? '',
+      sourceCommentId: comment.id,
+      prompt: comment.body,
     });
   }
 }
@@ -310,7 +305,6 @@ async function insertActivity(
     .values(
       entries.map(({ issueId, event }) => ({
         issueId,
-        kind: 'activity' as const,
         actorUserId: resolvedActorId,
         actorName,
         action: event.action,

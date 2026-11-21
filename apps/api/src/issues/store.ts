@@ -971,7 +971,7 @@ async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null):
   await enqueueAgentRun({
     agentId: agent.id,
     issueId: after.id,
-    sourceActivityId: null,
+    sourceCommentId: null,
     prompt: `Work item ${after.identifier}: "${after.title}" has been delegated to you. Review it and take the appropriate next step.`,
   });
 }
@@ -1192,7 +1192,7 @@ export async function teamBoardRev(teamId: string): Promise<string> {
 export async function issueRev(issueId: string): Promise<string> {
   const [row] = await db
     .select({
-      a: sql<string>`(select count(*) || '-' || coalesce(max(created_at)::text, '') from issue_activity where issue_id = ${issueId})`,
+      a: sql<string>`(select count(*) || '-' || coalesce(max(coalesce(edited_at, created_at))::text, '') from feed_entry where issue_id = ${issueId})`,
       u: sql<string>`${issue.updatedAt}::text`,
     })
     .from(issue)

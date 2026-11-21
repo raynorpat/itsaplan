@@ -1,7 +1,7 @@
 import {
   db,
   notification,
-  issueActivity,
+  feedEntry,
   teamMember,
   user,
   issue,
@@ -14,7 +14,7 @@ import { iso } from '../shared/lib';
 import { enqueueOutbound } from './outbound';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
-// about an issue they are involved in. Recipients are derived from issue_activity
+// about an issue they are involved in. Recipients are derived from the issue's feed
 // (assignee, delegate, and anyone who has acted on the issue) rather than a separate
 // subscription table. The actor is never notified about their own action, and only
 // team members receive notifications, so agent bot users (assigned via delegate,
@@ -26,7 +26,8 @@ export interface NewNotificationRow {
   userId: string;
   teamId: string;
   issueId: string;
-  sourceActivityId: string | null;
+  sourceActivityId?: string | null;
+  sourceCommentId?: string | null;
   type: NotificationType;
   actorUserId: string | null;
 }
@@ -48,9 +49,9 @@ async function keepTeamMembers(teamId: string, ids: string[]): Promise<Set<strin
 // users and non-members are dropped by keepTeamMembers.
 async function issueParticipants(teamId: string, issueId: string): Promise<Set<string>> {
   const rows = await db
-    .selectDistinct({ actorUserId: issueActivity.actorUserId })
-    .from(issueActivity)
-    .where(and(eq(issueActivity.issueId, issueId), sql`${issueActivity.actorUserId} IS NOT NULL`));
+    .selectDistinct({ actorUserId: feedEntry.actorUserId })
+    .from(feedEntry)
+    .where(and(eq(feedEntry.issueId, issueId), sql`${feedEntry.actorUserId} IS NOT NULL`));
   const candidates = rows.map((r) => r.actorUserId as string);
   return keepTeamMembers(teamId, candidates);
 }
@@ -76,15 +77,22 @@ async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
 
 // Fan out a new comment. Mentioned members get a 'mentioned' notification; the other
 // participants get 'commented'. A mentioned user gets only the 'mentioned' one. The
-// comment author is never notified.
+// comment author is never notified. `onlyMentioned` (an edit) notifies just those
+// newly mentioned members and no participants.
 export async function notifyComment(
   teamId: string,
-  comment: { issueId: string; id: string; actorUserId: string | null; body: string | null },
+  comment: { issueId: string | null; id: string; userId: string | null; body: string },
+  opts: { onlyMentioned?: string[] } = {},
 ): Promise<void> {
-  const actor = comment.actorUserId;
-  const mentionedIds = parseMentions(comment.body ?? '');
+  if (!comment.issueId) return;
+  const actor = comment.userId;
+  let mentionedIds = parseMentions(comment.body);
+  if (opts.onlyMentioned)
+    mentionedIds = mentionedIds.filter((id) => opts.onlyMentioned!.includes(id));
   const mentioned = await keepTeamMembers(teamId, mentionedIds);
-  const participants = await issueParticipants(teamId, comment.issueId);
+  const participants = opts.onlyMentioned
+    ? new Set<string>()
+    : await issueParticipants(teamId, comment.issueId);
 
   const rows: NewNotificationRow[] = [];
   for (const userId of mentioned) {
@@ -93,7 +101,7 @@ export async function notifyComment(
       userId,
       teamId,
       issueId: comment.issueId,
-      sourceActivityId: comment.id,
+      sourceCommentId: comment.id,
       type: 'mentioned',
       actorUserId: actor,
     });
@@ -104,7 +112,7 @@ export async function notifyComment(
       userId,
       teamId,
       issueId: comment.issueId,
-      sourceActivityId: comment.id,
+      sourceCommentId: comment.id,
       type: 'commented',
       actorUserId: actor,
     });

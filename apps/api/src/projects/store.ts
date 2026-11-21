@@ -666,7 +666,7 @@ async function setProjectLabels(
 export async function projectRev(id: string): Promise<string> {
   const [row] = await db
     .select({
-      a: sql<string>`(select count(*) || '-' || coalesce(max(created_at)::text, '') from issue_activity where project_id = ${id} or issue_id in (select id from issue where project_id = ${id}))`,
+      a: sql<string>`(select count(*) || '-' || coalesce(max(coalesce(edited_at, created_at))::text, '') from feed_entry where project_id = ${id} or issue_id in (select id from issue where project_id = ${id}) or project_update_id in (select id from project_update where project_id = ${id}))`,
       u: sql<string>`${project.updatedAt}::text`,
     })
     .from(project)

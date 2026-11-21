@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createComment } from '../../../issues/activity';
+import { createComment } from '../../../comments/store';
 import { claimDueRuns } from '../../run-queue';
 
 // Mentioning an internal agent in a comment queues an agent_run so the agent can
@@ -109,7 +109,7 @@ describe('agent mention runs', () => {
     // its own bot user as the author. Even though it mentions another internal agent,
     // no run is queued — this is what stops agent-to-agent mention loops.
     await createComment({
-      issueId: issue.id,
+      parent: { issueId: issue.id },
       actorUserId: author.userId,
       body: `over to you ${mention('Target Bot', target.userId)}`,
     });

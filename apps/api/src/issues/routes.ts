@@ -30,7 +30,8 @@ import {
   getIssueFieldValues,
   issueRev,
 } from './store';
-import { listFeed, listFeedRange, listStatusTimeline, createComment } from './activity';
+import { listFeed, listFeedRange, listStatusTimeline } from './activity';
+import { createComment, commentFeedItem } from '../comments/store';
 
 // Id path params are validated as UUIDs (t.String({ format: "uuid" })),
 // so a malformed id is rejected with a 400 before reaching the store.
@@ -127,6 +128,8 @@ const FeedItemResponse = t.Object({
   subject: t.Nullable(t.String()),
   fromText: t.Nullable(t.String()),
   toText: t.Nullable(t.String()),
+  parentId: t.Nullable(t.String({ format: 'uuid' })),
+  editedAt: t.Nullable(t.String()),
   createdAt: t.String(),
 });
 
@@ -956,11 +959,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     '/issues/:issueId/comments',
     async ({ params, body, user, set }) => {
       set.status = 201;
-      return createComment({
-        issueId: params.issueId,
+      const created = await createComment({
+        parent: { issueId: params.issueId },
         actorUserId: requireUser(user).id,
         body: body.body,
       });
+      return commentFeedItem(created);
     },
     {
       body: t.Object({ body: t.String({ minLength: 1, description: 'Comment text.' }) }),

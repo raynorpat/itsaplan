@@ -53,8 +53,8 @@ async function claimDueRuns(): Promise<ClaimedRun[]> {
       (SELECT title FROM issue i WHERE i.id = r.issue_id) AS "issueTitle",
       (SELECT assignee_user_id FROM issue i WHERE i.id = r.issue_id) AS "assigneeUserId",
       (SELECT u.name FROM issue i JOIN "user" u ON u.id = i.assignee_user_id WHERE i.id = r.issue_id) AS "assigneeName",
-      (SELECT actor_user_id FROM issue_activity a WHERE a.id = r.source_activity_id) AS "requesterUserId",
-      (SELECT actor_name FROM issue_activity a WHERE a.id = r.source_activity_id) AS "requesterName"
+      (SELECT user_id FROM comment c WHERE c.id = r.source_comment_id) AS "requesterUserId",
+      (SELECT user_name FROM comment c WHERE c.id = r.source_comment_id) AS "requesterName"
   `);
   return rows as unknown as ClaimedRun[];
 }

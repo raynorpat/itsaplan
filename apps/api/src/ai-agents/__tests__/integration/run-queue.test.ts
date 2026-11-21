@@ -37,7 +37,7 @@ async function enqueueRun(asOwner: Api, stateId: string) {
   await enqueueAgentRun({
     agentId: agent.id,
     issueId: issue.id,
-    sourceActivityId: null,
+    sourceCommentId: null,
     prompt: 'do it',
   });
   const [row] = await db.select().from(agentRun).where(eq(agentRun.issueId, issue.id));
