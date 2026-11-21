@@ -399,7 +399,13 @@ export const projectRoutes = new Elysia({
       const actor = requireUser(user).id;
       const mcpOnly = isMcpRequest(request.headers);
       const editable = await teamsGranting(actor, 'edit', { mcpOnly });
-      await setProjectTeams(params.projectId, access.readableTeamIds, editable, body.teamIds);
+      await setProjectTeams(
+        params.projectId,
+        access.readableTeamIds,
+        editable,
+        body.teamIds,
+        actor,
+      );
       return (await getProject(params.projectId, await teamsGranting(actor, 'read', { mcpOnly })))!;
     },
     {
@@ -478,8 +484,8 @@ export const projectRoutes = new Elysia({
 
   .post(
     '/projects/:projectId/archive',
-    async ({ params, access }) => {
-      await setProjectArchived(params.projectId, true);
+    async ({ params, access, user }) => {
+      await setProjectArchived(params.projectId, true, requireUser(user).id);
       return (await getProject(params.projectId, access.readableTeamIds))!;
     },
     {
@@ -501,8 +507,8 @@ export const projectRoutes = new Elysia({
 
   .post(
     '/projects/:projectId/unarchive',
-    async ({ params, access }) => {
-      await setProjectArchived(params.projectId, false);
+    async ({ params, access, user }) => {
+      await setProjectArchived(params.projectId, false, requireUser(user).id);
       return (await getProject(params.projectId, access.readableTeamIds))!;
     },
     {
@@ -524,8 +530,8 @@ export const projectRoutes = new Elysia({
 
   .delete(
     '/projects/:projectId',
-    async ({ params }) => {
-      await deleteProject(params.projectId);
+    async ({ params, user }) => {
+      await deleteProject(params.projectId, requireUser(user).id);
       return noContent();
     },
     {

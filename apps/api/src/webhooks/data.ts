@@ -4,6 +4,7 @@ import {
   issueLabel,
   label,
   labelGroup,
+  projectUpdate,
   team,
   user,
   workflowState,
@@ -12,6 +13,8 @@ import { asc, eq } from 'drizzle-orm';
 import { toComment } from '../graphql/resolvers/comment';
 import { issueById } from '../graphql/resolvers/issue';
 import { toIssueLabel, toLabelGroupAsIssueLabel } from '../graphql/resolvers/issue-label';
+import { toProject, toUpdate } from '../graphql/resolvers/project';
+import { getProject } from '../projects/store';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -77,4 +80,22 @@ export async function issueLabelData(labelId: string): Promise<WebhookData | nul
 export async function labelGroupData(groupId: string): Promise<WebhookData | null> {
   const [row] = await db.select().from(labelGroup).where(eq(labelGroup.id, groupId));
   return row ? toLabelGroupAsIssueLabel(row) : null;
+}
+
+// All of the project's teams (no visibility filter): webhooks are scoped by team.
+export async function projectData(projectId: string): Promise<WebhookData | null> {
+  const found = await getProject(projectId);
+  if (!found) return null;
+  const { visibleTeamIds, leadUserId, labelIds, ...rest } = toProject(found);
+  return {
+    ...rest,
+    teamIds: [...visibleTeamIds].sort(),
+    leadId: leadUserId,
+    labelIds: [...labelIds].sort(),
+  };
+}
+
+export async function projectUpdateData(updateId: string): Promise<WebhookData | null> {
+  const [row] = await db.select().from(projectUpdate).where(eq(projectUpdate.id, updateId));
+  return row ? toUpdate(row) : null;
 }

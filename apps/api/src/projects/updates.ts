@@ -1,6 +1,28 @@
 import { db, projectUpdate } from '@repo/db';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { iso } from '../shared/lib';
+import { emitEvent, type WebhookAction } from '../webhooks/event';
+import { projectUpdateData, type WebhookData } from '../webhooks/data';
+import { projectTeamIds } from './access';
+
+// Sends a ProjectUpdate webhook event to the webhooks of the project's teams.
+async function emitUpdate(
+  action: WebhookAction,
+  projectId: string,
+  actorUserId: string | null,
+  data: WebhookData | null,
+  before?: WebhookData | null,
+): Promise<void> {
+  if (!data) return;
+  await emitEvent({
+    type: 'ProjectUpdate',
+    action,
+    teamIds: await projectTeamIds(projectId),
+    actorUserId,
+    data,
+    before: before ?? undefined,
+  });
+}
 
 // Project updates (Linear's ProjectUpdate): status posts with a health reading.
 // The newest update gives the project its health.
@@ -55,26 +77,33 @@ export async function createUpdate(
     .insert(projectUpdate)
     .values({ projectId, userId, body: input.body, health: input.health })
     .returning();
+  await emitUpdate('create', projectId, userId, await projectUpdateData(row!.id));
   return mapUpdate(row!);
 }
 
 export async function updateUpdate(
   id: string,
   patch: { body?: string; health?: UpdateHealth },
+  actorUserId: string | null,
 ): Promise<UpdateRow | null> {
+  const before = await projectUpdateData(id);
   const [row] = await db
     .update(projectUpdate)
     .set({ ...patch, editedAt: new Date(), updatedAt: new Date() })
     .where(eq(projectUpdate.id, id))
     .returning();
+  if (row)
+    await emitUpdate('update', row.projectId, actorUserId, await projectUpdateData(id), before);
   return row ? mapUpdate(row) : null;
 }
 
-export async function deleteUpdate(id: string): Promise<boolean> {
+export async function deleteUpdate(id: string, actorUserId: string | null): Promise<boolean> {
+  const before = await projectUpdateData(id);
   const rows = await db
     .delete(projectUpdate)
     .where(eq(projectUpdate.id, id))
-    .returning({ id: projectUpdate.id });
+    .returning({ id: projectUpdate.id, projectId: projectUpdate.projectId });
+  if (rows[0]) await emitUpdate('remove', rows[0].projectId, actorUserId, before);
   return rows.length > 0;
 }
 

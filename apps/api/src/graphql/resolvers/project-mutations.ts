@@ -160,7 +160,13 @@ export const projectMutationResolvers = {
         const patch = toProjectPatch(input);
         if (input.teamIds !== undefined) {
           const editable = await teamsGranting(ctx.user.id, 'edit');
-          await setProjectTeams(found.id, access.readableTeamIds, editable, input.teamIds);
+          await setProjectTeams(
+            found.id,
+            access.readableTeamIds,
+            editable,
+            input.teamIds,
+            ctx.user.id,
+          );
         }
         if (Object.keys(patch).length) await updateProject(found.id, patch, ctx.user.id);
         return {
@@ -174,7 +180,7 @@ export const projectMutationResolvers = {
       guard(async () => {
         const found = await findProject(id, ctx);
         await projectAccess(found.id, ctx, 'edit');
-        await setProjectArchived(found.id, true);
+        await setProjectArchived(found.id, true, ctx.user.id);
         return {
           success: true,
           lastSyncId: lastSyncId(),
@@ -186,7 +192,7 @@ export const projectMutationResolvers = {
       guard(async () => {
         const found = await findProject(id, ctx);
         await projectAccess(found.id, ctx, 'edit');
-        await setProjectArchived(found.id, false);
+        await setProjectArchived(found.id, false, ctx.user.id);
         return {
           success: true,
           lastSyncId: lastSyncId(),
@@ -199,7 +205,7 @@ export const projectMutationResolvers = {
       guard(async () => {
         const found = await findProject(id, ctx);
         await projectAccess(found.id, ctx, 'delete');
-        await deleteProject(found.id);
+        await deleteProject(found.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: found };
       }),
 
@@ -309,10 +315,11 @@ export const projectMutationResolvers = {
         await projectAccess(u.projectId, ctx, 'read');
         if (u.userId !== ctx.user.id)
           throw gqlError('FORBIDDEN', 'Only the author can edit an update');
-        await updateUpdate(id, {
-          body: input.body,
-          health: input.health as UpdateHealth | undefined,
-        });
+        await updateUpdate(
+          id,
+          { body: input.body, health: input.health as UpdateHealth | undefined },
+          ctx.user.id,
+        );
         const [row] = await db.select().from(projectUpdate).where(eq(projectUpdate.id, id));
         return { success: true, lastSyncId: lastSyncId(), projectUpdate: toUpdate(row!) };
       }),
@@ -323,7 +330,7 @@ export const projectMutationResolvers = {
         const u = await getUpdate(id);
         if (!u) throw gqlError('ENTITY_NOT_FOUND', `Project update ${id} not found`);
         await projectAccess(u.projectId, ctx, u.userId === ctx.user.id ? 'read' : 'edit');
-        await deleteUpdate(id);
+        await deleteUpdate(id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entityId: id };
       }),
 

@@ -19,6 +19,8 @@ import { HttpError, iso, num } from '../shared/lib';
 import { computeHealth, type Health } from './health';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
+import { emitEvent, type WebhookAction } from '../webhooks/event';
+import { projectData, type WebhookData } from '../webhooks/data';
 
 // Data access for projects (Linear's Project): a body of work linked to teams
 // through project_team. Issues link to a project through issue.project_id.
@@ -421,6 +423,7 @@ export async function createProject(
   });
   await recordActivity(id, [{ action: 'created' }], actorUserId);
   if (input.labelIds?.length) await setProjectLabels(id, input.labelIds, actorUserId);
+  await emitProject('create', await projectData(id), actorUserId);
   return (await getProject(id))!;
 }
 
@@ -463,6 +466,7 @@ export async function updateProject(
   const before = await getProject(id);
   if (!before) return null;
   await assertProjectLead(await projectTeamIds(id), patch.leadUserId);
+  const beforeData = await projectData(id);
   await assertProjectLabels(patch.labelIds);
 
   const set: Partial<typeof project.$inferInsert> = {};
@@ -484,6 +488,7 @@ export async function updateProject(
     await logProjectUpdate(snapshot(before), snapshot((await getProject(id))!), actorUserId);
   }
   if (patch.labelIds !== undefined) await setProjectLabels(id, patch.labelIds, actorUserId);
+  await emitProject('update', await projectData(id), actorUserId, beforeData);
   return getProject(id);
 }
 
@@ -496,6 +501,7 @@ export async function setProjectTeams(
   readableTeamIds: string[],
   editableTeamIds: string[],
   requested: string[],
+  actorUserId: string | null,
 ): Promise<void> {
   const current = await projectTeamIds(projectId);
   const next = new Set(requested);
@@ -507,6 +513,7 @@ export async function setProjectTeams(
       throw new HttpError(403, 'You do not have permission to change this team on the project');
   if (hidden.length + next.size === 0)
     throw new HttpError(409, 'A project needs at least one team');
+  const beforeData = await projectData(projectId);
   if (removed.length) {
     const [{ n }] = await db
       .select({ n: sql<number>`count(*)::int` })
@@ -530,16 +537,23 @@ export async function setProjectTeams(
       .set({ updatedAt: sql`now()` })
       .where(eq(project.id, projectId));
   });
+  await emitProject('update', await projectData(projectId), actorUserId, beforeData);
 }
 
 // Sets or clears archived_at. Archived projects are hidden from lists unless
 // includeArchived. Returns false when the project does not exist.
-export async function setProjectArchived(id: string, archived: boolean): Promise<boolean> {
+export async function setProjectArchived(
+  id: string,
+  archived: boolean,
+  actorUserId: string | null,
+): Promise<boolean> {
+  const beforeData = await projectData(id);
   const rows = await db
     .update(project)
     .set({ archivedAt: archived ? sql`now()` : null, updatedAt: sql`now()` })
     .where(eq(project.id, id))
     .returning({ id: project.id });
+  if (rows.length) await emitProject('update', await projectData(id), actorUserId, beforeData);
   return rows.length > 0;
 }
 
@@ -565,8 +579,34 @@ export async function listProjectStatuses(): Promise<ProjectStatusRow[]> {
 
 // Linked issues keep existing (issue.project_id is set null by the FK); the
 // project's own activity rows, team links and label links cascade.
-export async function deleteProject(id: string): Promise<void> {
+export async function deleteProject(id: string, actorUserId: string | null): Promise<void> {
+  const beforeData = await projectData(id);
   await db.delete(project).where(eq(project.id, id));
+  await emitProject('remove', beforeData, actorUserId);
+}
+
+// Sends a Project webhook event to the webhooks of the project's teams. An update
+// also reaches the teams the project had before it (a removed team learns the
+// project left it).
+async function emitProject(
+  action: WebhookAction,
+  data: WebhookData | null,
+  actorUserId: string | null | undefined,
+  before?: WebhookData | null,
+): Promise<void> {
+  if (!data) return;
+  const teamIds = new Set([
+    ...((data.teamIds as string[]) ?? []),
+    ...((before?.teamIds as string[] | undefined) ?? []),
+  ]);
+  await emitEvent({
+    type: 'Project',
+    action,
+    teamIds: [...teamIds],
+    actorUserId: actorUserId ?? null,
+    data,
+    before: before ?? undefined,
+  });
 }
 
 // Replaces the project's full label set (not an add/remove diff) and logs the
