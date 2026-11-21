@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { workerTokenValid } from '../shared/http';
 import { confirmTelegramLink, getInstanceBotConfig, isInstanceBotUsable } from './store';
 
 // Internal endpoints the bot service calls. The bot holds no database connection and
@@ -17,14 +18,9 @@ const linkBody = t.Object({
   firstName: t.Nullable(t.String()),
 });
 
-function authorized(headers: Record<string, string | undefined>): boolean {
-  const expected = process.env.WORKER_INTERNAL_TOKEN;
-  return Boolean(expected) && headers['x-worker-token'] === expected;
-}
-
 export const internalTelegramRoutes = new Elysia({ name: 'internal-telegram' })
   .get('/internal/telegram/config', async ({ headers, set }) => {
-    if (!authorized(headers)) {
+    if (!workerTokenValid(headers)) {
       set.status = 401;
       return { enabled: false, botToken: '', botUsername: '' };
     }
@@ -38,7 +34,7 @@ export const internalTelegramRoutes = new Elysia({ name: 'internal-telegram' })
   .post(
     '/internal/telegram/link',
     async ({ body, headers, set }) => {
-      if (!authorized(headers)) {
+      if (!workerTokenValid(headers)) {
         set.status = 401;
         return { ok: false as const, reason: 'invalid' as const };
       }

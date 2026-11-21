@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { workerTokenValid } from '../shared/http';
 import { runAgent } from './runtime';
 import { deleteThreadsWhere } from './runtime/memory';
 import { runThreadId } from './runtime/thread-ids';
@@ -20,11 +21,6 @@ const runBody = t.Object({
   requesterUserId: t.Nullable(t.String({ format: 'uuid' })),
   requesterName: t.Nullable(t.String()),
 });
-
-function workerTokenValid(headers: Record<string, string | undefined>): boolean {
-  const expected = process.env.WORKER_INTERNAL_TOKEN;
-  return !!expected && headers['x-worker-token'] === expected;
-}
 
 export const internalAgentRunRoutes = new Elysia({ name: 'internal-agent-runs' })
   .post(

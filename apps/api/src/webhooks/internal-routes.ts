@@ -1,11 +1,7 @@
 import { Elysia, t } from 'elysia';
+import { workerTokenValid } from '../shared/http';
 import { issueData } from './data';
 import { emitEvent } from './event';
-
-function workerTokenValid(headers: Record<string, string | undefined>): boolean {
-  const expected = process.env.WORKER_INTERNAL_TOKEN;
-  return !!expected && headers['x-worker-token'] === expected;
-}
 
 // The worker's auto-archive sweep sets archived_at with raw SQL and cannot build
 // webhook payloads, so it reports the archived issue ids here. Each sends an
