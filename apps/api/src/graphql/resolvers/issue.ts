@@ -8,11 +8,11 @@ import { issueFilterSql } from '../issue-filter';
 import { toTeam, visibleProjectIds } from './team';
 import { toGraphQLUser } from './user';
 import { toWorkflowState } from './workflow-state';
+import { UUID_RE } from '../../shared/lib';
 
 // Linear's Issue over the issue table. Fields the app has no data for resolve to
 // their neutral value (see schema.ts).
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDENTIFIER = /^([A-Za-z0-9]+)-(\d+)$/;
 
 const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
@@ -79,7 +79,7 @@ export async function issueById(id: string): Promise<GraphQLIssue | null> {
 // A visible issue by uuid or identifier ("MKT-42", any case), or ENTITY_NOT_FOUND.
 export async function findIssue(idOrIdentifier: string, userId: string): Promise<IssueRecord> {
   let match: SQL | undefined;
-  if (UUID.test(idOrIdentifier)) match = eq(issue.id, idOrIdentifier);
+  if (UUID_RE.test(idOrIdentifier)) match = eq(issue.id, idOrIdentifier);
   else {
     const m = IDENTIFIER.exec(idOrIdentifier);
     if (m)
@@ -162,7 +162,7 @@ export const issueResolvers = {
       return listIssues(
         and(
           or(ilike(issue.title, pattern), ilike(issue.description, pattern)),
-          args.teamId && UUID.test(args.teamId) ? eq(issue.projectId, args.teamId) : undefined,
+          args.teamId && UUID_RE.test(args.teamId) ? eq(issue.projectId, args.teamId) : undefined,
         ),
         args,
         ctx.user.id,

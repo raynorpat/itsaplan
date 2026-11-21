@@ -5,10 +5,9 @@ import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { teamFilter, toTeam, visibleProjectIds } from './team';
+import { UUID_RE } from '../../shared/lib';
 
 // Linear's WorkflowState is a project column; its team is the column's project.
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ColumnRecord = typeof projectColumn.$inferSelect;
 
@@ -28,7 +27,8 @@ export function toWorkflowState(row: ColumnRecord) {
   };
 }
 
-const stateFilter: FieldHandlers = {
+// WorkflowStateFilter fields this API supports, as SQL over the column table.
+export const stateFilter: FieldHandlers = {
   id: (v, p) => compareId(projectColumn.id, v, p),
   name: (v, p) => compare(projectColumn.name, v, p),
   type: (v, p) => compare(projectColumn.stateType, v, p),
@@ -72,7 +72,7 @@ export function listStates(where: SQL | undefined, args: ConnectionArgs) {
 
 // A visible workflow state by id, archived or not, or ENTITY_NOT_FOUND.
 export async function findState(id: string, userId: string): Promise<ColumnRecord> {
-  const rows = UUID.test(id)
+  const rows = UUID_RE.test(id)
     ? await db
         .select()
         .from(projectColumn)

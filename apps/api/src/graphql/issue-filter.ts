@@ -2,18 +2,13 @@ import { db, issue, project, projectColumn, user } from '@repo/db';
 import { eq, inArray, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { teamFilter } from './resolvers/team';
+import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
-// team (id, key, name), state (id, name, type), assignee and delegate (id, name,
+// team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
 // email, isMe, null), parent (id, null), and / or. Anything else is INVALID_INPUT.
-
-const stateFilter: FieldHandlers = {
-  id: (v, p) => compareId(projectColumn.id, v, p),
-  name: (v, p) => compare(projectColumn.name, v, p),
-  type: (v, p) => compare(projectColumn.stateType, v, p),
-};
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
 // viewer; `null: true` matches issues with no user set.

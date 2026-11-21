@@ -2232,7 +2232,8 @@ type AuthOrganization {
   """
   Allowed authentication providers, empty array means all are allowed
   """
-  allowedAuthServices: [String!]! @deprecated(reason: "Use authSettings.allowedAuthServices instead.")
+  allowedAuthServices: [String!]!
+    @deprecated(reason: "Use authSettings.allowedAuthServices instead.")
   """
   An approximate count of users, updated once per day.
   """
@@ -7736,7 +7737,9 @@ type Draft implements Node {
   Always null. Drafts cannot belong to a customer need.
   """
   customerNeed: CustomerNeed
-    @deprecated(reason: "Drafts for customer needs were never supported. This field is always null.")
+    @deprecated(
+      reason: "Drafts for customer needs were never supported. This field is always null."
+    )
   """
   Additional properties for the draft, such as generation metadata for AI-generated drafts, health status for project updates, or post titles.
   """
@@ -13188,7 +13191,8 @@ type IntegrationsSettings implements Node {
   """
   Whether to send a Slack message when a new issue is created for the project or the team.
   """
-  slackIssueCreated: Boolean @deprecated(reason: "No longer in use. Use `slackIssueAddedToView` instead.")
+  slackIssueCreated: Boolean
+    @deprecated(reason: "No longer in use. Use `slackIssueAddedToView` instead.")
   """
   Whether to send a Slack message when a comment is created on any of the project or team's issues.
   """
@@ -13531,7 +13535,8 @@ type Issue implements Node {
   """
   The order of the item in its column on the board.
   """
-  boardOrder: Float! @deprecated(reason: "Will be removed in near future, please use `sortOrder` instead")
+  boardOrder: Float!
+    @deprecated(reason: "Will be removed in near future, please use `sortOrder` instead")
   """
   The bot that created the issue, if applicable.
   """
@@ -15890,7 +15895,8 @@ type IssueLabel implements Node {
   """
   The workspace that owns the label.
   """
-  organization: Organization! @deprecated(reason: "Workspace labels are identified by their team being null.")
+  organization: Organization!
+    @deprecated(reason: "Workspace labels are identified by their team being null.")
   """
   The group containing this label. Null if the label is not in a group.
   """
@@ -16739,7 +16745,8 @@ type IssueSearchResult implements Node {
   """
   The order of the item in its column on the board.
   """
-  boardOrder: Float! @deprecated(reason: "Will be removed in near future, please use `sortOrder` instead")
+  boardOrder: Float!
+    @deprecated(reason: "Will be removed in near future, please use `sortOrder` instead")
   """
   The bot that created the issue, if applicable.
   """
@@ -18241,7 +18248,8 @@ type IssueWebhookPayload {
   """
   The project milestone that the issue belongs to.
   """
-  milestone: ProjectMilestoneChildWebhookPayload @deprecated(reason: "Use `projectMilestone` instead.")
+  milestone: ProjectMilestoneChildWebhookPayload
+    @deprecated(reason: "Use `projectMilestone` instead.")
   """
   The issue's unique number.
   """
@@ -20827,7 +20835,8 @@ type Mutation {
     A partial Intercom integration settings object to update the integration settings with.
     """
     input: IntercomSettingsInput!
-  ): IntegrationPayload! @deprecated(reason: "Manage Intercom integration settings in Linear workspace settings.")
+  ): IntegrationPayload!
+    @deprecated(reason: "Manage Intercom integration settings in Linear workspace settings.")
   """
   Links your Jira account to an existing workspace Jira integration. Supply either the OAuth authorization code for Jira Cloud or a personal access token for Jira Server. When the workspace has more than one possible Jira connection, supply workspaceIntegrationId to choose which one to link.
   """
@@ -21807,7 +21816,8 @@ type Mutation {
     The identifier of the notification subscription reference to delete.
     """
     id: String!
-  ): DeletePayload! @deprecated(reason: "Update `notificationSubscription.active` to `false` instead.")
+  ): DeletePayload!
+    @deprecated(reason: "Update `notificationSubscription.active` to `false` instead.")
   """
   Updates a subscription owned by the authenticated user. Use active: false to pause it without deleting its configuration, or replace notificationSubscriptionTypes to change the events you follow. Subscriptions to read-only projects cannot be changed.
   """
@@ -21965,7 +21975,8 @@ type Mutation {
   """
   [DEPRECATED] Starts a trial for the workspace.
   """
-  organizationStartTrial: OrganizationStartTrialPayload! @deprecated(reason: "Use organizationStartTrialForPlan")
+  organizationStartTrial: OrganizationStartTrialPayload!
+    @deprecated(reason: "Use organizationStartTrialForPlan")
   """
   Starts a trial for the workspace on the specified plan type. The workspace must not already be on a paid plan or in an active trial.
   """
@@ -23517,7 +23528,8 @@ type NotificationDeliveryPreferencesChannel {
   """
   Whether notifications are disabled for this channel. Use notificationChannelPreferences instead.
   """
-  notificationsDisabled: Boolean @deprecated(reason: "This field has been replaced by notificationChannelPreferences")
+  notificationsDisabled: Boolean
+    @deprecated(reason: "This field has been replaced by notificationChannelPreferences")
   """
   The schedule for notifications on this channel.
   """
@@ -26132,11 +26144,13 @@ type Organization implements Node {
   """
   [DEPRECATED] Whether member users are allowed to send invites.
   """
-  allowMembersToInvite: Boolean @deprecated(reason: "Use `securitySettings.invitationsRole` instead.")
+  allowMembersToInvite: Boolean
+    @deprecated(reason: "Use `securitySettings.invitationsRole` instead.")
   """
   Allowed authentication providers, empty array means all are allowed.
   """
-  allowedAuthServices: [String!]! @deprecated(reason: "Use authSettings.allowedAuthServices instead.")
+  allowedAuthServices: [String!]!
+    @deprecated(reason: "Use authSettings.allowedAuthServices instead.")
   """
   Allowed file MIME types or patterns, such as application/pdf or text/*. Null means no workspace-specific restriction.
   """
@@ -26212,7 +26226,8 @@ type Organization implements Node {
   """
   Whether to hide other workspaces during signup for users whose email domain is claimed by this workspace.
   """
-  hideNonPrimaryOrganizations: Boolean! @deprecated(reason: "Use authSettings.hideNonPrimaryOrganizations instead.")
+  hideNonPrimaryOrganizations: Boolean!
+    @deprecated(reason: "Use authSettings.hideNonPrimaryOrganizations instead.")
   """
   Whether HIPAA compliance is enabled for the workspace. When enabled, certain data processing features are restricted to meet compliance requirements.
   """
@@ -26413,11 +26428,13 @@ type Organization implements Node {
   """
   [DEPRECATED] Whether workspace label creation, update, and deletion is restricted to admins.
   """
-  restrictLabelManagementToAdmins: Boolean @deprecated(reason: "Use `securitySettings.labelManagementRole` instead.")
+  restrictLabelManagementToAdmins: Boolean
+    @deprecated(reason: "Use `securitySettings.labelManagementRole` instead.")
   """
   [DEPRECATED] Whether team creation is restricted to admins.
   """
-  restrictTeamCreationToAdmins: Boolean @deprecated(reason: "Use `securitySettings.teamCreationRole` instead.")
+  restrictTeamCreationToAdmins: Boolean
+    @deprecated(reason: "Use `securitySettings.teamCreationRole` instead.")
   """
   Whether initiatives are enabled for the workspace. This field retains its legacy roadmap name; new integrations should use the initiative APIs.
   """
@@ -35088,7 +35105,8 @@ type Query {
     The UUID of the legacy roadmap-to-project link. This query is no longer supported.
     """
     id: String!
-  ): RoadmapToProject! @deprecated(reason: "RoadmapToProject is deprecated, use InitiativeToProject instead.")
+  ): RoadmapToProject!
+    @deprecated(reason: "RoadmapToProject is deprecated, use InitiativeToProject instead.")
   """
   Deprecated. Always returns an empty connection. Use initiativeToProjects.
   """
@@ -35117,7 +35135,8 @@ type Query {
     Orders results by creation time or last meaningful update time. Defaults to `createdAt`. Results are newest first with `first` and oldest first with `last`; use the returned `endCursor` as `before` to continue backward. Cannot be combined with custom `sort` options on fields that support them.
     """
     orderBy: PaginationOrderBy
-  ): RoadmapToProjectConnection! @deprecated(reason: "RoadmapToProject is deprecated, use InitiativeToProject instead.")
+  ): RoadmapToProjectConnection!
+    @deprecated(reason: "RoadmapToProject is deprecated, use InitiativeToProject instead.")
   """
   Deprecated. Always returns an empty connection. Use initiatives.
   """
@@ -39979,7 +39998,8 @@ type Team implements Node {
   """
   The id of the default template to use for new issues created by non-members of the team.
   """
-  defaultTemplateForNonMembersId: String @deprecated(reason: "Use defaultTemplateForNonMembers instead")
+  defaultTemplateForNonMembersId: String
+    @deprecated(reason: "Use defaultTemplateForNonMembers instead")
   """
   The team's description.
   """
@@ -40081,7 +40101,8 @@ type Team implements Node {
   """
   [DEPRECATED] Whether to move issues to bottom of the column when changing state.
   """
-  issueSortOrderDefaultToBottom: Boolean! @deprecated(reason: "Use setIssueSortOrderOnStateChange instead.")
+  issueSortOrderDefaultToBottom: Boolean!
+    @deprecated(reason: "Use setIssueSortOrderOnStateChange instead.")
   """
   Issues belonging to the team. Supports filtering and optional inclusion of sub-team issues.
   """
@@ -42767,7 +42788,8 @@ type User implements Node {
   """
   [DEPRECATED] Unique hash for the user to be used in invite URLs.
   """
-  inviteHash: String! @deprecated(reason: "This hash is not in use anymore, this value will always be empty.")
+  inviteHash: String!
+    @deprecated(reason: "This hash is not in use anymore, this value will always be empty.")
   """
   Whether the user can be assigned to issues. Active app users require the assignments capability. The Linear agent also requires coding sessions to be enabled.
   """
@@ -43455,7 +43477,9 @@ type UserSettings implements Node {
   The email types the user has unsubscribed from.
   """
   unsubscribedFrom: [String!]!
-    @deprecated(reason: "Use individual subscription fields instead. This field's value is now outdated.")
+    @deprecated(
+      reason: "Use individual subscription fields instead. This field's value is now outdated."
+    )
   """
   When the resource was last meaningfully updated, in UTC. Some background or housekeeping changes do not advance this timestamp.
   """

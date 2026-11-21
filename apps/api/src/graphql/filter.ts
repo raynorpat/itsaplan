@@ -1,5 +1,6 @@
 import { and, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { gqlError } from './errors';
+import { UUID_RE } from '../shared/lib';
 
 // Translates Linear filter inputs (WorkflowStateFilter, IssueFilter, …) to SQL.
 // Each entity lists the filter fields it supports; `and` / `or` nest. A field or
@@ -9,8 +10,6 @@ import { gqlError } from './errors';
 type Column = AnyColumn | SQL;
 type Comparator = Record<string, unknown>;
 export type FieldHandlers = Record<string, (value: unknown, path: string) => SQL>;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function unsupported(path: string): never {
   throw gqlError('INVALID_INPUT', `Filter ${path} is not supported`);
@@ -77,16 +76,16 @@ export function compare(col: Column, comp: unknown, path: string): SQL {
 // ID comparators on a uuid column. A value that is not a UUID matches no row
 // instead of failing the uuid cast.
 export function compareId(col: Column, comp: unknown, path: string): SQL {
-  const ids = (v: unknown) => (v as string[]).filter((id) => UUID.test(id));
+  const ids = (v: unknown) => (v as string[]).filter((id) => UUID_RE.test(id));
   const parts: SQL[] = [];
   for (const [op, v] of Object.entries(comp as Comparator)) {
     if (v === undefined) continue;
     switch (op) {
       case 'eq':
-        parts.push(UUID.test(String(v)) ? sql`${col} = ${v}::uuid` : sql`false`);
+        parts.push(UUID_RE.test(String(v)) ? sql`${col} = ${v}::uuid` : sql`false`);
         break;
       case 'neq':
-        parts.push(UUID.test(String(v)) ? sql`${col} IS DISTINCT FROM ${v}::uuid` : sql`true`);
+        parts.push(UUID_RE.test(String(v)) ? sql`${col} IS DISTINCT FROM ${v}::uuid` : sql`true`);
         break;
       case 'in':
         parts.push(compare(col, { in: ids(v) }, path));

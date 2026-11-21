@@ -6,10 +6,9 @@ import { gqlError } from '../errors';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
+import { UUID_RE } from '../../shared/lib';
 
 // Linear's Team is a project. A team is visible only to its members.
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ProjectRecord = typeof project.$inferSelect;
 
@@ -36,7 +35,7 @@ export function toTeam(row: ProjectRecord) {
 
 // A visible team by uuid or key, or ENTITY_NOT_FOUND.
 export async function findTeam(idOrKey: string, userId: string): Promise<ProjectRecord> {
-  const match = UUID.test(idOrKey)
+  const match = UUID_RE.test(idOrKey)
     ? eq(project.id, idOrKey)
     : eq(project.key, idOrKey.toUpperCase());
   const rows = await db
@@ -124,7 +123,7 @@ export const teamResolvers = {
     users: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUsers(visibleUsers(ctx.user.id), args, ctx.user.id),
     user: async (_: unknown, args: { id: string }, ctx: GraphQLContext) => {
-      const rows = UUID.test(args.id)
+      const rows = UUID_RE.test(args.id)
         ? await db
             .select()
             .from(user)

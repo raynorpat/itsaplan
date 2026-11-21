@@ -1,5 +1,6 @@
 import { and, asc, desc, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { gqlError } from './errors';
+import { UUID_RE } from '../shared/lib';
 
 // Relay pagination for Linear connections: first/after forward, last/before
 // backward, ordered by createdAt (or updatedAt) newest first with id breaking ties.
@@ -28,7 +29,6 @@ export interface Connection<T> {
 
 const DEFAULT_PAGE = 50;
 const MAX_PAGE = 250;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Keyed {
   id: string;
@@ -42,7 +42,7 @@ function encode(ts: Date, id: string): string {
 
 function decode(cursor: string): { ts: string; id: string } {
   const [ts, id] = Buffer.from(cursor, 'base64url').toString().split('|');
-  if (!ts || !id || !UUID.test(id) || Number.isNaN(Date.parse(ts)))
+  if (!ts || !id || !UUID_RE.test(id) || Number.isNaN(Date.parse(ts)))
     throw gqlError('INVALID_INPUT', 'Invalid cursor');
   return { ts, id };
 }
