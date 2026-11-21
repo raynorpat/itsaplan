@@ -600,6 +600,8 @@ export interface NewIssueInput {
   startDate?: string | null;
   dueDate?: string | null;
   labelIds?: string[];
+  // Sort position in the column; defaults to after the column's last issue.
+  position?: number;
 }
 
 // Enforces that assignee holds a project member and delegate holds an agent of the
@@ -754,7 +756,7 @@ export async function createIssue(
         ...timestamps,
         startDate: input.startDate ?? null,
         dueDate: input.dueDate ?? null,
-        position: Number(posRow.pos),
+        position: input.position ?? Number(posRow.pos),
       })
       .returning({ id: issue.id });
     return row.id;

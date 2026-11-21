@@ -69,6 +69,13 @@ export function toIssue(row: IssueRecord) {
 
 type GraphQLIssue = ReturnType<typeof toIssue>;
 
+// An issue by id without the visibility check, for reading back after a write the
+// caller has already authorized. Null when it does not exist.
+export async function issueById(id: string): Promise<GraphQLIssue | null> {
+  const [row] = await issueSelect().where(eq(issue.id, id));
+  return row ? toIssue(row) : null;
+}
+
 // A visible issue by uuid or identifier ("MKT-42", any case), or ENTITY_NOT_FOUND.
 export async function findIssue(idOrIdentifier: string, userId: string): Promise<IssueRecord> {
   let match: SQL | undefined;
