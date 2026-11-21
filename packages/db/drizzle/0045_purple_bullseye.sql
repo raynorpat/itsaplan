@@ -1,1 +1,0 @@
-ALTER TABLE "user_preference" ADD COLUMN "show_chat_by_default" boolean DEFAULT false NOT NULL;

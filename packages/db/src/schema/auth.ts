@@ -1,15 +1,18 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
   timestamp,
   boolean,
   integer,
+  uuid,
   index,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
-  id: text("id").primaryKey(),
+  id: uuid("id")
+    .default(sql`pg_catalog.gen_random_uuid()`)
+    .primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
@@ -25,7 +28,9 @@ export const user = pgTable("user", {
 export const session = pgTable(
   "session",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id")
+      .default(sql`pg_catalog.gen_random_uuid()`)
+      .primaryKey(),
     expiresAt: timestamp("expires_at").notNull(),
     token: text("token").notNull().unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -34,7 +39,7 @@ export const session = pgTable(
       .notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
@@ -44,10 +49,12 @@ export const session = pgTable(
 export const account = pgTable(
   "account",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id")
+      .default(sql`pg_catalog.gen_random_uuid()`)
+      .primaryKey(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     accessToken: text("access_token"),
@@ -68,7 +75,9 @@ export const account = pgTable(
 export const verification = pgTable(
   "verification",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id")
+      .default(sql`pg_catalog.gen_random_uuid()`)
+      .primaryKey(),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
@@ -84,10 +93,12 @@ export const verification = pgTable(
 export const passkey = pgTable(
   "passkey",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id")
+      .default(sql`pg_catalog.gen_random_uuid()`)
+      .primaryKey(),
     name: text("name"),
     publicKey: text("public_key").notNull(),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     credentialID: text("credential_id").notNull(),
@@ -107,7 +118,9 @@ export const passkey = pgTable(
 export const apikey = pgTable(
   "apikey",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id")
+      .default(sql`pg_catalog.gen_random_uuid()`)
+      .primaryKey(),
     configId: text("config_id").default("default").notNull(),
     name: text("name"),
     start: text("start"),
@@ -119,8 +132,8 @@ export const apikey = pgTable(
     lastRefillAt: timestamp("last_refill_at"),
     enabled: boolean("enabled").default(true),
     rateLimitEnabled: boolean("rate_limit_enabled").default(true),
-    rateLimitTimeWindow: integer("rate_limit_time_window").default(86400000),
-    rateLimitMax: integer("rate_limit_max").default(10),
+    rateLimitTimeWindow: integer("rate_limit_time_window").default(1000),
+    rateLimitMax: integer("rate_limit_max").default(100),
     requestCount: integer("request_count").default(0),
     remaining: integer("remaining"),
     lastRequest: timestamp("last_request"),

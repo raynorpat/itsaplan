@@ -325,6 +325,9 @@ export const auth = betterAuth({
   trustedOrigins,
 
   advanced: {
+    // Every id is a UUID, as in Linear's API. The columns are uuid in
+    // packages/db/src/schema/auth.ts.
+    database: { generateId: 'uuid' },
     // Share the session cookie across subdomains when COOKIE_DOMAIN is the parent
     // domain (e.g. ".itsaplan.dev" for app.itsaplan.dev + api.itsaplan.dev). Without
     // it the cookie is host-only for the api origin, so the SSR web app on another

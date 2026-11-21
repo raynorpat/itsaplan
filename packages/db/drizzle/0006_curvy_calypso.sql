@@ -1,1 +1,0 @@
-ALTER TABLE "custom_field" ADD COLUMN "show_in_body" boolean DEFAULT false NOT NULL;

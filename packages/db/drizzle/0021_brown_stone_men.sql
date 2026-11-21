@@ -1,1 +1,0 @@
-ALTER TABLE "project" ADD COLUMN "mcp_enabled" boolean DEFAULT false NOT NULL;

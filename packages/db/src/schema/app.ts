@@ -3,6 +3,7 @@
 // the API.
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -14,7 +15,7 @@ import {
   numeric,
   pgTable,
   primaryKey,
-  serial,
+  real,
   text,
   timestamp,
   unique,
@@ -52,7 +53,7 @@ export const appSecret = pgTable('app_secret', {
 // identifier (e.g. "MKT-42"): incrementing it under a row lock keeps concurrent
 // creates from colliding.
 export const project = pgTable('project', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   key: text('key').notNull().unique(),
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
@@ -76,7 +77,7 @@ export const project = pgTable('project', {
 export const projectSetting = pgTable(
   'project_setting',
   {
-    projectId: integer('project_id')
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
@@ -103,7 +104,7 @@ export const projectSetting = pgTable(
 export const userPreference = pgTable(
   'user_preference',
   {
-    userId: text('user_id')
+    userId: uuid('user_id')
       .primaryKey()
       .references(() => user.id, { onDelete: 'cascade' }),
     timezone: text('timezone').notNull().default('UTC'),
@@ -117,7 +118,7 @@ export const userPreference = pgTable(
     // bindings they changed are stored; the rest come from the instance defaults
     // (app_setting key 'hotkeys') and then the built-in ones.
     hotkeys: jsonb('hotkeys').$type<Record<string, string>>(),
-    lastProjectId: integer('last_project_id').references(() => project.id, {
+    lastProjectId: uuid('last_project_id').references(() => project.id, {
       onDelete: 'set null',
     }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -148,8 +149,8 @@ export const userPreference = pgTable(
 export const projectRole = pgTable(
   'project_role',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -178,14 +179,14 @@ export const projectRole = pgTable(
 export const projectMember = pgTable(
   'project_member',
   {
-    projectId: integer('project_id')
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
+    userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('member'),
-    roleId: integer('role_id').references(() => projectRole.id, {
+    roleId: uuid('role_id').references(() => projectRole.id, {
       onDelete: 'set null',
     }),
     // What this member does in the project. Free text set by an owner, shown on the
@@ -212,9 +213,9 @@ export const projectMember = pgTable(
 export const projectInvite = pgTable(
   'project_invite',
   {
-    id: serial('id').primaryKey(),
+    id: uuid('id').primaryKey().defaultRandom(),
     token: uuid('token').notNull().defaultRandom().unique(),
-    projectId: integer('project_id')
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
@@ -222,14 +223,14 @@ export const projectInvite = pgTable(
     // The custom role the invitee joins on when role is "member". NULL falls back
     // to the project's default role. Owners bypass roles, so an owner invite keeps
     // this NULL.
-    roleId: integer('role_id').references(() => projectRole.id, {
+    roleId: uuid('role_id').references(() => projectRole.id, {
       onDelete: 'set null',
     }),
     status: text('status').notNull().default('pending'),
-    invitedByUserId: text('invited_by_user_id').references(() => user.id, {
+    invitedByUserId: uuid('invited_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
-    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
+    acceptedByUserId: uuid('accepted_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -249,14 +250,19 @@ export const projectInvite = pgTable(
 export const projectColumn = pgTable(
   'project_column',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     stateType: text('state_type').notNull().default('unstarted'),
     color: text('color').notNull().default('#6b7280'),
+    description: text('description').notNull().default(''),
     position: integer('position').notNull(),
+    // When set, the column is archived: hidden from the board, REST and MCP, and
+    // refused as an issue target. Archived columns keep their position value, so
+    // position is unique only among active columns.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -264,15 +270,17 @@ export const projectColumn = pgTable(
       'project_column_state_type_check',
       sql`${t.stateType} IN ('backlog', 'unstarted', 'started', 'completed', 'canceled')`,
     ),
-    unique().on(t.projectId, t.position),
+    uniqueIndex('project_column_active_position_idx')
+      .on(t.projectId, t.position)
+      .where(sql`${t.archivedAt} IS NULL`),
   ],
 );
 
 export const issueType = pgTable(
   'issue_type',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -290,8 +298,8 @@ export const issueType = pgTable(
 export const labelGroup = pgTable(
   'label_group',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -304,11 +312,11 @@ export const labelGroup = pgTable(
 export const label = pgTable(
   'label',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    groupId: integer('group_id').references(() => labelGroup.id, {
+    groupId: uuid('group_id').references(() => labelGroup.id, {
       onDelete: 'set null',
     }),
     name: text('name').notNull(),
@@ -329,11 +337,11 @@ export const label = pgTable(
 export const aiAgent = pgTable(
   'ai_agent',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
+    userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     username: text('username').notNull(),
@@ -341,7 +349,7 @@ export const aiAgent = pgTable(
     // Internal-agent model configuration. NULL/empty for an external agent.
     // model_credential_id references the integration_credential (kind 'llm') the
     // runtime decrypts to address the model; model names the model id on it.
-    modelCredentialId: integer('model_credential_id').references(() => integrationCredential.id, {
+    modelCredentialId: uuid('model_credential_id').references(() => integrationCredential.id, {
       onDelete: 'set null',
     }),
     model: text('model'),
@@ -360,7 +368,7 @@ export const aiAgent = pgTable(
     // carries its API key and is enforced by this role through the normal permission
     // checks — an external agent's HTTP calls and an internal agent's in-process tool
     // dispatch alike. NULL means the bot user has no membership yet and cannot act.
-    roleId: integer('role_id').references(() => projectRole.id, { onDelete: 'set null' }),
+    roleId: uuid('role_id').references(() => projectRole.id, { onDelete: 'set null' }),
     // The agent's own API key, encrypted at rest (AES-256-GCM, see shared/crypto).
     // An internal agent replays it on every tool call, so unlike better-auth's
     // hashed apikey row it has to stay recoverable. Set for internal agents only:
@@ -388,8 +396,8 @@ export const aiAgent = pgTable(
 export const agentSchedule = pgTable(
   'agent_schedule',
   {
-    id: serial('id').primaryKey(),
-    agentId: integer('agent_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    agentId: uuid('agent_id')
       .notNull()
       .references(() => aiAgent.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -416,17 +424,17 @@ export const agentSchedule = pgTable(
 export const agentRun = pgTable(
   'agent_run',
   {
-    id: serial('id').primaryKey(),
-    agentId: integer('agent_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    agentId: uuid('agent_id')
       .notNull()
       .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    issueId: integer('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
-    scheduleId: integer('schedule_id').references(() => agentSchedule.id, { onDelete: 'set null' }),
+    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
+    scheduleId: uuid('schedule_id').references(() => agentSchedule.id, { onDelete: 'set null' }),
     trigger: text('trigger').notNull().default('delegation'),
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     // The comment that mentioned the agent, kept for traceability. The prompt is
     // snapshotted into `prompt` so a run still works if the comment is later deleted.
-    sourceActivityId: integer('source_activity_id').references(() => issueActivity.id, {
+    sourceActivityId: uuid('source_activity_id').references(() => issueActivity.id, {
       onDelete: 'set null',
     }),
     // The mention comment body at enqueue time, framed into the agent's prompt.
@@ -468,8 +476,8 @@ export const agentRun = pgTable(
 export const integrationCredential = pgTable(
   'integration_credential',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     integrationKey: text('integration_key').notNull(),
@@ -498,7 +506,7 @@ export const integrationCredential = pgTable(
 // project that sets one delivers through its own bot, otherwise delivery falls back
 // to the instance bot in app_secret key 'telegram.bot'.
 export const projectNotificationSetting = pgTable('project_notification_setting', {
-  projectId: integer('project_id')
+  projectId: uuid('project_id')
     .primaryKey()
     .references(() => project.id, { onDelete: 'cascade' }),
   ciphertext: text('ciphertext').notNull(),
@@ -518,11 +526,11 @@ export const projectNotificationSetting = pgTable('project_notification_setting'
 export const userNotificationPreference = pgTable(
   'user_notification_preference',
   {
-    id: serial('id').primaryKey(),
-    userId: text('user_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    projectId: integer('project_id')
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     emailEvents: jsonb('email_events').notNull().default({}),
@@ -542,7 +550,7 @@ export const userNotificationPreference = pgTable(
 export const userTelegramAccount = pgTable(
   'user_telegram_account',
   {
-    userId: text('user_id')
+    userId: uuid('user_id')
       .primaryKey()
       .references(() => user.id, { onDelete: 'cascade' }),
     chatId: text('chat_id'),
@@ -577,8 +585,8 @@ export const userTelegramAccount = pgTable(
 export const notificationDelivery = pgTable(
   'notification_delivery',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     channel: text('channel').notNull(),
@@ -609,8 +617,8 @@ export const notificationDelivery = pgTable(
 export const agentSkill = pgTable(
   'agent_skill',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -635,10 +643,10 @@ export const agentSkill = pgTable(
 export const agentSkillLink = pgTable(
   'agent_skill_link',
   {
-    agentId: integer('agent_id')
+    agentId: uuid('agent_id')
       .notNull()
       .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    skillId: integer('skill_id')
+    skillId: uuid('skill_id')
       .notNull()
       .references(() => agentSkill.id, { onDelete: 'cascade' }),
   },
@@ -656,12 +664,12 @@ export const agentSkillLink = pgTable(
 export const agentTool = pgTable(
   'agent_tool',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     toolKey: text('tool_key').notNull(),
-    credentialId: integer('credential_id')
+    credentialId: uuid('credential_id')
       .notNull()
       .references(() => integrationCredential.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -678,10 +686,10 @@ export const agentTool = pgTable(
 export const agentToolLink = pgTable(
   'agent_tool_link',
   {
-    agentId: integer('agent_id')
+    agentId: uuid('agent_id')
       .notNull()
       .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    agentToolId: integer('agent_tool_id')
+    agentToolId: uuid('agent_tool_id')
       .notNull()
       .references(() => agentTool.id, { onDelete: 'cascade' }),
   },
@@ -697,11 +705,11 @@ export const agentToolLink = pgTable(
 export const customField = pgTable(
   'custom_field',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    issueTypeId: integer('issue_type_id').references(() => issueType.id, {
+    issueTypeId: uuid('issue_type_id').references(() => issueType.id, {
       onDelete: 'cascade',
     }),
     name: text('name').notNull(),
@@ -723,8 +731,8 @@ export const customField = pgTable(
 export const customFieldOption = pgTable(
   'custom_field_option',
   {
-    id: serial('id').primaryKey(),
-    fieldId: integer('field_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    fieldId: uuid('field_id')
       .notNull()
       .references(() => customField.id, { onDelete: 'cascade' }),
     value: text('value').notNull(),
@@ -743,14 +751,14 @@ export const customFieldOption = pgTable(
 export const initiative = pgTable(
   'initiative',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
     status: text('status').notNull().default('planned'),
-    ownerUserId: text('owner_user_id').references(() => user.id, {
+    ownerUserId: uuid('owner_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     priority: text('priority'),
@@ -774,10 +782,10 @@ export const initiative = pgTable(
 export const initiativeLabel = pgTable(
   'initiative_label',
   {
-    initiativeId: integer('initiative_id')
+    initiativeId: uuid('initiative_id')
       .notNull()
       .references(() => initiative.id, { onDelete: 'cascade' }),
-    labelId: integer('label_id')
+    labelId: uuid('label_id')
       .notNull()
       .references(() => label.id, { onDelete: 'cascade' }),
   },
@@ -787,38 +795,55 @@ export const initiativeLabel = pgTable(
 export const issue = pgTable(
   'issue',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     sequenceNumber: integer('sequence_number').notNull(),
-    typeId: integer('type_id').references(() => issueType.id, {
+    typeId: uuid('type_id').references(() => issueType.id, {
       onDelete: 'set null',
     }),
     // The initiative this issue belongs to (project-scoped). Nullable; deleting an
     // initiative unlinks its issues rather than deleting them (like type_id).
-    initiativeId: integer('initiative_id').references(() => initiative.id, {
+    initiativeId: uuid('initiative_id').references(() => initiative.id, {
       onDelete: 'set null',
     }),
-    columnId: integer('column_id')
+    columnId: uuid('column_id')
       .notNull()
       .references(() => projectColumn.id),
-    assigneeUserId: text('assignee_user_id').references(() => user.id, {
+    assigneeUserId: uuid('assignee_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     // The AI agent an issue is delegated to. Like assignee this points at a bot
     // user (ai_agent.user_id); assignee holds a project member, delegate holds an
     // agent. Setting a delegate on an internal agent with trigger_on_assign enqueues
     // an agent run.
-    delegateUserId: text('delegate_user_id').references(() => user.id, {
+    delegateUserId: uuid('delegate_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    // Parent issue (sub-issues). Same project, enforced by the store; deleting the
+    // parent leaves its children as top-level issues.
+    parentId: uuid('parent_id').references((): AnyPgColumn => issue.id, {
+      onDelete: 'set null',
+    }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
-    priority: text('priority'),
+    // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
+    priority: integer('priority').notNull().default(0),
+    estimate: real('estimate'),
     startDate: date('start_date'),
     dueDate: date('due_date'),
     position: doublePrecision('position').notNull().default(0),
+    // Set when the issue first enters a started column; cleared when it moves back
+    // to a backlog or unstarted column.
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    // Set when the issue enters a completed column; cleared when it leaves one.
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    // Set when the issue enters a canceled column; cleared when it leaves one.
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
     // When set, the issue is archived: hidden from the board and lists but kept and
     // restorable. Set manually (archive action) or by the worker's auto-archive
     // sweep for issues that sat in a completed/canceled column past the project's
@@ -832,6 +857,7 @@ export const issue = pgTable(
   },
   (t) => [
     unique().on(t.projectId, t.sequenceNumber),
+    check('issue_priority_check', sql`${t.priority} BETWEEN 0 AND 4`),
     // Backs the board/list read (active issues of a project) and the worker's
     // auto-archive sweep (still-active issues in a project).
     index('issue_project_active_idx')
@@ -843,10 +869,10 @@ export const issue = pgTable(
 export const issueLabel = pgTable(
   'issue_label',
   {
-    issueId: integer('issue_id')
+    issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
-    labelId: integer('label_id')
+    labelId: uuid('label_id')
       .notNull()
       .references(() => label.id, { onDelete: 'cascade' }),
   },
@@ -856,11 +882,11 @@ export const issueLabel = pgTable(
 export const issueFieldValue = pgTable(
   'issue_field_value',
   {
-    id: serial('id').primaryKey(),
-    issueId: integer('issue_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
-    fieldId: integer('field_id')
+    fieldId: uuid('field_id')
       .notNull()
       .references(() => customField.id, { onDelete: 'cascade' }),
     valueText: text('value_text'),
@@ -874,13 +900,13 @@ export const issueFieldValue = pgTable(
 export const issueFieldOption = pgTable(
   'issue_field_option',
   {
-    issueId: integer('issue_id')
+    issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
-    fieldId: integer('field_id')
+    fieldId: uuid('field_id')
       .notNull()
       .references(() => customField.id, { onDelete: 'cascade' }),
-    optionId: integer('option_id')
+    optionId: uuid('option_id')
       .notNull()
       .references(() => customFieldOption.id, { onDelete: 'cascade' }),
   },
@@ -893,9 +919,9 @@ export const issueFieldOption = pgTable(
 export const issueAttachment = pgTable(
   'issue_attachment',
   {
-    id: serial('id').primaryKey(),
+    id: uuid('id').primaryKey().defaultRandom(),
     publicId: uuid('public_id').notNull().defaultRandom().unique(),
-    issueId: integer('issue_id')
+    issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
     s3Key: text('s3_key').notNull(),
@@ -917,15 +943,15 @@ export const issueAttachment = pgTable(
 export const issueActivity = pgTable(
   'issue_activity',
   {
-    id: serial('id').primaryKey(),
-    issueId: integer('issue_id').references(() => issue.id, {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id').references(() => issue.id, {
       onDelete: 'cascade',
     }),
-    initiativeId: integer('initiative_id').references(() => initiative.id, {
+    initiativeId: uuid('initiative_id').references(() => initiative.id, {
       onDelete: 'cascade',
     }),
     kind: text('kind').notNull(),
-    actorUserId: text('actor_user_id').references(() => user.id, {
+    actorUserId: uuid('actor_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     actorName: text('actor_name'),
@@ -954,8 +980,8 @@ export const issueActivity = pgTable(
 export const projectView = pgTable(
   'project_view',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -978,8 +1004,8 @@ export const projectView = pgTable(
 export const projectDashboard = pgTable(
   'project_dashboard',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -998,11 +1024,11 @@ export const projectDashboard = pgTable(
 export const noteBoard = pgTable(
   'note_board',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     canvas: jsonb('canvas').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1018,8 +1044,8 @@ export const noteBoard = pgTable(
 export const projectAction = pgTable(
   'project_action',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -1040,8 +1066,8 @@ export const projectAction = pgTable(
 export const webhook = pgTable(
   'webhook',
   {
-    id: serial('id').primaryKey(),
-    projectId: integer('project_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     url: text('url').notNull(),
@@ -1065,8 +1091,8 @@ export const webhook = pgTable(
 export const webhookDelivery = pgTable(
   'webhook_delivery',
   {
-    id: serial('id').primaryKey(),
-    webhookId: integer('webhook_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    webhookId: uuid('webhook_id')
       .notNull()
       .references(() => webhook.id, { onDelete: 'cascade' }),
     eventId: uuid('event_id').notNull(),
@@ -1101,21 +1127,21 @@ export const webhookDelivery = pgTable(
 export const notification = pgTable(
   'notification',
   {
-    id: serial('id').primaryKey(),
-    userId: text('user_id')
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    projectId: integer('project_id')
+    projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    issueId: integer('issue_id')
+    issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
-    sourceActivityId: integer('source_activity_id').references(() => issueActivity.id, {
+    sourceActivityId: uuid('source_activity_id').references(() => issueActivity.id, {
       onDelete: 'set null',
     }),
     type: text('type').notNull(),
-    actorUserId: text('actor_user_id').references(() => user.id, {
+    actorUserId: uuid('actor_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
     actorName: text('actor_name'),
