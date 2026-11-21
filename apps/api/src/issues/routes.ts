@@ -349,8 +349,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // Deletes every listed issue and removes their attachment objects.
   .post(
     '/teams/:teamKey/issues/bulk/delete',
-    async ({ team, body }) => {
-      const { deleted, attachments } = await bulkDeleteIssues(team.id, body.ids);
+    async ({ team, body, user }) => {
+      const { deleted, attachments } = await bulkDeleteIssues(
+        team.id,
+        body.ids,
+        requireUser(user).id,
+      );
       await Promise.all(
         attachments.map((a) =>
           deleteObject(a.s3Key).catch((err) => {
@@ -724,8 +728,8 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // the request.
   .delete(
     '/issues/:issueId',
-    async ({ params }) => {
-      const attachments = await deleteIssue(params.issueId);
+    async ({ params, user }) => {
+      const attachments = await deleteIssue(params.issueId, requireUser(user).id);
       if (!attachments) throw new HttpError(404, 'Issue not found');
       await Promise.all(
         attachments.map((a) =>

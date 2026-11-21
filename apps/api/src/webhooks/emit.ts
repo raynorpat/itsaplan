@@ -66,7 +66,7 @@ export async function emitWebhookEvent(
     matching.map((h) => ({
       webhookId: h.id,
       eventId,
-      eventType,
+      eventType: type,
       payload: {
         action,
         type,

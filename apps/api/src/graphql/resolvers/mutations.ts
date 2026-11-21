@@ -245,7 +245,7 @@ export const mutationResolvers = {
         const row = await findIssue(id, ctx.user.id);
         await assertPermission(row.teamId, ctx.user, 'work_items', 'delete');
         const entity = toIssue(row);
-        const attachments = await deleteIssue(row.id);
+        const attachments = await deleteIssue(row.id, ctx.user.id);
         if (attachments?.length) await deleteObjects(attachments.map((a) => a.s3Key));
         return { success: true, lastSyncId: lastSyncId(), entity };
       }),

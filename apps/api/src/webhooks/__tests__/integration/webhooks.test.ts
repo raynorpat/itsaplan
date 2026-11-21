@@ -265,7 +265,7 @@ describe('webhooks', () => {
   // deliveries endpoint (the delivery worker does not run in tests, so they stay
   // pending). These assert the fan-out selection, not the worker.
   describe('fan-out', () => {
-    it('queues a pending delivery for a subscribed active webhook on issue.created', async () => {
+    it('queues a pending delivery for a subscribed enabled webhook on issue create', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
       const id = await createWebhook(asOwner, ['Issue']);
 
@@ -274,18 +274,12 @@ describe('webhooks', () => {
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(1);
       expect(res.data!.items[0]).toMatchObject({
-        eventType: 'issue.created',
+        eventType: 'Issue',
         status: 'pending',
         attempts: 0,
         responseStatus: null,
       });
-      // The payload uses the Linear-style envelope: action + resource type, with
-      // the granular event kept in `event`.
-      expect(res.data!.items[0].payload).toMatchObject({
-        action: 'create',
-        type: 'Issue',
-        event: 'issue.created',
-      });
+      expect(res.data!.items[0].payload).toMatchObject({ action: 'create', type: 'Issue' });
     });
 
     it('does not queue for an inactive webhook', async () => {
@@ -332,7 +326,7 @@ describe('webhooks', () => {
 
       const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
       expect(res.data?.items).toHaveLength(1);
-      expect(res.data!.items[0]).toMatchObject({ eventType: 'comment.created' });
+      expect(res.data!.items[0]).toMatchObject({ eventType: 'Comment' });
     });
   });
 

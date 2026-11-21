@@ -45,7 +45,8 @@ import {
 } from './activity';
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
-import { emitWebhookEvent } from '../webhooks/emit';
+import { emitEvent } from '../webhooks/event';
+import { issueData } from '../webhooks/data';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 
@@ -400,6 +401,7 @@ export async function archiveIssue(
   id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
+  const beforeData = await issueData(id);
   const [row] = await db
     .update(issue)
     .set({ archivedAt: sql`now()` })
@@ -411,7 +413,9 @@ export async function archiveIssue(
   }
   await recordActivity(id, [{ action: 'archived' }], actorUserId);
   await deleteThreadsWhere({ issueId: id });
-  return getIssue(id);
+  const archived = await getIssue(id);
+  if (archived) await emitIssue('update', id, archived.teamId, actorUserId, beforeData);
+  return archived;
 }
 
 // Restores an archived issue back onto the board (archived_at -> null). Records a
@@ -423,6 +427,7 @@ export async function restoreIssue(
   id: string,
   actorUserId?: string | null,
 ): Promise<IssueRow | null> {
+  const beforeData = await issueData(id);
   const [row] = await db
     .update(issue)
     .set({ archivedAt: null })
@@ -430,6 +435,7 @@ export async function restoreIssue(
     .returning({ id: issue.id, stateId: issue.stateId, teamId: issue.teamId });
   if (!row) return getIssue(id);
   await recordActivity(id, [{ action: 'restored' }], actorUserId);
+  await emitIssue('update', id, row.teamId, actorUserId, beforeData);
   const [column] = await db
     .select({ archivedAt: workflowState.archivedAt, stateType: workflowState.stateType })
     .from(workflowState)
@@ -735,6 +741,27 @@ async function assertIssueLabels(teamId: string, labelIds?: string[]): Promise<v
   if (rows.length !== ids.length) throw new HttpError(400, 'Labels must belong to this team');
 }
 
+// Sends an Issue webhook event with the issue's current data. `before` is the
+// issue's data before the change, for an update.
+async function emitIssue(
+  action: 'create' | 'update',
+  issueId: string,
+  teamId: string,
+  actorUserId: string | null | undefined,
+  before?: Record<string, unknown> | null,
+): Promise<void> {
+  const data = await issueData(issueId);
+  if (!data) return;
+  await emitEvent({
+    type: 'Issue',
+    action,
+    teamIds: [teamId],
+    actorUserId: actorUserId ?? null,
+    data,
+    before: before ?? undefined,
+  });
+}
+
 // Atomic per-team sequence number (the "-42" in "MKT-42"): the UPDATE takes a
 // row lock on team, so concurrent createIssue calls for the same team never
 // hand out the same number.
@@ -794,12 +821,12 @@ export async function createIssue(
   });
 
   await recordActivity(issueId, [{ action: 'created' }], actorUserId);
-  // Suppress the label_changed event on creation — the initial labels are part of
-  // the issue.created payload, so a separate change event would be redundant.
+  // No separate label event on creation: the initial labels are part of the
+  // Issue create payload.
   if (input.labelIds?.length)
     await setIssueLabels(team.id, issueId, input.labelIds, actorUserId, false);
   const created = (await getIssue(issueId))!;
-  await emitWebhookEvent(team.id, 'issue.created', created);
+  await emitIssue('create', issueId, team.id, actorUserId);
   // An issue created already delegated to an agent enqueues a run, the same as
   // delegating one later does.
   await enqueueDelegateRun(created, actorUserId);
@@ -867,6 +894,7 @@ export async function updateIssue(
   if (!before) return null;
 
   const stateType = await checkPatch(id, before, patch);
+  const beforeData = await issueData(id);
 
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;
@@ -908,14 +936,9 @@ export async function updateIssue(
   if (after) {
     await logIssueUpdate(before, snapshot(after), actorUserId);
     if (changed) {
-      await emitWebhookEvent(after.teamId, 'issue.updated', after);
-      // Granular events fire in addition to issue.updated when their field changed.
-      if (before.assigneeUserId !== after.assigneeUserId)
-        await emitWebhookEvent(after.teamId, 'issue.assigned', after);
+      await emitIssue('update', id, after.teamId, actorUserId, beforeData);
       if (before.delegateUserId !== after.delegateUserId)
         await enqueueDelegateRun(after, actorUserId);
-      if (before.stateId !== after.stateId)
-        await emitWebhookEvent(after.teamId, 'issue.state_changed', after);
     }
   }
   return after;
@@ -942,7 +965,11 @@ async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null):
 // attachments, and activity all go by their ON DELETE CASCADE on issue_id. Returns
 // the deleted attachment rows so the caller can remove their objects from the store.
 // Returns null if the issue did not exist.
-export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | null> {
+export async function deleteIssue(
+  issueId: string,
+  actorUserId?: string | null,
+): Promise<AttachmentRow[] | null> {
+  const beforeData = await issueData(issueId);
   const result = await db.transaction(async (tx) => {
     const rows = await tx
       .select({ teamId: issue.teamId, seq: issue.sequenceNumber, key: teamTable.key })
@@ -962,10 +989,14 @@ export async function deleteIssue(issueId: string): Promise<AttachmentRow[] | nu
     };
   });
   if (!result) return null;
-  await emitWebhookEvent(result.teamId, 'issue.deleted', {
-    id: issueId,
-    identifier: result.identifier,
-  });
+  if (beforeData)
+    await emitEvent({
+      type: 'Issue',
+      action: 'remove',
+      teamIds: [result.teamId],
+      actorUserId: actorUserId ?? null,
+      data: beforeData,
+    });
   return result.attachments;
 }
 
@@ -977,9 +1008,10 @@ export async function setIssueLabels(
   issueId: string,
   labelIds: string[],
   actorUserId?: string | null,
-  emitEvent = true,
+  sendEvent = true,
 ): Promise<void> {
   await assertIssueLabels(teamId, labelIds);
+  const beforeData = sendEvent ? await issueData(issueId) : null;
   const beforeRows = await db
     .select({ labelId: issueLabel.labelId })
     .from(issueLabel)
@@ -1015,9 +1047,8 @@ export async function setIssueLabels(
     events.push({ action: 'label_remove', fromText: names.get(labelId) ?? null });
   await recordActivity(issueId, events, actorUserId);
 
-  if (emitEvent && (added.length > 0 || removed.length > 0)) {
-    const issueRow = await getIssue(issueId);
-    if (issueRow) await emitWebhookEvent(issueRow.teamId, 'issue.label_changed', issueRow);
+  if (sendEvent && (added.length > 0 || removed.length > 0)) {
+    await emitIssue('update', issueId, teamId, actorUserId, beforeData);
   }
 }
 
@@ -1104,11 +1135,12 @@ export async function bulkArchiveIssues(
 export async function bulkDeleteIssues(
   teamId: string,
   ids: string[],
+  actorUserId?: string | null,
 ): Promise<{ deleted: number; attachments: AttachmentRow[] }> {
   const valid = await issuesInTeam(teamId, ids);
   const attachments: AttachmentRow[] = [];
   for (const id of valid) {
-    const rows = await deleteIssue(id);
+    const rows = await deleteIssue(id, actorUserId);
     if (rows) attachments.push(...rows);
   }
   return { deleted: valid.length, attachments };

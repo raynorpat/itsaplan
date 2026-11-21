@@ -127,7 +127,12 @@ describe('graphql mutations', () => {
       const feed = await asOwner.issues({ issueId: issue.id }).feed.get();
       expect(feed.data!.items.map((i) => i.action)).toContain('status');
       const deliveries = await asOwner.webhooks({ webhookId: hook.data!.id }).deliveries.get();
-      expect(deliveries.data!.items.map((d) => d.eventType)).toContain('issue.state_changed');
+      const moved = deliveries.data!.items.find(
+        (d) => (d.payload as { action: string }).action === 'update',
+      );
+      expect(
+        (moved!.payload as { updatedFrom: Record<string, unknown> }).updatedFrom,
+      ).toHaveProperty('stateId');
     });
 
     it('denies a member without work item permissions', async () => {
