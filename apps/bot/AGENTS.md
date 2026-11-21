@@ -30,7 +30,7 @@ stack, `API_URL` locally. Do not add a third URL variable. Optional tuning:
 
 grammY ships `webhookCallback(bot, 'elysia')`, so moving from polling to a webhook
 mounted on the api is a swap of the transport, not of the framework. Commands beyond
-`/start` go in `bot.ts`; anything needing project data gets a new `/internal/telegram/*`
+`/start` go in `bot.ts`; anything needing team data gets a new `/internal/telegram/*`
 route rather than a database import.
 
 ## Run

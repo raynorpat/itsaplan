@@ -42,19 +42,19 @@ stable release.
 
 **Tracking**
 
-- Configure issues per project: custom fields, labels, states, and issue types
+- Configure issues per team: custom fields, labels, states, and issue types
 - Kanban, table, timeline, and calendar views, with configurable display fields and two-level grouping
 - Save any view as a reusable template
-- Configurable dashboards for project analytics: throughput, breakdown, pulse
+- Configurable dashboards for team analytics: throughput, breakdown, pulse
 - Custom quick actions that run on an issue
 - Freeform notes boards: sticky notes on a canvas, with colors, checklists, and connections
 - Share a view or an issue by public link, read-only and without sign-in
-- Initiatives that group and track work across projects
+- Projects that group work across teams, with statuses, milestones, updates and labels
 - Auto-archive, a notification inbox, role-based access control, and more
 
 **AI agents**
 
-- Agents as project members with their own permissions and assigned issues
+- Agents as team members with their own permissions and assigned issues
 - Configure each agent's model, system prompt, tools, and reusable skills — built on the
   [Mastra](https://github.com/mastra-ai/mastra) agent framework
 - Mention an agent in a comment to trigger a run
@@ -66,7 +66,7 @@ stable release.
 - REST API with an OpenAPI reference and API keys
 - MCP server, so an external assistant can read and change issues through the same API
 - Linear-compatible GraphQL API at `/graphql`: point the official `@linear/sdk` at your instance
-  to read and change issues and workflow states
+  to read and change teams, issues, workflow states and projects
 - Outgoing webhooks: subscribe to events, signed payloads, and retries with a delivery log
 - Email and password, passkey, and Google sign-in
 - Notifications by email (SMTP or Resend) and Telegram, with per-member preferences

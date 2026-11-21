@@ -42,11 +42,11 @@ Rules and invariants for this package below; read the code for the walkthrough.
   already `'YYYY-MM-DD'`.
 - **jsonb** (view `filters`/`display`, action `condition`/`effect`) passes through as
   JS objects — never `JSON.stringify`; validate only as `t.Any()`.
-- **Sequence numbers** ("MKT-42") are issued under a row lock on `project` inside
+- **Sequence numbers** ("MKT-42") are issued under a row lock on `team` inside
   `createIssue`'s transaction — keep the lock so concurrent creates don't collide.
 - **`position` is a sparse float** (`MAX(position) + 1000`); do not assume contiguous
   integers.
-- **Deletes cascade in the DB** (every project/issue-scoped FK is `ON DELETE CASCADE`).
+- **Deletes cascade in the DB** (every team/issue-scoped FK is `ON DELETE CASCADE`).
   `deleteIssue` still reads attachment rows first to purge their objects.
 - **Object-store deletes are best-effort** — log a failed `deleteObject`, do not fail
   the request.
@@ -59,21 +59,28 @@ Enforced declaratively through macros, never imperative calls in handlers.
   `user` on context, throws 401 with none. `planner.ts` gates every planner route;
   a feature also `.use(authContext)` when its handlers/macros reference `user`. An
   `x-api-key` header resolves through `getSession` — no special-casing.
-- **Membership:** access is strictly by a `project_member` row (`owner` | `member`).
+- **Membership:** access is strictly by a `team_member` row (`owner` | `member`).
   Owners bypass the permission matrix; the global `user.role` (`god` | `user`) does
-  **not**. Keep at least one owner per project.
-- **`:projectKey` routes:** `.use(guards)` and set `permission: ["<resource>",
-"<action>"]` / `projectMember: true` / `projectOwner: true`; read the resolved
-  `project` from context.
+  **not**. Keep at least one owner per team.
+- **`:teamKey` routes:** `.use(guards)` and set `permission: ["<resource>",
+"<action>"]` / `teamMember: true` / `teamOwner: true`; read the resolved
+  `team` from context.
 - **Entity-by-id routes** (`/issues/:issueId`, `/views/:viewId`, …): define a local
-  macro via `entityGuard(resource, notFound, resolveProjectId)` and set it in route
+  macro via `entityGuard(resource, notFound, resolveTeamId)` and set it in route
   options (e.g. `workItem: "edit"`). `GET /issues/:issueId` instead asserts
   `assertPermission` on the fetched row.
 - Guards/macros wrap the `shared/access.ts` primitives. Handlers that still need
-  `user` (project create, invite accept/reject, self-removal) call `requireUser(user)`.
+  `user` (team create, invite accept/reject, self-removal) call `requireUser(user)`.
 - **Members join only through invites/**, not a direct add. One pending invite per
-  (project, email) — partial unique index → 409. `members/` removes only (last owner
+  (team, email) — partial unique index → 409. `members/` removes only (last owner
   protected).
+- **Projects span teams** (`project_team`), so routes that address a project use the
+  `project: "<action>"` macro in `projects/routes.ts`, which resolves access through
+  every team of the project (`projects/access.ts`): not readable through any team →
+  404, readable but no team grants the action → 403. Issues may only join a project
+  that includes their team; a team with issues in a project cannot be removed from it.
+  Project statuses are six seeded rows (`project_status`, ids in
+  `packages/db/src/project-statuses.ts`); `resetDb` keeps them.
 
 ## Security
 
@@ -148,8 +155,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   checks as REST (`resolvers/mutations.ts`), so activity, webhooks and agent runs
   match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
   `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
-- **Access:** a team (project) and its issues and states are visible to members
-  only; a user is visible when they share a project with the viewer.
+- **Access:** a team and its issues and states are visible to members only; a
+  project is visible through a team that grants `projects.read`; a user is visible
+  when they share a team with the viewer.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.
