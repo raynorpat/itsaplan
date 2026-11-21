@@ -33,6 +33,20 @@ describe('projects', () => {
   });
 
   describe('create', () => {
+    it('stores the key uppercased', async () => {
+      const { api } = await signUpClient();
+      const res = await api.projects.post({ key: 'ops', name: 'Operations' });
+      expect(res.status).toBe(201);
+      expect(res.data!.key).toBe('OPS');
+    });
+
+    it('rejects a key that is not letters and digits starting with a letter', async () => {
+      const { api } = await signUpClient();
+      for (const key of ['A-B', '1AB', 'A B']) {
+        expect((await api.projects.post({ key, name: 'X' })).status).toBe(400);
+      }
+    });
+
     it('creates a project and lists it for its owner', async () => {
       const { api } = await signUpClient();
 

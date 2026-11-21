@@ -286,7 +286,7 @@ export async function copyProject(
     const [row] = await tx
       .insert(project)
       .values({
-        key: input.key,
+        key: input.key.toUpperCase(),
         name: input.name,
         description: input.description ?? '',
         ...sourceFeatures,

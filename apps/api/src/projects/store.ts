@@ -213,7 +213,11 @@ export async function createProject(
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(project)
-      .values({ key: input.key, name: input.name, description: input.description ?? '' })
+      .values({
+        key: input.key.toUpperCase(),
+        name: input.name,
+        description: input.description ?? '',
+      })
       .returning();
     await tx.insert(projectMember).values({ projectId: row.id, userId: ownerId, role: 'owner' });
     // Every project starts with a default "Member" role, assigned to members that

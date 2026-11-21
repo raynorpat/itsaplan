@@ -27,7 +27,9 @@ import { listLabels, listLabelGroups } from '../labels/store';
 import { listCustomFields } from '../custom-fields/store';
 
 const projectBody = t.Object({
-  key: t.String({ minLength: 1 }),
+  // Letters and digits, starting with a letter; stored uppercased. The key is the
+  // prefix of issue identifiers ("MKT-42") and Linear's team key.
+  key: t.String({ pattern: '^[A-Za-z][A-Za-z0-9]*$' }),
   name: t.String({ minLength: 1 }),
   description: t.Optional(t.String()),
 });
