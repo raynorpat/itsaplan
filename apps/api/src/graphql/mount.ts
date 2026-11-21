@@ -13,6 +13,7 @@ import { projectMutationResolvers } from './resolvers/project-mutations';
 import { webhookResolvers } from './resolvers/webhook';
 import { commentResolvers } from './resolvers/comment';
 import { reactionResolvers } from './resolvers/reaction';
+import { issueLabelResolvers } from './resolvers/issue-label';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -31,6 +32,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   webhookResolvers,
   commentResolvers,
   reactionResolvers,
+  issueLabelResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {

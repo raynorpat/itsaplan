@@ -1,4 +1,4 @@
-import { db, workflowState } from '@repo/db';
+import { db, issueLabel, workflowState } from '@repo/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   archiveIssue,
@@ -64,6 +64,34 @@ const ISSUE_FIELDS = [
   'projectId',
   'projectMilestoneId',
 ];
+
+// Label inputs of issueUpdate: a full replacement, or labels to add / remove.
+const LABEL_FIELDS = ['labelIds', 'addedLabelIds', 'removedLabelIds'];
+
+function labelIdsInput(value: unknown, path: string): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string' || !UUID_RE.test(v)))
+    throw gqlError('INVALID_INPUT', `${path} must be a list of label ids`);
+  return value as string[];
+}
+
+// The issue's label set after an update's label inputs, or undefined when none is
+// given. labelIds replaces the set; addedLabelIds / removedLabelIds change it.
+async function nextLabelIds(issueId: string, input: Record<string, unknown>) {
+  const replace = labelIdsInput(input.labelIds, 'input.labelIds');
+  const added = labelIdsInput(input.addedLabelIds, 'input.addedLabelIds');
+  const removed = labelIdsInput(input.removedLabelIds, 'input.removedLabelIds');
+  if (replace) return replace;
+  if (!added && !removed) return undefined;
+  const rows = await db
+    .select({ id: issueLabel.labelId })
+    .from(issueLabel)
+    .where(eq(issueLabel.issueId, issueId));
+  const next = new Set(rows.map((r) => r.id));
+  for (const id of added ?? []) next.add(id);
+  for (const id of removed ?? []) next.delete(id);
+  return [...next];
+}
 
 type IssueInput = Record<string, unknown> & {
   title?: string;
@@ -152,7 +180,7 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['teamId', ...ISSUE_FIELDS], 'input');
+        onlySupported(input, ['teamId', 'labelIds', ...ISSUE_FIELDS], 'input');
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
         assertIssueInput(input);
         const found = await findTeam(input.teamId, ctx.user.id);
@@ -174,6 +202,7 @@ export const mutationResolvers = {
             projectId: patch.projectId,
             projectMilestoneId: patch.projectMilestoneId,
             position: patch.position,
+            labelIds: labelIdsInput(input.labelIds, 'input.labelIds'),
           },
           ctx.user.id,
         );
@@ -186,11 +215,12 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ISSUE_FIELDS, 'input');
+        onlySupported(input, [...ISSUE_FIELDS, ...LABEL_FIELDS], 'input');
         assertIssueInput(input);
         const row = await findIssue(id, ctx.user.id);
         await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
-        await updateIssue(row.id, toPatch(input), ctx.user.id);
+        const labelIds = await nextLabelIds(row.id, input);
+        await updateIssue(row.id, toPatch(input), ctx.user.id, { labelIds });
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
       }),
 
