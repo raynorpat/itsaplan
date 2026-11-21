@@ -1,4 +1,4 @@
-import { and, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, isNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { gqlError } from './errors';
 import { UUID_RE } from '../shared/lib';
 
@@ -130,4 +130,19 @@ export function filterSql(
     parts.push(handler(value, at));
   }
   return parts.length ? and(...parts) : undefined;
+}
+
+// A reference filter ({ id, null }) on a column holding the referenced row's id:
+// `id` compares the id, `null: true` matches an unset reference.
+export function refFilter(column: AnyColumn, value: unknown, path: string): SQL {
+  return (
+    filterSql(
+      value,
+      {
+        id: (v, p) => compareId(column, v, p),
+        null: (v) => (v ? isNull(column) : sql`${column} IS NOT NULL`),
+      },
+      path,
+    ) ?? sql`true`
+  );
 }

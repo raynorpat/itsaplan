@@ -79,6 +79,15 @@ export async function getComment(id: string): Promise<CommentRow | null> {
   return row ? mapComment(row) : null;
 }
 
+// The project a project update belongs to, or null when the update does not exist.
+async function updateProjectId(projectUpdateId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ projectId: projectUpdate.projectId })
+    .from(projectUpdate)
+    .where(eq(projectUpdate.id, projectUpdateId));
+  return row?.projectId ?? null;
+}
+
 // The web URL of the issue, project or project update a comment is on.
 export async function commentParentUrl(c: CommentRow): Promise<string> {
   if (c.issueId) {
@@ -91,11 +100,7 @@ export async function commentParentUrl(c: CommentRow): Promise<string> {
   }
   let projectId = c.projectId;
   if (!projectId && c.projectUpdateId) {
-    const [row] = await db
-      .select({ projectId: projectUpdate.projectId })
-      .from(projectUpdate)
-      .where(eq(projectUpdate.id, c.projectUpdateId));
-    projectId = row?.projectId ?? null;
+    projectId = await updateProjectId(c.projectUpdateId);
   }
   return `${trustedOrigins[0]}/projects/${projectId ?? ''}`;
 }
@@ -117,11 +122,7 @@ export async function commentTeamIds(c: CommentRow): Promise<string[]> {
   }
   let projectId = c.projectId;
   if (!projectId && c.projectUpdateId) {
-    const [row] = await db
-      .select({ projectId: projectUpdate.projectId })
-      .from(projectUpdate)
-      .where(eq(projectUpdate.id, c.projectUpdateId));
-    projectId = row?.projectId ?? null;
+    projectId = await updateProjectId(c.projectUpdateId);
   }
   if (!projectId) return [];
   const rows = await db
@@ -329,12 +330,8 @@ export async function assertParentAccess(
   }
   let projectId = 'projectId' in parent ? parent.projectId : null;
   if ('projectUpdateId' in parent) {
-    const [row] = await db
-      .select({ projectId: projectUpdate.projectId })
-      .from(projectUpdate)
-      .where(eq(projectUpdate.id, parent.projectUpdateId));
-    if (!row) throw new HttpError(404, 'Project update not found');
-    projectId = row.projectId;
+    projectId = await updateProjectId(parent.projectUpdateId);
+    if (!projectId) throw new HttpError(404, 'Project update not found');
   }
   await assertProjectAccess(projectId!, user.id, 'read');
 }
