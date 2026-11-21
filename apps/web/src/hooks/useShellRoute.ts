@@ -1,4 +1,4 @@
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { SETTINGS_SECTIONS } from '@/utils/settingsSections';
 
 // The breadcrumb label for an /ai-team/:section route. The chat has no settings
@@ -11,6 +11,9 @@ function aiTeamLabel(section: string | null): string | null {
 
 export type ShellRoute = {
   teamKey: string | null;
+  // The workspace-level Projects area (/projects…). Its team comes from ?team=
+  // (null when the URL names none; the Shell then falls back to the last team).
+  workspace: boolean;
   // The segment after the team key: 'view', 'settings', 'issue', 'members', …
   // null on the team root.
   sub: string | null;
@@ -30,22 +33,37 @@ export type ShellRoute = {
 export function useShellRoute(): ShellRoute {
   const params = useParams();
   const pathname = usePathname();
+  const search = useSearchParams();
+
+  const segs = pathname.split('/').filter(Boolean); // ['team', key, sub?, id?]
+  if (segs[0] === 'projects') {
+    const id = segs[1] && segs[1] !== 'tab' && segs[1] !== 'settings' ? segs[1] : null;
+    return {
+      teamKey: search.get('team'),
+      workspace: true,
+      sub: 'projects',
+      activeViewId: null,
+      section: null,
+      aiTeamCrumb: null,
+      routeIssueSeq: null,
+      routeProjectId: id,
+      onBoard: false,
+    };
+  }
 
   const routeKey = params.teamKey;
   const teamKey = (Array.isArray(routeKey) ? routeKey[0] : routeKey) ?? null;
-
-  const segs = pathname.split('/').filter(Boolean); // ['team', key, sub?, id?]
   const sub = segs[2] ?? null;
 
   return {
     teamKey,
+    workspace: false,
     sub,
     activeViewId: sub === 'view' && segs[3] ? segs[3] : null,
     section: sub === 'settings' ? (segs[3] ?? null) : null,
     aiTeamCrumb: sub === 'ai-team' ? aiTeamLabel(segs[3] ?? null) : null,
     routeIssueSeq: sub === 'issue' && segs[3] ? Number(segs[3]) : null,
-    // /projects/details/:id — the segment right after 'projects' is a list tab.
-    routeProjectId: sub === 'projects' && segs[3] === 'details' && segs[4] ? segs[4] : null,
+    routeProjectId: null,
     onBoard: sub == null || sub === 'view',
   };
 }

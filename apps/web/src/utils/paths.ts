@@ -61,7 +61,13 @@ export const rolesPath = (key: string) => `${teamPath(key)}/members/roles`;
 export const issuePath = (key: string, sequenceNumber: number) =>
   `${teamPath(key)}/issue/${sequenceNumber}`;
 
-export const projectsPath = (key: string) => `${teamPath(key)}/projects`;
+// Projects live in the workspace-level Projects area (/projects), not under a
+// team. `?team=KEY` filters the list to that team and picks the team whose issues
+// a project page shows; omit it for every team.
+const withTeam = (path: string, key?: string | null) =>
+  key ? `${path}?team=${encodeURIComponent(key)}` : path;
+
+export const projectsPath = (key?: string | null) => withTeam('/projects', key);
 
 // The status tabs of the projects list are routes of their own, so a reload or a
 // shared link reopens the tab the user was on. "All" is the tab at the list path;
@@ -73,17 +79,19 @@ export type ProjectsTab = (typeof PROJECTS_TABS)[number];
 export const isProjectsTab = (value: string): value is ProjectsTab =>
   (PROJECTS_TABS as readonly string[]).includes(value);
 
-export const projectsTabPath = (key: string, tab: ProjectsTab) =>
-  tab === 'all' ? projectsPath(key) : `${projectsPath(key)}/${tab}`;
+export const projectsTabPath = (key: string | null | undefined, tab: ProjectsTab) =>
+  tab === 'all' ? projectsPath(key) : withTeam(`/projects/tab/${tab}`, key);
 
-// The project detail tabs are routes of their own too. They sit under /details/
-// so the tab segment of the list above stays unambiguous.
+// The project detail tabs are routes of their own too.
 export type ProjectTab = 'overview' | 'issues';
 
-export const projectPath = (key: string, projectId: string, tab: ProjectTab = 'overview') => {
-  const base = `${projectsPath(key)}/details/${projectId}`;
-  return tab === 'overview' ? base : `${base}/${tab}`;
-};
+export const projectPath = (
+  key: string | null | undefined,
+  projectId: string,
+  tab: ProjectTab = 'overview',
+) => withTeam(`/projects/${projectId}${tab === 'overview' ? '' : `/${tab}`}`, key);
+
+export const projectLabelsSettingsPath = () => '/projects/settings/labels';
 
 // Where the app root sends the user, from their start page preference. The section
 // opens in the team they were last in (see app/page.tsx).

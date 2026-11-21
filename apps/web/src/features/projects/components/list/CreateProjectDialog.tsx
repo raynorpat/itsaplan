@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { projectPath } from '@/utils/paths';
 import { useCreateProject } from '@/services/projects.service';
+import { useTeamsQuery } from '@/services/teams.service';
+import ProjectTeamsChecklist from '../shared/ProjectTeamsChecklist';
 import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-// Creates an project from a title and optional description, then opens its
-// detail page. The remaining fields (owner, priority, target date, labels) are
-// set there.
+// Creates a project from a name, its teams (the current team preselected) and an
+// optional description, then opens its page. The remaining fields (lead,
+// priority, target date, labels) are set there.
 export default function CreateProjectDialog({
   teamKey,
   onClose,
@@ -20,13 +22,22 @@ export default function CreateProjectDialog({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const create = useCreateProject(teamKey);
+  const teams = useTeamsQuery().data ?? [];
+  const current = teams.find((t) => t.key === teamKey);
+  const [teamIds, setTeamIds] = useState<string[] | null>(null);
+  const chosen = teamIds ?? (current ? [current.id] : []);
+  const create = useCreateProject();
   const router = useRouter();
 
   const submit = async () => {
     const name = title.trim();
     if (!name) return;
-    const created = await create.mutateAsync({ name, content: description.trim() });
+    if (!name || chosen.length === 0) return;
+    const created = await create.mutateAsync({
+      name,
+      content: description.trim(),
+      teamIds: chosen,
+    });
     onClose();
     router.push(projectPath(teamKey, created.id));
   };
@@ -35,7 +46,7 @@ export default function CreateProjectDialog({
     <Modal title="New project" teamKey={teamKey} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="project-title">Title</Label>
+          <Label htmlFor="project-title">Name</Label>
           <Input
             id="project-title"
             value={title}
@@ -43,6 +54,15 @@ export default function CreateProjectDialog({
             placeholder="Q3 Launch"
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && title.trim() && void submit()}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Teams</Label>
+          <ProjectTeamsChecklist
+            teams={teams}
+            value={chosen}
+            onChange={setTeamIds}
+            action="create"
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -58,7 +78,10 @@ export default function CreateProjectDialog({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!title.trim() || create.isPending} onClick={() => void submit()}>
+          <Button
+            disabled={!title.trim() || chosen.length === 0 || create.isPending}
+            onClick={() => void submit()}
+          >
             {create.isPending ? 'Creating…' : 'Create project'}
           </Button>
         </div>

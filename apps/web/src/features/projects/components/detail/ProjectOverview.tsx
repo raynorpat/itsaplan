@@ -5,6 +5,7 @@ import ProjectActivityFeed from './ProjectActivityFeed';
 import ProjectActiveWork from './ProjectActiveWork';
 import ProjectStateBreakdown from './ProjectStateBreakdown';
 import ProjectTimeline from './ProjectTimeline';
+import ProjectMilestones from './ProjectMilestones';
 
 // The project overview: a content column with the activity feed beside it,
 // stacking below it on a narrow screen.
@@ -27,6 +28,10 @@ export default function ProjectOverview({ project, team }: { project: Project; t
         <div className="mt-8 grid gap-8 sm:grid-cols-2 sm:gap-10">
           <ProjectStateBreakdown team={team} projectId={project.id} />
           <ProjectTimeline project={project} />
+        </div>
+
+        <div className="mt-8">
+          <ProjectMilestones projectId={project.id} />
         </div>
 
         <ProjectActiveWork team={team} projectId={project.id} />

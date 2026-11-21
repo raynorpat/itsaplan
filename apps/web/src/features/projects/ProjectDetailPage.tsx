@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useShell } from '@/context/shellContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -39,9 +40,17 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
     enabled: projectId != null && !!teamKey,
   });
 
-  if (!team || projectId == null) return null;
-
+  // The page shows the issues of one of the project's teams: the team its URL
+  // names, else the project's first team.
   const project = query.data;
+  const firstTeamKey = project?.teams[0]?.key ?? null;
+  const onProjectTeam = project?.teams.some((t) => t.key === teamKey) ?? true;
+  useEffect(() => {
+    if (!onProjectTeam && firstTeamKey && projectId)
+      router.replace(projectPath(firstTeamKey, projectId, tab));
+  }, [onProjectTeam, firstTeamKey, projectId, router, tab]);
+
+  if (!team || projectId == null) return null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

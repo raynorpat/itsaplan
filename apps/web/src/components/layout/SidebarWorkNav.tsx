@@ -1,13 +1,13 @@
 import { usePathname } from 'next/navigation';
-import { Inbox, LayoutDashboard, SquareKanban, StickyNote, Target } from 'lucide-react';
-import { dashboardsPath, inboxPath, projectsPath, notesPath, teamPath } from '@/utils/paths';
+import { Inbox, LayoutDashboard, SquareKanban, StickyNote } from 'lucide-react';
+import { dashboardsPath, inboxPath, notesPath, teamPath } from '@/utils/paths';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useInboxUnread } from '@/hooks/useInboxUnread';
 import { SidebarGroup, SidebarGroupContent, SidebarMenu } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
-// The top sidebar group: Inbox, Dashboards, Work items, Projects.
+// The team's sidebar group: Inbox, Dashboards, Work items, Notes.
 export default function SidebarWorkNav({
   teamKey,
   teamId,
@@ -57,15 +57,6 @@ export default function SidebarWorkNav({
             active={onWorkItems}
             disabled={disabled}
           />
-          {features.projects && can('projects', 'read') && (
-            <SidebarNavItem
-              href={teamKey ? projectsPath(teamKey) : '#'}
-              icon={Target}
-              label="Projects"
-              active={pathname.includes('/projects')}
-              disabled={disabled}
-            />
-          )}
           {features.notes && (
             <SidebarNavItem
               href={teamKey ? notesPath(teamKey) : '#'}

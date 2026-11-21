@@ -20,6 +20,8 @@ import CommandLayer from '@/components/layout/CommandLayer';
 import ShellBody from '@/components/layout/ShellBody';
 import ShellHeaderTitle from '@/components/layout/ShellHeaderTitle';
 import ShellOverlays from '@/components/layout/ShellOverlays';
+import { useTeamsQuery } from '@/services/teams.service';
+import { useAccountPreferencesQuery } from '@/services/preferences.service';
 
 // The layout for /team/:teamKey and its children (the work items view and the
 // settings pages). It owns the team data, the view editor and the
@@ -34,7 +36,16 @@ export default function Shell({
 }) {
   const router = useRouter();
   const route = useShellRoute();
-  const { teamKey, routeIssueSeq } = route;
+  const { routeIssueSeq } = route;
+  // The Projects area is above the teams; it shows the team its URL names, or the
+  // last team the user had open (else the first), so the sidebar stays populated.
+  const { data: teamList } = useTeamsQuery();
+  const { data: prefs } = useAccountPreferencesQuery();
+  const fallbackKey =
+    route.workspace && !route.teamKey
+      ? ((teamList?.find((t) => t.id === prefs?.lastTeamId) ?? teamList?.[0])?.key ?? null)
+      : null;
+  const teamKey = route.teamKey ?? fallbackKey;
 
   const {
     teams,
@@ -53,7 +64,7 @@ export default function Shell({
   const overlays = useOverlays(showChatByDefault);
   const issueQuery = useIssueBySeqQuery(teamKey, routeIssueSeq);
 
-  useTeamRouteSync({ teams, teamsLoaded, teamKey });
+  useTeamRouteSync({ teams, teamsLoaded, teamKey, redirect: !route.workspace });
 
   // The settings sections the member may open; the hotkey lands on the first of
   // them, the same entry the sidebar links to.

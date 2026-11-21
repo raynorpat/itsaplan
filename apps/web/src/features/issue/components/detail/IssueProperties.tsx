@@ -17,6 +17,7 @@ import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
 import TypeSelect from '@/components/common/fields/TypeSelect';
 import ProjectSelect from '../fields/ProjectSelect';
+import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueCustomFieldControl from '../fields/IssueCustomFieldControl';
 import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
 import { type Embeddable } from '../../utils/attachmentEmbed';
@@ -131,6 +132,12 @@ export default function IssueProperties({
               onChange={(id) => onPatch({ projectId: id })}
             />
           )}
+        </PropertyRow>
+      )}
+
+      {issue.project && issue.projectMilestoneId && (
+        <PropertyRow label="Milestone">
+          <IssueMilestoneName projectId={issue.project.id} milestoneId={issue.projectMilestoneId} />
         </PropertyRow>
       )}
 

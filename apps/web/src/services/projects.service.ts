@@ -13,16 +13,14 @@ import {
   type NewProjectInput,
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
-import { useTeamQuery } from '@/services/teams.service';
 
-// A page of the team's projects. params filter (status/search), sort and
-// page it server-side; keepPreviousData holds the current page on screen while the
-// next one loads. Omit params to load the default first page.
+// A page of the visible projects, of one team when teamKey is given. params filter
+// (status/search), sort and page it server-side; keepPreviousData holds the
+// current page on screen while the next one loads.
 export function useProjectsQuery(teamKey: string | null, params: ProjectListParams = {}) {
   return useQuery({
     queryKey: qk.projects(teamKey ?? '', params as Record<string, unknown>),
-    queryFn: () => api.listProjects(teamKey!, params),
-    enabled: teamKey != null,
+    queryFn: () => api.listProjects(teamKey, params),
     placeholderData: keepPreviousData,
   });
 }
@@ -31,8 +29,53 @@ export function useProjectsQuery(teamKey: string | null, params: ProjectListPara
 export function useProjectCountsQuery(teamKey: string | null) {
   return useQuery({
     queryKey: qk.projectCounts(teamKey ?? ''),
-    queryFn: () => api.projectCounts(teamKey!),
-    enabled: teamKey != null,
+    queryFn: () => api.projectCounts(teamKey),
+  });
+}
+
+export function useProjectMilestonesQuery(projectId: string | null) {
+  return useQuery({
+    queryKey: ['project-milestones', projectId ?? ''],
+    queryFn: () => api.listProjectMilestones(projectId!),
+    enabled: projectId != null,
+  });
+}
+
+export function useProjectLabelsQuery() {
+  return useQuery({ queryKey: ['project-labels'], queryFn: () => api.listProjectLabels() });
+}
+
+// Creates, updates or deletes a project label, then refreshes the label list.
+export function useProjectLabelMutations() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ['project-labels'] });
+  return {
+    create: useMutation({
+      mutationFn: (input: { name: string; color?: string }) => api.createProjectLabel(input),
+      onSuccess: refresh,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, patch }: { id: string; patch: { name?: string; color?: string } }) =>
+        api.updateProjectLabel(id, patch),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({
+      mutationFn: (id: string) => api.deleteProjectLabel(id),
+      onSuccess: refresh,
+    }),
+  };
+}
+
+// Replaces the project's teams (the ones the viewer can see).
+export function useSetProjectTeams() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, teamIds }: { id: string; teamIds: string[] }) =>
+      api.setProjectTeams(id, teamIds),
+    onSuccess: (project) => {
+      qc.setQueryData(qk.project(project.id), project);
+      qc.invalidateQueries({ queryKey: ['projects'] });
+    },
   });
 }
 
@@ -44,16 +87,14 @@ export function useProjectQuery(id: string | null) {
   });
 }
 
-export function useCreateProject(teamKey: string) {
+export function useCreateProject() {
   const qc = useQueryClient();
-  const team = useTeamQuery(teamKey).data;
   return useMutation({
-    mutationFn: (input: NewProjectInput) =>
-      api.createProject({ teamIds: team ? [team.team.id] : [], ...input }),
+    mutationFn: (input: NewProjectInput & { teamIds: string[] }) => api.createProject(input),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.projectsForTeam(teamKey) });
-      qc.invalidateQueries({ queryKey: qk.projectCounts(teamKey) });
-      qc.invalidateQueries({ queryKey: qk.team(teamKey) });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['projectCounts'] });
+      qc.invalidateQueries({ queryKey: ['workItems'] });
     },
   });
 }

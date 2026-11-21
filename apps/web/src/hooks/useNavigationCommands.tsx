@@ -61,8 +61,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
     if (features.dashboards && can('dashboards', 'read'))
       add('nav.dashboards', 'Dashboards', <LayoutDashboard />, dashboardsPath(key), 'charts');
     add('nav.work-items', 'Work items', <SquareKanban />, teamPath(key), 'board issues kanban');
-    if (features.projects && can('projects', 'read'))
-      add('nav.projects', 'Projects', <Target />, projectsPath(key), 'epics');
+    add('nav.projects', 'Projects', <Target />, projectsPath(), 'epics roadmap');
     if (can('ai_agents', 'read'))
       add('nav.ai-chat', 'Chat with AI Team', <MessagesSquare />, aiChatPath(key), 'ai agents');
     for (const s of AI_TEAM_SECTIONS) {

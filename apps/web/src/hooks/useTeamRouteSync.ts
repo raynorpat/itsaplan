@@ -15,10 +15,13 @@ export function useTeamRouteSync({
   teams,
   teamsLoaded,
   teamKey,
+  redirect = true,
 }: {
   teams: Team[];
   teamsLoaded: boolean;
   teamKey: string | null;
+  // Off in the Projects area, which is not a team route.
+  redirect?: boolean;
 }) {
   const router = useRouter();
   const prefsQuery = useAccountPreferencesQuery();
@@ -27,11 +30,11 @@ export function useTeamRouteSync({
   // Redirect to a valid team if the routed key does not exist (a stale link or
   // a deleted team), preferring the first.
   useEffect(() => {
-    if (!teamsLoaded) return;
+    if (!teamsLoaded || !redirect) return;
     if (teamKey && teams.some((p) => p.key === teamKey)) return;
     const first = teams[0]?.key;
     if (first) router.replace(teamPath(first));
-  }, [teamsLoaded, teams, teamKey, router]);
+  }, [teamsLoaded, teams, teamKey, redirect, router]);
 
   // Written only when it differs from what is stored. A failed save rolls the
   // cache back, which would satisfy the condition again, so the attempted id is

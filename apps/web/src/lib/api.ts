@@ -1499,6 +1499,26 @@ export interface ProjectPage {
   pageSize: number;
 }
 
+// A project milestone (read-only in the web app; edited over GraphQL).
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  targetDate: string | null;
+  sortOrder: number;
+}
+
+// A workspace-level project label; a group holds labels and cannot be applied.
+export interface ProjectLabel {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  parentId: string | null;
+  isGroup: boolean;
+}
+
 // Per-status project counts for the list's status tabs.
 export type ProjectCounts = Record<ProjectStatus | 'total', number>;
 
@@ -1953,9 +1973,9 @@ export const api = {
 
   // Projects span teams: the list and counts take an optional team filter, create
   // takes the team ids, and ops on one project take its id.
-  listProjects: (teamKey: string, params: ProjectListParams = {}) => {
+  listProjects: (teamKey: string | null, params: ProjectListParams = {}) => {
     const q = new URLSearchParams();
-    q.set('teamKey', teamKey);
+    if (teamKey) q.set('teamKey', teamKey);
     if (params.statuses && params.statuses.length) q.set('status', params.statuses.join(','));
     if (params.search) q.set('search', params.search);
     if (params.sort) q.set('sort', params.sort);
@@ -1965,8 +1985,25 @@ export const api = {
     const qs = q.toString();
     return request<ProjectPage>(`/projects?${qs}`);
   },
-  projectCounts: (teamKey: string) =>
-    request<ProjectCounts>(`/projects/counts?teamKey=${encodeURIComponent(teamKey)}`),
+  projectCounts: (teamKey: string | null) =>
+    request<ProjectCounts>(
+      `/projects/counts${teamKey ? `?teamKey=${encodeURIComponent(teamKey)}` : ''}`,
+    ),
+  setProjectTeams: (id: string, teamIds: string[]) =>
+    request<Project>(`/projects/${id}/teams`, {
+      method: 'PUT',
+      body: JSON.stringify({ teamIds }),
+    }),
+  listProjectMilestones: (id: string) => request<ProjectMilestone[]>(`/projects/${id}/milestones`),
+  listProjectLabels: () => request<ProjectLabel[]>('/project-labels'),
+  createProjectLabel: (input: { name: string; color?: string }) =>
+    request<ProjectLabel>('/project-labels', { method: 'POST', body: JSON.stringify(input) }),
+  updateProjectLabel: (id: string, patch: { name?: string; color?: string }) =>
+    request<ProjectLabel>(`/project-labels/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteProjectLabel: (id: string) => request<void>(`/project-labels/${id}`, { method: 'DELETE' }),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
   createProject: (input: NewProjectInput & { teamIds: string[] }) =>
     request<Project>('/projects', {

@@ -14,6 +14,7 @@ import ProjectsList from './components/list/ProjectsList';
 import ProjectsPagination from './components/list/ProjectsPagination';
 import CreateProjectDialog from './components/list/CreateProjectDialog';
 import ProjectTabCount from './components/list/ProjectTabCount';
+import ProjectTeamFilter from './components/list/ProjectTeamFilter';
 
 const PAGE_SIZE = 25;
 
@@ -59,6 +60,9 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const searchParams = useSearchParams();
   const [creating, setCreating] = useState(false);
 
+  // The list's team filter (null lists every team); the Shell's team is what the
+  // create dialog preselects.
+  const filterKey = searchParams.get('team');
   const teamKey = team?.team.key ?? null;
   const activeTab = TABS.find((t) => t.value === tab)!;
 
@@ -70,31 +74,31 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
   const dir = sort ? sortDir : undefined;
 
-  const query = useProjectsQuery(teamKey, {
+  const query = useProjectsQuery(filterKey, {
     statuses: activeTab.statuses,
     sort,
     dir,
     page,
     pageSize: PAGE_SIZE,
   });
-  const counts = useProjectCountsQuery(teamKey).data;
+  const counts = useProjectCountsQuery(filterKey).data;
 
   if (!team) return null;
 
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
 
-  const tabPath = projectsTabPath(team.team.key, tab);
+  const tabPath = projectsTabPath(filterKey, tab);
 
   const pushQuery = (params: URLSearchParams) => {
     const search = params.toString();
-    router.push(search ? `${tabPath}?${search}` : tabPath);
+    router.push(search ? `${tabPath.split('?')[0]}?${search}` : tabPath.split('?')[0]);
   };
 
   // A tab is its own route and carries no query, so switching one drops the page and
   // the sorting of the tab left behind.
   const changeTab = (next: ProjectsTab) => {
-    router.push(projectsTabPath(team.team.key, next));
+    router.push(projectsTabPath(filterKey, next));
   };
 
   const changePage = (next: number) => {
@@ -116,7 +120,13 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between px-4 py-3">
-        <h1 className="text-lg font-semibold">Projects</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">Projects</h1>
+          <ProjectTeamFilter
+            value={filterKey}
+            onChange={(key) => router.push(projectsTabPath(key, tab))}
+          />
+        </div>
         {can('projects', 'create') && (
           <Button size="sm" className="h-8 gap-1.5" onClick={() => setCreating(true)}>
             <Plus className="size-3.5" />

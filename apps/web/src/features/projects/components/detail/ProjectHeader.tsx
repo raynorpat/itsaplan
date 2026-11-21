@@ -2,7 +2,7 @@
 
 import { Info } from 'lucide-react';
 import type { Project, ProjectPatch, TeamDetail } from '@/lib/api';
-import { useUpdateProject } from '@/services/projects.service';
+import { useProjectLabelsQuery, useUpdateProject } from '@/services/projects.service';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
@@ -13,6 +13,7 @@ import HealthBadge from '../shared/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';
 import ProgressBar from '../shared/ProgressBar';
 import ProjectActions from './ProjectActions';
+import ProjectTeamsField from './ProjectTeamsField';
 
 // The project detail header. The pills patch the project inline; title and
 // description are read-only here and edited from the overflow menu dialog.
@@ -21,6 +22,11 @@ export default function ProjectHeader({ project, team }: { project: Project; tea
   const hasDescription = project.content.trim().length > 0;
 
   const patch = (p: ProjectPatch) => update.mutate({ id: project.id, patch: p });
+  // Project labels are workspace-level; the shared label picker takes them in the
+  // issue-label shape (no groups).
+  const projectLabels = (useProjectLabelsQuery().data ?? [])
+    .filter((l) => !l.isGroup)
+    .map((l) => ({ id: l.id, teamId: '', groupId: null, name: l.name, color: l.color }));
 
   const toggleLabel = (labelId: string) => {
     const next = project.labelIds.includes(labelId)
@@ -70,9 +76,10 @@ export default function ProjectHeader({ project, team }: { project: Project; tea
           placeholder="Target date"
           onChange={(v) => patch({ targetDate: v })}
         />
+        <ProjectTeamsField project={project} />
         <LabelsSelect
-          labels={team.labels}
-          groups={team.labelGroups}
+          labels={projectLabels}
+          groups={[]}
           value={project.labelIds}
           onToggle={toggleLabel}
         />

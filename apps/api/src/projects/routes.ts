@@ -23,6 +23,7 @@ import {
   projectRev,
 } from './store';
 import { listFeed } from './activity';
+import { listMilestones } from './milestones';
 
 const projectParams = t.Object({ projectId: t.String({ format: 'uuid' }) });
 
@@ -420,6 +421,34 @@ export const projectRoutes = new Elysia({
       },
     },
   )
+
+  .get('/projects/:projectId/milestones', async ({ params }) => listMilestones(params.projectId), {
+    params: projectParams,
+    project: 'read',
+    response: {
+      200: t.Array(
+        t.Object({
+          id: t.String({ format: 'uuid' }),
+          projectId: t.String({ format: 'uuid' }),
+          name: t.String(),
+          description: t.String(),
+          targetDate: t.Nullable(t.String()),
+          sortOrder: t.Number(),
+          archivedAt: t.Nullable(t.String()),
+          createdAt: t.String(),
+          updatedAt: t.String(),
+        }),
+      ),
+      401: ErrorResponse,
+      403: ErrorResponse,
+      404: ErrorResponse,
+    },
+    detail: {
+      summary: "List a project's milestones",
+      description: 'Milestones are read-only over REST; create and edit them over GraphQL.',
+      ...mcpTool('list_project_milestones'),
+    },
+  })
 
   .get('/project-statuses', () => listProjectStatuses(), {
     response: {

@@ -13,10 +13,7 @@ export default function ProjectBreadcrumb({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <Link
-        href={teamKey ? projectsPath(teamKey) : '/'}
-        className="truncate text-muted-foreground hover:text-foreground"
-      >
+      <Link href={projectsPath()} className="truncate text-muted-foreground hover:text-foreground">
         Projects
       </Link>
       <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />

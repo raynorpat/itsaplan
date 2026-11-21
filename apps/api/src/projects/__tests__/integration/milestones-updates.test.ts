@@ -69,4 +69,13 @@ describe('project milestones and updates', () => {
     expect(after.health).toBe('atRisk');
     expect(after).toHaveProperty('computedHealth');
   });
+
+  it('lists milestones over REST to members only', async () => {
+    const { asOwner, project } = await setup();
+    await createMilestone(project.id, { name: 'Beta' });
+    const res = await asOwner.projects({ projectId: project.id }).milestones.get();
+    expect(res.data!.map((m) => m.name)).toEqual(['Beta']);
+    const outsider = authedApi((await signUpTestUser()).cookie);
+    expect((await outsider.projects({ projectId: project.id }).milestones.get()).status).toBe(404);
+  });
 });
