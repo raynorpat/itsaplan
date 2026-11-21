@@ -3,12 +3,16 @@ import type { SessionUser } from '../shared/auth-context';
 import { resolveGraphQLUser, type GraphQLContext } from './context';
 import { buildSchema } from './schema';
 import { organizationResolvers } from './resolvers/organization';
+import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
+import { workflowStateResolvers } from './resolvers/workflow-state';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
 const resolverModules: Record<string, Record<string, unknown>>[] = [
   organizationResolvers,
   userResolvers,
+  teamResolvers,
+  workflowStateResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
