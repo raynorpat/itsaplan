@@ -50,6 +50,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `deleteIssue` still reads attachment rows first to purge their objects.
 - **Object-store deletes are best-effort** — log a failed `deleteObject`, do not fail
   the request.
+- **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
+  project or a project update; replies are one level deep (a reply to a reply is
+  stored under the root). `issue_activity` holds the change log only. The feeds
+  (issue, range, share, team activity, project), the revision markers and
+  notification participants read the `feed_entry` view, which unions both tables in
+  one row shape; write comments through `createComment`, never into the view.
+- **Labels** (`labels/store.ts`): a label belongs to a team or to no team (a
+  workspace label). A group is a label with `is_group`; it cannot be applied or
+  nested. A retired label stays on its issues but cannot be newly applied. Check
+  labels with `assertLabelsApplicable` before writing them to an issue.
+- **Reactions** (`reactions/store.ts`): one per user and exact emoji on a comment,
+  issue or project update.
 
 ## Auth and access
 
@@ -181,7 +193,11 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
 - **Access:** a team and its issues and states are visible to members only; a
   project is visible through a team that grants `projects.read`; a user is visible
-  when they share a team with the viewer.
+  when they share a team with the viewer. A comment or reaction follows the item it
+  is on; workspace labels are visible to anyone in a team.
+- **Coverage:** issues, workflow states, teams, users, projects (statuses,
+  milestones, updates, project labels), comments, reactions, issue labels and
+  webhooks have resolvers; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.
