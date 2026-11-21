@@ -9,6 +9,7 @@ import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { Elysia } from 'elysia';
 import { planner } from './planner';
+import { mountGraphql } from './graphql/mount';
 import { webhookTestRoutes } from './webhook-test/routes';
 import { mountMcp } from './mcp/mount';
 import { setMcpApp } from './mcp/app-ref';
@@ -152,6 +153,9 @@ export const app = new Elysia()
 // type) stays the REST surface; the MCP endpoint is JSON-RPC, not called via Eden.
 // Its tools are generated from the planner routes tagged with mcpTool().
 mountMcp(app);
+
+// Linear-compatible GraphQL endpoint (/graphql), mounted the same way as MCP.
+mountGraphql(app);
 
 // Hands the assembled app to the internal agent runtime, which builds an agent's
 // tools from the same mcpTool() routes and dispatches them in process. It cannot

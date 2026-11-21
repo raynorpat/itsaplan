@@ -11,3 +11,6 @@ packages/db/drizzle
 
 # Generated better-auth schema
 packages/db/src/schema/auth.ts
+
+# Linear GraphQL schema, vendored unmodified
+apps/api/src/graphql/schema.graphql

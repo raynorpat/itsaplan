@@ -350,6 +350,10 @@ export const auth = betterAuth({
   },
 });
 
+// Thrown by auth.api calls; re-exported so the api can tell an auth failure (an
+// unknown API key) from other errors without depending on better-auth directly.
+export { APIError };
+
 export type Auth = typeof auth;
 export type Session = Auth['$Infer']['Session'];
 
