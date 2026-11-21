@@ -29,7 +29,6 @@ export function toTeam(row: ProjectRecord) {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.createdAt.toISOString(),
     private: false,
-    issueCount: 0,
   };
 }
 

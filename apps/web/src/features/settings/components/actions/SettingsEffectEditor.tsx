@@ -25,7 +25,7 @@ function defaultEffectValue(
 ): ActionEffect[EffectFieldKey] {
   switch (key) {
     case 'columnId':
-      return project.columns[0]?.id ?? 0;
+      return project.columns[0]?.id ?? '';
     case 'labelIds':
       return [];
     default:

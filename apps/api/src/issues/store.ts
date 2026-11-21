@@ -655,11 +655,10 @@ async function assertInitiative(
     throw new HttpError(400, 'Initiative must belong to this project');
 }
 
-// Enforces that a column belongs to the issue's project — issue.column_id only
-// requires the column to exist somewhere, so an issue could otherwise sit on
-// another project's board. Throws 400 otherwise.
-// Enforces that a column belongs to the issue's project and is not archived.
-// Returns its state type, or null when no column is given.
+// Enforces that a column belongs to the issue's project and is not archived —
+// issue.column_id only requires the column to exist somewhere, so an issue could
+// otherwise sit on another project's board. Throws 400 otherwise. Returns the
+// column's state type, or null when no column is given.
 async function assertColumn(
   projectId: string,
   columnId: string | undefined,

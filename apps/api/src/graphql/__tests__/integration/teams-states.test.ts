@@ -47,6 +47,15 @@ describe('graphql teams, users and workflow states', () => {
       expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     });
 
+    it("counts the team's issues", async () => {
+      const { asOwner, client } = await setup();
+      const view = await asOwner.projects({ projectKey: 'MKT' }).get();
+      const columnId = view.data!.columns[0].id;
+      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'a' });
+      await asOwner.projects({ projectKey: 'MKT' }).issues.post({ columnId, title: 'b' });
+      expect((await client.team('MKT')).issueCount).toBe(2);
+    });
+
     it("resolves the team's organization", async () => {
       const { client } = await setup();
       const team = await client.team('MKT');
@@ -93,6 +102,16 @@ describe('graphql teams, users and workflow states', () => {
       expect(active.nodes.map((s) => s.id)).not.toContain(review.data!.id);
       const all = await client.workflowStates({ includeArchived: true });
       expect(all.nodes.map((s) => s.id)).toContain(review.data!.id);
+    });
+
+    it('ignores a null in/nin comparator', async () => {
+      const { owner } = await setup();
+      const res = await gql(
+        { cookie: owner.cookie },
+        '{ workflowStates(filter: { type: { in: null } }) { nodes { id } } }',
+      );
+      expect(res.body.errors).toBeUndefined();
+      expect((res.body.data!.workflowStates as { nodes: unknown[] }).nodes).toHaveLength(5);
     });
 
     it('rejects a filter key that is not supported', async () => {

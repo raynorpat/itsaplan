@@ -68,6 +68,13 @@ export function mountGraphql(app: any): void {
   app.all(
     '/graphql',
     async ({ request }: { request: Request }) => {
+      // Only JSON bodies: a form-encoded or text POST is what a cross-site HTML form
+      // can send with the session cookie, so refusing it closes that CSRF path.
+      if (request.method === 'POST' && !request.headers.get('content-type')?.includes('json'))
+        return Response.json(
+          { errors: [{ message: 'POST requests must use Content-Type: application/json' }] },
+          { status: 415 },
+        );
       const user = await resolveGraphQLUser(request);
       if (!user)
         return Response.json(

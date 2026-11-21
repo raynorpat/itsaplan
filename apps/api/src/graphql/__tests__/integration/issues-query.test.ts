@@ -156,6 +156,36 @@ describe('graphql issue queries', () => {
     expect(res.nodes.map((i) => i.id)).toEqual([hit.id]);
   });
 
+  it('scopes a search to a team given by key and counts every match', async () => {
+    const { asOwner, col, client } = await setup();
+    await create(asOwner, col.backlog, { title: 'login one' });
+    await create(asOwner, col.backlog, { title: 'login two' });
+    const res = await client.searchIssues('login', { teamId: 'MKT', first: 1 });
+    expect(res.nodes).toHaveLength(1);
+    expect(res.totalCount).toBe(2);
+    const none = await client.searchIssues('login', { teamId: 'NOPE' });
+    expect(none.nodes).toHaveLength(0);
+  });
+
+  it('hides the creator once they no longer share a project', async () => {
+    const { owner, asOwner, col } = await setup();
+    const member = await signUpTestUser({ name: 'Leaver' });
+    const invite = await asOwner
+      .projects({ projectKey: 'MKT' })
+      .invites.post({ email: member.email, role: 'member' });
+    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    const created = await create(authedApi(member.cookie), col.backlog, {
+      assigneeUserId: member.userId,
+    });
+    await asOwner.projects({ projectKey: 'MKT' }).members({ userId: member.userId }).delete();
+
+    const res = await gql(
+      { cookie: owner.cookie },
+      `{ issue(id: "${created.id}") { creator { id } assignee { id } } }`,
+    );
+    expect(res.body.data).toEqual({ issue: { creator: null, assignee: null } });
+  });
+
   it('accepts first: 250 and rejects first: 251', async () => {
     const { owner } = await setup();
     const ok = await gql({ cookie: owner.cookie }, '{ issues(first: 250) { nodes { id } } }');

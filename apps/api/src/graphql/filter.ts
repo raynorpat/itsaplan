@@ -23,6 +23,8 @@ export function compare(col: Column, comp: unknown, path: string): SQL {
   const parts: SQL[] = [];
   for (const [op, v] of Object.entries(comp as Comparator)) {
     if (v === undefined) continue;
+    // A null list is no constraint (GraphQL allows `in: null`).
+    if ((op === 'in' || op === 'nin') && v === null) continue;
     switch (op) {
       case 'eq':
         parts.push(v === null ? sql`${col} IS NULL` : sql`${col} = ${v}`);
@@ -80,6 +82,7 @@ export function compareId(col: Column, comp: unknown, path: string): SQL {
   const parts: SQL[] = [];
   for (const [op, v] of Object.entries(comp as Comparator)) {
     if (v === undefined) continue;
+    if ((op === 'in' || op === 'nin') && v === null) continue;
     switch (op) {
       case 'eq':
         parts.push(UUID_RE.test(String(v)) ? sql`${col} = ${v}::uuid` : sql`false`);

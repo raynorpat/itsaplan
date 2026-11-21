@@ -60,7 +60,7 @@ export default function Shell({
   const { firstHref: firstSettingsHref } = useSettingsNavGroups(projectKey, project);
 
   const openNewIssue = () =>
-    project && overlays.setNewIssueDefaults({ columnId: project.columns[0]?.id ?? 0 });
+    project && overlays.setNewIssueDefaults({ columnId: project.columns[0]?.id ?? '' });
 
   // The issue the palette builds its issue commands for: the open detail panel
   // takes precedence over the issue page behind it.

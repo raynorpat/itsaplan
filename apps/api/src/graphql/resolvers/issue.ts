@@ -1,11 +1,11 @@
 import { db, issue, project, projectColumn, user } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
-import { and, eq, getTableColumns, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { issueFilterSql } from '../issue-filter';
-import { toTeam, visibleProjectIds } from './team';
+import { findTeam, toTeam, visibleProjectIds, visibleUsers } from './team';
 import { toGraphQLUser } from './user';
 import { toWorkflowState } from './workflow-state';
 import { UUID_RE } from '../../shared/lib';
@@ -95,18 +95,22 @@ export async function findIssue(idOrIdentifier: string, userId: string): Promise
 
 type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
-// One page of the viewer's visible issues matching `where`, the filter and
-// includeArchived.
+// The viewer's visible issues matching `where`, the filter and includeArchived.
+function issueScope(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
+  return and(
+    inArray(issue.projectId, visibleProjectIds(viewerId)),
+    where,
+    args.includeArchived ? undefined : isNull(issue.archivedAt),
+    issueFilterSql(args.filter, viewerId),
+  );
+}
+
+// One page of the issues issueScope selects.
 export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
   return paginate(
     args,
     { id: issue.id, createdAt: issue.createdAt, updatedAt: issue.updatedAt },
-    and(
-      inArray(issue.projectId, visibleProjectIds(viewerId)),
-      where,
-      args.includeArchived ? undefined : isNull(issue.archivedAt),
-      issueFilterSql(args.filter, viewerId),
-    ),
+    issueScope(where, args, viewerId),
     (w, order, limit) =>
       issueSelect()
         .where(w)
@@ -116,9 +120,14 @@ export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerI
   );
 }
 
+// A user the viewer may see (see visibleUsers), or null. A former member who no
+// longer shares a project with the viewer resolves to null, as user(id:) does.
 async function userById(id: string | null, viewerId: string) {
   if (!id) return null;
-  const [row] = await db.select().from(user).where(eq(user.id, id));
+  const [row] = await db
+    .select()
+    .from(user)
+    .where(and(eq(user.id, id), visibleUsers(viewerId)));
   return row ? toGraphQLUser(row, viewerId) : null;
 }
 
@@ -154,25 +163,38 @@ export const issueResolvers = {
       toIssue(await findIssue(args.id, ctx.user.id)),
     issues: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listIssues(undefined, args, ctx.user.id),
-    searchIssues: (
+    // teamId takes a team id or key; an unknown team matches nothing. totalCount is
+    // the number of matches across all pages.
+    searchIssues: async (
       _: unknown,
       args: ConnectionArgs & { term: string; teamId?: string | null },
       ctx: GraphQLContext,
     ) => {
       const pattern = `%${args.term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-      return listIssues(
-        and(
-          or(ilike(issue.title, pattern), ilike(issue.description, pattern)),
-          args.teamId && UUID_RE.test(args.teamId) ? eq(issue.projectId, args.teamId) : undefined,
-        ),
-        args,
-        ctx.user.id,
-      ).then((page) => ({ ...page, totalCount: page.nodes.length }));
+      let team: SQL | undefined;
+      if (args.teamId) {
+        const found = await findTeam(args.teamId, ctx.user.id).catch(() => null);
+        team = found ? eq(issue.projectId, found.id) : sql`false`;
+      }
+      const where = and(or(ilike(issue.title, pattern), ilike(issue.description, pattern)), team);
+      const page = await listIssues(where, args, ctx.user.id);
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(issue)
+        .where(issueScope(where, args, ctx.user.id));
+      return { ...page, totalCount: count };
     },
   },
   Issue: issueRelations,
   IssueSearchResult: issueRelations,
   Team: {
+    issueCount: async (team: { id: string }) => {
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(issue)
+        .where(eq(issue.projectId, team.id));
+      return count;
+    },
     issues: (team: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
       listIssues(eq(issue.projectId, team.id), args, ctx.user.id),
   },

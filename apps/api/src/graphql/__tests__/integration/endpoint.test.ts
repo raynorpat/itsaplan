@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { createApiKey, gql, graphqlUrl, linearClient } from '../../../__tests__/helpers/linear';
 
 // The Linear-compatible GraphQL endpoint: authentication, the viewer, the
 // organization, and the error for operations not implemented yet.
@@ -42,6 +42,16 @@ describe('graphql endpoint', () => {
     const user = await signUpTestUser();
     const res = await gql({ cookie: user.cookie }, '{ viewer { id } }');
     expect(res.body.data).toEqual({ viewer: { id: user.userId } });
+  });
+
+  it('refuses a form-encoded POST so a cross-site form cannot run a mutation', async () => {
+    const user = await signUpTestUser();
+    const res = await fetch(graphqlUrl(), {
+      method: 'POST',
+      headers: { cookie: user.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'query=' + encodeURIComponent('{ viewer { id } }'),
+    });
+    expect(res.status).toBe(415);
   });
 
   it('returns one stable organization', async () => {

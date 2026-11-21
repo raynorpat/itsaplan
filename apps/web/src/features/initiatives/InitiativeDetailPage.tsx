@@ -28,7 +28,7 @@ export default function InitiativeDetailPage({ tab = 'overview' }: { tab?: Initi
   // Poll the initiative's change marker: refetch the initiative (progress/health),
   // its feed, and the board issues when its linked issues or its own fields change.
   useLiveRefresh({
-    revKey: ['rev', 'initiative', initiativeId ?? 0],
+    revKey: ['rev', 'initiative', initiativeId ?? ''],
     fetchRev: () => api.getInitiativeRev(initiativeId!),
     targets: [
       qk.initiative(initiativeId ?? ''),

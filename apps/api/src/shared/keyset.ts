@@ -1,5 +1,5 @@
 import { sql, type AnyColumn, type SQL } from 'drizzle-orm';
-import { HttpError } from './lib';
+import { HttpError, UUID_RE } from './lib';
 
 // Keyset pagination for newest-first lists ordered by (created_at DESC, id DESC).
 // The cursor is the last returned row's created_at (full-precision text, so it
@@ -7,7 +7,7 @@ import { HttpError } from './lib';
 // joined by '|'. Ids are random UUIDs, so created_at carries the order and id only
 // breaks ties.
 
-const CURSOR = /^([^|]+)\|([0-9a-f-]{36})$/i;
+const CURSOR = /^([^|]+)\|(.+)$/;
 
 // The cursor for the row a page ended on. cursorTs is `created_at::text`.
 export function encodeCursor(row: { cursorTs: string; id: string }): string {
@@ -23,6 +23,7 @@ export function afterCursor(
 ): SQL | undefined {
   if (!cursor) return undefined;
   const m = CURSOR.exec(cursor);
-  if (!m || Number.isNaN(Date.parse(m[1]))) throw new HttpError(400, 'Invalid cursor');
+  if (!m || Number.isNaN(Date.parse(m[1])) || !UUID_RE.test(m[2]))
+    throw new HttpError(400, 'Invalid cursor');
   return sql`(${createdAt}, ${id}) < (${m[1]}::timestamptz, ${m[2]}::uuid)`;
 }
