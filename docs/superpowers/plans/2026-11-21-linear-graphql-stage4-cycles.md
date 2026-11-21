@@ -110,7 +110,7 @@
 
 - [ ] **Step 1: Write the failing tests** (SDK):
   - `teamUpdate enables cycles and reads them back` (`team.activeCycle` exists, `team.cycles()` has 3); `teamUpdate` with `timezone` → INVALID_INPUT naming it; non-owner member → FORBIDDEN.
-  - `cycleCreate rejects an overlap` (disable automatic? use a team with cycles on, create after the last) and `cycleUpdate` renames.
+  - `cycleCreate` after the last automatic cycle succeeds and one overlapping it → INVALID_INPUT; `cycleUpdate` renames.
   - `closing by hand sets endsAt and rolls over` (Review Focus 5); `completedAt` on a future cycle → INVALID_INPUT; archiving the active cycle → INVALID_INPUT; archiving a future cycle clears its issues.
   - `progress follows Linear's formula`: 2 completed + 2 started + 1 canceled, no estimates → (2 + 0.5)/4 = 0.625; with estimates 3 (completed) and 1 (started, unestimated counts 1) → (3 + 0.25)/4 = 0.8125.
   - `issues(filter: { cycle: { id: { eq } } })` and `{ cycle: { null: true } }`; `createIssue({ cycleId })`.
