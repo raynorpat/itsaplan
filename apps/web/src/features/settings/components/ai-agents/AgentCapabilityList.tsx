@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 // list renders skills and tools the same way. `search` is the lowercased haystack the
 // filter matches against.
 export interface CapabilityItem {
-  id: number;
+  id: string;
   checked: boolean;
   title: string;
   subtitle: string;
@@ -24,7 +24,7 @@ export function AgentCapabilityList({
   searchPlaceholder,
 }: {
   items: CapabilityItem[];
-  onToggle: (id: number, on: boolean) => void;
+  onToggle: (id: string, on: boolean) => void;
   searchPlaceholder: string;
 }) {
   const [query, setQuery] = useState('');

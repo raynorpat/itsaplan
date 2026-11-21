@@ -10,9 +10,9 @@ import {
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useIssueQuery(id: number | null) {
+export function useIssueQuery(id: string | null) {
   return useQuery({
-    queryKey: qk.issue(id ?? -1),
+    queryKey: qk.issue(id ?? ''),
     queryFn: () => api.getIssue(id!),
     enabled: id != null,
   });
@@ -59,7 +59,7 @@ export function useIssueSearchQuery(
 export function useUpdateIssue(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: IssuePatch }) => api.updateIssue(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: IssuePatch }) => api.updateIssue(id, patch),
     onMutate: async ({ id, patch }) => {
       if (!projectKey) return {};
       const key = qk.boardIssues(projectKey);
@@ -99,7 +99,7 @@ function invalidateInitiatives(qc: ReturnType<typeof useQueryClient>) {
 export function useDeleteIssue(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteIssue(id),
+    mutationFn: (id: string) => api.deleteIssue(id),
     onSuccess: async (_data, id) => {
       if (projectKey) {
         // Cancel any project fetch already in flight before removing the issue
@@ -127,7 +127,7 @@ export function useDeleteIssue(projectKey: string | null) {
 export function useArchiveIssue(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.archiveIssue(id),
+    mutationFn: (id: string) => api.archiveIssue(id),
     onSuccess: async (_data, id) => {
       if (projectKey) {
         await qc.cancelQueries({ queryKey: qk.boardIssues(projectKey) });
@@ -149,7 +149,7 @@ export function useArchiveIssue(projectKey: string | null) {
 export function useRestoreIssue(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.restoreIssue(id),
+    mutationFn: (id: string) => api.restoreIssue(id),
     onSuccess: (_data, id) => {
       if (projectKey) {
         void qc.invalidateQueries({ queryKey: qk.boardIssues(projectKey) });
@@ -173,8 +173,8 @@ export function useSetFieldValue(projectKey: string | null) {
       fieldId,
       value,
     }: {
-      issueId: number;
-      fieldId: number;
+      issueId: string;
+      fieldId: string;
       value: IssueFieldValueInput;
     }) => api.setFieldValue(issueId, fieldId, value),
     onSettled: (_data, _err, { issueId }) => {
@@ -194,7 +194,7 @@ export function useSetFieldValue(projectKey: string | null) {
 export function useBulkUpdateIssues(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, patch }: { ids: number[]; patch: BulkIssuePatch }) =>
+    mutationFn: ({ ids, patch }: { ids: string[]; patch: BulkIssuePatch }) =>
       api.bulkUpdateIssues(projectKey, ids, patch),
     onMutate: async ({ ids, patch }) => {
       const key = qk.boardIssues(projectKey);
@@ -222,7 +222,7 @@ export function useBulkUpdateIssues(projectKey: string) {
 export function useBulkAddLabels(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, add }: { ids: number[]; add: number[] }) =>
+    mutationFn: ({ ids, add }: { ids: string[]; add: string[] }) =>
       api.bulkAddLabels(projectKey, ids, add),
     onMutate: async ({ ids, add }) => {
       const key = qk.boardIssues(projectKey);
@@ -252,10 +252,10 @@ export function useBulkAddLabels(projectKey: string) {
 // Archive and delete both drop the issues from the board immediately, then
 // reconcile. A project fetch already in flight is cancelled first so it cannot
 // re-add the removed issues (see the single-issue delete for the same reasoning).
-function useBulkRemoval(projectKey: string, run: (ids: number[]) => Promise<unknown>) {
+function useBulkRemoval(projectKey: string, run: (ids: string[]) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: number[]) => run(ids),
+    mutationFn: (ids: string[]) => run(ids),
     onSuccess: async (_data, ids) => {
       const idSet = new Set(ids);
       await qc.cancelQueries({ queryKey: qk.boardIssues(projectKey) });

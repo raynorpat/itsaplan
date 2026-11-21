@@ -21,7 +21,7 @@ export default function InboxList({
 }: {
   items: Notification[];
   isLoading: boolean;
-  selectedId: number | null;
+  selectedId: string | null;
   onSelect: (n: Notification) => void;
   onToggleRead: (n: Notification, read: boolean) => void;
   onSnooze: (n: Notification, until: string | null) => void;

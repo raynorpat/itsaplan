@@ -5,7 +5,7 @@ import { SORT_FIELDS, type SortField } from '@/utils/viewTypes';
 // given the dragged issue id. Container targets (column, cell, section) append;
 // item targets (card, row) insert at that item's position.
 export interface DropData {
-  onDrop: (issueId: number) => void;
+  onDrop: (issueId: string) => void;
 }
 
 // Why an issue cannot be reordered inside its group: the view is sorted by a

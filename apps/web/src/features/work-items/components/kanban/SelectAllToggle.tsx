@@ -7,7 +7,7 @@ import { useSelection } from '../../context/useSelection';
 // nothing for an empty column. Hidden until the column is hovered or a selection is
 // active, so the header stays clean otherwise — needs a `group/column` ancestor for
 // the hover reveal.
-export function SelectAllToggle({ ids, className }: { ids: number[]; className?: string }) {
+export function SelectAllToggle({ ids, className }: { ids: string[]; className?: string }) {
   const selection = useSelection();
   if (ids.length === 0) return null;
   const allSelected = ids.every((id) => selection.isSelected(id));

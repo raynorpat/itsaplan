@@ -31,7 +31,7 @@ export default function TableView({
   readOnly,
 }: WorkItemsViewProps) {
   const updateIssue = useUpdateIssue(project.project.key);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
   const collapsed = usePersistedSet(
     collapsedKey(project.project.id, settings.group, settings.subgroup),
@@ -77,7 +77,7 @@ export default function TableView({
   // goes through, since it changes the grouping field rather than the order.
   const manualOrder = settings.sort.field === 'manual';
 
-  function moveIssue(issueId: number, assign: IssuePatch | null, bucket: Issue[], index: number) {
+  function moveIssue(issueId: string, assign: IssuePatch | null, bucket: Issue[], index: number) {
     if (!manualOrder && bucket.some((i) => i.id === issueId)) {
       toast.info(sortedOrderMessage(settings.sort.field));
       return;
@@ -89,7 +89,7 @@ export default function TableView({
   function handleDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const data = e.over?.data.current as DropData | undefined;
-    data?.onDrop(Number(e.active.id));
+    data?.onDrop(String(e.active.id));
   }
 
   const activeIssue =
@@ -151,7 +151,7 @@ export default function TableView({
     <DndContext
       sensors={sensors}
       collisionDetection={tableCollision}
-      onDragStart={(e: DragStartEvent) => setActiveId(Number(e.active.id))}
+      onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >

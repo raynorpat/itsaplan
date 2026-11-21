@@ -70,7 +70,7 @@ export default function LabelsImportDialog({
     setBusy(true);
     try {
       // Resolve a group name to an id: seed with existing groups, then add created ones.
-      const groupIdByName = new Map<string, number>(
+      const groupIdByName = new Map<string, string>(
         existingGroups.map((g) => [g.name.toLowerCase(), g.id]),
       );
       let created = 0;

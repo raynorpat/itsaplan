@@ -42,7 +42,7 @@ export function FloatingChat({
   const [view, setView] = useState<'chat' | 'history'>('chat');
 
   // Every way of changing the conversation also leaves the history layer.
-  const handleSelectAgent = (id: number) => {
+  const handleSelectAgent = (id: string) => {
     selectAgent(id);
     setView('chat');
   };

@@ -55,7 +55,7 @@ export default function MemberRoleControl({
   function onValueChange(next: string) {
     if (next === value) return;
     if (next === OWNER_VALUE) setMemberRole.mutate({ userId: member.userId, role: 'owner' });
-    else setMemberRole.mutate({ userId: member.userId, role: 'member', roleId: Number(next) });
+    else setMemberRole.mutate({ userId: member.userId, role: 'member', roleId: next });
   }
 
   return (

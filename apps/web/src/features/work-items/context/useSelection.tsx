@@ -23,12 +23,12 @@ const BOARD_SELECT_ALL_EVENT = 'board:select-all';
 // Selection mode is simply "at least one issue selected" — there is no separate
 // on/off flag.
 interface SelectionApi {
-  selected: Set<number>;
+  selected: Set<string>;
   isSelecting: boolean;
-  isSelected: (id: number) => boolean;
-  toggle: (id: number) => void;
-  add: (ids: number[]) => void;
-  remove: (ids: number[]) => void;
+  isSelected: (id: string) => boolean;
+  toggle: (id: string) => void;
+  add: (ids: string[]) => void;
+  remove: (ids: string[]) => void;
   selectAll: () => void;
   clear: () => void;
 }
@@ -42,10 +42,10 @@ export function SelectionProvider({
   validIds,
   children,
 }: {
-  validIds: Set<number>;
+  validIds: Set<string>;
   children: ReactNode;
 }) {
-  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const { matches } = useHotkeyMatch();
 
   // Latest board ids, read by the keyboard/event handlers without re-binding them.
@@ -55,7 +55,7 @@ export function SelectionProvider({
   useEffect(() => {
     setSelected((prev) => {
       let changed = false;
-      const next = new Set<number>();
+      const next = new Set<string>();
       for (const id of prev) {
         if (validIds.has(id)) next.add(id);
         else changed = true;

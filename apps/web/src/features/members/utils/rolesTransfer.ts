@@ -31,7 +31,7 @@ export interface PlannedRole extends RoleTransfer {
   // 'create' — no role with this name yet. 'update' — a custom role with this name is
   // overwritten. 'skip' — a default role has this name and is left untouched.
   action: 'create' | 'update' | 'skip';
-  existingId?: number;
+  existingId?: string;
 }
 
 // The clipboard text for the project's non-default roles.

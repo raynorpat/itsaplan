@@ -11,8 +11,8 @@ export default function TypeSelect({
   readOnly,
 }: {
   issueTypes: IssueType[];
-  value: number | null;
-  onChange: (id: number | null) => void;
+  value: string | null;
+  onChange: (id: string | null) => void;
   readOnly?: boolean;
 }) {
   const type = issueTypes.find((t) => t.id === value);

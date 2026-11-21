@@ -10,7 +10,7 @@ export default function IssueTimelineLanes({
   layout,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   layout: TimelineLayout;
   imageByUserId: Map<string, string | null>;
 }) {

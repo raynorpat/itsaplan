@@ -68,8 +68,8 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
 export function useViewEditor(
   projectKey: string | null,
   views: View[],
-  activeViewId: number | null,
-  onSelectView: (id: number | null) => void,
+  activeViewId: string | null,
+  onSelectView: (id: string | null) => void,
 ) {
   const [view, setView] = useState<WorkItemsView>(loadView);
   const [settings, setSettings] = useState<ViewSettings>(() => defaultViewSettings(loadView()));
@@ -102,7 +102,7 @@ export function useViewEditor(
   // All tab restores the persisted global layout and its stored settings; a saved
   // view uses its own stored display. forEdit loads the view's own conditions into
   // the filter row, for the edit bar to change them.
-  function loadSelection(id: number | null, forEdit = false) {
+  function loadSelection(id: string | null, forEdit = false) {
     if (id == null) {
       setFilters(EMPTY_FILTER_SET);
       const allView = loadView();
@@ -240,7 +240,7 @@ export function useViewEditor(
   // tab order. The dragged view is removed then reinserted at the target's index
   // in the original list, so dropping onto the first tab moves it to the front
   // (next to the fixed All tab) and onto the last moves it to the end.
-  function reorderView(draggedId: number, targetId: number) {
+  function reorderView(draggedId: string, targetId: string) {
     if (draggedId === targetId) return;
     const from = views.findIndex((v) => v.id === draggedId);
     const to = views.findIndex((v) => v.id === targetId);

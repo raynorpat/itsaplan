@@ -54,7 +54,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export interface Project {
-  id: number;
+  id: string;
   key: string;
   name: string;
   description: string;
@@ -100,8 +100,8 @@ export type CopyProjectIncludeKey =
 export type StateType = 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled';
 
 export interface Column {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   stateType: StateType;
   color: string;
@@ -109,8 +109,8 @@ export interface Column {
 }
 
 export interface IssueType {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string;
   color: string;
@@ -119,18 +119,18 @@ export interface IssueType {
 }
 
 export interface Label {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   // The group this label belongs to, or null when ungrouped.
-  groupId: number | null;
+  groupId: string | null;
   name: string;
   color: string;
 }
 
 // A container a label can belong to. Labels reference it by groupId.
 export interface LabelGroup {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   color: string;
 }
@@ -151,14 +151,14 @@ export interface Assignee {
 // (null for internal), and the plaintext key is only returned once, on create and
 // on regenerate.
 export interface AiAgent {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   userId: string;
   name: string;
   username: string;
   kind: 'external' | 'internal';
   // The integration_credential (kind 'llm') the model runs on, or null.
-  modelCredentialId: number | null;
+  modelCredentialId: string | null;
   model: string | null;
   instructions: string | null;
   tools: string[];
@@ -170,7 +170,7 @@ export interface AiAgent {
   triggerOnMention: boolean;
   triggerOnAssign: boolean;
   // External-agent authorization role (a project_role id, or null for the default).
-  roleId: number | null;
+  roleId: string | null;
   createdAt: string;
   apiKeyStart: string | null;
   // The integration key of the model credential (the provider, e.g. "openai"), or
@@ -186,10 +186,10 @@ export interface AiAgent {
 // One row of an agent's autonomous run history. Issue-triggered runs reference an
 // issue; scheduled and manual runs do not.
 export interface AgentRun {
-  id: number;
+  id: string;
   status: 'pending' | 'success' | 'failed';
   trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
-  issueId: number | null;
+  issueId: string | null;
   issueIdentifier: string | null;
   issueTitle: string | null;
   prompt: string;
@@ -201,12 +201,12 @@ export interface AgentRun {
 
 export interface AgentRunPage {
   items: AgentRun[];
-  nextCursor: number | null;
+  nextCursor: string | null;
 }
 
 export interface AgentSchedule {
-  id: number;
-  agentId: number;
+  id: string;
+  agentId: string;
   agentName: string;
   name: string;
   prompt: string;
@@ -221,7 +221,7 @@ export interface AgentSchedule {
 }
 
 export interface AgentScheduleInput {
-  agentId: number;
+  agentId: string;
   name: string;
   prompt: string;
   cron: string;
@@ -229,7 +229,7 @@ export interface AgentScheduleInput {
 }
 
 export interface AgentScheduleRun {
-  id: number;
+  id: string;
   status: 'pending' | 'success' | 'failed';
   trigger: 'schedule' | 'manual';
   prompt: string;
@@ -256,7 +256,7 @@ export interface NewAiAgentInput {
   name: string;
   username: string;
   kind: 'external' | 'internal';
-  modelCredentialId?: number | null;
+  modelCredentialId?: string | null;
   model?: string | null;
   instructions?: string | null;
   tools?: string[];
@@ -266,13 +266,13 @@ export interface NewAiAgentInput {
   memoryLastMessages?: number | null;
   triggerOnMention?: boolean;
   triggerOnAssign?: boolean;
-  roleId?: number | null;
+  roleId?: string | null;
 }
 
 export interface AiAgentPatch {
   name?: string;
   username?: string;
-  modelCredentialId?: number | null;
+  modelCredentialId?: string | null;
   model?: string | null;
   instructions?: string | null;
   tools?: string[];
@@ -282,7 +282,7 @@ export interface AiAgentPatch {
   memoryLastMessages?: number | null;
   triggerOnMention?: boolean;
   triggerOnAssign?: boolean;
-  roleId?: number | null;
+  roleId?: string | null;
 }
 
 // A field of an integration's credential form (from the catalog). `type` "secret"
@@ -316,8 +316,8 @@ export interface ProviderModel {
 // A stored integration credential. `redacted` mirrors the stored credential with
 // secret fields masked; the real secrets are never returned.
 export interface IntegrationCredential {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   integrationKey: string;
   label: string | null;
   redacted: Record<string, unknown>;
@@ -346,8 +346,8 @@ export interface SkillRef {
 // A skill in the project library: a SKILL.md plus optional reference files, given
 // to internal agents. Content lives in the object store; this is the metadata.
 export interface AgentSkill {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   description: string;
   source: 'upload' | 'inline' | 'github';
@@ -383,10 +383,10 @@ export interface GithubSkillCandidate {
 // enriched with the credential's integration and label for display. (Distinct from
 // AgentTool, which is a built-in capability tool in the agent's Actions list.)
 export interface ConfiguredTool {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   toolKey: string;
-  credentialId: number;
+  credentialId: string;
   integrationKey: string;
   credentialLabel: string | null;
   createdAt: string;
@@ -394,7 +394,7 @@ export interface ConfiguredTool {
 
 export interface NewConfiguredToolInput {
   toolKey: string;
-  credentialId: number;
+  credentialId: string;
 }
 
 // One event of a streamed agent run (mirrors the API's AgentRunEvent). `text` is a
@@ -436,7 +436,7 @@ export interface AiChatMessagePage {
 // the run arrives as an `error` event, not a throw.
 export async function* streamAiAgentRun(
   projectKey: string,
-  agentId: number,
+  agentId: string,
   input: { prompt: string; threadId?: string | null },
 ): AsyncGenerator<AgentRunEvent> {
   const body = input.threadId
@@ -474,15 +474,15 @@ export type CustomFieldType =
   'text' | 'markdown' | 'url' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select';
 
 export interface CustomFieldOption {
-  id: number;
+  id: string;
   value: string;
   color: string;
   position: number;
 }
 
 export interface CustomField {
-  id: number;
-  issueTypeId: number | null;
+  id: string;
+  issueTypeId: string | null;
   name: string;
   fieldType: CustomFieldType;
   // When true the field renders in the issue body (under the description);
@@ -496,28 +496,28 @@ export interface CustomField {
 // select/multi_select and unset fields) and the selected option ids. Only
 // fields with a value set appear; unset fields are omitted (see listIssues).
 export interface IssueFieldValueEntry {
-  fieldId: number;
+  fieldId: string;
   value: string | number | boolean | null;
-  optionIds: number[];
+  optionIds: string[];
 }
 
 export interface Issue {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   // Project-scoped sequence number (the "42" in "MKT-42"). Addresses the issue by
   // its human number in URLs (/project/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
-  typeId: number | null;
+  typeId: string | null;
   // The initiative this issue is linked to, expanded to id + title for rendering,
   // or null. Set through updateIssue by initiativeId.
   initiative: InitiativeOption | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  columnId: number;
+  columnId: string;
   title: string;
   description: string;
-  priority: string | null;
+  priority: number;
   startDate: string | null;
   dueDate: string | null;
   position: number;
@@ -531,25 +531,25 @@ export interface Issue {
   statusSince: string;
   // Unguessable token for the public read-only share link, or null when not shared.
   shareToken: string | null;
-  labelIds: number[];
+  labelIds: string[];
   fieldValues: IssueFieldValueEntry[];
 }
 
 // A light search result from GET /projects/:key/issues/search: enough to list and
 // open a match, without the full issue's description or field values.
 export interface IssueSearchHit {
-  id: number;
+  id: string;
   sequenceNumber: number;
   identifier: string;
   title: string;
-  columnId: number;
-  typeId: number | null;
-  initiativeId: number | null;
+  columnId: string;
+  typeId: string | null;
+  initiativeId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
-  priority: string | null;
+  priority: number;
   dueDate: string | null;
-  labelIds: number[];
+  labelIds: string[];
   archived: boolean;
 }
 
@@ -766,11 +766,11 @@ export interface InstanceUser {
 // A project the user can reach, with the permissions their membership resolves to
 // (full for an owner, the assigned role's matrix for a member).
 export interface InstanceUserProject {
-  projectId: number;
+  projectId: string;
   projectKey: string;
   projectName: string;
   role: MemberRole;
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   permissions: Permissions;
   // How many owners the project has. 1 on a project this user owns means deleting
@@ -797,7 +797,7 @@ export interface InstanceUserPage {
 // One project in the instance project directory, with what it holds counted across
 // its dependent tables. `lastActivityAt` is the most recent entry in its issue feed.
 export interface InstanceProject {
-  id: number;
+  id: string;
   key: string;
   name: string;
   description: string;
@@ -825,7 +825,7 @@ export interface InstanceProjectMember {
   image: string | null;
   isAgent: boolean;
   role: MemberRole;
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   permissions: Permissions;
   joinedAt: string;
@@ -895,7 +895,7 @@ export interface AccountPreferences {
   // it lasts as long as that issue stays open.
   issueStatsOpen: boolean;
   issueStatsView: IssueStatsView;
-  lastProjectId: number | null;
+  lastProjectId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
   // changed ones; the rest come from the instance settings, then the built-in
   // bindings (see lib/hotkeys).
@@ -912,8 +912,8 @@ export type AccountPreferencesPatch = Partial<AccountPreferences>;
 // snapshot (layout + that layout's settings). Shared across clients — there is
 // no per-user identity. filters/display are stored as jsonb.
 export interface View {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string | null;
   filters: FilterSet;
@@ -941,8 +941,8 @@ export interface ViewPatch {
 // A saved dashboard: the analytics counterpart of a View. `layout` is the ordered
 // list of widgets (owned by the UI, stored verbatim server-side as jsonb).
 export interface Dashboard {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string | null;
   layout: DashboardLayout;
@@ -999,8 +999,8 @@ export interface NoteCanvas {
 }
 
 export interface NoteBoard {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   // null for a public board (every member sees it); a user id for a personal
   // board only its owner sees.
   ownerUserId: string | null;
@@ -1068,12 +1068,12 @@ export interface ThroughputWeek {
 
 // One agent run in the project-wide feed (agent runs widget).
 export interface AgentRunFeedItem {
-  id: number;
+  id: string;
   status: 'pending' | 'success' | 'failed';
   trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
-  agentId: number;
+  agentId: string;
   agentName: string;
-  issueId: number | null;
+  issueId: string | null;
   issueSequence: number | null;
   lastError: string | null;
   createdAt: string;
@@ -1099,7 +1099,7 @@ export interface WebhookStats {
 
 // One agent's workload row: delegated open issues and lifetime run outcomes.
 export interface AgentWorkloadItem {
-  agentId: number;
+  agentId: string;
   agentName: string;
   kind: string;
   delegatedOpen: number;
@@ -1109,8 +1109,8 @@ export interface AgentWorkloadItem {
 }
 
 export interface ActivityItem {
-  id: number;
-  issueId: number;
+  id: string;
+  issueId: string;
   issueSequence: number;
   issueTitle: string;
   kind: 'comment' | 'activity';
@@ -1140,8 +1140,8 @@ export type ActionEffect = Pick<
 >;
 
 export interface ActionDef {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   icon: string;
   condition: FilterSet;
@@ -1186,8 +1186,8 @@ export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
 ];
 
 export interface Webhook {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   url: string;
   secret: string;
   events: WebhookEventType[];
@@ -1211,7 +1211,7 @@ export interface WebhookPatch {
 // sent; responseStatus/responseBody come from the last attempt; lastError is set
 // on a failed or retrying delivery.
 export interface WebhookDelivery {
-  id: number;
+  id: string;
   eventId: string;
   eventType: WebhookEventType;
   status: 'pending' | 'success' | 'failed';
@@ -1226,7 +1226,7 @@ export interface WebhookDelivery {
 
 export interface WebhookDeliveryPage {
   items: WebhookDelivery[];
-  nextCursor: number | null;
+  nextCursor: string | null;
 }
 
 export interface Attachment {
@@ -1264,8 +1264,8 @@ export type ActivityAction =
 // a 'comment' carries body; an 'activity' carries action/subject/fromText/toText.
 // actorName is the author/actor snapshot (null when it was never set).
 export interface FeedItem {
-  id: number;
-  issueId: number;
+  id: string;
+  issueId: string;
   kind: 'comment' | 'activity';
   actorUserId: string | null;
   actorName: string | null;
@@ -1281,7 +1281,7 @@ export interface FeedItem {
 // next (older) page.
 export interface FeedCursor {
   ts: string;
-  id: number;
+  id: string;
 }
 
 export interface FeedPage {
@@ -1302,11 +1302,11 @@ export interface TimelineSegment {
 }
 
 export interface IssueFieldValue {
-  fieldId: number;
+  fieldId: string;
   name: string;
   fieldType: CustomFieldType;
   value: string | number | boolean | null;
-  optionIds: number[];
+  optionIds: string[];
 }
 
 // A custom field value on the way in (setFieldValue). `value` carries the
@@ -1314,7 +1314,7 @@ export interface IssueFieldValue {
 // the other.
 export interface IssueFieldValueInput {
   value?: string | number | boolean | null;
-  optionIds?: number[];
+  optionIds?: string[];
 }
 
 // The caller's own role in a project (owner/member). Returned with the project;
@@ -1325,7 +1325,7 @@ export interface ProjectViewer {
 }
 
 export interface InitiativeOption {
-  id: number;
+  id: string;
   title: string;
 }
 
@@ -1381,45 +1381,45 @@ export interface SharedViewBundle {
 }
 
 export interface NewIssueInput {
-  typeId?: number | null;
-  initiativeId?: number | null;
+  typeId?: string | null;
+  initiativeId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
-  columnId: number;
+  columnId: string;
   title: string;
   description?: string;
-  priority?: string | null;
+  priority?: number;
   startDate?: string | null;
   dueDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 // The fields a bulk update can set on many issues at once (the board-relevant
 // subset of IssuePatch: no title/description/position).
 export interface BulkIssuePatch {
-  columnId?: number;
-  typeId?: number | null;
-  initiativeId?: number | null;
+  columnId?: string;
+  typeId?: string | null;
+  initiativeId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
-  priority?: string | null;
+  priority?: number;
   startDate?: string | null;
   dueDate?: string | null;
 }
 
 export interface IssuePatch {
-  columnId?: number;
+  columnId?: string;
   position?: number;
-  typeId?: number | null;
-  initiativeId?: number | null;
+  typeId?: string | null;
+  initiativeId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
   description?: string;
-  priority?: string | null;
+  priority?: number;
   startDate?: string | null;
   dueDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 // --- Initiatives -----------------------------------------------------------------
@@ -1436,8 +1436,8 @@ export interface InitiativeProgress {
 }
 
 export interface Initiative {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   title: string;
   description: string;
   status: InitiativeStatus;
@@ -1448,7 +1448,7 @@ export interface Initiative {
   position: number;
   createdAt: string;
   updatedAt: string;
-  labelIds: number[];
+  labelIds: string[];
   progress: InitiativeProgress;
   health: InitiativeHealth | null;
 }
@@ -1493,7 +1493,7 @@ export interface NewInitiativeInput {
   priority?: string | null;
   startDate?: string | null;
   targetDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 export interface InitiativePatch {
@@ -1504,14 +1504,14 @@ export interface InitiativePatch {
   priority?: string | null;
   startDate?: string | null;
   targetDate?: string | null;
-  labelIds?: number[];
+  labelIds?: string[];
 }
 
 // One entry in an initiative's feed: an event of the initiative itself (source
 // 'initiative') or the activity of a linked issue (source 'issue', carrying the
 // issue's id and identifier so the row can link to it).
 export interface InitiativeFeedItem {
-  id: number;
+  id: string;
   source: 'initiative' | 'issue';
   kind: 'comment' | 'activity';
   actorUserId: string | null;
@@ -1522,7 +1522,7 @@ export interface InitiativeFeedItem {
   fromText: string | null;
   toText: string | null;
   createdAt: string;
-  issueId: number | null;
+  issueId: string | null;
   issueIdentifier: string | null;
 }
 
@@ -1532,7 +1532,7 @@ export interface InitiativeFeedPage {
 }
 
 export interface NewCustomFieldInput {
-  issueTypeId?: number | null;
+  issueTypeId?: string | null;
   name: string;
   fieldType: CustomFieldType;
   showInBody?: boolean;
@@ -1568,7 +1568,7 @@ export type Permissions = Record<PermissionResource, ResourcePermissions>;
 // A project's custom role: a named permission matrix that can be assigned to a
 // member. `isDefault` marks the fallback role new members get; it cannot be deleted.
 export interface Role {
-  id: number;
+  id: string;
   name: string;
   isDefault: boolean;
   permissions: Permissions;
@@ -1594,7 +1594,7 @@ export interface MemberRow {
   role: MemberRole;
   // The assigned custom role. null when the member uses the project's default
   // role; owners never use roles (both fields null).
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   // What this member does in the project, set by an owner. Empty string when unset.
   description: string;
@@ -1609,14 +1609,14 @@ export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 // An invite as shown to the owner managing a project's invites: carries the token
 // so the owner can share the link, and who sent it.
 export interface InviteRow {
-  id: number;
+  id: string;
   token: string;
   email: string;
   role: MemberRole;
   // The custom role the invitee joins on (for a member invite). null falls back
   // to the default role; roleName resolves it for display. An owner invite has
   // both null.
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   status: InviteStatus;
   createdAt: string;
@@ -1633,7 +1633,7 @@ export interface InviteView {
   projectName: string;
   email: string;
   role: MemberRole;
-  roleId: number | null;
+  roleId: string | null;
   roleName: string | null;
   status: InviteStatus;
   createdAt: string;
@@ -1653,25 +1653,25 @@ function absolutizeAttachment(a: Attachment): Attachment {
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
 
 export interface Notification {
-  id: number;
+  id: string;
   type: NotificationType;
   actorUserId: string | null;
   actorName: string | null;
   readAt: string | null;
   snoozedUntil: string | null;
   createdAt: string;
-  issueId: number;
+  issueId: string;
   issueSeq: number;
   issueTitle: string;
   issueStateType: StateType;
-  projectId: number;
+  projectId: string;
   projectKey: string;
   projectName: string;
 }
 
 export interface NotificationCursor {
   ts: string;
-  id: number;
+  id: string;
 }
 
 export interface NotificationPage {
@@ -1731,22 +1731,22 @@ export const api = {
     }),
   updateColumn: (
     projectKey: string,
-    columnId: number,
+    columnId: string,
     patch: { name?: string; stateType?: StateType; color?: string },
   ) =>
     request<Column>(`/projects/${projectKey}/columns/${columnId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  reorderColumns: (projectKey: string, orderedIds: number[]) =>
+  reorderColumns: (projectKey: string, orderedIds: string[]) =>
     request<Column[]>(`/projects/${projectKey}/columns/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
   deleteColumn: (
     projectKey: string,
-    columnId: number,
-    body: { mode: 'move'; targetColumnId: number } | { mode: 'delete' },
+    columnId: string,
+    body: { mode: 'move'; targetColumnId: string } | { mode: 'delete' },
   ) =>
     request<void>(`/projects/${projectKey}/columns/${columnId}`, {
       method: 'DELETE',
@@ -1763,19 +1763,19 @@ export const api = {
     }),
   updateIssueType: (
     projectKey: string,
-    typeId: number,
+    typeId: string,
     patch: { name?: string; color?: string; isDefault?: boolean },
   ) =>
     request<IssueType>(`/projects/${projectKey}/issue-types/${typeId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteIssueType: (projectKey: string, typeId: number) =>
+  deleteIssueType: (projectKey: string, typeId: string) =>
     request<void>(`/projects/${projectKey}/issue-types/${typeId}`, { method: 'DELETE' }),
 
   createLabel: (
     projectKey: string,
-    input: { name: string; color?: string; groupId?: number | null },
+    input: { name: string; color?: string; groupId?: string | null },
   ) =>
     request<Label>(`/projects/${projectKey}/labels`, {
       method: 'POST',
@@ -1783,14 +1783,14 @@ export const api = {
     }),
   updateLabel: (
     projectKey: string,
-    labelId: number,
-    patch: { name?: string; color?: string; groupId?: number | null },
+    labelId: string,
+    patch: { name?: string; color?: string; groupId?: string | null },
   ) =>
     request<Label>(`/projects/${projectKey}/labels/${labelId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteLabel: (projectKey: string, labelId: number) =>
+  deleteLabel: (projectKey: string, labelId: string) =>
     request<void>(`/projects/${projectKey}/labels/${labelId}`, { method: 'DELETE' }),
 
   createLabelGroup: (projectKey: string, input: { name: string; color?: string }) =>
@@ -1800,17 +1800,17 @@ export const api = {
     }),
   updateLabelGroup: (
     projectKey: string,
-    groupId: number,
+    groupId: string,
     patch: { name?: string; color?: string },
   ) =>
     request<LabelGroup>(`/projects/${projectKey}/label-groups/${groupId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteLabelGroup: (projectKey: string, groupId: number) =>
+  deleteLabelGroup: (projectKey: string, groupId: string) =>
     request<void>(`/projects/${projectKey}/label-groups/${groupId}`, { method: 'DELETE' }),
 
-  listCustomFields: (projectKey: string, issueTypeId?: number) =>
+  listCustomFields: (projectKey: string, issueTypeId?: string) =>
     request<CustomField[]>(
       `/projects/${projectKey}/custom-fields${issueTypeId != null ? `?issueTypeId=${issueTypeId}` : ''}`,
     ),
@@ -1821,14 +1821,14 @@ export const api = {
     }),
   updateCustomField: (
     projectKey: string,
-    fieldId: number,
+    fieldId: string,
     patch: { name?: string; showInBody?: boolean },
   ) =>
     request<CustomField>(`/projects/${projectKey}/custom-fields/${fieldId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteCustomField: (projectKey: string, fieldId: number) =>
+  deleteCustomField: (projectKey: string, fieldId: string) =>
     request<void>(`/projects/${projectKey}/custom-fields/${fieldId}`, { method: 'DELETE' }),
 
   createIssue: (projectKey: string, input: NewIssueInput) =>
@@ -1836,54 +1836,54 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  getIssue: (id: number) => request<IssueDetail>(`/issues/${id}`),
+  getIssue: (id: string) => request<IssueDetail>(`/issues/${id}`),
 
   // Public read-only sharing. Enable returns the link token (idempotent); disable
   // revokes it. The getShared* reads need no session (public /share/* routes).
-  enableIssueShare: (id: number) =>
+  enableIssueShare: (id: string) =>
     request<{ token: string }>(`/issues/${id}/share`, { method: 'POST' }),
-  disableIssueShare: (id: number) => request<void>(`/issues/${id}/share`, { method: 'DELETE' }),
-  enableViewShare: (id: number) =>
+  disableIssueShare: (id: string) => request<void>(`/issues/${id}/share`, { method: 'DELETE' }),
+  enableViewShare: (id: string) =>
     request<{ token: string }>(`/views/${id}/share`, { method: 'POST' }),
-  disableViewShare: (id: number) => request<void>(`/views/${id}/share`, { method: 'DELETE' }),
+  disableViewShare: (id: string) => request<void>(`/views/${id}/share`, { method: 'DELETE' }),
   getSharedIssue: (token: string) => request<SharedIssueBundle>(`/share/issue/${token}`),
   getSharedView: (token: string) => request<SharedViewBundle>(`/share/view/${token}`),
-  getSharedViewIssue: (token: string, issueId: number) =>
+  getSharedViewIssue: (token: string, issueId: string) =>
     request<SharedIssueBundle>(`/share/view/${token}/issues/${issueId}`),
   // Resolve an issue by its project-scoped number (the human "42" in the URL).
   getIssueBySeq: (projectKey: string, seq: number) =>
     request<IssueDetail>(`/projects/${projectKey}/issues/${seq}`),
   // Cheap change marker for an issue's detail + feed — polled for live refresh.
-  getIssueRev: (id: number) => request<{ rev: string }>(`/issues/${id}/rev`),
-  updateIssue: (id: number, patch: IssuePatch) =>
+  getIssueRev: (id: string) => request<{ rev: string }>(`/issues/${id}/rev`),
+  updateIssue: (id: string, patch: IssuePatch) =>
     request<Issue>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteIssue: (id: number) => request<void>(`/issues/${id}`, { method: 'DELETE' }),
+  deleteIssue: (id: string) => request<void>(`/issues/${id}`, { method: 'DELETE' }),
   // Board multi-select: apply one change to many issues in a single request. The
   // server filters the ids to the project and refetching happens once.
-  bulkUpdateIssues: (projectKey: string, ids: number[], patch: BulkIssuePatch) =>
+  bulkUpdateIssues: (projectKey: string, ids: string[], patch: BulkIssuePatch) =>
     request<{ updated: number }>(`/projects/${projectKey}/issues/bulk`, {
       method: 'PATCH',
       body: JSON.stringify({ ids, patch }),
     }),
-  bulkAddLabels: (projectKey: string, ids: number[], add: number[]) =>
+  bulkAddLabels: (projectKey: string, ids: string[], add: string[]) =>
     request<{ updated: number }>(`/projects/${projectKey}/issues/bulk/labels`, {
       method: 'POST',
       body: JSON.stringify({ ids, add }),
     }),
-  bulkArchiveIssues: (projectKey: string, ids: number[]) =>
+  bulkArchiveIssues: (projectKey: string, ids: string[]) =>
     request<{ archived: number }>(`/projects/${projectKey}/issues/bulk/archive`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
-  bulkDeleteIssues: (projectKey: string, ids: number[]) =>
+  bulkDeleteIssues: (projectKey: string, ids: string[]) =>
     request<{ deleted: number }>(`/projects/${projectKey}/issues/bulk/delete`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
   // Archive/restore: hide an issue from the board (kept, restorable) or bring it
   // back. The board excludes archived issues; the archive settings section lists them.
-  archiveIssue: (id: number) => request<Issue>(`/issues/${id}/archive`, { method: 'POST' }),
-  restoreIssue: (id: number) => request<Issue>(`/issues/${id}/restore`, { method: 'POST' }),
+  archiveIssue: (id: string) => request<Issue>(`/issues/${id}/archive`, { method: 'POST' }),
+  restoreIssue: (id: string) => request<Issue>(`/issues/${id}/restore`, { method: 'POST' }),
   listArchivedIssues: (projectKey: string) =>
     request<Issue[]>(`/projects/${projectKey}/issues/archived`),
   // Server-side text search for the command palette. Always returns all matches,
@@ -1894,19 +1894,19 @@ export const api = {
     if (params.limit != null) qs.set('limit', String(params.limit));
     return request<IssueSearchHit[]>(`/projects/${projectKey}/issues/search?${qs.toString()}`);
   },
-  setFieldValue: (issueId: number, fieldId: number, input: IssueFieldValueInput) =>
+  setFieldValue: (issueId: string, fieldId: string, input: IssueFieldValueInput) =>
     request<{ ok: boolean }>(`/issues/${issueId}/fields/${fieldId}`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
 
-  listAttachments: (issueId: number) =>
+  listAttachments: (issueId: string) =>
     request<Attachment[]>(`/issues/${issueId}/attachments`).then((rows) =>
       rows.map(absolutizeAttachment),
     ),
   // Multipart upload — cannot use request(), which forces a JSON Content-Type;
   // the browser must set the multipart boundary itself, so no headers are set.
-  uploadAttachment: async (issueId: number, file: File): Promise<Attachment> => {
+  uploadAttachment: async (issueId: string, file: File): Promise<Attachment> => {
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(`${API_URL}/issues/${issueId}/attachments`, {
@@ -1923,21 +1923,21 @@ export const api = {
   deleteAttachment: (publicId: string) =>
     request<void>(`/attachments/${publicId}`, { method: 'DELETE' }),
 
-  listFeed: (issueId: number, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
+  listFeed: (issueId: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.limit) q.set('limit', String(params.limit));
     if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
     const qs = q.toString();
     return request<FeedPage>(`/issues/${issueId}/feed${qs ? `?${qs}` : ''}`);
   },
-  listTimeline: (issueId: number) => request<TimelineSegment[]>(`/issues/${issueId}/timeline`),
+  listTimeline: (issueId: string) => request<TimelineSegment[]>(`/issues/${issueId}/timeline`),
   // The entries of one stretch of the timeline: [from, to), open-ended without `to`.
-  listTimelineItems: (issueId: number, from: string, to: string | null) => {
+  listTimelineItems: (issueId: string, from: string, to: string | null) => {
     const q = new URLSearchParams({ from });
     if (to) q.set('to', to);
     return request<FeedItem[]>(`/issues/${issueId}/timeline/items?${q.toString()}`);
   },
-  createComment: (issueId: number, input: { body: string }) =>
+  createComment: (issueId: string, input: { body: string }) =>
     request<FeedItem>(`/issues/${issueId}/comments`, {
       method: 'POST',
       body: JSON.stringify(input),
@@ -1958,18 +1958,18 @@ export const api = {
   },
   initiativeCounts: (projectKey: string) =>
     request<InitiativeCounts>(`/projects/${projectKey}/initiatives/counts`),
-  getInitiative: (id: number) => request<Initiative>(`/initiatives/${id}`),
+  getInitiative: (id: string) => request<Initiative>(`/initiatives/${id}`),
   createInitiative: (projectKey: string, input: NewInitiativeInput) =>
     request<Initiative>(`/projects/${projectKey}/initiatives`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateInitiative: (id: number, patch: InitiativePatch) =>
+  updateInitiative: (id: string, patch: InitiativePatch) =>
     request<Initiative>(`/initiatives/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteInitiative: (id: number) => request<void>(`/initiatives/${id}`, { method: 'DELETE' }),
+  deleteInitiative: (id: string) => request<void>(`/initiatives/${id}`, { method: 'DELETE' }),
   // Cheap change marker for an initiative's detail + feed — polled for live refresh.
-  getInitiativeRev: (id: number) => request<{ rev: string }>(`/initiatives/${id}/rev`),
-  listInitiativeFeed: (id: number, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
+  getInitiativeRev: (id: string) => request<{ rev: string }>(`/initiatives/${id}/rev`),
+  listInitiativeFeed: (id: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.limit) q.set('limit', String(params.limit));
     if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
@@ -1980,10 +1980,10 @@ export const api = {
   listViews: (projectKey: string) => request<View[]>(`/projects/${projectKey}/views`),
   createView: (projectKey: string, input: NewViewInput) =>
     request<View>(`/projects/${projectKey}/views`, { method: 'POST', body: JSON.stringify(input) }),
-  updateView: (viewId: number, patch: ViewPatch) =>
+  updateView: (viewId: string, patch: ViewPatch) =>
     request<View>(`/views/${viewId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteView: (viewId: number) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
-  reorderViews: (projectKey: string, orderedIds: number[]) =>
+  deleteView: (viewId: string) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
+  reorderViews: (projectKey: string, orderedIds: string[]) =>
     request<View[]>(`/projects/${projectKey}/views/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
@@ -1998,14 +1998,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateDashboard: (dashboardId: number, patch: DashboardPatch) =>
+  updateDashboard: (dashboardId: string, patch: DashboardPatch) =>
     request<Dashboard>(`/dashboards/${dashboardId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteDashboard: (dashboardId: number) =>
+  deleteDashboard: (dashboardId: string) =>
     request<void>(`/dashboards/${dashboardId}`, { method: 'DELETE' }),
-  reorderDashboards: (projectKey: string, orderedIds: number[]) =>
+  reorderDashboards: (projectKey: string, orderedIds: string[]) =>
     request<Dashboard[]>(`/projects/${projectKey}/dashboards/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
@@ -2022,19 +2022,19 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : '';
     return request<NoteBoardSummary[]>(`/projects/${projectKey}/note-boards${suffix}`);
   },
-  getNoteBoard: (projectKey: string, boardId: number) =>
+  getNoteBoard: (projectKey: string, boardId: string) =>
     request<NoteBoard>(`/projects/${projectKey}/note-boards/${boardId}`),
   createNoteBoard: (projectKey: string, input: NewNoteBoardInput) =>
     request<NoteBoard>(`/projects/${projectKey}/note-boards`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateNoteBoard: (projectKey: string, boardId: number, patch: NoteBoardPatch) =>
+  updateNoteBoard: (projectKey: string, boardId: string, patch: NoteBoardPatch) =>
     request<NoteBoard>(`/projects/${projectKey}/note-boards/${boardId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteNoteBoard: (projectKey: string, boardId: number) =>
+  deleteNoteBoard: (projectKey: string, boardId: string) =>
     request<void>(`/projects/${projectKey}/note-boards/${boardId}`, { method: 'DELETE' }),
 
   // Analytics — read-only project metrics behind the dashboard widgets.
@@ -2055,7 +2055,7 @@ export const api = {
       limit?: number;
       actorUserId?: string | null;
       action?: string | null;
-      issueIds?: number[] | null;
+      issueIds?: string[] | null;
     } = {},
   ) => {
     const q = new URLSearchParams();
@@ -2096,7 +2096,7 @@ export const api = {
   setMemberRole: (
     projectKey: string,
     userId: string,
-    input: { role: MemberRole; roleId?: number | null },
+    input: { role: MemberRole; roleId?: string | null },
   ) =>
     request<void>(`/projects/${projectKey}/members/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
@@ -2120,18 +2120,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateAiAgent: (projectKey: string, agentId: number, patch: AiAgentPatch) =>
+  updateAiAgent: (projectKey: string, agentId: string, patch: AiAgentPatch) =>
     request<AiAgent>(`/projects/${projectKey}/ai-agents/${agentId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  regenerateAiAgentKey: (projectKey: string, agentId: number) =>
+  regenerateAiAgentKey: (projectKey: string, agentId: string) =>
     request<{ apiKey: string }>(`/projects/${projectKey}/ai-agents/${agentId}/regenerate-key`, {
       method: 'POST',
     }),
-  deleteAiAgent: (projectKey: string, agentId: number) =>
+  deleteAiAgent: (projectKey: string, agentId: string) =>
     request<void>(`/projects/${projectKey}/ai-agents/${agentId}`, { method: 'DELETE' }),
-  listAgentRuns: (projectKey: string, agentId: number, before?: number) =>
+  listAgentRuns: (projectKey: string, agentId: string, before?: string) =>
     request<AgentRunPage>(
       `/projects/${projectKey}/ai-agents/${agentId}/runs?limit=25${before ? `&before=${before}` : ''}`,
     ),
@@ -2144,30 +2144,30 @@ export const api = {
     }),
   updateAgentSchedule: (
     projectKey: string,
-    scheduleId: number,
+    scheduleId: string,
     patch: Partial<AgentScheduleInput>,
   ) =>
     request<AgentSchedule>(`/projects/${projectKey}/agent-schedules/${scheduleId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteAgentSchedule: (projectKey: string, scheduleId: number) =>
+  deleteAgentSchedule: (projectKey: string, scheduleId: string) =>
     request<void>(`/projects/${projectKey}/agent-schedules/${scheduleId}`, { method: 'DELETE' }),
-  runAgentSchedule: (projectKey: string, scheduleId: number) =>
-    request<{ runId: number }>(`/projects/${projectKey}/agent-schedules/${scheduleId}/run`, {
+  runAgentSchedule: (projectKey: string, scheduleId: string) =>
+    request<{ runId: string }>(`/projects/${projectKey}/agent-schedules/${scheduleId}/run`, {
       method: 'POST',
     }),
-  listAgentScheduleRuns: (projectKey: string, scheduleId: number) =>
+  listAgentScheduleRuns: (projectKey: string, scheduleId: string) =>
     request<AgentScheduleRun[]>(`/projects/${projectKey}/agent-schedules/${scheduleId}/runs`),
   // The caller's own chat threads with an agent, newest first.
-  listAiAgentThreads: (projectKey: string, agentId: number) =>
+  listAiAgentThreads: (projectKey: string, agentId: string) =>
     request<AiChatThread[]>(`/projects/${projectKey}/ai-agents/${agentId}/threads`),
   // The transcript of one chat thread, to restore the conversation.
-  getAiAgentThreadMessages: (projectKey: string, agentId: number, threadId: string, page: number) =>
+  getAiAgentThreadMessages: (projectKey: string, agentId: string, threadId: string, page: number) =>
     request<AiChatMessagePage>(
       `/projects/${projectKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}/messages?page=${page}`,
     ),
-  deleteAiAgentThread: (projectKey: string, agentId: number, threadId: string) =>
+  deleteAiAgentThread: (projectKey: string, agentId: string, threadId: string) =>
     request<void>(
       `/projects/${projectKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}`,
       { method: 'DELETE' },
@@ -2188,19 +2188,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateCredential: (projectKey: string, credentialId: number, patch: CredentialPatch) =>
+  updateCredential: (projectKey: string, credentialId: string, patch: CredentialPatch) =>
     request<IntegrationCredential>(`/projects/${projectKey}/integrations/${credentialId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteCredential: (projectKey: string, credentialId: number) =>
+  deleteCredential: (projectKey: string, credentialId: string) =>
     request<void>(`/projects/${projectKey}/integrations/${credentialId}`, { method: 'DELETE' }),
 
   // Agent skills: the project skill library and the skills enabled on an agent.
   listSkills: (projectKey: string) => request<AgentSkill[]>(`/projects/${projectKey}/agent-skills`),
-  getSkillMarkdown: (projectKey: string, skillId: number) =>
+  getSkillMarkdown: (projectKey: string, skillId: string) =>
     request<{ markdown: string }>(`/projects/${projectKey}/agent-skills/${skillId}/markdown`),
-  getSkillReferenceContent: (projectKey: string, skillId: number, path: string) =>
+  getSkillReferenceContent: (projectKey: string, skillId: string, path: string) =>
     request<{ content: string }>(
       `/projects/${projectKey}/agent-skills/${skillId}/references/content?path=${encodeURIComponent(path)}`,
     ),
@@ -2214,18 +2214,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ url }),
     }),
-  updateSkill: (projectKey: string, skillId: number, patch: SkillPatch) =>
+  updateSkill: (projectKey: string, skillId: string, patch: SkillPatch) =>
     request<AgentSkill>(`/projects/${projectKey}/agent-skills/${skillId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteSkill: (projectKey: string, skillId: number) =>
+  deleteSkill: (projectKey: string, skillId: string) =>
     request<void>(`/projects/${projectKey}/agent-skills/${skillId}`, { method: 'DELETE' }),
   // Multipart upload for a skill reference — see uploadAttachment for why request()
   // cannot be used.
   addSkillReference: async (
     projectKey: string,
-    skillId: number,
+    skillId: string,
     file: File,
   ): Promise<AgentSkill> => {
     const form = new FormData();
@@ -2246,7 +2246,7 @@ export const api = {
   },
   updateSkillReferenceContent: (
     projectKey: string,
-    skillId: number,
+    skillId: string,
     path: string,
     content: string,
   ) =>
@@ -2254,14 +2254,14 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ path, content }),
     }),
-  deleteSkillReference: (projectKey: string, skillId: number, path: string) =>
+  deleteSkillReference: (projectKey: string, skillId: string, path: string) =>
     request<AgentSkill>(
       `/projects/${projectKey}/agent-skills/${skillId}/references?path=${encodeURIComponent(path)}`,
       { method: 'DELETE' },
     ),
-  listAgentSkills: (projectKey: string, agentId: number) =>
+  listAgentSkills: (projectKey: string, agentId: string) =>
     request<AgentSkill[]>(`/projects/${projectKey}/ai-agents/${agentId}/skills`),
-  setAgentSkills: (projectKey: string, agentId: number, skillIds: number[]) =>
+  setAgentSkills: (projectKey: string, agentId: string, skillIds: string[]) =>
     request<AgentSkill[]>(`/projects/${projectKey}/ai-agents/${agentId}/skills`, {
       method: 'PUT',
       body: JSON.stringify({ skillIds }),
@@ -2276,11 +2276,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  deleteConfiguredTool: (projectKey: string, agentToolId: number) =>
+  deleteConfiguredTool: (projectKey: string, agentToolId: string) =>
     request<void>(`/projects/${projectKey}/agent-tools/${agentToolId}`, { method: 'DELETE' }),
-  listAgentToolLinks: (projectKey: string, agentId: number) =>
+  listAgentToolLinks: (projectKey: string, agentId: string) =>
     request<ConfiguredTool[]>(`/projects/${projectKey}/ai-agents/${agentId}/tool-configs`),
-  setAgentTools: (projectKey: string, agentId: number, agentToolIds: number[]) =>
+  setAgentTools: (projectKey: string, agentId: string, agentToolIds: string[]) =>
     request<ConfiguredTool[]>(`/projects/${projectKey}/ai-agents/${agentId}/tool-configs`, {
       method: 'PUT',
       body: JSON.stringify({ agentToolIds }),
@@ -2294,27 +2294,27 @@ export const api = {
     request<Role>(`/projects/${projectKey}/roles`, { method: 'POST', body: JSON.stringify(input) }),
   updateRole: (
     projectKey: string,
-    roleId: number,
+    roleId: string,
     patch: { name?: string; permissions?: Permissions },
   ) =>
     request<Role>(`/projects/${projectKey}/roles/${roleId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-  deleteRole: (projectKey: string, roleId: number) =>
+  deleteRole: (projectKey: string, roleId: string) =>
     request<void>(`/projects/${projectKey}/roles/${roleId}`, { method: 'DELETE' }),
 
   // Invites — owner side: create, list, and revoke a project's invite links.
   listInvites: (projectKey: string) => request<InviteRow[]>(`/projects/${projectKey}/invites`),
   createInvite: (
     projectKey: string,
-    input: { email: string; role: MemberRole; roleId?: number | null },
+    input: { email: string; role: MemberRole; roleId?: string | null },
   ) =>
     request<InviteRow>(`/projects/${projectKey}/invites`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  deleteInvite: (projectKey: string, inviteId: number) =>
+  deleteInvite: (projectKey: string, inviteId: string) =>
     request<void>(`/projects/${projectKey}/invites/${inviteId}`, { method: 'DELETE' }),
 
   // Invites — invitee side: open a link by token, then accept or reject it. The
@@ -2334,10 +2334,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateAction: (actionId: number, patch: ActionPatch) =>
+  updateAction: (actionId: string, patch: ActionPatch) =>
     request<ActionDef>(`/actions/${actionId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteAction: (actionId: number) => request<void>(`/actions/${actionId}`, { method: 'DELETE' }),
-  reorderActions: (projectKey: string, orderedIds: number[]) =>
+  deleteAction: (actionId: string) => request<void>(`/actions/${actionId}`, { method: 'DELETE' }),
+  reorderActions: (projectKey: string, orderedIds: string[]) =>
     request<ActionDef[]>(`/projects/${projectKey}/actions/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
@@ -2349,11 +2349,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateWebhook: (webhookId: number, patch: WebhookPatch) =>
+  updateWebhook: (webhookId: string, patch: WebhookPatch) =>
     request<Webhook>(`/webhooks/${webhookId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteWebhook: (webhookId: number) =>
+  deleteWebhook: (webhookId: string) =>
     request<void>(`/webhooks/${webhookId}`, { method: 'DELETE' }),
-  listWebhookDeliveries: (webhookId: number, before?: number) =>
+  listWebhookDeliveries: (webhookId: string, before?: string) =>
     request<WebhookDeliveryPage>(
       `/webhooks/${webhookId}/deliveries?limit=25${before ? `&before=${before}` : ''}`,
     ),
@@ -2413,7 +2413,7 @@ export const api = {
   // one project (the per-project inbox). cursor is the JSON-encoded keyset from the
   // previous page.
   listNotifications: (
-    projectId: number,
+    projectId: string,
     params: {
       cursor?: NotificationCursor | null;
       limit?: number;
@@ -2433,22 +2433,22 @@ export const api = {
   },
   // Change marker + unread count for one project's inbox, for live refresh and the
   // sidebar badge.
-  getNotificationsRev: (projectId: number) =>
+  getNotificationsRev: (projectId: string) =>
     request<{ rev: string; unread: number }>(`/notifications/rev?projectId=${projectId}`),
-  setNotificationRead: (id: number, read: boolean) =>
+  setNotificationRead: (id: string, read: boolean) =>
     request<void>(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({ read }) }),
-  snoozeNotification: (id: number, until: string | null) =>
+  snoozeNotification: (id: string, until: string | null) =>
     request<void>(`/notifications/${id}/snooze`, {
       method: 'POST',
       body: JSON.stringify({ until }),
     }),
-  markAllNotificationsRead: (projectId: number) =>
+  markAllNotificationsRead: (projectId: string) =>
     request<{ count: number }>(`/notifications/read-all`, {
       method: 'POST',
       body: JSON.stringify({ projectId }),
     }),
-  deleteNotification: (id: number) => request<void>(`/notifications/${id}`, { method: 'DELETE' }),
-  deleteNotifications: (scope: NotificationDeleteScope, projectId: number) =>
+  deleteNotification: (id: string) => request<void>(`/notifications/${id}`, { method: 'DELETE' }),
+  deleteNotifications: (scope: NotificationDeleteScope, projectId: string) =>
     request<{ count: number }>(`/notifications?scope=${scope}&projectId=${projectId}`, {
       method: 'DELETE',
     }),
@@ -2544,7 +2544,7 @@ export const api = {
     if (params.search) query.set('search', params.search);
     return request<InstanceProjectPage>(`/god/projects?${query.toString()}`);
   },
-  getInstanceProject: (projectId: number) =>
+  getInstanceProject: (projectId: string) =>
     request<InstanceProjectDetail>(`/god/projects/${projectId}`),
   // The instance's own sign-in policy, readable without a session: the sign-up
   // screen needs it before an account exists.

@@ -30,7 +30,7 @@ export default function SettingsWebhooks({
   const createWebhook = useCreateWebhook(projectKey);
   const updateWebhook = useUpdateWebhook(projectKey);
   const deleteWebhook = useDeleteWebhook(projectKey);
-  const [editing, setEditing] = useState<number | 'new' | null>(null);
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Webhook | null>(null);
 
@@ -43,13 +43,13 @@ export default function SettingsWebhooks({
 
   const saving = createWebhook.isPending || updateWebhook.isPending;
   const editingWebhook =
-    typeof editing === 'number' ? webhooks.find((w) => w.id === editing) : undefined;
+    editing != null && editing !== 'new' ? webhooks.find((w) => w.id === editing) : undefined;
   const showDialog = editing === 'new' || editingWebhook != null;
 
   async function saveWebhook(value: WebhookFormValue) {
     if (editing === 'new') {
       await createWebhook.mutateAsync({ input: value });
-    } else if (typeof editing === 'number') {
+    } else if (editing != null && editing !== 'new') {
       await updateWebhook.mutateAsync({ id: editing, input: value });
     }
     setEditing(null);

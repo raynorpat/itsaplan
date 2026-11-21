@@ -40,7 +40,7 @@ export function useCreateView(projectKey: string | null) {
 export function useUpdateView(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: Parameters<typeof api.updateView>[1] }) =>
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateView>[1] }) =>
       api.updateView(id, input),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.views(projectKey) });
@@ -51,7 +51,7 @@ export function useUpdateView(projectKey: string | null) {
 export function useDeleteView(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteView(id),
+    mutationFn: (id: string) => api.deleteView(id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.views(projectKey) });
     },

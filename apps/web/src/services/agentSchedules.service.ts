@@ -11,9 +11,9 @@ export function useAgentSchedules(projectKey: string) {
   });
 }
 
-export function useAgentScheduleRuns(projectKey: string, scheduleId: number | null) {
+export function useAgentScheduleRuns(projectKey: string, scheduleId: string | null) {
   return useQuery({
-    queryKey: qk.agentScheduleRuns(projectKey, scheduleId ?? 0),
+    queryKey: qk.agentScheduleRuns(projectKey, scheduleId ?? ''),
     queryFn: () => api.listAgentScheduleRuns(projectKey, scheduleId!),
     enabled: scheduleId != null,
     refetchInterval: (query) =>
@@ -37,7 +37,7 @@ export function useUpdateAgentSchedule(projectKey: string) {
       id,
       patch,
     }: {
-      id: number;
+      id: string;
       patch: Parameters<typeof api.updateAgentSchedule>[2];
     }) => api.updateAgentSchedule(projectKey, id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) }),
@@ -47,7 +47,7 @@ export function useUpdateAgentSchedule(projectKey: string) {
 export function useDeleteAgentSchedule(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteAgentSchedule(projectKey, id),
+    mutationFn: (id: string) => api.deleteAgentSchedule(projectKey, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) }),
   });
 }
@@ -55,7 +55,7 @@ export function useDeleteAgentSchedule(projectKey: string) {
 export function useRunAgentSchedule(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.runAgentSchedule(projectKey, id),
+    mutationFn: (id: string) => api.runAgentSchedule(projectKey, id),
     onSuccess: (_data, id) => {
       void qc.invalidateQueries({ queryKey: qk.agentSchedules(projectKey) });
       void qc.invalidateQueries({ queryKey: qk.agentScheduleRuns(projectKey, id) });

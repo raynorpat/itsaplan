@@ -73,9 +73,9 @@ export default function AgentModelSection({
             </div>
           ) : (
             <Select
-              value={value.modelCredentialId != null ? String(value.modelCredentialId) : ''}
+              value={value.modelCredentialId ?? ''}
               onValueChange={(v) => {
-                const id = Number(v);
+                const id = v;
                 // Switching provider clears the model: the models are per credential.
                 onChange(
                   id === value.modelCredentialId

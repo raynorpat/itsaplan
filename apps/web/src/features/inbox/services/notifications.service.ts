@@ -11,7 +11,7 @@ import { qk } from '@/services/queryKeys';
 // object is part of the query key so switching filters is a distinct cache entry.
 export function useNotificationsQuery(
   projectKey: string,
-  projectId: number,
+  projectId: string,
   filters: NotificationFilters,
 ) {
   return useInfiniteQuery({
@@ -34,12 +34,12 @@ function useInvalidateInbox(projectKey: string) {
 export function useSetNotificationRead(projectKey: string) {
   const invalidate = useInvalidateInbox(projectKey);
   return useMutation({
-    mutationFn: ({ id, read }: { id: number; read: boolean }) => api.setNotificationRead(id, read),
+    mutationFn: ({ id, read }: { id: string; read: boolean }) => api.setNotificationRead(id, read),
     onSuccess: invalidate,
   });
 }
 
-export function useMarkAllRead(projectKey: string, projectId: number) {
+export function useMarkAllRead(projectKey: string, projectId: string) {
   const invalidate = useInvalidateInbox(projectKey);
   return useMutation({
     mutationFn: () => api.markAllNotificationsRead(projectId),
@@ -50,7 +50,7 @@ export function useMarkAllRead(projectKey: string, projectId: number) {
 export function useSnoozeNotification(projectKey: string) {
   const invalidate = useInvalidateInbox(projectKey);
   return useMutation({
-    mutationFn: ({ id, until }: { id: number; until: string | null }) =>
+    mutationFn: ({ id, until }: { id: string; until: string | null }) =>
       api.snoozeNotification(id, until),
     onSuccess: invalidate,
   });
@@ -59,12 +59,12 @@ export function useSnoozeNotification(projectKey: string) {
 export function useDeleteNotification(projectKey: string) {
   const invalidate = useInvalidateInbox(projectKey);
   return useMutation({
-    mutationFn: (id: number) => api.deleteNotification(id),
+    mutationFn: (id: string) => api.deleteNotification(id),
     onSuccess: invalidate,
   });
 }
 
-export function useDeleteNotifications(projectKey: string, projectId: number) {
+export function useDeleteNotifications(projectKey: string, projectId: string) {
   const invalidate = useInvalidateInbox(projectKey);
   return useMutation({
     mutationFn: (scope: NotificationDeleteScope) => api.deleteNotifications(scope, projectId),

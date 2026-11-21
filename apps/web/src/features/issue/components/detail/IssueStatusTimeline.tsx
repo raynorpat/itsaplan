@@ -24,7 +24,7 @@ export default function IssueStatusTimeline({
   columns,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   // The project's columns, for the status colors and for reading which status counts
   // as started or completed: a segment carries the column name it was logged with,
   // not its id.

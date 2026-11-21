@@ -25,6 +25,14 @@ export const PRIORITY_RANK: Record<string, number> = Object.fromEntries(
   PRIORITIES.map((p, i) => [p.value, i]),
 );
 
+// An issue's priority is on Linear's scale (0 none, 1 urgent, 2 high, 3 medium,
+// 4 low). The shared priority UI is keyed by name ('' for none), so issue code
+// converts at the boundary with these two.
+const ISSUE_PRIORITY_KEYS = ['', 'urgent', 'high', 'medium', 'low'];
+export const priorityKey = (level: number): string => ISSUE_PRIORITY_KEYS[level] ?? '';
+export const priorityLevel = (key: string | null | undefined): number =>
+  Math.max(0, ISSUE_PRIORITY_KEYS.indexOf(key ?? ''));
+
 // The label for a priority value, or "No priority" for an unset one.
 export const priorityLabel = (value: string | null | undefined): string =>
   PRIORITIES.find((p) => p.value === value)?.label ?? 'No priority';

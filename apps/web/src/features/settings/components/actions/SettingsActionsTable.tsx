@@ -6,7 +6,7 @@ interface SettingsActionsTableProps {
   actions: ActionDef[];
   project: ProjectDetail;
   customFields: CustomField[];
-  onEdit: (actionId: number) => void;
+  onEdit: (actionId: string) => void;
   onDuplicate: (action: ActionDef) => void;
   onDelete: (action: ActionDef) => void;
 }

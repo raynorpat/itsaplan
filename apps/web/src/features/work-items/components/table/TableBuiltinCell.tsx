@@ -11,6 +11,7 @@ import {
 } from '@/features/issue/components/shared/IssueBadges';
 import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
 import { type TableColumn } from '../../utils/table';
+import { priorityKey } from '@/utils/fieldOptions';
 
 const DASH = <span className="text-muted-foreground/40">—</span>;
 
@@ -47,7 +48,7 @@ export function TableBuiltinCell({
     case 'priority':
       return (
         <div className="flex items-center">
-          {issue.priority ? <PriorityBadge priority={issue.priority} /> : DASH}
+          {issue.priority ? <PriorityBadge priority={priorityKey(issue.priority)} /> : DASH}
         </div>
       );
     case 'type': {

@@ -5,7 +5,7 @@ import { SettingsWebhookRow } from './SettingsWebhookRow';
 interface SettingsWebhooksTableProps {
   webhooks: Webhook[];
   onShowDeliveries: (webhook: Webhook) => void;
-  onEdit: (webhookId: number) => void;
+  onEdit: (webhookId: string) => void;
   onDelete: (webhook: Webhook) => void;
 }
 

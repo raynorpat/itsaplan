@@ -37,7 +37,7 @@ export default function SettingsSchedules({
   const updateSchedule = useUpdateAgentSchedule(projectKey);
   const deleteSchedule = useDeleteAgentSchedule(projectKey);
   const runSchedule = useRunAgentSchedule(projectKey);
-  const [editing, setEditing] = useState<number | 'new' | null>(null);
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<AgentSchedule | null>(null);
   const [history, setHistory] = useState<AgentSchedule | null>(null);
 
@@ -93,13 +93,15 @@ export default function SettingsSchedules({
 
   const saving = createSchedule.isPending || updateSchedule.isPending;
   const editingSchedule =
-    typeof editing === 'number' ? schedules.find((schedule) => schedule.id === editing) : undefined;
+    editing != null && editing !== 'new'
+      ? schedules.find((schedule) => schedule.id === editing)
+      : undefined;
   const showEditor = editing === 'new' || editingSchedule != null;
 
   async function saveSchedule(value: AgentScheduleInput) {
     if (editing === 'new') {
       await createSchedule.mutateAsync(value);
-    } else if (typeof editing === 'number') {
+    } else if (editing != null && editing !== 'new') {
       await updateSchedule.mutateAsync({ id: editing, patch: value });
     }
     setEditing(null);

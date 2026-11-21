@@ -50,7 +50,7 @@ const FIELD_TYPES: CustomFieldType[] = [
 // only global fields are exported.
 export function serializeCustomFields(
   fields: CustomField[],
-  typeNameById: Map<number, string>,
+  typeNameById: Map<string, string>,
   includeTypeScoped: boolean,
 ): string {
   const chosen = includeTypeScoped ? fields : fields.filter((f) => f.issueTypeId == null);
@@ -109,7 +109,7 @@ export function planCustomFieldsImport(
 ): CustomFieldsImportPlan {
   const typeIdByName = new Map(existingTypes.map((t) => [t.name.toLowerCase(), t.id]));
   // Existing field keys, namespaced by scope: "<typeId|global>:<name>".
-  const fieldKey = (scope: number | null, name: string) =>
+  const fieldKey = (scope: string | null, name: string) =>
     `${scope ?? 'global'}:${name.toLowerCase()}`;
   const existingKeys = new Set(existingFields.map((f) => fieldKey(f.issueTypeId, f.name)));
 

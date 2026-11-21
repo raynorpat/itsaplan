@@ -36,7 +36,7 @@ export default function SettingsActions({
   const updateAction = useUpdateAction(projectKey);
   const deleteAction = useDeleteAction(projectKey);
   // The action open in the editor: an action id, 'new' for the add form, or null.
-  const [editing, setEditing] = useState<number | 'new' | null>(null);
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
   // Prefill for the 'new' form when duplicating an existing action; null for a blank new action.
   const [newSeed, setNewSeed] = useState<ActionSeed | null>(null);
   const [deleting, setDeleting] = useState<ActionDef | null>(null);
@@ -61,13 +61,13 @@ export default function SettingsActions({
 
   const saving = createAction.isPending || updateAction.isPending;
   const editingAction =
-    typeof editing === 'number' ? actions.find((a) => a.id === editing) : undefined;
+    editing != null && editing !== 'new' ? actions.find((a) => a.id === editing) : undefined;
   const showDialog = editing === 'new' || editingAction != null;
 
   async function saveAction(input: ActionSeed) {
     if (editing === 'new') {
       await createAction.mutateAsync({ input });
-    } else if (typeof editing === 'number') {
+    } else if (editing != null && editing !== 'new') {
       await updateAction.mutateAsync({ id: editing, input });
     }
     setEditing(null);

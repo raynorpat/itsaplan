@@ -36,7 +36,7 @@ export function SettingsScheduleDialog({
   const [scheduleInput, setScheduleInput] = useState(initial?.cron ?? 'Every day at 9:00 AM');
   const parsedSchedule = parseScheduleInput(scheduleInput);
   const isValid =
-    Number(agentId) > 0 &&
+    agentId !== '' &&
     name.trim().length > 0 &&
     name.trim().length <= 120 &&
     prompt.trim().length > 0 &&
@@ -47,7 +47,7 @@ export function SettingsScheduleDialog({
   async function submit() {
     if (!isValid || !parsedSchedule.ok) return;
     await onSave({
-      agentId: Number(agentId),
+      agentId,
       name: name.trim(),
       prompt: prompt.trim(),
       cron: parsedSchedule.cron,

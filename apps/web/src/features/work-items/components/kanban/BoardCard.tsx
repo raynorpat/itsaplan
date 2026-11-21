@@ -27,7 +27,7 @@ export function BoardCard({
   issue: Issue;
   maps: Maps;
   properties: PropertyKey[];
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
   // In a read-only share a click always opens the issue; multi-select is off.
   readOnly?: boolean;
 }) {

@@ -32,14 +32,14 @@ export function SwimlaneCell({
   manualOrder: boolean;
   // In a read-only share a card click always opens the issue; multi-select is off.
   readOnly?: boolean;
-  onOpenIssue: (id: number) => void;
-  onMoveIssue: (issueId: number, index: number) => void;
+  onOpenIssue: (id: string) => void;
+  onMoveIssue: (issueId: string, index: number) => void;
 }) {
   // Dropping on the empty cell area appends; dropping on a card inserts at it.
   const cellId = `col:${cellKey}`;
   const { setNodeRef, isOver } = useDroppable({
     id: cellId,
-    data: { onDrop: (id: number) => onMoveIssue(id, issues.length) },
+    data: { onDrop: (id: string) => onMoveIssue(id, issues.length) },
   });
   const isOverCell = useIsOverContainer(cellId, issues);
   return (

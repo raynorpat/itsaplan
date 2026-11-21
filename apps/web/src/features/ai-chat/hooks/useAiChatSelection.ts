@@ -21,12 +21,12 @@ export function useAiChatSelection(projectKey: string | null) {
   const catalog = useIntegrationCatalogQuery(projectKey).data ?? [];
   const providerLabel = (key: string) => catalog.find((entry) => entry.key === key)?.label ?? key;
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0] ?? null;
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [newChatNonce, setNewChatNonce] = useState(0);
 
-  const selectAgent = (id: number) => {
+  const selectAgent = (id: string) => {
     setSelectedId(id);
     setSelectedThreadId(null);
   };

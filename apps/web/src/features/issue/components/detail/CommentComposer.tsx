@@ -25,7 +25,7 @@ export default function CommentComposer({
   authorName,
   authorImage,
 }: {
-  issueId: number;
+  issueId: string;
   assignees: Assignee[];
   authorName: string;
   authorImage?: string | null;

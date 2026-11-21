@@ -18,7 +18,7 @@ const AUTOSAVE_DELAY = 2000;
 // keys the canvas by board id, so one hook instance covers one board.
 export function useCanvasAutosave(
   projectKey: string,
-  boardId: number,
+  boardId: string,
   nodes: StickerNodeType[],
   edges: Edge[],
 ): SaveStatus {

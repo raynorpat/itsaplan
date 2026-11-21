@@ -37,7 +37,7 @@ export default function CommandLayer({
   onBoard: boolean;
   view: WorkItemsView;
   // The issue the user is looking at: the open detail panel, or the issue page.
-  currentIssueId: number | null;
+  currentIssueId: string | null;
   onViewChange: (view: WorkItemsView) => void;
   onNewIssue: () => void;
   onSelectAll: () => void;

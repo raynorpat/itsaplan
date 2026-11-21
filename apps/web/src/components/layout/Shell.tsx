@@ -91,7 +91,7 @@ export default function Shell({
   // while the URL addresses an issue by its project-scoped number, so the page route
   // resolves the number first and falls back to the panel when the issue is not on
   // the loaded board.
-  const openIssue = (id: number, mode: IssueOpenMode = issueOpenMode) => {
+  const openIssue = (id: string, mode: IssueOpenMode = issueOpenMode) => {
     if (mode === 'page' && projectKey) {
       const seq = project?.issues.find((i) => i.id === id)?.sequenceNumber;
       if (seq != null) {

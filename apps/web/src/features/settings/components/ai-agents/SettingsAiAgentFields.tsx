@@ -167,7 +167,7 @@ export default function SettingsAiAgentFields({
         <span className="text-sm font-medium">Role</span>
         <Select
           value={value.roleId != null ? String(value.roleId) : DEFAULT_ROLE_VALUE}
-          onValueChange={(v) => onChange({ roleId: v === DEFAULT_ROLE_VALUE ? null : Number(v) })}
+          onValueChange={(v) => onChange({ roleId: v === DEFAULT_ROLE_VALUE ? null : v })}
         >
           <SelectTrigger>
             <SelectValue placeholder="Choose a role" />

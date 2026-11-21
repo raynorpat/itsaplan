@@ -11,7 +11,7 @@ export function TableDropZone({
   children,
 }: {
   id: string;
-  onDrop: (issueId: number) => void;
+  onDrop: (issueId: string) => void;
   disabled?: boolean;
   className?: string;
   children: React.ReactNode;

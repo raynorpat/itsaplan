@@ -33,12 +33,12 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
   // The open label add/edit form, and the open group add/edit form. At most one is
   // set at a time (opening either closes the other).
   const [labelForm, setLabelForm] = useState<
-    { mode: 'add'; groupId: number | null } | { mode: 'edit'; id: number } | null
+    { mode: 'add'; groupId: string | null } | { mode: 'edit'; id: string } | null
   >(null);
   const [lName, setLName] = useState('');
   const [lColor, setLColor] = useState(DEFAULT_COLOR);
-  const [lGroupId, setLGroupId] = useState<number | null>(null);
-  const [groupForm, setGroupForm] = useState<{ mode: 'add' } | { mode: 'edit'; id: number } | null>(
+  const [lGroupId, setLGroupId] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState<{ mode: 'add' } | { mode: 'edit'; id: string } | null>(
     null,
   );
   const [gName, setGName] = useState('');
@@ -46,7 +46,7 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
   const [deletingLabel, setDeletingLabel] = useState<LabelRow | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<LabelGroup | null>(null);
 
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const can = useSettingsCan();
   const sensors = useDndSensors();
 
@@ -57,9 +57,9 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
   const updateLabelGroup = useUpdateLabelGroup(projectKey);
   const deleteLabelGroup = useDeleteLabelGroup(projectKey);
 
-  const issueCount = (labelId: number) =>
+  const issueCount = (labelId: string) =>
     project.issues.filter((t) => t.labelIds.includes(labelId)).length;
-  const labelCount = (groupId: number) =>
+  const labelCount = (groupId: string) =>
     project.labels.filter((l) => l.groupId === groupId).length;
   const hasGroups = project.labelGroups.length > 0;
   const activeLabel = activeId != null ? project.labels.find((l) => l.id === activeId) : null;
@@ -75,7 +75,7 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
     });
   }
 
-  function openLabelAdd(groupId: number | null, key: string) {
+  function openLabelAdd(groupId: string | null, key: string) {
     setGroupForm(null);
     setLabelForm({ mode: 'add', groupId });
     setLName('');
@@ -144,10 +144,10 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
   async function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     if (!e.over) return;
-    const labelId = Number(e.active.id);
+    const labelId = String(e.active.id);
     const label = project.labels.find((l) => l.id === labelId);
     if (!label) return;
-    const target = (e.over.data.current as { groupId: number | null } | undefined)?.groupId ?? null;
+    const target = (e.over.data.current as { groupId: string | null } | undefined)?.groupId ?? null;
     if (target === label.groupId) return;
     await updateLabel.mutateAsync({ id: labelId, patch: { groupId: target } });
   }
@@ -202,7 +202,7 @@ export default function SettingsLabels({ project }: { project: ProjectDetail }) 
     <div className="space-y-3">
       <DndContext
         sensors={sensors}
-        onDragStart={(e) => setActiveId(Number(e.active.id))}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
         onDragCancel={() => setActiveId(null)}
         onDragEnd={onDragEnd}
       >

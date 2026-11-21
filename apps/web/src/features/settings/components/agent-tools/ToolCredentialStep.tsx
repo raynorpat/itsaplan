@@ -48,7 +48,7 @@ export function ToolCredentialStep({
   onDone: () => void;
 }) {
   const matching = credentials.filter((c) => c.integrationKey === tool.integrationKey);
-  const [credentialId, setCredentialId] = useState<number | null>(matching[0]?.id ?? null);
+  const [credentialId, setCredentialId] = useState<string | null>(matching[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
 
   const create = useCreateConfiguredTool(projectKey);
@@ -111,7 +111,7 @@ export function ToolCredentialStep({
         ) : (
           <Select
             value={credentialId != null ? String(credentialId) : ''}
-            onValueChange={(v) => setCredentialId(Number(v))}
+            onValueChange={(v) => setCredentialId(v)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Choose a credential" />

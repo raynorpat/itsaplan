@@ -19,7 +19,7 @@ function errorMessage(error: unknown): string | null {
 // The project state behind the Shell: the project list, the composed project, the
 // saved views and the view editor, plus the load/error flags the Shell renders
 // from. Kept out of the Shell so it stays a composition of chrome and overlays.
-export function useShellProject(projectKey: string | null, activeViewId: number | null) {
+export function useShellProject(projectKey: string | null, activeViewId: string | null) {
   const router = useRouter();
 
   const projectsQuery = useProjectsQuery();

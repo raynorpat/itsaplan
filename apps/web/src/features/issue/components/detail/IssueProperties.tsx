@@ -20,6 +20,7 @@ import InitiativeSelect from '../fields/InitiativeSelect';
 import IssueCustomFieldControl from '../fields/IssueCustomFieldControl';
 import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
 import { type Embeddable } from '../../utils/attachmentEmbed';
+import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // One property row in the two-column list: name on the left, control on the right.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
@@ -50,8 +51,8 @@ export default function IssueProperties({
   issue: IssueDetailRow;
   fieldDefs: CustomField[];
   onPatch: (fields: IssuePatch) => void;
-  onSetField: (fieldId: number, value: IssueFieldValueInput) => void;
-  onToggleLabel: (id: number) => void;
+  onSetField: (fieldId: string, value: IssueFieldValueInput) => void;
+  onToggleLabel: (id: string) => void;
   uploadFile?: (file: File) => Promise<Embeddable>;
   imageAttachments?: Embeddable[];
   hasSidebar: boolean;
@@ -96,8 +97,8 @@ export default function IssueProperties({
 
       <PropertyRow label="Priority">
         <PrioritySelect
-          value={issue.priority ?? ''}
-          onChange={(v) => onPatch({ priority: v || null })}
+          value={priorityKey(issue.priority)}
+          onChange={(v) => onPatch({ priority: priorityLevel(v) })}
           readOnly={readOnly}
         />
       </PropertyRow>

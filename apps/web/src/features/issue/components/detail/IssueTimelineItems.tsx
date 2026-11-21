@@ -10,7 +10,7 @@ export default function IssueTimelineItems({
   ranges,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   // One range per stretch: a bar opens one, a status with repeat visits opens all
   // of its own.
   ranges: TimelineRange[];

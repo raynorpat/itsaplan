@@ -28,7 +28,7 @@ export function FloatingChatHeader({
   agents: AiAgent[];
   providerLabel: (key: string) => string;
   selected: AiAgent | null;
-  onSelectAgent: (id: number) => void;
+  onSelectAgent: (id: string) => void;
   onShowHistory: () => void;
   onNewChat: () => void;
   onMinimize: () => void;

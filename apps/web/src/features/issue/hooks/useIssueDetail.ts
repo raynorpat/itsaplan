@@ -20,7 +20,7 @@ import { fieldDefsForType } from '../utils/fieldDefs';
 // onIssueLoaded surfaces the loaded issue to the surrounding chrome.
 export function useIssueDetail(
   project: ProjectDetail,
-  issueId: number,
+  issueId: string,
   onIssueLoaded?: (issue: IssueDetailRow) => void,
 ) {
   const issueQuery = useIssueQuery(issueId);
@@ -64,11 +64,11 @@ export function useIssueDetail(
     updateIssue.mutate({ id: issueId, patch: fields });
   }
 
-  function setField(fieldId: number, value: IssueFieldValueInput) {
+  function setField(fieldId: string, value: IssueFieldValueInput) {
     setFieldValue.mutate({ issueId, fieldId, value });
   }
 
-  function toggleLabel(id: number) {
+  function toggleLabel(id: string) {
     if (!issue) return;
     const next = issue.labelIds.includes(id)
       ? issue.labelIds.filter((x) => x !== id)

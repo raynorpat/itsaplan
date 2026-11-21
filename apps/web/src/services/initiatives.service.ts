@@ -35,9 +35,9 @@ export function useInitiativeCountsQuery(projectKey: string | null) {
   });
 }
 
-export function useInitiativeQuery(id: number | null) {
+export function useInitiativeQuery(id: string | null) {
   return useQuery({
-    queryKey: qk.initiative(id ?? 0),
+    queryKey: qk.initiative(id ?? ''),
     queryFn: () => api.getInitiative(id!),
     enabled: id != null,
   });
@@ -58,7 +58,7 @@ export function useCreateInitiative(projectKey: string) {
 export function useUpdateInitiative(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: InitiativePatch }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: InitiativePatch }) =>
       api.updateInitiative(id, patch),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: qk.initiativesForProject(projectKey) });
@@ -73,7 +73,7 @@ export function useUpdateInitiative(projectKey: string) {
 export function useDeleteInitiative(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteInitiative(id),
+    mutationFn: (id: string) => api.deleteInitiative(id),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: qk.initiativesForProject(projectKey) });
       qc.invalidateQueries({ queryKey: qk.initiativeCounts(projectKey) });
@@ -89,9 +89,9 @@ export function useDeleteInitiative(projectKey: string) {
 // The initiative's feed (its own events plus its linked issues' activity), paged
 // newest first. Each page is 25 items; getNextPageParam yields the server's cursor
 // until it returns null.
-export function useInitiativeFeedQuery(id: number | null) {
+export function useInitiativeFeedQuery(id: string | null) {
   return useInfiniteQuery({
-    queryKey: qk.initiativeFeed(id ?? 0),
+    queryKey: qk.initiativeFeed(id ?? ''),
     queryFn: ({ pageParam }) => api.listInitiativeFeed(id!, { cursor: pageParam, limit: 25 }),
     initialPageParam: null as FeedCursor | null,
     getNextPageParam: (last) => last.nextCursor,

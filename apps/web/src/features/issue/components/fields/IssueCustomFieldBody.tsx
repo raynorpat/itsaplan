@@ -21,7 +21,7 @@ export default function IssueCustomFieldBody({
   saveKey: string;
   uploadFile?: (file: File) => Promise<Embeddable>;
   imageAttachments?: Embeddable[];
-  onSetField: (fieldId: number, value: IssueFieldValueInput) => void;
+  onSetField: (fieldId: string, value: IssueFieldValueInput) => void;
   readOnly?: boolean;
 }) {
   return (

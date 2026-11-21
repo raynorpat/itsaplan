@@ -43,6 +43,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // Trailing check on the currently-selected row in a single-select submenu.
 function SelectedCheck({ selected }: { selected: boolean }) {
@@ -97,7 +98,7 @@ export default function IssueContextMenu({
     updateIssue.mutate({ id: issue.id, patch: fields });
   }
 
-  function toggleLabel(id: number) {
+  function toggleLabel(id: string) {
     const next = issue.labelIds.includes(id)
       ? issue.labelIds.filter((x) => x !== id)
       : [...issue.labelIds, id];
@@ -111,7 +112,7 @@ export default function IssueContextMenu({
 
   const currentColumn = project.columns.find((c) => c.id === issue.columnId);
   const currentPriority =
-    PRIORITY_FIELDS.find((p) => p.value === (issue.priority ?? '')) ?? PRIORITY_FIELDS[0];
+    PRIORITY_FIELDS.find((p) => p.value === priorityKey(issue.priority)) ?? PRIORITY_FIELDS[0];
   const members = project.assignees.filter((a) => a.kind === 'member');
   const agents = project.assignees.filter((a) => a.kind === 'agent');
   const initiatives = initiativesQuery.data?.items ?? [];
@@ -169,11 +170,11 @@ export default function IssueContextMenu({
                   {PRIORITY_FIELDS.map((p) => (
                     <ContextMenuItem
                       key={p.value || 'none'}
-                      onSelect={() => patch({ priority: p.value || null })}
+                      onSelect={() => patch({ priority: priorityLevel(p.value) })}
                     >
                       {p.icon}
                       <span className="flex-1">{p.label}</span>
-                      <SelectedCheck selected={p.value === (issue.priority ?? '')} />
+                      <SelectedCheck selected={p.value === priorityKey(issue.priority)} />
                     </ContextMenuItem>
                   ))}
                 </ContextMenuSubContent>

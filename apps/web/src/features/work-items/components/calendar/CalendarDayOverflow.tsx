@@ -13,7 +13,7 @@ export function CalendarDayOverflow({
   issues: Issue[];
   hidden: number;
   dot: (issue: Issue) => string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (

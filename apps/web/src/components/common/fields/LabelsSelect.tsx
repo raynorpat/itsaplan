@@ -13,8 +13,8 @@ export default function LabelsSelect({
 }: {
   labels: Label[];
   groups: LabelGroup[];
-  value: number[];
-  onToggle: (id: number) => void;
+  value: string[];
+  onToggle: (id: string) => void;
   readOnly?: boolean;
 }) {
   const selected = labels.filter((l) => value.includes(l.id));

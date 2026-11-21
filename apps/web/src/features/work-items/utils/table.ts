@@ -30,7 +30,7 @@ export const COLUMN_META: Record<TableColumn, { label: string; width: string }> 
 // persisted so it survives reloads (same pattern as the project's hidden groups).
 // The sub-grouping field is part of the key so a different sub-grouping keeps its
 // own collapse set.
-export function collapsedKey(projectId: number, group: string, subgroup: string): string {
+export function collapsedKey(projectId: string, group: string, subgroup: string): string {
   return `kanban-table-collapsed:${projectId}:${group}:${subgroup}`;
 }
 

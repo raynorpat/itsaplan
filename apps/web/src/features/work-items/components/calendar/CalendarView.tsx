@@ -25,7 +25,7 @@ export default function CalendarView({
 }: WorkItemsViewProps) {
   const updateIssue = useUpdateIssue(project.project.key);
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
 
   const dateField = settings.calendarDateField;
@@ -40,7 +40,7 @@ export default function CalendarView({
     cursor,
   );
 
-  function reschedule(issueId: number, value: string | null) {
+  function reschedule(issueId: string, value: string | null) {
     updateIssue.mutate({ id: issueId, patch: { [dateField]: value } });
   }
 
@@ -48,7 +48,7 @@ export default function CalendarView({
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
-    const issueId = Number(active.id);
+    const issueId = String(active.id);
     if (over.id === UNSCHEDULED_ID) reschedule(issueId, null);
     else if (typeof over.id === 'string' && over.id.startsWith('day:'))
       reschedule(issueId, over.id.slice(4));
@@ -61,7 +61,7 @@ export default function CalendarView({
     <DndContext
       sensors={sensors}
       collisionDetection={pointerWithin}
-      onDragStart={(e: DragStartEvent) => setActiveId(Number(e.active.id))}
+      onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >

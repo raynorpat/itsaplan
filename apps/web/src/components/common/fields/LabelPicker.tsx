@@ -19,8 +19,8 @@ export default function LabelPicker({
 }: {
   labels: Label[];
   groups: LabelGroup[];
-  selected: number[];
-  onToggle: (id: number) => void;
+  selected: string[];
+  onToggle: (id: string) => void;
   trigger: ReactNode;
 }) {
   const selectedSet = useMemo(() => new Set(selected), [selected]);

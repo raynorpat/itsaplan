@@ -11,8 +11,8 @@ export default function StatusSelect({
   readOnly,
 }: {
   columns: Column[];
-  value: number;
-  onChange: (id: number) => void;
+  value: string;
+  onChange: (id: string) => void;
   readOnly?: boolean;
 }) {
   const column = columns.find((c) => c.id === value);

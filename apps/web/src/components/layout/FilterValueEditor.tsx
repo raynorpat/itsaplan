@@ -27,8 +27,8 @@ export default function FilterValueEditor({
   // The labels field uses the shared grouped picker (submenus per label group),
   // toggling label ids in the condition's values.
   if (spec.field === 'labels') {
-    const selected = cond.values.filter((v): v is number => typeof v === 'number');
-    const toggleLabel = (id: number) =>
+    const selected = cond.values.filter((v): v is string => typeof v === 'string');
+    const toggleLabel = (id: string) =>
       onChange(selected.includes(id) ? cond.values.filter((v) => v !== id) : [...cond.values, id]);
     return (
       <LabelPicker

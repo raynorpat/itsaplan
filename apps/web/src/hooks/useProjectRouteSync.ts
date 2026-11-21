@@ -38,7 +38,7 @@ export function useProjectRouteSync({
   // kept and not retried.
   const savedLastProjectId = prefsQuery.data?.lastProjectId ?? null;
   const openProjectId = projects.find((p) => p.key === projectKey)?.id ?? null;
-  const failedLastProjectId = useRef<number | null>(null);
+  const failedLastProjectId = useRef<string | null>(null);
   useEffect(() => {
     if (prefsQuery.data == null || openProjectId == null) return;
     if (openProjectId === savedLastProjectId || savingPrefs) return;

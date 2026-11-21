@@ -13,7 +13,7 @@ export function CardOverlay({
   maps,
   properties,
 }: {
-  activeId: number | null;
+  activeId: string | null;
   issues: Issue[];
   maps: Maps;
   properties: PropertyKey[];

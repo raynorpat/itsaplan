@@ -24,8 +24,8 @@ import {
 export function useDashboardEditor(
   projectKey: string | null,
   dashboards: Dashboard[],
-  activeDashboardId: number | null,
-  onSelectDashboard: (id: number | null) => void,
+  activeDashboardId: string | null,
+  onSelectDashboard: (id: string | null) => void,
 ) {
   const createM = useCreateDashboard(projectKey);
   const updateM = useUpdateDashboard(projectKey);
@@ -113,7 +113,7 @@ export function useDashboardEditor(
     }
   };
 
-  const reorderDashboards = (draggedId: number, targetId: number) => {
+  const reorderDashboards = (draggedId: string, targetId: string) => {
     const ids = dashboards.map((d) => d.id);
     const from = ids.indexOf(draggedId);
     const to = ids.indexOf(targetId);

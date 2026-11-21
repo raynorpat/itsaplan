@@ -25,7 +25,7 @@ export function CalendarDayCell({
   isToday: boolean;
   issues: Issue[];
   dot: (issue: Issue) => string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${dateKey}` });
 

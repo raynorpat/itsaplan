@@ -30,6 +30,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Pill } from '@/components/common/fields/Pill';
 import InitiativeSelect from '../fields/InitiativeSelect';
+import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 export default function NewIssueModal({
   project,
@@ -45,12 +46,12 @@ export default function NewIssueModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [columnId, setColumnId] = useState(defaults.columnId);
-  const [typeId, setTypeId] = useState<number | null>(
+  const [typeId, setTypeId] = useState<string | null>(
     defaults.typeId === undefined
       ? (project.issueTypes.find((t) => t.isDefault)?.id ?? null)
       : defaults.typeId,
   );
-  const [initiativeId, setInitiativeId] = useState<number | null>(defaults.initiativeId ?? null);
+  const [initiativeId, setInitiativeId] = useState<string | null>(defaults.initiativeId ?? null);
   const { data: session } = useSession();
   // Assignee defaults to the creating user unless the caller set one explicitly
   // (defaults.assigneeUserId is null for the "No assignee" board group).
@@ -65,10 +66,10 @@ export default function NewIssueModal({
   const [delegateUserId, setDelegateUserId] = useState<string | null>(
     defaults.delegateUserId ?? null,
   );
-  const [priority, setPriority] = useState(defaults.priority ?? '');
+  const [priority, setPriority] = useState(priorityKey(defaults.priority ?? 0));
   const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [labelIds, setLabelIds] = useState<number[]>([]);
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -77,9 +78,9 @@ export default function NewIssueModal({
   // demand from the "…" menu.
   const fieldsQuery = useCustomFieldsQuery(project.project.key, typeId ?? undefined);
   const fieldDefs = fieldsQuery.data ?? [];
-  const [activeFieldIds, setActiveFieldIds] = useState<number[]>([]);
-  const [fieldValues, setFieldValues] = useState<Record<number, IssueFieldValueInput>>({});
-  const [justAddedId, setJustAddedId] = useState<number | null>(null);
+  const [activeFieldIds, setActiveFieldIds] = useState<string[]>([]);
+  const [fieldValues, setFieldValues] = useState<Record<string, IssueFieldValueInput>>({});
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue(project.project.key);
@@ -152,11 +153,11 @@ export default function NewIssueModal({
   const activeDefs = propertyDefs.filter((d) => activeFieldIds.includes(d.id));
   const availableDefs = propertyDefs.filter((d) => !activeFieldIds.includes(d.id));
 
-  function toggleLabel(id: number) {
+  function toggleLabel(id: string) {
     setLabelIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   }
 
-  function setFieldValue(id: number, patch: IssueFieldValueInput) {
+  function setFieldValue(id: string, patch: IssueFieldValueInput) {
     setFieldValues((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
@@ -174,7 +175,7 @@ export default function NewIssueModal({
           initiativeId,
           assigneeUserId,
           delegateUserId,
-          priority: priority || null,
+          priority: priorityLevel(priority),
           startDate: startDate || null,
           dueDate: dueDate || null,
           labelIds,

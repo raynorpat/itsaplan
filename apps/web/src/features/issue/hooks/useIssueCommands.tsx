@@ -39,6 +39,7 @@ import {
 import { StateIcon } from '../components/shared/IssueIcons';
 import { dueDatePresets, formatPreset } from '../utils/dueDatePresets';
 import { buildIssuePrompt } from '../utils/issuePrompt';
+import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // The palette commands for the issue the user is looking at — the issue page or
 // the open detail panel. They are the context menu's actions in command form and
@@ -47,7 +48,7 @@ import { buildIssuePrompt } from '../utils/issuePrompt';
 // rendered by the host that outlives it.
 export function useIssueCommands(
   project: ProjectDetail | null,
-  issueId: number | null,
+  issueId: string | null,
   onDeleted?: () => void,
 ): { section: CommandSection | null; dialogs: ReactNode } {
   const { can } = usePermissions();
@@ -152,8 +153,9 @@ export function useIssueCommands(
     items.push({
       id: 'issue.priority',
       label: 'Set priority',
-      icon: (PRIORITY_FIELDS.find((p) => p.value === (issue.priority ?? '')) ?? PRIORITY_FIELDS[0])
-        .icon,
+      icon: (
+        PRIORITY_FIELDS.find((p) => p.value === priorityKey(issue.priority)) ?? PRIORITY_FIELDS[0]
+      ).icon,
       keywords: 'urgent high medium low',
       submenu: {
         heading: 'Set priority',
@@ -162,8 +164,8 @@ export function useIssueCommands(
           id: `issue.priority.${p.value || 'none'}`,
           label: p.label,
           icon: p.icon,
-          checked: p.value === (issue.priority ?? ''),
-          run: () => patch({ priority: p.value || null }),
+          checked: p.value === priorityKey(issue.priority),
+          run: () => patch({ priority: priorityLevel(p.value) }),
         })),
       },
     });

@@ -43,7 +43,7 @@ export function SettingsAiAgentRunsSheet({
   );
 }
 
-function RunsList({ projectKey, agentId }: { projectKey: string; agentId: number }) {
+function RunsList({ projectKey, agentId }: { projectKey: string; agentId: string }) {
   const query = useAgentRuns(projectKey, agentId);
   const runs = query.data?.pages.flatMap((p) => p.items) ?? [];
 

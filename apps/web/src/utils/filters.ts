@@ -4,6 +4,7 @@
 // issues are handed to the view. The server never inspects this shape.
 
 import type { ProjectDetail, StateType, Issue } from '@/lib/api';
+import { priorityKey } from '@/utils/fieldOptions';
 
 // The built-in fields a condition can target. Custom fields are targeted with
 // the string `cf:<fieldId>` (see customFieldKey / parseCustomFieldKey).
@@ -46,8 +47,8 @@ export interface FilterSet {
 
 export const EMPTY_FILTER_SET: FilterSet = { conditions: [] };
 
-export function parseCustomFieldKey(field: string): number | null {
-  return field.startsWith('cf:') ? Number(field.slice(3)) : null;
+export function parseCustomFieldKey(field: string): string | null {
+  return field.startsWith('cf:') ? field.slice(3) : null;
 }
 
 // A FilterSet is only "active" (narrows the project) when it has at least one
@@ -78,7 +79,7 @@ function toDay(value: string | null): string | null {
 function builtinSetValues(
   issue: Issue,
   field: BuiltinFilterField,
-  columnStateType: Map<number, StateType>,
+  columnStateType: Map<string, StateType>,
 ): FilterValue[] {
   switch (field) {
     case 'status':
@@ -90,7 +91,8 @@ function builtinSetValues(
     case 'delegate':
       return [issue.delegateUserId];
     case 'priority':
-      return [issue.priority];
+      // Saved filters hold priority names ('urgent'); null is "no priority".
+      return [priorityKey(issue.priority) || null];
     case 'type':
       return [issue.typeId];
     case 'labels':
@@ -121,14 +123,14 @@ const DATE_FIELDS: BuiltinFilterField[] = ['dueDate', 'startDate', 'created', 'u
 // A custom field's stored value(s) on a issue: its selected option ids if any,
 // otherwise its scalar value. [null] when nothing is set, so presence and
 // "No value" style conditions work.
-function customFieldValues(issue: Issue, fieldId: number): FilterValue[] {
+function customFieldValues(issue: Issue, fieldId: string): FilterValue[] {
   const entry = issue.fieldValues?.find((v) => v.fieldId === fieldId);
   if (!entry) return [null];
   if (entry.optionIds.length) return entry.optionIds;
   return [entry.value];
 }
 
-function customFieldScalar(issue: Issue, fieldId: number): FilterValue {
+function customFieldScalar(issue: Issue, fieldId: string): FilterValue {
   const entry = issue.fieldValues?.find((v) => v.fieldId === fieldId);
   return entry ? entry.value : null;
 }
@@ -141,7 +143,7 @@ function hasValue(values: FilterValue[]): boolean {
 function matchCondition(
   issue: Issue,
   cond: FilterCondition,
-  columnStateType: Map<number, StateType>,
+  columnStateType: Map<string, StateType>,
 ): boolean {
   const cfId = parseCustomFieldKey(cond.field);
   const isDate = cfId == null && DATE_FIELDS.includes(cond.field as BuiltinFilterField);

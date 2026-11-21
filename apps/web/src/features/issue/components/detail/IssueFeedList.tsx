@@ -11,7 +11,7 @@ export default function IssueFeedList({
   issueId,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   imageByUserId: Map<string, string | null>;
 }) {
   const feedQuery = useFeedQuery(issueId);
@@ -20,7 +20,7 @@ export default function IssueFeedList({
   // between pages after a refetch (an edit adds new entries at the top) never
   // renders with a duplicate key. The first copy wins: it comes from the newer
   // page, so an edited comment keeps its latest body.
-  const byId = new Map<number, FeedItem>();
+  const byId = new Map<string, FeedItem>();
   for (const item of (feedQuery.data?.pages ?? []).flatMap((p) => p.items)) {
     if (!byId.has(item.id)) byId.set(item.id, item);
   }

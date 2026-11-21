@@ -13,7 +13,7 @@ export default function SidebarWorkNav({
   projectId,
 }: {
   projectKey: string | null;
-  projectId: number | null;
+  projectId: string | null;
 }) {
   const pathname = usePathname();
   const { can } = usePermissions();

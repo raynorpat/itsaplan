@@ -72,7 +72,7 @@ export default function IssueAttachmentsPanel({
   issueId,
   onInsert,
 }: {
-  issueId: number;
+  issueId: string;
   onInsert: (attachment: Attachment) => void;
 }) {
   const attachmentsQuery = useAttachmentsQuery(issueId);

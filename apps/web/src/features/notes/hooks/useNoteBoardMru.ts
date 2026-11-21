@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 // and visibility only label the tab; opening a board fetches its fresh state and
 // re-records it, which self-heals a stale label.
 export interface MruEntry {
-  id: number;
+  id: string;
   name: string;
   personal: boolean;
 }
@@ -18,7 +18,7 @@ function storageKey(projectKey: string) {
 }
 
 function isEntry(v: unknown): v is MruEntry {
-  return typeof v === 'object' && v !== null && typeof (v as MruEntry).id === 'number';
+  return typeof v === 'object' && v !== null && typeof (v as MruEntry).id === 'string';
 }
 
 function read(projectKey: string): MruEntry[] {
@@ -66,7 +66,7 @@ export function useNoteBoardMru(projectKey: string) {
   );
 
   const remove = useCallback(
-    (id: number) => setEntries((prev) => persist(prev.filter((e) => e.id !== id))),
+    (id: string) => setEntries((prev) => persist(prev.filter((e) => e.id !== id))),
     [persist],
   );
 

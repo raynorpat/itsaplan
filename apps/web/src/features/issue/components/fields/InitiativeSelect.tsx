@@ -30,8 +30,8 @@ export default function InitiativeSelect({
   onChange,
 }: {
   projectKey: string;
-  value: number | null;
-  onChange: (id: number | null) => void;
+  value: string | null;
+  onChange: (id: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');

@@ -26,7 +26,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
   const [addingType, setAddingType] = useState<StateType | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState(DEFAULT_COLOR);
   const [deleting, setDeleting] = useState<Column | null>(null);
@@ -36,7 +36,7 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
   const updateColumn = useUpdateColumn(project.project.key);
   const reorderColumns = useReorderColumns(project.project.key);
 
-  const issueCount = (columnId: number) =>
+  const issueCount = (columnId: string) =>
     project.issues.filter((t) => t.columnId === columnId).length;
 
   // Drop resolves to a reorder within the dragged column's own state type;
@@ -44,15 +44,15 @@ export default function SettingsStates({ project }: { project: ProjectDetail }) 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const dragged = project.columns.find((c) => c.id === Number(active.id));
-    const target = project.columns.find((c) => c.id === Number(over.id));
+    const dragged = project.columns.find((c) => c.id === String(active.id));
+    const target = project.columns.find((c) => c.id === String(over.id));
     if (!dragged || !target || dragged.stateType !== target.stateType) return;
     void reorderWithinGroup(dragged.id, target.id, dragged.stateType);
   }
 
   // Moves the dragged column before the drop target within the same state type,
   // then sends the full project column order so the backend renumbers positions.
-  async function reorderWithinGroup(draggedId: number, targetId: number, stateType: StateType) {
+  async function reorderWithinGroup(draggedId: string, targetId: string, stateType: StateType) {
     const group = project.columns.filter((c) => c.stateType === stateType);
     const from = group.findIndex((c) => c.id === draggedId);
     const to = group.findIndex((c) => c.id === targetId);

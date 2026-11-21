@@ -36,13 +36,13 @@ export function useCreateColumn(projectKey: string) {
 export function useUpdateColumn(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.updateColumn>[2] }) =>
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateColumn>[2] }) =>
       api.updateColumn(projectKey, id, patch),
   );
 }
 
 export function useReorderColumns(projectKey: string) {
-  return useProjectMutation(projectKey, (orderedIds: number[]) =>
+  return useProjectMutation(projectKey, (orderedIds: string[]) =>
     api.reorderColumns(projectKey, orderedIds),
   );
 }
@@ -50,7 +50,7 @@ export function useReorderColumns(projectKey: string) {
 export function useDeleteColumn(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, body }: { id: number; body: Parameters<typeof api.deleteColumn>[2] }) =>
+    ({ id, body }: { id: string; body: Parameters<typeof api.deleteColumn>[2] }) =>
       api.deleteColumn(projectKey, id, body),
   );
 }
@@ -64,13 +64,13 @@ export function useCreateIssueType(projectKey: string) {
 export function useUpdateIssueType(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.updateIssueType>[2] }) =>
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateIssueType>[2] }) =>
       api.updateIssueType(projectKey, id, patch),
   );
 }
 
 export function useDeleteIssueType(projectKey: string) {
-  return useProjectMutation(projectKey, (id: number) => api.deleteIssueType(projectKey, id));
+  return useProjectMutation(projectKey, (id: string) => api.deleteIssueType(projectKey, id));
 }
 
 export function useCreateLabel(projectKey: string) {
@@ -82,13 +82,13 @@ export function useCreateLabel(projectKey: string) {
 export function useUpdateLabel(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.updateLabel>[2] }) =>
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateLabel>[2] }) =>
       api.updateLabel(projectKey, id, patch),
   );
 }
 
 export function useDeleteLabel(projectKey: string) {
-  return useProjectMutation(projectKey, (id: number) => api.deleteLabel(projectKey, id));
+  return useProjectMutation(projectKey, (id: string) => api.deleteLabel(projectKey, id));
 }
 
 export function useCreateLabelGroup(projectKey: string) {
@@ -100,13 +100,13 @@ export function useCreateLabelGroup(projectKey: string) {
 export function useUpdateLabelGroup(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.updateLabelGroup>[2] }) =>
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateLabelGroup>[2] }) =>
       api.updateLabelGroup(projectKey, id, patch),
   );
 }
 
 export function useDeleteLabelGroup(projectKey: string) {
-  return useProjectMutation(projectKey, (id: number) => api.deleteLabelGroup(projectKey, id));
+  return useProjectMutation(projectKey, (id: string) => api.deleteLabelGroup(projectKey, id));
 }
 
 // Archive section: the project's auto-archive thresholds, read from the project
@@ -187,11 +187,11 @@ export function useCreateCustomField(projectKey: string) {
 export function useUpdateCustomField(projectKey: string) {
   return useProjectMutation(
     projectKey,
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.updateCustomField>[2] }) =>
+    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateCustomField>[2] }) =>
       api.updateCustomField(projectKey, id, patch),
   );
 }
 
 export function useDeleteCustomField(projectKey: string) {
-  return useProjectMutation(projectKey, (id: number) => api.deleteCustomField(projectKey, id));
+  return useProjectMutation(projectKey, (id: string) => api.deleteCustomField(projectKey, id));
 }

@@ -23,7 +23,7 @@ export default function GodProjectsTable({
   onSelect,
 }: {
   projects: InstanceProject[];
-  onSelect: (projectId: number) => void;
+  onSelect: (projectId: string) => void;
 }) {
   return (
     <Table className="min-w-[900px] table-fixed">

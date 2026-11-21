@@ -11,7 +11,7 @@ export default function IssueTimelineLane({
   hasFixedTail,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   lane: TimelineLane;
   // Whether the layout ends in a fixed bar: every track then leaves the same room for
   // it, so the axis stays shared.

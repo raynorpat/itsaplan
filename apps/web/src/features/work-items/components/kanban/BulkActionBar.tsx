@@ -16,6 +16,7 @@ import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
 import { useSelection } from '../../context/useSelection';
 import { useBulkActions } from '../../hooks/useBulkActions';
 import { BarMenu } from './BarMenu';
+import { priorityLevel } from '@/utils/fieldOptions';
 
 // Floating bar shown while the kanban board is in selection mode. Each control
 // applies one field to every selected issue at once; archive and delete run their
@@ -83,7 +84,7 @@ export function BulkActionBar({ project }: { project: ProjectDetail }) {
                 {PRIORITY_FIELDS.map((p) => (
                   <DropdownMenuItem
                     key={p.value || 'none'}
-                    onSelect={() => void bulk.patch(ids, { priority: p.value || null })}
+                    onSelect={() => void bulk.patch(ids, { priority: priorityLevel(p.value) })}
                   >
                     {p.icon}
                     <span className="flex-1">{p.label}</span>

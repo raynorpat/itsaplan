@@ -14,12 +14,12 @@ export type ShellRoute = {
   // The segment after the project key: 'view', 'settings', 'issue', 'members', …
   // null on the project root.
   sub: string | null;
-  activeViewId: number | null;
+  activeViewId: string | null;
   section: string | null;
   aiTeamCrumb: string | null;
   // The project-scoped issue number from the URL, not the internal id.
   routeIssueSeq: number | null;
-  routeInitiativeId: number | null;
+  routeInitiativeId: string | null;
   // The work items routes, where the layout and selection commands apply.
   onBoard: boolean;
 };
@@ -40,13 +40,12 @@ export function useShellRoute(): ShellRoute {
   return {
     projectKey,
     sub,
-    activeViewId: sub === 'view' && segs[3] ? Number(segs[3]) : null,
+    activeViewId: sub === 'view' && segs[3] ? segs[3] : null,
     section: sub === 'settings' ? (segs[3] ?? null) : null,
     aiTeamCrumb: sub === 'ai-team' ? aiTeamLabel(segs[3] ?? null) : null,
     routeIssueSeq: sub === 'issue' && segs[3] ? Number(segs[3]) : null,
     // /initiatives/details/:id — the segment right after 'initiatives' is a list tab.
-    routeInitiativeId:
-      sub === 'initiatives' && segs[3] === 'details' && segs[4] ? Number(segs[4]) : null,
+    routeInitiativeId: sub === 'initiatives' && segs[3] === 'details' && segs[4] ? segs[4] : null,
     onBoard: sub == null || sub === 'view',
   };
 }

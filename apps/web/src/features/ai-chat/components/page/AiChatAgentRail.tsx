@@ -13,8 +13,8 @@ export function AiChatAgentRail({
   providerLabel,
 }: {
   agents: AiAgent[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   providerLabel: (key: string) => string;
 }) {
   return (

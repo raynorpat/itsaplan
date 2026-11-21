@@ -11,7 +11,7 @@ export default function IssueActivityFeed({
   assignees,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   assignees: Assignee[];
   imageByUserId: Map<string, string | null>;
 }) {

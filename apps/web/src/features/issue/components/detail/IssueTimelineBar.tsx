@@ -13,7 +13,7 @@ export default function IssueTimelineBar({
   status,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   bar: TimelineBar;
   color: string;
   status: string;

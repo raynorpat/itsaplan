@@ -15,6 +15,7 @@ import StatusSelect from '@/components/common/fields/StatusSelect';
 import TypeSelect from '@/components/common/fields/TypeSelect';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { priorityKey, priorityLevel } from '@/utils/fieldOptions';
 
 // The default value used when a field is first added to an effect. null on a
 // nullable field means "clear it" on apply; the user then picks a real value.
@@ -50,7 +51,7 @@ function EffectValue({
       return (
         <StatusSelect
           columns={project.columns}
-          value={effect.columnId ?? project.columns[0]?.id ?? 0}
+          value={effect.columnId ?? project.columns[0]?.id ?? ''}
           onChange={onChange}
         />
       );
@@ -63,7 +64,12 @@ function EffectValue({
         />
       );
     case 'priority':
-      return <PrioritySelect value={effect.priority ?? ''} onChange={(v) => onChange(v || null)} />;
+      return (
+        <PrioritySelect
+          value={priorityKey(effect.priority ?? 0)}
+          onChange={(v) => onChange(priorityLevel(v))}
+        />
+      );
     case 'typeId':
       return (
         <TypeSelect
@@ -80,7 +86,7 @@ function EffectValue({
       return <DatePill value={effect.dueDate ?? null} placeholder="Set date" onChange={onChange} />;
     case 'labelIds': {
       const ids = effect.labelIds ?? [];
-      const toggle = (id: number) =>
+      const toggle = (id: string) =>
         onChange(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
       return (
         <LabelsSelect

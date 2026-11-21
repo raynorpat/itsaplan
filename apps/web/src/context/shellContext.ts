@@ -15,7 +15,7 @@ export type ShellContext = {
   customFields: CustomField[];
   // Opens an issue. Without `mode` the account's issueOpenMode preference decides
   // between the side panel and the issue page; pass it to force one of them.
-  onOpenIssue: (id: number, mode?: IssueOpenMode) => void;
+  onOpenIssue: (id: string, mode?: IssueOpenMode) => void;
   onAddIssue: (defaults: NewIssueDefaults) => void;
 };
 

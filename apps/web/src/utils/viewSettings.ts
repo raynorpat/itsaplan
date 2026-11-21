@@ -33,12 +33,12 @@ export type DisplayProperty =
 // A custom field shown as a Table column, keyed by its id as `cf:<id>`. Kept
 // distinct from the built-in DisplayProperty union so both can live in the same
 // `properties` list. Stale keys (a since-deleted field) are ignored at render.
-export type CustomFieldKey = `cf:${number}`;
+export type CustomFieldKey = `cf:${string}`;
 export type PropertyKey = DisplayProperty | CustomFieldKey;
 
 export const isCustomFieldKey = (p: string): p is CustomFieldKey => /^cf:\d+$/.test(p);
-export const customFieldKey = (id: number): CustomFieldKey => `cf:${id}`;
-export const customFieldId = (key: CustomFieldKey): number => Number(key.slice(3));
+export const customFieldKey = (id: string): CustomFieldKey => `cf:${id}`;
+export const customFieldId = (key: CustomFieldKey): string => key.slice(3);
 
 // Every display property, in the canonical order they render (left to right on a
 // card, and as Table columns after the title). Used to render the property

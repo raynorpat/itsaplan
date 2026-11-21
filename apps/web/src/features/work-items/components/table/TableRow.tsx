@@ -40,7 +40,7 @@ export function TableRow({
   // the row stops being a drop target so the pointer falls through to the section
   // header, which refuses the move and explains why.
   dropDisabled: boolean;
-  onDrop: (draggedId: number) => void;
+  onDrop: (draggedId: string) => void;
   onClick: () => void;
 }) {
   // Drag is disabled on phones so a touch scrolls the list instead of picking up
@@ -56,12 +56,12 @@ export function TableRow({
   const { setNodeRef: dropRef, isOver } = useDroppable({
     id: `row:${issue.id}`,
     disabled: dropDisabled,
-    data: { onDrop: (draggedId: number) => draggedId !== issue.id && onDrop(draggedId) },
+    data: { onDrop: (draggedId: string) => draggedId !== issue.id && onDrop(draggedId) },
   });
   // The insertion marker sits at this row's top edge: a drop inserts before it.
   // Dropping a row on itself is a no-op, so it gets no marker.
   const { active } = useDndContext();
-  const showDropLine = isOver && Number(active?.id) !== issue.id;
+  const showDropLine = isOver && String(active?.id) !== issue.id;
   const mergedRef = useCallback(
     (el: HTMLElement | null) => {
       dragRef(el);

@@ -13,7 +13,7 @@ export interface LabelSection {
 // (name-sorted from the API); ungrouped labels come last. A group with no labels
 // is dropped; the ungrouped section is included only when it has labels.
 export function groupLabels(labels: Label[], groups: LabelGroup[]): LabelSection[] {
-  const byGroup = new Map<number, Label[]>();
+  const byGroup = new Map<string, Label[]>();
   const ungrouped: Label[] = [];
   for (const label of labels) {
     if (label.groupId == null) {

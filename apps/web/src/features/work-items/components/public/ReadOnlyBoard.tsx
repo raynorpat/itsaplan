@@ -20,7 +20,7 @@ export default function ReadOnlyBoard({
   onOpenIssue,
 }: {
   bundle: SharedViewBundle;
-  onOpenIssue: (id: number) => void;
+  onOpenIssue: (id: string) => void;
 }) {
   const project = toPublicProjectDetail(bundle.project, bundle.issues);
   const filteredProject = {

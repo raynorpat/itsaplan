@@ -21,7 +21,7 @@ export function AiChatThreadList({
   onDeleted,
 }: {
   projectKey: string;
-  agentId: number;
+  agentId: string;
   selectedThreadId: string | null;
   onSelect: (threadId: string) => void;
   onDeleted: (threadId: string) => void;

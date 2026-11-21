@@ -16,7 +16,7 @@ export function CalendarDayChip({
   project: ProjectDetail;
   issue: Issue;
   color: string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   // Drag is disabled on phones so a touch scrolls instead of picking up the issue
   // (see the `sm:touch-none` below), and without work_items edit (rescheduling a

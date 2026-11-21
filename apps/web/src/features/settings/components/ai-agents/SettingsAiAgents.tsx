@@ -32,7 +32,7 @@ export default function SettingsAiAgents({ project }: { project: ProjectDetail }
 
   // The open sheet: null means closed, agentId null means create, a set id means edit
   // that agent. Held in a single object so `null` distinguishes closed from create.
-  const [sheet, setSheet] = useState<{ agentId: number | null } | null>(null);
+  const [sheet, setSheet] = useState<{ agentId: string | null } | null>(null);
   // The agent whose run history sidebar is open.
   const [runsAgent, setRunsAgent] = useState<AiAgent | null>(null);
   const [deleting, setDeleting] = useState<AiAgent | null>(null);

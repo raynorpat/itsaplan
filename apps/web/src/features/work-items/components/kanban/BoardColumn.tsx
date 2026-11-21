@@ -42,8 +42,8 @@ export function BoardColumn({
   // Whether the view is ordered manually. Cards can only be reordered within the
   // column then; otherwise the sort field decides their order.
   manualOrder: boolean;
-  onMoveIssue: (issueId: number, group: IssueGroup, position: number) => void;
-  onOpenIssue: (id: number) => void;
+  onMoveIssue: (issueId: string, group: IssueGroup, position: number) => void;
+  onOpenIssue: (id: string) => void;
   onAddIssue: () => void;
   onHide: () => void;
   onCollapse: () => void;
@@ -58,7 +58,7 @@ export function BoardColumn({
   const columnId = `col:${group.key}`;
   const { setNodeRef: dropRef, isOver } = useDroppable({
     id: columnId,
-    data: { onDrop: (id: number) => onMoveIssue(id, group, positionAt(issues, issues.length)) },
+    data: { onDrop: (id: string) => onMoveIssue(id, group, positionAt(issues, issues.length)) },
   });
   const mergedRef = useCallback(
     (el: HTMLDivElement | null) => {

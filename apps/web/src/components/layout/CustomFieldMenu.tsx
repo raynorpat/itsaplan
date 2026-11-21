@@ -20,7 +20,7 @@ export default function CustomFieldMenu({
   onToggle: (key: PropertyKey) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [expandedType, setExpandedType] = useState<number | null>(null);
+  const [expandedType, setExpandedType] = useState<string | null>(null);
 
   const globalFields = customFields.filter((f) => f.issueTypeId == null);
   const typeGroups = issueTypes

@@ -19,7 +19,7 @@ export function CalendarUnscheduledPanel({
   dateField: DateField;
   issues: Issue[];
   dot: (issue: Issue) => string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: UNSCHEDULED_ID });
   const fieldName = dateField === 'dueDate' ? 'due' : 'start';

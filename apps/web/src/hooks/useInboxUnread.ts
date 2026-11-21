@@ -6,10 +6,10 @@ import { qk } from '@/services/queryKeys';
 // header. Polls the cheap rev marker; React Query pauses the interval while the tab
 // is in the background. Lives in the shared layer so both the sidebar and the inbox
 // feature can use it.
-export function useInboxUnread(projectKey: string | null, projectId: number | null) {
+export function useInboxUnread(projectKey: string | null, projectId: string | null) {
   return useQuery({
     queryKey: qk.notificationsUnread(projectKey ?? ''),
-    queryFn: () => api.getNotificationsRev(projectId as number),
+    queryFn: () => api.getNotificationsRev(projectId as string),
     enabled: projectKey != null && projectId != null,
     refetchInterval: 15000,
     select: (d) => d.unread,

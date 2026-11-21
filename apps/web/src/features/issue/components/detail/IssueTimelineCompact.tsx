@@ -13,7 +13,7 @@ export default function IssueTimelineCompact({
   metrics,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   lanes: TimelineLane[];
   metrics: LifecycleMetrics;
   imageByUserId: Map<string, string | null>;

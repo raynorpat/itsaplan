@@ -5,13 +5,13 @@ import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-quer
 // back on error, and refetches on settle to reconcile with the server's
 // renumbered positions. Pass a null key to disable the cache work when there is
 // no project.
-export function useOptimisticReorder<T extends { id: number }>(
+export function useOptimisticReorder<T extends { id: string }>(
   queryKey: QueryKey | null,
-  reorder: (orderedIds: number[]) => Promise<unknown>,
+  reorder: (orderedIds: string[]) => Promise<unknown>,
 ) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (orderedIds: number[]) => reorder(orderedIds),
+    mutationFn: (orderedIds: string[]) => reorder(orderedIds),
     onMutate: async (orderedIds) => {
       if (!queryKey) return;
       await qc.cancelQueries({ queryKey });

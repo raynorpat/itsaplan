@@ -15,7 +15,7 @@ export default function IssueTimelineItemsPopover({
   imageByUserId,
   children,
 }: {
-  issueId: number;
+  issueId: string;
   title: string;
   duration: string;
   subtitle: string;

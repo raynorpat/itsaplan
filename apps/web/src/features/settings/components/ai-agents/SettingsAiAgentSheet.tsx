@@ -68,7 +68,7 @@ function SheetBody({
   const canTest = agent?.kind === 'internal';
   // Held here so the transcript and thread survive re-renders. No agent yet during
   // create → id 0; the chat is only reachable once the agent exists.
-  const chat = useAgentChat(projectKey, agent?.id ?? 0);
+  const chat = useAgentChat(projectKey, agent?.id ?? '');
 
   function onCreated(created: AiAgent, apiKey: string | null) {
     setCreatedAgent(created);

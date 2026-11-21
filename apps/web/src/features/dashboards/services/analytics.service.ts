@@ -62,7 +62,7 @@ export function useAgentWorkloadQuery(projectKey: string) {
 
 export function useActivityFeedQuery(
   projectKey: string,
-  params: { action: string | null; issueIds: number[] | null; limit: number },
+  params: { action: string | null; issueIds: string[] | null; limit: number },
 ) {
   return useQuery({
     queryKey: qk.analytics(projectKey, 'activity', params),

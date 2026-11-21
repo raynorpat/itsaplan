@@ -9,7 +9,7 @@ export default function SidebarMainNav({
   projectId,
 }: {
   projectKey: string | null;
-  projectId: number | null;
+  projectId: string | null;
 }) {
   return (
     <>

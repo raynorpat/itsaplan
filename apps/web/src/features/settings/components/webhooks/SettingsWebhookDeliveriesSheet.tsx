@@ -37,7 +37,7 @@ export function SettingsWebhookDeliveriesSheet({
   );
 }
 
-function DeliveriesList({ webhookId }: { webhookId: number }) {
+function DeliveriesList({ webhookId }: { webhookId: string }) {
   const query = useWebhookDeliveries(webhookId);
   const deliveries = query.data?.pages.flatMap((p) => p.items) ?? [];
 

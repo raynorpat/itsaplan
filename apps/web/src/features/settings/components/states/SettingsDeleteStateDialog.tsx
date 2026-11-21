@@ -25,7 +25,7 @@ export default function SettingsDeleteStateDialog({
 }) {
   const otherColumns = project.columns.filter((c) => c.id !== column.id);
   const [action, setAction] = useState<'move' | 'delete'>(otherColumns.length ? 'move' : 'delete');
-  const [targetColumnId, setTargetColumnId] = useState<number | undefined>(otherColumns[0]?.id);
+  const [targetColumnId, setTargetColumnId] = useState<string | undefined>(otherColumns[0]?.id);
   const deleteColumn = useDeleteColumn(project.project.key);
 
   async function confirm() {
@@ -67,7 +67,7 @@ export default function SettingsDeleteStateDialog({
             {action === 'move' && (
               <Select
                 value={targetColumnId != null ? String(targetColumnId) : undefined}
-                onValueChange={(v) => setTargetColumnId(Number(v))}
+                onValueChange={(v) => setTargetColumnId(v)}
               >
                 <SelectTrigger className="ml-6 w-[calc(100%-1.5rem)]">
                   <SelectValue placeholder="Select a state" />

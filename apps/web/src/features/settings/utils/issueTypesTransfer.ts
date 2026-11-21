@@ -23,7 +23,7 @@ interface IssueTypesEnvelope {
 // A parsed issue type paired with what applying it would do to the current project.
 export interface PlannedIssueType extends IssueTypeTransfer {
   action: 'create' | 'update' | 'unchanged';
-  existingId?: number;
+  existingId?: string;
 }
 
 // The clipboard text for the project's issue types, in order.

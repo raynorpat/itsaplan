@@ -11,7 +11,7 @@ import PublicIssueOverlay from './components/public/PublicIssueOverlay';
 // the board bundle by token and renders it with no session; clicking an issue opens
 // its read-only detail under the same token.
 export default function PublicBoardPage({ token }: { token: string }) {
-  const [openIssueId, setOpenIssueId] = useState<number | null>(null);
+  const [openIssueId, setOpenIssueId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ['share', 'view', token],
     queryFn: () => api.getSharedView(token),

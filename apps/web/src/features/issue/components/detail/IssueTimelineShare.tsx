@@ -15,7 +15,7 @@ export default function IssueTimelineShare({
   fixed,
   imageByUserId,
 }: {
-  issueId: number;
+  issueId: string;
   lane: TimelineLane;
   share: number;
   // Sized by its label instead of by its share, and left out of the figures the others

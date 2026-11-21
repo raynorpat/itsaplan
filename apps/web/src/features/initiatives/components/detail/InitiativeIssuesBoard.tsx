@@ -15,7 +15,7 @@ import { useInitiativeBoardSettings } from '../../hooks/useInitiativeBoardSettin
 // calendar) with filters and display settings, but no saved views. The board is
 // fed a project whose issues are just this initiative's, so drag/edit still hit the
 // real issues and the live board refresh keeps it current.
-export default function InitiativeIssuesBoard({ initiativeId }: { initiativeId: number }) {
+export default function InitiativeIssuesBoard({ initiativeId }: { initiativeId: string }) {
   const { project, customFields, onOpenIssue, onAddIssue } = useShell();
   const board = useInitiativeBoardSettings(initiativeId);
 

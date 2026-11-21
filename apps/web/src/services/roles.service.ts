@@ -38,7 +38,7 @@ export function useUpdateRole(projectKey: string) {
       roleId,
       patch,
     }: {
-      roleId: number;
+      roleId: string;
       patch: { name?: string; permissions?: Permissions };
     }) => api.updateRole(projectKey, roleId, patch),
     // A rename changes the role name shown on members, so refresh both lists.
@@ -52,7 +52,7 @@ export function useUpdateRole(projectKey: string) {
 export function useDeleteRole(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (roleId: number) => api.deleteRole(projectKey, roleId),
+    mutationFn: (roleId: string) => api.deleteRole(projectKey, roleId),
     // Deleting a role reassigns its members to the default role.
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.roles(projectKey) });

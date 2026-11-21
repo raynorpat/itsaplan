@@ -18,7 +18,7 @@ export default function GodProjectsPage() {
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState<number>(PAGE_SIZES[1]);
   const [offset, setOffset] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   // Typing refetches, so wait for a pause instead of firing per keystroke.
   const debouncedSearch = useDebouncedValue(search, 300);

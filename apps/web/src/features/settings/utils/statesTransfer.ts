@@ -24,7 +24,7 @@ interface StatesEnvelope {
 // A parsed state paired with what applying it would do to the current project.
 export interface PlannedState extends StateTransfer {
   action: 'create' | 'update' | 'unchanged';
-  existingId?: number;
+  existingId?: string;
 }
 
 // The clipboard text for the project's states, in board order.

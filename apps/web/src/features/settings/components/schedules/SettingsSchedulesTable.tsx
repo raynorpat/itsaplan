@@ -4,11 +4,11 @@ import { SettingsScheduleRow } from './SettingsScheduleRow';
 
 interface SettingsSchedulesTableProps {
   schedules: AgentSchedule[];
-  runningId: number | null;
+  runningId: string | null;
   onToggle: (schedule: AgentSchedule) => void;
-  onRun: (scheduleId: number) => void;
+  onRun: (scheduleId: string) => void;
   onHistory: (schedule: AgentSchedule) => void;
-  onEdit: (scheduleId: number) => void;
+  onEdit: (scheduleId: string) => void;
   onDelete: (schedule: AgentSchedule) => void;
 }
 

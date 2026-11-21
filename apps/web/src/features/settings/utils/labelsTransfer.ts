@@ -31,12 +31,12 @@ type TransferAction = 'create' | 'update' | 'unchanged';
 
 export interface PlannedGroup extends LabelGroupTransfer {
   action: TransferAction;
-  existingId?: number;
+  existingId?: string;
 }
 
 export interface PlannedLabel extends LabelTransfer {
   action: TransferAction;
-  existingId?: number;
+  existingId?: string;
 }
 
 export interface LabelsImportPlan {

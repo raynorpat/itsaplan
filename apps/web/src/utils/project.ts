@@ -14,7 +14,7 @@ import type {
   IssueType,
   NewIssueInput,
 } from '@/lib/api';
-import { PRIORITIES, PRIORITY_RANK } from '@/utils/fieldOptions';
+import { PRIORITIES, PRIORITY_RANK, priorityKey, priorityLevel } from '@/utils/fieldOptions';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import type { Sort } from '@/utils/viewTypes';
 
@@ -41,7 +41,7 @@ export interface WorkItemsViewProps {
   // the view's display). Routes through the view editor: on a saved view it
   // starts an edit (saved on Save), on the All tab it writes localStorage.
   onSettingsChange: (settings: ViewSettings) => void;
-  onOpenIssue: (id: number) => void;
+  onOpenIssue: (id: string) => void;
   onAddIssue: (defaults: NewIssueDefaults) => void;
   // When true the view is a public read-only share: dragging, adding issues and
   // multi-select are disabled, but opening an issue (onOpenIssue) still works.
@@ -52,10 +52,10 @@ export interface WorkItemsViewProps {
 // Lookup maps over a project's reference data, built once per render and shared by
 // every column/row/cell so each render is a map get instead of an array find.
 export interface Maps {
-  typeById: Map<number, IssueType>;
-  labelById: Map<number, Label>;
+  typeById: Map<string, IssueType>;
+  labelById: Map<string, Label>;
   assigneeById: Map<string, Assignee>;
-  columnById: Map<number, Column>;
+  columnById: Map<string, Column>;
 }
 
 export function buildMaps(project: ProjectDetail): Maps {
@@ -94,7 +94,7 @@ export function sortIssues(issues: Issue[], sort: Sort, project: ProjectDetail):
       case 'status':
         return columnIndex.get(t.columnId) ?? Number.POSITIVE_INFINITY;
       case 'priority':
-        return PRIORITY_RANK[t.priority ?? ''] ?? 4;
+        return PRIORITY_RANK[priorityKey(t.priority)] ?? 4;
       default:
         return 0;
     }
@@ -153,8 +153,8 @@ export function positionAt(issuesInColumn: Issue[], index: number): number {
 
 // Groups a project's issues by column id, preserving each column's ordering. The
 // map always has an (empty) entry for every column id in `columnIds`.
-export function groupByColumn(columnIds: number[], issues: Issue[]): Map<number, Issue[]> {
-  const byColumn = new Map<number, Issue[]>();
+export function groupByColumn(columnIds: string[], issues: Issue[]): Map<string, Issue[]> {
+  const byColumn = new Map<string, Issue[]>();
   for (const id of columnIds) byColumn.set(id, []);
   for (const issue of issues) byColumn.get(issue.columnId)?.push(issue);
   return byColumn;
@@ -212,9 +212,9 @@ export function buildGroups(project: ProjectDetail, group: GroupField): IssueGro
         ...PRIORITIES.map((p) => ({
           key: `p${p.value}`,
           name: p.label,
-          assign: { priority: p.value },
+          assign: { priority: priorityLevel(p.value) },
         })),
-        { key: 'p-none', name: 'No priority', assign: { priority: null } },
+        { key: 'p-none', name: 'No priority', assign: { priority: 0 } },
       ];
     case 'type':
       return [
@@ -230,7 +230,7 @@ export function buildGroups(project: ProjectDetail, group: GroupField): IssueGro
       // Lanes come from the initiatives the loaded issues are linked to (each issue
       // carries its initiative). Initiatives with no issue on the board get no lane;
       // the full list is fetched on demand only where a picker needs it.
-      const seen = new Map<number, string>();
+      const seen = new Map<string, string>();
       for (const issue of project.issues)
         if (issue.initiative) seen.set(issue.initiative.id, issue.initiative.title);
       const options = [...seen.entries()]
@@ -254,7 +254,7 @@ export function groupKeyOf(issue: Issue, group: GroupField): string {
     case 'delegate':
       return issue.delegateUserId != null ? `d${issue.delegateUserId}` : 'd-none';
     case 'priority':
-      return issue.priority ? `p${issue.priority}` : 'p-none';
+      return issue.priority ? `p${priorityKey(issue.priority)}` : 'p-none';
     case 'type':
       return issue.typeId != null ? `t${issue.typeId}` : 't-none';
     case 'initiative':

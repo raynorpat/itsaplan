@@ -16,19 +16,19 @@ export function CardDropSlot({
   disabled = false,
   children,
 }: {
-  issueId: number;
-  onDrop: (draggedId: number) => void;
+  issueId: string;
+  onDrop: (draggedId: string) => void;
   disabled?: boolean;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `card:${issueId}`,
     disabled,
-    data: { onDrop: (draggedId: number) => draggedId !== issueId && onDrop(draggedId) },
+    data: { onDrop: (draggedId: string) => draggedId !== issueId && onDrop(draggedId) },
   });
   // Dropping a card on itself is a no-op, so it gets no marker.
   const { active } = useDndContext();
-  const showDropLine = isOver && Number(active?.id) !== issueId;
+  const showDropLine = isOver && String(active?.id) !== issueId;
 
   return (
     <div ref={setNodeRef} className="relative pt-2">

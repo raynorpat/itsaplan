@@ -21,7 +21,7 @@ export default function InitiativeStateBreakdown({
   initiativeId,
 }: {
   project: ProjectDetail;
-  initiativeId: number;
+  initiativeId: string;
 }) {
   const counts = useMemo(() => {
     const stateByColumn = new Map(project.columns.map((c) => [c.id, c.stateType]));

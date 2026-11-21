@@ -174,7 +174,7 @@ export function useInstanceProjectsQuery(filters: InstanceProjectFilters) {
 
 // One project with its members. Mounted only while a project is selected, like the
 // account panel.
-export function useInstanceProjectQuery(projectId: number) {
+export function useInstanceProjectQuery(projectId: string) {
   return useQuery({
     queryKey: qk.instanceProject(projectId),
     queryFn: () => api.getInstanceProject(projectId),

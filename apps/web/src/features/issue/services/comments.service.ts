@@ -13,7 +13,7 @@ import { qk } from '@/services/queryKeys';
 
 // The issue's timeline (comments + activity), paged newest first. Each page is
 // 25 items; getNextPageParam yields the server's cursor until it returns null.
-export function useFeedQuery(id: number) {
+export function useFeedQuery(id: string) {
   return useInfiniteQuery({
     queryKey: qk.feed(id),
     queryFn: ({ pageParam }) => api.listFeed(id, { cursor: pageParam, limit: 25 }),
@@ -24,7 +24,7 @@ export function useFeedQuery(id: number) {
 
 // The stretches the issue spent in one status, oldest first. Carries no entries,
 // so it stays small however long the issue's history is.
-export function useTimelineQuery(id: number) {
+export function useTimelineQuery(id: string) {
   return useQuery({ queryKey: qk.timeline(id), queryFn: () => api.listTimeline(id) });
 }
 
@@ -37,7 +37,7 @@ export interface TimelineRange {
 // The entries of the given stretches, merged in chronological order. A status may
 // have been visited more than once, so a lane's popover asks for several ranges at
 // once. Called from inside an open popover, which is what makes it a read on demand.
-export function useTimelineItemsQuery(issueId: number, ranges: TimelineRange[]) {
+export function useTimelineItemsQuery(issueId: string, ranges: TimelineRange[]) {
   return useQueries({
     queries: ranges.map((range) => ({
       queryKey: qk.timelineItems(issueId, range.from, range.to),
@@ -54,7 +54,7 @@ export function useTimelineItemsQuery(issueId: number, ranges: TimelineRange[]) 
 export function useCreateComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ issueId, input }: { issueId: number; input: { body: string } }) =>
+    mutationFn: ({ issueId, input }: { issueId: string; input: { body: string } }) =>
       api.createComment(issueId, input),
     onSuccess: (_data, { issueId }) => void qc.invalidateQueries({ queryKey: qk.feed(issueId) }),
   });

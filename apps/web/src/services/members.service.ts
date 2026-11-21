@@ -31,7 +31,7 @@ export function useSetMemberRole(projectKey: string) {
     }: {
       userId: string;
       role: MemberRole;
-      roleId?: number | null;
+      roleId?: string | null;
     }) => api.setMemberRole(projectKey, userId, { role, roleId }),
     onSuccess: (_data, { role }) => {
       qc.invalidateQueries({ queryKey: qk.members(projectKey) });
@@ -66,7 +66,7 @@ export function useInvitesQuery(projectKey: string | null, enabled = true) {
 export function useCreateInvite(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { email: string; role: MemberRole; roleId?: number | null }) =>
+    mutationFn: (input: { email: string; role: MemberRole; roleId?: string | null }) =>
       api.createInvite(projectKey, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(projectKey) }),
   });
@@ -75,7 +75,7 @@ export function useCreateInvite(projectKey: string) {
 export function useDeleteInvite(projectKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (inviteId: number) => api.deleteInvite(projectKey, inviteId),
+    mutationFn: (inviteId: string) => api.deleteInvite(projectKey, inviteId),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(projectKey) }),
   });
 }

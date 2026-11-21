@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useShell } from '@/context/shellContext';
 import { issuePath } from '@/utils/paths';
 import { formatShortDate } from '@/utils/dates';
-import { priorityLabel } from '@/utils/fieldOptions';
+import { priorityLabel, priorityKey } from '@/utils/fieldOptions';
 import { EMPTY_FILTER_SET, applyFilters, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import type { WidgetConfig } from '@/utils/dashboardWidgets';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -79,9 +79,9 @@ export default function RecentIssuesWidget({
                     {issue.identifier}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{issue.title}</span>
-                  {issue.priority && (
+                  {issue.priority > 0 && (
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {priorityLabel(issue.priority)}
+                      {priorityLabel(priorityKey(issue.priority))}
                     </span>
                   )}
                   <span className="shrink-0 text-xs text-muted-foreground">

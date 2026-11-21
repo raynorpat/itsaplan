@@ -87,7 +87,7 @@ export default function SwimlaneBoard({
 
   // Every visible issue id per column, across swimlanes — the target of a column
   // header's select-all.
-  const idsByColumn = new Map<string, number[]>();
+  const idsByColumn = new Map<string, string[]>();
   for (const row of rows) {
     for (const cell of row.cells) {
       const list = idsByColumn.get(cell.column.key) ?? [];
@@ -115,7 +115,7 @@ export default function SwimlaneBoard({
     swimlane: IssueGroup,
     column: IssueGroup,
     cellIssues: Issue[],
-    issueId: number,
+    issueId: string,
     position: number,
   ) {
     const assign = mergeAssign(column.assign, swimlane.assign);

@@ -39,7 +39,7 @@ export function useCreateAction(projectKey: string | null) {
 export function useUpdateAction(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: Parameters<typeof api.updateAction>[1] }) =>
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateAction>[1] }) =>
       api.updateAction(id, input),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.actions(projectKey) });
@@ -50,7 +50,7 @@ export function useUpdateAction(projectKey: string | null) {
 export function useDeleteAction(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteAction(id),
+    mutationFn: (id: string) => api.deleteAction(id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.actions(projectKey) });
     },

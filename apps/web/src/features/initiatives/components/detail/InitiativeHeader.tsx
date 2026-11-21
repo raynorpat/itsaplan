@@ -28,7 +28,7 @@ export default function InitiativeHeader({
 
   const patch = (p: InitiativePatch) => update.mutate({ id: initiative.id, patch: p });
 
-  const toggleLabel = (labelId: number) => {
+  const toggleLabel = (labelId: string) => {
     const next = initiative.labelIds.includes(labelId)
       ? initiative.labelIds.filter((id) => id !== labelId)
       : [...initiative.labelIds, labelId];

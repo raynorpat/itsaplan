@@ -11,8 +11,8 @@ import { issuePath } from '@/utils/paths';
 export default function IssueRedirect() {
   const router = useRouter();
   const params = useParams();
-  const id = Number(typeof params.issueId === 'string' ? params.issueId : NaN);
-  const { data, isLoading } = useIssueQuery(Number.isNaN(id) ? null : id);
+  const id = typeof params.issueId === 'string' ? params.issueId : null;
+  const { data, isLoading } = useIssueQuery(id);
 
   useEffect(() => {
     if (isLoading) return;

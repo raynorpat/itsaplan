@@ -13,7 +13,7 @@ export default function InitiativeActiveWork({
   initiativeId,
 }: {
   project: ProjectDetail;
-  initiativeId: number;
+  initiativeId: string;
 }) {
   const { onOpenIssue } = useShell();
 

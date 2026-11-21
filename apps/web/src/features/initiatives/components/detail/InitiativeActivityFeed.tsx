@@ -10,7 +10,7 @@ export default function InitiativeActivityFeed({
   initiativeId,
   projectKey,
 }: {
-  initiativeId: number;
+  initiativeId: string;
   projectKey: string;
 }) {
   const feed = useInitiativeFeedQuery(initiativeId);

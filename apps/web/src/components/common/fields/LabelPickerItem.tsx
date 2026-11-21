@@ -11,7 +11,7 @@ export default function LabelPickerItem({
 }: {
   label: Label;
   checked: boolean;
-  onToggle: (id: number) => void;
+  onToggle: (id: string) => void;
 }) {
   return (
     <DropdownMenuCheckboxItem

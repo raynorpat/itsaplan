@@ -28,7 +28,7 @@ export default function DashboardsPage() {
   const [editing, setEditing] = useState(false);
 
   const list = dashboards ?? [];
-  const routeId = params.dashboardId ? Number(params.dashboardId) : null;
+  const routeId = typeof params.dashboardId === 'string' ? params.dashboardId : null;
   // With no id in the URL, fall back to the first saved dashboard.
   const activeDashboardId = routeId ?? list[0]?.id ?? null;
 

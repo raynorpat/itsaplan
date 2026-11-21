@@ -46,7 +46,7 @@ export function useCreateCredential(projectKey: string | null) {
 export function useUpdateCredential(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: CredentialPatch }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: CredentialPatch }) =>
       api.updateCredential(projectKey!, id, patch),
     onSuccess: () => {
       if (projectKey)
@@ -58,7 +58,7 @@ export function useUpdateCredential(projectKey: string | null) {
 export function useDeleteCredential(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteCredential(projectKey!, id),
+    mutationFn: (id: string) => api.deleteCredential(projectKey!, id),
     onSuccess: () => {
       if (projectKey)
         void qc.invalidateQueries({ queryKey: qk.integrationCredentials(projectKey) });

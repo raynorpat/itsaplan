@@ -17,11 +17,11 @@ export function useAiAgentsQuery(projectKey: string | null) {
 
 // An agent's triggered run history for the runs sidebar, paginated 25 at a time. Only
 // fetched when agentId is set, so the query runs when the sidebar opens.
-export function useAgentRuns(projectKey: string | null, agentId: number | null) {
+export function useAgentRuns(projectKey: string | null, agentId: string | null) {
   return useInfiniteQuery({
-    queryKey: qk.agentRuns(projectKey ?? '', agentId ?? 0),
+    queryKey: qk.agentRuns(projectKey ?? '', agentId ?? ''),
     queryFn: ({ pageParam }) => api.listAgentRuns(projectKey!, agentId!, pageParam),
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: projectKey != null && agentId != null,
   });
@@ -29,9 +29,9 @@ export function useAgentRuns(projectKey: string | null, agentId: number | null) 
 
 // The caller's chat threads with one agent (the AI Chat history rail), newest
 // first. Only fetched when an agent is selected.
-export function useAgentThreadsQuery(projectKey: string | null, agentId: number | null) {
+export function useAgentThreadsQuery(projectKey: string | null, agentId: string | null) {
   return useQuery({
-    queryKey: qk.agentThreads(projectKey ?? '', agentId ?? 0),
+    queryKey: qk.agentThreads(projectKey ?? '', agentId ?? ''),
     queryFn: () => api.listAiAgentThreads(projectKey!, agentId!),
     enabled: projectKey != null && agentId != null,
   });
@@ -41,11 +41,11 @@ export function useAgentThreadsQuery(projectKey: string | null, agentId: number 
 // opened. Only fetched when a thread is selected.
 export function useAgentThreadMessagesQuery(
   projectKey: string | null,
-  agentId: number | null,
+  agentId: string | null,
   threadId: string | null,
 ) {
   return useInfiniteQuery({
-    queryKey: qk.agentThreadMessages(projectKey ?? '', agentId ?? 0, threadId ?? ''),
+    queryKey: qk.agentThreadMessages(projectKey ?? '', agentId ?? '', threadId ?? ''),
     queryFn: ({ pageParam }) =>
       api.getAiAgentThreadMessages(projectKey!, agentId!, threadId!, pageParam),
     initialPageParam: 0,
@@ -56,7 +56,7 @@ export function useAgentThreadMessagesQuery(
 
 // Deletes one of the caller's chat threads with an agent and refreshes the history
 // list it was in.
-export function useDeleteAgentThread(projectKey: string | null, agentId: number | null) {
+export function useDeleteAgentThread(projectKey: string | null, agentId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (threadId: string) => api.deleteAiAgentThread(projectKey!, agentId!, threadId),
@@ -96,7 +96,7 @@ export function useUpdateAiAgent(projectKey: string | null) {
   const qc = useQueryClient();
   const invalidateProject = useInvalidateProject(projectKey);
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: Parameters<typeof api.updateAiAgent>[2] }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.updateAiAgent>[2] }) =>
       api.updateAiAgent(projectKey!, id, patch),
     onSuccess: (agent) => {
       toast.success(`Agent @${agent.username} saved`);
@@ -108,7 +108,7 @@ export function useUpdateAiAgent(projectKey: string | null) {
 
 export function useRegenerateAiAgentKey(projectKey: string | null) {
   return useMutation({
-    mutationFn: (id: number) => api.regenerateAiAgentKey(projectKey!, id),
+    mutationFn: (id: string) => api.regenerateAiAgentKey(projectKey!, id),
   });
 }
 
@@ -116,7 +116,7 @@ export function useDeleteAiAgent(projectKey: string | null) {
   const qc = useQueryClient();
   const invalidateProject = useInvalidateProject(projectKey);
   return useMutation({
-    mutationFn: (id: number) => api.deleteAiAgent(projectKey!, id),
+    mutationFn: (id: string) => api.deleteAiAgent(projectKey!, id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.aiAgents(projectKey) });
       invalidateProject();

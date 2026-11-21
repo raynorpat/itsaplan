@@ -37,12 +37,12 @@ export default function ViewTabs({
 }: {
   views: View[];
   projectKey: string;
-  activeViewId: number | null;
-  onSelect: (id: number | null) => void;
+  activeViewId: string | null;
+  onSelect: (id: string | null) => void;
   onNewView: () => void;
   onEdit: (view: View) => void;
   onDelete: (view: View) => void;
-  onReorder: (draggedId: number, targetId: number) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
   onToggleFilter: () => void;
   displayControl: ReactNode;
 }) {
@@ -52,20 +52,20 @@ export default function ViewTabs({
   const canDeleteView = can('views', 'delete');
   const sensors = useStripSortSensors();
   // The view being dragged, used to render the DragOverlay preview.
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const activeView = activeId != null ? (views.find((v) => v.id === activeId) ?? null) : null;
 
   function handleDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
-    const draggedId = Number(active.id);
+    const draggedId = String(active.id);
     if (over.id === ALL_DROP_ID) {
       // Move to the front (next to the fixed All tab).
       if (views[0] && views[0].id !== draggedId) onReorder(draggedId, views[0].id);
       return;
     }
-    if (over.id !== active.id) onReorder(draggedId, Number(over.id));
+    if (over.id !== active.id) onReorder(draggedId, String(over.id));
   }
 
   return (
@@ -86,7 +86,7 @@ export default function ViewTabs({
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
-          onDragStart={(e: DragStartEvent) => setActiveId(Number(e.active.id))}
+          onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
           onDragCancel={() => setActiveId(null)}
           onDragEnd={handleDragEnd}
         >

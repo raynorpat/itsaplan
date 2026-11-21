@@ -42,7 +42,7 @@ export function TimelineIssueRow({
   // still opens the issue.
   readOnly?: boolean;
   onBeginDrag: (e: React.PointerEvent, issue: Issue, mode: TimelineDragMode) => void;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   return (
     <div

@@ -27,12 +27,12 @@ export default function NoteBoardBar({
 }: {
   projectKey: string;
   tabs: MruEntry[];
-  activeBoardId: number | null;
-  onSelect: (id: number) => void;
+  activeBoardId: string | null;
+  onSelect: (id: string) => void;
   onCreate: (name: string, personal: boolean) => void;
-  onRename: (id: number, name: string) => void;
-  onToggleVisibility: (id: number, personal: boolean) => void;
-  onDelete: (id: number) => void;
+  onRename: (id: string, name: string) => void;
+  onToggleVisibility: (id: string, personal: boolean) => void;
+  onDelete: (id: string) => void;
 }) {
   // 'create' to open the new-board dialog, an MRU entry to rename, or null (closed).
   const [dialog, setDialog] = useState<'create' | MruEntry | null>(null);

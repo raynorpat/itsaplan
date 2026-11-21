@@ -125,7 +125,7 @@ export function AgentSheetForm({
   }, [isCreate, toolsQuery.data]);
 
   // The agent's enabled skills, seeded from the server once loaded (edit mode only).
-  const [skillIds, setSkillIds] = useState<number[] | null>(null);
+  const [skillIds, setSkillIds] = useState<string[] | null>(null);
   useEffect(() => {
     if (agentSkillsQuery.data && skillIds === null) {
       setSkillIds(agentSkillsQuery.data.map((s) => s.id));
@@ -134,7 +134,7 @@ export function AgentSheetForm({
   const selectedSkills = skillIds ?? [];
 
   // The agent's enabled custom tools, seeded from the server once loaded (edit only).
-  const [toolIds, setToolIds] = useState<number[] | null>(null);
+  const [toolIds, setToolIds] = useState<string[] | null>(null);
   useEffect(() => {
     if (agentToolsQuery.data && toolIds === null) {
       setToolIds(agentToolsQuery.data.map((t) => t.id));
@@ -153,14 +153,14 @@ export function AgentSheetForm({
     if ('username' in patch) setUsernameEdited((patch.username ?? '').trim() !== '');
   }
 
-  function toggleSkill(id: number, on: boolean) {
+  function toggleSkill(id: string, on: boolean) {
     setSkillIds((prev) => {
       const base = prev ?? [];
       return on ? [...new Set([...base, id])] : base.filter((x) => x !== id);
     });
   }
 
-  function toggleTool(id: number, on: boolean) {
+  function toggleTool(id: string, on: boolean) {
     setToolIds((prev) => {
       const base = prev ?? [];
       return on ? [...new Set([...base, id])] : base.filter((x) => x !== id);

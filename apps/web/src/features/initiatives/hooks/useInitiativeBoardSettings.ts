@@ -29,7 +29,7 @@ function writeStore(store: Store) {
   localStorage.setItem(STORE_KEY, JSON.stringify(store));
 }
 
-export function useInitiativeBoardSettings(initiativeId: number) {
+export function useInitiativeBoardSettings(initiativeId: string) {
   const key = String(initiativeId);
   const [state, setState] = useState<{ view: WorkItemsView; settings: ViewSettings }>(() => {
     const stored = readStore()[key];

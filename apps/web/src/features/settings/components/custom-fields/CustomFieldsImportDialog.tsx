@@ -34,7 +34,7 @@ export default function CustomFieldsImportDialog({
   async function apply() {
     setBusy(true);
     try {
-      const typeIdByName = new Map<string, number>(
+      const typeIdByName = new Map<string, string>(
         existingTypes.map((t) => [t.name.toLowerCase(), t.id]),
       );
       for (const name of plan.newTypeNames) {

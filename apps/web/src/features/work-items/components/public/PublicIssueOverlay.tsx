@@ -15,12 +15,12 @@ export default function PublicIssueOverlay({
   onClose,
 }: {
   token: string;
-  issueId: number | null;
+  issueId: string | null;
   onClose: () => void;
 }) {
   const query = useQuery({
     queryKey: ['share', 'view', token, 'issue', issueId],
-    queryFn: () => api.getSharedViewIssue(token, issueId as number),
+    queryFn: () => api.getSharedViewIssue(token, issueId as string),
     enabled: issueId != null,
     retry: false,
   });

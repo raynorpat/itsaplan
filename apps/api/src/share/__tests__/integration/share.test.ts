@@ -149,6 +149,24 @@ describe('share', () => {
       expect(opened.status).toBe(404);
     });
 
+    it('applies a priority filter saved with priority names', async () => {
+      const { asOwner, columnId, issueId } = await setup();
+      const urgent = await asOwner
+        .projects({ projectKey: 'MKT' })
+        .issues.post({ columnId, title: 'Urgent one', priority: 1 });
+      // The web app saves priority filter values by name; null means "no priority".
+      const view = await asOwner.projects({ projectKey: 'MKT' }).views.post({
+        name: 'Urgent',
+        filters: { conditions: [{ id: 'c1', field: 'priority', op: 'is', values: ['urgent'] }] },
+      });
+      const token = (await asOwner.views({ viewId: view.data!.id }).share.post()).data!.token;
+
+      const shared = await api.share.view({ token }).get();
+      const ids = shared.data.issues.map((i: { id: string }) => i.id);
+      expect(ids).toEqual([urgent.data!.id]);
+      expect(ids).not.toContain(issueId);
+    });
+
     it('refuses to open an issue from another project via a board token', async () => {
       const { asOwner, token } = await sharedView();
       await asOwner.projects.post({ key: 'OPS', name: 'Operations' });

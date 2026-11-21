@@ -17,7 +17,7 @@ export function TableSubHeader({
   count: number;
   collapsed: boolean;
   dropId: string;
-  onDrop: (issueId: number) => void;
+  onDrop: (issueId: string) => void;
   onToggle: () => void;
 }) {
   return (

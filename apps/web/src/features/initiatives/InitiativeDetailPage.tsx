@@ -20,7 +20,7 @@ export default function InitiativeDetailPage({ tab = 'overview' }: { tab?: Initi
   const router = useRouter();
   const params = useParams();
   const raw = Array.isArray(params.initiativeId) ? params.initiativeId[0] : params.initiativeId;
-  const initiativeId = raw ? Number(raw) : null;
+  const initiativeId = raw ?? null;
 
   const query = useInitiativeQuery(initiativeId);
   const projectKey = project?.project.key ?? '';
@@ -31,8 +31,8 @@ export default function InitiativeDetailPage({ tab = 'overview' }: { tab?: Initi
     revKey: ['rev', 'initiative', initiativeId ?? 0],
     fetchRev: () => api.getInitiativeRev(initiativeId!),
     targets: [
-      qk.initiative(initiativeId ?? 0),
-      qk.initiativeFeed(initiativeId ?? 0),
+      qk.initiative(initiativeId ?? ''),
+      qk.initiativeFeed(initiativeId ?? ''),
       qk.boardIssues(projectKey),
     ],
     intervalMs: 12000,

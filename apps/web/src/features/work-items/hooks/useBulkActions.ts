@@ -17,10 +17,10 @@ export function useBulkActions(project: ProjectDetail) {
   const remove = useBulkDeleteIssues(key);
 
   return {
-    patch: (ids: number[], patch: BulkIssuePatch) => update.mutateAsync({ ids, patch }),
-    addLabel: (ids: number[], labelId: number) => addLabels.mutateAsync({ ids, add: [labelId] }),
-    archiveAll: (ids: number[]) => archive.mutateAsync(ids),
-    deleteAll: (ids: number[]) => remove.mutateAsync(ids),
+    patch: (ids: string[], patch: BulkIssuePatch) => update.mutateAsync({ ids, patch }),
+    addLabel: (ids: string[], labelId: string) => addLabels.mutateAsync({ ids, add: [labelId] }),
+    archiveAll: (ids: string[]) => archive.mutateAsync(ids),
+    deleteAll: (ids: string[]) => remove.mutateAsync(ids),
     pending: update.isPending || addLabels.isPending || archive.isPending || remove.isPending,
   };
 }

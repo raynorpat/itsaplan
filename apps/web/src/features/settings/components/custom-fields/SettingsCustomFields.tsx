@@ -15,12 +15,12 @@ import { SettingsCustomFieldForm, FIELD_TYPE_LABELS } from './SettingsCustomFiel
 
 // Which group's inline add form is open: 'global' for the project-wide field group,
 // or a issue type id for a type-scoped group. null when no form is open.
-type AddScope = 'global' | number;
+type AddScope = 'global' | string;
 
 export default function SettingsCustomFields({ project }: { project: ProjectDetail }) {
   const projectKey = project.project.key;
   const [addingScope, setAddingScope] = useState<AddScope | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<CustomField | null>(null);
   // Groups the user has collapsed, keyed by scope; every group is expanded by default.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());

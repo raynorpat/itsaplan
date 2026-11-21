@@ -41,7 +41,7 @@ export interface WidgetConfig {
   filters?: FilterSet;
   // activity_feed actor filter
   actorUserId?: string | null;
-  typeId?: number | null;
+  typeId?: string | null;
   // activity_feed
   action?: string | null;
   // pulse — the heatmap bucket unit; the window auto-fits the widget width

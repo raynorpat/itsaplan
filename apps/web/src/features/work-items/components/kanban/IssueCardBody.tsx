@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
+import { priorityKey } from '@/utils/fieldOptions';
 
 // One board card's content. Which properties render is driven by `properties`.
 export function IssueCardBody({
@@ -47,10 +48,12 @@ export function IssueCardBody({
 
   return (
     <>
-      {(has('id') || (has('priority') && issue.priority)) && (
+      {(has('id') || (has('priority') && issue.priority > 0)) && (
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{has('id') ? issue.identifier : ''}</span>
-          {has('priority') && issue.priority && <PriorityBadge priority={issue.priority} />}
+          {has('priority') && issue.priority > 0 && (
+            <PriorityBadge priority={priorityKey(issue.priority)} />
+          )}
         </div>
       )}
 

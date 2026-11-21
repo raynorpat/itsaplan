@@ -12,7 +12,7 @@ export default function InitiativeBreadcrumbName({
   initiativeId,
   projectKey,
 }: {
-  initiativeId: number;
+  initiativeId: string;
   projectKey: string;
 }) {
   const { can } = usePermissions();

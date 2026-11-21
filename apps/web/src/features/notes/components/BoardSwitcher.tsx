@@ -26,8 +26,8 @@ export default function BoardSwitcher({
   onSelect,
 }: {
   projectKey: string;
-  activeBoardId: number | null;
-  onSelect: (id: number) => void;
+  activeBoardId: string | null;
+  onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -48,7 +48,7 @@ export default function BoardSwitcher({
     }
   }
 
-  function select(id: number) {
+  function select(id: string) {
     onSelect(id);
     setOpen(false);
   }

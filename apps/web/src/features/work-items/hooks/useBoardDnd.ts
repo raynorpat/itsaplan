@@ -13,17 +13,17 @@ import { type DropData } from '../utils/dnd';
 // but gets inert sensors, so no drag can ever start (see useDndSensors).
 export function useBoardDnd(projectKey: string, readOnly = false) {
   const updateIssue = useUpdateIssue(projectKey);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
 
-  const move = (issueId: number, patch: IssuePatch) => updateIssue.mutate({ id: issueId, patch });
+  const move = (issueId: string, patch: IssuePatch) => updateIssue.mutate({ id: issueId, patch });
 
-  const onDragStart = (e: DragStartEvent) => setActiveId(Number(e.active.id));
+  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const onDragCancel = () => setActiveId(null);
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
     const data = e.over?.data.current as DropData | undefined;
-    data?.onDrop(Number(e.active.id));
+    data?.onDrop(String(e.active.id));
   };
 
   return { sensors, activeId, move, onDragStart, onDragCancel, onDragEnd };

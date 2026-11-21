@@ -15,7 +15,7 @@ export default function IssueDetail({
   onExpand,
 }: {
   project: ProjectDetail;
-  issueId: number;
+  issueId: string;
   onClose: () => void;
   // Passed the issue's project-scoped number so the host can open the page URL
   // (/project/KEY/issue/42); null while the issue is still loading.

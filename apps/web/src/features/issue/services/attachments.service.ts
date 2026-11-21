@@ -5,21 +5,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Attachment } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useAttachmentsQuery(id: number) {
+export function useAttachmentsQuery(id: string) {
   return useQuery({ queryKey: qk.attachments(id), queryFn: () => api.listAttachments(id) });
 }
 
 export function useUploadAttachment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ issueId, file }: { issueId: number; file: File }): Promise<Attachment> =>
+    mutationFn: ({ issueId, file }: { issueId: string; file: File }): Promise<Attachment> =>
       api.uploadAttachment(issueId, file),
     onSuccess: (_data, { issueId }) =>
       void qc.invalidateQueries({ queryKey: qk.attachments(issueId) }),
   });
 }
 
-export function useDeleteAttachment(issueId: number) {
+export function useDeleteAttachment(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (publicId: string) => api.deleteAttachment(publicId),

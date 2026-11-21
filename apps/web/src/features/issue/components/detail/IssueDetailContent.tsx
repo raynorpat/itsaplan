@@ -21,7 +21,7 @@ export default function IssueDetailContent({
   layout = 'panel',
 }: {
   project: ProjectDetail;
-  issueId: number;
+  issueId: string;
   onIssueLoaded?: (issue: IssueDetailRow) => void;
   // Called after the issue is deleted, so the surrounding chrome can leave the
   // now-gone issue (close the panel / return to the project).

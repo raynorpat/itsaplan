@@ -12,11 +12,11 @@ export function useWebhooksQuery(projectKey: string | null) {
 
 // A webhook's deliveries for the history sidebar, paginated 25 at a time. Only
 // fetched when webhookId is set, so the query runs when the sidebar opens.
-export function useWebhookDeliveries(webhookId: number | null) {
+export function useWebhookDeliveries(webhookId: string | null) {
   return useInfiniteQuery({
-    queryKey: qk.webhookDeliveries(webhookId ?? 0),
+    queryKey: qk.webhookDeliveries(webhookId ?? ''),
     queryFn: ({ pageParam }) => api.listWebhookDeliveries(webhookId!, pageParam),
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: webhookId != null,
   });
@@ -36,7 +36,7 @@ export function useCreateWebhook(projectKey: string | null) {
 export function useUpdateWebhook(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: Parameters<typeof api.updateWebhook>[1] }) =>
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateWebhook>[1] }) =>
       api.updateWebhook(id, input),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.webhooks(projectKey) });
@@ -47,7 +47,7 @@ export function useUpdateWebhook(projectKey: string | null) {
 export function useDeleteWebhook(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteWebhook(id),
+    mutationFn: (id: string) => api.deleteWebhook(id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.webhooks(projectKey) });
     },

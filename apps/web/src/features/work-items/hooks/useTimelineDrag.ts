@@ -34,13 +34,13 @@ export function useTimelineDrag({
   project: ProjectDetail;
   group: GroupField;
   dayW: number;
-  onOpenIssue: (id: number) => void;
+  onOpenIssue: (id: string) => void;
 }) {
   const updateIssue = useUpdateIssue(project.project.key);
   const groupByKey = new Map(
     buildGroups(project, group).map((issueGroup) => [issueGroup.key, issueGroup]),
   );
-  const [preview, setPreview] = useState<{ issueId: number; start: Date; end: Date } | null>(null);
+  const [preview, setPreview] = useState<{ issueId: string; start: Date; end: Date } | null>(null);
   const [dropGroupKey, setDropGroupKey] = useState<string | null>(null);
 
   function beginDrag(e: React.PointerEvent, issue: Issue, mode: TimelineDragMode) {

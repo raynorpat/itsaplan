@@ -7,7 +7,7 @@ export interface AgentFormValue {
   name: string;
   username: string;
   kind: 'external' | 'internal';
-  modelCredentialId: number | null;
+  modelCredentialId: string | null;
   model: string;
   instructions: string;
   tools: string[];
@@ -17,7 +17,7 @@ export interface AgentFormValue {
   memoryLastMessages: string;
   triggerOnMention: boolean;
   triggerOnAssign: boolean;
-  roleId: number | null;
+  roleId: string | null;
 }
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/;

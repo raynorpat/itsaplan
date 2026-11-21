@@ -61,7 +61,7 @@ export default function NotesPage() {
     return result;
   }, [mru, seed]);
 
-  const routeId = params.boardId ? Number(params.boardId) : null;
+  const routeId = typeof params.boardId === 'string' ? params.boardId : null;
   const activeBoardId = routeId ?? tabs[0]?.id ?? null;
 
   const { data: activeBoard, isError, error } = useNoteBoardQuery(projectKey, activeBoardId);
@@ -103,7 +103,7 @@ export default function NotesPage() {
     router.push(notePath(projectKey, board.id));
   }
 
-  function remove(boardId: number) {
+  function remove(boardId: string) {
     deleteBoard.mutate(boardId, {
       onSuccess: () => {
         removeMru(boardId);

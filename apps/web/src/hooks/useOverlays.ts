@@ -14,7 +14,7 @@ export function useOverlays(showChatByDefault: boolean) {
   // Initial field values for a new issue (null = the new-issue modal is closed).
   const [newIssueDefaults, setNewIssueDefaults] = useState<NewIssueDefaults | null>(null);
   // Which issue the detail panel shows (null = the panel is closed).
-  const [openIssueId, setOpenIssueId] = useState<number | null>(null);
+  const [openIssueId, setOpenIssueId] = useState<string | null>(null);
   // The floating AI chat. `chatEnabled` is the header toggle (shows the floating
   // button); `chatOpen` is whether the chat window is expanded. Kept out of
   // `anyOpen` so the chat does not suppress the keyboard shortcuts.

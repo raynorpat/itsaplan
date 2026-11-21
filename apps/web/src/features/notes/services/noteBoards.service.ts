@@ -38,9 +38,9 @@ export function useNoteBoardSearch(projectKey: string | null, q: string) {
 
 // One board with its canvas. Always refetched when opened so the canvas reflects
 // the latest server state, even after edits on another device.
-export function useNoteBoardQuery(projectKey: string | null, boardId: number | null) {
+export function useNoteBoardQuery(projectKey: string | null, boardId: string | null) {
   return useQuery({
-    queryKey: qk.noteBoard(projectKey ?? '', boardId ?? 0),
+    queryKey: qk.noteBoard(projectKey ?? '', boardId ?? ''),
     queryFn: () => api.getNoteBoard(projectKey!, boardId!),
     enabled: projectKey != null && boardId != null,
     refetchOnMount: 'always',
@@ -63,7 +63,7 @@ export function useCreateNoteBoard(projectKey: string | null) {
 export function useRenameNoteBoard(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ boardId, name }: { boardId: number; name: string }) =>
+    mutationFn: ({ boardId, name }: { boardId: string; name: string }) =>
       api.updateNoteBoard(projectKey!, boardId, { name }),
     onSuccess: (updated) => {
       if (!projectKey) return;
@@ -78,7 +78,7 @@ export function useRenameNoteBoard(projectKey: string | null) {
 export function useSetNoteBoardVisibility(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ boardId, personal }: { boardId: number; personal: boolean }) =>
+    mutationFn: ({ boardId, personal }: { boardId: string; personal: boolean }) =>
       api.updateNoteBoard(projectKey!, boardId, { personal }),
     onSuccess: (updated) => {
       if (!projectKey) return;
@@ -91,7 +91,7 @@ export function useSetNoteBoardVisibility(projectKey: string | null) {
 export function useDeleteNoteBoard(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (boardId: number) => api.deleteNoteBoard(projectKey!, boardId),
+    mutationFn: (boardId: string) => api.deleteNoteBoard(projectKey!, boardId),
     onSuccess: (_res, boardId) => {
       if (!projectKey) return;
       qc.removeQueries({ queryKey: qk.noteBoard(projectKey, boardId) });
@@ -106,7 +106,7 @@ export function useDeleteNoteBoard(projectKey: string | null) {
 export function useSaveNoteCanvas(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ boardId, canvas }: { boardId: number; canvas: NoteCanvas }) =>
+    mutationFn: ({ boardId, canvas }: { boardId: string; canvas: NoteCanvas }) =>
       api.updateNoteBoard(projectKey!, boardId, { canvas }),
     onSuccess: (updated) => {
       if (!projectKey) return;

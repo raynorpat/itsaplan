@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
-export function useCustomFieldsQuery(projectKey: string | null, typeId?: number | null) {
+export function useCustomFieldsQuery(projectKey: string | null, typeId?: string | null) {
   return useQuery({
     queryKey: qk.customFields(projectKey ?? '', typeId),
     queryFn: () => api.listCustomFields(projectKey!, typeId ?? undefined),

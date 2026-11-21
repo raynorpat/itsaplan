@@ -19,7 +19,7 @@ export const qk = {
   views: (projectKey: string) => ['views', projectKey] as const,
   actions: (projectKey: string) => ['actions', projectKey] as const,
   webhooks: (projectKey: string) => ['webhooks', projectKey] as const,
-  webhookDeliveries: (webhookId: number) => ['webhookDeliveries', webhookId] as const,
+  webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
   // Saved dashboards (the analytics tabs) and the read-only metrics behind their
   // widgets. `kind` names the metric (stats/pulse/throughput/breakdown/...) and
   // `params` scopes it to the widget's query (window, filters).
@@ -30,14 +30,14 @@ export const qk = {
   noteBoardsForProject: (projectKey: string) => ['noteBoards', projectKey] as const,
   noteBoardsSearch: (projectKey: string, q: string) =>
     ['noteBoards', projectKey, 'search', q] as const,
-  noteBoard: (projectKey: string, boardId: number) =>
+  noteBoard: (projectKey: string, boardId: string) =>
     ['noteBoards', projectKey, 'board', boardId] as const,
   analytics: (projectKey: string, kind: string, params?: unknown) =>
     ['analytics', projectKey, kind, params ?? {}] as const,
   analyticsForProject: (projectKey: string) => ['analytics', projectKey] as const,
   // Custom fields are project-scoped; typeId narrows to one issue type's fields,
   // 'all' is the project's full list.
-  customFields: (projectKey: string, typeId?: number | null) =>
+  customFields: (projectKey: string, typeId?: string | null) =>
     ['customFields', projectKey, typeId ?? 'all'] as const,
   anyCustomFields: ['customFields'] as const,
   // Project membership, invite links, and custom roles (the Members section). The
@@ -51,19 +51,19 @@ export const qk = {
   aiAgents: (projectKey: string) => ['aiAgents', projectKey] as const,
   agentTools: (projectKey: string) => ['aiAgents', projectKey, 'tools'] as const,
   // The skills enabled on one agent (the agent editor's Skills tab).
-  agentSkillLinks: (projectKey: string, agentId: number) =>
+  agentSkillLinks: (projectKey: string, agentId: string) =>
     ['aiAgents', projectKey, agentId, 'skills'] as const,
   // An agent's triggered run history (the runs sidebar).
-  agentRuns: (projectKey: string, agentId: number) =>
+  agentRuns: (projectKey: string, agentId: string) =>
     ['aiAgents', projectKey, agentId, 'runs'] as const,
   agentSchedules: (projectKey: string) => ['agentSchedules', projectKey] as const,
-  agentScheduleRuns: (projectKey: string, scheduleId: number) =>
+  agentScheduleRuns: (projectKey: string, scheduleId: string) =>
     ['agentSchedules', projectKey, scheduleId, 'runs'] as const,
   // The caller's chat threads with one agent (the AI Chat history rail) and the
   // transcript of one thread (restored when a thread is opened).
-  agentThreads: (projectKey: string, agentId: number) =>
+  agentThreads: (projectKey: string, agentId: string) =>
     ['aiAgents', projectKey, agentId, 'threads'] as const,
-  agentThreadMessages: (projectKey: string, agentId: number, threadId: string) =>
+  agentThreadMessages: (projectKey: string, agentId: string, threadId: string) =>
     ['aiAgents', projectKey, agentId, 'threads', threadId] as const,
   // Stored integration credentials, the integration catalog, and an LLM provider's
   // models (the Integrations page and the agent model select).
@@ -76,18 +76,18 @@ export const qk = {
   // Configured tools (the Tools page) and the tools enabled on one agent (the agent
   // editor's Tools section).
   configuredTools: (projectKey: string) => ['configuredTools', projectKey] as const,
-  agentToolLinks: (projectKey: string, agentId: number) =>
+  agentToolLinks: (projectKey: string, agentId: string) =>
     ['aiAgents', projectKey, agentId, 'tool-configs'] as const,
-  issue: (id: number) => ['issue', id] as const,
+  issue: (id: string) => ['issue', id] as const,
   anyIssue: ['issue'] as const,
   // Resolving an issue by its project-scoped number (the identifier-based URL).
   issueBySeq: (projectKey: string, seq: number) => ['issueBySeq', projectKey, seq] as const,
-  feed: (id: number) => ['feed', id] as const,
+  feed: (id: string) => ['feed', id] as const,
   // The status stretches of the timeline view, and the entries of one stretch read
   // when it is opened. Both keyed under the feed, so every existing feed
   // invalidation refreshes them too.
-  timeline: (id: number) => ['feed', id, 'timeline'] as const,
-  timelineItems: (id: number, from: string, to: string | null) =>
+  timeline: (id: string) => ['feed', id, 'timeline'] as const,
+  timelineItems: (id: string, from: string, to: string | null) =>
     ['feed', id, 'timelineItems', from, to] as const,
   // Initiatives: a project's list (params narrow, sort and page it), the per-status
   // tab counts, one initiative, and one initiative's activity feed.
@@ -95,14 +95,14 @@ export const qk = {
     ['initiatives', projectKey, params ?? {}] as const,
   initiativesForProject: (projectKey: string) => ['initiatives', projectKey] as const,
   initiativeCounts: (projectKey: string) => ['initiativeCounts', projectKey] as const,
-  initiative: (id: number) => ['initiative', id] as const,
-  initiativeFeed: (id: number) => ['initiativeFeed', id] as const,
+  initiative: (id: string) => ['initiative', id] as const,
+  initiativeFeed: (id: string) => ['initiativeFeed', id] as const,
   // Prefix keys: issue mutations invalidate every initiative query without
   // knowing the id (see invalidateInitiatives in issues.service).
   anyInitiative: ['initiative'] as const,
   anyInitiativeFeed: ['initiativeFeed'] as const,
   anyInitiatives: ['initiatives'] as const,
-  attachments: (id: number) => ['attachments', id] as const,
+  attachments: (id: string) => ['attachments', id] as const,
   // A project's inbox notifications (the list, scoped by the active filters) and the
   // project's unread count (the sidebar badge + live-refresh target).
   notifications: (projectKey: string, filters?: unknown) =>
@@ -144,5 +144,5 @@ export const qk = {
   // The instance project directory: the list (scoped by the active filters) and one
   // project with its members.
   instanceProjects: (filters: unknown) => ['instanceProjects', filters] as const,
-  instanceProject: (projectId: number) => ['instanceProject', projectId] as const,
+  instanceProject: (projectId: string) => ['instanceProject', projectId] as const,
 };

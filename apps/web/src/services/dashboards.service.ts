@@ -25,7 +25,7 @@ export function useCreateDashboard(projectKey: string | null) {
 export function useUpdateDashboard(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: Parameters<typeof api.updateDashboard>[1] }) =>
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateDashboard>[1] }) =>
       api.updateDashboard(id, input),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.dashboards(projectKey) });
@@ -36,7 +36,7 @@ export function useUpdateDashboard(projectKey: string | null) {
 export function useDeleteDashboard(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteDashboard(id),
+    mutationFn: (id: string) => api.deleteDashboard(id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.dashboards(projectKey) });
     },

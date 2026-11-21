@@ -99,7 +99,7 @@ export default function IssueCustomFieldControl({
     return (
       <Select
         value={current?.optionIds[0] != null ? String(current.optionIds[0]) : NONE}
-        onValueChange={(v) => onChange({ optionIds: v === NONE ? [] : [Number(v)] })}
+        onValueChange={(v) => onChange({ optionIds: v === NONE ? [] : [v] })}
       >
         <SelectTrigger className="w-full">
           <SelectValue />

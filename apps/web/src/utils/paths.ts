@@ -5,7 +5,7 @@ import type { StartPage } from '@/lib/api';
 
 export const projectPath = (key: string) => `/project/${encodeURIComponent(key)}`;
 
-export const viewPath = (key: string, viewId: number | null) =>
+export const viewPath = (key: string, viewId: string | null) =>
   viewId != null ? `${projectPath(key)}/view/${viewId}` : projectPath(key);
 
 export const dashboardsPath = (key: string) => `${projectPath(key)}/dashboard`;
@@ -18,12 +18,12 @@ export const shareViewPath = (token: string) => `/share/view/${token}`;
 export const shareUrl = (path: string) =>
   typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
 
-export const dashboardPath = (key: string, dashboardId: number) =>
+export const dashboardPath = (key: string, dashboardId: string) =>
   `${dashboardsPath(key)}/${dashboardId}`;
 
 export const notesPath = (key: string) => `${projectPath(key)}/notes`;
 
-export const notePath = (key: string, boardId: number) => `${notesPath(key)}/${boardId}`;
+export const notePath = (key: string, boardId: string) => `${notesPath(key)}/${boardId}`;
 
 export const settingsPath = (key: string, section: string) =>
   `${projectPath(key)}/settings/${section}`;
@@ -83,7 +83,7 @@ export type InitiativeTab = 'overview' | 'issues';
 
 export const initiativePath = (
   key: string,
-  initiativeId: number,
+  initiativeId: string,
   tab: InitiativeTab = 'overview',
 ) => {
   const base = `${initiativesPath(key)}/details/${initiativeId}`;

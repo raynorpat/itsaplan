@@ -46,7 +46,7 @@ export default function GodProjectDetailPanel({
   projectId,
   onClose,
 }: {
-  projectId: number;
+  projectId: string;
   onClose: () => void;
 }) {
   const projectQuery = useInstanceProjectQuery(projectId);

@@ -41,7 +41,7 @@ export default function InviteCreateForm({ projectKey }: { projectKey: string })
     const input =
       selected === OWNER_VALUE
         ? { email: trimmed, role: 'owner' as const }
-        : { email: trimmed, role: 'member' as const, roleId: Number(selected) };
+        : { email: trimmed, role: 'member' as const, roleId: selected };
     try {
       await createInvite.mutateAsync(input);
       setEmail('');

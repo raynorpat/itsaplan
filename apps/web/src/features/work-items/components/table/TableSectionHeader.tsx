@@ -23,7 +23,7 @@ export function TableSectionHeader({
   collapsed: boolean;
   disabled: boolean;
   dropId: string;
-  onDrop: (issueId: number) => void;
+  onDrop: (issueId: string) => void;
   onToggle: () => void;
   onAddIssue: () => void;
   // In a read-only share the add affordance is hidden.

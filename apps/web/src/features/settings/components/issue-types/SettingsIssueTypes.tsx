@@ -36,7 +36,7 @@ export default function SettingsIssueTypes({
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
 }) {
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [isDefault, setIsDefault] = useState(false);
@@ -47,7 +47,7 @@ export default function SettingsIssueTypes({
   const deleteIssueType = useDeleteIssueType(project.project.key);
 
   const types = project.issueTypes;
-  const issueCount = (typeId: number) => project.issues.filter((t) => t.typeId === typeId).length;
+  const issueCount = (typeId: string) => project.issues.filter((t) => t.typeId === typeId).length;
 
   useEffect(() => {
     if (adding) {

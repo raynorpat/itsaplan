@@ -5,7 +5,7 @@
 // effect object as the patch (see api.updateIssue / useUpdateIssue).
 
 import type { ActionEffect, ProjectDetail } from '@/lib/api';
-import { priorityLabel } from '@/utils/fieldOptions';
+import { priorityLabel, priorityKey } from '@/utils/fieldOptions';
 import { formatDate } from '@/utils/dates';
 
 // The built-in fields an effect can set, in display order.
@@ -58,7 +58,7 @@ export function effectValueLabel(
         ? 'No assignee'
         : (project.assignees.find((a) => a.userId === effect.assigneeUserId)?.name ?? '—');
     case 'priority':
-      return priorityLabel(effect.priority);
+      return priorityLabel(priorityKey(effect.priority ?? 0));
     case 'typeId':
       return effect.typeId == null
         ? 'No type'

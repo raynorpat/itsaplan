@@ -26,7 +26,7 @@ export function useCreateConfiguredTool(projectKey: string | null) {
 export function useDeleteConfiguredTool(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteConfiguredTool(projectKey!, id),
+    mutationFn: (id: string) => api.deleteConfiguredTool(projectKey!, id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.configuredTools(projectKey) });
     },
@@ -34,9 +34,9 @@ export function useDeleteConfiguredTool(projectKey: string | null) {
 }
 
 // The configured tools enabled on one agent (the agent editor's Tools section).
-export function useAgentToolLinksQuery(projectKey: string | null, agentId: number | null) {
+export function useAgentToolLinksQuery(projectKey: string | null, agentId: string | null) {
   return useQuery({
-    queryKey: qk.agentToolLinks(projectKey ?? '', agentId ?? 0),
+    queryKey: qk.agentToolLinks(projectKey ?? '', agentId ?? ''),
     queryFn: () => api.listAgentToolLinks(projectKey!, agentId!),
     enabled: projectKey != null && agentId != null,
   });
@@ -45,7 +45,7 @@ export function useAgentToolLinksQuery(projectKey: string | null, agentId: numbe
 export function useSetAgentTools(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ agentId, agentToolIds }: { agentId: number; agentToolIds: number[] }) =>
+    mutationFn: ({ agentId, agentToolIds }: { agentId: string; agentToolIds: string[] }) =>
       api.setAgentTools(projectKey!, agentId, agentToolIds),
     onSuccess: (_data, { agentId }) => {
       if (projectKey)

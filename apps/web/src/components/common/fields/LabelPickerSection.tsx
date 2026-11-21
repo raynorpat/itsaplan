@@ -17,8 +17,8 @@ export default function LabelPickerSection({
 }: {
   group: LabelGroup | null;
   labels: Label[];
-  selected: Set<number>;
-  onToggle: (id: number) => void;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
 }) {
   const items = labels.map((label) => (
     <LabelPickerItem

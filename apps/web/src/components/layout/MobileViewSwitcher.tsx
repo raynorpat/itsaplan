@@ -25,9 +25,9 @@ export default function MobileViewSwitcher({
   onNewView,
 }: {
   views: View[];
-  activeViewId: number | null;
+  activeViewId: string | null;
   canCreate: boolean;
-  onSelect: (id: number | null) => void;
+  onSelect: (id: string | null) => void;
   onNewView: () => void;
 }) {
   const [open, setOpen] = useState(false);

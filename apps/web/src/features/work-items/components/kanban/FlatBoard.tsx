@@ -79,7 +79,7 @@ export default function FlatBoard({
   // goes through, since it changes the grouping field rather than the order.
   const manualOrder = settings.sort.field === 'manual';
 
-  function moveIssue(issueId: number, group: IssueGroup, position: number) {
+  function moveIssue(issueId: string, group: IssueGroup, position: number) {
     if (!group.assign) return;
     if (!manualOrder && (issuesByGroup.get(group.key) ?? []).some((i) => i.id === issueId)) {
       toast.info(sortedOrderMessage(settings.sort.field));

@@ -30,21 +30,21 @@ export default function DashboardTabs({
   onReorder,
 }: {
   dashboards: Dashboard[];
-  activeDashboardId: number | null;
+  activeDashboardId: string | null;
   isVirtual: boolean;
   actions?: React.ReactNode;
-  onSelect: (id: number) => void;
+  onSelect: (id: string) => void;
   onNewDashboard: (name: string) => void;
   onRename: (d: Dashboard, name: string) => void;
   onDelete: (d: Dashboard) => void;
-  onReorder: (draggedId: number, targetId: number) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
 }) {
   const { can } = usePermissions();
   const canCreate = can('dashboards', 'create');
   const canEdit = can('dashboards', 'edit');
   const canDelete = can('dashboards', 'delete');
   const sensors = useStripSortSensors();
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const dragged = activeId != null ? dashboards.find((d) => d.id === activeId) : null;
   // Name dialog state: 'new' to create, a dashboard to rename, or null (closed).
   const [dialog, setDialog] = useState<'new' | Dashboard | null>(null);
@@ -53,7 +53,7 @@ export default function DashboardTabs({
   function handleDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const { active, over } = e;
-    if (over && active.id !== over.id) onReorder(Number(active.id), Number(over.id));
+    if (over && active.id !== over.id) onReorder(String(active.id), String(over.id));
   }
 
   return (
@@ -68,7 +68,7 @@ export default function DashboardTabs({
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={(e: DragStartEvent) => setActiveId(Number(e.active.id))}
+            onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
             onDragCancel={() => setActiveId(null)}
             onDragEnd={handleDragEnd}
           >

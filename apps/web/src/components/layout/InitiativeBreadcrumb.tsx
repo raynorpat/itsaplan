@@ -9,7 +9,7 @@ export default function InitiativeBreadcrumb({
   initiativeId,
 }: {
   projectKey: string | null;
-  initiativeId: number;
+  initiativeId: string;
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">

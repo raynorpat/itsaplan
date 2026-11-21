@@ -31,7 +31,7 @@ export function useDiscoverGithubSkills(projectKey: string | null) {
 export function useUpdateSkill(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: SkillPatch }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: SkillPatch }) =>
       api.updateSkill(projectKey!, id, patch),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.agentSkills(projectKey) });
@@ -42,7 +42,7 @@ export function useUpdateSkill(projectKey: string | null) {
 export function useDeleteSkill(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteSkill(projectKey!, id),
+    mutationFn: (id: string) => api.deleteSkill(projectKey!, id),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.agentSkills(projectKey) });
     },
@@ -52,7 +52,7 @@ export function useDeleteSkill(projectKey: string | null) {
 export function useAddSkillReference(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) =>
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
       api.addSkillReference(projectKey!, id, file),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.agentSkills(projectKey) });
@@ -63,7 +63,7 @@ export function useAddSkillReference(projectKey: string | null) {
 export function useUpdateSkillReference(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, path, content }: { id: number; path: string; content: string }) =>
+    mutationFn: ({ id, path, content }: { id: string; path: string; content: string }) =>
       api.updateSkillReferenceContent(projectKey!, id, path, content),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.agentSkills(projectKey) });
@@ -74,7 +74,7 @@ export function useUpdateSkillReference(projectKey: string | null) {
 export function useDeleteSkillReference(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, path }: { id: number; path: string }) =>
+    mutationFn: ({ id, path }: { id: string; path: string }) =>
       api.deleteSkillReference(projectKey!, id, path),
     onSuccess: () => {
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.agentSkills(projectKey) });
@@ -83,9 +83,9 @@ export function useDeleteSkillReference(projectKey: string | null) {
 }
 
 // The skills enabled on one agent (the agent editor's Skills tab).
-export function useAgentSkillsQuery(projectKey: string | null, agentId: number | null) {
+export function useAgentSkillsQuery(projectKey: string | null, agentId: string | null) {
   return useQuery({
-    queryKey: qk.agentSkillLinks(projectKey ?? '', agentId ?? 0),
+    queryKey: qk.agentSkillLinks(projectKey ?? '', agentId ?? ''),
     queryFn: () => api.listAgentSkills(projectKey!, agentId!),
     enabled: projectKey != null && agentId != null,
   });
@@ -94,7 +94,7 @@ export function useAgentSkillsQuery(projectKey: string | null, agentId: number |
 export function useSetAgentSkills(projectKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ agentId, skillIds }: { agentId: number; skillIds: number[] }) =>
+    mutationFn: ({ agentId, skillIds }: { agentId: string; skillIds: string[] }) =>
       api.setAgentSkills(projectKey!, agentId, skillIds),
     onSuccess: (_data, { agentId }) => {
       if (projectKey)
