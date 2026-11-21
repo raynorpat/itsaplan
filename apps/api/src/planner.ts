@@ -15,6 +15,7 @@ import { agentToolRoutes } from './agent-tools/routes';
 import { customFieldRoutes } from './custom-fields/routes';
 import { issueRoutes } from './issues/routes';
 import { projectRoutes } from './projects/routes';
+import { projectLabelRoutes } from './project-labels/routes';
 import { attachmentRoutes } from './attachments/routes';
 import { avatarRoutes } from './avatars/routes';
 import { viewRoutes } from './views/routes';
@@ -88,6 +89,7 @@ export const planner = new Elysia({ name: 'planner' })
   .use(customFieldRoutes)
   .use(issueRoutes)
   .use(projectRoutes)
+  .use(projectLabelRoutes)
   .use(attachmentRoutes)
   .use(avatarRoutes)
   .use(viewRoutes)

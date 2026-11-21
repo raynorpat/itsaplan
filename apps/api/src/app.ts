@@ -71,8 +71,9 @@ export const app = new Elysia()
           { name: 'Issues', description: 'Issues, their fields, feed, and comments' },
           {
             name: 'Projects',
-            description: 'Projects (issue groupings) and their activity feed',
+            description: 'Projects across teams, their statuses and activity feed',
           },
+          { name: 'Project labels', description: 'Workspace-level project labels' },
           { name: 'Attachments', description: 'Issue attachments and raw bytes' },
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
           { name: 'Views', description: 'Saved work items views' },

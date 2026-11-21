@@ -16,6 +16,8 @@ import {
   getProject,
   createProject,
   setProjectTeams,
+  setProjectArchived,
+  listProjectStatuses,
   updateProject,
   deleteProject,
   projectRev,
@@ -414,6 +416,72 @@ export const projectRoutes = new Elysia({
         description:
           "Replace the project's teams (the ones you can see). A team with issues in the project cannot be removed, and the project keeps at least one team.",
         ...mcpTool('set_project_teams'),
+      },
+    },
+  )
+
+  .get('/project-statuses', () => listProjectStatuses(), {
+    response: {
+      200: t.Array(
+        t.Object({
+          id: t.String({ format: 'uuid' }),
+          name: t.String(),
+          type: t.String(),
+          color: t.String(),
+          position: t.Number(),
+        }),
+      ),
+      401: ErrorResponse,
+    },
+    detail: {
+      summary: 'List project statuses',
+      description: 'The six project statuses, in lifecycle order.',
+      ...mcpTool('list_project_statuses'),
+    },
+  })
+
+  .post(
+    '/projects/:projectId/archive',
+    async ({ params, access }) => {
+      await setProjectArchived(params.projectId, true);
+      return (await getProject(params.projectId, access.readableTeamIds))!;
+    },
+    {
+      params: projectParams,
+      project: 'edit',
+      response: {
+        200: ProjectResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: {
+        summary: 'Archive a project',
+        description: 'Archive a project; it is hidden from lists unless includeArchived.',
+        ...mcpTool('archive_project'),
+      },
+    },
+  )
+
+  .post(
+    '/projects/:projectId/unarchive',
+    async ({ params, access }) => {
+      await setProjectArchived(params.projectId, false);
+      return (await getProject(params.projectId, access.readableTeamIds))!;
+    },
+    {
+      params: projectParams,
+      project: 'edit',
+      response: {
+        200: ProjectResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: {
+        summary: 'Unarchive a project',
+        description: 'Restore an archived project.',
+        ...mcpTool('unarchive_project'),
       },
     },
   )

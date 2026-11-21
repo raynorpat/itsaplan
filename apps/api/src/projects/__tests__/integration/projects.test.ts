@@ -361,6 +361,50 @@ describe('projects', () => {
     });
   });
 
+  describe('fields, statuses and archive', () => {
+    it('lists the six project statuses', async () => {
+      const { asOwner } = await setup();
+      const res = await asOwner['project-statuses'].get();
+      expect(res.data!.map((s) => s.type)).toEqual([
+        'backlog',
+        'planned',
+        'started',
+        'paused',
+        'completed',
+        'canceled',
+      ]);
+      expect(res.data!.find((s) => s.type === 'started')?.name).toBe('In Progress');
+    });
+
+    it('gives each project a unique 12-hex slugId', async () => {
+      const { asOwner } = await setup();
+      const a = (await createProject(asOwner, { name: 'A' })).data!;
+      const b = (await createProject(asOwner, { name: 'B' })).data!;
+      expect(a.slugId).toMatch(/^[0-9a-f]{12}$/);
+      expect(a.slugId).not.toBe(b.slugId);
+    });
+
+    it('rejects a priority outside 0..4', async () => {
+      const { asOwner } = await setup();
+      expect((await createProject(asOwner, { name: 'x', priority: 5 })).status).toBe(400);
+    });
+
+    it('archives a project out of the list and unarchives it', async () => {
+      const { asOwner } = await setup();
+      const project = (await createProject(asOwner, { name: 'Old' })).data!;
+      const archived = await asOwner.projects({ projectId: project.id }).archive.post();
+      expect(archived.status).toBe(200);
+      expect(archived.data!.archivedAt).toBeTruthy();
+      expect((await projects(asOwner).get()).data!.items).toHaveLength(0);
+      const all = await projects(asOwner).get({ query: { includeArchived: 'true' } });
+      expect(all.data!.items.map((p) => p.id)).toEqual([project.id]);
+
+      const restored = await asOwner.projects({ projectId: project.id }).unarchive.post();
+      expect(restored.data!.archivedAt).toBeNull();
+      expect((await projects(asOwner).get()).data!.items).toHaveLength(1);
+    });
+  });
+
   describe('access', () => {
     it('refuses to create a project in a team the user cannot create in', async () => {
       const { asOwner, teamId } = await setup();

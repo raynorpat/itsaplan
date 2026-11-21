@@ -497,6 +497,37 @@ export async function setProjectTeams(
   });
 }
 
+// Sets or clears archived_at. Archived projects are hidden from lists unless
+// includeArchived. Returns false when the project does not exist.
+export async function setProjectArchived(id: string, archived: boolean): Promise<boolean> {
+  const rows = await db
+    .update(project)
+    .set({ archivedAt: archived ? sql`now()` : null, updatedAt: sql`now()` })
+    .where(eq(project.id, id))
+    .returning({ id: project.id });
+  return rows.length > 0;
+}
+
+export interface ProjectStatusRow {
+  id: string;
+  name: string;
+  type: ProjectStatusType;
+  color: string;
+  position: number;
+}
+
+// The six seeded project statuses in lifecycle order.
+export async function listProjectStatuses(): Promise<ProjectStatusRow[]> {
+  const rows = await db.select().from(projectStatus).orderBy(projectStatus.position);
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    type: r.type as ProjectStatusType,
+    color: r.color,
+    position: num(r.position),
+  }));
+}
+
 // Linked issues keep existing (issue.project_id is set null by the FK); the
 // project's own activity rows, team links and label links cascade.
 export async function deleteProject(id: string): Promise<void> {
