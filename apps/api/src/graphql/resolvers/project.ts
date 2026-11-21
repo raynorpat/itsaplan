@@ -5,7 +5,6 @@ import {
   projectLabel,
   projectMilestone,
   projectStatus,
-  projectTeam,
   projectUpdate,
   team,
 } from '@repo/db';
@@ -251,7 +250,9 @@ function listLabels(where: SQL | undefined, args: ConnectionArgs) {
   );
 }
 
-async function byId<T extends { projectId: string }>(
+// The first row, when its project is visible to the viewer; else ENTITY_NOT_FOUND.
+// Used for milestones and updates, which are visible through their project.
+async function visibleItem<T extends { projectId: string }>(
   rows: T[],
   ctx: GraphQLContext,
   what: string,
@@ -259,22 +260,21 @@ async function byId<T extends { projectId: string }>(
 ): Promise<T> {
   const row = rows[0];
   if (row) {
-    const teams = await readable(ctx);
     const [visible] = await db
-      .select({ id: projectTeam.projectId })
-      .from(projectTeam)
+      .select({ id: project.id })
+      .from(project)
       .where(
         and(
-          eq(projectTeam.projectId, row.projectId),
-          inArray(projectTeam.teamId, teams.length ? teams : [UUID_NONE]),
+          eq(project.id, row.projectId),
+          inArray(project.id, projectsInTeams(await readable(ctx))),
         ),
-      )
-      .limit(1);
+      );
     if (visible) return row;
   }
   throw gqlError('ENTITY_NOT_FOUND', `${what} ${id} not found`);
 }
 
+// An id no row has, for `IN` lists that would otherwise be empty.
 const UUID_NONE = '00000000-0000-0000-0000-000000000000';
 
 export const projectResolvers = {
@@ -308,7 +308,7 @@ export const projectResolvers = {
       const rows = UUID_RE.test(args.id)
         ? await db.select().from(projectMilestone).where(eq(projectMilestone.id, args.id))
         : [];
-      return toMilestone(await byId(rows, ctx, 'Project milestone', args.id));
+      return toMilestone(await visibleItem(rows, ctx, 'Project milestone', args.id));
     },
     projectMilestones: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listMilestones(undefined, args, ctx),
@@ -316,7 +316,7 @@ export const projectResolvers = {
       const rows = UUID_RE.test(args.id)
         ? await db.select().from(projectUpdate).where(eq(projectUpdate.id, args.id))
         : [];
-      return toUpdate(await byId(rows, ctx, 'Project update', args.id));
+      return toUpdate(await visibleItem(rows, ctx, 'Project update', args.id));
     },
     projectUpdates: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUpdates(undefined, args, ctx),
