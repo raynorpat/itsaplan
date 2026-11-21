@@ -1,6 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { db, teamMember } from '@repo/db';
-import { eq } from 'drizzle-orm';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
@@ -8,6 +6,7 @@ import { requireUser, type AuthUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
+  assertLabelManager,
   createProjectLabel,
   deleteProjectLabel,
   listProjectLabels,
@@ -32,17 +31,6 @@ const color = t.String({
   description: 'Hex color, such as #EB5757.',
 });
 
-// Project labels are workspace-level: any user who is a member of at least one
-// team may read and manage them (Linear's default).
-async function assertTeamMember(user: AuthUser | null | undefined): Promise<void> {
-  const rows = await db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, requireUser(user).id))
-    .limit(1);
-  if (rows.length === 0) throw new HttpError(403, 'Project labels need membership in a team');
-}
-
 export const projectLabelRoutes = new Elysia({
   name: 'project-labels',
   detail: { tags: ['Project labels'] },
@@ -52,7 +40,7 @@ export const projectLabelRoutes = new Elysia({
     teamMemberAnywhere(_enabled: boolean) {
       return {
         async resolve({ user }: { user?: AuthUser | null }) {
-          await assertTeamMember(user);
+          await assertLabelManager(requireUser(user).id);
           return {};
         },
       };

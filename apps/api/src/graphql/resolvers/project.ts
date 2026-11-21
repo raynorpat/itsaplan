@@ -39,6 +39,9 @@ export function toProject(p: ProjectRow) {
     name: p.name,
     description: p.description,
     content: p.content,
+    // Non-null in Linear's schema; projects without a color get the default grey.
+    color: p.color ?? '#bec2c8',
+    icon: p.icon,
     slugId: p.slugId,
     priority: p.priority,
     priorityLabel: PRIORITY_LABEL[p.priority] ?? 'No priority',

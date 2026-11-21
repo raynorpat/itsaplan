@@ -26,17 +26,21 @@ import { findState, toWorkflowState } from './workflow-state';
 
 // An increasing number for the payload's lastSyncId. This app has no sync log, so
 // it is the current time in milliseconds.
-const lastSyncId = () => Date.now();
+export const lastSyncId = () => Date.now();
 
 const STATE_TYPES = new Set(['backlog', 'unstarted', 'started', 'completed', 'canceled']);
 
 // Throws INVALID_INPUT naming the first input field outside `supported`.
-function onlySupported(input: Record<string, unknown>, supported: string[], what: string): void {
+export function onlySupported(
+  input: Record<string, unknown>,
+  supported: string[],
+  what: string,
+): void {
   const extra = Object.keys(input).find((k) => input[k] !== undefined && !supported.includes(k));
   if (extra) throw gqlError('INVALID_INPUT', `${what}.${extra} is not supported`);
 }
 
-async function guard<T>(run: () => Promise<T>): Promise<T> {
+export async function guard<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (err) {
@@ -56,6 +60,8 @@ const ISSUE_FIELDS = [
   'parentId',
   'stateId',
   'sortOrder',
+  'projectId',
+  'projectMilestoneId',
 ];
 
 type IssueInput = Record<string, unknown> & {
@@ -69,9 +75,18 @@ type IssueInput = Record<string, unknown> & {
   parentId?: string | null;
   stateId?: string;
   sortOrder?: number;
+  projectId?: string | null;
+  projectMilestoneId?: string | null;
 };
 
-const ID_FIELDS = ['stateId', 'parentId', 'assigneeId', 'delegateId'] as const;
+const ID_FIELDS = [
+  'stateId',
+  'parentId',
+  'assigneeId',
+  'delegateId',
+  'projectId',
+  'projectMilestoneId',
+] as const;
 
 // The checks REST does in its route schema: ids are UUIDs, priority is 0..4, a
 // title is not empty, dueDate is YYYY-MM-DD. Postgres would reject the rest.
@@ -104,6 +119,8 @@ function toPatch(input: IssueInput): IssuePatch {
   if (input.parentId !== undefined) patch.parentId = input.parentId;
   if (input.stateId !== undefined) patch.stateId = input.stateId;
   if (input.sortOrder !== undefined) patch.position = input.sortOrder;
+  if (input.projectId !== undefined) patch.projectId = input.projectId;
+  if (input.projectMilestoneId !== undefined) patch.projectMilestoneId = input.projectMilestoneId;
   return patch;
 }
 
@@ -153,6 +170,8 @@ export const mutationResolvers = {
             assigneeUserId: patch.assigneeUserId,
             delegateUserId: patch.delegateUserId,
             parentId: patch.parentId,
+            projectId: patch.projectId,
+            projectMilestoneId: patch.projectMilestoneId,
             position: patch.position,
           },
           ctx.user.id,

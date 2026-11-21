@@ -9,6 +9,7 @@ import { gqlError } from './errors';
 import { issueResolvers } from './resolvers/issue';
 import { mutationResolvers } from './resolvers/mutations';
 import { projectResolvers } from './resolvers/project';
+import { projectMutationResolvers } from './resolvers/project-mutations';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -23,6 +24,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   issueResolvers,
   projectResolvers,
   mutationResolvers,
+  projectMutationResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {

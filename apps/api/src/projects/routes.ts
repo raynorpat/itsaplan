@@ -55,6 +55,8 @@ const ProjectResponse = t.Object({
   name: t.String(),
   description: t.String(),
   content: t.String(),
+  color: t.Nullable(t.String()),
+  icon: t.Nullable(t.String()),
   status: t.String(),
   statusId: t.String({ format: 'uuid' }),
   leadUserId: t.Nullable(t.String({ format: 'uuid' })),

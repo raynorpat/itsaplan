@@ -44,6 +44,8 @@ export interface ProjectRow {
   name: string;
   description: string;
   content: string;
+  color: string | null;
+  icon: string | null;
   status: ProjectStatusType;
   statusId: string;
   leadUserId: string | null;
@@ -152,6 +154,8 @@ function mapProject(
     name: row.name,
     description: row.description,
     content: row.content,
+    color: row.color,
+    icon: row.icon,
     status: sel.statusType as ProjectStatusType,
     statusId: row.statusId,
     leadUserId: row.leadUserId,
@@ -346,6 +350,9 @@ export interface NewProjectInput {
   name: string;
   description?: string;
   content?: string;
+  color?: string | null;
+  icon?: string | null;
+  sortOrder?: number;
   status?: ProjectStatusType;
   leadUserId?: string | null;
   priority?: number;
@@ -398,13 +405,15 @@ export async function createProject(
         name: input.name,
         description: input.description ?? '',
         content: input.content ?? '',
+        color: input.color ?? null,
+        icon: input.icon ?? null,
         statusId: PROJECT_STATUS_IDS[input.status ?? 'backlog'],
         leadUserId: input.leadUserId ?? null,
         creatorUserId: actorUserId ?? null,
         priority: input.priority ?? 0,
         startDate: input.startDate ?? null,
         targetDate: input.targetDate ?? null,
-        sortOrder: Number(posRow.pos),
+        sortOrder: input.sortOrder || Number(posRow.pos),
       })
       .returning({ id: project.id });
     await tx.insert(projectTeam).values(teams.map((teamId) => ({ projectId: row.id, teamId })));
@@ -419,6 +428,9 @@ export interface ProjectPatch {
   name?: string;
   description?: string;
   content?: string;
+  color?: string | null;
+  icon?: string | null;
+  sortOrder?: number;
   status?: ProjectStatusType;
   leadUserId?: string | null;
   priority?: number;
@@ -457,6 +469,9 @@ export async function updateProject(
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.description !== undefined) set.description = patch.description;
   if (patch.content !== undefined) set.content = patch.content;
+  if (patch.color !== undefined) set.color = patch.color;
+  if (patch.icon !== undefined) set.icon = patch.icon;
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder;
   if (patch.status !== undefined) set.statusId = PROJECT_STATUS_IDS[patch.status];
   if (patch.leadUserId !== undefined) set.leadUserId = patch.leadUserId;
   if (patch.priority !== undefined) set.priority = patch.priority;
