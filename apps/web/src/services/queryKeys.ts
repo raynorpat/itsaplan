@@ -32,6 +32,7 @@ export const qk = {
   // when it is opened. Both keyed under the feed, so every existing feed
   // invalidation refreshes them too.
   timeline: (id: string) => ['feed', id, 'timeline'] as const,
+  issueReactions: (id: string) => ['feed', id, 'reactions'] as const,
   timelineItems: (id: string, from: string, to: string | null) =>
     ['feed', id, 'timelineItems', from, to] as const,
   // Projects: a team's list (params narrow, sort and page it), the per-status

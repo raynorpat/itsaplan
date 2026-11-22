@@ -4,9 +4,11 @@ import { type Assignee } from '@/lib/api';
 import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateComment } from '../../services/comments.service';
+import { useCreateComment, useUpdateComment } from '../../services/comments.service';
 
-// The new-comment box: a plain markdown textarea with an @-mention menu. Typing "@"
+// The comment box: a plain markdown textarea with an @-mention menu. It posts a new
+// comment, a reply (`parentId`), or saves an edit (`editing`); a reply or an edit
+// calls `onDone` once saved or cancelled. Typing "@"
 // opens a menu of the team's members; picking one inserts a mention token
 // @[Name](user:<id>) into the body. The token is what the backend parses to notify
 // the member (see the feed's chip rendering for how it displays). Posts as the current session user on the button or Cmd/Ctrl+Enter.
@@ -23,20 +25,28 @@ export default function CommentComposer({
   assignees,
   authorName,
   authorImage,
+  parentId,
+  editing,
+  onDone,
 }: {
   issueId: string;
   assignees: Assignee[];
   authorName: string;
   authorImage?: string | null;
+  parentId?: string;
+  editing?: { id: string; body: string };
+  onDone?: () => void;
 }) {
   const createComment = useCreateComment();
-  const [body, setBody] = useState('');
+  const updateComment = useUpdateComment();
+  const [body, setBody] = useState(editing?.body ?? '');
   const [menu, setMenu] = useState<MentionQuery | null>(null);
   const [active, setActive] = useState(0);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const posting = createComment.isPending;
+  const posting = createComment.isPending || updateComment.isPending;
+  const submitLabel = editing ? 'Save' : parentId ? 'Reply' : 'Comment';
   const cmdKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl';
 
   const matches = useMemo(() => {
@@ -83,9 +93,11 @@ export default function CommentComposer({
 
   async function post() {
     if (!body.trim()) return;
-    await createComment.mutateAsync({ issueId, input: { body: body.trim() } });
+    if (editing) await updateComment.mutateAsync({ issueId, id: editing.id, body: body.trim() });
+    else await createComment.mutateAsync({ issueId, input: { body: body.trim(), parentId } });
     setBody('');
     setMenu(null);
+    onDone?.();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -111,12 +123,14 @@ export default function CommentComposer({
         return;
       }
     }
-    // Cmd/Ctrl+Enter submits, matching the rest of the planner.
+    // Cmd/Ctrl+Enter submits, matching the rest of the planner; Escape cancels a
+    // reply or an edit.
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void post();
+    if (e.key === 'Escape' && onDone) onDone();
   }
 
   return (
-    <div className="mb-5">
+    <div className={onDone ? 'mt-2' : 'mb-5'}>
       <div className="flex gap-3">
         <Avatar
           name={authorName}
@@ -133,7 +147,14 @@ export default function CommentComposer({
                 onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
               }
               onBlur={() => setMenu(null)}
-              placeholder="Write a comment… use @ to mention"
+              autoFocus={!!onDone}
+              placeholder={
+                parentId
+                  ? 'Write a reply…'
+                  : editing
+                    ? 'Edit comment'
+                    : 'Write a comment… use @ to mention'
+              }
               className="min-h-[64px] resize-none rounded-none border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
               onKeyDown={onKeyDown}
             />
@@ -144,9 +165,16 @@ export default function CommentComposer({
                 </kbd>
                 <span className="ml-1.5">to send</span>
               </span>
-              <Button size="sm" disabled={!body.trim() || posting} onClick={() => void post()}>
-                {posting ? 'Posting…' : 'Comment'}
-              </Button>
+              <div className="flex items-center gap-1.5">
+                {onDone && (
+                  <Button size="sm" variant="ghost" onClick={onDone}>
+                    Cancel
+                  </Button>
+                )}
+                <Button size="sm" disabled={!body.trim() || posting} onClick={() => void post()}>
+                  {posting ? 'Saving…' : submitLabel}
+                </Button>
+              </div>
             </div>
           </div>
 

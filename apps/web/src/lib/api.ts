@@ -436,6 +436,8 @@ export interface FeedItem {
   parentId: string | null;
   editedAt: string | null;
   createdAt: string;
+  // Comments read over GraphQL: their reactions. Absent on REST feed rows.
+  reactions?: { id: string; emoji: string; user: { id: string; name: string } | null }[];
 }
 
 // Opaque keyset cursor returned by the project feed endpoint; pass it back to load

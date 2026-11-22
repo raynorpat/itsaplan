@@ -19,6 +19,7 @@ export interface FeedComment {
   resolvedAt: string | null;
   parentId: string | null;
   user: FeedUser | null;
+  reactions?: { id: string; emoji: string; user: FeedUser | null }[];
 }
 
 interface Named {
@@ -220,6 +221,7 @@ export function commentToFeedItem(c: FeedComment, issueId: string): FeedItem {
     parentId: c.parentId,
     editedAt: c.editedAt,
     createdAt: c.createdAt,
+    reactions: c.reactions ?? [],
   };
 }
 

@@ -1,6 +1,7 @@
 import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import { useIssueDetail } from '../../hooks/useIssueDetail';
 import IssueAttachmentsPanel from './IssueAttachmentsPanel';
+import IssueReactions from '../reactions/IssueReactions';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
@@ -79,6 +80,8 @@ export default function IssueDetailContent({
           if (md !== issue.description) patch({ description: md });
         }}
       />
+
+      <IssueReactions issueId={issue.id} />
 
       <IssueAttachmentsPanel issueId={issue.id} onInsert={insertAttachment} />
     </>

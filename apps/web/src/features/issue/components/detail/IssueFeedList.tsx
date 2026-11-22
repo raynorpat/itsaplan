@@ -1,4 +1,5 @@
 import { useFeedQuery } from '../../services/comments.service';
+import { type CommentContext } from '../../utils/commentContext';
 import ActivityLine from './ActivityLine';
 import CommentThread from './CommentThread';
 
@@ -10,9 +11,11 @@ import CommentThread from './CommentThread';
 export default function IssueFeedList({
   issueId,
   imageByUserId,
+  ctx,
 }: {
   issueId: string;
   imageByUserId: Map<string, string | null>;
+  ctx: CommentContext;
 }) {
   const feedQuery = useFeedQuery(issueId);
   const entries = feedQuery.data ?? [];
@@ -29,7 +32,12 @@ export default function IssueFeedList({
     <ul className="flex flex-col gap-2.5">
       {entries.map((entry) =>
         entry.item.kind === 'comment' ? (
-          <CommentThread key={entry.item.id} entry={entry} imageByUserId={imageByUserId} />
+          <CommentThread
+            key={entry.item.id}
+            entry={entry}
+            imageByUserId={imageByUserId}
+            ctx={ctx}
+          />
         ) : (
           <ActivityLine key={entry.item.id} item={entry.item} />
         ),

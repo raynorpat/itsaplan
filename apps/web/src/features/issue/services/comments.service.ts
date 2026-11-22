@@ -28,6 +28,14 @@ const FeedQuery = graphql(`
             id
             name
           }
+          reactions {
+            id
+            emoji
+            user {
+              id
+              name
+            }
+          }
         }
       }
       history(first: $first) {
@@ -130,6 +138,38 @@ const CommentCreate = graphql(`
   }
 `);
 
+const CommentUpdate = graphql(`
+  mutation IssueCommentUpdate($id: String!, $input: CommentUpdateInput!) {
+    commentUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`);
+
+const CommentDelete = graphql(`
+  mutation IssueCommentDelete($id: String!) {
+    commentDelete(id: $id) {
+      success
+    }
+  }
+`);
+
+const CommentResolve = graphql(`
+  mutation IssueCommentResolve($id: String!) {
+    commentResolve(id: $id) {
+      success
+    }
+  }
+`);
+
+const CommentUnresolve = graphql(`
+  mutation IssueCommentUnresolve($id: String!) {
+    commentUnresolve(id: $id) {
+      success
+    }
+  }
+`);
+
 // The issue's feed, newest first, threads grouped.
 export function useFeedQuery(id: string) {
   return useQuery({
@@ -181,11 +221,51 @@ export function useTimelineItemsQuery(issueId: string, ranges: TimelineRange[]) 
   return { isPending: feed.isPending, isError: feed.isError, items };
 }
 
+// A new comment, or a reply when parentId is set (the API stores a reply to a reply
+// under the thread's root).
 export function useCreateComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ issueId, input }: { issueId: string; input: { body: string } }) =>
-      gqlRequest(CommentCreate, { input: { issueId, body: input.body } }),
+    mutationFn: ({
+      issueId,
+      input,
+    }: {
+      issueId: string;
+      input: { body: string; parentId?: string | null };
+    }) =>
+      gqlRequest(CommentCreate, {
+        input: { issueId, body: input.body, parentId: input.parentId ?? undefined },
+      }),
     onSuccess: (_data, { issueId }) => void qc.invalidateQueries({ queryKey: qk.feed(issueId) }),
   });
+}
+
+// Edit, delete, resolve and unresolve a comment of the issue's feed. Each refreshes
+// the feed once it lands.
+function useFeedCommentMutation<V extends { issueId: string }>(run: (vars: V) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSettled: (_data, _error, { issueId }) =>
+      void qc.invalidateQueries({ queryKey: qk.feed(issueId) }),
+  });
+}
+
+export function useUpdateComment() {
+  return useFeedCommentMutation(({ id, body }: { issueId: string; id: string; body: string }) =>
+    gqlRequest(CommentUpdate, { id, input: { body } }),
+  );
+}
+
+export function useDeleteComment() {
+  return useFeedCommentMutation(({ id }: { issueId: string; id: string }) =>
+    gqlRequest(CommentDelete, { id }),
+  );
+}
+
+export function useSetThreadResolved() {
+  return useFeedCommentMutation(
+    ({ id, resolved }: { issueId: string; id: string; resolved: boolean }) =>
+      resolved ? gqlRequest(CommentResolve, { id }) : gqlRequest(CommentUnresolve, { id }),
+  );
 }

@@ -1,5 +1,6 @@
 import { type Assignee } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
+import { usePermissions } from '@/hooks/usePermissions';
 import CommentComposer from './CommentComposer';
 import IssueFeedList from './IssueFeedList';
 
@@ -16,10 +17,19 @@ export default function IssueActivityFeed({
   imageByUserId: Map<string, string | null>;
 }) {
   const { data: session } = useSession();
+  const { canManage } = usePermissions();
 
   const user = session?.user ?? null;
   const authorName = user?.name || user?.email || 'You';
   const authorImage = (user as { image?: string | null } | null)?.image ?? null;
+  const ctx = {
+    issueId,
+    viewerId: user?.id ?? null,
+    canManage,
+    assignees,
+    authorName,
+    authorImage,
+  };
 
   return (
     <div className="mt-6 border-t pt-5">
@@ -34,7 +44,7 @@ export default function IssueActivityFeed({
         authorImage={authorImage}
       />
 
-      <IssueFeedList issueId={issueId} imageByUserId={imageByUserId} />
+      <IssueFeedList issueId={issueId} imageByUserId={imageByUserId} ctx={ctx} />
     </div>
   );
 }
