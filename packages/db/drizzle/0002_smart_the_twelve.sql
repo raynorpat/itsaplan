@@ -1,0 +1,1 @@
+ALTER TABLE "attachment" ADD CONSTRAINT "attachment_title_check" CHECK (btrim("attachment"."title") <> '');

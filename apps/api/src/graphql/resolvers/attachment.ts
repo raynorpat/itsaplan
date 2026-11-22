@@ -103,8 +103,12 @@ async function findAttachment(idOrUrl: string, ctx: GraphQLContext): Promise<Att
         .limit(1);
       found = row ? mapAttachment(row) : null;
     }
-    if (!found) throw gqlError('ENTITY_NOT_FOUND', `Attachment ${idOrUrl} not found`);
-    await assertIssueAccess(found.issueId, ctx.user, 'read');
+    // A hidden attachment answers like a missing one.
+    const notFound = () => gqlError('ENTITY_NOT_FOUND', `Attachment ${idOrUrl} not found`);
+    if (!found) throw notFound();
+    await assertIssueAccess(found.issueId, ctx.user, 'read').catch((err: { status?: number }) => {
+      throw err.status === 404 ? notFound() : err;
+    });
     return found;
   });
 }
@@ -168,8 +172,10 @@ export const attachmentResolvers = {
     externalUserCreator: () => null,
   },
   Issue: {
+    // The issue is already in hand, so its attachments are listed even when it is
+    // archived (as Issue.comments).
     attachments: (i: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
-      listAttachments(eq(attachment.issueId, i.id), args, ctx),
+      listAttachments(eq(attachment.issueId, i.id), { ...args, includeArchived: true }, ctx),
   },
   Mutation: {
     attachmentCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>

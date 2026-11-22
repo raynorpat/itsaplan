@@ -254,4 +254,22 @@ describe('graphql attachments', () => {
     ).attachment)!;
     expect(again.id).toBe(created.id);
   });
+
+  it('gives a hidden attachment the same error as a missing one', async () => {
+    const { client, issueId } = await setup();
+    const link = (await (
+      await client.createAttachment({ issueId, title: 'S', url: 'https://e.com/s' })
+    ).attachment)!;
+    const outsider = await signUpTestUser();
+    const res = await gql({ cookie: outsider.cookie }, `{ attachment(id: "${link.id}") { id } }`);
+    expect(errorMessage(res)).toBe(`Attachment ${link.id} not found`);
+  });
+
+  it('lists the attachments of an archived issue', async () => {
+    const { client, issueId } = await setup();
+    await client.createAttachment({ issueId, title: 'A', url: 'https://e.com/a' });
+    await client.archiveIssue(issueId);
+    expect((await (await client.issue(issueId)).attachments()).nodes).toHaveLength(1);
+    expect((await client.attachments()).nodes).toHaveLength(0);
+  });
 });

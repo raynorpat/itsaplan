@@ -15,6 +15,13 @@
       "when": 1795357294388,
       "tag": "0001_drop_telemetry_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795357476826,
+      "tag": "0002_smart_the_twelve",
+      "breakpoints": true
     }
   ]
 }

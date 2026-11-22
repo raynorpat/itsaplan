@@ -56,11 +56,21 @@ export function mapAttachment(row: typeof attachment.$inferSelect): AttachmentRo
 const apiOrigin = () => (process.env.API_URL ?? '').replace(/\/+$/, '');
 
 // Uploads store their download path relative to the API; a client is given (and may
-// send back) the absolute URL. A URL on this API's download route loses the origin,
-// so it matches the stored row whatever API_URL is configured.
+// send back) the absolute URL. A URL on this API's download route (scheme and host in
+// any case, any query) becomes that stored path, so it matches the row whatever
+// API_URL is configured.
 export function normalizeAttachmentUrl(url: string): string {
-  const prefix = `${apiOrigin()}/attachments/`;
-  return url.startsWith(prefix) ? url.slice(apiOrigin().length) : url;
+  const origin = apiOrigin();
+  if (!origin) return url;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  if (parsed.origin !== new URL(origin).origin) return url;
+  const path = parsed.pathname.slice(new URL(origin).pathname.replace(/\/+$/, '').length);
+  return /^\/attachments\/[^/]+\/raw$/.test(path) ? path : url;
 }
 
 // The URL a client sees: absolute on the API origin for an upload.
@@ -68,15 +78,17 @@ export function attachmentUrl(row: Pick<AttachmentRow, 'url'>): string {
   return row.url.startsWith('/') ? `${apiOrigin()}${row.url}` : row.url;
 }
 
-function validateLinkUrl(url: string): void {
+function validateLinkUrl(url: string, field = 'url'): void {
+  if (url.startsWith('/attachments/'))
+    throw new HttpError(400, 'url names an upload that is not on this issue');
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    throw new HttpError(400, 'url must be an absolute http or https URL');
+    throw new HttpError(400, `${field} must be an absolute http or https URL`);
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
-    throw new HttpError(400, 'url must be an absolute http or https URL');
+    throw new HttpError(400, `${field} must be an absolute http or https URL`);
 }
 
 function cleanTitle(title: string): string {
@@ -168,6 +180,7 @@ function patchValues(patch: AttachmentPatch) {
     (patch.metadata === null || typeof patch.metadata !== 'object' || Array.isArray(patch.metadata))
   )
     throw new HttpError(400, 'metadata must be an object');
+  if (patch.iconUrl != null) validateLinkUrl(patch.iconUrl, 'iconUrl');
   return {
     ...(patch.title !== undefined ? { title: cleanTitle(patch.title) } : {}),
     ...(patch.subtitle !== undefined ? { subtitle: patch.subtitle } : {}),
@@ -241,7 +254,8 @@ async function applyPatch(
     .set({ ...values, updatedAt: sql`now()` })
     .where(eq(attachment.id, current.id))
     .returning();
-  const updated = mapAttachment(row!);
+  if (!row) throw new HttpError(404, 'Attachment not found');
+  const updated = mapAttachment(row);
   await sendAttachmentEvent('update', updated, actorUserId, attachmentData(current));
   return updated;
 }

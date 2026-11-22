@@ -1263,6 +1263,7 @@ export const attachment = pgTable(
     index('attachment_issue_idx').on(t.issueId),
     // md5 of the URL: a btree entry cannot hold a URL longer than about 2.7 kB.
     uniqueIndex('attachment_issue_url_idx').on(t.issueId, sql`md5(${t.url})`),
+    check('attachment_title_check', sql`btrim(${t.title}) <> ''`),
     check(
       'attachment_file_check',
       sql`num_nonnulls(${t.publicId}, ${t.s3Key}, ${t.filename}, ${t.contentType}, ${t.sizeBytes}) in (0, 5)`,

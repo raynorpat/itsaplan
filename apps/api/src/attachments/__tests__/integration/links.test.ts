@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { attachment, db } from '@repo/db';
 import {
   attachmentUrl,
   createAttachment,
@@ -147,5 +148,50 @@ describe('link attachments', () => {
       'Attachment:remove',
     ]);
     expect(events[0]!.data).toMatchObject({ id: row.id, issueId, source: null });
+  });
+
+  it('matches an upload url regardless of scheme and host case or query', async () => {
+    const { owner, issueId } = await setup();
+    const up = await file(issueId);
+    const shouted = `${process.env.API_URL!.toUpperCase()}/attachments/${up.publicId}/raw?download=1`;
+    const { row, created } = await upsertLinkAttachment(
+      { issueId, url: shouted, title: 'Again' },
+      owner.userId,
+    );
+    expect(created).toBe(false);
+    expect(row.id).toBe(up.id);
+  });
+
+  it('names a missing upload when an api download url matches nothing', async () => {
+    const { owner, issueId } = await setup();
+    const url = `${process.env.API_URL}/attachments/${crypto.randomUUID()}/raw`;
+    const err = await upsertLinkAttachment({ issueId, url, title: 'X' }, owner.userId).catch(
+      (e: { status?: number; message?: string }) => e,
+    );
+    expect(err).toMatchObject({ status: 400 });
+    expect((err as Error).message).toContain('upload');
+  });
+
+  it('rejects a non-web icon url', async () => {
+    const { owner, issueId } = await setup();
+    expect(
+      await status(
+        upsertLinkAttachment(
+          { issueId, url: 'https://e.com/i', title: 'I', iconUrl: 'javascript:alert(1)' },
+          owner.userId,
+        ),
+      ),
+    ).toBe(400);
+  });
+
+  it('refuses an empty title in the database', async () => {
+    const { issueId } = await setup();
+    const insert = db.insert(attachment).values({ issueId, url: 'https://e.com/t', title: ' ' });
+    expect(
+      await insert.then(
+        () => 'ok',
+        () => 'refused',
+      ),
+    ).toBe('refused');
   });
 });
