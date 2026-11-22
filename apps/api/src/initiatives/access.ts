@@ -1,7 +1,7 @@
-import { db, initiative, team } from '@repo/db';
-import { eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { initiative } from '@repo/db';
+import { inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
-import { isTeamMember, visibleTeamIdList, workspaceRole } from '../shared/access';
+import { canSeeTeam, visibleTeamIdList, workspaceRole } from '../shared/access';
 
 import { getInitiative, type InitiativeRow } from './store';
 
@@ -62,10 +62,8 @@ export async function assertCanCreateInitiative(
     throw new HttpError(403, 'You do not have permission to create this initiative');
 }
 
-// Making a team the lead team needs membership in it; an unknown team is 404.
+// Making a team the lead team needs being able to see it; an unknown team, or one
+// the user cannot see, is 404.
 export async function assertLeadTeamMember(userId: string, leadTeamId: string): Promise<void> {
-  const [found] = await db.select({ id: team.id }).from(team).where(eq(team.id, leadTeamId));
-  if (!found) throw new HttpError(404, 'Team not found');
-  if (!(await isTeamMember(leadTeamId, userId)))
-    throw new HttpError(403, 'You are not a member of the lead team');
+  if (!(await canSeeTeam(leadTeamId, userId))) throw new HttpError(404, 'Team not found');
 }

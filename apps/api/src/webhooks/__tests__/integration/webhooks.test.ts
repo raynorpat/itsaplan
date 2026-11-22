@@ -382,7 +382,8 @@ describe('webhooks', () => {
       expect(created.status).toBe(201);
       const id = created.data!.id;
       expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(200);
-      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(200);
+      // The delivery history of an all-teams webhook is for owners only.
+      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(403);
       expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(204);
     });
 

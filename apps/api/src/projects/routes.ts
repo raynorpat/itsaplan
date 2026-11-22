@@ -3,7 +3,7 @@ import { PROJECT_STATUSES, type ProjectStatusType } from '@repo/db';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
-import { requireUser, type AuthUser, visibleTeamIdList, memberTeamIdList } from '../shared/access';
+import { requireUser, type AuthUser, visibleTeamIdList } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
 import { getTeamByKey } from '../teams/store';
 import { assertProjectAccess } from './access';
@@ -560,7 +560,7 @@ export const projectRoutes = new Elysia({
           // Ignore a malformed cursor and serve the first page.
         }
       }
-      const issueTeamIds = await memberTeamIdList(requireUser(user).id, {
+      const issueTeamIds = await visibleTeamIdList(requireUser(user).id, {
         mcpOnly: isMcpRequest(request.headers),
       });
       return listFeed(params.projectId, issueTeamIds, { before, limit });

@@ -13,9 +13,9 @@ import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 // team loaded. It is the counterpart of Shell for the team routes, but far
 // smaller — nothing here needs the board, overlays, or team permissions.
 //
-// Access is by the global role: only the instance owner ("god") sees the pages. The
-// API enforces the same on every /god route, so this check is about what to render,
-// not about security.
+// Access is by the workspace role: owners and admins see the pages; the settings
+// that hold instance secrets are owner-only (OwnerOnly). The API enforces the same on
+// every /god route, so these checks are about what to render, not about security.
 export default function GodShell({
   defaultSidebarOpen,
   children,

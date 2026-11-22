@@ -74,14 +74,15 @@ describe('graphql initiatives', () => {
     expect((await ops.client.initiatives()).nodes).toHaveLength(0);
   });
 
-  it('rejects a lead team the caller is not a member of', async () => {
+  it('rejects a lead team the caller cannot see', async () => {
     const { asOwner, mkt } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const ops = await memberOf(asOwner, 'OPS');
     const res = await gql(
       { cookie: ops.user.cookie },
       `mutation { initiativeCreate(input: { name: "X", leadTeamId: "${mkt}" }) { success } }`,
     );
-    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
   });
 
   it('filters initiatives', async () => {
@@ -278,16 +279,17 @@ describe('graphql initiatives', () => {
     expect(errorCode(unknown)).toBe('ENTITY_NOT_FOUND');
   });
 
-  it('forbids moving an initiative to a team the caller is not in', async () => {
+  it('refuses moving an initiative to a team the caller cannot see', async () => {
     const { asOwner, client } = await setup();
     const ops = await memberOf(asOwner, 'OPS');
     const created = (await (await ops.client.createInitiative({ name: 'W' })).initiative)!;
     const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+    await makePrivate(asOwner, 'MKT');
     const res = await gql(
       { cookie: ops.user.cookie },
       `mutation { initiativeUpdate(id: "${created.id}", input: { leadTeamId: "${mkt}" }) { success } }`,
     );
-    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     expect((await client.initiative(created.id)).visibility).toBe(InitiativeVisibility.Public);
   });
 

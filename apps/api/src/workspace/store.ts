@@ -38,8 +38,23 @@ export async function listWorkspaceUsers(): Promise<WorkspaceUserRow[]> {
   }));
 }
 
-async function activeOwnerCount(): Promise<number> {
-  return db.$count(user, and(eq(user.workspaceRole, 'owner'), sql`${user.suspendedAt} IS NULL`));
+type Executor = Pick<typeof db, 'select' | 'update' | 'delete' | 'execute'>;
+
+async function activeOwnerCount(tx: Executor): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(user)
+    .where(and(eq(user.workspaceRole, 'owner'), sql`${user.suspendedAt} IS NULL`));
+  return row?.n ?? 0;
+}
+
+// Runs a change to the set of active owners under one advisory lock, so two
+// concurrent demotions or suspensions cannot both pass the last-owner check.
+function withOwnerLock<T>(run: (tx: Executor) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('workspace_owner'))`);
+    return run(tx);
+  });
 }
 
 // Checks the actor may act on the target, and returns the target's current role.
@@ -65,9 +80,11 @@ export async function changeWorkspaceRole(
   const current = await assertMayAdminister(actorId, targetId);
   if (!atLeast(await workspaceRole(actorId), role))
     throw new HttpError(403, 'You cannot give someone a role above your own');
-  if (current === 'owner' && role !== 'owner' && (await activeOwnerCount()) <= 1)
-    throw new HttpError(400, 'The workspace needs at least one owner');
-  await db.update(user).set({ workspaceRole: role }).where(eq(user.id, targetId));
+  await withOwnerLock(async (tx) => {
+    if (current === 'owner' && role !== 'owner' && (await activeOwnerCount(tx)) <= 1)
+      throw new HttpError(400, 'The workspace needs at least one owner');
+    await tx.update(user).set({ workspaceRole: role }).where(eq(user.id, targetId));
+  });
   return (await listWorkspaceUsers()).find((u) => u.userId === targetId)!;
 }
 
@@ -76,9 +93,9 @@ export async function changeWorkspaceRole(
 export async function suspendUser(targetId: string, actorId: string): Promise<void> {
   if (targetId === actorId) throw new HttpError(400, 'You cannot suspend yourself');
   const current = await assertMayAdminister(actorId, targetId);
-  if (current === 'owner' && (await activeOwnerCount()) <= 1)
-    throw new HttpError(400, 'The workspace needs at least one owner');
-  await db.transaction(async (tx) => {
+  await withOwnerLock(async (tx) => {
+    if (current === 'owner' && (await activeOwnerCount(tx)) <= 1)
+      throw new HttpError(400, 'The workspace needs at least one owner');
     await tx.update(user).set({ suspendedAt: new Date() }).where(eq(user.id, targetId));
     await tx.delete(session).where(eq(session.userId, targetId));
   });

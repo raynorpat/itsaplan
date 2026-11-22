@@ -1,10 +1,10 @@
 import { db } from '@repo/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { betterAuth } from 'better-auth';
 import { createAuthMiddleware, APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { passkey } from '@better-auth/passkey';
-import { apiKey } from '@better-auth/api-key';
+import { apiKey, defaultKeyHasher } from '@better-auth/api-key';
 import { openAPI, magicLink } from 'better-auth/plugins';
 import * as schema from '@repo/db/schema';
 import {
@@ -135,6 +135,37 @@ async function isUnverified(email: string): Promise<boolean> {
     .from(schema.user)
     .where(eq(schema.user.email, email.trim().toLowerCase()));
   return rows[0] ? !rows[0].emailVerified : false;
+}
+
+// Demotes `userId` to member when another, older owner exists. Serialised with an
+// advisory lock so concurrent first sign-ups settle on one owner.
+async function keepFirstOwner(userId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('workspace_owner'))`);
+    const [older] = await tx
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(
+        sql`${schema.user.workspaceRole} = 'owner' AND ${schema.user.id} <> ${userId} AND (${schema.user.createdAt}, ${schema.user.id}) < (SELECT created_at, id FROM "user" WHERE id = ${userId})`,
+      )
+      .limit(1);
+    if (older)
+      await tx
+        .update(schema.user)
+        .set({ workspaceRole: 'member' })
+        .where(eq(schema.user.id, userId));
+  });
+}
+
+// Whether an API key belongs to a suspended user. Keys are stored hashed, the way
+// the api-key plugin hashes them.
+async function isKeyOfSuspendedUser(key: string): Promise<boolean> {
+  const [row] = await db
+    .select({ suspendedAt: schema.user.suspendedAt })
+    .from(schema.apikey)
+    .innerJoin(schema.user, eq(sql`${schema.user.id}::text`, schema.apikey.referenceId))
+    .where(eq(schema.apikey.key, await defaultKeyHasher(key)));
+  return !!row?.suspendedAt;
 }
 
 async function isSuspended(userId: string): Promise<boolean> {
@@ -307,6 +338,10 @@ export const auth = betterAuth({
         // Linear accepts an invite at sign-up: the new account joins the invite's
         // teams that still exist, and the invite is consumed. Only with its token.
         after: async (user, ctx) => {
+          // Two first sign-ups at once both count zero users in `before`. Keep only
+          // the oldest owner made that way: a later one becomes a member.
+          if ((user as { workspaceRole?: string }).workspaceRole === 'owner')
+            await keepFirstOwner(user.id);
           const invite = await inviteForToken(user.email, inviteTokenOf(ctx));
           if (!invite) return;
           if (invite.teamIds.length) {
@@ -347,6 +382,9 @@ export const auth = betterAuth({
     // emits a batch of tool calls in one step turns them into a burst of requests.
     apiKey({
       enableSessionForAPIKeys: true,
+      // A suspended user's key is refused on every endpoint, better-auth's own
+      // included (getActiveSession covers the API's).
+      customAPIKeyValidator: async ({ key }) => !(await isKeyOfSuspendedUser(key)),
       // Brand prefix so a leaked key is identifiable by secret scanners and in logs.
       // The trailing underscore separates it from the random part (itp_<64 chars>).
       defaultPrefix: 'itp_',
@@ -421,7 +459,12 @@ export type Auth = typeof auth;
 // Every API entry point (REST, GraphQL, MCP) resolves sessions through this, so an
 // API key of a suspended user is refused too.
 export async function getActiveSession(headers: Headers) {
-  const session = await auth.api.getSession({ headers });
+  // The api-key plugin rejects a refused key (a suspended user's) with an error
+  // rather than returning no session; both mean no session here.
+  const session = await auth.api.getSession({ headers }).catch((err: unknown) => {
+    if (err instanceof APIError) return null;
+    throw err;
+  });
   if (!session) return null;
   if (await isSuspended(session.user.id)) return null;
   return session;

@@ -546,6 +546,7 @@ describe('projects', () => {
           .issues.post({ stateId: opsState, title: 'Secret OPS issue', projectId: project.id })
       ).data!;
       await asOwner.issues({ issueId: secret.id }).comments.post({ body: 'confidential' });
+      await makePrivate(asOwner, 'OPS');
       const member = await addMember(asOwner, 'MKT');
 
       const feed = await member.api.projects({ projectId: project.id }).feed.get();

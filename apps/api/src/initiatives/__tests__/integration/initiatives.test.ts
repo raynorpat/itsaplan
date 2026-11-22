@@ -137,7 +137,7 @@ describe('initiatives', () => {
       owner.userId,
     );
     expect(moved).toMatchObject({ leadTeamId: mkt, ownerUserId: owner.userId });
-    expect(await status(assertLeadTeamMember(opsMember.user.userId, mkt))).toBe(403);
+    expect(await status(assertLeadTeamMember(opsMember.user.userId, mkt))).toBe(404);
   });
 
   it('turns initiatives of a deleted team into workspace initiatives', async () => {

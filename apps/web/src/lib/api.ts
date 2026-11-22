@@ -1218,11 +1218,11 @@ export const api = {
       body: JSON.stringify({ role }),
     }),
   suspendUser: (userId: string) =>
-    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}/suspend`, {
+    request<void>(`/workspace/users/${encodeURIComponent(userId)}/suspend`, {
       method: 'POST',
     }),
   unsuspendUser: (userId: string) =>
-    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}/unsuspend`, {
+    request<void>(`/workspace/users/${encodeURIComponent(userId)}/unsuspend`, {
       method: 'POST',
     }),
 

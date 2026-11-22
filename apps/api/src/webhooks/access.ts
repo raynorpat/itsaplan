@@ -58,3 +58,18 @@ export async function assertWebhookAccess(
   }
   return found;
 }
+
+// Delivery history of an all-teams webhook holds payloads from before an admin was
+// limited to public teams, so only owners read it; a team webhook's history follows
+// the webhook's own access (checked by the route guard).
+export async function assertDeliveryHistoryAccess(
+  webhookId: string,
+  user: AuthUser,
+): Promise<void> {
+  const found = await getWebhook(webhookId);
+  if (found && found.teamId === null && (await workspaceRole(user.id)) !== 'owner')
+    throw new HttpError(
+      403,
+      'Only a workspace owner can read the delivery history of an all-teams webhook',
+    );
+}

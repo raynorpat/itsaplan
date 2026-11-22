@@ -1,6 +1,6 @@
 import { db, team, webhook, webhookDelivery } from '@repo/db';
 import { and, desc, eq, inArray, or, type SQL } from 'drizzle-orm';
-import { assertTeamWebhookAccess, visibleTeamIdList } from '../../shared/access';
+import { assertTeamWebhookAccess, visibleTeamIdList, workspaceRole } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 
 import {
@@ -151,8 +151,10 @@ export const webhookResolvers = {
     },
     creator: (w: GraphQLWebhook, _: unknown, ctx: GraphQLContext) =>
       userById(w.creatorUserId, ctx.user.id),
-    // The webhook's recent failed deliveries, newest first.
-    failures: async (w: GraphQLWebhook) => {
+    // The webhook's recent failed deliveries, newest first. An all-teams webhook's
+    // history is for owners only (webhooks/access.ts); others get an empty list.
+    failures: async (w: GraphQLWebhook, _: unknown, ctx: GraphQLContext) => {
+      if (!w.teamId && (await workspaceRole(ctx.user.id)) !== 'owner') return [];
       const rows = await db
         .select()
         .from(webhookDelivery)

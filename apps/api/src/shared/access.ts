@@ -1,5 +1,5 @@
 import { db, team, teamMember, user as userTable } from '@repo/db';
-import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from './lib';
 import { getTeamByKey, type TeamRow } from '../teams/store';
 
@@ -51,8 +51,13 @@ export async function workspaceRole(userId: string): Promise<WorkspaceRole> {
     .select({ role: userTable.workspaceRole })
     .from(userTable)
     .where(eq(userTable.id, userId));
-  return (row?.role as WorkspaceRole | undefined) ?? 'guest';
+  // A missing user or a value that is not a workspace role gets the least access.
+  const role = row?.role as WorkspaceRole | undefined;
+  return role && (WORKSPACE_ROLES as readonly string[]).includes(role) ? role : 'guest';
 }
+
+// The roles that see every public team.
+export const NON_GUEST_ROLES: WorkspaceRole[] = ['owner', 'admin', 'member'];
 
 export async function setWorkspaceRole(userId: string, role: WorkspaceRole): Promise<void> {
   await db.update(userTable).set({ workspaceRole: role }).where(eq(userTable.id, userId));
@@ -92,7 +97,7 @@ function visibleTeamCondition(userId: string): SQL {
         db
           .select({ id: userTable.id })
           .from(userTable)
-          .where(and(eq(userTable.id, userId), ne(userTable.workspaceRole, 'guest'))),
+          .where(and(eq(userTable.id, userId), inArray(userTable.workspaceRole, NON_GUEST_ROLES))),
       ),
     ),
   )!;

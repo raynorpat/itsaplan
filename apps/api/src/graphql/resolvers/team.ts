@@ -1,6 +1,6 @@
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
-import { memberTeamIds, visibleTeamIds } from '../../shared/access';
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { memberTeamIds, NON_GUEST_ROLES, visibleTeamIds } from '../../shared/access';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
@@ -61,7 +61,7 @@ export function visibleUsers(viewerId: string): SQL {
   const notGuest = db
     .select({ id: user.id })
     .from(user)
-    .where(and(eq(user.id, viewerId), ne(user.workspaceRole, 'guest')));
+    .where(and(eq(user.id, viewerId), inArray(user.workspaceRole, NON_GUEST_ROLES)));
   return or(
     eq(user.id, viewerId),
     sql`EXISTS (${notGuest})`,

@@ -3,7 +3,7 @@ import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
 import { requireUser, type AuthUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
-import { assertAllTeamsManager, assertWebhookAccess } from './access';
+import { assertAllTeamsManager, assertDeliveryHistoryAccess, assertWebhookAccess } from './access';
 import { validateWebhookUrl } from './url';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
@@ -259,7 +259,8 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
 
   .get(
     '/webhooks/:webhookId/deliveries',
-    async ({ params, query }) => {
+    async ({ params, query, user }) => {
+      await assertDeliveryHistoryAccess(params.webhookId, requireUser(user));
       return listWebhookDeliveries(params.webhookId, { before: query.before, limit: query.limit });
     },
     {
