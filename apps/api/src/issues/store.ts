@@ -643,6 +643,9 @@ export interface NewIssueInput {
   labelIds?: string[];
   // Sort position in the column; defaults to after the column's last issue.
   position?: number;
+  // Linear's subscriberIds: subscribed with the creator and the assignee. The caller
+  // checks they are team members.
+  subscriberIds?: string[];
 }
 
 // Enforces that assignee holds a team member and delegate holds an agent of the
@@ -844,7 +847,9 @@ export async function createIssue(
   // Linear subscribes the creator and the assignee of a new issue.
   await subscribe(
     issueId,
-    [actorUserId, input.assigneeUserId].filter((id): id is string => !!id),
+    [actorUserId, input.assigneeUserId, ...(input.subscriberIds ?? [])].filter(
+      (id): id is string => !!id,
+    ),
   );
   // No separate label event on creation: the initial labels are part of the
   // Issue create payload.

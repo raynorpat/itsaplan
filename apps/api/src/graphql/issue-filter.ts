@@ -2,6 +2,8 @@ import {
   db,
   issue,
   issueRelation,
+  issueSubscription,
+  teamMember,
   project,
   projectMilestone,
   team,
@@ -31,26 +33,31 @@ import { attachmentCollectionSql } from './attachment-filter';
 // team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
 // email, isMe, null), parent (id, null), project, projectMilestone, cycle,
 // hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
-// hasRelatedRelations, attachments (some, every, length, attachment fields), and / or.
+// hasRelatedRelations, attachments and subscribers (some, every, length and their
+// fields), and / or.
 // Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
 // viewer; `null: true` matches issues with no user set.
+// The user fields an issue's user filters support, as SQL over the user table.
+function userHandlers(viewerId: string): FieldHandlers {
+  return {
+    id: (v, p) => compareId(user.id, v, p),
+    name: (v, p) => compare(user.name, v, p),
+    email: (v, p) => compare(user.email, v, p),
+    isMe: (v, p) => {
+      const { eq: me, ...other } = v as Record<string, unknown>;
+      if (Object.keys(other).length)
+        throw gqlError('INVALID_INPUT', `Filter ${p} supports eq only`);
+      return me ? eq(user.id, viewerId) : not(eq(user.id, viewerId));
+    },
+  };
+}
+
 function userOn(column: AnyColumn, viewerId: string) {
   return (value: unknown, path: string): SQL => {
     const { null: isNullFilter, ...rest } = value as Record<string, unknown>;
-    const handlers: FieldHandlers = {
-      id: (v, p) => compareId(user.id, v, p),
-      name: (v, p) => compare(user.name, v, p),
-      email: (v, p) => compare(user.email, v, p),
-      isMe: (v, p) => {
-        const { eq: me, ...other } = v as Record<string, unknown>;
-        if (Object.keys(other).length)
-          throw gqlError('INVALID_INPUT', `Filter ${p} supports eq only`);
-        return me ? eq(user.id, viewerId) : not(eq(user.id, viewerId));
-      },
-    };
-    const users = filterSql(rest, handlers, path);
+    const users = filterSql(rest, userHandlers(viewerId), path);
     const parts: SQL[] = [];
     if (isNullFilter !== undefined)
       parts.push(isNullFilter ? isNull(column) : sql`${column} IS NOT NULL`);
@@ -107,6 +114,39 @@ function relationExists(withRelation: () => SQL) {
     }
     return and(...parts) ?? sql`true`;
   };
+}
+
+// IssueFilter.subscribers (UserCollectionFilter) over the issue's subscribers who are
+// members of its team: `some` / `every` match them, `length` compares their count,
+// and the direct user fields mean "some subscriber matches".
+function subscribersFilter(viewerId: string) {
+  const users = userHandlers(viewerId);
+  // Correlated with the outer issue row.
+  const subscribers = (match: SQL | undefined) => sql`(
+    SELECT 1 FROM ${issueSubscription}
+    JOIN ${user} ON ${user.id} = ${issueSubscription.userId}
+    JOIN ${teamMember} ON ${teamMember.userId} = ${issueSubscription.userId}
+      AND ${teamMember.teamId} = ${issue.teamId}
+    WHERE ${issueSubscription.issueId} = ${issue.id} AND ${match ?? sql`true`}
+  )`;
+  const handlers: FieldHandlers = {
+    ...Object.fromEntries(
+      Object.entries(users).map(([key, handler]) => [
+        key,
+        (v: unknown, p: string) => sql`EXISTS ${subscribers(handler(v, p))}`,
+      ]),
+    ),
+    some: (v, p) => sql`EXISTS ${subscribers(filterSql(v, users, p))}`,
+    every: (v, p) => {
+      const match = filterSql(v, users, p);
+      // A NULL comparison is not a match, so it counts as a violation.
+      return match
+        ? sql`NOT EXISTS ${subscribers(sql`NOT COALESCE((${match}), false)`)}`
+        : sql`true`;
+    },
+    length: (v, p) => compare(sql`(SELECT count(*) FROM ${subscribers(undefined)} AS s)`, v, p),
+  };
+  return (value: unknown, path: string): SQL => filterSql(value, handlers, path) ?? sql`true`;
 }
 
 // Relation existence counts only relations to issues the viewer can see.
@@ -167,6 +207,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     delegate: userOn(issue.delegateUserId, viewerId),
     parent: parentFilter,
     attachments: attachmentCollectionSql,
+    subscribers: subscribersFilter(viewerId),
     project: (v, p) =>
       nullableRef(
         issue.projectId,

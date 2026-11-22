@@ -83,7 +83,7 @@ export const userFilter: FieldHandlers = {
 
 type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
-function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
+export function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
   return paginate(
     args,
     { id: user.id, createdAt: user.createdAt, updatedAt: user.updatedAt },

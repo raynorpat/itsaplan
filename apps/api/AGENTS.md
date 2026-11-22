@@ -53,8 +53,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
   project, a project update, an initiative update or a document; replies are one level deep (a reply to a reply is
   stored under the root). `issue_activity` holds the change log only. The feeds
-  (issue, range, share, team activity, project), the revision markers and
-  notification participants read the `feed_entry` view, which unions both tables in
+  (issue, range, share, team activity, project) and the revision markers
+  read the `feed_entry` view, which unions both tables in
   one row shape; write comments through `createComment`, never into the view.
 - **Labels** (`labels/store.ts`): a label belongs to a team or to no team (a
   workspace label). A group is a label with `is_group`; it cannot be applied or
@@ -98,6 +98,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `upsertLinkAttachment` updates the existing one. Every write goes through the
   store, which sends the `Attachment` webhooks; REST lists and quotas count uploads
   only. Access follows the issue (`work_items` actions on its team).
+- **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
+  Linear's issue subscribers. Creating an issue subscribes its creator and assignee;
+  a new assignee, a comment's author and the members a comment mentions are
+  subscribed too (`subscriptions.ts`); only members of the issue's team are
+  subscribed, listed or notified. Comment and status-change notifications go to the
+  subscribers, assignment and mention notifications to the assignee and the
+  mentioned members, never to the actor. An archived notification (`archived_at`)
+  is left out of the inbox and the unread count; GraphQL serves every notification
+  as an `IssueNotification` with Linear's type and category names, limited to the
+  viewer's own on teams they are in.
 
 ## Auth and access
 
@@ -237,7 +247,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, issue relations, documents, attachments, cycles, initiatives (project links, sub-initiatives,
+  labels, issue relations, documents, attachments, notifications and issue subscriptions, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

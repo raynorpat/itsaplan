@@ -95,10 +95,10 @@ describe('graphql mutations', () => {
       const { owner, teamId } = await setup();
       const res = await gql(
         { cookie: owner.cookie },
-        `mutation { issueCreate(input: { teamId: "${teamId}", title: "x", subscriberIds: [] }) { success } }`,
+        `mutation { issueCreate(input: { teamId: "${teamId}", title: "x", templateId: "x" }) { success } }`,
       );
       expect(errorCode(res)).toBe('INVALID_INPUT');
-      expect(res.body.errors?.[0].message).toContain('subscriberIds');
+      expect(res.body.errors?.[0].message).toContain('templateId');
     });
 
     it('denies a member without work item permissions', async () => {

@@ -11,6 +11,11 @@ import {
 } from '../../issues/store';
 import { archiveState, createState, updateState } from '../../states/store';
 import { getTeamByKey } from '../../teams/store';
+import {
+  nonMembers,
+  nonMembersOfTeam,
+  replaceSubscribers,
+} from '../../notifications/subscriptions';
 import { assertPermission } from '../../shared/access';
 import { UUID_RE } from '../../shared/lib';
 import { deleteObjects } from '../../shared/s3';
@@ -65,6 +70,14 @@ const ISSUE_FIELDS = [
   'projectMilestoneId',
   'cycleId',
 ];
+
+// Linear's subscriberIds: a list of user ids (null means none).
+function subscriberIdsInput(value: unknown): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string' || !UUID_RE.test(v)))
+    throw gqlError('INVALID_INPUT', 'input.subscriberIds must be a list of user ids');
+  return value as string[];
+}
 
 // Label inputs of issueUpdate: a full replacement, or labels to add / remove.
 const LABEL_FIELDS = ['labelIds', 'addedLabelIds', 'removedLabelIds'];
@@ -184,12 +197,15 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['teamId', 'labelIds', ...ISSUE_FIELDS], 'input');
+        onlySupported(input, ['teamId', 'labelIds', 'subscriberIds', ...ISSUE_FIELDS], 'input');
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
         assertIssueInput(input);
         const found = await findTeam(input.teamId, ctx.user.id);
         await assertPermission(found.id, ctx.user, 'work_items', 'create');
         const team = (await getTeamByKey(found.key))!;
+        const subscriberIds = subscriberIdsInput(input.subscriberIds);
+        if ((await nonMembersOfTeam(team.id, subscriberIds)).length)
+          throw gqlError('INVALID_INPUT', 'input.subscriberIds must be members of the team');
         const patch = toPatch(input);
         const created = await createIssue(
           team,
@@ -208,6 +224,7 @@ export const mutationResolvers = {
             cycleId: patch.cycleId,
             position: patch.position,
             labelIds: labelIdsInput(input.labelIds, 'input.labelIds'),
+            subscriberIds,
           },
           ctx.user.id,
         );
@@ -220,11 +237,19 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, [...ISSUE_FIELDS, ...LABEL_FIELDS], 'input');
+        onlySupported(input, [...ISSUE_FIELDS, ...LABEL_FIELDS, 'subscriberIds'], 'input');
         assertIssueInput(input);
         const row = await findIssue(id, ctx.user.id);
         await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
         const labelIds = await nextLabelIds(row.id, input);
+        // subscriberIds replaces the subscribers before the update, so the update's
+        // own triggers (a new assignee) subscribe on top of the new list.
+        if (input.subscriberIds !== undefined) {
+          const subscriberIds = subscriberIdsInput(input.subscriberIds);
+          if ((await nonMembers(row.id, subscriberIds)).length)
+            throw gqlError('INVALID_INPUT', 'input.subscriberIds must be members of the team');
+          await replaceSubscribers(row.id, subscriberIds);
+        }
         await updateIssue(row.id, toPatch(input), ctx.user.id, { labelIds });
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
       }),

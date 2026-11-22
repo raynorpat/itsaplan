@@ -14,6 +14,17 @@ const membersOfIssueTeam = (issueId: string) =>
     .from(teamMember)
     .where(inArray(teamMember.teamId, issueTeam(issueId)));
 
+// The given users who are not members of the team.
+export async function nonMembersOfTeam(teamId: string, userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const rows = await db
+    .select({ userId: teamMember.userId })
+    .from(teamMember)
+    .where(eq(teamMember.teamId, teamId));
+  const members = new Set(rows.map((r) => r.userId));
+  return [...new Set(userIds)].filter((id) => !members.has(id));
+}
+
 // The given users who are not members of the issue's team.
 export async function nonMembers(issueId: string, userIds: string[]): Promise<string[]> {
   if (userIds.length === 0) return [];
@@ -21,6 +32,18 @@ export async function nonMembers(issueId: string, userIds: string[]): Promise<st
   const members = new Set(rows.map((r) => r.userId));
   return [...new Set(userIds)].filter((id) => !members.has(id));
 }
+
+// SQL over `user`: the subscribers of the issue who are members of its team.
+export const subscribedMembers = (issueId: string) =>
+  db
+    .select({ id: issueSubscription.userId })
+    .from(issueSubscription)
+    .where(
+      and(
+        eq(issueSubscription.issueId, issueId),
+        inArray(issueSubscription.userId, membersOfIssueTeam(issueId)),
+      ),
+    );
 
 // Subscribes the given users who are members of the issue's team; existing
 // subscriptions are left as they are.
