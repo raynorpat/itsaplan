@@ -34,3 +34,10 @@ export async function notifyIssuesArchived(
     if (!response.ok) throw new Error(`Webhook API returned ${response.status}`);
   }
 }
+
+// Runs the cycle upkeep in the api: it closes ended cycles with rollover, creates
+// upcoming cycles and appends cycle history, through the stores.
+export async function runCycleUpkeep(): Promise<void> {
+  const response = await postInternal('/internal/cycles/tick', {}, 120_000);
+  if (!response.ok) throw new Error(`Cycle API returned ${response.status}`);
+}

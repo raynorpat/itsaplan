@@ -64,6 +64,7 @@ export function toIssue(row: IssueRecord) {
     parentId: row.parentId,
     projectId: row.projectId,
     projectMilestoneId: row.projectMilestoneId,
+    cycleId: row.cycleId,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     creatorUserId: row.creatorUserId,

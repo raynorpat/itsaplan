@@ -24,6 +24,9 @@ export interface WorkerConfig {
   // Run the auto-archive sweep once every this many ticks. Archiving is not time-
   // sensitive (an issue past its threshold can wait a tick), so this is coarse.
   autoArchiveEveryTicks: number;
+  // Run the cycle upkeep once every this many ticks. It works from dates, so a
+  // late run catches up.
+  cycleUpkeepEveryTicks: number;
 }
 
 let cached: WorkerConfig | null = null;
@@ -41,6 +44,8 @@ export function workerConfig(): WorkerConfig {
     cleanupEveryTicks: intEnv('WEBHOOK_CLEANUP_EVERY_TICKS', 300),
     // Default ~1h at the 2s poll interval (1800 ticks).
     autoArchiveEveryTicks: intEnv('AUTO_ARCHIVE_EVERY_TICKS', 1800),
+    // Default ~1h at the 2s poll interval (1800 ticks).
+    cycleUpkeepEveryTicks: intEnv('CYCLE_UPKEEP_EVERY_TICKS', 1800),
   };
   return cached;
 }

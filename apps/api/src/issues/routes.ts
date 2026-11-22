@@ -62,6 +62,7 @@ const IssueResponse = t.Object({
   stateId: t.String({ format: 'uuid' }),
   parentId: t.Nullable(t.String({ format: 'uuid' })),
   projectMilestoneId: t.Nullable(t.String({ format: 'uuid' })),
+  cycleId: t.Nullable(t.String({ format: 'uuid' })),
   creatorUserId: t.Nullable(t.String({ format: 'uuid' })),
   title: t.String(),
   description: t.String(),

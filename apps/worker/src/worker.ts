@@ -3,7 +3,7 @@ import { deliver, nextRetryDelayS, renderBody } from './delivery';
 import { resolvesToPrivate } from './public-host';
 import { processNotificationDeliveries } from './notification-delivery';
 import { deleteIssueAgentThreads } from './agent-runs';
-import { notifyIssuesArchived } from './internal-api';
+import { notifyIssuesArchived, runCycleUpkeep } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
 import { TELEMETRY_CHECK_EVERY_TICKS, processTelemetry } from './telemetry';
 import {
@@ -19,6 +19,7 @@ import {
 
 let ticksSinceCleanup = 0;
 let ticksSinceAutoArchive = 0;
+let ticksSinceCycleUpkeep = 0;
 // Starts due, so an install is visible even if the instance is removed minutes later.
 let ticksSinceTelemetry = TELEMETRY_CHECK_EVERY_TICKS;
 
@@ -58,6 +59,15 @@ async function tick(): Promise<void> {
       } catch (error) {
         console.error('[worker] reporting archived issues for webhooks failed:', error);
       }
+    }
+  }
+  if (++ticksSinceCycleUpkeep >= cfg.cycleUpkeepEveryTicks) {
+    ticksSinceCycleUpkeep = 0;
+    // An unreachable api must not read as a failed tick: the next run catches up.
+    try {
+      await runCycleUpkeep();
+    } catch (error) {
+      console.error('[worker] cycle upkeep failed:', error);
     }
   }
   if (++ticksSinceTelemetry >= TELEMETRY_CHECK_EVERY_TICKS) {

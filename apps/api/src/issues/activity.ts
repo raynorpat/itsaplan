@@ -1,4 +1,5 @@
 import {
+  cycle,
   db,
   feedEntry,
   issue,
@@ -339,6 +340,15 @@ async function projectName(id: string | null): Promise<string | null> {
   const rows = await db.select({ title: project.name }).from(project).where(eq(project.id, id));
   return rows[0]?.title ?? null;
 }
+// A cycle's name, or "Cycle <number>" when it has none (Linear's display).
+async function cycleName(id: string | null): Promise<string | null> {
+  if (id == null) return null;
+  const [row] = await db
+    .select({ name: cycle.name, number: cycle.number })
+    .from(cycle)
+    .where(eq(cycle.id, id));
+  return row ? (row.name ?? `Cycle ${row.number}`) : null;
+}
 async function userName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
@@ -366,6 +376,7 @@ export interface IssueSnapshot {
   stateId: string;
   typeId: string | null;
   projectId: string | null;
+  cycleId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
   priority: number;
@@ -405,6 +416,12 @@ export async function logIssueUpdate(
       action: 'project',
       fromText: await projectName(before.projectId),
       toText: await projectName(after.projectId),
+    });
+  if (before.cycleId !== after.cycleId)
+    events.push({
+      action: 'cycle',
+      fromText: await cycleName(before.cycleId),
+      toText: await cycleName(after.cycleId),
     });
   if (before.assigneeUserId !== after.assigneeUserId)
     events.push({

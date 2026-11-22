@@ -76,6 +76,7 @@ export interface IssueRow {
   // The project this issue is linked to, expanded to id + title for rendering,
   // or null. Filled by attachProjects; mapIssue alone leaves it null.
   project: { id: string; title: string } | null;
+  cycleId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
   stateId: string;
@@ -129,6 +130,7 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     stateId: row.stateId,
     parentId: row.parentId,
     projectMilestoneId: row.projectMilestoneId,
+    cycleId: row.cycleId,
     creatorUserId: row.creatorUserId,
     title: row.title,
     description: row.description,
@@ -190,6 +192,7 @@ function snapshot(row: IssueRow): IssueSnapshot {
     stateId: row.stateId,
     typeId: row.typeId,
     projectId: row.project?.id ?? null,
+    cycleId: row.cycleId,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     priority: row.priority,
@@ -567,6 +570,7 @@ async function loadSnapshot(id: string): Promise<(IssueSnapshot & { teamId: stri
       stateId: issue.stateId,
       typeId: issue.typeId,
       projectId: issue.projectId,
+      cycleId: issue.cycleId,
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
       priority: issue.priority,
@@ -623,6 +627,7 @@ export interface NewIssueInput {
   typeId?: string | null;
   projectId?: string | null;
   projectMilestoneId?: string | null;
+  cycleId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   stateId: string;
@@ -856,6 +861,7 @@ export interface IssuePatch {
   typeId?: string | null;
   projectId?: string | null;
   projectMilestoneId?: string | null;
+  cycleId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;
@@ -917,6 +923,7 @@ export async function updateIssue(
   // Moving the issue to another project (or out of one) clears its milestone,
   // unless the patch sets a milestone of the new project.
   if (patch.projectMilestoneId !== undefined) set.projectMilestoneId = patch.projectMilestoneId;
+  if (patch.cycleId !== undefined) set.cycleId = patch.cycleId;
   else if (patch.projectId !== undefined && patch.projectId !== before.projectId)
     set.projectMilestoneId = null;
   if (patch.assigneeUserId !== undefined) set.assigneeUserId = patch.assigneeUserId;

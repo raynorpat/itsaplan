@@ -1,7 +1,8 @@
-import { cycle, db, team } from '@repo/db';
-import { and, asc, eq, gt, isNull, lt, lte, sql } from 'drizzle-orm';
+import { cycle, db, issue, team, workflowState } from '@repo/db';
+import { and, asc, eq, gt, isNull, lt, lte, notInArray, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
+import { updateIssue } from '../issues/store';
 import { currentCycleStart, cycleEnd, nextCycleStart, type CycleSettings } from './schedule';
 
 // Team cycles (Linear's Cycle). A team with cycles enabled always has a current
@@ -270,4 +271,159 @@ export async function ensureUpcomingCycles(teamId: string, now: Date): Promise<v
 export async function ensureCycles(teamId: string, now: Date): Promise<void> {
   await ensureCurrentCycle(teamId, now);
   await ensureUpcomingCycles(teamId, now);
+}
+
+// --- Progress -------------------------------------------------------------------
+
+export interface CycleProgress {
+  progress: number;
+  issueCount: number;
+  completedIssueCount: number;
+  scope: number;
+  completedScope: number;
+  inProgressScope: number;
+}
+
+// Linear's cycle progress: completed issues count 1, started issues 0.25, canceled
+// issues are left out. Weighted by estimate when the cycle's estimate total is
+// nonzero (an issue without an estimate counts 1), otherwise by issue count. 0 when
+// nothing counts; 0.999 instead of 1 while open issues with a zero estimate remain.
+export async function cycleProgress(cycleId: string): Promise<CycleProgress> {
+  const rows = await db
+    .select({ estimate: issue.estimate, type: workflowState.stateType })
+    .from(issue)
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(eq(issue.cycleId, cycleId));
+  const counted = rows.filter((r) => r.type !== 'canceled');
+  const weighted = counted.some((r) => (r.estimate ?? 0) > 0);
+  const weight = (r: { estimate: number | null }) => (weighted ? (r.estimate ?? 1) : 1);
+  const sum = (list: typeof counted) => list.reduce((n, r) => n + weight(r), 0);
+  const completed = counted.filter((r) => r.type === 'completed');
+  const started = counted.filter((r) => r.type === 'started');
+  const scope = sum(counted);
+  let progress = scope > 0 ? (sum(completed) + 0.25 * sum(started)) / scope : 0;
+  if (progress === 1 && counted.some((r) => r.type !== 'completed')) progress = 0.999;
+  return {
+    progress,
+    issueCount: counted.length,
+    completedIssueCount: completed.length,
+    scope,
+    completedScope: sum(completed),
+    inProgressScope: sum(started),
+  };
+}
+
+// --- Upkeep ---------------------------------------------------------------------
+
+// The team's cycle containing `at` (not archived), or null.
+async function cycleContaining(teamId: string, at: Date): Promise<CycleRow | null> {
+  const [row] = await db
+    .select()
+    .from(cycle)
+    .where(
+      and(
+        eq(cycle.teamId, teamId),
+        isNull(cycle.archivedAt),
+        lte(cycle.startsAt, at),
+        gt(cycle.endsAt, at),
+      ),
+    );
+  return row ? mapCycle(row) : null;
+}
+
+// Closes a cycle at `closedAt` (its end, or earlier when closed by hand): records
+// its unfinished issues (not completed or canceled, not archived) and moves them to
+// the team's cycle containing `now`, through updateIssue so the move is logged and
+// sent as Issue webhooks. Sends the Cycle update webhook.
+export async function closeCycle(
+  cycleId: string,
+  closedAt: Date,
+  now: Date,
+  actorUserId: string | null,
+): Promise<CycleRow> {
+  const before = await getCycle(cycleId);
+  if (!before) throw new HttpError(404, 'Cycle not found');
+  const unfinished = await db
+    .select({ id: issue.id })
+    .from(issue)
+    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .where(
+      and(
+        eq(issue.cycleId, cycleId),
+        isNull(issue.archivedAt),
+        notInArray(workflowState.stateType, ['completed', 'canceled']),
+      ),
+    );
+  const endsAt = new Date(before.endsAt) < closedAt ? new Date(before.endsAt) : closedAt;
+  const [row] = await db
+    .update(cycle)
+    .set({
+      completedAt: closedAt,
+      endsAt,
+      uncompletedIssueIdsUponClose: unfinished.map((r) => r.id),
+      updatedAt: new Date(),
+    })
+    .where(eq(cycle.id, cycleId))
+    .returning();
+  const closed = mapCycle(row!);
+  const target = await cycleContaining(closed.teamId, now);
+  if (target && target.id !== cycleId)
+    for (const { id } of unfinished) await updateIssue(id, { cycleId: target.id }, actorUserId);
+  await sendCycleEvent('update', closed, actorUserId, before);
+  return closed;
+}
+
+// Closes every cycle of the team whose end has passed and is not completed yet.
+export async function closeEndedCycles(teamId: string, now: Date): Promise<void> {
+  const ended = await db
+    .select({ id: cycle.id, endsAt: cycle.endsAt })
+    .from(cycle)
+    .where(
+      and(
+        eq(cycle.teamId, teamId),
+        isNull(cycle.archivedAt),
+        isNull(cycle.completedAt),
+        lte(cycle.endsAt, now),
+      ),
+    )
+    .orderBy(asc(cycle.startsAt));
+  for (const c of ended) await closeCycle(c.id, c.endsAt, now, null);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Appends today's progress values to each active cycle's history arrays, once per
+// day since the cycle started; missed days are filled with the current values.
+export async function recordHistory(teamId: string, now: Date): Promise<void> {
+  const active = await activeCycle(teamId, now);
+  if (!active) return;
+  const days = Math.floor((now.getTime() - new Date(active.startsAt).getTime()) / DAY_MS) + 1;
+  const missing = days - active.issueCountHistory.length;
+  if (missing <= 0) return;
+  const p = await cycleProgress(active.id);
+  const fill = <T>(list: T[], value: T) => [...list, ...Array<T>(missing).fill(value)];
+  await db
+    .update(cycle)
+    .set({
+      issueCountHistory: fill(active.issueCountHistory, p.issueCount),
+      completedIssueCountHistory: fill(active.completedIssueCountHistory, p.completedIssueCount),
+      scopeHistory: fill(active.scopeHistory, p.scope),
+      completedScopeHistory: fill(active.completedScopeHistory, p.completedScope),
+      inProgressScopeHistory: fill(active.inProgressScopeHistory, p.inProgressScope),
+    })
+    .where(eq(cycle.id, active.id));
+}
+
+// The hourly upkeep for every team with cycles enabled, in order: a cycle contains
+// now; ended cycles close with rollover into it; upcoming cycles are created; the
+// active cycle's history is appended. Each step works from dates, so a missed run
+// is caught up by the next one.
+export async function runUpkeep(now: Date): Promise<void> {
+  const teams = await db.select({ id: team.id }).from(team).where(eq(team.cyclesEnabled, true));
+  for (const { id } of teams) {
+    await ensureCurrentCycle(id, now);
+    await closeEndedCycles(id, now);
+    await ensureUpcomingCycles(id, now);
+    await recordHistory(id, now);
+  }
 }
