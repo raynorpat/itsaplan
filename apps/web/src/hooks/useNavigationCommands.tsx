@@ -5,7 +5,7 @@ import {
   FolderKanban,
   Inbox,
   Server,
-  Shield,
+  Settings2,
   SquareKanban,
   Target,
   Users,
@@ -13,7 +13,7 @@ import {
 import { useSession } from '@/lib/auth-client';
 import {
   apiDocsPath,
-  godPath,
+  workspaceSettingsPath,
   inboxPath,
   projectsPath,
   manageTeamsPath,
@@ -24,7 +24,6 @@ import {
   teamPath,
 } from '@/utils/paths';
 import { ACCOUNT_SECTIONS, accountPath } from '@/utils/accountSections';
-import { GOD_SECTIONS } from '@/utils/godSections';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import type { Command, CommandSection } from '@/utils/commands';
 import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
@@ -33,14 +32,14 @@ import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 // by what the viewer may read.
 // The destinations mirror the sidebars one-to-one: the main nav (SidebarMainNav),
 // the team settings nav (useSettingsNavGroups, which already applies the
-// permission gate), the sidebar footer, the account pages and god mode. Grouped
+// permission gate), the sidebar footer, the account pages and workspace settings. Grouped
 // under one "Sections" heading so a search separates them from commands and
 // issues.
 export function useNavigationCommands(teamKey: string | null): CommandSection | null {
   const router = useRouter();
   const { data: session } = useSession();
   const { groups } = useSettingsNavGroups(teamKey);
-  const isGod = isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
+  const isAdmin = isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   const items: Command[] = [];
 
@@ -85,18 +84,16 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
     add(`nav.account.${s.slug}`, s.label, <s.icon />, accountPath(s.slug), 'account');
   }
 
-  // Instance administration, owner account only. The API enforces the same, so
+  // Workspace settings, owners and admins only. The API enforces the same, so
   // hiding it here is about noise, not access.
-  if (isGod) {
-    for (const s of GOD_SECTIONS) {
-      add(
-        `nav.god.${s.slug}`,
-        `God mode: ${s.label}`,
-        <Shield />,
-        godPath(s.slug),
-        'instance admin',
-      );
-    }
+  if (isAdmin) {
+    add(
+      'nav.workspace-settings',
+      'Workspace settings',
+      <Settings2 />,
+      workspaceSettingsPath(),
+      'organization sign-in domains uploads',
+    );
   }
 
   if (items.length === 0) return null;

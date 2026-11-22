@@ -2,8 +2,7 @@ import { Elysia, t } from 'elysia';
 import { authContext } from '../shared/auth-context';
 import { ErrorResponse } from '../shared/responses';
 import { getStorageSettings, StorageSettingsSchema } from './storage';
-import { getHotkeySettings, HotkeyCombosSchema } from './hotkeys';
-import { getAppVersion } from './updates';
+import { getAppVersion } from './version';
 
 // Routes for global instance settings (app_setting): a key-value store not scoped
 // to a team. The MCP toggle is per-team (see teams/routes.ts), not here.
@@ -24,17 +23,7 @@ export const settingsRoutes = new Elysia({
     },
   })
 
-  .get('/settings/hotkeys', () => getHotkeySettings(), {
-    response: { 200: HotkeyCombosSchema, 401: ErrorResponse },
-    detail: {
-      summary: 'Get instance keyboard shortcuts',
-      description:
-        'Get the keyboard shortcut overrides that apply to everyone on this instance. Every signed-in user reads them; changing them is god mode.',
-    },
-  })
-
-  // The running version, shown in the sidebar to everyone. Whether a newer one
-  // exists is god mode (/god/updates), and so is the release history. A session is
+  // The running version, shown in the sidebar and in workspace settings. A session is
   // required: the version tells an anonymous visitor which release to look up
   // vulnerabilities for.
   .get('/settings/version', () => ({ version: getAppVersion() }), {

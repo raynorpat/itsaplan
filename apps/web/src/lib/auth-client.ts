@@ -22,28 +22,19 @@ export const authClient = createAuthClient({
     passkeyClient(),
     // Personal API keys: apiKey.create()/list()/delete().
     apiKeyClient(),
-    // Sign-in by emailed link: signIn.magicLink(). Whether it is offered is an
-    // instance setting the sign-in screen reads from /auth-config; the server
-    // refuses to send when it is off.
+    // Sign-in and sign-up by emailed link: signIn.magicLink().
     magicLinkClient(),
   ],
 });
 
 export const {
   signIn,
-  signUp,
   signOut,
   useSession,
   getSession,
   passkey,
   apiKey,
   updateUser,
-  changePassword,
-  // Password reset by email: request sends the link, reset consumes its token.
-  requestPasswordReset,
-  resetPassword,
-  // Resends the address confirmation link.
-  sendVerificationEmail,
   // Connected sign-in providers, managed on the account's Accounts page.
   listAccounts,
   linkSocial,

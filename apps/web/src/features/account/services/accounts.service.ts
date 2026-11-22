@@ -53,10 +53,3 @@ export function useDisconnectProvider() {
 export function useGoogleAvailable(): boolean {
   return useAuthConfigQuery().data?.google ?? false;
 }
-
-// The password credential counts as a sign-in method, so disconnecting the last
-// social provider is only safe when one exists. better-auth reports it as an account
-// with providerId 'credential'.
-export function hasPasswordCredential(accounts: LinkedAccount[]): boolean {
-  return accounts.some((a) => a.providerId === 'credential');
-}

@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAccountPreferences } from '@/services/preferences.service';
-import { useHotkeySettingsQuery } from '@/services/hotkeys.service';
 import {
   applyOverrides,
   DEFAULT_COMBOS,
@@ -15,18 +14,13 @@ import {
 
 // The combinations in effect for the signed-in user. Every listener and every
 // shortcut label reads them from here, so a rebound key applies everywhere at once.
-// Three layers, each overriding the one before: the built-in bindings, the
-// instance-wide ones set in god mode, then the user's own.
+// The built-in bindings with the user's own overrides on top.
 const HotkeysCtx = createContext<HotkeyCombos>(DEFAULT_COMBOS);
 
 export function HotkeysProvider({ children }: { children: ReactNode }) {
-  const instance = useHotkeySettingsQuery().data;
   const { hotkeys: personal } = useAccountPreferences();
 
-  const combos = useMemo(
-    () => applyOverrides(applyOverrides(DEFAULT_COMBOS, instance ?? {}), personal),
-    [instance, personal],
-  );
+  const combos = useMemo(() => applyOverrides(DEFAULT_COMBOS, personal), [personal]);
 
   return <HotkeysCtx.Provider value={combos}>{children}</HotkeysCtx.Provider>;
 }

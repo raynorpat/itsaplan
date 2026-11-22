@@ -6,14 +6,12 @@ import GoogleIcon from '@/components/common/GoogleIcon';
 import AccountConnectionRow from './AccountConnectionRow';
 import {
   connectGoogle,
-  hasPasswordCredential,
   useDisconnectProvider,
   useLinkedAccountsQuery,
 } from '../../services/accounts.service';
 
-// Connecting sends the browser through Google and back to this page; disconnecting
-// is refused while Google is the only way left to sign in, since it would lock the
-// account out.
+// Connecting sends the browser through Google and back to this page. Disconnecting
+// never locks the account out: an emailed sign-in link always works.
 export default function AccountGoogleConnection() {
   const { data: accounts } = useLinkedAccountsQuery();
   const disconnect = useDisconnectProvider();
@@ -21,9 +19,6 @@ export default function AccountGoogleConnection() {
 
   const list = accounts ?? [];
   const google = list.find((a) => a.providerId === 'google');
-  // Passkeys are a sign-in method too, but they are managed on another page and can
-  // be removed there; the password is the one this page can reason about.
-  const onlyWayIn = Boolean(google) && !hasPasswordCredential(list) && list.length === 1;
 
   async function onConnect() {
     setConnecting(true);
@@ -45,7 +40,6 @@ export default function AccountGoogleConnection() {
       description="Sign in with your Google account."
       connectedTo={google ? 'Connected' : null}
       busy={connecting || disconnect.isPending}
-      disconnectHint={onlyWayIn ? 'Set a password first' : undefined}
       onConnect={() => void onConnect()}
       onDisconnect={() => {
         if (!google) return;

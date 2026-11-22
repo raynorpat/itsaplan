@@ -22,7 +22,7 @@ export function toWorkspaceRole(value: unknown): WorkspaceRole {
 
 export const atLeast = (role: WorkspaceRole, minimum: WorkspaceRole) => RANK[role] >= RANK[minimum];
 
-// Owners and admins administer the workspace (god mode, webhooks, users).
+// Owners and admins administer the workspace (settings, webhooks, users).
 export const isWorkspaceAdmin = (role: WorkspaceRole) => atLeast(role, 'admin');
 
 // The roles `actor` may give or take away for `target`: admins act on members and

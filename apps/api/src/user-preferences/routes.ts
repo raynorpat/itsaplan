@@ -3,8 +3,14 @@ import { authContext } from '../shared/auth-context';
 import { requireUser, canSeeTeam } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { HotkeyCombosSchema } from '../settings/hotkeys';
 import { getPreferences, isValidTimezone, updatePreferences } from './store';
+
+// A user's keyboard shortcut overrides: command id → combination ('mod+k', 'n'). The
+// set of commands lives in the web app, so only the shape is checked here.
+const HotkeyCombosSchema = t.Record(
+  t.String({ pattern: '^[a-z][a-z0-9.-]{0,63}$' }),
+  t.String({ pattern: '^(mod\\+|shift\\+|alt\\+)*[a-z0-9]{1,10}$' }),
+);
 
 const Theme = t.Union([t.Literal('light'), t.Literal('dark'), t.Literal('system')]);
 const IssueOpenMode = t.Union([t.Literal('panel'), t.Literal('page')]);

@@ -56,9 +56,9 @@ stable release.
 - Linear-compatible GraphQL API at `/graphql`: point the official `@linear/sdk` at your instance
   to read and change teams, issues, workflow states and projects
 - Outgoing webhooks in Linear's format: per team or all teams, signed payloads, retries, and a delivery log
-- Email and password, passkey, and Google sign-in
+- Sign-in with an emailed link, a passkey, or Google; people join by invite or an approved email domain
 - Notifications by email (SMTP or Resend), with per-member preferences
-- Instance administration: storage limits, mail transport, and instance-wide settings
+- Workspace settings: name, sign-in methods, upload types, and who may create teams, manage labels and invite
 
 ## Getting started
 
@@ -142,9 +142,19 @@ docker compose up -d --build
 One command brings up the whole stack: Postgres, RustFS, api, worker, and web. Every
 service is built from this checkout; web bakes `API_URL` into its bundle because Next.js
 inlines `NEXT_PUBLIC_*` at build time. The API applies migrations on startup, and the
-first account registered becomes the instance admin.
+first account created becomes the workspace owner. Sign in with an emailed link: until an
+email provider is set (`SMTP_*` or `RESEND_API_KEY`), the API writes each sign-in link to
+its log, so the first owner can sign in from there.
 
 After an update, rebuild: `git pull` then `docker compose up -d --build`.
+
+Upgrading from a version with god mode: instance settings now come from environment
+variables. Set the email provider (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+`SMTP_PASSWORD`, `SMTP_SECURE` or `RESEND_API_KEY`, and `EMAIL_FROM`), Google sign-in
+(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), the approved email domains
+(`APPROVED_EMAIL_DOMAINS`) and the upload limits (`MAX_ATTACHMENT_MB`, `MAX_AVATAR_MB`,
+`TEAM_QUOTA_MB`); see `.env.example`. Passwords are gone: everyone signs in with an
+emailed link, Google or a passkey. The rest of god mode is the Workspace settings page.
 
 Attachments are stored in RustFS. An instance set up with MinIO switches to it on the next
 `docker compose up -d --build`: the `minio` service keeps its name and its `minio-data`

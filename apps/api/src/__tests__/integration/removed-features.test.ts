@@ -113,6 +113,27 @@ describe('removed features', () => {
       expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
   });
 
+  it('removes god mode, instance shortcuts and update checks', async () => {
+    const { cookie } = await setup();
+    const id = crypto.randomUUID();
+    const routes: [string, string, unknown?][] = [
+      ['GET', '/god/hotkey-settings'],
+      ['PUT', '/god/hotkey-settings', {}],
+      ['GET', '/god/updates'],
+      ['POST', '/god/updates/check'],
+      ['GET', '/god/users'],
+      ['GET', `/god/users/${id}`],
+      ['POST', `/god/users/${id}/verify-email`],
+      ['DELETE', `/god/users/${id}`],
+      ['GET', '/god/teams'],
+      ['GET', `/god/teams/${id}`],
+      ['GET', '/settings/hotkeys'],
+    ];
+    for (const [method, path, body] of routes)
+      expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
+    expect(await call(cookie, 'GET', '/settings/version')).toBe(200);
+  });
+
   it('rejects a delegate and allows clearing it', async () => {
     const { cookie, issueId, userId } = await setup();
     const set = await gql(

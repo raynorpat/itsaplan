@@ -216,7 +216,8 @@ export interface NotificationEventToggles {
 // ── Storage limits ────────────────────────────────────────────────────────────
 
 // The instance upload limits. Readable by any signed-in user, because the upload UI
-// states them before a file is picked; only god mode can change them.
+// states them before a file is picked. Sizes come from the environment, accepted
+// types from the workspace settings.
 export interface StorageSettings {
   maxAttachmentMb: number;
   maxAvatarMb: number;
@@ -227,180 +228,50 @@ export interface StorageSettings {
   teamQuotaMb: number;
 }
 
-export type StorageSettingsPatch = Partial<StorageSettings>;
+// ── Workspace settings (Linear's Organization) ────────────────────────────────
 
-// One release. The ones above the running version come from the repository's feed
-// and carry HTML notes; the ones up to it come from this build's changelog and
-// carry markdown.
-export interface Release {
-  tag: string;
+// The minimum workspace role for an action.
+export type MinimumRole = 'owner' | 'admin' | 'member';
+
+// The workspace settings. Readable by any signed-in user; changed by owners and
+// admins. approvedDomains (from the environment) and version are read-only.
+export interface OrganizationSettings {
+  id: string;
+  name: string;
+  urlKey: string;
+  logoUrl: string | null;
+  // 'email' (magic link), 'google', 'passkey'. Empty means every configured one.
+  allowedAuthServices: string[];
+  allowedFileUploadContentTypes: string[];
+  teamCreationRole: MinimumRole;
+  labelManagementRole: MinimumRole;
+  invitationsRole: MinimumRole;
+  approvedDomains: string[];
   version: string;
-  publishedAt: string;
-  url: string | null;
-  notes: string;
-  notesFormat: 'html' | 'markdown';
-}
-
-// How the running version compares to what is published. `latestVersion` and
-// `checkedAt` are null until an upstream check has succeeded.
-export interface UpdateStatus {
-  currentVersion: string;
-  latestVersion: string | null;
-  updateAvailable: boolean;
-  checkedAt: string | null;
-  releases: Release[];
-}
-
-// ── Instance administration (god mode) ────────────────────────────────────────
-
-// Who may create an account on this instance.
-export type RegistrationMode = 'open' | 'invite' | 'closed';
-
-// The instance sign-in policy. hasEmailProvider tells whether outbound mail works;
-// the options that depend on it cannot be turned on without one.
-export interface InstanceAuthSettings {
-  registration: RegistrationMode;
-  requireEmailVerification: boolean;
-  magicLink: boolean;
-  hasEmailProvider: boolean;
-}
-
-export interface InstanceAuthSettingsPatch {
-  registration?: RegistrationMode;
-  requireEmailVerification?: boolean;
-  magicLink?: boolean;
-}
-
-// The instance mail provider used for authentication email (password reset, address
-// verification, magic links). Separate from a team's notification provider.
-// Secrets are never returned, only a `hasX` flag.
-export interface InstanceEmailSettings {
-  smtp: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: NotificationEncryption;
-    username: string;
-    hasPassword: boolean;
-    timeout: number | null;
-  };
-  resend: { enabled: boolean; hasApiKey: boolean };
-  from: string;
-}
-
-export interface InstanceEmailSettingsPatch {
-  smtp?: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: NotificationEncryption;
-    username: string;
-    password?: string;
-    timeout: number | null;
-  };
-  resend?: { enabled: boolean; apiKey?: string };
-  from?: string;
-}
-
-// The Google OAuth credentials used for social sign-in. The client secret is never
-// returned, only a `hasClientSecret` flag. redirectUri is derived from the API origin
-// and has to be registered in the Google Cloud console.
-export interface InstanceGoogleSettings {
-  enabled: boolean;
-  clientId: string;
-  hasClientSecret: boolean;
-  redirectUri: string;
-}
-
-export interface InstanceGoogleSettingsPatch {
-  enabled?: boolean;
-  clientId?: string;
-  clientSecret?: string;
-}
-
-// One account in the instance user directory. `role` is the global better-auth role
-// ("god" for the instance owner), which is unrelated to team membership.
-export interface InstanceUser {
-  id: string;
-  name: string;
-  email: string;
-  image: string | null;
-  emailVerified: boolean;
-  role: string;
-  providers: string[];
-  teamCount: number;
-  lastSeenAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
-// A team the user is a member of; role 'owner' marks a team owner.
-export interface InstanceUserTeam {
-  teamId: string;
-  teamKey: string;
-  teamName: string;
-  role: MemberRole;
-  // How many owners the team has. 1 on a team this user owns means deleting
-  // the account would leave the team with nobody who can manage it.
-  ownerCount: number;
-  joinedAt: string;
-}
+export type OrganizationSettingsPatch = Partial<
+  Pick<
+    OrganizationSettings,
+    | 'name'
+    | 'urlKey'
+    | 'logoUrl'
+    | 'allowedAuthServices'
+    | 'allowedFileUploadContentTypes'
+    | 'teamCreationRole'
+    | 'labelManagementRole'
+    | 'invitationsRole'
+  >
+>;
 
-export interface InstanceUserDetail extends InstanceUser {
-  teams: InstanceUserTeam[];
-}
-
-// One page of the directory. `total` counts every account matching the filters, so
-// the pager can show the range and know whether there is a next page.
-export interface InstanceUserPage {
-  items: InstanceUser[];
-  total: number;
-}
-
-// One team in the instance team directory, with what it holds counted across
-// its dependent tables. `lastActivityAt` is the most recent entry in its issue feed.
-export interface InstanceTeam {
-  id: string;
-  key: string;
-  name: string;
-  description: string;
-  mcpEnabled: boolean;
-  memberCount: number;
-  issueCount: number;
-  archivedIssueCount: number;
-  projectCount: number;
-  viewCount: number;
-  lastActivityAt: string | null;
-  createdAt: string;
-}
-
-// One member of a team; role 'owner' marks a team owner.
-export interface InstanceTeamMember {
-  userId: string;
-  name: string;
-  email: string;
-  image: string | null;
-  role: MemberRole;
-  joinedAt: string;
-}
-
-export interface InstanceTeamDetail extends InstanceTeam {
-  members: InstanceTeamMember[];
-}
-
-export interface InstanceTeamPage {
-  items: InstanceTeam[];
-  total: number;
-}
-
-// What the sign-in and sign-up screens read before there is a session. magicLink,
-// requireEmailVerification and google are already resolved against their provider by
-// the API, so a screen can trust them without checking the credentials itself.
+// The sign-in methods the sign-in screen offers, readable without a session. The
+// email (magic link) field is always offered.
 export interface PublicAuthConfig {
-  registration: RegistrationMode;
-  magicLink: boolean;
-  requireEmailVerification: boolean;
   emailEnabled: boolean;
   google: boolean;
+  passkey: boolean;
 }
 
 // The session member's own notification preferences for a team: which issue
@@ -1248,7 +1119,7 @@ export const api = {
     request<void>(`/webhooks/${webhookId}`, { method: 'DELETE' }),
   rotateWebhookSecret: (webhookId: string) =>
     request<Webhook>(`/webhooks/${webhookId}/rotate-secret`, { method: 'POST' }),
-  // All-teams webhooks: the god user or an owner of every team (403 otherwise).
+  // All-teams webhooks: workspace owners and admins (403 otherwise).
   listAllTeamsWebhooks: () => request<Webhook[]>('/webhooks'),
   createAllTeamsWebhook: (input: NewWebhookInput) =>
     request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
@@ -1335,86 +1206,22 @@ export const api = {
       method: 'DELETE',
     }),
 
-  // Instance administration (god mode). Every route below is owner-only; a plain
-  // user gets a 403, which is why the entries are hidden from the sidebar.
-  getInstanceAuthSettings: () => request<InstanceAuthSettings>('/god/auth-settings'),
-  updateInstanceAuthSettings: (patch: InstanceAuthSettingsPatch) =>
-    request<InstanceAuthSettings>('/god/auth-settings', {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }),
-  getInstanceEmailSettings: () => request<InstanceEmailSettings>('/god/email-settings'),
-  updateInstanceEmailSettings: (patch: InstanceEmailSettingsPatch) =>
-    request<InstanceEmailSettings>('/god/email-settings', {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }),
-  // The upload limits. The read is open to any signed-in user (the upload UI shows
-  // the limit); the write is god mode.
+  // The upload limits, read by the upload UI before a file is picked.
   getStorageSettings: () => request<StorageSettings>('/settings/storage'),
 
-  // The instance keyboard shortcuts. The read is open to any signed-in user (every
-  // client applies them); the write is god mode.
-  getHotkeySettings: () => request<HotkeyOverrides>('/settings/hotkeys'),
-  getInstanceHotkeySettings: () => request<HotkeyOverrides>('/god/hotkey-settings'),
-  updateInstanceHotkeySettings: (combos: HotkeyOverrides) =>
-    request<HotkeyOverrides>('/god/hotkey-settings', {
-      method: 'PUT',
-      body: JSON.stringify(combos),
-    }),
-
-  // The running version, shown in the sidebar to every signed-in user.
+  // The running version, shown in the sidebar and in workspace settings.
   getAppVersion: () => request<{ version: string }>('/settings/version'),
 
-  // Whether a newer release exists, and the release notes behind it. God mode: the
-  // instance owner is the one who upgrades.
-  getUpdateStatus: () => request<UpdateStatus>('/god/updates'),
-  checkForUpdates: () => request<UpdateStatus>('/god/updates/check', { method: 'POST' }),
-
-  getInstanceStorageSettings: () => request<StorageSettings>('/god/storage-settings'),
-  updateInstanceStorageSettings: (patch: StorageSettingsPatch) =>
-    request<StorageSettings>('/god/storage-settings', {
-      method: 'PUT',
+  // The workspace settings: any signed-in user reads them, owners and admins change
+  // them.
+  getOrganization: () => request<OrganizationSettings>('/organization'),
+  updateOrganization: (patch: OrganizationSettingsPatch) =>
+    request<OrganizationSettings>('/organization', {
+      method: 'PATCH',
       body: JSON.stringify(patch),
     }),
 
-  getInstanceGoogleSettings: () => request<InstanceGoogleSettings>('/god/google-settings'),
-  updateInstanceGoogleSettings: (patch: InstanceGoogleSettingsPatch) =>
-    request<InstanceGoogleSettings>('/god/google-settings', {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }),
-  // The instance user directory: one page of accounts, and one account with the
-  // teams it can reach. Search and paging run on the server.
-  listInstanceUsers: (params: { search?: string; limit: number; offset: number }) => {
-    const query = new URLSearchParams({
-      limit: String(params.limit),
-      offset: String(params.offset),
-    });
-    if (params.search) query.set('search', params.search);
-    return request<InstanceUserPage>(`/god/users?${query.toString()}`);
-  },
-  getInstanceUser: (userId: string) => request<InstanceUserDetail>(`/god/users/${userId}`),
-  verifyInstanceUserEmail: (userId: string) =>
-    request<InstanceUserDetail>(`/god/users/${userId}/verify-email`, { method: 'POST' }),
-  // `withTeams` takes down the teams the user owns alone; without it the API
-  // refuses to delete an account that would leave a team ownerless.
-  deleteInstanceUser: (userId: string, withTeams: boolean) =>
-    request<void>(`/god/users/${userId}${withTeams ? '?withTeams=true' : ''}`, {
-      method: 'DELETE',
-    }),
-  // The instance team directory: one page of teams, and one team with its
-  // members. Search and paging run on the server.
-  listInstanceTeams: (params: { search?: string; limit: number; offset: number }) => {
-    const query = new URLSearchParams({
-      limit: String(params.limit),
-      offset: String(params.offset),
-    });
-    if (params.search) query.set('search', params.search);
-    return request<InstanceTeamPage>(`/god/teams?${query.toString()}`);
-  },
-  getInstanceTeam: (teamId: string) => request<InstanceTeamDetail>(`/god/teams/${teamId}`),
-  // The instance's own sign-in policy, readable without a session: the sign-up
-  // screen needs it before an account exists.
+  // The sign-in methods offered, readable without a session: the sign-in screen
+  // needs them before an account exists.
   getAuthConfig: () => request<PublicAuthConfig>('/auth-config'),
 };

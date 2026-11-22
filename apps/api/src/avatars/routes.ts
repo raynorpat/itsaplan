@@ -14,8 +14,7 @@ import { getStorageSettings, MB } from '../settings/storage';
 // object store (../shared/s3.ts) under `avatars/<uuid>`; the user's `image`
 // column (managed by better-auth) holds the relative serve URL. Only image
 // types are accepted, so the public raw route can render them inline safely.
-// The size limit is an instance setting (see ../settings/storage.ts), read per
-// request so a change in god mode takes effect without a restart.
+// The size limit comes from the environment (see ../settings/storage.ts).
 
 // Raster image types only. SVG is excluded on purpose: it can carry script and
 // the raw route is public and same-origin, so an inline SVG would be stored XSS.

@@ -3,8 +3,8 @@ import { HOTKEYS, type HotkeyCombos, type HotkeyDef, type HotkeyId } from '@/uti
 import HotkeysEditorRow from './HotkeysEditorRow';
 
 // The shortcut list, grouped as the hotkey map declares. `base` is what applies
-// without the overrides being edited (the built-in bindings in god mode, the
-// instance bindings on the account screen), so resetting a row falls back to it.
+// without the overrides being edited (the built-in bindings), so resetting a row
+// falls back to it.
 // Rebinding to a combination already in use is refused by the row's parent through
 // the conflict it reports here.
 export default function HotkeysEditor({

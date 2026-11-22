@@ -3,14 +3,11 @@ import { getSessionCookie } from 'better-auth/cookies';
 
 // Routes reachable without a session, and that bounce a signed-in user back to
 // the app. Everything else requires one.
-const PUBLIC_PATHS = ['/login', '/register'];
+const PUBLIC_PATHS = ['/login'];
 
-// Routes reachable with or without a session, and never bounced. The invite
-// accept page must open for a logged-out invitee (who registers there) and for a
-// logged-in one (who accepts directly). The password screens are here for the same
-// reason: a reset link opened in a browser that still holds a session must show the
-// form, not bounce to the app.
-const OPEN_PATHS = ['/invite', '/forgot-password', '/reset-password'];
+// Routes reachable with or without a session, and never bounced: the invite page
+// opens for a logged-out invitee and for someone already signed in.
+const OPEN_PATHS = ['/invite'];
 
 // Gate the whole app behind a session. This is an optimistic check: it only looks
 // for the presence of the better-auth session cookie, not its validity — the API

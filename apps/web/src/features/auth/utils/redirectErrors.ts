@@ -1,24 +1,16 @@
 // Some auth failures reach the sign-in screen as a redirect rather than a rejected
 // promise, and carry their reason in ?error=<code> (plus ?error_description=<text>
-// when the instance itself refused — the registration gate passes its own message
-// that way). Two flows land here: the Google round trip, and the confirmation link
-// from the address verification email. Codes raised by better-auth carry no
-// description, so the ones a visitor can act on are spelled out here.
-// The address already has an account whose email was never confirmed. Linking a
-// social account to an unconfirmed one is refused on purpose: anyone could have
-// registered that address with a password before its owner arrived.
-const LINK_REFUSED =
-  'This email already has an account. Sign in with its password and confirm the address first, then Google can be used.';
-
+// when the instance itself refused). Two flows land here: the Google round trip and
+// the magic link. Codes raised by better-auth carry no description, so the ones a
+// visitor can act on are spelled out here.
 const MESSAGES: Record<string, string> = {
-  unable_to_link_account: LINK_REFUSED,
-  account_not_linked: LINK_REFUSED,
-  signup_disabled: 'This instance is not accepting new accounts.',
+  signup_disabled: 'This workspace is not accepting new accounts for that email.',
+  NOT_INVITED:
+    'That email has no invite and is not on an approved domain. Ask a workspace admin to invite you.',
   email_not_found: 'Google did not return an email address for this account.',
-  // The confirmation link failed. better-auth redirects with these uppercase codes.
-  TOKEN_EXPIRED: 'This confirmation link has expired. Sign in below to get a new one.',
-  INVALID_TOKEN: 'This confirmation link is not valid. Sign in below to get a new one.',
-  USER_NOT_FOUND: 'This confirmation link belongs to an account that no longer exists.',
+  // The magic link failed. better-auth redirects with these uppercase codes.
+  EXPIRED_TOKEN: 'This sign-in link has expired. Request a new one below.',
+  INVALID_TOKEN: 'This sign-in link is not valid. Request a new one below.',
 };
 
 export function redirectErrorMessage(
@@ -26,5 +18,5 @@ export function redirectErrorMessage(
   description: string | null,
 ): string | null {
   if (!error) return null;
-  return MESSAGES[error] ?? description ?? 'Could not sign in with Google. Please try again.';
+  return MESSAGES[error] ?? description ?? 'Could not sign in. Please try again.';
 }

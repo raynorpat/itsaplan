@@ -9,7 +9,7 @@ import {
   type WorkspaceRole,
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
-import { getAppVersion } from '../settings/updates';
+import { getAppVersion } from '../settings/version';
 
 // The workspace (Linear's Organization): one row, created with defaults on first
 // read. Owners and admins change it; everyone signed in reads it. Instance secrets and

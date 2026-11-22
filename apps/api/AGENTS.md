@@ -156,8 +156,8 @@ Enforced declaratively through macros, never imperative calls in handlers.
   owners; the workspace keeps at least one active owner. A suspended user
   (`user.suspended_at`) has no sessions, cannot sign in (better-auth session
   create hook), is refused on API keys (`getActiveSession`, used by REST, GraphQL
-  and MCP) and receives no notifications; memberships and history stay. God mode's
-  hard user delete is owner-only.
+  and MCP) and receives no notifications; memberships and history stay. There is no
+  hard user delete.
 - **Projects span teams** (`project_team`), so routes that address a project use the
   `project: true` macro in `projects/routes.ts`, which resolves access through every
   team of the project (`projects/access.ts`): a project none of whose teams the user

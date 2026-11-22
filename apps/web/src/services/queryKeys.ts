@@ -66,27 +66,10 @@ export const qk = {
   // The signed-in user's interface preferences (timezone, theme, issue open mode,
   // start page). Read app-wide, not just on the preferences page.
   accountPreferences: ['accountPreferences'] as const,
-  // Instance administration (god mode): the sign-in policy, the mail provider, the
-  // Google credentials. Not scoped to a team.
-  instanceAuthSettings: ['instanceAuthSettings'] as const,
-  instanceEmailSettings: ['instanceEmailSettings'] as const,
-  instanceGoogleSettings: ['instanceGoogleSettings'] as const,
-  instanceStorageSettings: ['instanceStorageSettings'] as const,
   // The upload limits as read by the upload UI (open to any signed-in user).
   storageSettings: ['storageSettings'] as const,
-  // The running version (any signed-in user) and the upstream release check (god).
+  // The running version (any signed-in user).
   appVersion: ['appVersion'] as const,
-  updateStatus: ['updateStatus'] as const,
-  // The bindings every client resolves from, and the god-mode editor's copy.
-  hotkeySettings: ['hotkeySettings'] as const,
-  instanceHotkeySettings: ['hotkeySettings', 'god'] as const,
-  // The instance user directory: the list (scoped by the active filters) and one
-  // account with its team access.
-  instanceUsers: (filters: unknown) => ['instanceUsers', filters] as const,
-  instanceUser: (userId: string) => ['instanceUser', userId] as const,
-  anyInstanceUsers: ['instanceUsers'] as const,
-  // The instance team directory: the list (scoped by the active filters) and one
-  // team with its members.
-  instanceTeams: (filters: unknown) => ['instanceTeams', filters] as const,
-  instanceTeam: (teamId: string) => ['instanceTeam', teamId] as const,
+  // The workspace settings (Linear's Organization).
+  organization: ['organization'] as const,
 };

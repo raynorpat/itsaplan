@@ -67,11 +67,6 @@ export const app = new Elysia()
           { name: 'Views', description: 'Saved work items views' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
           { name: 'Notifications', description: "The session user's inbox notifications" },
-          {
-            name: 'God',
-            description:
-              'Instance administration: registration policy, email provider, Google sign-in',
-          },
         ],
         // Planner routes are session-gated. Besides the session cookie (sent by the
         // browser, not modelled here), a request may carry an `x-api-key` header:
@@ -95,18 +90,12 @@ export const app = new Elysia()
     if (!session) return { authenticated: false };
     return { authenticated: true, user: session.user };
   })
-  // What the sign-in and sign-up screens need before there is a session: whether
-  // registration is open, invite-only, or closed, and which sign-in methods are
-  // offered. Public on purpose — the screens are reached logged out. It carries no
-  // credentials, only the instance's own policy.
+  // What the sign-in screen needs before there is a session: which sign-in methods
+  // are offered. Public on purpose — the screen is reached logged out. It carries no
+  // credentials, only the instance's own policy. The email field is always offered:
+  // an owner may always use a magic link, and without a mail provider the link is
+  // written to the API log.
   .get('/auth-config', async () => ({
-    // People join by invite or an approved email domain; there is no open sign-up.
-    registration: 'invite' as const,
-    // The sign-in services the workspace allows (organization settings). An owner
-    // may always use a magic link, so the sign-in page keeps the email field.
-    // Without a mail provider the link is written to the API log.
-    magicLink: true,
-    requireEmailVerification: false,
     emailEnabled: await hasConfiguredEmailProvider(),
     google: (await hasConfiguredGoogle()) && (await isAuthServiceAllowed('google')),
     passkey: await isAuthServiceAllowed('passkey'),

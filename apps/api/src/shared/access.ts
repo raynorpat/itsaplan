@@ -74,10 +74,6 @@ export async function assertWorkspaceRole(
   return current;
 }
 
-// Owners and admins run instance administration (god mode).
-export const requireWorkspaceAdmin = (user: AuthUser | undefined | null) =>
-  assertWorkspaceRole(user, 'admin');
-
 // --- Teams ------------------------------------------------------------------------
 
 // SQL subquery of the ids of the teams the user is a member of.

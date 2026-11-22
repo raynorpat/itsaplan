@@ -42,7 +42,7 @@ describe('graphql webhooks', () => {
     expect((await client.webhooks()).nodes.map((w) => w.id)).toEqual([webhook!.id]);
   });
 
-  it('lets the god user create an all-teams webhook and refuses an owner of some teams', async () => {
+  it('lets the workspace owner create an all-teams webhook and refuses an owner of some teams', async () => {
     const { owner } = await setup();
     const res = await gql(
       { cookie: owner.cookie },

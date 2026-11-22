@@ -83,5 +83,5 @@ export const workspaceMembersPath = () => '/workspace/members';
 // /invite/:token page, which reads the token and shows the accept screen.
 export const inviteLink = (origin: string, token: string) => `${origin}/invite/${token}`;
 
-// God mode: instance administration, outside the team shell (see GOD_SECTIONS).
-export const godPath = (section: string) => `/god/${section}`;
+// Workspace settings (Linear's Organization), for owners and admins.
+export const workspaceSettingsPath = () => '/workspace/settings';

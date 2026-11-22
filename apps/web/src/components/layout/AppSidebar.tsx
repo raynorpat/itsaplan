@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Braces, Server, Shield } from 'lucide-react';
+import { Braces, Server, Settings2 } from 'lucide-react';
 import type { Team } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
-import { apiDocsPath, godPath, mcpServerPath } from '@/utils/paths';
-import { GOD_SECTIONS } from '@/utils/godSections';
+import { apiDocsPath, mcpServerPath, workspaceSettingsPath } from '@/utils/paths';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import {
   Sidebar,
@@ -47,11 +46,11 @@ export default function AppSidebar({
   const { data: session } = useSession();
   // The session store can already be filled by the time React hydrates, while the
   // server rendered without it. Reading it only after mount keeps the server and
-  // the first client render identical, so the God mode entry does not break
-  // hydration.
+  // the first client render identical, so the workspace settings entry does not
+  // break hydration.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const isGod = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
+  const isAdmin = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   // Settings mode is on whenever the route matches one of the settings nav items.
   // Members is not in those groups, so it keeps the main sidebar.
@@ -97,14 +96,14 @@ export default function AppSidebar({
                 active={onMcp}
                 disabled={disabled}
               />
-              {/* Instance administration, only for the owner account. The API
-                  enforces the same, so hiding it here is about noise, not access. */}
-              {isGod && (
+              {/* Workspace settings, for owners and admins. The API enforces the
+                  same, so hiding it here is about noise, not access. */}
+              {isAdmin && (
                 <SidebarNavItem
-                  href={godPath(GOD_SECTIONS[0]!.slug)}
-                  icon={Shield}
-                  label="God mode"
-                  active={false}
+                  href={workspaceSettingsPath()}
+                  icon={Settings2}
+                  label="Workspace settings"
+                  active={pathname.startsWith(workspaceSettingsPath())}
                   disabled={false}
                 />
               )}

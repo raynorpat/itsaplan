@@ -7,12 +7,12 @@ import { qk } from '@/services/queryKeys';
 import FullPageView from '@/components/common/page/FullPageView';
 import { usePasskeysQuery, type PasskeyRow } from './services/passkeys.service';
 import AccountSection from './components/AccountSection';
-import AccountSecurityPasswordForm from './components/security/AccountSecurityPasswordForm';
 import AccountSecurityAddPasskey from './components/security/AccountSecurityAddPasskey';
 import AccountSecurityPasskeyList from './components/security/AccountSecurityPasskeyList';
 import AccountSecurityDeletePasskeyDialog from './components/security/AccountSecurityDeletePasskeyDialog';
 
-// How the account is signed in to: the password and the passkeys registered for it.
+// How the account is signed in to: an emailed link always works, and the passkeys
+// registered here sign in without one.
 // Owns the passkey list query and the delete target; the child components refresh
 // the list through the callbacks after a change.
 export default function AccountSecurityPage() {
@@ -30,15 +30,8 @@ export default function AccountSecurityPage() {
       description={`How you sign in to ${session?.user.email ?? '…'}.`}
     >
       <AccountSection
-        title="Password"
-        description="Changing your password signs out your other sessions."
-      >
-        <AccountSecurityPasswordForm />
-      </AccountSection>
-
-      <AccountSection
         title="Passkeys"
-        description="Sign in without a password using Touch ID, Windows Hello, or a security key."
+        description="Sign in without an emailed link using Touch ID, Windows Hello, or a security key."
         actions={<AccountSecurityAddPasskey onAdded={invalidate} />}
       >
         <AccountSecurityPasskeyList
