@@ -15,6 +15,8 @@ import { commentResolvers } from './resolvers/comment';
 import { reactionResolvers } from './resolvers/reaction';
 import { issueLabelResolvers } from './resolvers/issue-label';
 import { cycleResolvers } from './resolvers/cycle';
+import { initiativeResolvers } from './resolvers/initiative';
+import { initiativeMutationResolvers } from './resolvers/initiative-mutations';
 import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
@@ -35,6 +37,8 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   reactionResolvers,
   issueLabelResolvers,
   cycleResolvers,
+  initiativeResolvers,
+  initiativeMutationResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {

@@ -69,7 +69,11 @@ type GraphQLProject = ReturnType<typeof toProject>;
 
 // One page of the viewer's visible projects matching `where`, the filter and
 // includeArchived.
-async function listProjects(where: SQL | undefined, args: ConnectionArgs, ctx: GraphQLContext) {
+export async function listProjects(
+  where: SQL | undefined,
+  args: ConnectionArgs,
+  ctx: GraphQLContext,
+) {
   const teams = await readable(ctx);
   return paginateProjects(
     and(

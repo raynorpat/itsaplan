@@ -17,11 +17,16 @@ type Opts = { mcpOnly?: boolean };
 const reaches = (teamIds: string[], leadTeamId: string | null) =>
   leadTeamId ? teamIds.includes(leadTeamId) : teamIds.length > 0;
 
+// SQL over `initiative`: the initiatives visible through these teams (the teams
+// granting the viewer `projects.read`).
+export function initiativesVisibleThrough(readableTeamIds: string[]): SQL {
+  if (readableTeamIds.length === 0) return sql`false`;
+  return or(isNull(initiative.leadTeamId), inArray(initiative.leadTeamId, readableTeamIds))!;
+}
+
 // SQL over `initiative`: the initiatives the user can see.
 export async function visibleInitiativesSql(userId: string, opts: Opts = {}): Promise<SQL> {
-  const readable = await teamsGranting(userId, 'read', opts);
-  if (readable.length === 0) return sql`false`;
-  return or(isNull(initiative.leadTeamId), inArray(initiative.leadTeamId, readable))!;
+  return initiativesVisibleThrough(await teamsGranting(userId, 'read', opts));
 }
 
 export async function canSeeInitiative(

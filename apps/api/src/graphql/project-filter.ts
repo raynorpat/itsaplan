@@ -1,12 +1,24 @@
-import { db, project, projectStatus, projectTeam, team, user } from '@repo/db';
-import { and, eq, inArray, not, sql, type SQL } from 'drizzle-orm';
+import {
+  db,
+  initiative,
+  initiativeToProject,
+  project,
+  projectStatus,
+  projectTeam,
+  team,
+  user,
+} from '@repo/db';
+import { and, eq, inArray, isNull, not, notInArray, sql, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { gqlError } from './errors';
 import { teamFilter } from './resolvers/team';
+import { initiativeFilterSql } from './initiative-filter';
+import { initiativesVisibleThrough } from '../initiatives/access';
 
 // ProjectFilter as SQL over the project table. Supported: id, name, slugId,
 // status (id, name, type), lead (id, name, email, isMe, null), priority,
-// startDate, targetDate, createdAt, updatedAt, accessibleTeams (some), and / or.
+// startDate, targetDate, createdAt, updatedAt, accessibleTeams (some), initiatives
+// (some, every, length; over visible, unarchived initiatives), and / or.
 // Anything else is INVALID_INPUT.
 
 const NO_ID = '00000000-0000-0000-0000-000000000000';
@@ -57,6 +69,37 @@ export function projectFilterSql(
         p,
       );
       return inArray(project.leadUserId, db.select({ id: user.id }).from(user).where(users));
+    },
+    initiatives: (v, p) => {
+      const { some, every, length, ...rest } = v as Record<string, unknown>;
+      if (Object.keys(rest).length)
+        throw gqlError('INVALID_INPUT', `Filter ${p}.${Object.keys(rest)[0]} is not supported`);
+      // The projects linked to a visible, unarchived initiative matching `cond`.
+      const linkedWhere = (cond: SQL | undefined) =>
+        db
+          .select({ id: initiativeToProject.projectId })
+          .from(initiativeToProject)
+          .innerJoin(initiative, eq(initiative.id, initiativeToProject.initiativeId))
+          .where(
+            and(initiativesVisibleThrough(readableTeamIds), isNull(initiative.archivedAt), cond),
+          );
+      const parts: SQL[] = [];
+      if (some != null)
+        parts.push(inArray(project.id, linkedWhere(initiativeFilterSql(some, `${p}.some`))));
+      if (every != null) {
+        const cond = initiativeFilterSql(every, `${p}.every`);
+        if (cond) parts.push(notInArray(project.id, linkedWhere(not(cond))));
+      }
+      if (length != null) {
+        const count = sql`(
+          SELECT count(*)::int FROM initiative_to_project itp
+          JOIN initiative ON initiative.id = itp.initiative_id
+          WHERE itp.project_id = ${project.id} AND initiative.archived_at IS NULL
+            AND ${initiativesVisibleThrough(readableTeamIds)}
+        )`;
+        parts.push(compare(count, length, `${p}.length`));
+      }
+      return and(...parts) ?? sql`true`;
     },
     accessibleTeams: (v, p) => {
       const { some, ...rest } = v as Record<string, unknown>;
