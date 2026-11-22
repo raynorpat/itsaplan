@@ -238,6 +238,28 @@ CREATE TABLE "custom_field_option" (
 	CONSTRAINT "custom_field_option_field_id_value_unique" UNIQUE("field_id","value")
 );
 --> statement-breakpoint
+CREATE TABLE "cycle" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"team_id" uuid NOT NULL,
+	"number" integer NOT NULL,
+	"name" text,
+	"description" text,
+	"starts_at" timestamp with time zone NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"completed_at" timestamp with time zone,
+	"archived_at" timestamp with time zone,
+	"issue_count_history" integer[] DEFAULT '{}' NOT NULL,
+	"completed_issue_count_history" integer[] DEFAULT '{}' NOT NULL,
+	"scope_history" real[] DEFAULT '{}' NOT NULL,
+	"completed_scope_history" real[] DEFAULT '{}' NOT NULL,
+	"in_progress_scope_history" real[] DEFAULT '{}' NOT NULL,
+	"uncompleted_issue_ids_upon_close" uuid[] DEFAULT '{}' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "cycle_team_id_number_unique" UNIQUE("team_id","number"),
+	CONSTRAINT "cycle_dates_check" CHECK ("cycle"."ends_at" > "cycle"."starts_at")
+);
+--> statement-breakpoint
 CREATE TABLE "integration_credential" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"team_id" uuid NOT NULL,
@@ -257,6 +279,7 @@ CREATE TABLE "issue" (
 	"type_id" uuid,
 	"project_id" uuid,
 	"project_milestone_id" uuid,
+	"cycle_id" uuid,
 	"state_id" uuid NOT NULL,
 	"assignee_user_id" uuid,
 	"delegate_user_id" uuid,
@@ -502,6 +525,14 @@ CREATE TABLE "team" (
 	"projects_enabled" boolean DEFAULT true NOT NULL,
 	"dashboards_enabled" boolean DEFAULT true NOT NULL,
 	"notes_enabled" boolean DEFAULT true NOT NULL,
+	"cycles_enabled" boolean DEFAULT false NOT NULL,
+	"cycle_duration" integer DEFAULT 2 NOT NULL,
+	"cycle_start_day" integer DEFAULT 1 NOT NULL,
+	"cycle_cooldown_time" integer DEFAULT 0 NOT NULL,
+	"upcoming_cycle_count" integer DEFAULT 2 NOT NULL,
+	"cycle_issue_auto_assign_started" boolean DEFAULT false NOT NULL,
+	"cycle_issue_auto_assign_completed" boolean DEFAULT false NOT NULL,
+	"next_cycle_number" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "team_key_unique" UNIQUE("key")
 );
@@ -709,11 +740,13 @@ ALTER TABLE "comment" ADD CONSTRAINT "comment_resolving_comment_id_comment_id_fk
 ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_issue_type_id_issue_type_id_fk" FOREIGN KEY ("issue_type_id") REFERENCES "public"."issue_type"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field_option" ADD CONSTRAINT "custom_field_option_field_id_custom_field_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."custom_field"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cycle" ADD CONSTRAINT "cycle_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_credential" ADD CONSTRAINT "integration_credential_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_type_id_issue_type_id_fk" FOREIGN KEY ("type_id") REFERENCES "public"."issue_type"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_project_milestone_id_project_milestone_id_fk" FOREIGN KEY ("project_milestone_id") REFERENCES "public"."project_milestone"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "issue" ADD CONSTRAINT "issue_cycle_id_cycle_id_fk" FOREIGN KEY ("cycle_id") REFERENCES "public"."cycle"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_state_id_workflow_state_id_fk" FOREIGN KEY ("state_id") REFERENCES "public"."workflow_state"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_assignee_user_id_user_id_fk" FOREIGN KEY ("assignee_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_delegate_user_id_user_id_fk" FOREIGN KEY ("delegate_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -805,8 +838,10 @@ CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","creat
 CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_parent_idx" ON "comment" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "comment_resolving_comment_idx" ON "comment" USING btree ("resolving_comment_id");--> statement-breakpoint
+CREATE INDEX "cycle_team_starts_idx" ON "cycle" USING btree ("team_id","starts_at");--> statement-breakpoint
 CREATE INDEX "integration_credential_team_idx" ON "integration_credential" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "issue_team_active_idx" ON "issue" USING btree ("team_id","state_id") WHERE "issue"."archived_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "issue_cycle_idx" ON "issue" USING btree ("cycle_id");--> statement-breakpoint
 CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_activity_project_idx" ON "issue_activity" USING btree ("project_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_attachment_issue_idx" ON "issue_attachment" USING btree ("issue_id");--> statement-breakpoint

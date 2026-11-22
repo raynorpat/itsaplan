@@ -68,6 +68,19 @@ export const team = pgTable('team', {
   projectsEnabled: boolean('projects_enabled').notNull().default(true),
   dashboardsEnabled: boolean('dashboards_enabled').notNull().default(true),
   notesEnabled: boolean('notes_enabled').notNull().default(true),
+  // Cycles (Linear's team cycle settings). Weeks for duration and cooldown;
+  // cycle_start_day is 0 = Sunday … 6 = Saturday. next_cycle_number issues cycle
+  // numbers under a row lock, like next_sequence for issues.
+  cyclesEnabled: boolean('cycles_enabled').notNull().default(false),
+  cycleDuration: integer('cycle_duration').notNull().default(2),
+  cycleStartDay: integer('cycle_start_day').notNull().default(1),
+  cycleCooldownTime: integer('cycle_cooldown_time').notNull().default(0),
+  upcomingCycleCount: integer('upcoming_cycle_count').notNull().default(2),
+  cycleIssueAutoAssignStarted: boolean('cycle_issue_auto_assign_started').notNull().default(false),
+  cycleIssueAutoAssignCompleted: boolean('cycle_issue_auto_assign_completed')
+    .notNull()
+    .default(false),
+  nextCycleNumber: integer('next_cycle_number').notNull().default(1),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -886,6 +899,59 @@ export const projectLabelLink = pgTable(
   (t) => [primaryKey({ columns: [t.projectId, t.labelId] })],
 );
 
+// A team's cycle (Linear's Cycle): a time box from starts_at to ends_at, numbered
+// in order within the team. completed_at is set when the cycle closes (on schedule
+// or by hand). The *_history arrays hold one value per day since the cycle
+// started, appended by the cycle upkeep; uncompleted_issue_ids_upon_close is the
+// snapshot of unfinished issues moved on when it closed.
+export const cycle = pgTable(
+  'cycle',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => team.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    name: text('name'),
+    description: text('description'),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    issueCountHistory: integer('issue_count_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    completedIssueCountHistory: integer('completed_issue_count_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    scopeHistory: real('scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    completedScopeHistory: real('completed_scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    inProgressScopeHistory: real('in_progress_scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    uncompletedIssueIdsUponClose: uuid('uncompleted_issue_ids_upon_close')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.teamId, t.number),
+    check('cycle_dates_check', sql`${t.endsAt} > ${t.startsAt}`),
+    index('cycle_team_starts_idx').on(t.teamId, t.startsAt),
+  ],
+);
+
 export const issue = pgTable(
   'issue',
   {
@@ -907,6 +973,8 @@ export const issue = pgTable(
     projectMilestoneId: uuid('project_milestone_id').references(() => projectMilestone.id, {
       onDelete: 'set null',
     }),
+    // The team cycle the issue belongs to (a cycle of the issue's own team).
+    cycleId: uuid('cycle_id').references(() => cycle.id, { onDelete: 'set null' }),
     stateId: uuid('state_id')
       .notNull()
       .references(() => workflowState.id),
@@ -962,6 +1030,7 @@ export const issue = pgTable(
     index('issue_team_active_idx')
       .on(t.teamId, t.stateId)
       .where(sql`${t.archivedAt} IS NULL`),
+    index('issue_cycle_idx').on(t.cycleId),
   ],
 );
 

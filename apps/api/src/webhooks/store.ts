@@ -18,6 +18,7 @@ export const WEBHOOK_RESOURCE_TYPES = [
   'Project',
   'ProjectUpdate',
   'Reaction',
+  'Cycle',
 ] as const;
 export type WebhookResourceType = (typeof WEBHOOK_RESOURCE_TYPES)[number];
 

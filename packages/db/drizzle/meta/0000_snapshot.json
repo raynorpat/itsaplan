@@ -1,5 +1,5 @@
 {
-  "id": "22504819-aa2d-4317-bfa1-15efc0414e34",
+  "id": "6d512cc5-6e49-4bb5-92ae-9f98bd3d61ca",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2257,6 +2257,180 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.cycle": {
+      "name": "cycle",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_count_history": {
+          "name": "issue_count_history",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "completed_issue_count_history": {
+          "name": "completed_issue_count_history",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "scope_history": {
+          "name": "scope_history",
+          "type": "real[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "completed_scope_history": {
+          "name": "completed_scope_history",
+          "type": "real[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "in_progress_scope_history": {
+          "name": "in_progress_scope_history",
+          "type": "real[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "uncompleted_issue_ids_upon_close": {
+          "name": "uncompleted_issue_ids_upon_close",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cycle_team_starts_idx": {
+          "name": "cycle_team_starts_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cycle_team_id_team_id_fk": {
+          "name": "cycle_team_id_team_id_fk",
+          "tableFrom": "cycle",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "cycle_team_id_number_unique": {
+          "name": "cycle_team_id_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "team_id",
+            "number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "cycle_dates_check": {
+          "name": "cycle_dates_check",
+          "value": "\"cycle\".\"ends_at\" > \"cycle\".\"starts_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.integration_credential": {
       "name": "integration_credential",
       "schema": "",
@@ -2394,6 +2568,12 @@
         },
         "project_milestone_id": {
           "name": "project_milestone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cycle_id": {
+          "name": "cycle_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -2540,6 +2720,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "issue_cycle_idx": {
+          "name": "issue_cycle_idx",
+          "columns": [
+            {
+              "expression": "cycle_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2588,6 +2783,19 @@
           "tableTo": "project_milestone",
           "columnsFrom": [
             "project_milestone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "issue_cycle_id_cycle_id_fk": {
+          "name": "issue_cycle_id_cycle_id_fk",
+          "tableFrom": "issue",
+          "tableTo": "cycle",
+          "columnsFrom": [
+            "cycle_id"
           ],
           "columnsTo": [
             "id"
@@ -4833,6 +5041,62 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "cycles_enabled": {
+          "name": "cycles_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "cycle_duration": {
+          "name": "cycle_duration",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "cycle_start_day": {
+          "name": "cycle_start_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "cycle_cooldown_time": {
+          "name": "cycle_cooldown_time",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "upcoming_cycle_count": {
+          "name": "upcoming_cycle_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "cycle_issue_auto_assign_started": {
+          "name": "cycle_issue_auto_assign_started",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "cycle_issue_auto_assign_completed": {
+          "name": "cycle_issue_auto_assign_completed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "next_cycle_number": {
+          "name": "next_cycle_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "created_at": {
           "name": "created_at",

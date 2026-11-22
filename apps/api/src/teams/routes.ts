@@ -25,6 +25,7 @@ import { listStates } from '../states/store';
 import { listIssueTypes } from '../issue-types/store';
 import { listLabels, listLabelGroups } from '../labels/store';
 import { listCustomFields } from '../custom-fields/store';
+import { setTeamCycleSettings, teamCycleSettings } from '../cycles/store';
 
 const teamBody = t.Object({
   // Letters and digits, starting with a letter; stored uppercased. The key is the
@@ -179,10 +180,23 @@ const FeaturesResponse = t.Object({
 
 // The team's settings: MCP reachability, the enabled sections and the
 // auto-archive thresholds.
+// Cycle settings (TeamCycleSettings from cycles/store). Weeks for duration and
+// cooldown; startDay is 0 = Sunday … 6 = Saturday.
+const CycleSettingsResponse = t.Object({
+  enabled: t.Boolean(),
+  duration: t.Integer(),
+  startDay: t.Integer(),
+  cooldown: t.Integer(),
+  upcoming: t.Integer(),
+  autoAssignStarted: t.Boolean(),
+  autoAssignCompleted: t.Boolean(),
+});
+
 const TeamSettingsResponse = t.Object({
   mcpEnabled: t.Boolean(),
   features: FeaturesResponse,
   autoArchive: AutoArchiveResponse,
+  cycles: CycleSettingsResponse,
 });
 
 // The caller's own role in a team (from MemberContext in members/store). The
@@ -397,6 +411,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       mcpEnabled: team.mcpEnabled,
       features: teamFeatures(team),
       autoArchive: await getAutoArchiveSettings(team.id),
+      cycles: await teamCycleSettings(team.id),
     }),
     {
       teamMember: true,
@@ -434,7 +449,16 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
         body.autoArchive !== undefined
           ? await setAutoArchiveSettings(team.id, body.autoArchive)
           : await getAutoArchiveSettings(team.id);
-      return { mcpEnabled: current.mcpEnabled, features: teamFeatures(current), autoArchive };
+      const cycles =
+        body.cycles !== undefined
+          ? await setTeamCycleSettings(team.id, body.cycles)
+          : await teamCycleSettings(team.id);
+      return {
+        mcpEnabled: current.mcpEnabled,
+        features: teamFeatures(current),
+        autoArchive,
+        cycles,
+      };
     },
     {
       body: t.Object({
@@ -450,6 +474,18 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
           t.Object({
             completedDays: t.Nullable(t.Integer({ minimum: 1 })),
             canceledDays: t.Nullable(t.Integer({ minimum: 1 })),
+          }),
+        ),
+        // Ranges are checked by the store (400 with the allowed range).
+        cycles: t.Optional(
+          t.Object({
+            enabled: t.Optional(t.Boolean()),
+            duration: t.Optional(t.Integer()),
+            startDay: t.Optional(t.Integer()),
+            cooldown: t.Optional(t.Integer()),
+            upcoming: t.Optional(t.Integer()),
+            autoAssignStarted: t.Optional(t.Boolean()),
+            autoAssignCompleted: t.Optional(t.Boolean()),
           }),
         ),
       }),
