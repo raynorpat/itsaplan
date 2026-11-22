@@ -6,7 +6,8 @@ import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
-import { putObject, getObject, deleteObject } from '../shared/s3';
+import { putObject, getObject } from '../shared/s3';
+import { avatarKey, releaseAvatarImage } from './release';
 import { ErrorResponse } from '../shared/responses';
 import { AVATAR_IMAGE_TYPES, getStorageSettings, MB } from '../settings/storage';
 
@@ -19,29 +20,6 @@ import { AVATAR_IMAGE_TYPES, getStorageSettings, MB } from '../settings/storage'
 // The relative URL stored in user.image for one of our avatars. The frontend
 // prefixes it with the API origin when rendering.
 const avatarUrl = (id: string) => `/avatars/${id}/raw`;
-
-// The object key for an avatar id (the uuid used in its URL).
-const avatarKey = (id: string) => `avatars/${id}`;
-
-// Pulls the avatar id out of a stored user.image URL, or null if it is not one
-// of our avatars (an external/OAuth image or empty). Used to delete the previous
-// object when the avatar is replaced or removed.
-function avatarIdFromImage(image: string | null | undefined): string | null {
-  if (!image) return null;
-  const match = image.match(/\/avatars\/([^/]+)\/raw$/);
-  return match ? match[1] : null;
-}
-
-async function deletePreviousAvatar(image: string | null | undefined): Promise<void> {
-  const id = avatarIdFromImage(image);
-  if (!id) return;
-  await deleteObject(avatarKey(id)).catch((err) => {
-    console.error(
-      `[planner] failed to delete previous avatar ${id}:`,
-      err instanceof Error ? err.message : err,
-    );
-  });
-}
 
 export const avatarRoutes = new Elysia({ name: 'avatars', detail: { tags: ['Avatars'] } })
   .use(authContext)
@@ -83,7 +61,7 @@ export const avatarRoutes = new Elysia({ name: 'avatars', detail: { tags: ['Avat
       // session user still carries the previous image); a failed cleanup only
       // orphans bytes.
       await db.update(user).set({ image: url }).where(eq(user.id, current.id));
-      await deletePreviousAvatar(sessionUser?.image);
+      await releaseAvatarImage(sessionUser?.image);
 
       return { image: url };
     },
@@ -106,7 +84,7 @@ export const avatarRoutes = new Elysia({ name: 'avatars', detail: { tags: ['Avat
     async ({ user: sessionUser }) => {
       const current = requireUser(sessionUser);
       await db.update(user).set({ image: null }).where(eq(user.id, current.id));
-      await deletePreviousAvatar(sessionUser?.image);
+      await releaseAvatarImage(sessionUser?.image);
       return noContent();
     },
     {

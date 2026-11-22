@@ -14,7 +14,9 @@ import {
   upsertViewPreferences,
   viewPreferencesFor,
   type ViewPreferencesRow,
+  isViewSharedWith,
   type ViewRow,
+  viewSharedWith,
 } from '../../views/store';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -27,8 +29,9 @@ import { guard, lastSyncId, onlySupported } from './mutations';
 import { findTeam, toTeam } from './team';
 
 // Linear's CustomView over the saved team views, and ViewPreferences for their
-// layout. A view is visible when its team is (project 2 rules); anyone who can see
-// the team may create, change or delete its views, as over REST.
+// layout. A shared view is visible when its team is (project 2 rules), and anyone who
+// can see the team may change or delete it, as over REST; a non-shared view is its
+// owner's only.
 
 const toCustomView = (row: ViewRow) => ({
   ...row,
@@ -57,10 +60,11 @@ const customViewFilter: FieldHandlers = {
   team: (v, p) => refFilter(teamView.teamId, v, p),
 };
 
-// A view the viewer can see, by id or slug, or ENTITY_NOT_FOUND.
+// A view the viewer can see, by id or slug, or ENTITY_NOT_FOUND: its team is visible,
+// and it is shared or theirs (a non-shared view is its owner's only).
 async function findView(id: string, ctx: GraphQLContext): Promise<ViewRow> {
   const found = await getView(id);
-  if (found) {
+  if (found && isViewSharedWith(found, ctx.user.id)) {
     try {
       await assertTeamAccess(found.teamId, ctx.user, 'see');
       return found;
@@ -79,10 +83,17 @@ const UNSUPPORTED_VIEW_FIELDS = [
   'projectId',
 ];
 
-function checkViewInput(input: Record<string, unknown>, allowed: string[]): void {
+function checkViewInput(
+  input: Record<string, unknown>,
+  allowed: string[],
+  ctx: GraphQLContext,
+): void {
   onlySupported(input, allowed, 'input');
   for (const field of UNSUPPORTED_VIEW_FIELDS)
     if (input[field] != null) throw gqlError('INVALID_INPUT', `input.${field} is not supported`);
+  // Linear makes the creator the owner; nobody hands a view to someone else.
+  if (input.ownerId != null && input.ownerId !== ctx.user.id)
+    throw gqlError('INVALID_INPUT', "input.ownerId must be the viewer's own id");
 }
 
 const viewPayload = (row: ViewRow) => ({
@@ -126,6 +137,7 @@ export const customViewResolvers = {
         { id: teamView.id, createdAt: teamView.createdAt, updatedAt: teamView.updatedAt },
         and(
           inArray(teamView.teamId, visibleTeamIds(ctx.user.id)),
+          viewSharedWith(ctx.user.id),
           filterSql(args.filter, customViewFilter),
         ),
         (w, order, limit) =>
@@ -179,18 +191,22 @@ export const customViewResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        checkViewInput(input, [
-          'name',
-          'description',
-          'icon',
-          'color',
-          'teamId',
-          'filterData',
-          'shared',
-          'ownerId',
-          'id',
-          ...UNSUPPORTED_VIEW_FIELDS,
-        ]);
+        checkViewInput(
+          input,
+          [
+            'name',
+            'description',
+            'icon',
+            'color',
+            'teamId',
+            'filterData',
+            'shared',
+            'ownerId',
+            'id',
+            ...UNSUPPORTED_VIEW_FIELDS,
+          ],
+          ctx,
+        );
         if (!input.teamId) throw gqlError('INVALID_INPUT', 'input.teamId is required');
         const team = await findTeam(String(input.teamId), ctx.user.id);
         const created = await createView(
@@ -215,17 +231,21 @@ export const customViewResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        checkViewInput(input, [
-          'name',
-          'description',
-          'icon',
-          'color',
-          'teamId',
-          'filterData',
-          'shared',
-          'ownerId',
-          ...UNSUPPORTED_VIEW_FIELDS,
-        ]);
+        checkViewInput(
+          input,
+          [
+            'name',
+            'description',
+            'icon',
+            'color',
+            'teamId',
+            'filterData',
+            'shared',
+            'ownerId',
+            ...UNSUPPORTED_VIEW_FIELDS,
+          ],
+          ctx,
+        );
         const found = await findView(id, ctx);
         if (input.teamId === null) throw gqlError('INVALID_INPUT', 'A view needs a team');
         const teamId = input.teamId

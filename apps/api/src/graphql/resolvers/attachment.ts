@@ -15,7 +15,12 @@ import {
 } from '../../attachments/store';
 import { getIssueTeamId } from '../../issues/store';
 import { getStorageSettings } from '../../settings/storage';
-import { ownStoredUpload, setUploadUsed, uploadIdFromAssetUrl } from '../../uploads/store';
+import {
+  claimUpload,
+  ownStoredUpload,
+  setUploadUsed,
+  uploadIdFromAssetUrl,
+} from '../../uploads/store';
 import { assertParentAccess, createComment } from '../../comments/store';
 import { assertTeamAccess, type AuthUser, canSeeTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
@@ -126,29 +131,36 @@ const payload = (row: AttachmentRow) => ({
 
 type Input = Record<string, unknown>;
 
-// Turns the viewer's stored upload into a file attachment on the issue, after the
-// attachment limits, the workspace's allowed types and the team quota.
+// Turns the viewer's stored, unused upload into a file attachment on the issue, after
+// the attachment limits, the workspace's allowed types and the team quota.
 async function attachUpload(
   issueId: string,
   url: string,
   title: unknown,
   ctx: GraphQLContext,
 ): Promise<AttachmentRow> {
+  const notUsable = () =>
+    gqlError('INVALID_INPUT', 'input.url must be one of your finished, unused uploads');
   const upload = await ownStoredUpload(url, ctx.user.id);
-  if (!upload) throw gqlError('INVALID_INPUT', 'input.url must be one of your finished uploads');
+  if (!upload) throw notUsable();
   const teamId = await getIssueTeamId(issueId);
   await assertUploadAllowed(await getStorageSettings(), teamId!, upload.size, upload.contentType);
-  const row = await createAttachment({
-    issueId,
-    s3Key: upload.objectKey,
-    filename: upload.filename,
-    contentType: upload.contentType,
-    sizeBytes: upload.size,
-    creatorUserId: ctx.user.id,
-    title: title == null ? undefined : String(title),
-  });
-  await setUploadUsed(upload.id, true);
-  return row;
+  // One upload backs one attachment: claimed atomically, released if the write fails.
+  if (!(await claimUpload(upload.id, ctx.user.id))) throw notUsable();
+  try {
+    return await createAttachment({
+      issueId,
+      s3Key: upload.objectKey,
+      filename: upload.filename,
+      contentType: upload.contentType,
+      sizeBytes: upload.size,
+      creatorUserId: ctx.user.id,
+      title: title == null ? undefined : String(title),
+    });
+  } catch (err) {
+    await setUploadUsed(upload.id, false);
+    throw err;
+  }
 }
 
 // attachmentCreate and attachmentLinkURL: check access (and comment access for

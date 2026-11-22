@@ -1,13 +1,13 @@
 import { db, user } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { AVATAR_IMAGE_TYPES, getStorageSettings, MB } from '../../settings/storage';
+import { releaseAvatarImage } from '../../avatars/release';
 import {
   assetPathOf,
   assetUrlOf,
+  claimUpload,
   ownStoredUpload,
   requestUpload,
-  setUploadUsed,
-  uploadIdFromAssetUrl,
   uploadUrlOf,
 } from '../../uploads/store';
 import { getPreferences, isValidTimezone, updatePreferences } from '../../user-preferences/store';
@@ -31,10 +31,6 @@ async function userRow(id: string) {
   const [row] = await db.select().from(user).where(eq(user.id, id));
   return row!;
 }
-
-// The upload behind a stored avatar image, when the avatar is one.
-const avatarUploadId = (image: string | null | undefined) =>
-  image ? uploadIdFromAssetUrl(image) : null;
 
 export const uploadResolvers = {
   User: {
@@ -83,6 +79,7 @@ export const uploadResolvers = {
         onlySupported(input, ['name', 'timezone', 'avatarUrl'], 'input');
         if (id !== ctx.user.id && id !== 'me')
           throw gqlError('FORBIDDEN', 'You can only update your own account');
+        // Every field is checked before anything is written.
         const set: Partial<typeof user.$inferInsert> = {};
         if (input.name !== undefined) {
           const name = String(input.name).trim();
@@ -93,17 +90,16 @@ export const uploadResolvers = {
         if (input.timezone !== undefined) {
           if (!input.timezone || !isValidTimezone(input.timezone))
             throw gqlError('INVALID_INPUT', 'input.timezone is not a known time zone');
-          await updatePreferences(ctx.user.id, { timezone: input.timezone });
         }
-        const current = await userRow(ctx.user.id);
+        const notAvatar = () =>
+          gqlError('INVALID_INPUT', 'input.avatarUrl must be one of your unused uploads');
         let newAvatarUpload: string | null = null;
         if (input.avatarUrl !== undefined) {
           if (input.avatarUrl === null) {
             set.image = null;
           } else {
             const upload = await ownStoredUpload(String(input.avatarUrl), ctx.user.id);
-            if (!upload)
-              throw gqlError('INVALID_INPUT', 'input.avatarUrl must be one of your uploads');
+            if (!upload) throw notAvatar();
             const { maxAvatarMb } = await getStorageSettings();
             if (!AVATAR_IMAGE_TYPES.test(upload.contentType))
               throw gqlError(
@@ -116,18 +112,21 @@ export const uploadResolvers = {
             newAvatarUpload = upload.id;
           }
         }
+        // One upload backs one avatar or attachment.
+        if (newAvatarUpload && !(await claimUpload(newAvatarUpload, ctx.user.id)))
+          throw notAvatar();
+        const current = await userRow(ctx.user.id);
+        if (input.timezone !== undefined)
+          await updatePreferences(ctx.user.id, { timezone: input.timezone });
         if (Object.keys(set).length) {
           await db
             .update(user)
             .set({ ...set, updatedAt: new Date() })
             .where(eq(user.id, ctx.user.id));
         }
-        if (input.avatarUrl !== undefined) {
-          // The previous upload-based avatar is no longer used; the sweep removes it.
-          const previous = avatarUploadId(current.image);
-          if (previous && previous !== newAvatarUpload) await setUploadUsed(previous, false);
-          if (newAvatarUpload) await setUploadUsed(newAvatarUpload, true);
-        }
+        // The previous avatar (a REST object or an upload) is released.
+        if (input.avatarUrl !== undefined && current.image !== set.image)
+          await releaseAvatarImage(current.image);
         return {
           success: true,
           lastSyncId: lastSyncId(),

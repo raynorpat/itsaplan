@@ -31,6 +31,8 @@ export const authContext = new Elysia({ name: 'auth-context' }).resolve(
     if (session) return { user: session.user };
     // The public raw-attachment route has no session and needs none.
     if (request.method === 'GET' && PUBLIC_GET.test(path)) return { user: null };
+    // A signed upload URL carries its own credential, the single-use token.
+    if (request.method === 'PUT' && /^\/uploads\/[^/]+$/.test(path)) return { user: null };
     throw new HttpError(401, 'Authentication required');
   },
 );

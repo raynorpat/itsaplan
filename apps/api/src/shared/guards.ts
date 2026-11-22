@@ -32,11 +32,14 @@ type EntityGuardCtx = {
 //   .patch("/issues/:issueId", handler, { workItem: "see" })
 export function entityGuard(
   notFound: string,
-  resolveTeamId: (params: Record<string, string>) => Promise<string | null>,
+  resolveTeamId: (
+    params: Record<string, string>,
+    user: EntityGuardCtx['user'],
+  ) => Promise<string | null>,
 ) {
   return (level: TeamLevel) => ({
     async resolve({ params, user }: EntityGuardCtx) {
-      const teamId = await resolveTeamId(params as Record<string, string>);
+      const teamId = await resolveTeamId(params as Record<string, string>, user);
       if (teamId == null) throw new HttpError(404, notFound);
       await assertTeamAccess(teamId, user, level, notFound);
       return { teamId };

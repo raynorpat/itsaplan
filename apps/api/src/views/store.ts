@@ -1,5 +1,5 @@
 import { db, teamView, viewPreferences } from '@repo/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
 // Saved views (Linear's CustomView): a team's named issue filter. `filterData` is
@@ -43,11 +43,24 @@ export function mapView(row: typeof teamView.$inferSelect): ViewRow {
   };
 }
 
-export async function listViews(teamId: string): Promise<ViewRow[]> {
+// SQL over team_view: views `userId` may see by sharing — shared views, and the
+// non-shared views they own (Linear: a personal view is its owner's only). Team
+// visibility is checked separately.
+export const viewSharedWith = (userId: string) =>
+  or(
+    eq(teamView.shared, true),
+    eq(sql`coalesce(${teamView.ownerUserId}, ${teamView.creatorUserId})`, userId),
+  )!;
+
+// Whether `userId` may see a view by sharing (see viewSharedWith).
+export const isViewSharedWith = (row: ViewRow, userId: string) =>
+  row.shared || (row.ownerUserId ?? row.creatorUserId) === userId;
+
+export async function listViews(teamId: string, userId: string): Promise<ViewRow[]> {
   const rows = await db
     .select()
     .from(teamView)
-    .where(eq(teamView.teamId, teamId))
+    .where(and(eq(teamView.teamId, teamId), viewSharedWith(userId)))
     .orderBy(teamView.createdAt, teamView.id);
   return rows.map(mapView);
 }

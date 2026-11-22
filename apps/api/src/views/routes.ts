@@ -7,6 +7,7 @@ import { ErrorResponse } from '../shared/responses';
 import { mcpTool } from '../mcp/generate';
 import { requireUser } from '../shared/access';
 import {
+  isViewSharedWith,
   listViews,
   createView,
   getView,
@@ -63,13 +64,17 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
   .macro({
     savedView: entityGuard(
       'View not found',
-      async (p) => (await getView(p.viewId))?.teamId ?? null,
+      // A non-shared view of someone else is as missing as an unknown one.
+      async (p, u) => {
+        const view = await getView(p.viewId);
+        return view && u && isViewSharedWith(view, u.id) ? view.teamId : null;
+      },
     ),
   })
   .get(
     '/teams/:teamKey/views',
-    async ({ team }) => {
-      return Promise.all((await listViews(team.id)).map(viewDto));
+    async ({ team, user }) => {
+      return Promise.all((await listViews(team.id, requireUser(user).id)).map(viewDto));
     },
     {
       teamAccess: 'see',

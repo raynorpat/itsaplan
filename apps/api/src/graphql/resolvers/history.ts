@@ -1,6 +1,7 @@
-import { db, issue, issueActivity, label, workflowState } from '@repo/db';
+import { db, issue, issueActivity, label, team, workflowState } from '@repo/db';
 import { and, asc, eq, getTableColumns, inArray, isNotNull } from 'drizzle-orm';
 import { getCycle } from '../../cycles/store';
+import { canSeeTeam } from '../../shared/access';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { toCycle } from './cycle';
@@ -73,7 +74,10 @@ export function toIssueHistory(row: ActivityRow) {
       const identifier = added ? row.toText : row.fromText;
       return {
         ...base,
-        relationChanges:
+        // Resolved by IssueHistory.relationChanges, which hides an issue the viewer
+        // cannot see.
+        relatedIssueId: added ? ids.toId : ids.fromId,
+        relationChangeList:
           codes && identifier ? [{ identifier, type: added ? codes[0] : codes[1] }] : [],
       };
     }
@@ -225,6 +229,24 @@ export const historyResolvers = {
       projectOrNull(h.toProjectId, ctx),
     fromCycle: (h: GraphQLIssueHistory) => cycleOrNull(h.fromCycleId),
     toCycle: (h: GraphQLIssueHistory) => cycleOrNull(h.toCycleId),
+    // The related issue is named only when the viewer can see it; a row written
+    // before ids were recorded names an issue that cannot be checked, so it is left out.
+    relationChanges: async (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => {
+      const list = (h.relationChangeList as unknown[] | undefined) ?? null;
+      if (!list) return null;
+      if (typeof h.relatedIssueId !== 'string') return [];
+      const [row] = await db
+        .select({ teamId: issue.teamId, seq: issue.sequenceNumber, key: team.key })
+        .from(issue)
+        .innerJoin(team, eq(team.id, issue.teamId))
+        .where(eq(issue.id, h.relatedIssueId));
+      if (!row || !(await canSeeTeam(row.teamId, ctx.user.id))) return [];
+      // The log text hides a cross-team identifier; a viewer who can see it gets it.
+      return (list as { type: string }[]).map((c) => ({
+        ...c,
+        identifier: `${row.key}-${row.seq}`,
+      }));
+    },
     addedLabels: (h: GraphQLIssueHistory) => labelsByIds(h.addedLabelIds),
     removedLabels: (h: GraphQLIssueHistory) => labelsByIds(h.removedLabelIds),
   },

@@ -1,29 +1,28 @@
 import { Elysia, t } from 'elysia';
 import { authContext } from '../shared/auth-context';
-import { requireUser } from '../shared/access';
 import { workerTokenValid } from '../shared/http';
 import { HttpError } from '../shared/lib';
 import { rawObjectResponse } from '../shared/raw-object';
 import { ErrorResponse } from '../shared/responses';
 import { getObject } from '../shared/s3';
-import { deleteUnusedUploads, getUpload, receiveUpload } from './store';
+import { checkUploadRequest, deleteUnusedUploads, getUpload, receiveUpload } from './store';
 
-// Plain HTTP for Linear's fileUpload: the signed upload URL (PUT, the uploader's own
-// session or API key) and the asset URL (public GET, like the attachment and avatar
-// raw routes). The GraphQL `fileUpload` mutation creates the upload.
+// Plain HTTP for Linear's fileUpload: the signed upload URL (PUT; the token in the URL
+// is the credential, as in Linear) and the asset URL (public GET, like the attachment
+// and avatar raw routes). The GraphQL `fileUpload` mutation creates the upload.
 export const uploadRoutes = new Elysia({ name: 'uploads', detail: { tags: ['Uploads'] } })
   .use(authContext)
   .put(
     '/uploads/:token',
-    async ({ params, request, user }) => {
-      const uploader = requireUser(user);
-      const body = new Uint8Array(await request.arrayBuffer());
-      await receiveUpload(
+    async ({ params, request }) => {
+      const length = request.headers.get('content-length');
+      // Checked before the body is read, so an oversize body is refused unbuffered.
+      const row = await checkUploadRequest(
         params.token,
-        uploader.id,
         request.headers.get('content-type') ?? '',
-        body,
+        length != null && /^\d+$/.test(length) ? Number(length) : null,
       );
+      await receiveUpload(row, new Uint8Array(await request.arrayBuffer()));
       return { success: true };
     },
     {
@@ -33,7 +32,6 @@ export const uploadRoutes = new Elysia({ name: 'uploads', detail: { tags: ['Uplo
       response: {
         200: t.Object({ success: t.Boolean() }),
         400: ErrorResponse,
-        401: ErrorResponse,
         404: ErrorResponse,
         410: ErrorResponse,
         413: ErrorResponse,

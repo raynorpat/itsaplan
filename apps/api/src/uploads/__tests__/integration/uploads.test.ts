@@ -117,13 +117,14 @@ describe('file uploads', () => {
     ).toBe('upload');
   });
 
-  it('refuses a foreign, expired or mismatched upload before storing it', async () => {
+  it('refuses an expired or mismatched upload before storing it', async () => {
     const { owner } = await setup();
     const other = await signUpTestUser();
     const { file } = await requestUpload(owner, 'text/plain', 5);
     expect(file).toBeDefined();
-    // Another user's session.
-    expect((await put(file!, other, bytes(5))).status).toBe(404);
+    // The token is the credential (as in Linear): another user's session reaches the
+    // same checks, so a wrong content type is still a 400.
+    expect((await put(file!, other, bytes(5), 'text/html')).status).toBe(400);
     // A different content type than declared.
     expect((await put(file!, owner, bytes(5), 'text/html')).status).toBe(400);
     // A larger body than declared.
