@@ -44,6 +44,7 @@ import {
 } from './activity';
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
+import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
@@ -840,6 +841,11 @@ export async function createIssue(
   });
 
   await recordActivity(issueId, [{ action: 'created' }], actorUserId);
+  // Linear subscribes the creator and the assignee of a new issue.
+  await subscribe(
+    issueId,
+    [actorUserId, input.assigneeUserId].filter((id): id is string => !!id),
+  );
   // No separate label event on creation: the initial labels are part of the
   // Issue create payload.
   if (input.labelIds?.length)

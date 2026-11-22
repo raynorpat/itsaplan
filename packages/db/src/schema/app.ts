@@ -1612,6 +1612,27 @@ export const webhookDelivery = pgTable(
   ],
 );
 
+// Users subscribed to an issue (Linear's issue subscribers). Subscribers receive the
+// issue's comment and status-change notifications. Rows are added automatically
+// (creator, assignee, commenter, mentioned member) and by issueSubscribe; only
+// members of the issue's team are notified or listed.
+export const issueSubscription = pgTable(
+  'issue_subscription',
+  {
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issueId, t.userId] }),
+    index('issue_subscription_user_idx').on(t.userId),
+  ],
+);
+
 // Per-user inbox notifications. One row per (recipient, event): a user is notified
 // about an issue they are involved in (assigned to them, mentioned, or a participant
 // on a comment/status change). The actor's own actions never notify the actor.
@@ -1647,7 +1668,10 @@ export const notification = pgTable(
     actorName: text('actor_name'),
     readAt: timestamp('read_at', { withTimezone: true }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+    // Set by Linear's notificationArchive; an archived notification leaves the inbox.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     check(

@@ -1,24 +1,16 @@
-import {
-  db,
-  notification,
-  feedEntry,
-  teamMember,
-  user,
-  issue,
-  team,
-  workflowState,
-} from '@repo/db';
+import { db, notification, teamMember, user, issue, team, workflowState } from '@repo/db';
 import { and, desc, eq, inArray, lt, or, sql, isNull } from 'drizzle-orm';
 import { parseMentions } from '../ai-agents/mentions';
 import { iso } from '../shared/lib';
 import { enqueueOutbound } from './outbound';
+import { subscribe, subscriberIds } from './subscriptions';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
-// about an issue they are involved in. Recipients are derived from the issue's feed
-// (assignee, delegate, and anyone who has acted on the issue) rather than a separate
-// subscription table. The actor is never notified about their own action, and only
-// team members receive notifications, so agent bot users (assigned via delegate,
-// not members) are excluded.
+// about an issue they are involved in. Comment and status-change notifications go to
+// the issue's subscribers (./subscriptions.ts); assignment and mention notifications
+// to the assignee and the mentioned members. The actor is never notified about their
+// own action, and only team members receive notifications, so agent bot users
+// (assigned via delegate, not members) are excluded.
 
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
 
@@ -42,18 +34,6 @@ async function keepTeamMembers(teamId: string, ids: string[]): Promise<Set<strin
     .from(teamMember)
     .where(and(eq(teamMember.teamId, teamId), inArray(teamMember.userId, ids)));
   return new Set(rows.map((r) => r.userId));
-}
-
-// The members who should hear about activity on an issue: its assignee and delegate,
-// plus anyone who has previously acted on it (a comment or a logged change). Bot
-// users and non-members are dropped by keepTeamMembers.
-async function issueParticipants(teamId: string, issueId: string): Promise<Set<string>> {
-  const rows = await db
-    .selectDistinct({ actorUserId: feedEntry.actorUserId })
-    .from(feedEntry)
-    .where(and(eq(feedEntry.issueId, issueId), sql`${feedEntry.actorUserId} IS NOT NULL`));
-  const candidates = rows.map((r) => r.actorUserId as string);
-  return keepTeamMembers(teamId, candidates);
 }
 
 async function actorName(id: string | null): Promise<string | null> {
@@ -90,9 +70,14 @@ export async function notifyComment(
   if (opts.onlyMentioned)
     mentionedIds = mentionedIds.filter((id) => opts.onlyMentioned!.includes(id));
   const mentioned = await keepTeamMembers(teamId, mentionedIds);
+  // Linear subscribes the comment's author and the members it mentions.
+  await subscribe(comment.issueId, [
+    ...(actor && !opts.onlyMentioned ? [actor] : []),
+    ...mentioned,
+  ]);
   const participants = opts.onlyMentioned
     ? new Set<string>()
-    : await issueParticipants(teamId, comment.issueId);
+    : new Set(await subscriberIds(comment.issueId));
 
   const rows: NewNotificationRow[] = [];
   for (const userId of mentioned) {
@@ -135,6 +120,9 @@ export async function notifyIssueChange(input: {
   const { teamId, issueId, actorUserId: actor } = input;
   const rows: NewNotificationRow[] = [];
 
+  // Linear subscribes a new assignee.
+  if (input.assignedUserId) await subscribe(issueId, [input.assignedUserId]);
+
   if (input.assignedUserId && input.assignedUserId !== actor) {
     const members = await keepTeamMembers(teamId, [input.assignedUserId]);
     if (members.has(input.assignedUserId)) {
@@ -151,8 +139,7 @@ export async function notifyIssueChange(input: {
 
   if (input.statusChanged) {
     const assigned = input.assignedUserId ?? null;
-    const participants = await issueParticipants(teamId, issueId);
-    for (const userId of participants) {
+    for (const userId of await subscriberIds(issueId)) {
       // Skip the actor and anyone already told they were just assigned.
       if (userId === actor || userId === assigned) continue;
       rows.push({
@@ -253,7 +240,7 @@ export async function listNotifications(
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
   const before = opts.before ?? null;
   const f = opts.filters ?? {};
-  const conds = [eq(notification.userId, userId)];
+  const conds = [eq(notification.userId, userId), isNull(notification.archivedAt)];
   if (f.types && f.types.length) conds.push(inArray(notification.type, f.types));
   if (f.fromUserId) conds.push(eq(notification.actorUserId, f.fromUserId));
   if (f.teamId != null) conds.push(eq(notification.teamId, f.teamId));
@@ -305,6 +292,7 @@ export async function listNotifications(
 export async function unreadCount(userId: string, teamId?: string): Promise<number> {
   const conds = [
     eq(notification.userId, userId),
+    isNull(notification.archivedAt),
     isNull(notification.readAt),
     or(isNull(notification.snoozedUntil), lt(notification.snoozedUntil, sql`now()`)),
   ];
@@ -320,7 +308,7 @@ export async function unreadCount(userId: string, teamId?: string): Promise<numb
 // count, optionally scoped to one team. It moves on a new notification (newest),
 // a delete (total), and a read/unread toggle (unread).
 export async function notificationsRev(userId: string, teamId?: string): Promise<string> {
-  const conds = [eq(notification.userId, userId)];
+  const conds = [eq(notification.userId, userId), isNull(notification.archivedAt)];
   if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const [row] = await db
     .select({

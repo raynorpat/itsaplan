@@ -22,6 +22,13 @@
       "when": 1795357476826,
       "tag": "0002_smart_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795358228871,
+      "tag": "0003_deep_nico_minoru",
+      "breakpoints": true
     }
   ]
 }
