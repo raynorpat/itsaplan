@@ -4,10 +4,10 @@ import { noContent } from '../shared/http';
 import { HttpError } from '../shared/lib';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { requireUser } from '../shared/access';
+import { assertWorkspaceRole, canManageTeam, requireUser, workspaceRole } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
 import { ErrorResponse } from '../shared/responses';
-import { getMemberContext, listAssigneeCandidates } from '../members/store';
+import { getMembership, listAssigneeCandidates } from '../members/store';
 import {
   listTeams,
   createTeam,
@@ -29,6 +29,7 @@ const teamBody = t.Object({
   key: t.String({ pattern: '^[A-Za-z][A-Za-z0-9]*$' }),
   name: t.String({ minLength: 1 }),
   description: t.Optional(t.String()),
+  visibility: t.Optional(t.UnionEnum(['public', 'private'])),
 });
 
 // A team DTO (TeamRow from the store).
@@ -41,21 +42,18 @@ const TeamResponse = t.Object({
   // The optional sections, toggled in Settings -> General. All on by default; a
   // disabled section is hidden in the web app and its rows are kept.
   projectsEnabled: t.Boolean(),
+  visibility: t.UnionEnum(['public', 'private']),
   createdAt: t.String(),
 });
 
-// The permission matrix as resolved for a member: for each resource, the
-// create/edit/read/delete flags.
-const PermissionMatrix = t.Record(t.String(), t.Record(t.String(), t.Boolean()));
-
 // A team in the caller's list (TeamListItem): TeamRow plus the caller's
-// own role in it, and the caller's permission matrix when requested with
-// ?permissions=true.
+// membership in it (null for a public team they have not joined) and whether they
+// manage it.
 const TeamListItemResponse = t.Composite([
   TeamResponse,
   t.Object({
-    role: t.Union([t.Literal('owner'), t.Literal('member')]),
-    permissions: t.Optional(PermissionMatrix),
+    role: t.Nullable(t.Union([t.Literal('owner'), t.Literal('member')])),
+    canManage: t.Boolean(),
   }),
 ]);
 
@@ -129,10 +127,12 @@ const TeamSettingsResponse = t.Object({
   cycles: CycleSettingsResponse,
 });
 
-// The caller's own role in a team (from MemberContext in members/store). The
-// resolved permission matrix is a sibling `permissions` key on the board payload.
+// The caller's access to a team: their membership (null for a public team they
+// have not joined), their workspace role, and whether they manage the team.
 const ViewerResponse = t.Object({
-  role: t.Union([t.Literal('owner'), t.Literal('member')]),
+  role: t.Nullable(t.Union([t.Literal('owner'), t.Literal('member')])),
+  workspaceRole: t.UnionEnum(['owner', 'admin', 'member', 'guest']),
+  canManage: t.Boolean(),
 });
 
 // The team board scaffold (GET /teams/:teamKey): the team plus its
@@ -146,8 +146,6 @@ const TeamBoardResponse = t.Object({
   labelGroups: t.Array(LabelGroupResponse),
   assignees: t.Array(AssigneeCandidateResponse),
   viewer: ViewerResponse,
-  // The caller's resolved permission matrix (owners get every flag).
-  permissions: PermissionMatrix,
 });
 
 export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] } })
@@ -155,19 +153,9 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   .use(guards)
   .get(
     '/teams',
-    ({ user, request, query }) =>
-      listTeams(requireUser(user).id, {
-        mcpOnly: isMcpRequest(request.headers),
-        withPermissions: query.permissions === 'true',
-      }),
+    ({ user, request }) =>
+      listTeams(requireUser(user).id, { mcpOnly: isMcpRequest(request.headers) }),
     {
-      query: t.Object({
-        permissions: t.Optional(
-          t.String({
-            description: "'true' to include the caller's permission matrix per team.",
-          }),
-        ),
-      }),
       response: {
         200: t.Array(TeamListItemResponse),
         401: ErrorResponse,
@@ -175,8 +163,8 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       detail: {
         summary: 'List teams',
         description:
-          'List the teams you are a member of. Pass permissions=true to include your ' +
-          'permission matrix on each.',
+          'List the teams you can see: your teams, plus every public team unless you are a ' +
+          'guest. `role` is your membership (null when not joined).',
         ...mcpTool('list_teams'),
       },
     },
@@ -185,8 +173,9 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   .post(
     '/teams',
     async ({ body, user, set }) => {
+      const current = await assertWorkspaceRole(user, 'member');
       set.status = 201;
-      return createTeam(body, requireUser(user).id);
+      return createTeam(body, current.id);
     },
     {
       body: teamBody,
@@ -206,35 +195,34 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   )
 
   // Full team view: columns, labels, issues, and the caller's own
-  // effective access (role + resolved permission matrix) — everything the work
-  // items UI needs in one call. Assignee options come from the team's members,
-  // fetched separately. The web app gates its UI off `viewer`; the
-  // API still enforces the same matrix on every request.
+  // access (`viewer`) — everything the work items UI needs in one call. Assignee
+  // options come from the team's members. The web app gates its UI off `viewer`;
+  // the API still enforces access on every request.
   .get(
     '/teams/:teamKey',
     async ({ team, user }) => {
-      const [states, labels, labelGroups, assignees, viewer] = await Promise.all([
-        listStates(team.id),
-        listLabels(team.id),
-        listLabelGroups(team.id),
-        listAssigneeCandidates(team.id),
-        getMemberContext(team.id, requireUser(user).id),
-      ]);
-      // The permission guard already asserted membership, so a context always
-      // exists here; guard against a race (membership revoked mid-request).
-      if (!viewer) throw new HttpError(403, 'You do not have access to this team');
+      const userId = requireUser(user).id;
+      const [states, labels, labelGroups, assignees, role, workspace, canManage] =
+        await Promise.all([
+          listStates(team.id),
+          listLabels(team.id),
+          listLabelGroups(team.id),
+          listAssigneeCandidates(team.id),
+          getMembership(team.id, userId),
+          workspaceRole(userId),
+          canManageTeam(team.id, userId),
+        ]);
       return {
         team,
         states,
         labels,
         labelGroups,
         assignees,
-        viewer: { role: viewer.role },
-        permissions: viewer.permissions,
+        viewer: { role, workspaceRole: workspace, canManage },
       };
     },
     {
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: TeamBoardResponse,
         401: ErrorResponse,
@@ -265,8 +253,9 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
         description: t.Optional(t.String()),
+        visibility: t.Optional(t.UnionEnum(['public', 'private'])),
       }),
-      teamOwner: true,
+      teamAccess: 'manage',
       response: {
         200: TeamResponse,
         400: ErrorResponse,
@@ -295,7 +284,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       cycles: await teamCycleSettings(team.id),
     }),
     {
-      teamMember: true,
+      teamAccess: 'see',
       response: {
         200: TeamSettingsResponse,
         401: ErrorResponse,
@@ -368,7 +357,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
           }),
         ),
       }),
-      teamOwner: true,
+      teamAccess: 'manage',
       response: {
         200: TeamSettingsResponse,
         400: ErrorResponse,
@@ -389,7 +378,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       return noContent();
     },
     {
-      permission: ['danger_zone', 'delete'],
+      teamAccess: 'manage',
       response: {
         204: t.Void(),
         401: ErrorResponse,

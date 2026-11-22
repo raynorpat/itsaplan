@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
-import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { setWorkspaceRole } from '../../../shared/access';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
 // Teams (teams), users, and workflow states (columns) over the Linear API, and
@@ -13,7 +14,11 @@ async function setup() {
   await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   // A second team the owner is not a member of.
   const other = await signUpTestUser({ name: 'Other' });
-  await authedApi(other.cookie).teams.post({ key: 'OPS', name: 'Operations' });
+  await authedApi(other.cookie).teams.post({
+    key: 'OPS',
+    name: 'Operations',
+    visibility: 'private',
+  });
   const client = linearClient(await createApiKey(owner.cookie));
   return { owner, asOwner, other, client };
 }
@@ -170,24 +175,28 @@ describe('graphql teams, users and workflow states', () => {
   });
 
   describe('users', () => {
-    it('lists the viewer and users who share a team, not others', async () => {
+    it('lists every workspace user to a member, and only team mates to a guest', async () => {
       const { owner, asOwner, other, client } = await setup();
-      const member: TestUser = await signUpTestUser({ name: 'Member' });
+      const guest = await signUpTestUser({ name: 'Guest' });
+      await setWorkspaceRole(guest.userId, 'guest');
       const invite = await asOwner
         .teams({ teamKey: 'MKT' })
-        .invites.post({ email: member.email, role: 'member' });
-      await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+        .invites.post({ email: guest.email, role: 'member' });
+      await authedApi(guest.cookie).invites({ token: invite.data!.token }).accept.post();
 
-      const users = await client.users();
-      const ids = users.nodes.map((u) => u.id);
-      expect(ids).toContain(owner.userId);
-      expect(ids).toContain(member.userId);
-      expect(ids).not.toContain(other.userId);
+      const ids = (await client.users()).nodes.map((u) => u.id);
+      expect(ids).toEqual(expect.arrayContaining([owner.userId, guest.userId, other.userId]));
+      const guestClient = linearClient(await createApiKey(guest.cookie));
+      const seen = (await guestClient.users()).nodes.map((u) => u.id);
+      expect(seen).toContain(owner.userId);
+      expect(seen).not.toContain(other.userId);
     });
 
-    it('hides a user who shares no team', async () => {
-      const { owner, other } = await setup();
-      const res = await gql({ cookie: owner.cookie }, `{ user(id: "${other.userId}") { id } }`);
+    it('hides a user who shares no team from a guest', async () => {
+      const { other } = await setup();
+      const guest = await signUpTestUser();
+      await setWorkspaceRole(guest.userId, 'guest');
+      const res = await gql({ cookie: guest.cookie }, `{ user(id: "${other.userId}") { id } }`);
       expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     });
 

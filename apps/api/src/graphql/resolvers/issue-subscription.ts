@@ -6,7 +6,7 @@ import {
   subscribedMembers,
   unsubscribe,
 } from '../../notifications/subscriptions';
-import { assertPermission } from '../../shared/access';
+import { assertTeamAccess } from '../../shared/access';
 import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import type { PageArgs } from '../connection';
@@ -67,9 +67,8 @@ export const issueSubscriptionResolvers = {
       guard(async () => {
         const found = await findIssue(args.id, ctx.user.id);
         const userId = await targetUser(args, ctx);
-        // Taking someone else off an issue needs the edit right subscriberIds needs.
-        if (userId !== ctx.user.id)
-          await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
+        // Taking someone else off an issue needs a team manager.
+        if (userId !== ctx.user.id) await assertTeamAccess(found.teamId, ctx.user, 'manage');
         await unsubscribe(found.id, userId);
         return payload(found.id);
       }),

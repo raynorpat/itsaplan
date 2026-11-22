@@ -1,3 +1,4 @@
+import { visibleTeamIdList } from '../../shared/access';
 import {
   db,
   initiative,
@@ -7,7 +8,7 @@ import {
   project,
 } from '@repo/db';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
-import { projectsInTeams, teamsGranting } from '../../projects/access';
+import { projectsInTeams } from '../../projects/access';
 import { assertInitiativeAccess, visibleInitiativesSql } from '../../initiatives/access';
 import {
   getProjectLink,
@@ -106,7 +107,7 @@ function latestUpdate(initiativeId: string, ctx: GraphQLContext) {
 
 // A visible initiative by id or slug, or ENTITY_NOT_FOUND.
 export async function findInitiative(id: string, ctx: GraphQLContext) {
-  return guard(async () => toInitiative(await assertInitiativeAccess(id, ctx.user.id, 'read')));
+  return guard(async () => toInitiative(await assertInitiativeAccess(id, ctx.user.id)));
 }
 
 // The initiative when the viewer can see it, otherwise null.
@@ -141,7 +142,7 @@ const idsWhere = (visible: SQL) => db.select({ id: initiative.id }).from(initiat
 // Links whose initiative and project are both visible; links to archived
 // initiatives only with includeArchived.
 async function listProjectLinks(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
-  const projects = projectsInTeams(await teamsGranting(ctx.user.id, 'read'));
+  const projects = projectsInTeams(await visibleTeamIdList(ctx.user.id));
   return paginate(
     args,
     {
@@ -229,7 +230,7 @@ export async function findProjectLink(id: string, ctx: GraphQLContext) {
   return guard(async () => {
     const link = UUID_RE.test(id) ? await getProjectLink(id) : null;
     if (!link) throw gqlError('ENTITY_NOT_FOUND', `Initiative to project ${id} not found`);
-    await assertInitiativeAccess(link.initiativeId, ctx.user.id, 'read');
+    await assertInitiativeAccess(link.initiativeId, ctx.user.id);
     await findProject(link.projectId, ctx);
     return link;
   });
@@ -240,8 +241,8 @@ export async function findRelation(id: string, ctx: GraphQLContext) {
   return guard(async () => {
     const relation = UUID_RE.test(id) ? await getRelation(id) : null;
     if (!relation) throw gqlError('ENTITY_NOT_FOUND', `Initiative relation ${id} not found`);
-    await assertInitiativeAccess(relation.initiativeId, ctx.user.id, 'read');
-    await assertInitiativeAccess(relation.relatedInitiativeId, ctx.user.id, 'read');
+    await assertInitiativeAccess(relation.initiativeId, ctx.user.id);
+    await assertInitiativeAccess(relation.relatedInitiativeId, ctx.user.id);
     return relation;
   });
 }
@@ -251,7 +252,7 @@ export async function findInitiativeUpdate(id: string, ctx: GraphQLContext) {
   return guard(async () => {
     const found = UUID_RE.test(id) ? await getInitiativeUpdate(id) : null;
     if (!found) throw gqlError('ENTITY_NOT_FOUND', `Initiative update ${id} not found`);
-    await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'read');
+    await assertInitiativeAccess(found.initiativeId, ctx.user.id);
     return found;
   });
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Projects (Linear's Project) group issues across one or more teams. Issues link
 // to one through issue.projectId and must belong to one of its teams. status is
@@ -42,11 +43,9 @@ async function createProject(
 
 // Adds a fresh user to the team as a member on the given role (default role when
 // roleId is omitted).
-async function addMember(owner: Api, teamKey: string, roleId?: string) {
+async function addMember(owner: Api, teamKey: string) {
   const user = await signUpTestUser();
-  const invite = await owner
-    .teams({ teamKey })
-    .invites.post({ email: user.email, role: 'member', ...(roleId ? { roleId } : {}) });
+  const invite = await owner.teams({ teamKey }).invites.post({ email: user.email, role: 'member' });
   const api = authedApi(user.cookie);
   await api.invites({ token: invite.data!.token }).accept.post();
   return { user, api };
@@ -408,7 +407,7 @@ describe('projects', () => {
   describe('access', () => {
     it('refuses to create a project in a team the user cannot create in', async () => {
       const { asOwner, teamId } = await setup();
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.projects.post({ name: 'x', teamIds: [teamId] });
       expect(res.status).toBe(403);
       const unknown = await asOwner.projects.post({
@@ -421,7 +420,7 @@ describe('projects', () => {
     it('hides a project from a non-member', async () => {
       const { asOwner } = await setup();
       const project = (await createProject(asOwner, { name: 'Q3' })).data!;
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       expect((await projects(outsider).get()).data!.items).toHaveLength(0);
       expect((await outsider.projects({ projectId: project.id }).get()).status).toBe(404);
@@ -431,13 +430,11 @@ describe('projects', () => {
       expect((await outsider.projects({ projectId: project.id }).delete()).status).toBe(404);
     });
 
-    it('hides a project from a member whose role cannot read projects', async () => {
+    it('hides a project of a private team from a non-member', async () => {
       const { asOwner } = await setup();
       const project = (await createProject(asOwner, { name: 'Q3' })).data!;
-      const role = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .roles.post({ name: 'Blind', permissions: {} });
-      const member = await addMember(asOwner, 'MKT', role.data!.id);
+      await makePrivate(asOwner, 'MKT');
+      const member = await signUpWithRole('member');
       expect((await projects(member.api).get()).data!.items).toHaveLength(0);
       expect((await member.api.projects({ projectId: project.id }).get()).status).toBe(404);
     });
@@ -458,10 +455,10 @@ describe('projects', () => {
       ]);
     });
 
-    it('needs the create permission in every team listed', async () => {
+    it('needs to see every team listed', async () => {
       const { asOwner } = await setup();
-      const other = authedApi((await signUpTestUser()).cookie);
-      await other.teams.post({ key: 'OPS', name: 'Operations' });
+      const other = (await signUpWithRole('member')).api;
+      await other.teams.post({ key: 'OPS', name: 'Operations', visibility: 'private' });
       const opsId = await teamIdOf(other, 'OPS');
       const mktId = await teamIdOf(asOwner, 'MKT');
       const res = await asOwner.projects.post({ name: 'x', teamIds: [mktId, opsId] });
@@ -470,7 +467,7 @@ describe('projects', () => {
 
     it('shows a member only the teams they can access, and keeps hidden teams on replace', async () => {
       const { asOwner } = await setup();
-      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+      await asOwner.teams.post({ key: 'OPS', name: 'Operations', visibility: 'private' });
       await asOwner.teams.post({ key: 'DES', name: 'Design' });
       const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
       const member = await addMember(asOwner, 'MKT');

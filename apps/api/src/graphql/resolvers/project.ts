@@ -1,3 +1,4 @@
+import { visibleTeamIdList } from '../../shared/access';
 import {
   db,
   issue,
@@ -16,7 +17,7 @@ import { gqlError } from '../errors';
 import { compare, compareId, filterSql } from '../filter';
 import { projectFilterSql } from '../project-filter';
 import { UUID_RE } from '../../shared/lib';
-import { projectsInTeams, teamsGranting } from '../../projects/access';
+import { projectsInTeams } from '../../projects/access';
 import { getProjectsByIds, type ProjectRow } from '../../projects/store';
 import { listIssues, userById } from './issue';
 import { toTeam } from './team';
@@ -29,7 +30,7 @@ const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
 
 type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
-const readable = (ctx: GraphQLContext) => teamsGranting(ctx.user.id, 'read');
+const readable = (ctx: GraphQLContext) => visibleTeamIdList(ctx.user.id);
 
 export function toProject(p: ProjectRow) {
   const open = p.progress.total - p.progress.canceled;

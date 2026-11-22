@@ -1,4 +1,4 @@
-import { cycle, db, issue, team, teamMember } from '@repo/db';
+import { cycle, db, issue, team } from '@repo/db';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import {
   activeCycle,
@@ -12,8 +12,7 @@ import {
   validateCycleSettings,
   type CycleRow,
 } from '../../cycles/store';
-import { getMembership } from '../../members/store';
-import { assertPermission } from '../../shared/access';
+import { assertTeamAccess, canSeeTeam, canManageTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import { updateTeam } from '../../teams/store';
 import type { GraphQLContext } from '../context';
@@ -34,15 +33,12 @@ function toCycle(row: CycleRow) {
   return { ...row, autoArchivedAt: null, inheritedFromId: null };
 }
 
-const memberTeams = (userId: string) =>
-  db.select({ id: teamMember.teamId }).from(teamMember).where(eq(teamMember.userId, userId));
-
 function listCycles(where: SQL | undefined, args: ConnectionArgs, ctx: GraphQLContext) {
   return paginate(
     args,
     { id: cycle.id, createdAt: cycle.createdAt, updatedAt: cycle.updatedAt },
     and(
-      inArray(cycle.teamId, memberTeams(ctx.user.id)),
+      inArray(cycle.teamId, visibleTeamIds(ctx.user.id)),
       where,
       args.includeArchived ? undefined : isNull(cycle.archivedAt),
       cycleFilterSql(args.filter),
@@ -61,7 +57,7 @@ function listCycles(where: SQL | undefined, args: ConnectionArgs, ctx: GraphQLCo
 // A cycle the viewer can see, or ENTITY_NOT_FOUND.
 async function visibleCycle(id: string, ctx: GraphQLContext): Promise<CycleRow> {
   const found = UUID_RE.test(id) ? await getCycle(id) : null;
-  if (!found || !(await getMembership(found.teamId, ctx.user.id)))
+  if (!found || !(await canSeeTeam(found.teamId, ctx.user.id)))
     throw gqlError('ENTITY_NOT_FOUND', `Cycle ${id} not found`);
   return found;
 }
@@ -168,7 +164,7 @@ export const cycleResolvers = {
           'input',
         );
         const found = await findTeam(input.teamId, ctx.user.id);
-        await assertPermission(found.id, ctx.user, 'work_items', 'create');
+        await assertTeamAccess(found.id, ctx.user, 'see');
         const startsAt = dateInput(input.startsAt, 'input.startsAt');
         const endsAt = dateInput(input.endsAt, 'input.endsAt');
         if (!startsAt || !endsAt)
@@ -198,7 +194,7 @@ export const cycleResolvers = {
         if (input.completedAt === null)
           throw gqlError('INVALID_INPUT', 'input.completedAt cannot be cleared');
         const found = await visibleCycle(id, ctx);
-        await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
+        await assertTeamAccess(found.teamId, ctx.user, 'see');
         const updated = await updateCycle(
           id,
           {
@@ -216,7 +212,7 @@ export const cycleResolvers = {
     cycleArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await visibleCycle(id, ctx);
-        await assertPermission(found.teamId, ctx.user, 'work_items', 'delete');
+        await assertTeamAccess(found.teamId, ctx.user, 'see');
         const archived = await archiveCycle(id, ctx.user.id, new Date());
         return { success: true, lastSyncId: lastSyncId(), entity: toCycle(archived) };
       }),
@@ -229,7 +225,7 @@ export const cycleResolvers = {
       guard(async () => {
         onlySupported(input, ['name', 'description', ...Object.keys(TEAM_CYCLE_FIELDS)], 'input');
         const found = await findTeam(id, ctx.user.id);
-        if ((await getMembership(found.id, ctx.user.id)) !== 'owner')
+        if (!(await canManageTeam(found.id, ctx.user.id)))
           throw new HttpError(403, 'Only a team owner can change team settings');
         if (input.name !== undefined && (typeof input.name !== 'string' || !input.name))
           throw gqlError('INVALID_INPUT', 'input.name must be a non-empty string');

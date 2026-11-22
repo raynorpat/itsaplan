@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createMilestone } from '../../milestones';
 import { createUpdate } from '../../updates';
 
@@ -75,7 +76,7 @@ describe('project milestones and updates', () => {
     await createMilestone(project.id, { name: 'Beta' });
     const res = await asOwner.projects({ projectId: project.id }).milestones.get();
     expect(res.data!.map((m) => m.name)).toEqual(['Beta']);
-    const outsider = authedApi((await signUpTestUser()).cookie);
+    const outsider = (await signUpWithRole('guest')).api;
     expect((await outsider.projects({ projectId: project.id }).milestones.get()).status).toBe(404);
   });
 });

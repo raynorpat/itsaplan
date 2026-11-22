@@ -143,6 +143,7 @@ describe('graphql notifications', () => {
 
   it('omits notifications from teams the viewer left', async () => {
     const { owner, b, newIssue } = await setup();
+    await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
     await newIssue({ assigneeUserId: b.userId });
     await owner.api.teams({ teamKey: 'MKT' }).members({ userId: b.userId }).delete();
     const res = await gql(

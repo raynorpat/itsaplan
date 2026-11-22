@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { assertParentAccess, createComment } from '../../../comments/store';
 import type { AuthUser } from '../../../shared/access';
@@ -37,10 +38,8 @@ describe('document comments', () => {
     const parent = { documentId: doc.id };
     const c = await createComment({ parent, body: 'Looks good', actorUserId: owner.userId });
     expect(c.documentId).toBe(doc.id);
-    const outsider = await signUpTestUser();
-    expect(
-      await status(assertParentAccess(parent, { id: outsider.userId } as AuthUser, 'read')),
-    ).toBe(404);
+    const outsider = await signUpWithRole('guest');
+    expect(await status(assertParentAccess(parent, { id: outsider.userId } as AuthUser))).toBe(404);
   });
 
   it("sends the Comment webhook to the document's teams", async () => {
@@ -63,7 +62,7 @@ describe('document comments', () => {
     ).comment)!;
     expect(comment.documentContentId).toBe(doc.id);
     expect((await comment.documentContent)?.id).toBe(doc.id);
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const res = await gql({ cookie: outsider.cookie }, `{ comment(id: "${comment.id}") { id } }`);
     expect(res.body.errors?.[0]?.extensions?.code).toBe('ENTITY_NOT_FOUND');
   });

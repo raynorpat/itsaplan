@@ -30,7 +30,7 @@ export const notificationPreferenceRoutes = new Elysia({
     '/teams/:teamKey/notification-preferences',
     ({ team, user }) => getPreferences(requireUser(user).id, team.id),
     {
-      teamMember: true,
+      teamAccess: 'see',
       response: {
         200: PreferenceBody,
         401: ErrorResponse,
@@ -49,7 +49,7 @@ export const notificationPreferenceRoutes = new Elysia({
     ({ team, user, body }) => setPreferences(requireUser(user).id, team.id, body),
     {
       body: PreferenceBody,
-      teamMember: true,
+      teamAccess: 'see',
       response: {
         200: PreferenceBody,
         400: ErrorResponse,

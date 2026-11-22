@@ -123,7 +123,7 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         checkInput(input, UPDATE_FIELDS);
         checkIds(input, ['leadTeamId', 'ownerId']);
-        const found = await assertInitiativeAccess(id, ctx.user.id, 'edit');
+        const found = await assertInitiativeAccess(id, ctx.user.id);
         const fields = toFields(input);
         // Linear: an empty or null content leaves the overview unchanged.
         if (fields.content === null || fields.content === '') delete fields.content;
@@ -134,20 +134,20 @@ export const initiativeMutationResolvers = {
       }),
     initiativeArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
-        const found = await assertInitiativeAccess(id, ctx.user.id, 'edit');
+        const found = await assertInitiativeAccess(id, ctx.user.id);
         const archived = await archiveInitiative(found.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: toInitiative(archived) };
       }),
     initiativeUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
-        const found = await assertInitiativeAccess(id, ctx.user.id, 'edit');
+        const found = await assertInitiativeAccess(id, ctx.user.id);
         const restored = await unarchiveInitiative(found.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: toInitiative(restored) };
       }),
     // Linear moves a deleted initiative to the trash: archived and trashed.
     initiativeDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
-        const found = await assertInitiativeAccess(id, ctx.user.id, 'delete');
+        const found = await assertInitiativeAccess(id, ctx.user.id);
         await archiveInitiative(found.id, ctx.user.id, { trash: true });
         return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
       }),
@@ -156,8 +156,8 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['initiativeId', 'projectId', 'sortOrder', 'id'], 'input');
         checkIds(input, ['initiativeId', 'projectId', 'id']);
-        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id, 'edit');
-        await assertProjectAccess(String(input.projectId), ctx.user.id, 'read');
+        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id);
+        await assertProjectAccess(String(input.projectId), ctx.user.id);
         const link = await linkProject(
           {
             initiativeId: found.id,
@@ -181,7 +181,7 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['sortOrder'], 'input');
         const link = await findProjectLink(id, ctx);
-        await assertInitiativeAccess(link.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(link.initiativeId, ctx.user.id);
         const updated = await updateProjectLink(
           link.id,
           { sortOrder: sortOrderOf(input) },
@@ -196,7 +196,7 @@ export const initiativeMutationResolvers = {
     initiativeToProjectDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const link = await findProjectLink(id, ctx);
-        await assertInitiativeAccess(link.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(link.initiativeId, ctx.user.id);
         await unlinkProject(link.id, ctx.user.id);
         return deleted(link.id);
       }),
@@ -204,16 +204,8 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['initiativeId', 'relatedInitiativeId', 'sortOrder', 'id'], 'input');
         checkIds(input, ['initiativeId', 'relatedInitiativeId', 'id']);
-        const parent = await assertInitiativeAccess(
-          String(input.initiativeId),
-          ctx.user.id,
-          'edit',
-        );
-        const child = await assertInitiativeAccess(
-          String(input.relatedInitiativeId),
-          ctx.user.id,
-          'edit',
-        );
+        const parent = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id);
+        const child = await assertInitiativeAccess(String(input.relatedInitiativeId), ctx.user.id);
         const relation = await createRelation(
           {
             initiativeId: parent.id,
@@ -237,7 +229,7 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['sortOrder'], 'input');
         const relation = await findRelation(id, ctx);
-        await assertInitiativeAccess(relation.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(relation.initiativeId, ctx.user.id);
         const updated = await updateRelation(
           relation.id,
           { sortOrder: sortOrderOf(input) },
@@ -248,8 +240,8 @@ export const initiativeMutationResolvers = {
     initiativeRelationDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const relation = await findRelation(id, ctx);
-        await assertInitiativeAccess(relation.initiativeId, ctx.user.id, 'edit');
-        await assertInitiativeAccess(relation.relatedInitiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(relation.initiativeId, ctx.user.id);
+        await assertInitiativeAccess(relation.relatedInitiativeId, ctx.user.id);
         await deleteRelation(relation.id, ctx.user.id);
         return deleted(relation.id);
       }),
@@ -257,7 +249,7 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['initiativeId', 'body', 'health', 'id'], 'input');
         checkIds(input, ['initiativeId', 'id']);
-        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id, 'edit');
+        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id);
         const created = await createInitiativeUpdate(found.id, ctx.user.id, {
           body: (input.body as string | null | undefined) ?? '',
           health: (input.health as UpdateHealth | null | undefined) ?? undefined,
@@ -277,7 +269,7 @@ export const initiativeMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['body', 'health'], 'input');
         const found = await findInitiativeUpdate(id, ctx);
-        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id);
         const patch: { body?: string; health?: UpdateHealth } = {};
         if (input.body != null) patch.body = input.body as string;
         if (input.health != null) patch.health = input.health as UpdateHealth;
@@ -291,14 +283,14 @@ export const initiativeMutationResolvers = {
     initiativeUpdateArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findInitiativeUpdate(id, ctx);
-        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id);
         const archived = await setInitiativeUpdateArchived(found.id, true, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: toInitiativeUpdate(archived) };
       }),
     initiativeUpdateUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findInitiativeUpdate(id, ctx);
-        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id);
         const restored = await setInitiativeUpdateArchived(found.id, false, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: toInitiativeUpdate(restored) };
       }),

@@ -133,7 +133,7 @@ describe('god teams', () => {
   });
 
   describe('detail — GET /god/teams/:teamId', () => {
-    it('resolves an owner membership to full permissions', async () => {
+    it('reports an owner membership', async () => {
       const { god } = await setup();
       const alice = await addUser({ name: 'Alice', email: 'alice@example.com' });
       const created = await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
@@ -146,15 +146,10 @@ describe('god teams', () => {
         userId: alice.id,
         email: 'alice@example.com',
         role: 'owner',
-        roleId: null,
-        roleName: null,
       });
-      // An owner bypasses the matrix, so every resource comes back granted.
-      expect(res.data?.members[0].permissions.work_items.create).toBe(true);
-      expect(res.data?.members[0].permissions.members_manage.delete).toBe(true);
     });
 
-    it("resolves a member membership to the assigned role's matrix", async () => {
+    it('reports a plain membership as member', async () => {
       const { god } = await setup();
       const created = await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
       const bob = await addUser({ name: 'Bob', email: 'bob@example.com' });
@@ -164,9 +159,6 @@ describe('god teams', () => {
       const member = res.data!.members.find((m) => m.userId === bob.id)!;
 
       expect(member.role).toBe('member');
-      // Joining without a role assigned leaves the default member matrix, which does
-      // not reach role management.
-      expect(member.permissions.members_manage.edit).toBe(false);
     });
 
     it('returns 404 for an unknown team and 400 for an id that is not a UUID', async () => {

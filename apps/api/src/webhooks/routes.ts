@@ -3,7 +3,6 @@ import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
 import { requireUser, type AuthUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
-import type { PermissionAction } from '../shared/permissions';
 import { assertAllTeamsManager, assertWebhookAccess } from './access';
 import { validateWebhookUrl } from './url';
 import { authContext } from '../shared/auth-context';
@@ -76,7 +75,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
   // path). Set `webhook: "<action>"` in the route options.
   .macro({
     // Routes that address a webhook by its own id: `webhook: "<action>"`.
-    webhook: (action: PermissionAction) => ({
+    webhook: (_enabled: boolean) => ({
       async resolve({
         params,
         user,
@@ -86,7 +85,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         user?: AuthUser | null;
         request: Request;
       }) {
-        await assertWebhookAccess(String(params.webhookId), user, action, {
+        await assertWebhookAccess(String(params.webhookId), user, {
           mcp: isMcpRequest(request.headers),
         });
         return {};
@@ -107,7 +106,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
       return listWebhooks(team.id);
     },
     {
-      permission: ['webhooks', 'read'],
+      teamWebhooks: true,
       response: {
         200: t.Array(WebhookResponse),
         401: ErrorResponse,
@@ -133,7 +132,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     },
     {
       body: createBody,
-      permission: ['webhooks', 'create'],
+      teamWebhooks: true,
       response: {
         201: WebhookResponse,
         400: ErrorResponse,
@@ -195,7 +194,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     },
     {
       params: webhookParams,
-      webhook: 'edit',
+      webhook: true,
       response: {
         200: WebhookResponse,
         400: ErrorResponse,
@@ -226,7 +225,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         enabled: t.Optional(t.Boolean()),
       }),
       params: webhookParams,
-      webhook: 'edit',
+      webhook: true,
       response: {
         200: WebhookResponse,
         400: ErrorResponse,
@@ -246,7 +245,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     },
     {
       params: webhookParams,
-      webhook: 'delete',
+      webhook: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -269,7 +268,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         before: t.Optional(t.String()),
         limit: t.Optional(t.Numeric()),
       }),
-      webhook: 'read',
+      webhook: true,
       response: {
         200: WebhookDeliveryPageResponse,
         400: ErrorResponse,

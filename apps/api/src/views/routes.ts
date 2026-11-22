@@ -29,7 +29,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
   // path). Set `savedView: "<action>"` in the route options.
   .macro({
     savedView: entityGuard(
-      'views',
       'View not found',
       async (p) => (await getView(p.viewId))?.teamId ?? null,
     ),
@@ -40,7 +39,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       return listViews(team.id);
     },
     {
-      permission: ['views', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Array(ViewResponse),
         401: ErrorResponse,
@@ -68,7 +67,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
         filters: t.Optional(t.Any()),
         display: t.Optional(t.Any()),
       }),
-      permission: ['views', 'create'],
+      teamAccess: 'see',
       response: {
         201: ViewResponse,
         400: ErrorResponse,
@@ -92,7 +91,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
-      permission: ['views', 'edit'],
+      teamAccess: 'see',
       response: {
         200: t.Array(ViewResponse),
         400: ErrorResponse,
@@ -123,7 +122,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
         display: t.Optional(t.Any()),
       }),
       params: viewParams,
-      savedView: 'edit',
+      savedView: 'see',
       response: {
         200: ViewResponse,
         400: ErrorResponse,
@@ -147,7 +146,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
     },
     {
       params: viewParams,
-      savedView: 'delete',
+      savedView: 'see',
       response: {
         204: t.Void(),
         400: ErrorResponse,

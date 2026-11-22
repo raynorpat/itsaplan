@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // An issue's timeline (issue_activity): comments (POST /issues/:issueId/comments)
 // and change-log entries recorded by the issue mutation routes, merged and paged
@@ -308,24 +309,23 @@ describe('issue activity', () => {
     it('denies a non-member on the feed, timeline and comment routes', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId)).data!;
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
-      // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert
-      // the top-level HTTP status rather than error.status.
+      // Assert the top-level HTTP status rather than error.status.
       expect((await outsider.issues({ issueId: issue.id }).feed.get({ query: {} })).status).toBe(
-        403,
+        404,
       );
-      expect((await outsider.issues({ issueId: issue.id }).timeline.get()).status).toBe(403);
+      expect((await outsider.issues({ issueId: issue.id }).timeline.get()).status).toBe(404);
       expect(
         (
           await outsider
             .issues({ issueId: issue.id })
             .timeline.items.get({ query: { from: new Date(0).toISOString() } })
         ).status,
-      ).toBe(403);
+      ).toBe(404);
       expect(
         (await outsider.issues({ issueId: issue.id }).comments.post({ body: 'x' })).status,
-      ).toBe(403);
+      ).toBe(404);
     });
   });
 });

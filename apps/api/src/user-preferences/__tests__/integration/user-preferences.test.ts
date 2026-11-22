@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { api, authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Account preferences are self-scoped: a user only ever reads and writes their own
 // row, so there is no team or permission wiring to cover. A read before any write
@@ -120,7 +121,7 @@ describe('user preferences', () => {
 
   it('rejects a team the user is not a member of', async () => {
     const owner = await signUpTestUser();
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const created = await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
 
     const res = await authedApi(outsider.cookie).account.preferences.patch({

@@ -1,8 +1,8 @@
 import { db, team, webhook, webhookDelivery } from '@repo/db';
 import { and, desc, eq, inArray, or, type SQL } from 'drizzle-orm';
-import { assertPermission } from '../../shared/access';
+import { assertTeamWebhookAccess, visibleTeamIdList } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
-import { memberTeamIds } from '../../projects/access';
+
 import {
   assertAllTeamsManager,
   assertWebhookAccess,
@@ -53,8 +53,8 @@ type GraphQLWebhook = ReturnType<typeof toWebhook>;
 // The teams whose webhooks the viewer may read.
 async function readableTeams(ctx: GraphQLContext): Promise<string[]> {
   const out: string[] = [];
-  for (const teamId of await memberTeamIds(ctx.user.id)) {
-    const allowed = await assertPermission(teamId, ctx.user, 'webhooks', 'read').then(
+  for (const teamId of await visibleTeamIdList(ctx.user.id)) {
+    const allowed = await assertTeamWebhookAccess(teamId, ctx.user).then(
       () => true,
       () => false,
     );
@@ -106,7 +106,7 @@ function assertResourceTypes(types: string[] | undefined) {
 async function webhookFor(id: string, ctx: GraphQLContext, action: 'read' | 'edit' | 'delete') {
   if (!UUID_RE.test(id)) throw gqlError('ENTITY_NOT_FOUND', `Webhook ${id} not found`);
   try {
-    return await assertWebhookAccess(id, ctx.user, action);
+    return await assertWebhookAccess(id, ctx.user);
   } catch (err) {
     if (action === 'read' && err instanceof HttpError)
       throw gqlError('ENTITY_NOT_FOUND', `Webhook ${id} not found`);
@@ -186,7 +186,7 @@ export const webhookResolvers = {
             'Set exactly one of input.teamId and input.allPublicTeams',
           );
         if (allTeams) await assertAllTeamsManager(ctx.user);
-        else await assertPermission(input.teamId!, ctx.user, 'webhooks', 'create');
+        else await assertTeamWebhookAccess(input.teamId!, ctx.user);
         const created = await createWebhook({
           teamId: allTeams ? null : input.teamId!,
           url: validateWebhookUrl(input.url),

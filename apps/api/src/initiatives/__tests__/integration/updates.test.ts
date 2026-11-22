@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { assertParentAccess, createComment } from '../../../comments/store';
 import { assertReactionParentAccess, createReaction } from '../../../reactions/store';
 import { createInitiative } from '../../store';
@@ -69,16 +70,16 @@ describe('initiative updates', () => {
     expect(c.initiativeUpdateId).toBe(posted.id);
     const r = await createReaction({ parent, emoji: '👍', userId: owner.userId });
     expect(r.initiativeUpdateId).toBe(posted.id);
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const invite = await asOwner
       .teams({ teamKey: 'OPS' })
       .invites.post({ email: outsider.email, role: 'member' });
     await authedApi(outsider.cookie).invites({ token: invite.data!.token }).accept.post();
     const user = { id: outsider.userId } as Parameters<typeof assertParentAccess>[1];
-    expect(await status(assertParentAccess(parent, user, 'read'))).toBe(404);
+    expect(await status(assertParentAccess(parent, user))).toBe(404);
     expect(await status(assertReactionParentAccess(parent, user))).toBe(404);
     const ownerUser = { id: owner.userId } as Parameters<typeof assertParentAccess>[1];
-    expect(await status(assertParentAccess(parent, ownerUser, 'create'))).toBe(200);
+    expect(await status(assertParentAccess(parent, ownerUser))).toBe(200);
   });
 
   it('sends InitiativeUpdate webhooks', async () => {

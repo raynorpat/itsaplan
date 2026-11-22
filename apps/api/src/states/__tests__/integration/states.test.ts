@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Columns (kanban states). There is no GET /columns route — a column is read back
 // through the team view (GET /teams/:teamKey), whose `columns` field is
@@ -387,12 +388,12 @@ describe('columns', () => {
     it('denies a non-member', async () => {
       const { asOwner } = await setupTeam();
       const review = await addColumn(asOwner, 'Review', 'started');
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider
         .teams({ teamKey: 'MKT' })
         .states({ stateId: review.id })
         .archive.post();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 

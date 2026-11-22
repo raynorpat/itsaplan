@@ -1,4 +1,5 @@
-import { db, notification, teamMember } from '@repo/db';
+import { visibleTeamIds } from '../../shared/access';
+import { db, notification } from '@repo/db';
 import { and, eq, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import { commentParentUrl, getComment } from '../../comments/store';
 import {
@@ -50,14 +51,11 @@ export const toNotification = (row: NotificationRecord) => ({
 type GraphQLNotification = ReturnType<typeof toNotification>;
 type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
-// SQL over `notification`: the viewer's own, on issues of teams they belong to.
+// SQL over `notification`: the viewer's own, on issues of teams they can see.
 function ownNotificationsSql(userId: string): SQL {
   return and(
     eq(notification.userId, userId),
-    inArray(
-      notification.teamId,
-      db.select({ id: teamMember.teamId }).from(teamMember).where(eq(teamMember.userId, userId)),
-    ),
+    inArray(notification.teamId, visibleTeamIds(userId)),
   )!;
 }
 

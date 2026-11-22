@@ -1,3 +1,4 @@
+import { visibleTeamIdList } from '../../shared/access';
 import {
   db,
   projectLabel,
@@ -7,7 +8,7 @@ import {
   type ProjectStatusType,
 } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { assertProjectAccess, teamsGranting } from '../../projects/access';
+import { assertProjectAccess } from '../../projects/access';
 import {
   createProject,
   deleteProject,
@@ -111,12 +112,9 @@ function toProjectPatch(input: ProjectInput): ProjectPatch {
   return patch;
 }
 
-// Access to a project for `action` through its teams (404 when not visible).
-const projectAccess = (
-  projectId: string,
-  ctx: GraphQLContext,
-  action: 'read' | 'edit' | 'delete',
-) => assertProjectAccess(projectId, ctx.user.id, action);
+// Access to a project through its teams (404 when not visible).
+const projectAccess = (projectId: string, ctx: GraphQLContext) =>
+  assertProjectAccess(projectId, ctx.user.id);
 
 export const projectMutationResolvers = {
   Mutation: {
@@ -130,7 +128,7 @@ export const projectMutationResolvers = {
         if (!input.name) throw gqlError('INVALID_INPUT', 'input.name is required');
         if (!input.teamIds?.length)
           throw gqlError('INVALID_INPUT', 'input.teamIds needs at least one team');
-        const creatable = await teamsGranting(ctx.user.id, 'create');
+        const creatable = await visibleTeamIdList(ctx.user.id);
         if (!input.teamIds.every((t) => creatable.includes(t)))
           throw gqlError(
             'FORBIDDEN',
@@ -157,12 +155,12 @@ export const projectMutationResolvers = {
       guard(async () => {
         onlySupported(input, ['teamIds', ...PROJECT_FIELDS], 'input');
         const found = await findProject(id, ctx);
-        const access = await projectAccess(found.id, ctx, 'edit');
+        const access = await projectAccess(found.id, ctx);
         const patch = toProjectPatch(input);
         if (input.teamIds !== undefined) {
           // One webhook update covers the team change and the field changes.
           const before = await projectData(found.id);
-          const editable = await teamsGranting(ctx.user.id, 'edit');
+          const editable = await visibleTeamIdList(ctx.user.id);
           await setProjectTeams(
             found.id,
             access.readableTeamIds,
@@ -185,7 +183,7 @@ export const projectMutationResolvers = {
     projectArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findProject(id, ctx);
-        await projectAccess(found.id, ctx, 'edit');
+        await projectAccess(found.id, ctx);
         await setProjectArchived(found.id, true, ctx.user.id);
         return {
           success: true,
@@ -197,7 +195,7 @@ export const projectMutationResolvers = {
     projectUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findProject(id, ctx);
-        await projectAccess(found.id, ctx, 'edit');
+        await projectAccess(found.id, ctx);
         await setProjectArchived(found.id, false, ctx.user.id);
         return {
           success: true,
@@ -210,7 +208,7 @@ export const projectMutationResolvers = {
     projectDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findProject(id, ctx);
-        await projectAccess(found.id, ctx, 'delete');
+        await projectAccess(found.id, ctx);
         await deleteProject(found.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: found };
       }),
@@ -238,7 +236,7 @@ export const projectMutationResolvers = {
         );
         if (!input.name) throw gqlError('INVALID_INPUT', 'input.name is required');
         const found = await findProject(input.projectId, ctx);
-        await projectAccess(found.id, ctx, 'edit');
+        await projectAccess(found.id, ctx);
         const m = await createMilestone(found.id, input);
         const [row] = await db.select().from(projectMilestone).where(eq(projectMilestone.id, m.id));
         return { success: true, lastSyncId: lastSyncId(), projectMilestone: toMilestone(row!) };
@@ -265,7 +263,7 @@ export const projectMutationResolvers = {
         if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         const m = await getMilestone(id);
         if (!m) throw gqlError('ENTITY_NOT_FOUND', `Project milestone ${id} not found`);
-        await projectAccess(m.projectId, ctx, 'edit');
+        await projectAccess(m.projectId, ctx);
         await updateMilestone(id, input);
         const [row] = await db.select().from(projectMilestone).where(eq(projectMilestone.id, id));
         return { success: true, lastSyncId: lastSyncId(), projectMilestone: toMilestone(row!) };
@@ -275,7 +273,7 @@ export const projectMutationResolvers = {
       guard(async () => {
         const m = await getMilestone(id);
         if (!m) throw gqlError('ENTITY_NOT_FOUND', `Project milestone ${id} not found`);
-        await projectAccess(m.projectId, ctx, 'edit');
+        await projectAccess(m.projectId, ctx);
         await deleteMilestone(id);
         return { success: true, lastSyncId: lastSyncId(), entityId: id };
       }),
@@ -318,7 +316,7 @@ export const projectMutationResolvers = {
           throw gqlError('INVALID_INPUT', 'input.health is not a health value');
         const u = await getUpdate(id);
         if (!u) throw gqlError('ENTITY_NOT_FOUND', `Project update ${id} not found`);
-        await projectAccess(u.projectId, ctx, 'read');
+        await projectAccess(u.projectId, ctx);
         if (u.userId !== ctx.user.id)
           throw gqlError('FORBIDDEN', 'Only the author can edit an update');
         await updateUpdate(
@@ -330,12 +328,12 @@ export const projectMutationResolvers = {
         return { success: true, lastSyncId: lastSyncId(), projectUpdate: toUpdate(row!) };
       }),
 
-    // The author, or anyone with projects.edit on the project, deletes an update.
+    // Anyone who can see the project deletes an update.
     projectUpdateDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const u = await getUpdate(id);
         if (!u) throw gqlError('ENTITY_NOT_FOUND', `Project update ${id} not found`);
-        await projectAccess(u.projectId, ctx, u.userId === ctx.user.id ? 'read' : 'edit');
+        await projectAccess(u.projectId, ctx);
         await deleteUpdate(id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entityId: id };
       }),

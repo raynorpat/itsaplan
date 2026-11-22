@@ -76,7 +76,7 @@ async function readableComment(id: string, ctx: GraphQLContext): Promise<Comment
   const found = UUID_RE.test(id) ? await getComment(id) : null;
   if (found) {
     try {
-      await assertParentAccess(commentParent(found), ctx.user, 'read');
+      await assertParentAccess(commentParent(found), ctx.user);
       return found;
     } catch (err) {
       if (!(err instanceof HttpError)) throw err;
@@ -232,7 +232,7 @@ export const commentResolvers = {
         );
         if (!input.body) throw gqlError('INVALID_INPUT', 'input.body is required');
         const parent = parentOf(input);
-        await assertParentAccess(parent, ctx.user, 'create');
+        await assertParentAccess(parent, ctx.user);
         const created = await createComment({
           parent,
           parentId: input.parentId,

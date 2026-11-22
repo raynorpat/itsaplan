@@ -1,4 +1,5 @@
-import { db, projectLabel, teamMember } from '@repo/db';
+import { workspaceRole } from '../shared/access';
+import { db, projectLabel } from '@repo/db';
 import { asc, eq } from 'drizzle-orm';
 import { HttpError, iso, rethrowDuplicate } from '../shared/lib';
 
@@ -111,13 +112,9 @@ export async function deleteProjectLabel(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-// Project labels are workspace-level: any user who is a member of at least one
-// team may read and manage them (Linear's default). Throws 403 otherwise.
+// Project labels are workspace-level: owners, admins and members read and manage
+// them, guests do not (Linear). Throws 403 otherwise.
 export async function assertLabelManager(userId: string): Promise<void> {
-  const rows = await db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, userId))
-    .limit(1);
-  if (rows.length === 0) throw new HttpError(403, 'Project labels need membership in a team');
+  if ((await workspaceRole(userId)) === 'guest')
+    throw new HttpError(403, 'Guests cannot manage workspace labels');
 }

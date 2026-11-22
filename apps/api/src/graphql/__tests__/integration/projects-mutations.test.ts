@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
 // Project, milestone, update and label mutations over the Linear API, through the
@@ -44,6 +45,7 @@ describe('graphql project mutations', () => {
 
   it('keeps a team the viewer cannot see when replacing teamIds', async () => {
     const { asOwner, mkt, ops, client } = await setup();
+    await makePrivate(asOwner, 'OPS');
     const project = (await (
       await client.createProject({ name: 'Shared', teamIds: [mkt.team.id, ops.team.id] })
     ).project)!;

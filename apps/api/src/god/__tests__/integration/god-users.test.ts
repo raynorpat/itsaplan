@@ -42,7 +42,7 @@ describe('god users', () => {
         id: god.id,
         email: 'root@example.com',
         name: 'Root',
-        role: 'god',
+        role: 'owner',
         emailVerified: false,
         // Signing up links the password provider and opens a session.
         providers: ['credential'],
@@ -94,7 +94,7 @@ describe('god users', () => {
   });
 
   describe('detail — GET /god/users/:userId', () => {
-    it('resolves an owner membership to full permissions', async () => {
+    it('reports an owner membership', async () => {
       const { god } = await setup();
       const alice = await addUser({ name: 'Alice', email: 'alice@example.com' });
       await alice.api.teams.post({ key: 'MKT', name: 'Marketing' });
@@ -107,17 +107,12 @@ describe('god users', () => {
         teamKey: 'MKT',
         teamName: 'Marketing',
         role: 'owner',
-        roleId: null,
-        roleName: null,
         // Alice is the only owner, so deleting her would leave MKT unmanaged.
         ownerCount: 1,
       });
-      // An owner bypasses the matrix, so every resource comes back granted.
-      expect(res.data?.teams[0].permissions.work_items.create).toBe(true);
-      expect(res.data?.teams[0].permissions.members_manage.delete).toBe(true);
     });
 
-    it("resolves a member membership to the assigned role's matrix", async () => {
+    it('reports a plain membership as member', async () => {
       const { god } = await setup();
       const alice = await addUser({ email: 'alice@example.com' });
       const bob = await addUser({ email: 'bob@example.com' });
@@ -130,12 +125,8 @@ describe('god users', () => {
       expect(res.data?.teams[0]).toMatchObject({
         teamKey: 'MKT',
         role: 'member',
-        roleName: 'Member',
         ownerCount: 1,
       });
-      // The default Member role: full work items, no member management.
-      expect(res.data?.teams[0].permissions.work_items.create).toBe(true);
-      expect(res.data?.teams[0].permissions.members_manage.read).toBe(false);
     });
 
     it('counts every owner of a shared team', async () => {

@@ -11,7 +11,7 @@ import {
   setGoogleSettings,
 } from '@repo/auth';
 import { authContext } from '../shared/auth-context';
-import { requireGod } from '../shared/access';
+import { requireWorkspaceAdmin } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { noContent } from '../shared/http';
@@ -123,10 +123,6 @@ const InstanceUserResponse = t.Object({
   createdAt: t.String(),
 });
 
-// The permission matrix as returned: for each resource, the create/edit/read/
-// delete flags. Same shape as the roles API returns.
-const PermissionMatrix = t.Record(t.String(), t.Record(t.String(), t.Boolean()));
-
 const InstanceUserDetailResponse = t.Composite([
   InstanceUserResponse,
   t.Object({
@@ -136,9 +132,6 @@ const InstanceUserDetailResponse = t.Composite([
         teamKey: t.String(),
         teamName: t.String(),
         role: t.UnionEnum(['owner', 'member']),
-        roleId: t.Nullable(t.String({ format: 'uuid' })),
-        roleName: t.Nullable(t.String()),
-        permissions: PermissionMatrix,
         ownerCount: t.Number(),
         joinedAt: t.String(),
       }),
@@ -173,9 +166,6 @@ const InstanceTeamDetailResponse = t.Composite([
         email: t.String(),
         image: t.Nullable(t.String()),
         role: t.UnionEnum(['owner', 'member']),
-        roleId: t.Nullable(t.String({ format: 'uuid' })),
-        roleName: t.Nullable(t.String()),
-        permissions: PermissionMatrix,
         joinedAt: t.String(),
       }),
     ),
@@ -186,8 +176,8 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
   .use(authContext)
   // Every route in this plugin is instance administration, so the role check runs
   // once here instead of per route.
-  .onBeforeHandle(({ user }) => {
-    requireGod(user);
+  .onBeforeHandle(async ({ user }) => {
+    await requireWorkspaceAdmin(user);
   })
 
   .get(
@@ -409,8 +399,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       },
       detail: {
         summary: 'Get an instance user',
-        description:
-          'Get one account with the teams it can reach and the permissions its membership resolves to.',
+        description: 'Get one account with the teams it belongs to.',
       },
     },
   )
@@ -443,9 +432,8 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     async ({ params, query }) => {
       const target = await getInstanceUser(params.userId);
       if (!target) throw new HttpError(404, 'User not found');
-      // An instance owner is not removable here: the role is what grants god mode,
-      // so deleting one from inside it is how an instance loses its administration.
-      if (target.role === 'god') throw new HttpError(403, 'An instance owner cannot be deleted');
+      // A workspace owner is not removable here, so the workspace keeps an owner.
+      if (target.role === 'owner') throw new HttpError(403, 'A workspace owner cannot be deleted');
       // Teams this user owns alone. Their membership goes with the account, so
       // the team would be left with nobody who can manage it (god mode does not
       // bypass team membership). Either the caller takes those teams down
@@ -530,8 +518,7 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       },
       detail: {
         summary: 'Get an instance team',
-        description:
-          'Get one team with what it holds and every member, with the permissions each membership resolves to.',
+        description: 'Get one team with what it holds and every member.',
       },
     },
   );

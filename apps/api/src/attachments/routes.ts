@@ -89,8 +89,8 @@ export const attachmentRoutes = new Elysia({
   // `issueAttachment` for /issues/:issueId/attachments, `attachment` for
   // /attachments/:publicId. Both assert a work_items action on the owning team.
   .macro({
-    issueAttachment: entityGuard('work_items', 'Issue not found', (p) => getIssueTeamId(p.issueId)),
-    attachment: entityGuard('work_items', 'Attachment not found', async (p) => {
+    issueAttachment: entityGuard('Issue not found', (p) => getIssueTeamId(p.issueId)),
+    attachment: entityGuard('Attachment not found', async (p) => {
       const existing = await getAttachmentByPublicId(p.publicId);
       if (!existing) return null;
       return getIssueTeamId(existing.issueId);
@@ -104,7 +104,7 @@ export const attachmentRoutes = new Elysia({
     },
     {
       params: issueParams,
-      issueAttachment: 'read',
+      issueAttachment: 'see',
       response: {
         200: t.Array(AttachmentSchema),
         400: ErrorResponse,
@@ -162,7 +162,7 @@ export const attachmentRoutes = new Elysia({
     {
       body: t.Object({ file: t.File() }),
       params: issueParams,
-      issueAttachment: 'create',
+      issueAttachment: 'see',
       response: {
         201: AttachmentSchema,
         400: ErrorResponse,
@@ -251,7 +251,7 @@ export const attachmentRoutes = new Elysia({
         contentBase64: t.Optional(t.String()),
         contentType: t.Optional(t.String()),
       }),
-      issueAttachment: 'create',
+      issueAttachment: 'see',
       response: {
         201: AttachmentSchema,
         400: ErrorResponse,
@@ -279,7 +279,7 @@ export const attachmentRoutes = new Elysia({
       return noContent();
     },
     {
-      attachment: 'delete',
+      attachment: 'see',
       response: {
         204: t.Void(),
         401: ErrorResponse,

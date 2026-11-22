@@ -57,9 +57,9 @@ export async function assertReactionParentAccess(parent: ReactionParent, user: A
   if ('commentId' in parent) {
     const found = await getComment(parent.commentId);
     if (!found) throw new HttpError(404, 'Comment not found');
-    return assertParentAccess(commentParent(found), user, 'read');
+    return assertParentAccess(commentParent(found), user);
   }
-  return assertParentAccess(parent, user, 'read');
+  return assertParentAccess(parent, user);
 }
 
 // The teams of the item a reaction is on, for its webhook events.

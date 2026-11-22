@@ -8,7 +8,6 @@ import {
   projectTeam,
   projectUpdate,
   team,
-  teamMember,
   user,
 } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
@@ -19,9 +18,14 @@ import { emitEvent } from '../webhooks/event';
 import { commentData } from '../webhooks/data';
 import { notifyComment } from '../notifications/store';
 import { parseMentions } from '../shared/mentions';
-import { getMembership } from '../members/store';
-import { assertPermission, type AuthUser } from '../shared/access';
-import { assertProjectAccess, projectsInTeams, teamsGranting } from '../projects/access';
+import {
+  assertTeamAccess,
+  type AuthUser,
+  visibleTeamIdList,
+  canManageTeam,
+  visibleTeamIds,
+} from '../shared/access';
+import { assertProjectAccess, projectsInTeams } from '../projects/access';
 import { assertInitiativeAccess, visibleInitiativesSql } from '../initiatives/access';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
 import { assertDocumentParentAccess, visibleDocumentsSql } from '../documents/access';
@@ -295,16 +299,16 @@ export async function updateComment(
   return updated;
 }
 
-// Deletes a comment (its replies go with it). The author, or an owner of one of the
-// comment's teams, may delete; 403 otherwise.
+// Deletes a comment (its replies go with it). The author, or a manager of one of
+// the comment's teams, may delete; 403 otherwise.
 export async function deleteComment(id: string, actorUserId: string): Promise<void> {
   const found = await findComment(id);
   if (found.userId !== actorUserId) {
-    const owners = await Promise.all(
-      (await commentTeamIds(found)).map((t) => getMembership(t, actorUserId)),
+    const managers = await Promise.all(
+      (await commentTeamIds(found)).map((t) => canManageTeam(t, actorUserId)),
     );
-    if (!owners.includes('owner'))
-      throw new HttpError(403, 'Only the author or a team owner can delete a comment');
+    if (!managers.includes(true))
+      throw new HttpError(403, 'Only the author or a team manager can delete a comment');
   }
   const beforeData = await commentData(id);
   await db.delete(comment).where(eq(comment.id, id));
@@ -362,34 +366,29 @@ async function setResolved(
   return updated;
 }
 
-// Access to a comment's parent for `action`: an issue through team membership
-// (create needs work_items.create), a project or project update through a team
-// granting projects.read. 404 when the viewer cannot read it.
-export async function assertParentAccess(
-  parent: CommentParent,
-  user: AuthUser,
-  action: 'read' | 'create',
-): Promise<void> {
+// Access to a comment's parent: reading and commenting both need the parent to be
+// visible (an issue through its team, a project or update through one of its
+// teams). 404 when the viewer cannot see it.
+export async function assertParentAccess(parent: CommentParent, user: AuthUser): Promise<void> {
   if ('issueId' in parent) {
     const [row] = await db
       .select({ teamId: issue.teamId })
       .from(issue)
       .where(eq(issue.id, parent.issueId));
-    if (!row || !(await getMembership(row.teamId, user.id)))
-      throw new HttpError(404, 'Issue not found');
-    if (action === 'create') await assertPermission(row.teamId, user, 'work_items', 'create');
+    if (!row) throw new HttpError(404, 'Issue not found');
+    await assertTeamAccess(row.teamId, user, 'see', 'Issue not found');
     return;
   }
   if ('documentId' in parent) {
     const found = await getDocument(parent.documentId);
     if (!found) throw new HttpError(404, 'Document not found');
-    await assertDocumentParentAccess(documentParent(found), user, 'read');
+    await assertDocumentParentAccess(documentParent(found), user);
     return;
   }
   if ('initiativeUpdateId' in parent) {
     const initiativeId = await updateInitiativeId(parent.initiativeUpdateId);
     if (!initiativeId) throw new HttpError(404, 'Initiative update not found');
-    await assertInitiativeAccess(initiativeId, user.id, 'read');
+    await assertInitiativeAccess(initiativeId, user.id);
     return;
   }
   let projectId = 'projectId' in parent ? parent.projectId : null;
@@ -397,7 +396,7 @@ export async function assertParentAccess(
     projectId = await updateProjectId(parent.projectUpdateId);
     if (!projectId) throw new HttpError(404, 'Project update not found');
   }
-  await assertProjectAccess(projectId!, user.id, 'read');
+  await assertProjectAccess(projectId!, user.id);
 }
 
 // The comment's parent, for assertParentAccess.
@@ -409,14 +408,11 @@ export function commentParent(c: CommentRow): CommentParent {
   return { projectUpdateId: c.projectUpdateId! };
 }
 
-// SQL over `comment`: the comments a user can read (their teams' issues, and the
-// projects / project updates of teams granting projects.read).
+// SQL over `comment`: the comments a user can read (issues, projects and project
+// updates of the teams they can see).
 export async function readableCommentsSql(userId: string): Promise<SQL> {
-  const projects = projectsInTeams(await teamsGranting(userId, 'read'));
-  const memberTeams = db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, userId));
+  const projects = projectsInTeams(await visibleTeamIdList(userId));
+  const memberTeams = visibleTeamIds(userId);
   return or(
     inArray(
       comment.issueId,

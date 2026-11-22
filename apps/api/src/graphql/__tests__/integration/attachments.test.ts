@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createAttachment } from '../../../attachments/store';
 
@@ -116,7 +117,7 @@ describe('graphql attachments', () => {
     const { client, issueId } = await setup();
     const url = 'https://example.com/secret';
     const link = (await (await client.createAttachment({ issueId, title: 'S', url })).attachment)!;
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const one = await gql({ cookie: outsider.cookie }, `{ attachment(id: "${link.id}") { id } }`);
     expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
     const lists = await gql(
@@ -160,21 +161,14 @@ describe('graphql attachments', () => {
     expect(errorCode(script)).toBe('INVALID_INPUT');
   });
 
-  it('needs work_items.create to attach', async () => {
-    const { asOwner, issueId } = await setup();
-    const role = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
-    const user = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: user.email, role: 'member', roleId: role.data!.id });
-    await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
+  it('needs to see the team to attach', async () => {
+    const { issueId } = await setup();
+    const guest = await signUpWithRole('guest');
     const res = await gql(
-      { cookie: user.cookie },
+      { cookie: guest.cookie },
       `mutation { attachmentCreate(input: { issueId: "${issueId}", title: "X", url: "https://e.com" }) { success } }`,
     );
-    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
   });
 
   it('filters attachments', async () => {
@@ -260,7 +254,7 @@ describe('graphql attachments', () => {
     const link = (await (
       await client.createAttachment({ issueId, title: 'S', url: 'https://e.com/s' })
     ).attachment)!;
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const res = await gql({ cookie: outsider.cookie }, `{ attachment(id: "${link.id}") { id } }`);
     expect(errorMessage(res)).toBe(`Attachment ${link.id} not found`);
   });

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { api, authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Attachments feature: metadata in Postgres, bytes in the object store (shared/
 // s3.ts against a real RustFS — see the Tests setup for S3_* env). This is the
@@ -73,12 +74,12 @@ describe('attachments', () => {
     expect(res.status).toBe(400);
   });
 
-  it('denies a non-member uploading to an issue', async () => {
+  it('hides the issue from a guest outside the team when uploading', async () => {
     const { issueId } = await setupIssue();
-    const outsider = authedApi((await signUpTestUser()).cookie);
+    const outsider = (await signUpWithRole('guest')).api;
     const file = new File(['x'], 'x.txt', { type: 'text/plain' });
     const res = await outsider.issues({ issueId }).attachments.post({ file });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   describe('list', () => {
@@ -97,11 +98,11 @@ describe('attachments', () => {
       expect(res.status).toBe(404);
     });
 
-    it("denies a non-member listing an issue's attachments", async () => {
+    it("hides an issue's attachments from a guest outside the team", async () => {
       const { issueId } = await setupIssue();
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.issues({ issueId }).attachments.get();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -114,12 +115,12 @@ describe('attachments', () => {
       expect(res.status).toBe(404);
     });
 
-    it('denies a non-member deleting an attachment', async () => {
+    it('hides an attachment from a guest outside the team when deleting', async () => {
       const { asOwner, issueId } = await setupIssue();
       const up = await uploadFile(asOwner, issueId, 'note.txt', 'text/plain');
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.attachments({ publicId: up.data!.id }).delete();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 

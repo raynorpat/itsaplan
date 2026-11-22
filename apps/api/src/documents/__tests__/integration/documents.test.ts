@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import type { AuthUser } from '../../../shared/access';
 import { assertDocumentParentAccess } from '../../access';
 import {
@@ -28,16 +29,6 @@ async function setup() {
   const issue = (await asOwner.teams({ teamKey: 'OPS' }).issues.post({ stateId, title: 'Bug' }))
     .data!;
   return { owner, asOwner, project, issue };
-}
-
-async function addMember(owner: Api, teamKey: string, permissions: Record<string, unknown>) {
-  const role = await owner.teams({ teamKey }).roles.post({ name: 'Limited', permissions });
-  const user = await signUpTestUser();
-  const invite = await owner
-    .teams({ teamKey })
-    .invites.post({ email: user.email, role: 'member', roleId: role.data!.id });
-  await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
-  return user;
 }
 
 const asUser = (id: string) => ({ id }) as AuthUser;
@@ -95,23 +86,22 @@ describe('documents', () => {
 
   it('follows the access of the parent', async () => {
     const { asOwner, project, issue } = await setup();
-    const blind = await addMember(asOwner, 'MKT', { projects: {} });
+    await makePrivate(asOwner, 'MKT');
+    const member = await signUpWithRole('member');
     expect(
-      await status(
-        assertDocumentParentAccess({ projectId: project.id }, asUser(blind.userId), 'read'),
-      ),
+      await status(assertDocumentParentAccess({ projectId: project.id }, asUser(member.userId))),
     ).toBe(404);
-    const reader = await addMember(asOwner, 'OPS', { work_items: { read: true } });
     expect(
-      await status(
-        assertDocumentParentAccess({ issueId: issue.id }, asUser(reader.userId), 'read'),
-      ),
+      await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(member.userId))),
     ).toBe(200);
+    const guest = await signUpWithRole('guest');
     expect(
-      await status(
-        assertDocumentParentAccess({ issueId: issue.id }, asUser(reader.userId), 'edit'),
-      ),
-    ).toBe(403);
+      await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(guest.userId))),
+    ).toBe(404);
+    await addToTeam(asOwner, 'OPS', guest);
+    expect(
+      await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(guest.userId))),
+    ).toBe(200);
   });
 
   it('moves a document from a project to an issue and tells both teams', async () => {

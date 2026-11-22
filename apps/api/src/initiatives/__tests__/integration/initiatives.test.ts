@@ -3,6 +3,7 @@ import { db, initiative } from '@repo/db';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { assertInitiativeAccess, assertLeadTeamMember, visibleInitiativesSql } from '../../access';
 import {
   archiveInitiative,
@@ -24,11 +25,9 @@ async function setup() {
   return { owner, asOwner, mkt: await teamId('MKT'), ops: await teamId('OPS') };
 }
 
-async function addMember(owner: Api, teamKey: string, roleId?: string) {
+async function addMember(owner: Api, teamKey: string) {
   const user = await signUpTestUser();
-  const invite = await owner
-    .teams({ teamKey })
-    .invites.post({ email: user.email, role: 'member', ...(roleId ? { roleId } : {}) });
+  const invite = await owner.teams({ teamKey }).invites.post({ email: user.email, role: 'member' });
   const api = authedApi(user.cookie);
   await api.invites({ token: invite.data!.token }).accept.post();
   return { user, api };
@@ -101,26 +100,24 @@ describe('initiatives', () => {
 
   it('limits a lead-team initiative to that team', async () => {
     const { owner, asOwner, mkt } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const workspace = await createInitiative({ name: 'W' }, owner.userId);
     const led = await createInitiative({ name: 'L', leadTeamId: mkt }, owner.userId);
     const opsMember = await addMember(asOwner, 'OPS');
     expect(await visibleIds(opsMember.user.userId)).toEqual([workspace.id]);
-    expect(await status(assertInitiativeAccess(led.id, opsMember.user.userId, 'read'))).toBe(404);
-    expect((await assertInitiativeAccess(workspace.id, opsMember.user.userId, 'read')).id).toBe(
+    expect(await status(assertInitiativeAccess(led.id, opsMember.user.userId))).toBe(404);
+    expect((await assertInitiativeAccess(workspace.id, opsMember.user.userId)).id).toBe(
       workspace.id,
     );
-    const role = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .roles.post({ name: 'Readers', permissions: { projects: { read: true } } });
-    const reader = await addMember(asOwner, 'MKT', role.data!.id);
-    expect((await assertInitiativeAccess(led.id, reader.user.userId, 'read')).id).toBe(led.id);
-    expect(await status(assertInitiativeAccess(led.id, reader.user.userId, 'edit'))).toBe(403);
-    const outsider = await signUpTestUser();
-    expect(await visibleIds(outsider.userId)).toEqual([]);
+    const mktMember = await addMember(asOwner, 'MKT');
+    expect((await assertInitiativeAccess(led.id, mktMember.user.userId)).id).toBe(led.id);
+    const guest = await signUpWithRole('guest');
+    expect(await visibleIds(guest.userId)).toEqual([]);
   });
 
   it('keeps the owner able to see the initiative', async () => {
     const { owner, asOwner, mkt, ops } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const opsMember = await addMember(asOwner, 'OPS');
     expect(
       await status(
@@ -146,6 +143,7 @@ describe('initiatives', () => {
 
   it('turns initiatives of a deleted team into workspace initiatives', async () => {
     const { owner, asOwner, mkt } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const led = await createInitiative({ name: 'L', leadTeamId: mkt }, owner.userId);
     const opsMember = await addMember(asOwner, 'OPS');
     expect(await visibleIds(opsMember.user.userId)).toEqual([]);

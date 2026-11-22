@@ -53,7 +53,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         color: t.Optional(t.String()),
         description: t.Optional(t.String()),
       }),
-      permission: ['states', 'create'],
+      teamAccess: 'manage',
       response: {
         201: WorkflowStateResponse,
         400: ErrorResponse,
@@ -81,7 +81,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
     },
     {
       body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
-      permission: ['states', 'edit'],
+      teamAccess: 'manage',
       response: {
         200: t.Array(WorkflowStateResponse),
         400: ErrorResponse,
@@ -114,7 +114,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         description: t.Optional(t.String()),
       }),
       params: stateParams,
-      permission: ['states', 'edit'],
+      teamAccess: 'manage',
       response: {
         200: WorkflowStateResponse,
         400: ErrorResponse,
@@ -135,7 +135,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
     async ({ params, team }) => archiveState(params.stateId, team.id),
     {
       params: stateParams,
-      permission: ['states', 'edit'],
+      teamAccess: 'manage',
       response: {
         200: WorkflowStateResponse,
         401: ErrorResponse,
@@ -168,7 +168,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         t.Object({ mode: t.Literal('delete') }),
       ]),
       params: stateParams,
-      permission: ['states', 'delete'],
+      teamAccess: 'manage',
       response: {
         204: t.Void(),
         400: ErrorResponse,

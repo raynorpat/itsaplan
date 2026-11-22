@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
 // Issue labels over the Linear API: workspace and team labels, groups, retire and
@@ -100,7 +101,7 @@ describe('graphql labels', () => {
 
   it('refuses a workspace label from a user in no team', async () => {
     await setup();
-    const loner = await signUpTestUser();
+    const loner = await signUpWithRole('guest');
     const res = await gql(
       { cookie: loner.cookie },
       'mutation { issueLabelCreate(input: { name: "x" }) { success } }',

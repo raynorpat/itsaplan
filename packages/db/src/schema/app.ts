@@ -52,34 +52,43 @@ export const appSecret = pgTable('app_secret', {
 // issues. next_sequence is the atomic counter behind each issue's human
 // identifier (e.g. "MKT-42"): incrementing it under a row lock keeps concurrent
 // creates from colliding.
-export const team = pgTable('team', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  key: text('key').notNull().unique(),
-  name: text('name').notNull(),
-  description: text('description').notNull().default(''),
-  nextSequence: integer('next_sequence').notNull().default(1),
-  // Whether this team is reachable through the MCP server. Off by default: an
-  // owner opts a team in before agents can work with it over MCP.
-  mcpEnabled: boolean('mcp_enabled').notNull().default(false),
-  // Optional sections of the app, toggled per team in Settings -> Features. All
-  // on by default. Turning one off only hides its UI; the rows it owns stay and
-  // come back with it.
-  projectsEnabled: boolean('projects_enabled').notNull().default(true),
-  // Cycles (Linear's team cycle settings). Weeks for duration and cooldown;
-  // cycle_start_day is 0 = Sunday … 6 = Saturday. next_cycle_number issues cycle
-  // numbers under a row lock, like next_sequence for issues.
-  cyclesEnabled: boolean('cycles_enabled').notNull().default(false),
-  cycleDuration: integer('cycle_duration').notNull().default(2),
-  cycleStartDay: integer('cycle_start_day').notNull().default(1),
-  cycleCooldownTime: integer('cycle_cooldown_time').notNull().default(0),
-  upcomingCycleCount: integer('upcoming_cycle_count').notNull().default(2),
-  cycleIssueAutoAssignStarted: boolean('cycle_issue_auto_assign_started').notNull().default(false),
-  cycleIssueAutoAssignCompleted: boolean('cycle_issue_auto_assign_completed')
-    .notNull()
-    .default(false),
-  nextCycleNumber: integer('next_cycle_number').notNull().default(1),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const team = pgTable(
+  'team',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull().unique(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    nextSequence: integer('next_sequence').notNull().default(1),
+    // Whether this team is reachable through the MCP server. Off by default: an
+    // owner opts a team in before agents can work with it over MCP.
+    mcpEnabled: boolean('mcp_enabled').notNull().default(false),
+    // Linear's team visibility: a public team is open to every owner, admin and
+    // member of the workspace; a private team only to its members.
+    visibility: text('visibility').notNull().default('public'),
+    // Optional sections of the app, toggled per team in Settings -> Features. All
+    // on by default. Turning one off only hides its UI; the rows it owns stay and
+    // come back with it.
+    projectsEnabled: boolean('projects_enabled').notNull().default(true),
+    // Cycles (Linear's team cycle settings). Weeks for duration and cooldown;
+    // cycle_start_day is 0 = Sunday … 6 = Saturday. next_cycle_number issues cycle
+    // numbers under a row lock, like next_sequence for issues.
+    cyclesEnabled: boolean('cycles_enabled').notNull().default(false),
+    cycleDuration: integer('cycle_duration').notNull().default(2),
+    cycleStartDay: integer('cycle_start_day').notNull().default(1),
+    cycleCooldownTime: integer('cycle_cooldown_time').notNull().default(0),
+    upcomingCycleCount: integer('upcoming_cycle_count').notNull().default(2),
+    cycleIssueAutoAssignStarted: boolean('cycle_issue_auto_assign_started')
+      .notNull()
+      .default(false),
+    cycleIssueAutoAssignCompleted: boolean('cycle_issue_auto_assign_completed')
+      .notNull()
+      .default(false),
+    nextCycleNumber: integer('next_cycle_number').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('team_visibility_check', sql`${t.visibility} IN ('public', 'private')`)],
+);
 
 // Per-team key-value settings, mirroring app_setting but scoped to a team.
 // The value is a jsonb blob owned by whatever feature reads the key, so one table
@@ -146,44 +155,11 @@ export const userPreference = pgTable(
   ],
 );
 
-// Custom roles per team. A role carries a permission matrix: for each
-// resource (work_items, projects, ...) the create/edit/read/delete flags. The
-// matrix is a jsonb blob owned and enforced by the API (see
-// apps/api/src/shared/permissions.ts). Exactly one role per team is the
-// default ("Member"): it is assigned to members that join through an invite and
-// is the fallback for a member row with no explicit role. Owners bypass roles
-// entirely (they always have full access), so their team_member.role_id stays
-// NULL.
-export const teamRole = pgTable(
-  'team_role',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    isDefault: boolean('is_default').notNull().default(false),
-    permissions: jsonb('permissions').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique().on(t.teamId, t.name),
-    // At most one default role per team.
-    uniqueIndex('team_role_default_uq')
-      .on(t.teamId)
-      .where(sql`${t.isDefault}`),
-    index('team_role_team_idx').on(t.teamId),
-  ],
-);
-
-// Team membership: which users can access a team and their role in it.
-// A user reaches a team's columns, issues, labels, and every other
-// team-scoped entity only through a row here. The creator is inserted as
-// "owner"; a team can have several owners. Owners always have full access and
-// manage the member list. A "member" row carries role_id pointing at a
-// team_role whose permission matrix decides what that member may do; a NULL
-// role_id falls back to the team's default role. Access checks resolve the
-// owning team of any entity and look for the current user here.
+// Team membership (Linear's TeamMembership). Members of a private team are the only
+// users who see it; a public team is open to the workspace's owners, admins and
+// members, and joining it adds it to their teams. `owner` marks a team owner, who
+// manages the team; the creator is one. Access is decided in
+// apps/api/src/shared/access.ts.
 export const teamMember = pgTable(
   'team_member',
   {
@@ -193,27 +169,23 @@ export const teamMember = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role').notNull().default('member'),
-    roleId: uuid('role_id').references(() => teamRole.id, {
-      onDelete: 'set null',
-    }),
-    // What this member does in the team. Free text set by an owner, shown on the
+    // What this member does in the team. Free text set by a manager, shown on the
     // members page and given to agents so they can pick who to tag on an unassigned
     // issue. Empty string when unset.
     description: text('description').notNull().default(''),
+    // Linear's team owner: manages the team's settings and members.
+    owner: boolean('owner').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.teamId, t.userId] }),
-    check('team_member_role_check', sql`${t.role} IN ('owner', 'member')`),
     index('team_member_user_idx').on(t.userId),
   ],
 );
 
 // Team invites: a shareable link (token) that grants a specific email a
-// specific role in a team once accepted. The role is the owner/member flag
-// plus, for a member, role_id naming which custom role they join on. An owner
-// creates an invite; the
+// specific role in a team once accepted: team owner or member. A member creates an
+// invite (an owner invite needs a team manager); the
 // invited person opens the link and accepts (only if their session email matches
 // invite.email) or rejects it. Accepting creates the team_member row. At most
 // one pending invite per (team, email) — enforced by the partial unique index.
@@ -228,12 +200,6 @@ export const teamInvite = pgTable(
       .references(() => team.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
     role: text('role').notNull().default('member'),
-    // The custom role the invitee joins on when role is "member". NULL falls back
-    // to the team's default role. Owners bypass roles, so an owner invite keeps
-    // this NULL.
-    roleId: uuid('role_id').references(() => teamRole.id, {
-      onDelete: 'set null',
-    }),
     status: text('status').notNull().default('pending'),
     invitedByUserId: uuid('invited_by_user_id').references(() => user.id, {
       onDelete: 'set null',

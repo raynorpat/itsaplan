@@ -16,7 +16,7 @@ import {
   nonMembersOfTeam,
   replaceSubscribers,
 } from '../../notifications/subscriptions';
-import { assertPermission } from '../../shared/access';
+import { assertTeamAccess } from '../../shared/access';
 import { UUID_RE } from '../../shared/lib';
 import { deleteObjects } from '../../shared/s3';
 import type { GraphQLContext } from '../context';
@@ -201,7 +201,7 @@ export const mutationResolvers = {
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
         assertIssueInput(input);
         const found = await findTeam(input.teamId, ctx.user.id);
-        await assertPermission(found.id, ctx.user, 'work_items', 'create');
+        await assertTeamAccess(found.id, ctx.user, 'see');
         const team = (await getTeamByKey(found.key))!;
         const subscriberIds = subscriberIdsInput(input.subscriberIds);
         if ((await nonMembersOfTeam(team.id, subscriberIds)).length)
@@ -240,7 +240,7 @@ export const mutationResolvers = {
         onlySupported(input, [...ISSUE_FIELDS, ...LABEL_FIELDS, 'subscriberIds'], 'input');
         assertIssueInput(input);
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
+        await assertTeamAccess(row.teamId, ctx.user, 'see');
         const labelIds = await nextLabelIds(row.id, input);
         // subscriberIds replaces the subscribers before the update, so the update's
         // own triggers (a new assignee) subscribe on top of the new list.
@@ -273,7 +273,7 @@ export const mutationResolvers = {
         const rows = [];
         for (const id of ids) {
           const row = await findIssue(id, ctx.user.id);
-          await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
+          await assertTeamAccess(row.teamId, ctx.user, 'see');
           rows.push(row);
         }
         const patch = toPatch(input);
@@ -287,7 +287,7 @@ export const mutationResolvers = {
     issueArchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
+        await assertTeamAccess(row.teamId, ctx.user, 'see');
         await archiveIssue(row.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: await issueById(row.id) };
       }),
@@ -295,7 +295,7 @@ export const mutationResolvers = {
     issueUnarchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.teamId, ctx.user, 'work_items', 'edit');
+        await assertTeamAccess(row.teamId, ctx.user, 'see');
         await restoreIssue(row.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entity: await issueById(row.id) };
       }),
@@ -305,7 +305,7 @@ export const mutationResolvers = {
     issueDelete: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const row = await findIssue(id, ctx.user.id);
-        await assertPermission(row.teamId, ctx.user, 'work_items', 'delete');
+        await assertTeamAccess(row.teamId, ctx.user, 'see');
         const entity = toIssue(row);
         const attachments = await deleteIssue(row.id, ctx.user.id);
         if (attachments?.length) await deleteObjects(attachments.map((a) => a.s3Key!));
@@ -333,7 +333,7 @@ export const mutationResolvers = {
         if (!STATE_TYPES.has(input.type))
           throw gqlError('INVALID_INPUT', `input.type ${input.type} is not supported`);
         const team = await findTeam(input.teamId, ctx.user.id);
-        await assertPermission(team.id, ctx.user, 'states', 'create');
+        await assertTeamAccess(team.id, ctx.user, 'manage');
         const column = await createState({
           teamId: team.id,
           name: input.name,
@@ -363,7 +363,7 @@ export const mutationResolvers = {
         onlySupported(input, ['name', 'color', 'description'], 'input');
         if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         const state = await findState(id, ctx.user.id);
-        await assertPermission(state.teamId, ctx.user, 'states', 'edit');
+        await assertTeamAccess(state.teamId, ctx.user, 'manage');
         await updateState(state.id, state.teamId, {
           name: input.name ?? undefined,
           color: input.color ?? undefined,
@@ -379,7 +379,7 @@ export const mutationResolvers = {
     workflowStateArchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const state = await findState(id, ctx.user.id);
-        await assertPermission(state.teamId, ctx.user, 'states', 'edit');
+        await assertTeamAccess(state.teamId, ctx.user, 'manage');
         await archiveState(state.id, state.teamId);
         return { success: true, lastSyncId: lastSyncId(), entity: await stateById(state.id) };
       }),

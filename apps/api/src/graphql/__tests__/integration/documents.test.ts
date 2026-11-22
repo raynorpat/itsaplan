@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
 // Documents over the Linear API: CRUD, the trash, archived parents, visibility,
@@ -88,7 +89,7 @@ describe('graphql documents', () => {
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
-    const outsider = await signUpTestUser();
+    const outsider = await signUpWithRole('guest');
     const res = await gql({ cookie: outsider.cookie }, `{ document(id: "${doc.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     const list = await gql({ cookie: outsider.cookie }, '{ documents { nodes { id } } }');
@@ -148,20 +149,14 @@ describe('graphql documents', () => {
     ]);
   });
 
-  it('hides project documents and their comments from a member without projects.read', async () => {
+  it('hides project documents and their comments from a non-member of a private team', async () => {
     const { asOwner, client, project } = await setup();
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
     await client.createComment({ documentContentId: doc.id, body: 'Note' });
-    const role = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .roles.post({ name: 'Blind', permissions: { projects: {} } });
-    const user = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: user.email, role: 'member', roleId: role.data!.id });
-    await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
+    await makePrivate(asOwner, 'MKT');
+    const user = await signUpWithRole('member');
     const one = await gql({ cookie: user.cookie }, `{ document(id: "${doc.id}") { id } }`);
     expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
     const lists = await gql(
@@ -171,29 +166,18 @@ describe('graphql documents', () => {
     expect(lists.body.data).toEqual({ documents: { nodes: [] }, comments: { nodes: [] } });
   });
 
-  it('needs edit access to the new parent to move a document', async () => {
+  it('needs to see the new parent to move a document', async () => {
     const { asOwner, client, project, issue } = await setup();
-    const role = await asOwner
-      .teams({ teamKey: 'OPS' })
-      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
-    const user = await signUpTestUser();
-    for (const [teamKey, roleId] of [
-      ['MKT', undefined],
-      ['OPS', role.data!.id],
-    ] as const) {
-      const invite = await asOwner
-        .teams({ teamKey })
-        .invites.post({ email: user.email, role: 'member', ...(roleId ? { roleId } : {}) });
-      await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
-    }
+    const guest = await signUpWithRole('guest');
+    await addToTeam(asOwner, 'MKT', guest);
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
     const res = await gql(
-      { cookie: user.cookie },
+      { cookie: guest.cookie },
       `mutation { documentUpdate(id: "${doc.id}", input: { issueId: "${issue.id}" }) { success } }`,
     );
-    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     expect((await (await client.document(doc.id)).project)?.id).toBe(project.id);
   });
 

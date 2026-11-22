@@ -127,7 +127,7 @@ export async function findDocument(id: string, ctx: GraphQLContext): Promise<Doc
   return guard(async () => {
     const found = await getDocument(id);
     if (!found) throw gqlError('ENTITY_NOT_FOUND', `Document ${id} not found`);
-    await assertDocumentParentAccess(documentParent(found), ctx.user, 'read');
+    await assertDocumentParentAccess(documentParent(found), ctx.user);
     return found;
   });
 }
@@ -189,7 +189,7 @@ export const documentResolvers = {
         checkSortOrder(input);
         const parent = inputParent(input);
         if (!parent) throw gqlError('INVALID_INPUT', 'Set input.projectId or input.issueId');
-        await assertDocumentParentAccess(parent, ctx.user, 'edit');
+        await assertDocumentParentAccess(parent, ctx.user);
         const created = await createDocument(
           {
             ...(input as unknown as DocumentPatch),
@@ -210,9 +210,9 @@ export const documentResolvers = {
         checkIds(input, ['projectId', 'issueId', 'ownerId']);
         checkSortOrder(input);
         const found = await findDocument(id, ctx);
-        await assertDocumentParentAccess(documentParent(found), ctx.user, 'edit');
+        await assertDocumentParentAccess(documentParent(found), ctx.user);
         const target = inputParent(input);
-        if (target) await assertDocumentParentAccess(target, ctx.user, 'edit');
+        if (target) await assertDocumentParentAccess(target, ctx.user);
         const { hiddenAt, ...rest } = input;
         let hidden: Date | null | undefined;
         if (hiddenAt !== undefined) {
@@ -237,13 +237,13 @@ export const documentResolvers = {
         if (ifParentDocumentId != null)
           throw gqlError('INVALID_INPUT', 'Argument ifParentDocumentId is not supported');
         const found = await findDocument(id, ctx);
-        await assertDocumentParentAccess(documentParent(found), ctx.user, 'edit');
+        await assertDocumentParentAccess(documentParent(found), ctx.user);
         return archivePayload(await archiveDocument(found.id, ctx.user.id));
       }),
     documentUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findDocument(id, ctx);
-        await assertDocumentParentAccess(documentParent(found), ctx.user, 'edit');
+        await assertDocumentParentAccess(documentParent(found), ctx.user);
         return archivePayload(await unarchiveDocument(found.id, ctx.user.id));
       }),
   },

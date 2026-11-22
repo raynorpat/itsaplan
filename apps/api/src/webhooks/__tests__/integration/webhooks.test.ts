@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { db, webhook } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import type { WebhookResourceType } from '../../store';
@@ -359,11 +360,11 @@ describe('webhooks', () => {
     });
   });
 
-  // All-teams webhooks: the god user (first signup) or an owner of every team.
+  // All-teams webhooks: workspace admins and owners.
   describe('all teams', () => {
     const hook = { url: 'https://example.com/all', resourceTypes: ['Issue' as const] };
 
-    it('the god user creates and lists an all-teams webhook', async () => {
+    it('the workspace owner creates and lists an all-teams webhook', async () => {
       const { asOwner } = await setupOwnerTeam();
       const created = await asOwner.webhooks.post(hook);
       expect(created.status).toBe(201);
@@ -374,11 +375,9 @@ describe('webhooks', () => {
       expect((await asOwner.teams({ teamKey: 'MKT' }).webhooks.get()).data).toEqual([]);
     });
 
-    it('an owner of every team manages all-teams webhooks', async () => {
-      await signUpTestUser(); // god
-      const user = authedApi((await signUpTestUser()).cookie);
-      await user.teams.post({ key: 'MKT', name: 'Marketing' });
-      await user.teams.post({ key: 'OPS', name: 'Operations' });
+    it('a workspace admin manages all-teams webhooks', async () => {
+      await signUpTestUser(); // workspace owner
+      const user = (await signUpWithRole('admin')).api;
       const created = await user.webhooks.post(hook);
       expect(created.status).toBe(201);
       const id = created.data!.id;
@@ -387,35 +386,15 @@ describe('webhooks', () => {
       expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(204);
     });
 
-    it('an owner of only some teams cannot', async () => {
-      const god = await signUpTestUser();
-      const asGod = authedApi(god.cookie);
-      const member = await signUpTestUser();
-      const asMember = authedApi(member.cookie);
-      await asMember.teams.post({ key: 'MKT', name: 'Marketing' });
-      await asGod.teams.post({ key: 'OPS', name: 'Operations' });
-      const invite = await asGod
-        .teams({ teamKey: 'OPS' })
-        .invites.post({ email: member.email, role: 'member' });
-      await asMember.invites({ token: invite.data!.token }).accept.post();
-      const id = (await asGod.webhooks.post(hook)).data!.id;
+    it('a workspace member cannot', async () => {
+      const owner = authedApi((await signUpTestUser()).cookie);
+      const member = (await signUpWithRole('member')).api;
+      const id = (await owner.webhooks.post(hook)).data!.id;
 
-      expect((await asMember.webhooks.post(hook)).status).toBe(403);
-      expect((await asMember.webhooks.get()).status).toBe(403);
-      expect((await asMember.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
-      expect((await asMember.webhooks({ webhookId: id }).delete()).status).toBe(403);
-    });
-
-    it('losing ownership of one team removes access', async () => {
-      const god = authedApi((await signUpTestUser()).cookie);
-      const user = authedApi((await signUpTestUser()).cookie);
-      await user.teams.post({ key: 'MKT', name: 'Marketing' });
-      const id = (await user.webhooks.post(hook)).data!.id;
-      await god.teams.post({ key: 'OPS', name: 'Operations' });
-      expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
-      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(403);
-      expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(403);
-      expect((await user.webhooks.get()).status).toBe(403);
+      expect((await member.webhooks.post(hook)).status).toBe(403);
+      expect((await member.webhooks.get()).status).toBe(403);
+      expect((await member.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(403);
+      expect((await member.webhooks({ webhookId: id }).delete()).status).toBe(403);
     });
   });
 
@@ -471,27 +450,27 @@ describe('webhooks', () => {
         })
       ).data!.id;
 
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so
       // assert the top-level HTTP status (typed number) rather than error.status.
       const list = await outsider.teams({ teamKey: 'MKT' }).webhooks.get();
-      expect(list.status).toBe(403);
+      expect(list.status).toBe(404);
 
       const create = await outsider.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://evil.example.com/hook',
         resourceTypes: ['Issue'],
       });
-      expect(create.status).toBe(403);
+      expect(create.status).toBe(404);
 
       const patch = await outsider.webhooks({ webhookId }).patch({ enabled: false });
-      expect(patch.status).toBe(403);
+      expect(patch.status).toBe(404);
 
       const del = await outsider.webhooks({ webhookId }).delete();
-      expect(del.status).toBe(403);
+      expect(del.status).toBe(404);
 
       const deliveries = await outsider.webhooks({ webhookId }).deliveries.get();
-      expect(deliveries.status).toBe(403);
+      expect(deliveries.status).toBe(404);
     });
   });
 });

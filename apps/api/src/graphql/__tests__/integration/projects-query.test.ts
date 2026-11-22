@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createMilestone } from '../../../projects/milestones';
 import { createUpdate } from '../../../projects/updates';
@@ -53,6 +54,7 @@ describe('graphql project queries', () => {
 
   it("lists a project's accessible teams only", async () => {
     const { asOwner, mkt, ops } = await setup();
+    await makePrivate(asOwner, 'OPS');
     const rest = await createProject(asOwner, [mkt.team.id, ops.team.id]);
     const member = await signUpTestUser();
     const invite = await asOwner
@@ -122,37 +124,10 @@ describe('graphql project queries', () => {
     expect((await client.projectLabels()).nodes.map((l) => l.name)).toEqual(['Q3']);
   });
 
-  it("hides an issue's milestone when the viewer cannot see the project", async () => {
-    const { asOwner, mkt } = await setup();
-    const rest = await createProject(asOwner, [mkt.team.id]);
-    const milestone = await createMilestone(rest.id, { name: 'Beta' });
-    const issue = (
-      await asOwner.teams({ teamKey: 'MKT' }).issues.post({
-        stateId: mkt.states[0].id,
-        title: 'Task',
-        projectId: rest.id,
-        projectMilestoneId: milestone.id,
-      })
-    ).data!;
-    const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
-      name: 'Issues only',
-      permissions: { work_items: { read: true, create: false, edit: false, delete: false } },
-    });
-    const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
-    const res = await gql(
-      { cookie: member.cookie },
-      `{ issue(id: "${issue.id}") { project { id } projectMilestone { id } } }`,
-    );
-    expect(res.body.data).toEqual({ issue: { project: null, projectMilestone: null } });
-  });
-
   it('does not match a project on a team the viewer cannot access', async () => {
     const { asOwner, mkt, ops } = await setup();
     await createProject(asOwner, [mkt.team.id, ops.team.id]);
+    await makePrivate(asOwner, 'OPS');
     const member = await signUpTestUser();
     const invite = await asOwner
       .teams({ teamKey: 'MKT' })
@@ -165,9 +140,10 @@ describe('graphql project queries', () => {
     expect(res.body.data).toEqual({ projects: { nodes: [] } });
   });
 
-  it('hides a project from a non-member', async () => {
+  it('hides a project of a private team from a non-member', async () => {
     const { asOwner, mkt } = await setup();
     const rest = await createProject(asOwner, [mkt.team.id]);
+    await makePrivate(asOwner, 'MKT');
     const outsider = await signUpTestUser();
     const res = await gql({ cookie: outsider.cookie }, `{ project(id: "${rest.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');

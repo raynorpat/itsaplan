@@ -3,11 +3,10 @@ import { PROJECT_STATUSES, type ProjectStatusType } from '@repo/db';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
-import { requireUser, type AuthUser } from '../shared/access';
+import { requireUser, type AuthUser, visibleTeamIdList, memberTeamIdList } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
-import type { PermissionAction } from '../shared/permissions';
 import { getTeamByKey } from '../teams/store';
-import { assertProjectAccess, memberTeamIds, teamsGranting } from './access';
+import { assertProjectAccess } from './access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
@@ -104,9 +103,9 @@ export const projectRoutes = new Elysia({
   .use(authContext)
   // Guard for routes that address a project by its id. Projects span teams, so
   // access is resolved through all of the project's teams (see access.ts) and the
-  // result is injected as `access`. Set `project: "<action>"` in the route options.
+  // result is injected as `access`. Set `project: true` in the route options.
   .macro({
-    project(action: PermissionAction) {
+    project(_enabled: boolean) {
       return {
         async resolve({
           params,
@@ -117,12 +116,9 @@ export const projectRoutes = new Elysia({
           user?: AuthUser | null;
           request: Request;
         }) {
-          const access = await assertProjectAccess(
-            String(params.projectId),
-            requireUser(user).id,
-            action,
-            { mcpOnly: isMcpRequest(request.headers) },
-          );
+          const access = await assertProjectAccess(String(params.projectId), requireUser(user).id, {
+            mcpOnly: isMcpRequest(request.headers),
+          });
           return { access };
         },
       };
@@ -132,7 +128,7 @@ export const projectRoutes = new Elysia({
   .get(
     '/projects',
     async ({ user, query, request }) => {
-      const readable = await teamsGranting(requireUser(user).id, 'read', {
+      const readable = await visibleTeamIdList(requireUser(user).id, {
         mcpOnly: isMcpRequest(request.headers),
       });
       const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
@@ -213,7 +209,7 @@ export const projectRoutes = new Elysia({
   .get(
     '/projects/counts',
     async ({ user, query, request }) => {
-      const readable = await teamsGranting(requireUser(user).id, 'read', {
+      const readable = await visibleTeamIdList(requireUser(user).id, {
         mcpOnly: isMcpRequest(request.headers),
       });
       const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
@@ -248,7 +244,7 @@ export const projectRoutes = new Elysia({
     async ({ body, user, set, request }) => {
       const actor = requireUser(user).id;
       // The create permission is needed in every team listed.
-      const creatable = await teamsGranting(actor, 'create', {
+      const creatable = await visibleTeamIdList(actor, {
         mcpOnly: isMcpRequest(request.headers),
       });
       if (!body.teamIds.every((t) => creatable.includes(t)))
@@ -261,7 +257,7 @@ export const projectRoutes = new Elysia({
       set.status = 201;
       return (await getProject(
         created.id,
-        await teamsGranting(actor, 'read', { mcpOnly: isMcpRequest(request.headers) }),
+        await visibleTeamIdList(actor, { mcpOnly: isMcpRequest(request.headers) }),
       ))!;
     },
     {
@@ -322,7 +318,7 @@ export const projectRoutes = new Elysia({
     },
     {
       params: projectParams,
-      project: 'read',
+      project: true,
       response: {
         200: ProjectResponse,
         400: ErrorResponse,
@@ -377,7 +373,7 @@ export const projectRoutes = new Elysia({
           }),
         ),
       }),
-      project: 'edit',
+      project: true,
       response: {
         200: ProjectResponse,
         400: ErrorResponse,
@@ -398,7 +394,7 @@ export const projectRoutes = new Elysia({
     async ({ params, body, user, access, request }) => {
       const actor = requireUser(user).id;
       const mcpOnly = isMcpRequest(request.headers);
-      const editable = await teamsGranting(actor, 'edit', { mcpOnly });
+      const editable = await visibleTeamIdList(actor, { mcpOnly });
       await setProjectTeams(
         params.projectId,
         access.readableTeamIds,
@@ -406,7 +402,7 @@ export const projectRoutes = new Elysia({
         body.teamIds,
         actor,
       );
-      return (await getProject(params.projectId, await teamsGranting(actor, 'read', { mcpOnly })))!;
+      return (await getProject(params.projectId, await visibleTeamIdList(actor, { mcpOnly })))!;
     },
     {
       params: projectParams,
@@ -416,7 +412,7 @@ export const projectRoutes = new Elysia({
             'The teams you can see that the project should belong to. Teams you cannot see are kept.',
         }),
       }),
-      project: 'edit',
+      project: true,
       response: {
         200: ProjectResponse,
         400: ErrorResponse,
@@ -436,7 +432,7 @@ export const projectRoutes = new Elysia({
 
   .get('/projects/:projectId/milestones', async ({ params }) => listMilestones(params.projectId), {
     params: projectParams,
-    project: 'read',
+    project: true,
     response: {
       200: t.Array(
         t.Object({
@@ -490,7 +486,7 @@ export const projectRoutes = new Elysia({
     },
     {
       params: projectParams,
-      project: 'edit',
+      project: true,
       response: {
         200: ProjectResponse,
         401: ErrorResponse,
@@ -513,7 +509,7 @@ export const projectRoutes = new Elysia({
     },
     {
       params: projectParams,
-      project: 'edit',
+      project: true,
       response: {
         200: ProjectResponse,
         401: ErrorResponse,
@@ -536,7 +532,7 @@ export const projectRoutes = new Elysia({
     },
     {
       params: projectParams,
-      project: 'delete',
+      project: true,
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -564,7 +560,7 @@ export const projectRoutes = new Elysia({
           // Ignore a malformed cursor and serve the first page.
         }
       }
-      const issueTeamIds = await memberTeamIds(requireUser(user).id, {
+      const issueTeamIds = await memberTeamIdList(requireUser(user).id, {
         mcpOnly: isMcpRequest(request.headers),
       });
       return listFeed(params.projectId, issueTeamIds, { before, limit });
@@ -577,7 +573,7 @@ export const projectRoutes = new Elysia({
           t.String({ description: 'nextCursor from the previous page, for paging.' }),
         ),
       }),
-      project: 'read',
+      project: true,
       response: {
         200: FeedPageResponse,
         400: ErrorResponse,
@@ -598,7 +594,7 @@ export const projectRoutes = new Elysia({
     async ({ params }) => ({ rev: await projectRev(params.projectId) }),
     {
       params: projectParams,
-      project: 'read',
+      project: true,
       response: {
         200: t.Object({ rev: t.String() }),
         400: ErrorResponse,

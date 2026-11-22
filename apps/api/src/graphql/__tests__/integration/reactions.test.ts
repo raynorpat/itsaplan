@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createUpdate } from '../../../projects/updates';
 
@@ -25,11 +26,11 @@ async function setup() {
   return { owner, asOwner, mkt, issue, client };
 }
 
-async function addMember(asOwner: Api, roleId?: string) {
+async function addMember(asOwner: Api) {
   const member = await signUpTestUser({ name: 'Member' });
   const invite = await asOwner
     .teams({ teamKey: 'MKT' })
-    .invites.post({ email: member.email, role: 'member', ...(roleId ? { roleId } : {}) });
+    .invites.post({ email: member.email, role: 'member' });
   await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
   return member;
 }
@@ -103,11 +104,8 @@ describe('graphql reactions', () => {
     const { owner, asOwner, mkt } = await setup();
     const project = (await asOwner.projects.post({ name: 'P', teamIds: [mkt.team.id] })).data!;
     const update = await createUpdate(project.id, owner.userId, { body: 'u', health: 'onTrack' });
-    const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
-      name: 'Issues only',
-      permissions: { work_items: { read: true, create: true, edit: false, delete: false } },
-    });
-    const member = await addMember(asOwner, role.data!.id);
+    await makePrivate(asOwner, 'MKT');
+    const member = await signUpWithRole('member');
     const res = await gql(
       { cookie: member.cookie },
       `mutation { reactionCreate(input: { emoji: "x", projectUpdateId: "${update.id}" }) { success } }`,

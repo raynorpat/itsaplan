@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Workspace-level project labels (Linear's ProjectLabel): managed by any team
 // member, applied to projects; a group holds labels and cannot be applied.
@@ -56,7 +57,7 @@ describe('project labels', () => {
 
   it('refuses a user who is a member of no team', async () => {
     await setup();
-    const loner = authedApi((await signUpTestUser()).cookie);
+    const loner = (await signUpWithRole('guest')).api;
     expect((await loner['project-labels'].post({ name: 'x' })).status).toBe(403);
   });
 });

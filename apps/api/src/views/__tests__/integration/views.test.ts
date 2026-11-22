@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Saved views are the tabs above a team's work items view. List and create are
 // team-scoped (/teams/:teamKey/views), reorder is team-scoped, but
@@ -242,26 +243,26 @@ describe('views', () => {
       const viewId = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Secret' })).data!
         .id;
 
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert
       // the top-level HTTP status (typed number) rather than error.status.
       const list = await outsider.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.status).toBe(403);
+      expect(list.status).toBe(404);
 
       const create = await outsider.teams({ teamKey: 'MKT' }).views.post({ name: 'Intruder' });
-      expect(create.status).toBe(403);
+      expect(create.status).toBe(404);
 
       const patch = await outsider.views({ viewId }).patch({ name: 'Hacked' });
-      expect(patch.status).toBe(403);
+      expect(patch.status).toBe(404);
 
       const reorder = await outsider
         .teams({ teamKey: 'MKT' })
         .views.reorder.put({ orderedIds: [viewId] });
-      expect(reorder.status).toBe(403);
+      expect(reorder.status).toBe(404);
 
       const del = await outsider.views({ viewId }).delete();
-      expect(del.status).toBe(403);
+      expect(del.status).toBe(404);
     });
   });
 

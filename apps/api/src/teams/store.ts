@@ -1,21 +1,7 @@
-import {
-  db,
-  project,
-  projectTeam,
-  team,
-  workflowState,
-  teamMember,
-  teamRole,
-  teamSetting,
-} from '@repo/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { db, project, projectTeam, team, workflowState, teamMember, teamSetting } from '@repo/db';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
-import {
-  defaultMemberPermissions,
-  fullPermissions,
-  normalizePermissions,
-  type Permissions,
-} from '../shared/permissions';
+import { canManageTeam, visibleTeamIds } from '../shared/access';
 import { getTeamSetting, setTeamSetting } from '../settings/store';
 
 // Data access for teams: the top-level container that groups its own columns,
@@ -29,6 +15,9 @@ export interface TeamRow {
   description: string;
   mcpEnabled: boolean;
   projectsEnabled: boolean;
+  // Linear's team visibility: public teams are open to the workspace's owners,
+  // admins and members; private teams to their members only.
+  visibility: 'public' | 'private';
   createdAt: string;
 }
 
@@ -38,14 +27,12 @@ export interface TeamFeatures {
   projects: boolean;
 }
 
-// A team in the caller's list, carrying the caller's own role in it. The list
-// UI (team switcher, manage-teams page) uses `role` to gate owner-only
-// actions like deletion; the API still enforces the permission on every request.
+// A team in the caller's list, with the caller's membership in it (null when they
+// see a public team they have not joined) and whether they manage it. The web app
+// gates its UI off these; the API still enforces access on every request.
 export interface TeamListItem extends TeamRow {
-  role: 'owner' | 'member';
-  // The caller's resolved permission matrix in this team. Present only when the
-  // list is requested with permissions (opts.withPermissions); omitted otherwise.
-  permissions?: Permissions;
+  role: 'owner' | 'member' | null;
+  canManage: boolean;
 }
 
 function mapTeam(row: typeof team.$inferSelect): TeamRow {
@@ -56,51 +43,32 @@ function mapTeam(row: typeof team.$inferSelect): TeamRow {
     description: row.description,
     mcpEnabled: row.mcpEnabled,
     projectsEnabled: row.projectsEnabled,
+    visibility: row.visibility === 'private' ? 'private' : 'public',
     createdAt: iso(row.createdAt),
   };
 }
 
-// Only the teams the user is a member of, ordered by key. Each carries the
-// caller's role in that team (owner | member). When mcpOnly is set, teams
-// with MCP disabled are excluded, so an MCP caller only sees teams it can work
-// with.
+// The teams the user can see, ordered by key: their teams, plus every public team
+// unless they are a guest. When mcpOnly is set, teams with MCP disabled are
+// excluded, so an MCP caller only sees teams it can work with.
 export async function listTeams(
   userId: string,
-  opts: { mcpOnly?: boolean; withPermissions?: boolean } = {},
+  opts: { mcpOnly?: boolean } = {},
 ): Promise<TeamListItem[]> {
-  const where = opts.mcpOnly
-    ? and(eq(teamMember.userId, userId), eq(team.mcpEnabled, true))
-    : eq(teamMember.userId, userId);
+  const visible = inArray(team.id, visibleTeamIds(userId));
   const rows = await db
-    .select({
-      id: team.id,
-      key: team.key,
-      name: team.name,
-      description: team.description,
-      mcpEnabled: team.mcpEnabled,
-      projectsEnabled: team.projectsEnabled,
-      createdAt: team.createdAt,
-      role: teamMember.role,
-      rolePermissions: teamRole.permissions,
-    })
+    .select({ team, owner: teamMember.owner })
     .from(team)
-    .innerJoin(teamMember, eq(teamMember.teamId, team.id))
-    .leftJoin(teamRole, eq(teamRole.id, teamMember.roleId))
-    .where(where)
+    .leftJoin(teamMember, and(eq(teamMember.teamId, team.id), eq(teamMember.userId, userId)))
+    .where(opts.mcpOnly ? and(visible, eq(team.mcpEnabled, true)) : visible)
     .orderBy(team.key);
-  return rows.map(({ rolePermissions, ...r }) => {
-    const role = r.role === 'owner' ? 'owner' : 'member';
-    const item: TeamListItem = { ...r, createdAt: iso(r.createdAt), role };
-    if (opts.withPermissions) {
-      item.permissions =
-        role === 'owner'
-          ? fullPermissions()
-          : rolePermissions
-            ? normalizePermissions(rolePermissions)
-            : defaultMemberPermissions();
-    }
-    return item;
-  });
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...mapTeam(r.team),
+      role: r.owner == null ? null : r.owner ? ('owner' as const) : ('member' as const),
+      canManage: await canManageTeam(r.team.id, userId),
+    })),
+  );
 }
 
 export async function getTeamByKey(key: string): Promise<TeamRow | null> {
@@ -128,6 +96,7 @@ export async function createTeam(
     key: string;
     name: string;
     description?: string;
+    visibility?: 'public' | 'private';
   },
   ownerId: string,
 ): Promise<TeamRow> {
@@ -138,17 +107,11 @@ export async function createTeam(
         key: input.key.toUpperCase(),
         name: input.name,
         description: input.description ?? '',
+        visibility: input.visibility ?? 'public',
       })
       .returning();
-    await tx.insert(teamMember).values({ teamId: row.id, userId: ownerId, role: 'owner' });
-    // Every team starts with a default "Member" role, assigned to members that
-    // join through an invite.
-    await tx.insert(teamRole).values({
-      teamId: row.id,
-      name: 'Member',
-      isDefault: true,
-      permissions: defaultMemberPermissions(),
-    });
+    // Linear: whoever creates a team owns it.
+    await tx.insert(teamMember).values({ teamId: row.id, userId: ownerId, owner: true });
     for (const [position, column] of DEFAULT_COLUMNS.entries()) {
       await tx.insert(workflowState).values({
         teamId: row.id,
@@ -170,11 +133,12 @@ export async function createTeam(
 // here. Only the provided fields change.
 export async function updateTeam(
   teamId: string,
-  patch: { name?: string; description?: string },
+  patch: { name?: string; description?: string; visibility?: 'public' | 'private' },
 ): Promise<TeamRow | null> {
   const values: Partial<typeof team.$inferInsert> = {};
   if (patch.name !== undefined) values.name = patch.name;
   if (patch.description !== undefined) values.description = patch.description;
+  if (patch.visibility !== undefined) values.visibility = patch.visibility;
   if (Object.keys(values).length === 0) return getTeamById(teamId);
   const [row] = await db.update(team).set(values).where(eq(team.id, teamId)).returning();
   return row ? mapTeam(row) : null;

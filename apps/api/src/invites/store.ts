@@ -1,4 +1,4 @@
-import { db, teamInvite, teamMember, teamRole, team, user } from '@repo/db';
+import { db, teamInvite, teamMember, team, user } from '@repo/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
 import type { MemberRole } from '../members/store';
@@ -16,11 +16,6 @@ export interface InviteRow {
   token: string;
   email: string;
   role: MemberRole;
-  // The custom role the invitee joins on (for a "member" invite). roleId is null
-  // when the invite falls back to the default role; roleName resolves it for
-  // display. An "owner" invite has both null.
-  roleId: string | null;
-  roleName: string | null;
   status: InviteStatus;
   createdAt: string;
   respondedAt: string | null;
@@ -36,8 +31,6 @@ export interface InviteView {
   teamName: string;
   email: string;
   role: MemberRole;
-  roleId: string | null;
-  roleName: string | null;
   status: InviteStatus;
   createdAt: string;
   // Whether the invited email already has an account. Lets the accept screen
@@ -52,12 +45,9 @@ export async function createInvite(input: {
   teamId: string;
   email: string;
   role: MemberRole;
-  roleId: string | null;
   invitedByUserId: string;
 }): Promise<InviteRow> {
   const email = normalizeEmail(input.email);
-  // Owners bypass roles, so an owner invite never carries a role_id.
-  const roleId = input.role === 'member' ? input.roleId : null;
   let row;
   try {
     [row] = await db
@@ -66,7 +56,6 @@ export async function createInvite(input: {
         teamId: input.teamId,
         email,
         role: input.role,
-        roleId,
         invitedByUserId: input.invitedByUserId,
       })
       .returning({ id: teamInvite.id });
@@ -86,8 +75,6 @@ export async function getInviteById(teamId: string, id: string): Promise<InviteR
       token: teamInvite.token,
       email: teamInvite.email,
       role: teamInvite.role,
-      roleId: teamInvite.roleId,
-      roleName: teamRole.name,
       status: teamInvite.status,
       createdAt: teamInvite.createdAt,
       respondedAt: teamInvite.respondedAt,
@@ -96,7 +83,6 @@ export async function getInviteById(teamId: string, id: string): Promise<InviteR
     })
     .from(teamInvite)
     .leftJoin(user, eq(user.id, teamInvite.invitedByUserId))
-    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
     .where(and(eq(teamInvite.teamId, teamId), eq(teamInvite.id, id)));
   const r = rows[0];
   if (!r) return null;
@@ -105,8 +91,6 @@ export async function getInviteById(teamId: string, id: string): Promise<InviteR
     token: r.token,
     email: r.email,
     role: r.role as MemberRole,
-    roleId: r.roleId,
-    roleName: r.roleName,
     status: r.status as InviteStatus,
     createdAt: iso(r.createdAt),
     respondedAt: r.respondedAt ? iso(r.respondedAt) : null,
@@ -122,8 +106,6 @@ export async function listInvites(teamId: string): Promise<InviteRow[]> {
       token: teamInvite.token,
       email: teamInvite.email,
       role: teamInvite.role,
-      roleId: teamInvite.roleId,
-      roleName: teamRole.name,
       status: teamInvite.status,
       createdAt: teamInvite.createdAt,
       respondedAt: teamInvite.respondedAt,
@@ -132,7 +114,6 @@ export async function listInvites(teamId: string): Promise<InviteRow[]> {
     })
     .from(teamInvite)
     .leftJoin(user, eq(user.id, teamInvite.invitedByUserId))
-    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
     .where(eq(teamInvite.teamId, teamId))
     .orderBy(desc(teamInvite.createdAt));
   return rows.map((r) => ({
@@ -140,8 +121,6 @@ export async function listInvites(teamId: string): Promise<InviteRow[]> {
     token: r.token,
     email: r.email,
     role: r.role as MemberRole,
-    roleId: r.roleId,
-    roleName: r.roleName,
     status: r.status as InviteStatus,
     createdAt: iso(r.createdAt),
     respondedAt: r.respondedAt ? iso(r.respondedAt) : null,
@@ -170,14 +149,11 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
       teamName: team.name,
       email: teamInvite.email,
       role: teamInvite.role,
-      roleId: teamInvite.roleId,
-      roleName: teamRole.name,
       status: teamInvite.status,
       createdAt: teamInvite.createdAt,
     })
     .from(teamInvite)
     .innerJoin(team, eq(team.id, teamInvite.teamId))
-    .leftJoin(teamRole, eq(teamRole.id, teamInvite.roleId))
     .where(eq(teamInvite.token, token));
   const r = rows[0];
   if (!r) return null;
@@ -194,8 +170,6 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
     teamName: r.teamName,
     email: r.email,
     role: r.role as MemberRole,
-    roleId: r.roleId,
-    roleName: r.roleName,
     status: r.status as InviteStatus,
     createdAt: iso(r.createdAt),
     hasAccount: account.length > 0,
@@ -210,7 +184,6 @@ export async function getInviteRowByToken(token: string) {
       teamId: teamInvite.teamId,
       email: teamInvite.email,
       role: teamInvite.role,
-      roleId: teamInvite.roleId,
       status: teamInvite.status,
     })
     .from(teamInvite)
@@ -222,31 +195,15 @@ export async function getInviteRowByToken(token: string) {
 // invite accepted, in one transaction. The caller has already checked the
 // invite is pending and the session email matches.
 export async function acceptInvite(
-  invite: { id: string; teamId: string; role: string; roleId: string | null },
+  invite: { id: string; teamId: string; role: string },
   userId: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    // A member joins on the invite's chosen role, falling back to the team's
-    // default role when none was set; an owner bypasses roles.
-    let roleId: string | null = null;
-    if (invite.role === 'member') {
-      if (invite.roleId != null) {
-        roleId = invite.roleId;
-      } else {
-        const [def] = await tx
-          .select({ id: teamRole.id })
-          .from(teamRole)
-          .where(and(eq(teamRole.teamId, invite.teamId), eq(teamRole.isDefault, true)));
-        roleId = def?.id ?? null;
-      }
-    }
+    const owner = invite.role === 'owner';
     await tx
       .insert(teamMember)
-      .values({ teamId: invite.teamId, userId, role: invite.role, roleId })
-      .onConflictDoUpdate({
-        target: [teamMember.teamId, teamMember.userId],
-        set: { role: invite.role, roleId },
-      });
+      .values({ teamId: invite.teamId, userId, owner })
+      .onConflictDoUpdate({ target: [teamMember.teamId, teamMember.userId], set: { owner } });
     await tx
       .update(teamInvite)
       .set({ status: 'accepted', acceptedByUserId: userId, respondedAt: new Date() })

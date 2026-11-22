@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Integration coverage for the invites feature: the owner-side routes that
 // create/list/revoke invites and the invitee-side routes that read, accept, or
@@ -82,55 +83,14 @@ describe('invites', () => {
       expect(res.status).toBe(400);
     });
 
-    it('pins a custom role on a member invite', async () => {
-      const owner = await setupOwner();
-      const role = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .roles.post({ name: 'Editor', permissions: {} });
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .invites.post({ email: 'editor@example.com', role: 'member', roleId: role.data!.id });
-
-      expect(res.status).toBe(201);
-      expect(res.data).toMatchObject({ role: 'member', roleId: role.data!.id, roleName: 'Editor' });
-    });
-
-    it('ignores roleId on an owner invite', async () => {
-      const owner = await setupOwner();
-      const role = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .roles.post({ name: 'Editor', permissions: {} });
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .invites.post({ email: 'boss@example.com', role: 'owner', roleId: role.data!.id });
-
-      expect(res.status).toBe(201);
-      expect(res.data).toMatchObject({ role: 'owner', roleId: null, roleName: null });
-    });
-
-    it('rejects a roleId from another team with 400', async () => {
-      const owner = await setupOwner();
-      await owner.api.teams.post({ key: 'OPS', name: 'Operations' });
-      const foreign = await owner.api
-        .teams({ teamKey: 'OPS' })
-        .roles.post({ name: 'Ops', permissions: {} });
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .invites.post({ email: 'x@example.com', role: 'member', roleId: foreign.data!.id });
-      expect(res.status).toBe(400);
-    });
-
     it('denies a non-member with 403', async () => {
       await setupOwner();
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       const res = await outsider
         .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'x@example.com', role: 'member' });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -151,9 +111,9 @@ describe('invites', () => {
 
     it('denies a non-member with 403', async () => {
       await setupOwner();
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.teams({ teamKey: 'MKT' }).invites.get();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -194,13 +154,13 @@ describe('invites', () => {
       const created = await owner.api
         .teams({ teamKey: 'MKT' })
         .invites.post({ email: 'x@example.com', role: 'member' });
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       const res = await outsider
         .teams({ teamKey: 'MKT' })
         .invites({ inviteId: created.data!.id })
         .delete();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -261,7 +221,7 @@ describe('invites', () => {
 
       // Before accepting, the invitee cannot reach the team.
       const before = await inviteeApi.teams({ teamKey: 'MKT' }).get();
-      expect(before.status).toBe(403);
+      expect(before.data?.viewer.role).toBeNull();
 
       const accept = await inviteeApi.invites({ token: created.data!.token }).accept.post();
       expect(accept.status).toBe(200);
@@ -273,31 +233,11 @@ describe('invites', () => {
 
       // Membership took effect: the invitee can now read the team.
       const after = await inviteeApi.teams({ teamKey: 'MKT' }).get();
-      expect(after.status).toBe(200);
+      expect(after.data?.viewer.role).toBe('member');
 
       // The invite is no longer pending.
       const view = await inviteeApi.invites({ token: created.data!.token }).get();
       expect(view.data).toMatchObject({ status: 'accepted' });
-    });
-
-    it("joins the invitee on the invite's pinned custom role", async () => {
-      const owner = await setupOwner();
-      const invitee = await signUpTestUser();
-      const role = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .roles.post({ name: 'Editor', permissions: {} });
-      const created = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .invites.post({ email: invitee.email, role: 'member', roleId: role.data!.id });
-
-      const accept = await authedApi(invitee.cookie)
-        .invites({ token: created.data!.token })
-        .accept.post();
-      expect(accept.status).toBe(200);
-
-      const members = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-      const row = members.data?.find((m) => m.userId === invitee.userId);
-      expect(row).toMatchObject({ role: 'member', roleId: role.data!.id, roleName: 'Editor' });
     });
 
     it('matches the session email case-insensitively', async () => {
@@ -360,7 +300,7 @@ describe('invites', () => {
 
       // No membership was created.
       const team = await inviteeApi.teams({ teamKey: 'MKT' }).get();
-      expect(team.status).toBe(403);
+      expect(team.data?.viewer.role).toBeNull();
 
       // The invite is now rejected.
       const view = await inviteeApi.invites({ token: created.data!.token }).get();

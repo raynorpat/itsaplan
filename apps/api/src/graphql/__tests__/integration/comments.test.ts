@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createUpdate } from '../../../projects/updates';
 
@@ -26,11 +27,11 @@ async function setup() {
 }
 
 // A member of MKT with the given role (default member role when roleId is absent).
-async function addMember(asOwner: Api, roleId?: string) {
+async function addMember(asOwner: Api) {
   const member = await signUpTestUser({ name: 'Member' });
   const invite = await asOwner
     .teams({ teamKey: 'MKT' })
-    .invites.post({ email: member.email, role: 'member', ...(roleId ? { roleId } : {}) });
+    .invites.post({ email: member.email, role: 'member' });
   await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
   return { ...member, api: authedApi(member.cookie) };
 }
@@ -156,11 +157,8 @@ describe('graphql comments', () => {
       onProject.id,
     ]);
     expect((await onUpdate.projectUpdate)?.id).toBe(update.id);
-    const role = await asOwner.teams({ teamKey: 'MKT' }).roles.post({
-      name: 'Issues only',
-      permissions: { work_items: { read: true, create: true, edit: false, delete: false } },
-    });
-    const member = await addMember(asOwner, role.data!.id);
+    await makePrivate(asOwner, 'MKT');
+    const member = await signUpWithRole('member');
     for (const id of [onProject.id, onUpdate.id]) {
       const res = await gql({ cookie: member.cookie }, `{ comment(id: "${id}") { id } }`);
       expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
@@ -173,7 +171,8 @@ describe('graphql comments', () => {
   });
 
   it("hides comments on another team's issues", async () => {
-    const { issue, client } = await setup();
+    const { asOwner, issue, client } = await setup();
+    await makePrivate(asOwner, 'MKT');
     await client.createComment({ issueId: issue.id, body: 'secret' });
     const outsider = await signUpTestUser();
     await authedApi(outsider.cookie).teams.post({ key: 'OPS', name: 'Ops' });

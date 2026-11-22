@@ -124,19 +124,16 @@ describe('graphql issue subscriptions', () => {
     expect(errorCode(res)).toBe('INVALID_INPUT');
   });
 
-  it('needs work_items.edit to unsubscribe someone else', async () => {
+  it('needs a team manager to unsubscribe someone else', async () => {
     const { owner, b, client, teamId } = await setup();
     const issue = (await (
       await client.createIssue({ teamId, title: 'T', subscriberIds: [b.userId] })
     ).issue)!;
     const asOwner = authedApi(owner.cookie);
-    const role = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
     const reader = await signUpTestUser();
     const invite = await asOwner
       .teams({ teamKey: 'MKT' })
-      .invites.post({ email: reader.email, role: 'member', roleId: role.data!.id });
+      .invites.post({ email: reader.email, role: 'member' });
     await authedApi(reader.cookie).invites({ token: invite.data!.token }).accept.post();
     const other = await gql(
       { cookie: reader.cookie },

@@ -63,11 +63,11 @@ if (!baseURL) {
   throw new Error('API_URL is not set: public origin of the backend.');
 }
 
-// User roles. "god" is the owner of the instance: the very first registered user
-// gets it automatically; everyone after is a plain "user". The role is assigned
-// server-side (input: false) so a client cannot request it at sign-up.
-export const USER_ROLES = ['god', 'user'] as const;
-export type UserRole = (typeof USER_ROLES)[number];
+// Linear's workspace roles. The very first registered user becomes the workspace
+// owner; everyone after joins as a member. The role is assigned server-side
+// (input: false) so a client cannot request it at sign-up.
+export const WORKSPACE_ROLES = ['owner', 'admin', 'member', 'guest'] as const;
+export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
 // Google OAuth credentials live in the database (god mode), not in env. The provider
 // is built once at startup, but it keeps this options object by reference and reads
@@ -195,14 +195,14 @@ export const auth = betterAuth({
     },
   },
 
-  // Extra column on the user table. Not client-settable (input: false) — the role
-  // is decided by the create hook below.
+  // Extra column on the user table. Not client-settable (input: false) — the
+  // workspace role is decided by the create hook below.
   user: {
     additionalFields: {
-      role: {
+      workspaceRole: {
         type: 'string',
-        required: false,
-        defaultValue: 'user',
+        required: true,
+        defaultValue: 'member',
         input: false,
       },
     },
@@ -254,12 +254,12 @@ export const auth = betterAuth({
         // where the registration gate applies to Google. Agent bot users are written
         // with a direct insert and never reach this hook.
         //
-        // Assign the role before the row is inserted: first user ever → "god",
-        // everyone else → "user".
+        // Assign the workspace role before the row is inserted: first user ever →
+        // owner, everyone else → member.
         before: async (user) => {
           await assertRegistrationAllowed(user.email);
           const isFirstUser = (await db.$count(schema.user)) === 0;
-          return { data: { ...user, role: isFirstUser ? 'god' : 'user' } };
+          return { data: { ...user, workspaceRole: isFirstUser ? 'owner' : 'member' } };
         },
       },
     },

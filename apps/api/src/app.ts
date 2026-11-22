@@ -49,8 +49,7 @@ export const app = new Elysia()
         },
         tags: [
           { name: 'Teams', description: 'Teams and the full work items view' },
-          { name: 'Members', description: 'Team membership and roles' },
-          { name: 'Roles', description: 'Team roles and their permissions' },
+          { name: 'Members', description: 'Team membership and team owners' },
           { name: 'Invites', description: 'Team invites (create, accept, reject)' },
           { name: 'States', description: 'Workflow states and their order' },
           { name: 'Labels', description: 'Labels and label groups' },

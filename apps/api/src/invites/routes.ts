@@ -3,10 +3,9 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { requireUser, type AuthUser } from '../shared/access';
+import { requireUser, type AuthUser, assertTeamAccess } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { getRole } from '../roles/store';
 import {
   createInvite,
   listInvites,
@@ -32,8 +31,6 @@ const InviteRowResponse = t.Object({
   token: t.String(),
   email: t.String(),
   role: inviteRole,
-  roleId: t.Nullable(t.String({ format: 'uuid' })),
-  roleName: t.Nullable(t.String()),
   status: inviteStatus,
   createdAt: t.String(),
   respondedAt: t.Nullable(t.String()),
@@ -48,8 +45,6 @@ const InviteViewResponse = t.Object({
   teamName: t.String(),
   email: t.String(),
   role: inviteRole,
-  roleId: t.Nullable(t.String({ format: 'uuid' })),
-  roleName: t.Nullable(t.String()),
   status: inviteStatus,
   createdAt: t.String(),
   hasAccount: t.Boolean(),
@@ -82,24 +77,17 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
 
   // --- Owner-side: manage a team's invites ---
 
-  // Create an invite link for an email + role. Owner only. A second pending
+  // Create an invite link for an email + role. An owner invite needs a team manager. A second pending
   // invite for the same email in the same team is a 409.
   .post(
     '/teams/:teamKey/invites',
     async ({ team, body, user, set }) => {
-      // For a member invite, an explicit roleId must name a role in this team;
-      // null (or omitted) falls back to the team's default role on accept. An
-      // owner invite ignores roleId (owners bypass roles).
-      const roleId = body.role === 'member' ? (body.roleId ?? null) : null;
-      if (roleId != null) {
-        const role = await getRole(team.id, roleId);
-        if (!role) throw new HttpError(400, 'roleId does not belong to this team');
-      }
+      // Making someone a team owner is team management.
+      if (body.role === 'owner') await assertTeamAccess(team.id, user, 'manage');
       const invite = await createInvite({
         teamId: team.id,
         email: body.email,
         role: body.role,
-        roleId,
         invitedByUserId: requireUser(user).id,
       });
       set.status = 201;
@@ -110,9 +98,8 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       body: t.Object({
         email: t.String({ format: 'email' }),
         role: inviteRole,
-        roleId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
-      permission: ['members_invite', 'create'],
+      teamAccess: 'see',
       response: {
         201: InviteRowResponse,
         400: ErrorResponse,
@@ -123,9 +110,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       },
       detail: {
         summary: 'Create an invite',
-        description:
-          'Create an invite link for an email and role (owner or member). For a member, roleId ' +
-          'picks the custom role, or null for the default role.',
+        description: 'Create an invite link for an email and role (owner or member of the team).',
         ...mcpTool('create_invite'),
       },
     },
@@ -138,7 +123,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
     },
     {
       params: t.Object({ teamKey: t.String() }),
-      permission: ['members_invite', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Array(InviteRowResponse),
         401: ErrorResponse,
@@ -159,7 +144,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
     },
     {
       params: t.Object({ teamKey: t.String(), inviteId: t.String({ format: 'uuid' }) }),
-      permission: ['members_invite', 'delete'],
+      teamAccess: 'see',
       response: {
         204: t.Void(),
         400: ErrorResponse,

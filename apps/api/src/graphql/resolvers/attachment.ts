@@ -1,4 +1,4 @@
-import { attachment, db, issue, teamMember } from '@repo/db';
+import { attachment, db, issue } from '@repo/db';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   attachmentUrl,
@@ -12,8 +12,7 @@ import {
   type LinkInput,
 } from '../../attachments/store';
 import { assertParentAccess, createComment } from '../../comments/store';
-import { getMembership } from '../../members/store';
-import { assertPermission, type AuthUser } from '../../shared/access';
+import { assertTeamAccess, type AuthUser, canSeeTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { attachmentFilterSql } from '../attachment-filter';
@@ -42,17 +41,13 @@ type Action = 'read' | 'create' | 'edit' | 'delete';
 // work_items action.
 async function assertIssueAccess(issueId: string, user: AuthUser, action: Action): Promise<void> {
   const [row] = await db.select({ teamId: issue.teamId }).from(issue).where(eq(issue.id, issueId));
-  if (!row || !(await getMembership(row.teamId, user.id)))
-    throw new HttpError(404, 'Issue not found');
-  if (action !== 'read') await assertPermission(row.teamId, user, 'work_items', action);
+  if (!row || !(await canSeeTeam(row.teamId, user.id))) throw new HttpError(404, 'Issue not found');
+  if (action !== 'read') await assertTeamAccess(row.teamId, user, 'see');
 }
 
-// SQL over `attachment`: attachments on issues of the user's teams.
+// SQL over `attachment`: attachments on issues of the teams the user can see.
 function visibleAttachmentsSql(userId: string): SQL {
-  const memberTeams = db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, userId));
+  const memberTeams = visibleTeamIds(userId);
   return inArray(
     attachment.issueId,
     db.select({ id: issue.id }).from(issue).where(inArray(issue.teamId, memberTeams)),
@@ -133,7 +128,7 @@ async function createLink(input: Input, ctx: GraphQLContext, commentBody?: unkno
   // Linear accepts the issue's UUID or its identifier (ENG-42).
   const issueId = (await findIssue(String(input.issueId), ctx.user.id)).id;
   await assertIssueAccess(issueId, ctx.user, 'create');
-  if (commentBody) await assertParentAccess({ issueId }, ctx.user, 'create');
+  if (commentBody) await assertParentAccess({ issueId }, ctx.user);
   const { row } = await upsertLinkAttachment(
     {
       ...(input as unknown as LinkInput),

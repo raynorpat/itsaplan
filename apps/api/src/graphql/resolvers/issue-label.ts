@@ -1,4 +1,4 @@
-import { db, issue, issueLabel, label, team, teamMember } from '@repo/db';
+import { db, issue, issueLabel, label, team } from '@repo/db';
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import {
   createLabel,
@@ -9,7 +9,7 @@ import {
   updateLabel,
 } from '../../labels/store';
 import { assertLabelManager } from '../../project-labels/store';
-import { assertPermission } from '../../shared/access';
+import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { rethrowDuplicate, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -44,13 +44,10 @@ export function toIssueLabel(row: typeof label.$inferSelect) {
 type GraphQLIssueLabel = ReturnType<typeof toIssueLabel>;
 type ConnectionArgs = PageArgs & { filter?: unknown };
 
-// The labels a user can see: their teams' labels, and workspace labels once they
-// are in any team.
+// The labels a user can see: the labels of the teams they can see, and workspace
+// labels once they can see any team.
 function visibleLabels(userId: string): SQL {
-  const teams = db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, userId));
+  const teams = visibleTeamIds(userId);
   return or(inArray(label.teamId, teams), and(isNull(label.teamId), sql`EXISTS (${teams})`))!;
 }
 
@@ -81,14 +78,10 @@ async function visibleLabel(id: string, ctx: GraphQLContext) {
   return row;
 }
 
-// Writes to a team label need the team's labels.<action>; workspace labels need
-// membership in any team (the project-labels rule).
-async function assertLabelWrite(
-  teamId: string | null,
-  ctx: GraphQLContext,
-  action: 'create' | 'edit' | 'delete',
-) {
-  if (teamId) await assertPermission(teamId, ctx.user, 'labels', action);
+// Writes to a team label need a team manager; workspace labels need a workspace
+// role above guest (the project-labels rule).
+async function assertLabelWrite(teamId: string | null, ctx: GraphQLContext) {
+  if (teamId) await assertTeamAccess(teamId, ctx.user, 'manage');
   else await assertLabelManager(ctx.user.id);
 }
 
@@ -182,7 +175,7 @@ export const issueLabelResolvers = {
         );
         if (!input.name) throw gqlError('INVALID_INPUT', 'input.name is required');
         assertIds(input);
-        await assertLabelWrite(input.teamId ?? null, ctx, 'create');
+        await assertLabelWrite(input.teamId ?? null, ctx);
         try {
           const created = await createLabel({
             teamId: input.teamId ?? null,
@@ -209,7 +202,7 @@ export const issueLabelResolvers = {
         if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
         assertIds(input);
         const found = await visibleLabel(id, ctx);
-        await assertLabelWrite(found.teamId, ctx, 'edit');
+        await assertLabelWrite(found.teamId, ctx);
         try {
           await updateLabel(
             id,
@@ -230,21 +223,21 @@ export const issueLabelResolvers = {
     issueLabelDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await visibleLabel(id, ctx);
-        await assertLabelWrite(found.teamId, ctx, 'delete');
+        await assertLabelWrite(found.teamId, ctx);
         await deleteLabel(id, found.teamId, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entityId: id };
       }),
     issueLabelRetire: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await visibleLabel(id, ctx);
-        await assertLabelWrite(found.teamId, ctx, 'edit');
+        await assertLabelWrite(found.teamId, ctx);
         await retireLabel(id, ctx.user.id);
         return labelPayload(id);
       }),
     issueLabelRestore: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await visibleLabel(id, ctx);
-        await assertLabelWrite(found.teamId, ctx, 'edit');
+        await assertLabelWrite(found.teamId, ctx);
         await restoreLabel(id, ctx.user.id);
         return labelPayload(id);
       }),

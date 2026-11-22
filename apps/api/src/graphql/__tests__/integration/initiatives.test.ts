@@ -3,6 +3,7 @@ import { InitiativeStatus, InitiativeUpdateHealthType, InitiativeVisibility } fr
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { linkProject } from '../../../initiatives/links';
 
@@ -67,6 +68,7 @@ describe('graphql initiatives', () => {
 
   it('hides lead-team initiatives from non-members', async () => {
     const { asOwner, client, mkt } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const led = (await (await client.createInitiative({ name: 'L', leadTeamId: mkt })).initiative)!;
     expect(led.visibility).toBe(InitiativeVisibility.Private);
     const ops = await memberOf(asOwner, 'OPS');
@@ -176,9 +178,9 @@ describe('graphql initiatives', () => {
         `mutation { initiativeToProjectCreate(input: { initiativeId: "${a.id}", projectId: "${projectId}" }) { success } }`,
       );
     expect(errorCode(await link(p1.id))).toBe('INVALID_INPUT');
-    const stranger = await signUpTestUser();
+    const stranger = await signUpWithRole('member');
     const asStranger = authedApi(stranger.cookie);
-    await asStranger.teams.post({ key: 'SEC', name: 'Secret' });
+    await asStranger.teams.post({ key: 'SEC', name: 'Secret', visibility: 'private' });
     const sec = (await asStranger.teams({ teamKey: 'SEC' }).get()).data!.team.id;
     const hidden = (await asStranger.projects.post({ teamIds: [sec], name: 'Hidden' })).data!;
     expect(errorCode(await link(hidden.id))).toBe('ENTITY_NOT_FOUND');

@@ -8,7 +8,7 @@ import {
   updateIssueRelation,
   type IssueRelationRow,
 } from '../../issues/relations';
-import { assertPermission } from '../../shared/access';
+import { assertTeamAccess } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -77,7 +77,7 @@ async function assertCanRelate(issueId: string, relatedIssueId: string, ctx: Gra
   const b = await findIssue(relatedIssueId, ctx.user.id);
   for (const teamId of new Set([a.teamId, b.teamId])) {
     // Only a denial (403) means "try the other team"; anything else is rethrown.
-    const granted = await assertPermission(teamId, ctx.user, 'work_items', 'edit').then(
+    const granted = await assertTeamAccess(teamId, ctx.user, 'see').then(
       () => true,
       (err: unknown) => {
         if (err instanceof HttpError && err.status === 403) return false;
@@ -98,7 +98,7 @@ async function assertCanMarkDuplicate(
 ) {
   if (type !== 'duplicate') return;
   const found = await findIssue(duplicateIssueId, ctx.user.id);
-  await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
+  await assertTeamAccess(found.teamId, ctx.user, 'see');
 }
 
 const payload = (r: IssueRelationRow) => ({

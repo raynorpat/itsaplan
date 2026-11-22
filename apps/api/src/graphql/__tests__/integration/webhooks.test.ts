@@ -95,20 +95,17 @@ describe('graphql webhooks', () => {
     expect((await client.webhooks()).nodes).toEqual([]);
   });
 
-  it("hides a team's webhooks from a member without webhooks.read", async () => {
+  it("hides a team's webhooks from a workspace member", async () => {
     const { asOwner, teamId, client } = await setup();
     await client.createWebhook({
       url: 'https://example.com/hook',
       teamId,
       resourceTypes: ['Issue'],
     });
-    const role = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .roles.post({ name: 'Viewer', permissions: {} });
     const member = await signUpTestUser();
     const invite = await asOwner
       .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
+      .invites.post({ email: member.email, role: 'member' });
     await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
     const res = await gql({ cookie: member.cookie }, '{ webhooks { nodes { id } } }');
     expect(res.body.data).toEqual({ webhooks: { nodes: [] } });

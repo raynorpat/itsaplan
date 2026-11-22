@@ -3,7 +3,7 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
-import { assertPermission, assertMcpEnabled, requireUser } from '../shared/access';
+import { assertTeamAccess, assertMcpEnabled, requireUser } from '../shared/access';
 import { isMcpRequest } from '../shared/mcp-request';
 import { getTeamById } from '../teams/store';
 import { HttpError, UUID_RE } from '../shared/lib';
@@ -124,7 +124,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // Guard for routes that address an issue by its own id (no :teamKey in the
   // path). Set `workItem: "<action>"` in the route options.
   .macro({
-    workItem: entityGuard('work_items', 'Issue not found', (p) => getIssueTeamId(p.issueId)),
+    workItem: entityGuard('Issue not found', (p) => getIssueTeamId(p.issueId)),
   })
   .post(
     '/teams/:teamKey/issues',
@@ -202,7 +202,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           }),
         ),
       }),
-      permission: ['work_items', 'create'],
+      teamAccess: 'see',
       response: {
         201: IssueResponse,
         400: ErrorResponse,
@@ -247,7 +247,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           dueDate: t.Optional(t.Nullable(t.String())),
         }),
       }),
-      permission: ['work_items', 'edit'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ updated: t.Number() }),
         400: ErrorResponse,
@@ -278,7 +278,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           description: 'Label ids to add.',
         }),
       }),
-      permission: ['work_items', 'edit'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ updated: t.Number() }),
         400: ErrorResponse,
@@ -305,7 +305,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           description: 'Issue ids to archive.',
         }),
       }),
-      permission: ['work_items', 'edit'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ archived: t.Number() }),
         400: ErrorResponse,
@@ -346,7 +346,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           description: 'Issue ids to delete.',
         }),
       }),
-      permission: ['work_items', 'delete'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ deleted: t.Number() }),
         400: ErrorResponse,
@@ -380,7 +380,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         ),
         limit: t.Optional(t.Numeric({ description: 'Max results (1-500). Default 50.' })),
       }),
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Array(IssueSearchHitResponse),
         400: ErrorResponse,
@@ -454,7 +454,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         ),
         limit: t.Optional(t.Numeric({ description: 'Max results (1-500). Default 50.' })),
       }),
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Array(IssueSearchHitResponse),
         400: ErrorResponse,
@@ -481,7 +481,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     }),
     {
       params: t.Object({ teamKey: t.String() }),
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ issues: t.Array(IssueResponse), rev: t.String() }),
         401: ErrorResponse,
@@ -501,7 +501,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     }),
     {
       params: t.Object({ teamKey: t.String() }),
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: t.Object({ rev: t.String() }),
         401: ErrorResponse,
@@ -516,7 +516,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // and restore. Same read permission as the board.
   .get('/teams/:teamKey/issues/archived', async ({ team }) => listArchivedIssues(team), {
     params: t.Object({ teamKey: t.String() }),
-    permission: ['work_items', 'read'],
+    teamAccess: 'see',
     response: {
       200: t.Array(IssueResponse),
       401: ErrorResponse,
@@ -538,7 +538,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
     {
       params: t.Object({ teamKey: t.String(), sequenceNumber: t.Numeric() }),
-      permission: ['work_items', 'read'],
+      teamAccess: 'see',
       response: {
         200: IssueResponse,
         400: ErrorResponse,
@@ -563,7 +563,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     async ({ params, user, request }) => {
       const issue = await getIssue(params.issueId);
       if (!issue) throw new HttpError(404, 'Issue not found');
-      await assertPermission(issue.teamId, user, 'work_items', 'read');
+      await assertTeamAccess(issue.teamId, user, 'see');
       // This route resolves the team itself, so it also enforces the per-team
       // MCP toggle itself (it does not run through the workItem guard).
       if (isMcpRequest(request.headers)) {
@@ -671,7 +671,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         ),
       }),
       params: issueParams,
-      workItem: 'edit',
+      workItem: 'see',
       response: {
         200: IssueResponse,
         400: ErrorResponse,
@@ -710,7 +710,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
     {
       params: issueParams,
-      workItem: 'delete',
+      workItem: 'see',
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -738,7 +738,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
     {
       params: issueParams,
-      workItem: 'edit',
+      workItem: 'see',
       response: {
         200: IssueResponse,
         400: ErrorResponse,
@@ -764,7 +764,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
     {
       params: issueParams,
-      workItem: 'edit',
+      workItem: 'see',
       response: {
         200: IssueResponse,
         400: ErrorResponse,
@@ -807,7 +807,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.String({ description: 'nextCursor from the previous page, for paging.' }),
         ),
       }),
-      workItem: 'read',
+      workItem: 'see',
       response: {
         200: FeedPageResponse,
         400: ErrorResponse,
@@ -828,7 +828,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // and what happened inside a stretch is read separately when it is opened.
   .get('/issues/:issueId/timeline', async ({ params }) => listStatusTimeline(params.issueId), {
     params: issueParams,
-    workItem: 'read',
+    workItem: 'see',
     response: {
       200: t.Array(TimelineSegmentResponse),
       400: ErrorResponse,
@@ -855,7 +855,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.String({ description: 'End of the stretch (ISO datetime), exclusive. Open-ended.' }),
         ),
       }),
-      workItem: 'read',
+      workItem: 'see',
       response: {
         200: t.Array(FeedItemResponse),
         400: ErrorResponse,
@@ -875,7 +875,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // constant heavy reads). Same read permission as the feed.
   .get('/issues/:issueId/rev', async ({ params }) => ({ rev: await issueRev(params.issueId) }), {
     params: issueParams,
-    workItem: 'read',
+    workItem: 'see',
     response: {
       200: t.Object({ rev: t.String() }),
       400: ErrorResponse,
@@ -902,7 +902,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     {
       body: t.Object({ body: t.String({ minLength: 1, description: 'Comment text.' }) }),
       params: issueParams,
-      workItem: 'create',
+      workItem: 'see',
       response: {
         201: FeedItemResponse,
         400: ErrorResponse,

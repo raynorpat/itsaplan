@@ -8,18 +8,11 @@ import {
   feedEntry,
   team,
   teamMember,
-  teamRole,
   teamView,
 } from '@repo/db';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { iso } from '../shared/lib';
-import {
-  defaultMemberPermissions,
-  fullPermissions,
-  normalizePermissions,
-  type Permissions,
-} from '../shared/permissions';
 
 // Data access for the instance directories (god mode): every account and every
 // team on this instance. It reads across the better-auth tables (user, session,
@@ -32,7 +25,7 @@ export interface InstanceUserRow {
   email: string;
   image: string | null;
   emailVerified: boolean;
-  // The global better-auth role: "god" for the instance owner, "user" otherwise.
+  // The workspace role: owner, admin, member or guest.
   role: string;
   // The sign-in methods linked to the account ("credential", "google", …).
   providers: string[];
@@ -47,14 +40,9 @@ export interface InstanceUserTeam {
   teamId: string;
   teamKey: string;
   teamName: string;
+  // Whether the user is a team owner.
   role: 'owner' | 'member';
-  roleId: string | null;
-  roleName: string | null;
-  // The effective matrix: full for an owner, the assigned role's matrix for a
-  // member, the default member matrix when no role is assigned.
-  permissions: Permissions;
-  // How many owners the team has. 1 on a team this user owns means deleting
-  // the account would leave the team with nobody who can manage it.
+  // How many owners the team has.
   ownerCount: number;
   joinedAt: string;
 }
@@ -64,14 +52,6 @@ export interface InstanceUserDetail extends InstanceUserRow {
 }
 
 type UserRow = typeof user.$inferSelect;
-
-// The effective matrix of a membership: full for an owner, the assigned role's
-// matrix for a member, the default member matrix when no role is assigned.
-function resolvePermissions(role: 'owner' | 'member', rolePermissions: unknown): Permissions {
-  if (role === 'owner') return fullPermissions();
-  if (!rolePermissions) return defaultMemberPermissions();
-  return normalizePermissions(rolePermissions);
-}
 
 // The per-user facts that live in other tables. Collected in one grouped query
 // each and joined in memory, so the user query stays a plain select.
@@ -135,7 +115,7 @@ function toRow(r: UserRow, facts: UserFacts): InstanceUserRow {
     email: r.email,
     image: r.image,
     emailVerified: r.emailVerified,
-    role: r.role ?? 'user',
+    role: r.workspaceRole,
     providers: facts.providers.get(r.id) ?? [],
     teamCount: facts.teamCounts.get(r.id) ?? 0,
     lastSeenAt: lastSeen ? iso(lastSeen) : null,
@@ -192,15 +172,11 @@ export async function getInstanceUser(userId: string): Promise<InstanceUserDetai
         teamId: team.id,
         teamKey: team.key,
         teamName: team.name,
-        role: teamMember.role,
-        roleId: teamMember.roleId,
-        roleName: teamRole.name,
-        permissions: teamRole.permissions,
+        owner: teamMember.owner,
         joinedAt: teamMember.createdAt,
       })
       .from(teamMember)
       .innerJoin(team, eq(team.id, teamMember.teamId))
-      .leftJoin(teamRole, eq(teamRole.id, teamMember.roleId))
       .where(eq(teamMember.userId, userId))
       .orderBy(team.name),
   ]);
@@ -208,16 +184,13 @@ export async function getInstanceUser(userId: string): Promise<InstanceUserDetai
   const ownerCounts = await countOwnersByTeam(memberships.map((m) => m.teamId));
 
   const teams: InstanceUserTeam[] = memberships.map((m) => {
-    const role = m.role === 'owner' ? 'owner' : 'member';
+    const role = m.owner ? 'owner' : 'member';
     return {
       teamId: m.teamId,
       teamKey: m.teamKey,
       teamName: m.teamName,
       role,
-      roleId: m.roleId,
-      roleName: m.roleName,
       ownerCount: ownerCounts.get(m.teamId) ?? 0,
-      permissions: resolvePermissions(role, m.permissions),
       joinedAt: iso(m.joinedAt),
     };
   });
@@ -231,7 +204,7 @@ async function countOwnersByTeam(teamIds: string[]): Promise<Map<string, number>
   const rows = await db
     .select({ teamId: teamMember.teamId, count: sql<number>`count(*)::int` })
     .from(teamMember)
-    .where(and(eq(teamMember.role, 'owner'), inArray(teamMember.teamId, teamIds)))
+    .where(and(eq(teamMember.owner, true), inArray(teamMember.teamId, teamIds)))
     .groupBy(teamMember.teamId);
   return new Map(rows.map((r) => [r.teamId, r.count]));
 }
@@ -276,9 +249,6 @@ export interface InstanceTeamMember {
   email: string;
   image: string | null;
   role: 'owner' | 'member';
-  roleId: string | null;
-  roleName: string | null;
-  permissions: Permissions;
   joinedAt: string;
 }
 
@@ -417,30 +387,23 @@ export async function getInstanceTeam(teamId: string): Promise<InstanceTeamDetai
         name: user.name,
         email: user.email,
         image: user.image,
-        role: teamMember.role,
-        roleId: teamMember.roleId,
-        roleName: teamRole.name,
-        permissions: teamRole.permissions,
+        owner: teamMember.owner,
         joinedAt: teamMember.createdAt,
       })
       .from(teamMember)
       .innerJoin(user, eq(user.id, teamMember.userId))
-      .leftJoin(teamRole, eq(teamRole.id, teamMember.roleId))
       .where(eq(teamMember.teamId, teamId))
       .orderBy(user.name),
   ]);
 
   const members: InstanceTeamMember[] = memberships.map((m) => {
-    const role = m.role === 'owner' ? 'owner' : 'member';
+    const role = m.owner ? 'owner' : 'member';
     return {
       userId: m.userId,
       name: m.name,
       email: m.email,
       image: m.image,
       role,
-      roleId: m.roleId,
-      roleName: m.roleName,
-      permissions: resolvePermissions(role, m.permissions),
       joinedAt: iso(m.joinedAt),
     };
   });

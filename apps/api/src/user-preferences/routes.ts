@@ -1,7 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { authContext } from '../shared/auth-context';
-import { requireUser } from '../shared/access';
-import { getMembership } from '../members/store';
+import { requireUser, canSeeTeam } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { HotkeyCombosSchema } from '../settings/hotkeys';
@@ -66,7 +65,7 @@ export const userPreferenceRoutes = new Elysia({
       }
       // Only a team the user belongs to can be remembered, so the stored id can
       // never point at one they cannot open.
-      if (body.lastTeamId != null && !(await getMembership(body.lastTeamId, current.id))) {
+      if (body.lastTeamId != null && !(await canSeeTeam(body.lastTeamId, current.id))) {
         throw new HttpError(403, 'You do not have access to this team');
       }
       return updatePreferences(current.id, body);

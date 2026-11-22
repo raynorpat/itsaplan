@@ -57,7 +57,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
         color: t.Optional(t.String()),
         groupId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
-      permission: ['labels', 'create'],
+      teamAccess: 'manage',
       response: {
         201: LabelResponse,
         400: ErrorResponse,
@@ -93,7 +93,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
         groupId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
       }),
       params: labelParams,
-      permission: ['labels', 'edit'],
+      teamAccess: 'manage',
       response: {
         200: LabelResponse,
         400: ErrorResponse,
@@ -119,7 +119,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
     },
     {
       params: labelParams,
-      permission: ['labels', 'delete'],
+      teamAccess: 'manage',
       response: {
         204: t.Void(),
         400: ErrorResponse,
@@ -152,7 +152,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
     },
     {
       body: t.Object({ name: t.String({ minLength: 1 }), color: t.Optional(t.String()) }),
-      permission: ['labels', 'create'],
+      teamAccess: 'manage',
       response: {
         201: LabelGroupResponse,
         400: ErrorResponse,
@@ -187,7 +187,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
         color: t.Optional(t.String()),
       }),
       params: groupParams,
-      permission: ['labels', 'edit'],
+      teamAccess: 'manage',
       response: {
         200: LabelGroupResponse,
         400: ErrorResponse,
@@ -212,7 +212,7 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
     },
     {
       params: groupParams,
-      permission: ['labels', 'delete'],
+      teamAccess: 'manage',
       response: {
         204: t.Void(),
         400: ErrorResponse,

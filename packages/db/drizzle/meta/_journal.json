@@ -71,6 +71,20 @@
       "when": 1795369690591,
       "tag": "0009_drop_agent_leftovers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795370775862,
+      "tag": "0010_cold_black_panther",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795371192502,
+      "tag": "0011_powerful_terror",
+      "breakpoints": true
     }
   ]
 }

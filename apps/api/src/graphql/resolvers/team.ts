@@ -1,5 +1,6 @@
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { memberTeamIds, visibleTeamIds } from '../../shared/access';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
@@ -8,13 +9,12 @@ import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
 import { UUID_RE } from '../../shared/lib';
 
-// Linear's Team is a team. A team is visible only to its members.
+// Linear's Team is a team. Owners, admins and members see every public team and
+// their private teams; guests see their teams (shared/access.ts).
 
 type TeamRecord = typeof team.$inferSelect;
 
-// The teams the user is a member of, as a subquery for `inArray`.
-export const visibleTeamIds = (userId: string) =>
-  db.select({ id: teamMember.teamId }).from(teamMember).where(eq(teamMember.userId, userId));
+export { visibleTeamIds };
 
 export function toTeam(row: TeamRecord) {
   return {
@@ -25,7 +25,8 @@ export function toTeam(row: TeamRecord) {
     description: row.description,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.createdAt.toISOString(),
-    private: false,
+    private: row.visibility === 'private',
+    visibility: row.visibility,
     cyclesEnabled: row.cyclesEnabled,
     cycleDuration: row.cycleDuration,
     cycleStartDay: row.cycleStartDay,
@@ -54,17 +55,22 @@ export const teamFilter: FieldHandlers = {
   name: (v, p) => compare(team.name, v, p),
 };
 
-// Users visible to the viewer: themselves and the members of their teams.
+// Users visible to the viewer: every workspace user for owners, admins and
+// members; for a guest, themselves and the members of their teams.
 export function visibleUsers(viewerId: string): SQL {
-  const teams = visibleTeamIds(viewerId);
+  const notGuest = db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.id, viewerId), ne(user.workspaceRole, 'guest')));
   return or(
     eq(user.id, viewerId),
+    sql`EXISTS (${notGuest})`,
     inArray(
       user.id,
       db
         .select({ id: teamMember.userId })
         .from(teamMember)
-        .where(inArray(teamMember.teamId, teams)),
+        .where(inArray(teamMember.teamId, memberTeamIds(viewerId))),
     ),
   )!;
 }

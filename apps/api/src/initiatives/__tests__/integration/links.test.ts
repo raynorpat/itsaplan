@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { makePrivate } from '../../../__tests__/helpers/roles';
 import { visibleInitiativesSql } from '../../access';
 import { archiveInitiative, createInitiative } from '../../store';
 import {
@@ -90,6 +91,7 @@ describe('initiative links and relations', () => {
 
   it('stops the visible subtree at initiatives the viewer cannot see', async () => {
     const { owner, asOwner, mkt, make } = await setup();
+    await makePrivate(asOwner, 'MKT');
     const a = await make('A');
     const b = await make('B', mkt);
     const c = await make('C');

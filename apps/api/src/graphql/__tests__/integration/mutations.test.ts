@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
+import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 
 // Issue and workflow state mutations over the Linear API. They go through the same
@@ -17,19 +18,6 @@ async function setup() {
   const client = linearClient(await createApiKey(owner.cookie));
   const team = await client.team('MKT');
   return { owner, asOwner, col, client, teamId: team.id };
-}
-
-// A member of MKT on a role without work item permissions.
-async function readOnlyMember(asOwner: Api) {
-  const role = await asOwner
-    .teams({ teamKey: 'MKT' })
-    .roles.post({ name: 'Viewer', permissions: {} });
-  const member = await signUpTestUser();
-  const invite = await asOwner
-    .teams({ teamKey: 'MKT' })
-    .invites.post({ email: member.email, role: 'member', roleId: role.data!.id });
-  await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
-  return member;
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -101,14 +89,14 @@ describe('graphql mutations', () => {
       expect(res.body.errors?.[0].message).toContain('templateId');
     });
 
-    it('denies a member without work item permissions', async () => {
-      const { asOwner, teamId } = await setup();
-      const member = await readOnlyMember(asOwner);
+    it('denies a guest outside the team', async () => {
+      const { teamId } = await setup();
+      const member = await signUpWithRole('guest');
       const res = await gql(
         { cookie: member.cookie },
         `mutation { issueCreate(input: { teamId: "${teamId}", title: "x" }) { success } }`,
       );
-      expect(errorCode(res)).toBe('FORBIDDEN');
+      expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     });
   });
 
@@ -135,15 +123,15 @@ describe('graphql mutations', () => {
       ).toHaveProperty('stateId');
     });
 
-    it('denies a member without work item permissions', async () => {
-      const { asOwner, client, teamId } = await setup();
+    it('denies a guest outside the team', async () => {
+      const { client, teamId } = await setup();
       const issue = (await (await client.createIssue({ teamId, title: 'x' })).issue)!;
-      const member = await readOnlyMember(asOwner);
+      const member = await signUpWithRole('guest');
       const res = await gql(
         { cookie: member.cookie },
         `mutation { issueUpdate(id: "${issue.id}", input: { title: "y" }) { success } }`,
       );
-      expect(errorCode(res)).toBe('FORBIDDEN');
+      expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     });
 
     it('answers ENTITY_NOT_FOUND for an issue the viewer cannot see', async () => {

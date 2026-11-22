@@ -72,9 +72,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Initiatives** (`initiatives/`): workspace-level groups of projects
   (`initiative_to_project`, a project once per initiative) with sub-initiatives
   (`initiative_relation`: one parent, no loops, at most 5 levels). An initiative with
-  a lead team is visible to users holding `projects.read` in that team; one without
-  a lead team to users holding it in any team (`access.ts`); writes need
-  `projects.<action>` the same way. Deleting the lead team makes its initiatives
+  a lead team is visible to users who can see that team; one without a lead team
+  to every owner, admin and member (`access.ts`); guests see none. Seeing an
+  initiative allows changing it. Deleting the lead team makes its initiatives
   workspace initiatives. Health is the newest unarchived `initiative_update`'s.
   `initiativeDelete` archives and sets `trashed`.
 - **Issue relations** (`issues/relations.ts`): `blocks`, `duplicate` (the issue is a
@@ -82,11 +82,10 @@ Rules and invariants for this package below; read the code for the walkthrough.
   across teams allowed. Every change is logged on both issues (action `relation`).
   A new duplicate moves to its team's canceled state named "Duplicate", else the
   first canceled state, unless already completed or canceled. A relation is visible
-  when both issues are; writes need `work_items.edit` in either issue's team.
+  when both issues are; writes need access to either issue's team.
 - **Documents** (`documents/`): a titled Markdown page in exactly one project or
-  issue. Access follows the parent (`access.ts`: project documents through
-  `projects.read` / `projects.edit`, issue documents through team membership and
-  `work_items.edit`). The document id is also Linear's `documentContentId`, which
+  issue. Access follows the parent: whoever can see the project or issue reads and
+  writes its documents (`access.ts`). The document id is also Linear's `documentContentId`, which
   comments on the document use. `documentDelete` archives and sets `trashed`;
   documents of archived parents are hidden from lists, and a document cannot be
   created in, moved to or restored under an archived parent.
@@ -97,7 +96,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
   normalised back before matching. One attachment per URL on an issue:
   `upsertLinkAttachment` updates the existing one. Every write goes through the
   store, which sends the `Attachment` webhooks; REST lists and quotas count uploads
-  only. Access follows the issue (`work_items` actions on its team).
+  only. Access follows the issue's team.
 - **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
   Linear's issue subscribers. Creating an issue subscribes its creator and assignee;
   a new assignee, a comment's author and the members a comment mentions are
@@ -118,25 +117,30 @@ Enforced declaratively through macros, never imperative calls in handlers.
   `user` on context, throws 401 with none. `planner.ts` gates every planner route;
   a feature also `.use(authContext)` when its handlers/macros reference `user`. An
   `x-api-key` header resolves through `getSession` — no special-casing.
-- **Membership:** access is strictly by a `team_member` row (`owner` | `member`).
-  Owners bypass the permission matrix; the global `user.role` (`god` | `user`) does
-  **not**. Keep at least one owner per team.
-- **`:teamKey` routes:** `.use(guards)` and set `permission: ["<resource>",
-"<action>"]` / `teamMember: true` / `teamOwner: true`; read the resolved
-  `team` from context.
+- **Linear's model** (`shared/access.ts`, the one place access is decided):
+  workspace roles on the user (`user.workspace_role`: `owner`, `admin`, `member`,
+  `guest`); teams are `public` or `private`; `team_member.owner` marks a team
+  owner. Owners, admins and members see and work in every public team and their
+  private teams; guests only in their teams (`visibleTeamIds`). Team management
+  (settings, states, team labels, members, visibility, deletion) needs a team
+  owner or a workspace admin, or any member when the team has no owner.
+  Workspace actions follow the role table in
+  `docs/superpowers/specs/2026-11-22-linear-roles-design.md` (`assertWorkspaceRole`).
+  A team the user cannot see is 404; a visible team without the right is 403.
+- **`:teamKey` routes:** `.use(guards)` and set `teamAccess: "see" | "manage"` or
+  `teamWebhooks: true`; read the resolved `team` from context.
 - **Entity-by-id routes** (`/issues/:issueId`, `/views/:viewId`, …): define a local
-  macro via `entityGuard(resource, notFound, resolveTeamId)` and set it in route
-  options (e.g. `workItem: "edit"`). `GET /issues/:issueId` instead asserts
-  `assertPermission` on the fetched row.
+  macro via `entityGuard(notFound, resolveTeamId)` and set it in route options
+  (e.g. `workItem: "see"`).
 - Guards/macros wrap the `shared/access.ts` primitives. Handlers that still need
   `user` (team create, invite accept/reject, self-removal) call `requireUser(user)`.
 - **Members join only through invites/**, not a direct add. One pending invite per
-  (team, email) — partial unique index → 409. `members/` removes only (last owner
-  protected).
+  (team, email) — partial unique index → 409. `members/` removes members and sets
+  the team owner flag; a team may have no owners.
 - **Projects span teams** (`project_team`), so routes that address a project use the
-  `project: "<action>"` macro in `projects/routes.ts`, which resolves access through
-  every team of the project (`projects/access.ts`): not readable through any team →
-  404, readable but no team grants the action → 403. Issues may only join a project
+  `project: true` macro in `projects/routes.ts`, which resolves access through every
+  team of the project (`projects/access.ts`): a project none of whose teams the user
+  can see → 404. Issues may only join a project
   that includes their team; a team with issues in a project cannot be removed from it.
   Project statuses are six seeded rows (`project_status`, ids in
   `packages/db/src/project-statuses.ts`); `resetDb` keeps them.
@@ -177,9 +181,9 @@ directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authe
   follow-up read), never by reading rows.
 - Cover per route: happy path, one valid + one invalid per field rule, boundaries
   (empty, max/max+1, last-owner), each failure status (400/403/404/409), and the
-  feature's own access wiring (owner succeeds, non-member 403). Don't re-test shared
-  machinery — the no-session 401 and the permission matrix have their own tests in
-  `shared/__tests__/`.
+  feature's own access wiring (who succeeds; a user who cannot see the team gets
+  404). Don't re-test shared machinery — the no-session 401 and the role rules have
+  their own tests in `shared/__tests__/`.
 - Confirm each case goes red when the behavior is broken.
 
 **Gotchas.**
@@ -189,8 +193,9 @@ directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authe
   there. Read the body from `error.value`.
 - A DTO date arrives as a `Date`, not a string — Treaty revives `iso()` strings on the
   client. Assert the value, not `typeof === "string"`.
-- The first `signUpTestUser` in a test is `god` (fresh DB per `resetDb`). To act as a
-  plain user, create the god user first and act as the second.
+- The first `signUpTestUser` in a test is the workspace `owner` (fresh DB per
+  `resetDb`); later ones are `member`s. `__tests__/helpers/roles.ts` gives a user
+  another role, adds them to a team and makes a team private.
 - Don't hardcode ids or the "-42" sequence — read them from the create response.
 
 ## Webhooks (Linear-compatible)
@@ -202,10 +207,9 @@ receiver works against the instance.
   (`all_public_teams`, including teams created later) and lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
   `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`. Initiative events go to the lead team's
-  webhooks, or only to all-teams webhooks for a workspace initiative. Team webhooks use
-  the team's `webhooks.<action>` permission; all-teams webhooks are managed only by
-  the god user or an owner of every team (`webhooks/access.ts`, checked on every
-  operation).
+  webhooks, or only to all-teams webhooks for a workspace initiative. Webhooks are
+  managed by workspace admins and owners: a team webhook by one who can see the team,
+  an all-teams webhook by any (`webhooks/access.ts`, checked on every operation).
 - **Events:** the stores call `emitEvent` (`webhooks/event.ts`) after a change,
   with the entity's data from `webhooks/data.ts` before and after it. `data` is the
   GraphQL mapper's output plus Linear's relation ids; `updatedFrom` holds the
@@ -240,9 +244,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   checks as REST (`resolvers/mutations.ts`), so activity, webhooks and
   notifications match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
   `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
-- **Access:** a team and its issues and states are visible to members only; a
-  project is visible through a team that grants `projects.read`; a user is visible
-  when they share a team with the viewer. A comment or reaction follows the item it
+- **Access:** the rules in Auth and access: a team and everything in it is visible
+  through `visibleTeamIds`; a project through any of its teams; every workspace user
+  to owners, admins and members, and to a guest only the people sharing a team. A comment or reaction follows the item it
   is on; workspace labels are visible to anyone in a team. An initiative follows its
   lead team (see Initiatives); a link or relation is listed only when both ends are
   visible.

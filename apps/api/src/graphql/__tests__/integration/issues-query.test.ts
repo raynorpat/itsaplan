@@ -79,7 +79,7 @@ describe('graphql issue queries', () => {
     const { owner } = await setup();
     const other = await signUpTestUser();
     const asOther = authedApi(other.cookie);
-    await asOther.teams.post({ key: 'OPS', name: 'Operations' });
+    await asOther.teams.post({ key: 'OPS', name: 'Operations', visibility: 'private' });
     const opsView = await asOther.teams({ teamKey: 'OPS' }).get();
     const hidden = (
       await asOther
@@ -167,7 +167,7 @@ describe('graphql issue queries', () => {
     expect(none.nodes).toHaveLength(0);
   });
 
-  it('hides the creator once they no longer share a team', async () => {
+  it('keeps the creator visible after they leave the team', async () => {
     const { owner, asOwner, col } = await setup();
     const member = await signUpTestUser({ name: 'Leaver' });
     const invite = await asOwner
@@ -183,7 +183,10 @@ describe('graphql issue queries', () => {
       { cookie: owner.cookie },
       `{ issue(id: "${created.id}") { creator { id } assignee { id } } }`,
     );
-    expect(res.body.data).toEqual({ issue: { creator: null, assignee: null } });
+    // Workspace members see every workspace user, so the creator stays visible.
+    expect(res.body.data).toEqual({
+      issue: { creator: { id: member.userId }, assignee: { id: member.userId } },
+    });
   });
 
   it('accepts first: 250 and rejects first: 251', async () => {

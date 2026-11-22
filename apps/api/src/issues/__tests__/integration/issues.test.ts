@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Issues live under a team. Create is /teams/:teamKey/issues (permission
 // guard on :teamKey); the other routes address the issue by its own id
@@ -535,9 +536,9 @@ describe('issues', () => {
     it('denies archive to a non-member with 403', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId)).data!;
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.issues({ issueId: issue.id }).archive.post();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -583,9 +584,9 @@ describe('issues', () => {
 
     it('denies a non-member with 403', async () => {
       await setupTeam();
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.teams({ teamKey: 'MKT' }).issues.board.get();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -730,9 +731,9 @@ describe('issues', () => {
     it('denies a non-member', async () => {
       const { asOwner, stateId } = await setupTeam();
       await createIssue(asOwner, stateId, { title: 'Secret' });
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
-      expect((await search(outsider, { q: 'secret' })).status).toBe(403);
+      expect((await search(outsider, { q: 'secret' })).status).toBe(404);
     });
   });
 
@@ -816,9 +817,9 @@ describe('issues', () => {
     it('denies a non-member', async () => {
       const { asOwner, stateId } = await setupTeam();
       await createIssue(asOwner, stateId, { title: 'Secret' });
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
-      expect((await list(outsider)).status).toBe(403);
+      expect((await list(outsider)).status).toBe(404);
     });
   });
 
@@ -949,7 +950,7 @@ describe('issues', () => {
     it('denies a non-member', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId)).data!;
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       expect(
         (
@@ -957,11 +958,11 @@ describe('issues', () => {
             .teams({ teamKey: 'MKT' })
             .issues.bulk.patch({ ids: [issue.id], patch: { priority: 2 } })
         ).status,
-      ).toBe(403);
+      ).toBe(404);
       expect(
         (await outsider.teams({ teamKey: 'MKT' }).issues.bulk.delete.post({ ids: [issue.id] }))
           .status,
-      ).toBe(403);
+      ).toBe(404);
     });
   });
 
@@ -969,17 +970,17 @@ describe('issues', () => {
     it('denies a non-member on every issue route', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId)).data!;
-      const outsider = authedApi((await signUpTestUser()).cookie);
+      const outsider = (await signUpWithRole('guest')).api;
 
       // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert
       // the top-level HTTP status rather than error.status.
       expect(
         (await outsider.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'X' })).status,
-      ).toBe(403);
-      expect((await outsider.issues({ issueId: issue.id }).get()).status).toBe(403);
-      expect((await outsider.issues({ issueId: issue.id }).patch({ title: 'X' })).status).toBe(403);
-      expect((await outsider.issues({ issueId: issue.id }).delete()).status).toBe(403);
-      expect((await outsider.issues({ issueId: issue.id }).rev.get()).status).toBe(403);
+      ).toBe(404);
+      expect((await outsider.issues({ issueId: issue.id }).get()).status).toBe(404);
+      expect((await outsider.issues({ issueId: issue.id }).patch({ title: 'X' })).status).toBe(404);
+      expect((await outsider.issues({ issueId: issue.id }).delete()).status).toBe(404);
+      expect((await outsider.issues({ issueId: issue.id }).rev.get()).status).toBe(404);
     });
   });
 });

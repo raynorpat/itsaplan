@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Full integration flow: a real session against the real (test) database.
 // Requires the test DB to be up and migrated:
@@ -133,26 +134,21 @@ describe('teams', () => {
       const owner = await signUpClient();
       await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
-      const outsider = await signUpClient();
+      const outsider = await signUpWithRole('guest');
       const list = await outsider.api.teams.get();
       expect(list.status).toBe(200);
       expect(list.data).toHaveLength(0);
     });
 
-    it('omits permissions by default and includes them with the flag', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
+    it('lists public teams the caller has not joined, with a null role', async () => {
+      const owner = await signUpClient();
+      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
+      const other = await signUpClient();
 
-      const bare = await api.teams.get();
-      expect(bare.data?.[0].permissions).toBeUndefined();
-
-      const withPerms = await api.teams.get({ query: { permissions: 'true' } });
-      expect(withPerms.status).toBe(200);
-      // The owner's matrix grants everything. The matrix is a loose Record over the
-      // wire, so read it through a typed view.
-      const perms = withPerms.data?.[0].permissions as
-        Record<string, Record<string, boolean>> | undefined;
-      expect(perms?.work_items.create).toBe(true);
+      const list = await other.api.teams.get();
+      expect(list.data?.map((t) => ({ key: t.key, role: t.role, canManage: t.canManage }))).toEqual(
+        [{ key: 'MKT', role: null, canManage: false }],
+      );
     });
   });
 
@@ -175,7 +171,7 @@ describe('teams', () => {
       });
     });
 
-    it('denies a non-member (owner-only)', async () => {
+    it('denies a member who does not manage the team', async () => {
       const owner = await signUpClient();
       await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
@@ -194,11 +190,12 @@ describe('teams', () => {
       expect(view.status).toBe(200);
       expect(view.data?.team).toMatchObject({ key: 'MKT', name: 'Marketing' });
       expect(view.data?.states.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      // The permission guard resolved the caller's own access; an owner's viewer
-      // reports the owner role, and the sibling permission matrix grants everything.
-      expect(view.data?.viewer.role).toBe('owner');
-      expect(view.data?.permissions.work_items.create).toBe(true);
-      expect(view.data?.permissions.danger_zone.delete).toBe(true);
+      // An owner's viewer reports the team owner role and management.
+      expect(view.data?.viewer).toMatchObject({
+        role: 'owner',
+        workspaceRole: 'owner',
+        canManage: true,
+      });
     });
 
     it('returns 404 for an unknown team', async () => {
@@ -211,9 +208,9 @@ describe('teams', () => {
       const owner = await signUpClient();
       await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
-      const outsider = await signUpClient();
+      const outsider = await signUpWithRole('guest');
       const res = await viewOf(outsider.api, 'MKT');
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -243,9 +240,9 @@ describe('teams', () => {
       const owner = await signUpClient();
       await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
 
-      const outsider = await signUpClient();
+      const outsider = await signUpWithRole('guest');
       const res = await outsider.api.teams({ teamKey: 'MKT' }).delete();
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
