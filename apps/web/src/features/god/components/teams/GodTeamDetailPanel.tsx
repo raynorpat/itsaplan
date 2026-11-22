@@ -31,10 +31,6 @@ function stats(team: InstanceTeamDetail): { label: string; value: number }[] {
     { label: 'Projects', value: team.projectCount },
     { label: 'Members', value: team.memberCount },
     { label: 'Views', value: team.viewCount },
-    { label: 'AI agents', value: team.agentCount },
-    { label: 'Skills', value: team.skillCount },
-    { label: 'Tools', value: team.toolCount },
-    { label: 'Integrations', value: team.integrationCount },
   ];
 }
 

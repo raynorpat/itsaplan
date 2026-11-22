@@ -88,15 +88,12 @@ const LabelGroupResponse = t.Object({
   color: t.String(),
 });
 
-// An assignable candidate (AssigneeCandidate from members/store): a team
-// member or an AI agent's bot user.
+// An assignable candidate (AssigneeCandidate from members/store): a team member.
 const AssigneeCandidateResponse = t.Object({
   userId: t.String({ format: 'uuid' }),
   name: t.String(),
   email: t.String(),
   image: t.Nullable(t.String()),
-  kind: t.Union([t.Literal('member'), t.Literal('agent')]),
-  agentKind: t.Nullable(t.Union([t.Literal('external'), t.Literal('internal')])),
 });
 
 // Auto-archive thresholds (AutoArchiveSettings from the store): days of inactivity

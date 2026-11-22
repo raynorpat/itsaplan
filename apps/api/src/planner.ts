@@ -7,10 +7,6 @@ import { roleRoutes } from './roles/routes';
 import { inviteRoutes } from './invites/routes';
 import { stateRoutes } from './states/routes';
 import { labelRoutes } from './labels/routes';
-import { aiAgentRoutes } from './ai-agents/routes';
-import { integrationRoutes } from './integrations/routes';
-import { agentSkillRoutes } from './agent-skills/routes';
-import { agentToolRoutes } from './agent-tools/routes';
 import { issueRoutes } from './issues/routes';
 import { projectRoutes } from './projects/routes';
 import { projectLabelRoutes } from './project-labels/routes';
@@ -20,14 +16,12 @@ import { viewRoutes } from './views/routes';
 import { webhookRoutes } from './webhooks/routes';
 import { settingsRoutes } from './settings/routes';
 import { godRoutes } from './god/routes';
-import { agentScheduleRoutes } from './agent-schedules/routes';
 import { notificationRoutes } from './notifications/routes';
 import { notificationPreferenceRoutes } from './notification-preferences/routes';
 import { userPreferenceRoutes } from './user-preferences/routes';
 
-// The planner API: teams and their columns, issue types, labels, AI agents,
-// custom fields, issues, attachments, saved views, and actions. Mounted on the
-// main app in ./index.ts.
+// The planner API: teams and their states, labels, issues, projects, attachments,
+// saved views, webhooks and notifications. Mounted on the main app in ./app.ts.
 //
 // Every route requires a better-auth session (the shared authContext plugin each
 // feature uses); the only exception is the public raw attachment route. The web
@@ -72,10 +66,6 @@ export const planner = new Elysia({ name: 'planner' })
   .use(inviteRoutes)
   .use(stateRoutes)
   .use(labelRoutes)
-  .use(aiAgentRoutes)
-  .use(integrationRoutes)
-  .use(agentSkillRoutes)
-  .use(agentToolRoutes)
   .use(issueRoutes)
   .use(projectRoutes)
   .use(projectLabelRoutes)
@@ -83,7 +73,6 @@ export const planner = new Elysia({ name: 'planner' })
   .use(avatarRoutes)
   .use(viewRoutes)
   .use(webhookRoutes)
-  .use(agentScheduleRoutes)
   .use(notificationRoutes)
   .use(notificationPreferenceRoutes)
   .use(userPreferenceRoutes)

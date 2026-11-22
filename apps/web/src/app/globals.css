@@ -474,7 +474,7 @@
 }
 
 /* Shimmer text utility (shadcn `shimmer`): a highlight sweeps across the text,
-   used on the agent-chat status marker while the agent is working. */
+   used on an attachment while it uploads or processes. */
 @utility shimmer {
   color: transparent;
   background-clip: text;

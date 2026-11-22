@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 
 export const THEMES = ['light', 'dark', 'system'] as const;
 export const ISSUE_OPEN_MODES = ['panel', 'page'] as const;
-export const START_PAGES = ['inbox', 'work-items', 'projects', 'ai-chat'] as const;
+export const START_PAGES = ['inbox', 'work-items', 'projects'] as const;
 export const ISSUE_STATS_VIEWS = ['compact', 'timeline'] as const;
 
 export type Theme = (typeof THEMES)[number];
@@ -21,9 +21,6 @@ export interface UserPreferenceDto {
   theme: Theme;
   issueOpenMode: IssueOpenMode;
   startPage: StartPage;
-  // Keeps the floating AI chat button on screen from the start, with the chat
-  // window collapsed.
-  showChatByDefault: boolean;
   // How the status stats section of an issue starts out: expanded or collapsed, and
   // in the compact bar or the full timeline. Switching it on an issue is not stored.
   issueStatsOpen: boolean;
@@ -45,7 +42,6 @@ export function defaults(): UserPreferenceDto {
     theme: 'system',
     issueOpenMode: 'panel',
     startPage: 'work-items',
-    showChatByDefault: false,
     issueStatsOpen: true,
     issueStatsView: 'compact',
     lastTeamId: null,
@@ -69,7 +65,6 @@ function toDto(row: {
   theme: string;
   issueOpenMode: string;
   startPage: string;
-  showChatByDefault: boolean;
   issueStatsOpen: boolean;
   issueStatsView: string;
   lastTeamId: string | null;
@@ -80,7 +75,6 @@ function toDto(row: {
     theme: row.theme as Theme,
     issueOpenMode: row.issueOpenMode as IssueOpenMode,
     startPage: row.startPage as StartPage,
-    showChatByDefault: row.showChatByDefault,
     issueStatsOpen: row.issueStatsOpen,
     issueStatsView: row.issueStatsView as IssueStatsView,
     lastTeamId: row.lastTeamId,
@@ -96,7 +90,6 @@ export async function getPreferences(userId: string): Promise<UserPreferenceDto>
       theme: userPreference.theme,
       issueOpenMode: userPreference.issueOpenMode,
       startPage: userPreference.startPage,
-      showChatByDefault: userPreference.showChatByDefault,
       issueStatsOpen: userPreference.issueStatsOpen,
       issueStatsView: userPreference.issueStatsView,
       lastTeamId: userPreference.lastTeamId,

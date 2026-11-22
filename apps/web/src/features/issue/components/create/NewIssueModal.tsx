@@ -10,7 +10,6 @@ import Modal from '@/components/common/overlay/Modal';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
-import DelegateSelect from '../fields/DelegateSelect';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
@@ -38,13 +37,8 @@ export default function NewIssueModal({
   const [assigneeUserId, setAssigneeUserId] = useState<string | null>(() => {
     if (defaults.assigneeUserId !== undefined) return defaults.assigneeUserId;
     const userId = session?.user.id;
-    return userId != null && team.assignees.some((a) => a.kind === 'member' && a.userId === userId)
-      ? userId
-      : null;
+    return userId != null && team.assignees.some((a) => a.userId === userId) ? userId : null;
   });
-  const [delegateUserId, setDelegateUserId] = useState<string | null>(
-    defaults.delegateUserId ?? null,
-  );
   const [priority, setPriority] = useState(defaults.priority ?? 0);
   const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -123,7 +117,6 @@ export default function NewIssueModal({
           stateId,
           projectId,
           assigneeUserId,
-          delegateUserId,
           priority: priority,
           startDate: startDate || null,
           dueDate: dueDate || null,
@@ -178,21 +171,12 @@ export default function NewIssueModal({
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <StatusSelect columns={team.states} value={stateId} onChange={setColumnId} />
 
-          {team.assignees.some((a) => a.kind === 'member') && (
+          {team.assignees.length > 0 && (
             <AssigneeSelect
               assignees={team.assignees}
               value={assigneeUserId}
               onChange={setAssigneeUserId}
               placeholder="Assignee"
-            />
-          )}
-
-          {team.assignees.some((a) => a.kind === 'agent') && (
-            <DelegateSelect
-              assignees={team.assignees}
-              value={delegateUserId}
-              onChange={setDelegateUserId}
-              placeholder="Delegate"
             />
           )}
 

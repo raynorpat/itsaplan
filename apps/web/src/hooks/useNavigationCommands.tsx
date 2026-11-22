@@ -4,7 +4,6 @@ import {
   Braces,
   FolderKanban,
   Inbox,
-  MessagesSquare,
   Server,
   Shield,
   SquareKanban,
@@ -13,8 +12,6 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import {
-  aiChatPath,
-  aiTeamPath,
   apiDocsPath,
   godPath,
   inboxPath,
@@ -26,13 +23,12 @@ import {
   teamPath,
 } from '@/utils/paths';
 import { ACCOUNT_SECTIONS, accountPath } from '@/utils/accountSections';
-import { AI_TEAM_SECTIONS } from '@/utils/settingsSections';
 import { GOD_SECTIONS } from '@/utils/godSections';
-import { usePermissions } from '@/hooks/usePermissions';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import type { Command, CommandSection } from '@/utils/commands';
 
-// Every place the palette can navigate to, filtered by what the viewer may read.
+// Every place the palette can navigate to; the settings destinations are filtered
+// by what the viewer may read.
 // The destinations mirror the sidebars one-to-one: the main nav (SidebarMainNav),
 // the team settings nav (useSettingsNavGroups, which already applies the
 // permission gate), the sidebar footer, the account pages and god mode. Grouped
@@ -40,7 +36,6 @@ import type { Command, CommandSection } from '@/utils/commands';
 // issues.
 export function useNavigationCommands(teamKey: string | null): CommandSection | null {
   const router = useRouter();
-  const { can } = usePermissions();
   const { data: session } = useSession();
   const { groups } = useSettingsNavGroups(teamKey);
   const isGod = session?.user.role === 'god';
@@ -56,12 +51,6 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
     add('nav.inbox', 'Inbox', <Inbox />, inboxPath(key), 'notifications unread');
     add('nav.work-items', 'Work items', <SquareKanban />, teamPath(key), 'board issues kanban');
     add('nav.projects', 'Projects', <Target />, projectsPath(), 'epics roadmap');
-    if (can('ai_agents', 'read'))
-      add('nav.ai-chat', 'Chat with AI Team', <MessagesSquare />, aiChatPath(key), 'ai agents');
-    for (const s of AI_TEAM_SECTIONS) {
-      if (can(s.resource, 'read'))
-        add(`nav.ai-team.${s.slug}`, s.label, <s.icon />, aiTeamPath(key, s.slug), 'ai team');
-    }
     add('nav.members', 'Members', <Users />, membersPath(key), 'team people invite');
     add('nav.notifications', 'Notification preferences', <Bell />, notificationsPath(key), 'email');
     // The settings destinations, already permission-filtered by the hook the

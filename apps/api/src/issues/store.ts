@@ -23,7 +23,6 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
-import type { IssueQuery } from '../ai-agents/issue-query';
 import { iso, num, HttpError } from '../shared/lib';
 import { projectTeamIds } from '../projects/access';
 import { milestoneProjectId } from '../projects/milestones';
@@ -41,13 +40,10 @@ import { notifyIssueChange } from '../notifications/store';
 import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
-import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
-import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 import { assertLabelsApplicable } from '../labels/store';
 import { assertCycleOfTeam, autoAssignCycleId } from '../cycles/store';
 
 import { getMembership } from '../members/store';
-import { enqueueAgentRun } from '../ai-agents/run-queue';
 
 // Data access for issues and their per-issue data (labels). The human identifier (e.g. "MKT-42") is the team key
 // plus the issue's team-scoped sequence number.
@@ -204,7 +200,7 @@ export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
 }
 
 // A light issue result for search and list: the fields the command palette and the
-// agent's search_issues / list_issues tools need to list and open a match. No
+// search_issues / list_issues MCP tools need to list and open a match. No
 // description (which may embed large data URIs), so the payload stays small.
 export interface IssueSearchHit {
   id: string;
@@ -225,6 +221,21 @@ export interface IssueSearchHit {
 // '\' as the default escape character).
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+// Filters of searchIssues. query is case-insensitive text; the rest are exact
+// matches (null matches an unset field; every label must be on the issue).
+export interface IssueQuery {
+  query?: string;
+  stateId?: string;
+  projectId?: string | null;
+  assigneeUserId?: string | null;
+  delegateUserId?: string | null;
+  priority?: number;
+  labelIds?: string[];
+  dueFrom?: string;
+  dueTo?: string;
+  limit?: number;
 }
 
 // Server-side issue read backing two routes: text search (search_issues) and the
@@ -342,9 +353,6 @@ export async function searchIssues(
 // the row for restore. Idempotent (archiving an archived issue is a no-op re-stamp
 // avoided by the archived_at guard). Records a feed entry. Returns the updated
 // issue, or null if it does not exist.
-//
-// The agents' conversation threads for the issue are deleted with it. Archiving is
-// reversible and this is not: a restored issue starts with empty agent memory.
 export async function archiveIssue(
   id: string,
   actorUserId?: string | null,
@@ -360,7 +368,6 @@ export async function archiveIssue(
     return getIssue(id);
   }
   await recordActivity(id, [{ action: 'archived' }], actorUserId);
-  await deleteThreadsWhere({ issueId: id });
   const archived = await getIssue(id);
   if (archived) await emitIssue('update', id, archived.teamId, actorUserId, beforeData);
   return archived;
@@ -540,9 +547,10 @@ export interface NewIssueInput {
   subscriberIds?: string[];
 }
 
-// Enforces that assignee holds a team member and delegate holds an agent of the
-// same team. Only checks the fields present in the patch, and only when set to a
-// non-null value (clearing a field is always allowed). Throws 400 otherwise.
+// Enforces that assignee holds a team member. A delegate (Linear's agent app user)
+// cannot be set: no user is an agent. Only checks the fields present in the patch,
+// and only when set to a non-null value (clearing a field is always allowed).
+// Throws 400 otherwise.
 async function assertAssignments(
   teamId: string,
   patch: { assigneeUserId?: string | null; delegateUserId?: string | null },
@@ -551,10 +559,7 @@ async function assertAssignments(
     const role = await getMembership(teamId, patch.assigneeUserId);
     if (!role) throw new HttpError(400, 'Assignee must be a team member');
   }
-  if (patch.delegateUserId) {
-    if (!(await isTeamAgent(teamId, patch.delegateUserId)))
-      throw new HttpError(400, 'Delegate must be an agent of this team');
-  }
+  if (patch.delegateUserId) throw new HttpError(400, 'Delegate must be an agent app user');
 }
 
 // Enforces that a milestone belongs to the issue's (resulting) project. Only
@@ -736,9 +741,6 @@ export async function createIssue(
     await setIssueLabels(team.id, issueId, input.labelIds, actorUserId, false);
   const created = (await getIssue(issueId))!;
   await emitIssue('create', issueId, team.id, actorUserId);
-  // An issue created already delegated to an agent enqueues a run, the same as
-  // delegating one later does.
-  await enqueueDelegateRun(created, actorUserId);
   // An issue created already assigned to a member notifies them, the same as
   // assigning one later does.
   if (created.assigneeUserId) {
@@ -868,30 +870,11 @@ export async function updateIssue(
     await logIssueUpdate(before, snapshot(after), actorUserId);
     if (changed || opts.labelIds || opts.before)
       await emitIssue('update', id, after.teamId, actorUserId, beforeData);
-    if (changed && before.delegateUserId !== after.delegateUserId)
-      await enqueueDelegateRun(after, actorUserId);
   }
   return after;
 }
 
-// If an issue's new delegate is an internal agent that reacts to delegation, queue a
-// run so it can act on the issue. Skipped when the agent delegated to itself (an
-// agent setting itself off). The LLM call happens later in the poller, so the write
-// is never blocked on it.
-async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null): Promise<void> {
-  const delegate = after.delegateUserId;
-  if (!delegate || delegate === actorUserId) return;
-  const agent = await getAssignTriggerAgent(delegate);
-  if (!agent) return;
-  await enqueueAgentRun({
-    agentId: agent.id,
-    issueId: after.id,
-    sourceCommentId: null,
-    prompt: `Work item ${after.identifier}: "${after.title}" has been delegated to you. Review it and take the appropriate next step.`,
-  });
-}
-
-// Deletes an issue and everything attached to it. Field options/values, labels,
+// Deletes an issue and everything attached to it. Labels,
 // attachments, and activity all go by their ON DELETE CASCADE on issue_id. Returns
 // the deleted file attachment rows (s3Key set) so the caller can remove their objects.
 // Returns null if the issue did not exist.

@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import {
   Archive,
   ArchiveRestore,
-  Bot,
   CalendarClock,
   Check,
   CircleDashed,
@@ -107,8 +106,7 @@ export default function IssueContextMenu({
   const currentColumn = team.states.find((c) => c.id === issue.stateId);
   const currentPriority =
     PRIORITY_FIELDS.find((p) => p.value === issue.priority) ?? PRIORITY_FIELDS[0];
-  const members = team.assignees.filter((a) => a.kind === 'member');
-  const agents = team.assignees.filter((a) => a.kind === 'agent');
+  const members = team.assignees;
   const projects = projectsQuery.data?.items ?? [];
 
   return (
@@ -194,32 +192,6 @@ export default function IssueContextMenu({
                         <User />
                         <span className="flex-1 truncate">{a.name}</span>
                         <SelectedCheck selected={a.userId === issue.assigneeUserId} />
-                      </ContextMenuItem>
-                    ))}
-                  </ContextMenuSubContent>
-                </ContextMenuSub>
-              )}
-
-              {agents.length > 0 && (
-                <ContextMenuSub>
-                  <ContextMenuSubTrigger>
-                    <Bot />
-                    Delegate
-                  </ContextMenuSubTrigger>
-                  <ContextMenuSubContent className="w-56">
-                    <ContextMenuItem onSelect={() => patch({ delegateUserId: null })}>
-                      <CircleDashed />
-                      <span className="flex-1">No delegate</span>
-                      <SelectedCheck selected={issue.delegateUserId == null} />
-                    </ContextMenuItem>
-                    {agents.map((a) => (
-                      <ContextMenuItem
-                        key={a.userId}
-                        onSelect={() => patch({ delegateUserId: a.userId })}
-                      >
-                        <Bot />
-                        <span className="flex-1 truncate">{a.name}</span>
-                        <SelectedCheck selected={a.userId === issue.delegateUserId} />
                       </ContextMenuItem>
                     ))}
                   </ContextMenuSubContent>

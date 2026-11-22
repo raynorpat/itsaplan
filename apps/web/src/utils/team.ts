@@ -177,26 +177,16 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
       }));
     case 'assignee':
       return [
-        ...team.assignees
-          .filter((a) => a.kind === 'member')
-          .map((a) => ({
-            key: `a${a.userId}`,
-            name: a.name,
-            assign: { assigneeUserId: a.userId },
-          })),
+        ...team.assignees.map((a) => ({
+          key: `a${a.userId}`,
+          name: a.name,
+          assign: { assigneeUserId: a.userId },
+        })),
         { key: 'a-none', name: 'No assignee', assign: { assigneeUserId: null } },
       ];
     case 'delegate':
-      return [
-        ...team.assignees
-          .filter((a) => a.kind === 'agent')
-          .map((a) => ({
-            key: `d${a.userId}`,
-            name: a.name,
-            assign: { delegateUserId: a.userId },
-          })),
-        { key: 'd-none', name: 'No delegate', assign: { delegateUserId: null } },
-      ];
+      // Delegates are Linear agent app users; none exist yet, so only "No delegate".
+      return [{ key: 'd-none', name: 'No delegate', assign: { delegateUserId: null } }];
     case 'priority':
       return [
         ...PRIORITIES.map((p) => ({

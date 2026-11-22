@@ -6,7 +6,6 @@ import {
   type InstanceAuthSettingsPatch,
   type InstanceEmailSettingsPatch,
   type InstanceGoogleSettingsPatch,
-  type InstanceUserKind,
   type StorageSettingsPatch,
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
@@ -87,7 +86,6 @@ export function useUpdateInstanceStorageSettings() {
 
 export interface InstanceUserFilters {
   search: string;
-  kind: InstanceUserKind;
   limit: number;
   offset: number;
 }
@@ -101,7 +99,6 @@ export function useInstanceUsersQuery(filters: InstanceUserFilters) {
     queryFn: () =>
       api.listInstanceUsers({
         search: filters.search || undefined,
-        kind: filters.kind,
         limit: filters.limit,
         offset: filters.offset,
       }),

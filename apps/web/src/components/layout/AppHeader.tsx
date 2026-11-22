@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { MessagesSquare, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useHotkeyLabel } from '@/context/useHotkeys';
 import { Button } from '@/components/ui/button';
@@ -15,21 +15,16 @@ export default function AppHeader({
   hasTeam,
   onOpenCommand,
   onNewIssue,
-  chatActive,
-  onToggleChat,
 }: {
   title: ReactNode;
   hasTeam: boolean;
   onOpenCommand: () => void;
   onNewIssue: () => void;
-  chatActive: boolean;
-  onToggleChat: () => void;
 }) {
   const { can } = usePermissions();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const newIssueKey = useHotkeyLabel('issue.new');
   const canCreateIssue = hasTeam && can('work_items', 'create');
-  const canUseChat = hasTeam && can('ai_agents', 'read');
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-4">
       <SidebarTrigger />
@@ -59,19 +54,6 @@ export default function AppHeader({
       >
         <Plus />
       </Button>
-
-      {canUseChat && (
-        <Button
-          variant={chatActive ? 'default' : 'outline'}
-          size="icon"
-          className="size-8 shrink-0"
-          title="AI chat"
-          aria-pressed={chatActive}
-          onClick={onToggleChat}
-        >
-          <MessagesSquare />
-        </Button>
-      )}
 
       <ThemeToggle />
       <UserMenu />

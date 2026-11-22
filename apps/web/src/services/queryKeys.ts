@@ -25,37 +25,6 @@ export const qk = {
   invites: (teamKey: string) => ['invites', teamKey] as const,
   roles: (teamKey: string) => ['roles', teamKey] as const,
   permissionCatalog: ['permissionCatalog'] as const,
-  // A team's AI agents (the AI Agents settings section). The tool catalog is
-  // team-scoped on the API, so it hangs off the same key with an 'tools' tail.
-  aiAgents: (teamKey: string) => ['aiAgents', teamKey] as const,
-  agentTools: (teamKey: string) => ['aiAgents', teamKey, 'tools'] as const,
-  // The skills enabled on one agent (the agent editor's Skills tab).
-  agentSkillLinks: (teamKey: string, agentId: string) =>
-    ['aiAgents', teamKey, agentId, 'skills'] as const,
-  // An agent's triggered run history (the runs sidebar).
-  agentRuns: (teamKey: string, agentId: string) => ['aiAgents', teamKey, agentId, 'runs'] as const,
-  agentSchedules: (teamKey: string) => ['agentSchedules', teamKey] as const,
-  agentScheduleRuns: (teamKey: string, scheduleId: string) =>
-    ['agentSchedules', teamKey, scheduleId, 'runs'] as const,
-  // The caller's chat threads with one agent (the AI Chat history rail) and the
-  // transcript of one thread (restored when a thread is opened).
-  agentThreads: (teamKey: string, agentId: string) =>
-    ['aiAgents', teamKey, agentId, 'threads'] as const,
-  agentThreadMessages: (teamKey: string, agentId: string, threadId: string) =>
-    ['aiAgents', teamKey, agentId, 'threads', threadId] as const,
-  // Stored integration credentials, the integration catalog, and an LLM provider's
-  // models (the Integrations page and the agent model select).
-  integrationCredentials: (teamKey: string) => ['integrations', teamKey] as const,
-  integrationCatalog: (teamKey: string) => ['integrations', teamKey, 'catalog'] as const,
-  integrationModels: (teamKey: string, provider: string) =>
-    ['integrations', teamKey, 'models', provider] as const,
-  // The team skill library (the Skills page).
-  agentSkills: (teamKey: string) => ['agentSkills', teamKey] as const,
-  // Configured tools (the Tools page) and the tools enabled on one agent (the agent
-  // editor's Tools section).
-  configuredTools: (teamKey: string) => ['configuredTools', teamKey] as const,
-  agentToolLinks: (teamKey: string, agentId: string) =>
-    ['aiAgents', teamKey, agentId, 'tool-configs'] as const,
   issue: (id: string) => ['issue', id] as const,
   anyIssue: ['issue'] as const,
   // Resolving an issue by its team-scoped number (the identifier-based URL).

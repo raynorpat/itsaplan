@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import {
   Archive,
   ArchiveRestore,
-  Bot,
   CalendarClock,
   CircleDashed,
   ClipboardCopy,
@@ -75,8 +74,7 @@ export function useIssueCommands(
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
   const patch = (fields: IssuePatch) => updateIssue.mutate({ id: issue.id, patch: fields });
-  const members = team.assignees.filter((a) => a.kind === 'member');
-  const agents = team.assignees.filter((a) => a.kind === 'agent');
+  const members = team.assignees;
   const currentColumn = team.states.find((c) => c.id === issue.stateId);
 
   const copyPrompt = async () => {
@@ -174,35 +172,6 @@ export function useIssueCommands(
               icon: <User />,
               checked: a.userId === issue.assigneeUserId,
               run: () => patch({ assigneeUserId: a.userId }),
-            })),
-          ],
-        },
-      });
-    }
-
-    if (agents.length > 0) {
-      items.push({
-        id: 'issue.delegate',
-        label: 'Delegate to agent',
-        icon: <Bot />,
-        keywords: 'ai bot',
-        submenu: {
-          heading: 'Delegate to agent',
-          placeholder: 'Delegate to…',
-          items: [
-            {
-              id: 'issue.delegate.none',
-              label: 'No delegate',
-              icon: <CircleDashed />,
-              checked: issue.delegateUserId == null,
-              run: () => patch({ delegateUserId: null }),
-            },
-            ...agents.map((a) => ({
-              id: `issue.delegate.${a.userId}`,
-              label: a.name,
-              icon: <Bot />,
-              checked: a.userId === issue.delegateUserId,
-              run: () => patch({ delegateUserId: a.userId }),
             })),
           ],
         },

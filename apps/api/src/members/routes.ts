@@ -29,7 +29,6 @@ const MemberResponse = t.Object({
   roleId: t.Nullable(t.String({ format: 'uuid' })),
   roleName: t.Nullable(t.String()),
   description: t.String(),
-  isAgent: t.Boolean(),
   createdAt: t.String(),
 });
 

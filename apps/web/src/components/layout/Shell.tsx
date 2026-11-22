@@ -59,8 +59,8 @@ export default function Shell({
     forbidden,
   } = useShellTeam(teamKey, route.activeViewId);
 
-  const { issueOpenMode, showChatByDefault } = useAccountPreferences();
-  const overlays = useOverlays(showChatByDefault);
+  const { issueOpenMode } = useAccountPreferences();
+  const overlays = useOverlays();
   const issueQuery = useIssueBySeqQuery(teamKey, routeIssueSeq);
 
   useTeamRouteSync({ teams, teamsLoaded, teamKey, redirect: !route.workspace });
@@ -142,8 +142,6 @@ export default function Shell({
             hasTeam={!!team}
             onOpenCommand={() => overlays.setShowCommand(true)}
             onNewIssue={openNewIssue}
-            chatActive={overlays.chatEnabled}
-            onToggleChat={overlays.toggleChat}
           />
 
           {errorMsg && !forbidden && (

@@ -237,8 +237,8 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   or resolves to a neutral value by type (`schema.ts`). Add a resolver; do not
   edit the schema.
 - **Writes:** mutations call the same store functions and `assertPermission`
-  checks as REST (`resolvers/mutations.ts`), so activity, webhooks and agent runs
-  match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
+  checks as REST (`resolvers/mutations.ts`), so activity, webhooks and
+  notifications match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
   `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
 - **Access:** a team and its issues and states are visible to members only; a
   project is visible through a team that grants `projects.read`; a user is visible

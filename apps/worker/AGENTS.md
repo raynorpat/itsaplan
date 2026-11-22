@@ -48,7 +48,7 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
 All via env with defaults (see `src/config.ts`): `WEBHOOK_POLL_INTERVAL_MS`,
 `WEBHOOK_BATCH_SIZE`, `WEBHOOK_TIMEOUT_MS`, `WEBHOOK_DISABLE_THRESHOLD`, `WEBHOOK_LEASE_SECONDS`, `WEBHOOK_CLEANUP_DAYS`,
 `WEBHOOK_CLEANUP_EVERY_TICKS`. Only `DATABASE_URL` is required for webhook
-delivery. Agent runs, notification delivery and the auto-archive report additionally need
+delivery. Notification delivery, the auto-archive report and cycle upkeep additionally need
 `WORKER_INTERNAL_TOKEN` and an api origin (`SERVICE_URL_API`, else
 `API_URL`); `internal-api.ts` throws when either is missing, no fallback
 origin.

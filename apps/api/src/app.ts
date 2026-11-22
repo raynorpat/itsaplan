@@ -11,8 +11,6 @@ import { Elysia } from 'elysia';
 import { planner } from './planner';
 import { mountGraphql } from './graphql/mount';
 import { mountMcp } from './mcp/mount';
-import { setMcpApp } from './mcp/app-ref';
-import { internalAgentRunRoutes } from './ai-agents/internal-routes';
 import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
@@ -56,16 +54,6 @@ export const app = new Elysia()
           { name: 'Invites', description: 'Team invites (create, accept, reject)' },
           { name: 'States', description: 'Workflow states and their order' },
           { name: 'Labels', description: 'Labels and label groups' },
-          { name: 'AI Agents', description: 'AI agents attached to a team' },
-          {
-            name: 'Integrations',
-            description: 'Stored integration credentials (LLM keys and tool creds)',
-          },
-          { name: 'Agent Skills', description: 'Skill library given to internal agents' },
-          {
-            name: 'Agent Tools',
-            description: 'Tools configured on a credential and given to agents',
-          },
           { name: 'Issues', description: 'Issues, their feed, and comments' },
           {
             name: 'Projects',
@@ -76,7 +64,6 @@ export const app = new Elysia()
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
           { name: 'Views', description: 'Saved work items views' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
-          { name: 'Agent Schedules', description: 'Recurring tasks for internal agents' },
           { name: 'Notifications', description: "The session user's inbox notifications" },
           {
             name: 'God',
@@ -124,11 +111,9 @@ export const app = new Elysia()
   })
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
-  .use(internalAgentRunRoutes)
   .use(internalNotificationRoutes)
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
-  // Test receiver for inspecting webhook deliveries (unauthenticated, dev aid).
   // Planner API: teams, issues, and their dependent entities.
   .use(planner);
 
@@ -139,11 +124,6 @@ mountMcp(app);
 
 // Linear-compatible GraphQL endpoint (/graphql), mounted the same way as MCP.
 mountGraphql(app);
-
-// Hands the assembled app to the internal agent runtime, which builds an agent's
-// tools from the same mcpTool() routes and dispatches them in process. It cannot
-// import this module without a cycle, so the reference is passed here.
-setMcpApp(app);
 
 // App type — useful for Eden Treaty (type-safe client) on the frontend and in tests.
 export type App = typeof app;

@@ -3,6 +3,9 @@ import { app } from '../../app';
 import { authedApi } from '../helpers/app';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
+import { gql } from '../helpers/linear';
+import { db, user } from '@repo/db';
+import { eq } from 'drizzle-orm';
 
 // Features Linear does not have are removed: their routes answer 404 for a team
 // owner. The routes are no longer in the typed client, so requests go through
@@ -16,7 +19,7 @@ async function setup() {
   const issue = (
     await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: view.states[0]!.id, title: 'T' })
   ).data!;
-  return { cookie: owner.cookie, issueId: issue.id };
+  return { cookie: owner.cookie, issueId: issue.id, api, userId: owner.userId };
 }
 
 const call = (cookie: string, method: string, path: string, body?: unknown) =>
@@ -90,5 +93,57 @@ describe('removed features', () => {
     ];
     for (const [method, path, body] of routes)
       expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
+  });
+
+  it('removes the built-in AI agents', async () => {
+    const { cookie } = await setup();
+    const id = crypto.randomUUID();
+    const routes: [string, string, unknown?][] = [
+      ['GET', '/teams/MKT/ai-agents'],
+      ['POST', '/teams/MKT/ai-agents', { name: 'Bot' }],
+      ['GET', `/teams/MKT/ai-agents/${id}`],
+      ['GET', '/teams/MKT/agent-skills'],
+      ['GET', `/teams/MKT/agent-skills/${id}`],
+      ['GET', '/teams/MKT/agent-tools'],
+      ['GET', '/teams/MKT/agent-schedules'],
+      ['GET', '/teams/MKT/integrations'],
+      ['GET', '/integrations'],
+    ];
+    for (const [method, path, body] of routes)
+      expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
+  });
+
+  it('rejects a delegate and allows clearing it', async () => {
+    const { cookie, issueId, userId } = await setup();
+    const set = await gql(
+      { cookie },
+      `mutation { issueUpdate(id: "${issueId}", input: { delegateId: "${userId}" }) { success } }`,
+    );
+    expect(set.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
+    const clear = await gql(
+      { cookie },
+      `mutation { issueUpdate(id: "${issueId}", input: { delegateId: null }) { success } }`,
+    );
+    expect(clear.body.errors).toBeUndefined();
+    expect(await call(cookie, 'PATCH', `/issues/${issueId}`, { delegateUserId: userId })).toBe(400);
+  });
+
+  it('keeps a comment whose author was deleted', async () => {
+    const { cookie, issueId, api } = await setup();
+    const member = await signUpTestUser({ name: 'Gone' });
+    const invite = await api
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: member.email, role: 'member' });
+    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    const created = await authedApi(member.cookie)
+      .issues({ issueId })
+      .comments.post({ body: 'Hello' } as never);
+    const commentId = (created.data as { id: string }).id;
+    await db.delete(user).where(eq(user.id, member.userId));
+    const res = await gql({ cookie }, `{ comment(id: "${commentId}") { id body user { id } } }`);
+    expect(res.body.errors).toBeUndefined();
+    expect(res.body.data).toEqual({ comment: { id: commentId, body: 'Hello', user: null } });
+    const feed = await api.issues({ issueId }).feed.get();
+    expect(JSON.stringify(feed.data)).toContain('Gone');
   });
 });

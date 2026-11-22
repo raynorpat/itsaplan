@@ -3,11 +3,7 @@ import {
   user,
   session,
   account,
-  agentSkill,
-  agentTool,
-  aiAgent,
   projectTeam,
-  integrationCredential,
   issue,
   feedEntry,
   team,
@@ -15,20 +11,7 @@ import {
   teamRole,
   teamView,
 } from '@repo/db';
-import {
-  and,
-  desc,
-  eq,
-  exists,
-  ilike,
-  inArray,
-  isNotNull,
-  isNull,
-  notExists,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { iso } from '../shared/lib';
 import {
@@ -51,9 +34,6 @@ export interface InstanceUserRow {
   emailVerified: boolean;
   // The global better-auth role: "god" for the instance owner, "user" otherwise.
   role: string;
-  // True when this user is an AI agent's bot user. Agents are created on a
-  // team's AI Agents screen, not by signing up.
-  isAgent: boolean;
   // The sign-in methods linked to the account ("credential", "google", …).
   providers: string[];
   teamCount: number;
@@ -96,7 +76,6 @@ function resolvePermissions(role: 'owner' | 'member', rolePermissions: unknown):
 // The per-user facts that live in other tables. Collected in one grouped query
 // each and joined in memory, so the user query stays a plain select.
 interface UserFacts {
-  agents: Set<string>;
   providers: Map<string, string[]>;
   teamCounts: Map<string, number>;
   lastSeen: Map<string, Date>;
@@ -105,14 +84,12 @@ interface UserFacts {
 async function loadUserFacts(userIds: string[]): Promise<UserFacts> {
   if (userIds.length === 0) {
     return {
-      agents: new Set(),
       providers: new Map(),
       teamCounts: new Map(),
       lastSeen: new Map(),
     };
   }
-  const [agentRows, accountRows, memberRows, sessionRows] = await Promise.all([
-    db.select({ userId: aiAgent.userId }).from(aiAgent).where(inArray(aiAgent.userId, userIds)),
+  const [accountRows, memberRows, sessionRows] = await Promise.all([
     db
       .select({ userId: account.userId, providerId: account.providerId })
       .from(account)
@@ -144,7 +121,6 @@ async function loadUserFacts(userIds: string[]): Promise<UserFacts> {
   }
 
   return {
-    agents: new Set(agentRows.map((r) => r.userId)),
     providers,
     teamCounts: new Map(memberRows.map((r) => [r.userId, r.count])),
     lastSeen,
@@ -160,7 +136,6 @@ function toRow(r: UserRow, facts: UserFacts): InstanceUserRow {
     image: r.image,
     emailVerified: r.emailVerified,
     role: r.role ?? 'user',
-    isAgent: facts.agents.has(r.id),
     providers: facts.providers.get(r.id) ?? [],
     teamCount: facts.teamCounts.get(r.id) ?? 0,
     lastSeenAt: lastSeen ? iso(lastSeen) : null,
@@ -174,33 +149,17 @@ export interface InstanceUserPage {
   total: number;
 }
 
-// Which accounts the directory lists: real people, the bot users behind AI agents,
-// or both.
-export const USER_KINDS = ['human', 'agent', 'all'] as const;
-export type UserKind = (typeof USER_KINDS)[number];
-
-// One page of accounts, newest first. `search` matches the name or the email;
-// `kind` narrows to people or agent bot users. Both filters run in SQL, so the page
-// window and the total count agree.
+// One page of accounts, newest first. `search` matches the name or the email; it
+// runs in SQL, so the page window and the total count agree.
 export async function listInstanceUsers(options: {
   search?: string;
-  kind: UserKind;
   limit: number;
   offset: number;
 }): Promise<InstanceUserPage> {
   const term = options.search?.trim();
-  const isAgent = db
-    .select({ n: sql`1` })
-    .from(aiAgent)
-    .where(eq(aiAgent.userId, user.id));
-  const where = and(
-    term ? or(ilike(user.name, `%${term}%`), ilike(user.email, `%${term}%`)) : undefined,
-    options.kind === 'human'
-      ? notExists(isAgent)
-      : options.kind === 'agent'
-        ? exists(isAgent)
-        : undefined,
-  );
+  const where = term
+    ? or(ilike(user.name, `%${term}%`), ilike(user.email, `%${term}%`))
+    : undefined;
 
   const [rows, totals] = await Promise.all([
     db
@@ -295,10 +254,6 @@ export interface InstanceTeamCounts {
   archivedIssueCount: number;
   projectCount: number;
   viewCount: number;
-  agentCount: number;
-  skillCount: number;
-  toolCount: number;
-  integrationCount: number;
 }
 
 export interface InstanceTeamRow extends InstanceTeamCounts {
@@ -320,7 +275,6 @@ export interface InstanceTeamMember {
   name: string;
   email: string;
   image: string | null;
-  isAgent: boolean;
   role: 'owner' | 'member';
   roleId: string | null;
   roleName: string | null;
@@ -361,10 +315,6 @@ const EMPTY_FACTS: TeamFacts = {
   archivedIssueCount: 0,
   projectCount: 0,
   viewCount: 0,
-  agentCount: 0,
-  skillCount: 0,
-  toolCount: 0,
-  integrationCount: 0,
   lastActivityAt: null,
 };
 
@@ -374,27 +324,12 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
   if (teamIds.length === 0) return () => EMPTY_FACTS;
   const counts = (map: Map<string, number>, id: string) => map.get(id) ?? 0;
 
-  const [
-    members,
-    issues,
-    archivedIssues,
-    projects,
-    views,
-    agents,
-    skills,
-    tools,
-    integrations,
-    activityRows,
-  ] = await Promise.all([
+  const [members, issues, archivedIssues, projects, views, activityRows] = await Promise.all([
     countByTeam(teamMember, teamMember.teamId, teamIds),
     countByTeam(issue, issue.teamId, teamIds, isNull(issue.archivedAt)),
     countByTeam(issue, issue.teamId, teamIds, isNotNull(issue.archivedAt)),
     countByTeam(projectTeam, projectTeam.teamId, teamIds),
     countByTeam(teamView, teamView.teamId, teamIds),
-    countByTeam(aiAgent, aiAgent.teamId, teamIds),
-    countByTeam(agentSkill, agentSkill.teamId, teamIds),
-    countByTeam(agentTool, agentTool.teamId, teamIds),
-    countByTeam(integrationCredential, integrationCredential.teamId, teamIds),
     // The feed has no team column of its own; it reaches one through its issue.
     // Reduced to the latest per team below, because aggregating in SQL would
     // return the max as a driver-formatted string, not a Date.
@@ -419,10 +354,6 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
       archivedIssueCount: counts(archivedIssues, id),
       projectCount: counts(projects, id),
       viewCount: counts(views, id),
-      agentCount: counts(agents, id),
-      skillCount: counts(skills, id),
-      toolCount: counts(tools, id),
-      integrationCount: counts(integrations, id),
       lastActivityAt: activeAt ? iso(activeAt) : null,
     };
   };
@@ -478,7 +409,7 @@ export async function getInstanceTeam(teamId: string): Promise<InstanceTeamDetai
   const row = rows[0];
   if (!row) return null;
 
-  const [facts, memberships, agentRows] = await Promise.all([
+  const [facts, memberships] = await Promise.all([
     loadTeamFacts([row.id]),
     db
       .select({
@@ -497,10 +428,8 @@ export async function getInstanceTeam(teamId: string): Promise<InstanceTeamDetai
       .leftJoin(teamRole, eq(teamRole.id, teamMember.roleId))
       .where(eq(teamMember.teamId, teamId))
       .orderBy(user.name),
-    db.select({ userId: aiAgent.userId }).from(aiAgent).where(eq(aiAgent.teamId, teamId)),
   ]);
 
-  const agentUserIds = new Set(agentRows.map((r) => r.userId));
   const members: InstanceTeamMember[] = memberships.map((m) => {
     const role = m.role === 'owner' ? 'owner' : 'member';
     return {
@@ -508,7 +437,6 @@ export async function getInstanceTeam(teamId: string): Promise<InstanceTeamDetai
       name: m.name,
       email: m.email,
       image: m.image,
-      isAgent: agentUserIds.has(m.userId),
       role,
       roleId: m.roleId,
       roleName: m.roleName,

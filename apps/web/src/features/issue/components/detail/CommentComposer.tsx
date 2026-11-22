@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { type Assignee } from '@/lib/api';
 import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
@@ -7,10 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateComment } from '../../services/comments.service';
 
 // The new-comment box: a plain markdown textarea with an @-mention menu. Typing "@"
-// opens a menu of the team's members and agents; picking one inserts a mention
-// token @[Name](user:<id>) into the body. The token is what the backend parses to
-// notify a member or trigger an agent (see the feed's chip rendering for how it
-// displays). Posts as the current session user on the button or Cmd/Ctrl+Enter.
+// opens a menu of the team's members; picking one inserts a mention token
+// @[Name](user:<id>) into the body. The token is what the backend parses to notify
+// the member (see the feed's chip rendering for how it displays). Posts as the current session user on the button or Cmd/Ctrl+Enter.
 
 // The active "@query" being typed: the text after the "@" and the body index of the
 // "@" itself, so a pick can replace the whole "@query" span.
@@ -40,9 +39,6 @@ export default function CommentComposer({
   const posting = createComment.isPending;
   const cmdKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl';
 
-  // Members and both agent kinds can be mentioned. An internal agent runs in the
-  // built-in runtime; an external agent is reached over its operator's webhook, which
-  // receives the comment carrying the mention token.
   const matches = useMemo(() => {
     if (!menu) return [];
     const q = menu.query.toLowerCase();
@@ -170,15 +166,8 @@ export default function CommentComposer({
                       i === active ? 'bg-accent text-accent-foreground' : ''
                     }`}
                   >
-                    {a.kind === 'agent' ? (
-                      <Bot className="size-4 shrink-0" />
-                    ) : (
-                      <User className="size-4 shrink-0" />
-                    )}
+                    <User className="size-4 shrink-0" />
                     <span className="flex-1 truncate">{a.name}</span>
-                    {a.kind === 'agent' && (
-                      <span className="text-[10px] text-muted-foreground uppercase">agent</span>
-                    )}
                   </button>
                 </li>
               ))}

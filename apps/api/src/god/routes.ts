@@ -17,7 +17,6 @@ import { ErrorResponse } from '../shared/responses';
 import { noContent } from '../shared/http';
 import { deleteTeam } from '../teams/store';
 import {
-  USER_KINDS,
   deleteInstanceUser,
   getInstanceTeam,
   getInstanceUser,
@@ -118,7 +117,6 @@ const InstanceUserResponse = t.Object({
   image: t.Nullable(t.String()),
   emailVerified: t.Boolean(),
   role: t.String(),
-  isAgent: t.Boolean(),
   providers: t.Array(t.String()),
   teamCount: t.Number(),
   lastSeenAt: t.Nullable(t.String()),
@@ -161,10 +159,6 @@ const InstanceTeamResponse = t.Object({
   archivedIssueCount: t.Number(),
   projectCount: t.Number(),
   viewCount: t.Number(),
-  agentCount: t.Number(),
-  skillCount: t.Number(),
-  toolCount: t.Number(),
-  integrationCount: t.Number(),
   lastActivityAt: t.Nullable(t.String()),
   createdAt: t.String(),
 });
@@ -178,7 +172,6 @@ const InstanceTeamDetailResponse = t.Composite([
         name: t.String(),
         email: t.String(),
         image: t.Nullable(t.String()),
-        isAgent: t.Boolean(),
         role: t.UnionEnum(['owner', 'member']),
         roleId: t.Nullable(t.String({ format: 'uuid' })),
         roleName: t.Nullable(t.String()),
@@ -376,16 +369,12 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     ({ query }) =>
       listInstanceUsers({
         search: query.search,
-        kind: query.kind ?? 'human',
         limit: query.limit ?? 50,
         offset: query.offset ?? 0,
       }),
     {
       query: t.Object({
         search: t.Optional(t.String()),
-        // Agent bot users are accounts too, but they are managed on a team's AI
-        // Agents screen, so the directory lists people unless asked otherwise.
-        kind: t.Optional(t.UnionEnum([...USER_KINDS])),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 200 })),
         offset: t.Optional(t.Numeric({ minimum: 0 })),
       }),
@@ -457,10 +446,6 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
       // An instance owner is not removable here: the role is what grants god mode,
       // so deleting one from inside it is how an instance loses its administration.
       if (target.role === 'god') throw new HttpError(403, 'An instance owner cannot be deleted');
-      // An agent's bot user is created and removed with its AI Agent config.
-      if (target.isAgent) {
-        throw new HttpError(400, 'Delete the AI agent from its team instead');
-      }
       // Teams this user owns alone. Their membership goes with the account, so
       // the team would be left with nobody who can manage it (god mode does not
       // bypass team membership). Either the caller takes those teams down

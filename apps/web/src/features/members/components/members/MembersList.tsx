@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot, LogOut, UserMinus } from 'lucide-react';
+import { LogOut, UserMinus } from 'lucide-react';
 import { type MemberRow } from '@/lib/api';
 import { formatShortDate } from '@/utils/dates';
 import Avatar from '@/components/common/Avatar';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -81,10 +80,8 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
         <TableBody>
           {members.map((m) => {
             const self = m.userId === currentUserId;
-            // Agents join and leave with their AI Agent config, not from this list,
-            // so they cannot be revoked or reassigned here.
-            const canRemove = !m.isAgent && (self || can('members_manage', 'delete'));
-            const canEditDescription = !m.isAgent && (isOwner || self);
+            const canRemove = self || can('members_manage', 'delete');
+            const canEditDescription = isOwner || self;
             const lastOwner = m.role === 'owner' && ownerCount === 1;
             const removeLabel = self ? 'Leave team' : 'Revoke access';
             return (
@@ -104,17 +101,7 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                         )}
                       </span>
                       <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                        {m.isAgent ? (
-                          <Badge
-                            variant="secondary"
-                            className="gap-1 px-1.5 py-0 text-[10px] font-medium"
-                          >
-                            <Bot className="size-3" />
-                            AI Agent
-                          </Badge>
-                        ) : (
-                          <span className="truncate">{m.email}</span>
-                        )}
+                        <span className="truncate">{m.email}</span>
                         <span>· joined {formatShortDate(m.createdAt)}</span>
                       </span>
                       <MemberDescription member={m} />
@@ -126,7 +113,7 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                     teamKey={teamKey}
                     member={m}
                     roles={roles}
-                    canManage={isOwner && !self && !m.isAgent}
+                    canManage={isOwner && !self}
                     isLastOwner={lastOwner}
                   />
                 </TableCell>

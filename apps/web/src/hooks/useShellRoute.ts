@@ -1,13 +1,4 @@
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
-import { SETTINGS_SECTIONS } from '@/utils/settingsSections';
-
-// The breadcrumb label for an /ai-team/:section route. The chat has no settings
-// section entry; the rest take their label from the section config.
-function aiTeamLabel(section: string | null): string | null {
-  if (!section) return null;
-  if (section === 'chat') return 'Chat with AI Team';
-  return SETTINGS_SECTIONS.find((s) => s.slug === section)?.label ?? 'AI Team';
-}
 
 export type ShellRoute = {
   teamKey: string | null;
@@ -19,7 +10,6 @@ export type ShellRoute = {
   sub: string | null;
   activeViewId: string | null;
   section: string | null;
-  aiTeamCrumb: string | null;
   // The team-scoped issue number from the URL, not the internal id.
   routeIssueSeq: number | null;
   routeProjectId: string | null;
@@ -44,7 +34,6 @@ export function useShellRoute(): ShellRoute {
       sub: 'projects',
       activeViewId: null,
       section: null,
-      aiTeamCrumb: null,
       routeIssueSeq: null,
       routeProjectId: id,
       onBoard: false,
@@ -61,7 +50,6 @@ export function useShellRoute(): ShellRoute {
     sub,
     activeViewId: sub === 'view' && segs[3] ? segs[3] : null,
     section: sub === 'settings' ? (segs[3] ?? null) : null,
-    aiTeamCrumb: sub === 'ai-team' ? aiTeamLabel(segs[3] ?? null) : null,
     routeIssueSeq: sub === 'issue' && segs[3] ? Number(segs[3]) : null,
     routeProjectId: null,
     onBoard: sub == null || sub === 'view',

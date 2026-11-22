@@ -31,13 +31,3 @@ export async function joinTeam(
   const invite = await owner.api.teams({ teamKey }).invites.post({ email: invitee.email, role });
   await invitee.api.invites({ token: invite.data!.token }).accept.post();
 }
-
-// Creates an external AI agent on the given team and returns its bot user id.
-export async function createAgentUser(owner: Actor, teamKey: string): Promise<string> {
-  const created = await owner.api.teams({ teamKey })['ai-agents'].post({
-    name: 'Webhook Bot',
-    username: 'webhook',
-    kind: 'external',
-  });
-  return created.data!.agent.userId;
-}

@@ -1,6 +1,5 @@
 'use client';
 
-import { Bot } from 'lucide-react';
 import type { InstanceTeamMember, PermissionCatalog } from '@/lib/api';
 import { formatShortDate } from '@/utils/dates';
 import Avatar from '@/components/common/Avatar';
@@ -31,12 +30,6 @@ export default function GodTeamMemberCard({
             className="size-6 shrink-0 text-[10px]"
           />
           <span className="min-w-0 flex-1 truncate text-sm">{member.name || member.email}</span>
-          {member.isAgent && (
-            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-medium">
-              <Bot className="size-3" />
-              Agent
-            </Badge>
-          )}
           <Badge
             variant={isOwner ? 'default' : 'secondary'}
             className="px-1.5 py-0 text-[10px] font-medium"

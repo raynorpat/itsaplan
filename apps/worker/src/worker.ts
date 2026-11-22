@@ -2,7 +2,6 @@ import { workerConfig } from './config';
 import { deliver, nextRetryDelayS, renderBody } from './delivery';
 import { resolvesToPrivate } from './public-host';
 import { processNotificationDeliveries } from './notification-delivery';
-import { deleteIssueAgentThreads } from './agent-runs';
 import { notifyIssuesArchived, runCycleUpkeep } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
 import {
@@ -45,12 +44,7 @@ async function tick(): Promise<void> {
     if (archived.length > 0) {
       console.log(`[worker] auto-archived ${archived.length} stale issues`);
       // An unreachable api must not read as a failed tick: the issues are archived
-      // either way, and their threads then stay until the agent or team goes.
-      try {
-        await deleteIssueAgentThreads(archived.map((a) => a.id));
-      } catch (error) {
-        console.error('[worker] deleting agent threads of archived issues failed:', error);
-      }
+      // either way.
       try {
         await notifyIssuesArchived(archived);
       } catch (error) {

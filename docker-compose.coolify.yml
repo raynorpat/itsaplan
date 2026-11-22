@@ -106,8 +106,8 @@ services:
     ports:
       - '${API_PORT:-3000}:3000'
 
-  # Background worker for webhook delivery, agent schedules, and autonomous agent
-  # runs. Shares the database with the api. No public ports.
+  # Background worker for webhook and notification delivery, auto-archive and cycle
+  # upkeep. Shares the database with the api. No public ports.
   worker:
     build:
       context: .
@@ -127,8 +127,6 @@ services:
       # WEBHOOK_POLL_INTERVAL_MS, WEBHOOK_BATCH_SIZE, WEBHOOK_TIMEOUT_MS,
       # WEBHOOK_DISABLE_THRESHOLD, WEBHOOK_LEASE_SECONDS,
       # WEBHOOK_CLEANUP_DAYS, WEBHOOK_CLEANUP_EVERY_TICKS.
-      # Agent runs: AGENT_RUN_BATCH_SIZE, AGENT_RUN_TIMEOUT_MS,
-      # AGENT_RUN_MAX_ATTEMPTS, AGENT_RUN_LEASE_SECONDS.
 
   web:
     build:

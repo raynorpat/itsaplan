@@ -13,7 +13,6 @@ export const PREFERENCE_DEFAULTS: AccountPreferences = {
   theme: 'system',
   issueOpenMode: 'panel',
   startPage: 'work-items',
-  showChatByDefault: false,
   issueStatsOpen: true,
   issueStatsView: 'compact',
   lastTeamId: null,

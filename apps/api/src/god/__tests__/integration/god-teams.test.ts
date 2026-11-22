@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addUser, createAgentUser, joinTeam, setup } from '../helpers';
+import { addUser, joinTeam, setup } from '../helpers';
 
 // The instance team directory under god mode: listing every team on the
 // instance with what it holds, and reading one with its members. These routes read
@@ -57,22 +57,17 @@ describe('god teams', () => {
         stateId: view.data!.states[0]!.id,
       });
       await god.api.projects.post({ name: 'Launch', teamIds: [view.data!.team.id] });
-      await createAgentUser(god, 'MKT');
 
       const res = await god.api.god.teams.get({ query: PAGE });
       const row = res.data!.items.find((p) => p.id === team.id)!;
 
       expect(row).toMatchObject({
-        // Owner, the joined member, and the agent user (agents are team members).
-        memberCount: 3,
+        // Owner and the joined member.
+        memberCount: 2,
         issueCount: 1,
         archivedIssueCount: 0,
         projectCount: 1,
-        agentCount: 1,
         viewCount: 0,
-        skillCount: 0,
-        toolCount: 0,
-        integrationCount: 0,
       });
       // Creating the issue wrote its first feed entry.
       expect(row.lastActivityAt).not.toBeNull();
@@ -150,7 +145,6 @@ describe('god teams', () => {
       expect(res.data?.members[0]).toMatchObject({
         userId: alice.id,
         email: 'alice@example.com',
-        isAgent: false,
         role: 'owner',
         roleId: null,
         roleName: null,
@@ -173,19 +167,6 @@ describe('god teams', () => {
       // Joining without a role assigned leaves the default member matrix, which does
       // not reach role management.
       expect(member.permissions.members_manage.edit).toBe(false);
-    });
-
-    it("marks an agent's bot user as an agent", async () => {
-      const { god } = await setup();
-      const created = await god.api.teams.post({ key: 'MKT', name: 'Marketing' });
-      const agentUserId = await createAgentUser(god, 'MKT');
-
-      const res = await god.api.god.teams({ teamId: created.data!.id }).get();
-      const bot = res.data!.members.find((m) => m.userId === agentUserId);
-
-      // An agent reaches the team through a membership like anyone else, so it
-      // shows up in the list, flagged.
-      expect(bot?.isAgent).toBe(true);
     });
 
     it('returns 404 for an unknown team and 400 for an id that is not a UUID', async () => {

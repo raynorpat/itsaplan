@@ -51,9 +51,7 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       label: 'Assignee',
       kind: 'set',
       options: [
-        ...team.assignees
-          .filter((a) => a.kind === 'member')
-          .map((a) => ({ value: a.userId, label: a.name })),
+        ...team.assignees.map((a) => ({ value: a.userId, label: a.name })),
         { value: null, label: 'No assignee' },
       ],
     },
@@ -61,12 +59,8 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       field: 'delegate',
       label: 'Delegate',
       kind: 'set',
-      options: [
-        ...team.assignees
-          .filter((a) => a.kind === 'agent')
-          .map((a) => ({ value: a.userId, label: a.name })),
-        { value: null, label: 'No delegate' },
-      ],
+      // Delegates are Linear agent app users; none exist yet, so only "No delegate".
+      options: [{ value: null, label: 'No delegate' }],
     },
     { field: 'priority', label: 'Priority', kind: 'set', options: PRIORITY_OPTIONS },
     {

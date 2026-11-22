@@ -7,10 +7,9 @@ import type { useOverlays } from '@/hooks/useOverlays';
 import NewTeamModal from '@/components/layout/NewTeamModal';
 import NewIssueModal from '@/features/issue/components/create/NewIssueModal';
 import IssueDetail from '@/features/issue/components/detail/IssueDetail';
-import { FloatingChat } from '@/features/ai-chat/components/floating/FloatingChat';
 
 // The team-level overlays the Shell mounts above its content: the new-team
-// modal, the new-issue modal, the issue detail panel and the floating AI chat.
+// modal, the new-issue modal and the issue detail panel.
 // Each renders only while its overlay state says it is open.
 export default function ShellOverlays({
   team,
@@ -57,10 +56,6 @@ export default function ShellOverlays({
             overlays.setOpenIssueId(null);
           }}
         />
-      )}
-
-      {team && overlays.chatEnabled && (
-        <FloatingChat open={overlays.chatOpen} onOpenChange={overlays.setChatOpen} />
       )}
     </>
   );

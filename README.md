@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="It's a Plan — open-source project management and issue tracking where people and AI agents ship together" width="100%" />
+<img src="assets/banner.png" alt="It's a Plan — open-source, self-hosted project management and issue tracking" width="100%" />
 
-### Open-source project management and issue tracking, with AI agents built in
+### Open-source project management and issue tracking, compatible with Linear
 
-Self-hosted, open-source project management and issue tracking, and an alternative to Linear,
-Plane, and Jira. The difference: AI agents work here like any teammate. Hand them issues, or
-run the whole thing over the REST API, webhooks, and MCP.
+Self-hosted, open-source project management and issue tracking that follows Linear's model
+and serves Linear's GraphQL API, so Linear tools and the `@linear/sdk` work against your own
+instance.
 
 If It's a Plan looks useful to you, star the repo ⭐ — it helps other people find it.
 
@@ -23,17 +23,11 @@ If It's a Plan looks useful to you, star the repo ⭐ — it helps other people 
 
 ## About
 
-Most trackers bolt AI on as a chatbot. Here an agent is a real member of the team. It has
-a role, permissions, and an assignee slot, and it works the same board your people do.
-
-It's a self-hosted, open alternative to Linear, Plane, and Jira. You run it on your own
-server and database.
+It's a self-hosted, open alternative to Linear. You run it on your own server and database.
 
 - **Own your stack.** Your server, your database. No per-seat fees, no lock-in.
-- **Agents as teammates.** Give an agent a model, a prompt, skills, and tools. Assign it
-  issues like you would a person.
-- **One board for both.** People and agents share the same board, threads, and cards.
-- **Automate anything.** Drive it all through the REST API, MCP, and signed webhooks.
+- **Linear-compatible.** Linear's data model, its GraphQL API and its webhook format.
+- **Automate anything.** Drive it through the GraphQL API, MCP, and signed webhooks.
 
 Heads-up: this is under active development. Expect breaking changes before the first
 stable release.
@@ -47,12 +41,6 @@ stable release.
 - Save any view as a reusable template
 - Projects that group work across teams, with statuses, milestones, updates and labels
 - Auto-archive, a notification inbox, role-based access control, and more
-
-**AI agents**
-
-- Agents as team members with their own permissions and assigned issues
-- Configure each agent's model, system prompt, tools, and reusable skills — built on the
-  [Mastra](https://github.com/mastra-ai/mastra) agent framework
 - Comment threads with replies, resolving and emoji reactions (editing, replies, resolving and reactions are API-only for now)
 - Cycles: time-boxed iterations per team with automatic rollover of unfinished work (API-only for now)
 - Initiatives: workspace-level groups of projects with sub-initiatives and status updates (API-only for now)
@@ -60,9 +48,6 @@ stable release.
 - Documents: Markdown pages in projects and on issues, with comments (API-only for now)
 - Attachments: links on issues next to uploaded files, as Linear attachments (links API-only for now)
 - Issue subscriptions: subscribers receive an issue's comment and status notifications; the inbox is also served through Linear's notification API (subscriptions API-only for now)
-- Mention an agent in a comment to trigger a run
-- Scheduled agent runs
-- Built-in chat with per-agent conversation history
 
 **Platform**
 
@@ -184,12 +169,11 @@ docker run --rm -v itsaplan_minio-data:/data -v "$PWD":/out alpine tar czf /out/
 | Auth      | [better-auth](https://better-auth.com/)                  |
 | Database  | [Drizzle](https://orm.drizzle.team/) + PostgreSQL        |
 | Storage   | S3-compatible object store (RustFS)                      |
-| AI agents | [Mastra](https://github.com/mastra-ai/mastra)            |
 
 ```
 apps/api        Elysia HTTP API, mounts better-auth at /api/auth/*
 apps/web        Next.js app, server-side rendered
-apps/worker     webhooks, notifications, agent runs
+apps/worker     webhook and notification delivery, auto-archive, cycle upkeep
 packages/db     Drizzle client, schema, migrations
 packages/auth   better-auth server instance
 packages/crypto AES-256-GCM encryption for secrets at rest

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { claimDueRuns } from '../../../ai-agents/run-queue';
 
 // Comments are stored in their own table; the issue, range, share and project
 // feeds merge them with the change log.
@@ -76,20 +75,5 @@ describe('comments', () => {
     await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'linked' });
     const feed = await asOwner.projects({ projectId: project.id }).feed.get();
     expect(feed.data!.items.some((i) => i.kind === 'comment' && i.body === 'linked')).toBe(true);
-  });
-
-  it("names the comment's author as the requester of an agent mention run", async () => {
-    const { owner, asOwner, issue } = await setup();
-    const agent = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        ['ai-agents'].post({ name: 'Helper', username: 'helper', kind: 'internal' })
-    ).data!.agent;
-    await asOwner
-      .issues({ issueId: issue.id })
-      .comments.post({ body: `hey @[Helper](user:${agent.userId})` });
-    const runs = await claimDueRuns();
-    expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ requesterUserId: owner.userId, requesterName: 'Owner' });
   });
 });

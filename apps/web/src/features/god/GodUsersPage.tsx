@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { InstanceUserKind } from '@/lib/api';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import GodSectionPage from './components/GodSectionPage';
 import GodUsersTable from './components/users/GodUsersTable';
@@ -16,11 +15,10 @@ import { withOffsetReset } from './utils/paging';
 // table is wide, so the page spans the whole shell instead of the centered settings
 // column the other sections use.
 //
-// Search, the kind filter and paging all run on the server: the query carries them
+// Search and paging run on the server: the query carries them
 // and gets back one page plus the total, so the list never holds every account.
 export default function GodUsersPage() {
   const [search, setSearch] = useState('');
-  const [kind, setKind] = useState<InstanceUserKind>('human');
   const [limit, setLimit] = useState<number>(PAGE_SIZES[1]);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -28,19 +26,14 @@ export default function GodUsersPage() {
   // Typing refetches, so wait for a pause instead of firing per keystroke.
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const usersQuery = useInstanceUsersQuery({ search: debouncedSearch, kind, limit, offset });
+  const usersQuery = useInstanceUsersQuery({ search: debouncedSearch, limit, offset });
   const users = usersQuery.data?.items ?? [];
   const total = usersQuery.data?.total ?? 0;
 
   return (
     <GodSectionPage slug="users" widthClassName="max-w-none">
       <div className="space-y-4">
-        <GodUsersToolbar
-          search={search}
-          onSearchChange={withOffsetReset(setOffset, setSearch)}
-          kind={kind}
-          onKindChange={withOffsetReset(setOffset, setKind)}
-        />
+        <GodUsersToolbar search={search} onSearchChange={withOffsetReset(setOffset, setSearch)} />
 
         {usersQuery.isPending ? (
           <p className="text-sm text-muted-foreground">Loading…</p>

@@ -42,7 +42,6 @@ const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
   { value: 'work-items', label: 'Work items' },
   { value: 'inbox', label: 'Inbox' },
   { value: 'projects', label: 'Projects' },
-  { value: 'ai-chat', label: 'AI chat' },
 ];
 
 // Personal interface preferences (/account/preferences). Each choice saves as soon
@@ -144,19 +143,6 @@ export default function AccountPreferencesPage() {
             value={prefs.issueStatsView}
             options={ISSUE_STATS_VIEW_OPTIONS}
             onChange={(issueStatsView) => save({ issueStatsView })}
-            disabled={disabled}
-          />
-        </AccountPreferenceRow>
-      </AccountPreferencesSection>
-
-      <AccountPreferencesSection title="AI chat">
-        <AccountPreferenceRow
-          label="Show chat by default"
-          description="The chat button stays on screen in a team. The chat window opens only when you click it."
-        >
-          <Switch
-            checked={prefs.showChatByDefault}
-            onCheckedChange={(showChatByDefault) => save({ showChatByDefault })}
             disabled={disabled}
           />
         </AccountPreferenceRow>

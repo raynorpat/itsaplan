@@ -1,15 +1,7 @@
 import { usePathname } from 'next/navigation';
 import { Shield, type LucideIcon } from 'lucide-react';
+import { rolesPath, settingsPath } from '@/utils/paths';
 import {
-  aiAgentsPath,
-  agentSkillsPath,
-  agentToolsPath,
-  integrationsPath,
-  rolesPath,
-  settingsPath,
-} from '@/utils/paths';
-import {
-  AI_SECTIONS,
   AUTOMATION_SECTIONS,
   CONFIGURATION_SECTIONS,
   GENERAL_SECTIONS,
@@ -36,15 +28,6 @@ export type SettingsNavGroup = {
   key: string;
   label: string;
   items: SettingsNavItem[];
-};
-
-// The route each AI section slug navigates to (AI items are their own nav routes,
-// not /settings/:slug pages).
-const AI_SECTION_PATH: Record<string, (key: string) => string> = {
-  'ai-agents': aiAgentsPath,
-  integrations: integrationsPath,
-  'agent-skills': agentSkillsPath,
-  'agent-tools': agentToolsPath,
 };
 
 // `team` is only passed by the Shell, which calls this above its own context
@@ -76,7 +59,6 @@ export function useSettingsNavGroups(
         active: pathname.endsWith(`${activeBase}/${s.slug}`),
       }));
 
-  const aiItems = toItems(AI_SECTIONS, (key, slug) => AI_SECTION_PATH[slug](key), '');
   const generalItems = toItems(GENERAL_SECTIONS, settingsPath, '/settings');
   const workflowItems = toItems(CONFIGURATION_SECTIONS, settingsPath, '/settings');
   const automationItems = toItems(AUTOMATION_SECTIONS, settingsPath, '/settings');
@@ -97,7 +79,6 @@ export function useSettingsNavGroups(
 
   const groups: SettingsNavGroup[] = [
     { key: 'general', label: 'Team', items: [...generalItems, ...rolesItems] },
-    { key: 'ai', label: 'AI Team', items: aiItems },
     { key: 'workflow', label: 'Workflow', items: workflowItems },
     { key: 'automation', label: 'Automation', items: automationItems },
   ].filter((g) => g.items.length > 0);

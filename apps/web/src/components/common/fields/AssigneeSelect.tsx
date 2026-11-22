@@ -5,9 +5,8 @@ import Avatar from '@/components/common/Avatar';
 import { Pill } from './Pill';
 import PopoverPick, { type PickItem } from './PopoverPick';
 
-// The assignee of an issue is a team member. `assignees` is the team's full
-// candidate list (members and agents); this control filters it to members. Agents
-// are set through DelegateSelect instead. The signed-in member is pulled out into a
+// The assignee of an issue is a team member, picked from the team's candidate list.
+// The signed-in member is pulled out into a
 // "Team me" group at the top; everyone else falls under "Members".
 export default function AssigneeSelect({
   assignees,
@@ -24,7 +23,7 @@ export default function AssigneeSelect({
 }) {
   const { data: session } = useSession();
   const currentUserId = session?.user.id ?? null;
-  const members = assignees.filter((a) => a.kind === 'member');
+  const members = assignees;
   const assignee = members.find((a) => a.userId === value);
 
   const toItem = (a: Assignee): PickItem => ({

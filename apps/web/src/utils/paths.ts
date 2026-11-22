@@ -11,25 +11,11 @@ export const viewPath = (key: string, viewId: string | null) =>
 export const settingsPath = (key: string, section: string) =>
   `${teamPath(key)}/settings/${section}`;
 
-// The AI Team destinations: the chat and the sections listed next to it in the
-// main sidebar (see AI_TEAM_SECTIONS).
-export const aiTeamPath = (key: string, section: string) => `${teamPath(key)}/ai-team/${section}`;
-
-export const aiChatPath = (key: string) => aiTeamPath(key, 'chat');
-
 export const inboxPath = (key: string) => `${teamPath(key)}/inbox`;
 
 // The member's own notification preferences (which events are sent by email). A
 // main-nav Configuration destination, open to any member.
 export const notificationsPath = (key: string) => `${teamPath(key)}/notifications`;
-
-export const aiAgentsPath = (key: string) => `${teamPath(key)}/ai-agents`;
-
-export const integrationsPath = (key: string) => `${teamPath(key)}/integrations`;
-
-export const agentSkillsPath = (key: string) => `${teamPath(key)}/agent-skills`;
-
-export const agentToolsPath = (key: string) => `${teamPath(key)}/agent-tools`;
 
 export const mcpServerPath = (key: string) => `${teamPath(key)}/mcp`;
 
@@ -84,8 +70,6 @@ export const startPagePath = (key: string, startPage: StartPage) => {
       return inboxPath(key);
     case 'projects':
       return projectsPath(key);
-    case 'ai-chat':
-      return aiChatPath(key);
     default:
       return teamPath(key);
   }

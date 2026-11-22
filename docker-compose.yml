@@ -113,7 +113,7 @@ services:
     ports:
       - '${API_PORT:-3000}:3000'
 
-  # Webhook delivery, notification delivery, agent schedules, and agent runs.
+  # Webhook delivery, notification delivery, auto-archive and cycle upkeep.
   # Shares the database with the api. No public ports.
   worker:
     build:

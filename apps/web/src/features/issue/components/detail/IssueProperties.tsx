@@ -5,7 +5,6 @@ import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import { Pill } from '@/components/common/fields/Pill';
 import ReadOnlyPill from '@/components/common/fields/ReadOnlyPill';
-import DelegateSelect from '../fields/DelegateSelect';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
@@ -41,8 +40,7 @@ export default function IssueProperties({
   // shared page). The onPatch/onToggleLabel callbacks are never called.
   readOnly?: boolean;
 }) {
-  const hasMembers = team.assignees.some((a) => a.kind === 'member');
-  const hasAgents = team.assignees.some((a) => a.kind === 'agent');
+  const hasMembers = team.assignees.length > 0;
   const rows = (
     <>
       <PropertyRow label="State">
@@ -60,17 +58,6 @@ export default function IssueProperties({
             assignees={team.assignees}
             value={issue.assigneeUserId}
             onChange={(userId) => onPatch({ assigneeUserId: userId })}
-            readOnly={readOnly}
-          />
-        </PropertyRow>
-      )}
-
-      {hasAgents && (
-        <PropertyRow label="Delegate">
-          <DelegateSelect
-            assignees={team.assignees}
-            value={issue.delegateUserId}
-            onChange={(userId) => onPatch({ delegateUserId: userId })}
             readOnly={readOnly}
           />
         </PropertyRow>

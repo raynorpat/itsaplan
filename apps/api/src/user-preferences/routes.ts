@@ -9,12 +9,7 @@ import { getPreferences, isValidTimezone, updatePreferences } from './store';
 
 const Theme = t.Union([t.Literal('light'), t.Literal('dark'), t.Literal('system')]);
 const IssueOpenMode = t.Union([t.Literal('panel'), t.Literal('page')]);
-const StartPage = t.Union([
-  t.Literal('inbox'),
-  t.Literal('work-items'),
-  t.Literal('projects'),
-  t.Literal('ai-chat'),
-]);
+const StartPage = t.Union([t.Literal('inbox'), t.Literal('work-items'), t.Literal('projects')]);
 
 const IssueStatsView = t.Union([t.Literal('compact'), t.Literal('timeline')]);
 
@@ -23,7 +18,6 @@ const PreferenceResponse = t.Object({
   theme: Theme,
   issueOpenMode: IssueOpenMode,
   startPage: StartPage,
-  showChatByDefault: t.Boolean(),
   issueStatsOpen: t.Boolean(),
   issueStatsView: IssueStatsView,
   lastTeamId: t.Nullable(t.String({ format: 'uuid' })),
@@ -35,7 +29,6 @@ const PreferencePatch = t.Object({
   theme: t.Optional(Theme),
   issueOpenMode: t.Optional(IssueOpenMode),
   startPage: t.Optional(StartPage),
-  showChatByDefault: t.Optional(t.Boolean()),
   issueStatsOpen: t.Optional(t.Boolean()),
   issueStatsView: t.Optional(IssueStatsView),
   lastTeamId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),

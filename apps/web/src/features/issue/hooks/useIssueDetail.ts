@@ -38,7 +38,7 @@ export function useIssueDetail(
   const [descEditor, setDescEditor] = useState<Editor | null>(null);
 
   // Live detail: poll the issue's change marker and refetch the issue + feed when it
-  // moves, so edits and new comments (including an agent's reply to a mention) show
+  // moves, so edits and new comments show
   // without a manual reload.
   useLiveRefresh({
     revKey: ['rev', 'issue', issueId],

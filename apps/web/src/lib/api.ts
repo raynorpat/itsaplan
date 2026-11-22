@@ -111,334 +111,6 @@ export interface Assignee {
   name: string;
   email: string;
   image: string | null;
-  kind: 'member' | 'agent';
-  agentKind: 'external' | 'internal' | null;
-}
-
-// An AI agent on a team: a bot user plus its configuration. `kind` is
-// 'external' (driven by an outside caller through the API) or 'internal' (run by
-// the built-in runtime, so it carries provider/model/instructions/tools). Only an
-// external agent has an API key: `apiKeyStart` is the non-secret prefix for display
-// (null for internal), and the plaintext key is only returned once, on create and
-// on regenerate.
-export interface AiAgent {
-  id: string;
-  teamId: string;
-  userId: string;
-  name: string;
-  username: string;
-  kind: 'external' | 'internal';
-  // The integration_credential (kind 'llm') the model runs on, or null.
-  modelCredentialId: string | null;
-  model: string | null;
-  instructions: string | null;
-  tools: string[];
-  temperature: number | null;
-  maxSteps: number | null;
-  memoryEnabled: boolean;
-  memoryLastMessages: number | null;
-  // Internal-agent run triggers.
-  triggerOnMention: boolean;
-  triggerOnAssign: boolean;
-  // External-agent authorization role (a team_role id, or null for the default).
-  roleId: string | null;
-  createdAt: string;
-  apiKeyStart: string | null;
-  // The integration key of the model credential (the provider, e.g. "openai"), or
-  // null when no credential is set.
-  modelProvider: string | null;
-  // How many actions the agent can take (always-on read-only plus granted mutating),
-  // and how many skills and configured tools are enabled.
-  actionCount: number;
-  skillCount: number;
-  toolCount: number;
-}
-
-// One row of an agent's autonomous run history. Issue-triggered runs reference an
-// issue; scheduled and manual runs do not.
-export interface AgentRun {
-  id: string;
-  status: 'pending' | 'success' | 'failed';
-  trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
-  issueId: string | null;
-  issueIdentifier: string | null;
-  issueTitle: string | null;
-  prompt: string;
-  attempts: number;
-  lastError: string | null;
-  nextAttemptAt: string;
-  createdAt: string;
-}
-
-export interface AgentRunPage {
-  items: AgentRun[];
-  nextCursor: string | null;
-}
-
-export interface AgentSchedule {
-  id: string;
-  agentId: string;
-  agentName: string;
-  name: string;
-  prompt: string;
-  cron: string;
-  timezone: 'UTC';
-  status: 'active' | 'paused';
-  nextRunAt: string;
-  lastRunAt: string | null;
-  lastRunStatus: 'pending' | 'success' | 'failed' | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AgentScheduleInput {
-  agentId: string;
-  name: string;
-  prompt: string;
-  cron: string;
-  status?: 'active' | 'paused';
-}
-
-export interface AgentScheduleRun {
-  id: string;
-  status: 'pending' | 'success' | 'failed';
-  trigger: 'schedule' | 'manual';
-  prompt: string;
-  attempts: number;
-  lastError: string | null;
-  output: string | null;
-  scheduledFor: string | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  createdAt: string;
-}
-
-// One work-item tool from the server-side catalog. `key` is stored on the agent
-// (grantable actions only); label/description are for the picker. `always` marks the
-// read-only tools that are always granted and shown non-editable.
-export interface AgentTool {
-  key: string;
-  label: string;
-  description: string;
-  always: boolean;
-}
-
-export interface NewAiAgentInput {
-  name: string;
-  username: string;
-  kind: 'external' | 'internal';
-  modelCredentialId?: string | null;
-  model?: string | null;
-  instructions?: string | null;
-  tools?: string[];
-  temperature?: number | null;
-  maxSteps?: number | null;
-  memoryEnabled?: boolean;
-  memoryLastMessages?: number | null;
-  triggerOnMention?: boolean;
-  triggerOnAssign?: boolean;
-  roleId?: string | null;
-}
-
-export interface AiAgentPatch {
-  name?: string;
-  username?: string;
-  modelCredentialId?: string | null;
-  model?: string | null;
-  instructions?: string | null;
-  tools?: string[];
-  temperature?: number | null;
-  maxSteps?: number | null;
-  memoryEnabled?: boolean;
-  memoryLastMessages?: number | null;
-  triggerOnMention?: boolean;
-  triggerOnAssign?: boolean;
-  roleId?: string | null;
-}
-
-// A field of an integration's credential form (from the catalog). `type` "secret"
-// marks a value stored encrypted and shown masked.
-export interface ConfigField {
-  key: string;
-  label: string;
-  type: 'string' | 'secret' | 'url' | 'number' | 'boolean';
-  required: boolean;
-  placeholder?: string;
-  help?: string;
-}
-
-// An integration the team can store a credential for (server-side catalog). `kind`
-// 'llm' is an AI provider (its models an agent runs on, no tools); 'tool' is a tool
-// integration whose `tools` are configured on a credential.
-export interface IntegrationMeta {
-  key: string;
-  label: string;
-  kind: 'llm' | 'tool';
-  credentialSchema: ConfigField[];
-  tools: { key: string; label: string; description: string; scopes?: string[] }[];
-}
-
-// A model an LLM provider offers, from the models.dev registry.
-export interface ProviderModel {
-  id: string;
-  name: string;
-}
-
-// A stored integration credential. `redacted` mirrors the stored credential with
-// secret fields masked; the real secrets are never returned.
-export interface IntegrationCredential {
-  id: string;
-  teamId: string;
-  integrationKey: string;
-  label: string | null;
-  redacted: Record<string, unknown>;
-  createdAt: string;
-}
-
-export interface NewCredentialInput {
-  integrationKey: string;
-  label?: string | null;
-  credential: Record<string, unknown>;
-}
-
-export interface CredentialPatch {
-  label?: string | null;
-  // Only the fields being changed. Secret fields left out keep their stored value.
-  credential?: Record<string, unknown>;
-}
-
-// A reference file of a skill (metadata only).
-export interface SkillRef {
-  path: string;
-  s3Key: string;
-  size: number;
-}
-
-// A skill in the team library: a SKILL.md plus optional reference files, given
-// to internal agents. Content lives in the object store; this is the metadata.
-export interface AgentSkill {
-  id: string;
-  teamId: string;
-  name: string;
-  description: string;
-  source: 'upload' | 'inline' | 'github';
-  sourceUrl: string | null;
-  files: SkillRef[];
-  createdAt: string;
-}
-
-export interface NewSkillInput {
-  source: 'upload' | 'inline' | 'github';
-  name?: string | null;
-  description?: string | null;
-  markdown?: string;
-  sourceUrl?: string | null;
-}
-
-export interface SkillPatch {
-  name?: string;
-  description?: string;
-  markdown?: string;
-}
-
-// A skill found at a GitHub URL by the discover endpoint. `url` is a ready-to-import
-// link for that single skill.
-export interface GithubSkillCandidate {
-  name: string;
-  description: string;
-  subpath: string;
-  url: string;
-}
-
-// A configured tool: a catalog tool (toolKey) bound to an integration credential,
-// enriched with the credential's integration and label for display. (Distinct from
-// AgentTool, which is a built-in capability tool in the agent's Actions list.)
-export interface ConfiguredTool {
-  id: string;
-  teamId: string;
-  toolKey: string;
-  credentialId: string;
-  integrationKey: string;
-  credentialLabel: string | null;
-  createdAt: string;
-}
-
-export interface NewConfiguredToolInput {
-  toolKey: string;
-  credentialId: string;
-}
-
-// One event of a streamed agent run (mirrors the API's AgentRunEvent). `text` is a
-// chunk of the answer to append; `tool-start`/`tool-end` report a capability the
-// agent is using, so the UI can show what it is doing; `done` ends the run with the
-// conversation thread id; `error` reports a failure that happened mid-run.
-export type AgentRunEvent =
-  | { type: 'text'; value: string }
-  | { type: 'tool-start'; toolCallId: string; toolName: string }
-  | { type: 'tool-end'; toolCallId: string; toolName: string }
-  | { type: 'done'; threadId: string | null }
-  | { type: 'error'; message: string };
-
-// One of the caller's saved chat conversations with an agent. `title` is the first
-// prompt (truncated); null when it was never set.
-export interface AiChatThread {
-  id: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// One restored message of a chat thread's transcript.
-export interface AiChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  createdAt: string;
-}
-
-export interface AiChatMessagePage {
-  items: AiChatMessage[];
-  nextPage: number | null;
-}
-
-// Streams an internal agent's response over SSE, yielding each AgentRunEvent as it
-// arrives. Sends the session cookie like every other call. Throws ApiError when the
-// request itself fails before the stream starts (e.g. 403/404); a failure during
-// the run arrives as an `error` event, not a throw.
-export async function* streamAiAgentRun(
-  teamKey: string,
-  agentId: string,
-  input: { prompt: string; threadId?: string | null },
-): AsyncGenerator<AgentRunEvent> {
-  const body = input.threadId
-    ? { prompt: input.prompt, threadId: input.threadId }
-    : { prompt: input.prompt };
-  const res = await fetch(`${API_URL}/teams/${teamKey}/ai-agents/${agentId}/run/stream`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok || !res.body) {
-    const err = await res.json().catch(() => null);
-    throw new ApiError(res.status, err?.error ?? `${res.status} ${res.statusText}`);
-  }
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += value;
-    // SSE frames are separated by a blank line; each frame here is a single
-    // `data:` line carrying one JSON-encoded event.
-    let sep: number;
-    while ((sep = buffer.indexOf('\n\n')) !== -1) {
-      const frame = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-      const line = frame.split('\n').find((l) => l.startsWith('data:'));
-      if (line) yield JSON.parse(line.slice(5).trim()) as AgentRunEvent;
-    }
-  }
 }
 
 export interface Issue {
@@ -647,7 +319,6 @@ export interface InstanceUser {
   image: string | null;
   emailVerified: boolean;
   role: string;
-  isAgent: boolean;
   providers: string[];
   teamCount: number;
   lastSeenAt: string | null;
@@ -674,10 +345,6 @@ export interface InstanceUserDetail extends InstanceUser {
   teams: InstanceUserTeam[];
 }
 
-// Which accounts the directory lists: real people, the bot users behind AI agents,
-// or both.
-export type InstanceUserKind = 'human' | 'agent' | 'all';
-
 // One page of the directory. `total` counts every account matching the filters, so
 // the pager can show the range and know whether there is a next page.
 export interface InstanceUserPage {
@@ -698,10 +365,6 @@ export interface InstanceTeam {
   archivedIssueCount: number;
   projectCount: number;
   viewCount: number;
-  agentCount: number;
-  skillCount: number;
-  toolCount: number;
-  integrationCount: number;
   lastActivityAt: string | null;
   createdAt: string;
 }
@@ -713,7 +376,6 @@ export interface InstanceTeamMember {
   name: string;
   email: string;
   image: string | null;
-  isAgent: boolean;
   role: MemberRole;
   roleId: string | null;
   roleName: string | null;
@@ -750,12 +412,11 @@ export interface NotificationPreferences {
 // The signed-in user's interface preferences, held per account so they apply on
 // every device. timezone is an IANA zone name the app renders stored UTC timestamps
 // in; issueOpenMode decides whether a clicked issue opens in the side panel or on
-// its own page; startPage is the section the app root lands on; showChatByDefault
-// keeps the floating AI chat button on screen from the start; lastTeamId is the
+// its own page; startPage is the section the app root lands on; lastTeamId is the
 // team the app root reopens (null until the user has opened one).
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type IssueOpenMode = 'panel' | 'page';
-export type StartPage = 'inbox' | 'work-items' | 'projects' | 'ai-chat';
+export type StartPage = 'inbox' | 'work-items' | 'projects';
 export type IssueStatsView = 'compact' | 'timeline';
 
 export interface AccountPreferences {
@@ -763,7 +424,6 @@ export interface AccountPreferences {
   theme: ThemePreference;
   issueOpenMode: IssueOpenMode;
   startPage: StartPage;
-  showChatByDefault: boolean;
   // How the status stats section of an issue starts out: expanded or collapsed, and
   // in the compact bar or the full timeline. Switching it on an issue is not saved —
   // it lasts as long as that issue stays open.
@@ -1189,10 +849,6 @@ export type PermissionResource =
   | 'members_manage'
   | 'states'
   | 'labels'
-  | 'ai_agents'
-  | 'integrations'
-  | 'agent_skills'
-  | 'agent_tools'
   | 'webhooks'
   | 'danger_zone';
 
@@ -1232,9 +888,6 @@ export interface MemberRow {
   roleName: string | null;
   // What this member does in the team, set by an owner. Empty string when unset.
   description: string;
-  // True when this member is an AI agent's bot user. Its role and access are managed
-  // on the AI Agents screen, so this list does not let you reassign or revoke it.
-  isAgent: boolean;
   createdAt: string;
 }
 
@@ -1585,166 +1238,6 @@ export const api = {
       body: JSON.stringify({ description }),
     }),
 
-  // AI agents: a team's bot users and their configuration. The plaintext key
-  // is returned only by create and regenerate-key, so those responses carry it
-  // alongside the agent; it is never part of a list/read.
-  listAiAgents: (teamKey: string) => request<AiAgent[]>(`/teams/${teamKey}/ai-agents`),
-  listAgentTools: (teamKey: string) => request<AgentTool[]>(`/teams/${teamKey}/ai-agents/tools`),
-  createAiAgent: (teamKey: string, input: NewAiAgentInput) =>
-    request<{ agent: AiAgent; apiKey: string | null }>(`/teams/${teamKey}/ai-agents`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateAiAgent: (teamKey: string, agentId: string, patch: AiAgentPatch) =>
-    request<AiAgent>(`/teams/${teamKey}/ai-agents/${agentId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  regenerateAiAgentKey: (teamKey: string, agentId: string) =>
-    request<{ apiKey: string }>(`/teams/${teamKey}/ai-agents/${agentId}/regenerate-key`, {
-      method: 'POST',
-    }),
-  deleteAiAgent: (teamKey: string, agentId: string) =>
-    request<void>(`/teams/${teamKey}/ai-agents/${agentId}`, { method: 'DELETE' }),
-  listAgentRuns: (teamKey: string, agentId: string, before?: string) =>
-    request<AgentRunPage>(
-      `/teams/${teamKey}/ai-agents/${agentId}/runs?limit=25${before ? `&before=${before}` : ''}`,
-    ),
-  listAgentSchedules: (teamKey: string) =>
-    request<AgentSchedule[]>(`/teams/${teamKey}/agent-schedules`),
-  createAgentSchedule: (teamKey: string, input: AgentScheduleInput) =>
-    request<AgentSchedule>(`/teams/${teamKey}/agent-schedules`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateAgentSchedule: (teamKey: string, scheduleId: string, patch: Partial<AgentScheduleInput>) =>
-    request<AgentSchedule>(`/teams/${teamKey}/agent-schedules/${scheduleId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteAgentSchedule: (teamKey: string, scheduleId: string) =>
-    request<void>(`/teams/${teamKey}/agent-schedules/${scheduleId}`, { method: 'DELETE' }),
-  runAgentSchedule: (teamKey: string, scheduleId: string) =>
-    request<{ runId: string }>(`/teams/${teamKey}/agent-schedules/${scheduleId}/run`, {
-      method: 'POST',
-    }),
-  listAgentScheduleRuns: (teamKey: string, scheduleId: string) =>
-    request<AgentScheduleRun[]>(`/teams/${teamKey}/agent-schedules/${scheduleId}/runs`),
-  // The caller's own chat threads with an agent, newest first.
-  listAiAgentThreads: (teamKey: string, agentId: string) =>
-    request<AiChatThread[]>(`/teams/${teamKey}/ai-agents/${agentId}/threads`),
-  // The transcript of one chat thread, to restore the conversation.
-  getAiAgentThreadMessages: (teamKey: string, agentId: string, threadId: string, page: number) =>
-    request<AiChatMessagePage>(
-      `/teams/${teamKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}/messages?page=${page}`,
-    ),
-  deleteAiAgentThread: (teamKey: string, agentId: string, threadId: string) =>
-    request<void>(
-      `/teams/${teamKey}/ai-agents/${agentId}/threads/${encodeURIComponent(threadId)}`,
-      { method: 'DELETE' },
-    ),
-
-  // Integrations: stored credentials for LLM providers and tool integrations. The
-  // secret is write-only — responses carry only a redacted view.
-  listIntegrationCatalog: (teamKey: string) =>
-    request<IntegrationMeta[]>(`/teams/${teamKey}/integrations/catalog`),
-  listIntegrationModels: (teamKey: string, provider: string) =>
-    request<ProviderModel[]>(
-      `/teams/${teamKey}/integrations/models/${encodeURIComponent(provider)}`,
-    ),
-  listCredentials: (teamKey: string) =>
-    request<IntegrationCredential[]>(`/teams/${teamKey}/integrations`),
-  createCredential: (teamKey: string, input: NewCredentialInput) =>
-    request<IntegrationCredential>(`/teams/${teamKey}/integrations`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateCredential: (teamKey: string, credentialId: string, patch: CredentialPatch) =>
-    request<IntegrationCredential>(`/teams/${teamKey}/integrations/${credentialId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteCredential: (teamKey: string, credentialId: string) =>
-    request<void>(`/teams/${teamKey}/integrations/${credentialId}`, { method: 'DELETE' }),
-
-  // Agent skills: the team skill library and the skills enabled on an agent.
-  listSkills: (teamKey: string) => request<AgentSkill[]>(`/teams/${teamKey}/agent-skills`),
-  getSkillMarkdown: (teamKey: string, skillId: string) =>
-    request<{ markdown: string }>(`/teams/${teamKey}/agent-skills/${skillId}/markdown`),
-  getSkillReferenceContent: (teamKey: string, skillId: string, path: string) =>
-    request<{ content: string }>(
-      `/teams/${teamKey}/agent-skills/${skillId}/references/content?path=${encodeURIComponent(path)}`,
-    ),
-  createSkill: (teamKey: string, input: NewSkillInput) =>
-    request<AgentSkill>(`/teams/${teamKey}/agent-skills`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  discoverGithubSkills: (teamKey: string, url: string) =>
-    request<GithubSkillCandidate[]>(`/teams/${teamKey}/agent-skills/github/discover`, {
-      method: 'POST',
-      body: JSON.stringify({ url }),
-    }),
-  updateSkill: (teamKey: string, skillId: string, patch: SkillPatch) =>
-    request<AgentSkill>(`/teams/${teamKey}/agent-skills/${skillId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteSkill: (teamKey: string, skillId: string) =>
-    request<void>(`/teams/${teamKey}/agent-skills/${skillId}`, { method: 'DELETE' }),
-  // Multipart upload for a skill reference — see uploadAttachment for why request()
-  // cannot be used.
-  addSkillReference: async (teamKey: string, skillId: string, file: File): Promise<AgentSkill> => {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch(`${API_URL}/teams/${teamKey}/agent-skills/${skillId}/references`, {
-      method: 'POST',
-      credentials: 'include',
-      body: form,
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new ApiError(res.status, body?.error ?? `${res.status} ${res.statusText}`);
-    }
-    return res.json();
-  },
-  updateSkillReferenceContent: (teamKey: string, skillId: string, path: string, content: string) =>
-    request<AgentSkill>(`/teams/${teamKey}/agent-skills/${skillId}/references/content`, {
-      method: 'PATCH',
-      body: JSON.stringify({ path, content }),
-    }),
-  deleteSkillReference: (teamKey: string, skillId: string, path: string) =>
-    request<AgentSkill>(
-      `/teams/${teamKey}/agent-skills/${skillId}/references?path=${encodeURIComponent(path)}`,
-      { method: 'DELETE' },
-    ),
-  listAgentSkills: (teamKey: string, agentId: string) =>
-    request<AgentSkill[]>(`/teams/${teamKey}/ai-agents/${agentId}/skills`),
-  setAgentSkills: (teamKey: string, agentId: string, skillIds: string[]) =>
-    request<AgentSkill[]>(`/teams/${teamKey}/ai-agents/${agentId}/skills`, {
-      method: 'PUT',
-      body: JSON.stringify({ skillIds }),
-    }),
-
-  // Configured tools: a team's tools bound to a credential, and the tools enabled
-  // on one agent. The tool catalog itself comes from the integrations catalog.
-  listConfiguredTools: (teamKey: string) =>
-    request<ConfiguredTool[]>(`/teams/${teamKey}/agent-tools`),
-  createConfiguredTool: (teamKey: string, input: NewConfiguredToolInput) =>
-    request<ConfiguredTool>(`/teams/${teamKey}/agent-tools`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  deleteConfiguredTool: (teamKey: string, agentToolId: string) =>
-    request<void>(`/teams/${teamKey}/agent-tools/${agentToolId}`, { method: 'DELETE' }),
-  listAgentToolLinks: (teamKey: string, agentId: string) =>
-    request<ConfiguredTool[]>(`/teams/${teamKey}/ai-agents/${agentId}/tool-configs`),
-  setAgentTools: (teamKey: string, agentId: string, agentToolIds: string[]) =>
-    request<ConfiguredTool[]>(`/teams/${teamKey}/ai-agents/${agentId}/tool-configs`, {
-      method: 'PUT',
-      body: JSON.stringify({ agentToolIds }),
-    }),
-
   // Roles: a team's custom roles and the permission catalog behind the role
   // editor. Any member can list; create/update/delete are owner-only on the API.
   getPermissionCatalog: () => request<PermissionCatalog>('/permission-catalog'),
@@ -1936,15 +1429,9 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   // The instance user directory: one page of accounts, and one account with the
-  // teams it can reach. Search, the kind filter and paging all run on the server.
-  listInstanceUsers: (params: {
-    search?: string;
-    kind: InstanceUserKind;
-    limit: number;
-    offset: number;
-  }) => {
+  // teams it can reach. Search and paging run on the server.
+  listInstanceUsers: (params: { search?: string; limit: number; offset: number }) => {
     const query = new URLSearchParams({
-      kind: params.kind,
       limit: String(params.limit),
       offset: String(params.offset),
     });

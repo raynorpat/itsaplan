@@ -11,16 +11,13 @@ import {
 } from '@repo/db';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
-import { parseMentions } from '../ai-agents/mentions';
-import { isAgentUser, listInternalAgentsByUserIds } from '../ai-agents/store';
-import { enqueueAgentRun } from '../ai-agents/run-queue';
 import { notifyIssueChange } from '../notifications/store';
 
 // Issue timeline: change-log entries (issue_activity) and comments (comment), read
 // together through the feed_entry view. kind selects which payload columns a row
-// uses. The author is the session user (a member or an agent's bot user); the
-// author's name is a snapshot taken at write time, so an entry keeps reading
-// correctly after that user is renamed or deleted. The issue detail panel renders
+// uses. The author is the session user; the author's name is a snapshot taken at
+// write time, so an entry keeps reading correctly after that user is renamed or
+// deleted. The issue detail panel renders
 // the feed newest first and pages through it with a (created_at, id) keyset cursor.
 
 export type FeedKind = 'comment' | 'activity';
@@ -223,32 +220,6 @@ export async function listFeedRange(
     )
     .orderBy(feedEntry.createdAt, feedEntry.id);
   return rows.map(mapFeedItem);
-}
-
-// If the comment mentions internal agents, queue a run for each so they can reply.
-// Only quick queries run here; the LLM call happens later in the poller, so creating
-// a comment is never blocked on it. Comments authored by an agent's bot user never
-// trigger runs, which stops agents from setting each other (or themselves) off.
-// `onlyUserIds` limits the runs to those mentions (an edit runs only agents it
-// newly mentions).
-export async function enqueueMentionRuns(
-  teamId: string,
-  comment: { id: string; issueId: string | null; userId: string | null; body: string },
-  onlyUserIds?: string[],
-): Promise<void> {
-  let mentionedUserIds = parseMentions(comment.body);
-  if (onlyUserIds) mentionedUserIds = mentionedUserIds.filter((id) => onlyUserIds.includes(id));
-  if (mentionedUserIds.length === 0 || !comment.issueId) return;
-  if (comment.userId && (await isAgentUser(comment.userId))) return;
-  const agents = await listInternalAgentsByUserIds(teamId, mentionedUserIds);
-  for (const agent of agents) {
-    await enqueueAgentRun({
-      agentId: agent.id,
-      issueId: comment.issueId,
-      sourceCommentId: comment.id,
-      prompt: comment.body,
-    });
-  }
 }
 
 // --- Activity log ----------------------------------------------------------------

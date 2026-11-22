@@ -41,7 +41,6 @@ export default function GodTeamsTable({
           <TableHead className="text-xs font-medium text-muted-foreground">Team</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Members</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Issues</TableHead>
-          <TableHead className="text-xs font-medium text-muted-foreground">Agents</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">Last activity</TableHead>
           <TableHead className="text-xs font-medium text-muted-foreground">MCP</TableHead>
           <TableHead className="text-right text-xs font-medium text-muted-foreground">
@@ -92,13 +91,6 @@ export default function GodTeamsTable({
                   </span>
                 )}
               </div>
-            </TableCell>
-
-            <TableCell
-              className="px-3 py-3 align-top text-sm tabular-nums"
-              title={String(p.agentCount)}
-            >
-              {compactCount(p.agentCount)}
             </TableCell>
 
             <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">

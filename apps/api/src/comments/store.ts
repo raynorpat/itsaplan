@@ -17,9 +17,8 @@ import { HttpError, iso } from '../shared/lib';
 import type { FeedItemRow } from '../issues/activity';
 import { emitEvent } from '../webhooks/event';
 import { commentData } from '../webhooks/data';
-import { enqueueMentionRuns } from '../issues/activity';
 import { notifyComment } from '../notifications/store';
-import { parseMentions } from '../ai-agents/mentions';
+import { parseMentions } from '../shared/mentions';
 import { getMembership } from '../members/store';
 import { assertPermission, type AuthUser } from '../shared/access';
 import { assertProjectAccess, projectsInTeams, teamsGranting } from '../projects/access';
@@ -239,7 +238,6 @@ export async function createComment(input: {
       data,
     });
   if (created.issueId && teamIds[0]) {
-    await enqueueMentionRuns(teamIds[0], created);
     await notifyComment(teamIds[0], created);
   }
   return created;
@@ -292,10 +290,7 @@ export async function updateComment(
     const known = new Set(parseMentions(before.body));
     const added = parseMentions(body).filter((u) => !known.has(u));
     const [teamId] = await commentTeamIds(updated);
-    if (added.length && teamId) {
-      await enqueueMentionRuns(teamId, updated, added);
-      await notifyComment(teamId, updated, { onlyMentioned: added });
-    }
+    if (added.length && teamId) await notifyComment(teamId, updated, { onlyMentioned: added });
   }
   return updated;
 }

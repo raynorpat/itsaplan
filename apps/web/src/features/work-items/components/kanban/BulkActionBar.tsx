@@ -2,7 +2,7 @@
 import { applicableLabels } from '@/utils/labels';
 
 import { useState } from 'react';
-import { Archive, Bot, CircleDashed, Tag, Target, Trash2, User, X } from 'lucide-react';
+import { Archive, CircleDashed, Tag, Target, Trash2, User, X } from 'lucide-react';
 import { type TeamDetail } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProjectsQuery } from '@/services/projects.service';
@@ -44,8 +44,7 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
   const ids = [...selection.selected];
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const members = team.assignees.filter((a) => a.kind === 'member');
-  const agents = team.assignees.filter((a) => a.kind === 'agent');
+  const members = team.assignees;
   const disabled = bulk.pending;
 
   return (
@@ -103,24 +102,6 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
                       onSelect={() => void bulk.patch(ids, { assigneeUserId: a.userId })}
                     >
                       <User />
-                      <span className="flex-1 truncate">{a.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </BarMenu>
-              )}
-
-              {agents.length > 0 && (
-                <BarMenu icon={<Bot className="size-4" />} label="Delegate" disabled={disabled}>
-                  <DropdownMenuItem onSelect={() => void bulk.patch(ids, { delegateUserId: null })}>
-                    <CircleDashed />
-                    <span className="flex-1">No delegate</span>
-                  </DropdownMenuItem>
-                  {agents.map((a) => (
-                    <DropdownMenuItem
-                      key={a.userId}
-                      onSelect={() => void bulk.patch(ids, { delegateUserId: a.userId })}
-                    >
-                      <Bot />
                       <span className="flex-1 truncate">{a.name}</span>
                     </DropdownMenuItem>
                   ))}

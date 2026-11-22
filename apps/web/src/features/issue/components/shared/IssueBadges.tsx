@@ -88,8 +88,7 @@ export function AssigneeAvatar({
   );
 }
 
-// A delegate (AI agent) avatar. Same avatar as the agent gets on its comments,
-// so the same face identifies it everywhere.
+// A delegate (a Linear agent app user) avatar.
 export function DelegateAvatar({
   name,
   image,

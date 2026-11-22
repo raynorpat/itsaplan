@@ -1,4 +1,4 @@
-import { db, aiAgent, team, teamMember, user } from '@repo/db';
+import { db, team, teamMember, user } from '@repo/db';
 import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -54,8 +54,7 @@ export const teamFilter: FieldHandlers = {
   name: (v, p) => compare(team.name, v, p),
 };
 
-// Users visible to the viewer: themselves, the members of their teams, and the
-// agents of their teams.
+// Users visible to the viewer: themselves and the members of their teams.
 export function visibleUsers(viewerId: string): SQL {
   const teams = visibleTeamIds(viewerId);
   return or(
@@ -66,10 +65,6 @@ export function visibleUsers(viewerId: string): SQL {
         .select({ id: teamMember.userId })
         .from(teamMember)
         .where(inArray(teamMember.teamId, teams)),
-    ),
-    inArray(
-      user.id,
-      db.select({ id: aiAgent.userId }).from(aiAgent).where(inArray(aiAgent.teamId, teams)),
     ),
   )!;
 }

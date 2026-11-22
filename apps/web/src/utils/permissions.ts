@@ -10,10 +10,6 @@ const RESOURCE_LABELS: Record<string, string> = {
   members_manage: 'Members',
   states: 'States',
   labels: 'Labels',
-  ai_agents: 'AI agents',
-  integrations: 'Integrations',
-  agent_skills: 'Agent skills',
-  agent_tools: 'Agent tools',
   webhooks: 'Webhooks',
   danger_zone: 'Danger zone',
 };
@@ -51,7 +47,6 @@ export interface PermissionGroup {
 // The resources shown together in the role editor. Ordering is display order.
 const GROUP_DEFS: PermissionGroup[] = [
   { title: 'Work items', resources: ['work_items', 'projects', 'views'] },
-  { title: 'AI', resources: ['ai_agents', 'integrations', 'agent_skills', 'agent_tools'] },
   {
     title: 'Configuration',
     resources: ['states', 'labels', 'webhooks'],

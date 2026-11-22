@@ -1,5 +1,5 @@
-import { db, teamMember, teamRole, user, aiAgent } from '@repo/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { db, teamMember, teamRole, user } from '@repo/db';
+import { and, eq, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import {
   defaultMemberPermissions,
@@ -26,10 +26,6 @@ export interface MemberRow {
   roleName: string | null;
   // What this member does in the team, free text set by an owner. Empty when unset.
   description: string;
-  // True when this member is an AI agent's bot user (has an ai_agent row). Agents
-  // join by agent creation, not an invite, so their role and access are managed on
-  // the AI Agents screen, not here.
-  isAgent: boolean;
   createdAt: string;
 }
 
@@ -75,73 +71,33 @@ export async function getMemberContext(
   return { role, permissions };
 }
 
-// A candidate an issue can be assigned to: a team member (a real user) or an
-// AI agent (its bot user). Both are `user` rows, so assignment and authorship use
-// user.id uniformly; `kind` lets the UI group "Members" and "AI Agents".
+// A team member an issue can be assigned to, with their owner/member flag and their
+// team description.
 export interface AssigneeCandidate {
   userId: string;
   name: string;
   email: string;
   image: string | null;
-  kind: 'member' | 'agent';
-  agentKind: 'external' | 'internal' | null;
-  // For a member: their owner/member flag and their team description, so callers
-  // (the agent tool) can pick who to tag. Null for an agent.
-  role: MemberRole | null;
-  description: string | null;
+  role: MemberRole;
+  description: string;
 }
 
 export async function listAssigneeCandidates(teamId: string): Promise<AssigneeCandidate[]> {
-  const [memberRows, agentRows] = await Promise.all([
-    db
-      .select({
-        userId: teamMember.userId,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        role: teamMember.role,
-        description: teamMember.description,
-      })
-      .from(teamMember)
-      .innerJoin(user, eq(user.id, teamMember.userId))
-      // An agent's bot user also holds a team_member row (that is how it gets its
-      // permissions). It is listed below as kind 'agent', so it is excluded here to
-      // keep the member candidates real people only. Same agent test as listMembers.
-      .leftJoin(aiAgent, eq(aiAgent.userId, teamMember.userId))
-      .where(and(eq(teamMember.teamId, teamId), isNull(aiAgent.id))),
-    db
-      .select({
-        userId: aiAgent.userId,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        agentKind: aiAgent.kind,
-      })
-      .from(aiAgent)
-      .innerJoin(user, eq(user.id, aiAgent.userId))
-      .where(eq(aiAgent.teamId, teamId)),
-  ]);
-  const members: AssigneeCandidate[] = memberRows.map((r) => ({
-    userId: r.userId,
-    name: r.name,
-    email: r.email,
-    image: r.image,
-    kind: 'member',
-    agentKind: null,
-    role: r.role as MemberRole,
-    description: r.description,
-  }));
-  const agents: AssigneeCandidate[] = agentRows.map((r) => ({
-    userId: r.userId,
-    name: r.name,
-    email: r.email,
-    image: r.image,
-    kind: 'agent',
-    agentKind: r.agentKind as 'external' | 'internal',
-    role: null,
-    description: null,
-  }));
-  return [...members, ...agents].sort((a, b) => a.name.localeCompare(b.name));
+  const rows = await db
+    .select({
+      userId: teamMember.userId,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      role: teamMember.role,
+      description: teamMember.description,
+    })
+    .from(teamMember)
+    .innerJoin(user, eq(user.id, teamMember.userId))
+    .where(eq(teamMember.teamId, teamId));
+  return rows
+    .map((r) => ({ ...r, role: r.role as MemberRole }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listMembers(teamId: string): Promise<MemberRow[]> {
@@ -155,13 +111,11 @@ export async function listMembers(teamId: string): Promise<MemberRow[]> {
       roleId: teamMember.roleId,
       roleName: teamRole.name,
       description: teamMember.description,
-      agentId: aiAgent.id,
       createdAt: teamMember.createdAt,
     })
     .from(teamMember)
     .innerJoin(user, eq(user.id, teamMember.userId))
     .leftJoin(teamRole, eq(teamRole.id, teamMember.roleId))
-    .leftJoin(aiAgent, eq(aiAgent.userId, teamMember.userId))
     .where(eq(teamMember.teamId, teamId))
     .orderBy(teamMember.createdAt);
   return rows.map((r) => ({
@@ -173,7 +127,6 @@ export async function listMembers(teamId: string): Promise<MemberRow[]> {
     roleId: r.roleId,
     roleName: r.roleName,
     description: r.description,
-    isAgent: r.agentId !== null,
     createdAt: iso(r.createdAt),
   }));
 }

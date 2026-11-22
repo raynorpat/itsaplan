@@ -7,7 +7,7 @@ import pkg from '../../../../package.json';
 // repository's releases atom feed above it.
 //
 // The feed is github.com web content, not the REST API, so no token and no
-// 60/hour limit (agent-skills/skill-format.ts reads github.com atom the same way).
+// 60/hour limit.
 // Its result is cached in app_setting for CACHE_TTL_MS and refreshed on read, so an
 // instance makes one outbound request per interval whatever the number of tabs and
 // whether or not the feed can be read. A failed check keeps the previous result and

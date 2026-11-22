@@ -106,9 +106,7 @@ export const teamSetting = pgTable(
 // means the user has not changed anything and the defaults below apply.
 // last_team_id is the team the user was in last, so the app root reopens it
 // after signing in on any device; the FK clears it when that team is deleted.
-// show_chat_by_default keeps the floating AI chat button on screen from the start,
-// with the chat window collapsed. hotkeys holds the keyboard shortcuts this user
-// rebound. issue_stats_open and issue_stats_view are how the status stats section of
+// hotkeys holds the keyboard shortcuts this user rebound. issue_stats_open and issue_stats_view are how the status stats section of
 // an issue starts out: expanded or collapsed, and 'compact' (one bar per status) or
 // 'timeline' (a lane per status on a time axis). Switching it on an issue is not
 // stored — it lasts as long as that issue stays open.
@@ -122,7 +120,6 @@ export const userPreference = pgTable(
     theme: text('theme').notNull().default('system'),
     issueOpenMode: text('issue_open_mode').notNull().default('panel'),
     startPage: text('start_page').notNull().default('work-items'),
-    showChatByDefault: boolean('show_chat_by_default').notNull().default(false),
     issueStatsOpen: boolean('issue_stats_open').notNull().default(true),
     issueStatsView: text('issue_stats_view').notNull().default('compact'),
     // The user's own keyboard shortcut overrides, as { hotkeyId: combo }. Only the
@@ -140,7 +137,7 @@ export const userPreference = pgTable(
     check('user_preference_issue_open_mode_check', sql`${t.issueOpenMode} IN ('panel', 'page')`),
     check(
       'user_preference_start_page_check',
-      sql`${t.startPage} IN ('inbox', 'work-items', 'projects', 'ai-chat')`,
+      sql`${t.startPage} IN ('inbox', 'work-items', 'projects')`,
     ),
     check(
       'user_preference_issue_stats_view_check',
@@ -309,174 +306,6 @@ export const label = pgTable(
   (t) => [unique().on(t.teamId, t.name).nullsNotDistinct()],
 );
 
-// AI agents attached to a team. Each agent is backed by a hidden bot user
-// (user_id -> user.id): that user is what a work item is delegated to, what a
-// comment/activity is authored by, and what owns the agent's API key (better-auth
-// apikey.reference_id points at it). An external agent needs only a name (on the
-// bot user) + username and a key; an internal agent additionally carries a model
-// configuration (provider/model/instructions/tools) used to run it. What an agent
-// may do is governed by the tools it is granted, not by a team role — an agent
-// is not a team_member.
-export const aiAgent = pgTable(
-  'ai_agent',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    username: text('username').notNull(),
-    kind: text('kind').notNull(),
-    // Internal-agent model configuration. NULL/empty for an external agent.
-    // model_credential_id references the integration_credential (kind 'llm') the
-    // runtime decrypts to address the model; model names the model id on it.
-    modelCredentialId: uuid('model_credential_id').references(() => integrationCredential.id, {
-      onDelete: 'set null',
-    }),
-    model: text('model'),
-    instructions: text('instructions'),
-    // Enabled capability-tool keys (from the code tool registry). System tools
-    // that act on the API with the agent's own token are implicit and not listed.
-    tools: jsonb('tools').notNull().default([]),
-    temperature: doublePrecision('temperature'),
-    maxSteps: integer('max_steps'),
-    // Internal-agent run triggers. A mention in a comment enqueues a run when
-    // trigger_on_mention is set; being set as an issue's delegate enqueues one when
-    // trigger_on_assign is set.
-    triggerOnMention: boolean('trigger_on_mention').notNull().default(true),
-    triggerOnAssign: boolean('trigger_on_assign').notNull().default(false),
-    // Authorization: the team_role the bot user acts under. Every agent request
-    // carries its API key and is enforced by this role through the normal permission
-    // checks — an external agent's HTTP calls and an internal agent's in-process tool
-    // dispatch alike. NULL means the bot user has no membership yet and cannot act.
-    roleId: uuid('role_id').references(() => teamRole.id, { onDelete: 'set null' }),
-    // The agent's own API key, encrypted at rest (AES-256-GCM, see shared/crypto).
-    // An internal agent replays it on every tool call, so unlike better-auth's
-    // hashed apikey row it has to stay recoverable. Set for internal agents only:
-    // an external agent's key is held by whoever drives it and is never stored here.
-    apiKeyCiphertext: text('api_key_ciphertext'),
-    apiKeyIv: text('api_key_iv'),
-    apiKeyAuthTag: text('api_key_auth_tag'),
-    // Conversation memory: when enabled, the agent recalls the last
-    // memory_last_messages messages of a thread (persisted by Mastra's Postgres
-    // store). memory_last_messages is NULL when memory is off.
-    memoryEnabled: boolean('memory_enabled').notNull().default(false),
-    memoryLastMessages: integer('memory_last_messages'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique().on(t.teamId, t.username),
-    unique().on(t.userId),
-    check('ai_agent_kind_check', sql`${t.kind} IN ('external', 'internal')`),
-    index('ai_agent_team_idx').on(t.teamId),
-  ],
-);
-
-// Recurring autonomous tasks for internal agents. The worker claims rows whose
-// next_run_at is due, advances the cadence, and inserts an agent_run snapshot.
-export const agentSchedule = pgTable(
-  'agent_schedule',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    prompt: text('prompt').notNull(),
-    cron: text('cron').notNull(),
-    timezone: text('timezone').notNull(),
-    status: text('status').notNull().default('active'),
-    nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
-    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    check('agent_schedule_status_check', sql`${t.status} IN ('active', 'paused')`),
-    unique().on(t.agentId, t.name),
-    index('agent_schedule_due_idx').on(t.status, t.nextRunAt),
-    index('agent_schedule_agent_idx').on(t.agentId),
-  ],
-);
-
-// Queued autonomous runs of an internal agent. Mentions and delegations carry an
-// issue; scheduled and manual runs do not. The worker claims due rows with a lease,
-// runs the agent, and records the result for history and retries.
-export const agentRun = pgTable(
-  'agent_run',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
-    scheduleId: uuid('schedule_id').references(() => agentSchedule.id, { onDelete: 'set null' }),
-    trigger: text('trigger').notNull().default('delegation'),
-    scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
-    // The comment that mentioned the agent, kept for traceability. The prompt is
-    // snapshotted into `prompt` so a run still works if the comment is later deleted.
-    sourceCommentId: uuid('source_comment_id').references((): AnyPgColumn => comment.id, {
-      onDelete: 'set null',
-    }),
-    // The mention comment body at enqueue time, framed into the agent's prompt.
-    prompt: text('prompt').notNull(),
-    // pending -> success | failed. Like webhook_delivery, a claim keeps the row
-    // 'pending' and pushes next_attempt_at forward by a lease, so a run whose poller
-    // crashes mid-flight becomes claimable again after the lease expires.
-    status: text('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
-    lastError: text('last_error'),
-    output: text('output'),
-    startedAt: timestamp('started_at', { withTimezone: true }),
-    finishedAt: timestamp('finished_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    check('agent_run_status_check', sql`${t.status} IN ('pending', 'success', 'failed')`),
-    check(
-      'agent_run_trigger_check',
-      sql`${t.trigger} IN ('mention', 'delegation', 'schedule', 'manual')`,
-    ),
-    uniqueIndex('agent_run_schedule_fire_uq').on(t.scheduleId, t.scheduledFor),
-    index('agent_run_due_idx').on(t.status, t.nextAttemptAt),
-    index('agent_run_schedule_idx').on(t.scheduleId),
-    index('agent_run_source_comment_idx').on(t.sourceCommentId),
-  ],
-);
-
-// Stored credentials for a team's integrations. One store for every secret: the
-// API keys of LLM providers (kind 'llm', addressed by an internal agent's model) and
-// the credentials of tool integrations (kind 'tool', bound to configured tools).
-// integration_key names the integration in the catalog; the credential's fields (and
-// which are secret) come from that integration's credentialSchema. The full
-// credential object is stored encrypted (AES-256-GCM, see
-// apps/api/src/shared/crypto.ts): ciphertext + iv + auth_tag. `redacted` is the same
-// object with secret fields masked, kept in plaintext for a masked display. The
-// secret is never returned to the client. A team may hold several credentials per
-// integration (e.g. two Jina keys), told apart by `label`.
-export const integrationCredential = pgTable(
-  'integration_credential',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    integrationKey: text('integration_key').notNull(),
-    label: text('label'),
-    ciphertext: text('ciphertext').notNull(),
-    iv: text('iv').notNull(),
-    authTag: text('auth_tag').notNull(),
-    // The credential with secret fields masked; non-secret fields verbatim. Owned by
-    // the store, derived from the integration's credential schema.
-    redacted: jsonb('redacted').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index('integration_credential_team_idx').on(t.teamId)],
-);
-
 // A member's own notification preferences for one team: for each issue event
 // type, whether they want it by email. One row per (user, team); absent means the
 // member has not opted in and receives nothing. email_events is EventToggles jsonb
@@ -529,97 +358,6 @@ export const notificationDelivery = pgTable(
     index('notification_delivery_due_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.status} = 'pending'`),
-  ],
-);
-
-// Skill library for a team. A skill is a unit of knowledge given to an internal
-// agent (Anthropic Agent Skill format): a SKILL.md with YAML frontmatter
-// (name/description) plus optional reference files, no executable scripts. The
-// markdown and reference bytes live in the S3 object store under s3_prefix; `files`
-// lists the reference file paths and their object keys. Sourced from an upload,
-// inline text, or a GitHub URL. Enabled on an agent via agent_skill_link.
-export const agentSkill = pgTable(
-  'agent_skill',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description').notNull().default(''),
-    source: text('source').notNull(),
-    sourceUrl: text('source_url'),
-    // Object-store prefix holding SKILL.md and reference files for this skill.
-    s3Prefix: text('s3_prefix').notNull(),
-    // Reference files beyond SKILL.md: [{ path, s3Key, size }]. Owned by the store.
-    files: jsonb('files').notNull().default([]),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique().on(t.teamId, t.name),
-    check('agent_skill_source_check', sql`${t.source} IN ('upload', 'inline', 'github')`),
-    index('agent_skill_team_idx').on(t.teamId),
-  ],
-);
-
-// Which skills are enabled on which agents (many-to-many). Deleting an agent or a
-// skill removes the link.
-export const agentSkillLink = pgTable(
-  'agent_skill_link',
-  {
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    skillId: uuid('skill_id')
-      .notNull()
-      .references(() => agentSkill.id, { onDelete: 'cascade' }),
-  },
-  (t) => [
-    primaryKey({ columns: [t.agentId, t.skillId] }),
-    index('agent_skill_link_skill_idx').on(t.skillId),
-  ],
-);
-
-// A custom tool configured in a team: a tool from the catalog (tool_key) bound to
-// one integration_credential. The tool's integration owns the secret, so the tool
-// holds no secret of its own — it references the credential the runtime decrypts at
-// call time. Different tools of the same integration may be bound to different
-// credentials (e.g. two Jina keys). Enabled on an agent via agent_tool_link.
-export const agentTool = pgTable(
-  'agent_tool',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    toolKey: text('tool_key').notNull(),
-    credentialId: uuid('credential_id')
-      .notNull()
-      .references(() => integrationCredential.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique().on(t.teamId, t.toolKey, t.credentialId),
-    index('agent_tool_team_idx').on(t.teamId),
-    index('agent_tool_credential_idx').on(t.credentialId),
-  ],
-);
-
-// Which configured tools are enabled on which agents (many-to-many). Deleting an
-// agent or a configured tool removes the link.
-export const agentToolLink = pgTable(
-  'agent_tool_link',
-  {
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => aiAgent.id, { onDelete: 'cascade' }),
-    agentToolId: uuid('agent_tool_id')
-      .notNull()
-      .references(() => agentTool.id, { onDelete: 'cascade' }),
-  },
-  (t) => [
-    primaryKey({ columns: [t.agentId, t.agentToolId] }),
-    index('agent_tool_link_tool_idx').on(t.agentToolId),
   ],
 );
 

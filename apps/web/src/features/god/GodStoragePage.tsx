@@ -110,8 +110,7 @@ function StorageForm({ settings }: { settings: FormState }) {
                 onChange={(e) => set({ maxAttachmentMb: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Applies to issue attachments, files pasted into a description, and attachments added
-                by agents.
+                Applies to issue attachments and files pasted into a description.
               </p>
             </div>
 

@@ -1,6 +1,6 @@
 import { db, notification, teamMember, user, issue, team, workflowState } from '@repo/db';
 import { and, desc, eq, inArray, lt, or, sql, isNull, type SQL } from 'drizzle-orm';
-import { parseMentions } from '../ai-agents/mentions';
+import { parseMentions } from '../shared/mentions';
 import { iso } from '../shared/lib';
 import { enqueueOutbound } from './outbound';
 import { subscribe, subscriberIds } from './subscriptions';
@@ -9,8 +9,7 @@ import { subscribe, subscriberIds } from './subscriptions';
 // about an issue they are involved in. Comment and status-change notifications go to
 // the issue's subscribers (./subscriptions.ts); assignment and mention notifications
 // to the assignee and the mentioned members. The actor is never notified about their
-// own action, and only team members receive notifications, so agent bot users
-// (assigned via delegate, not members) are excluded.
+// own action, and only team members receive notifications.
 
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
 
@@ -24,9 +23,8 @@ export interface NewNotificationRow {
   actorUserId: string | null;
 }
 
-// Keeps only the ids that are members of the team. Filters out non-members (an
-// agent's bot user is assigned via delegate but is not a member) and users who have
-// lost access.
+// Keeps only the ids that are members of the team, dropping users who have lost
+// access.
 async function keepTeamMembers(teamId: string, ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const rows = await db

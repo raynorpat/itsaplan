@@ -10,7 +10,7 @@ import {
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
 // The team settings sidebar body: a "Back to team" link, then the
-// Configuration groups (AI Team, Workflow) as flat lists under their labels —
+// Configuration groups (Team, Workflow, Automation) as flat lists under their labels —
 // every item reachable directly, no collapsing.
 export default function SidebarSettingsNav({ teamKey }: { teamKey: string | null }) {
   const disabled = !teamKey;

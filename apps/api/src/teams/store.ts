@@ -17,7 +17,6 @@ import {
   type Permissions,
 } from '../shared/permissions';
 import { getTeamSetting, setTeamSetting } from '../settings/store';
-import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 
 // Data access for teams: the top-level container that groups its own columns,
 // issue types, labels, assignees, custom fields, issues, saved views, and
@@ -260,18 +259,14 @@ export async function setAutoArchiveSettings(
 
 // Deletes a team and everything scoped to it. Every team-scoped foreign key
 // has ON DELETE CASCADE on team_id, so deleting the team row removes its
-// columns, issue types, labels, projects, issues, views, and
-// actions, which in turn cascade to their own dependents (an issue's labels, field
-// values/options, attachments, and activity; a custom field's values). The
-// issue.state_id foreign key is NO ACTION, checked at end of statement — both the
-// issues and their columns are deleted by the same cascade, so it is satisfied. The
-// conversation threads of the team's agents are deleted first, since they live
-// outside those cascades.
+// states, labels, issues and views, which in turn cascade to their own dependents
+// (an issue's labels, attachments and activity). The issue.state_id foreign key is
+// NO ACTION, checked at end of statement — both the issues and their states are
+// deleted by the same cascade, so it is satisfied.
 // Deletes the team. Projects whose only team it is go with it (their milestones,
 // updates and label links cascade); projects shared with other teams only lose the
 // link (project_team cascades).
 export async function deleteTeam(teamId: string): Promise<void> {
-  await deleteThreadsWhere({ teamId });
   await db.transaction(async (tx) => {
     await tx.execute(sql`
       DELETE FROM ${project} WHERE ${project.id} IN (

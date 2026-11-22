@@ -151,9 +151,8 @@ export async function cleanupOldDeliveries(): Promise<number> {
 // moving to a terminal column bumps it, and any later edit resets the clock, so an
 // issue is archived only after the full period with no activity. The ->> is guarded
 // by a numeric-string regex so a malformed or missing value is treated as disabled,
-// never cast. Returns the ids archived, which the caller uses to drop the agent
-// conversation threads of those issues and reports them for webhooks, with each
-// issue's updated_at from before the sweep. Idempotent (archived_at IS NULL filter).
+// never cast. Returns the ids archived, which the caller reports for webhooks, with
+// each issue's updated_at from before the sweep. Idempotent (archived_at IS NULL filter).
 export interface ArchivedIssue {
   id: string;
   previousUpdatedAt: string;

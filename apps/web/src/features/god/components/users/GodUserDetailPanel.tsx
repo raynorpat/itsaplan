@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Bot, FolderOpen, MailWarning, Shield, Trash2, TriangleAlert, X } from 'lucide-react';
+import { FolderOpen, MailWarning, Shield, Trash2, TriangleAlert, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate, formatDateTime } from '@/utils/dates';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
@@ -54,9 +54,9 @@ export default function GodUserDetailPanel({
     if (!confirming) onClose();
   });
 
-  // An instance owner keeps god mode reachable, and an agent's bot user belongs to
-  // its AI Agent config. The API refuses both; the button is hidden for them too.
-  const removable = user ? user.role !== 'god' && !user.isAgent : false;
+  // An instance owner keeps god mode reachable. The API refuses it; the button is
+  // hidden for them too.
+  const removable = user ? user.role !== 'god' : false;
 
   async function confirmDelete() {
     await deleteUser.mutateAsync({ userId, withTeams });
@@ -93,15 +93,6 @@ export default function GodUserDetailPanel({
                   ) : (
                     <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
                       User
-                    </Badge>
-                  )}
-                  {user.isAgent && (
-                    <Badge
-                      variant="secondary"
-                      className="gap-1 px-1.5 py-0 text-[10px] font-medium"
-                    >
-                      <Bot className="size-3" />
-                      AI agent
                     </Badge>
                   )}
                   {user.emailVerified && (
