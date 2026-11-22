@@ -1179,6 +1179,7 @@ export const issueRelation = pgTable(
       sql`least(${t.issueId}, ${t.relatedIssueId})`,
       sql`greatest(${t.issueId}, ${t.relatedIssueId})`,
     ),
+    index('issue_relation_issue_idx').on(t.issueId),
     index('issue_relation_related_idx').on(t.relatedIssueId),
   ],
 );

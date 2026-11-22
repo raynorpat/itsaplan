@@ -268,14 +268,19 @@ export interface ActivityInput {
 // the write (a member or an agent's bot user); it is null for a system write with
 // no user. actor_name is snapshotted from that user so the entry survives the user
 // being renamed or deleted.
+// Where the activity rows are inserted: the db, or a transaction the caller runs.
+export type ActivityExecutor = Pick<typeof db, 'insert'>;
+
 export async function recordActivity(
   issueId: string,
   events: ActivityInput[],
   actorUserId?: string | null,
+  executor: ActivityExecutor = db,
 ): Promise<{ id: string; action: string | null }[]> {
   return insertActivity(
     events.map((event) => ({ issueId, event })),
     actorUserId,
+    executor,
   );
 }
 
@@ -297,11 +302,12 @@ export async function recordActivityForIssues(
 async function insertActivity(
   entries: { issueId: string; event: ActivityInput }[],
   actorUserId?: string | null,
+  executor: ActivityExecutor = db,
 ): Promise<{ id: string; action: string | null }[]> {
   if (!entries.length) return [];
   const resolvedActorId = actorUserId ?? null;
   const actorName = await userName(resolvedActorId);
-  return db
+  return executor
     .insert(issueActivity)
     .values(
       entries.map(({ issueId, event }) => ({

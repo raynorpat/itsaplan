@@ -942,6 +942,7 @@ CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_
 CREATE INDEX "issue_activity_project_idx" ON "issue_activity" USING btree ("project_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_attachment_issue_idx" ON "issue_attachment" USING btree ("issue_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "issue_relation_pair_idx" ON "issue_relation" USING btree (least("issue_id", "related_issue_id"),greatest("issue_id", "related_issue_id"));--> statement-breakpoint
+CREATE INDEX "issue_relation_issue_idx" ON "issue_relation" USING btree ("issue_id");--> statement-breakpoint
 CREATE INDEX "issue_relation_related_idx" ON "issue_relation" USING btree ("related_issue_id");--> statement-breakpoint
 CREATE INDEX "note_board_team_idx" ON "note_board" USING btree ("team_id","updated_at");--> statement-breakpoint
 CREATE INDEX "notification_user_idx" ON "notification" USING btree ("user_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint

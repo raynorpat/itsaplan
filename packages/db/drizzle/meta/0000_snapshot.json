@@ -1,5 +1,5 @@
 {
-  "id": "851e9820-30fe-4951-b12f-81f60040011d",
+  "id": "61ffbe0c-ad63-419c-bfbb-23dc8d7aea13",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4100,6 +4100,21 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "issue_relation_issue_idx": {
+          "name": "issue_relation_issue_idx",
+          "columns": [
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

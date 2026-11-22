@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { type ActivityAction, type FeedItem } from '@/lib/api';
 import { priorityLabel } from '@/utils/fieldOptions';
+import { RELATION_PHRASE } from '@/utils/issueRelations';
 
 // Renders one activity feed event as an icon plus a verb phrase. Kept out of the
 // feed component so the switch over action types stays isolated from the layout.
@@ -40,14 +41,6 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   archived: Archive,
   relation: Link2,
   restored: ArchiveRestore,
-};
-
-const RELATION_PHRASE: Record<string, string> = {
-  blocks: 'blocking',
-  blocked_by: 'blocked by',
-  duplicate_of: 'duplicate of',
-  duplicated_by: 'duplicated by',
-  related: 'related to',
 };
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');

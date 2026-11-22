@@ -56,9 +56,17 @@ function listRelations(where: SQL | undefined, args: PageArgs, ctx: GraphQLConte
 // A relation whose issues are both visible, or ENTITY_NOT_FOUND.
 async function findRelation(id: string, ctx: GraphQLContext): Promise<IssueRelationRow> {
   const found = UUID_RE.test(id) ? await getIssueRelation(id) : null;
-  if (!found) throw gqlError('ENTITY_NOT_FOUND', `Issue relation ${id} not found`);
-  await findIssue(found.issueId, ctx.user.id);
-  await findIssue(found.relatedIssueId, ctx.user.id);
+  const visible =
+    found &&
+    (await Promise.all([
+      findIssue(found.issueId, ctx.user.id),
+      findIssue(found.relatedIssueId, ctx.user.id),
+    ]).then(
+      () => true,
+      () => false,
+    ));
+  // One message whichever issue is hidden, so the error names neither.
+  if (!found || !visible) throw gqlError('ENTITY_NOT_FOUND', `Issue relation ${id} not found`);
   return found;
 }
 
@@ -68,9 +76,13 @@ async function assertCanRelate(issueId: string, relatedIssueId: string, ctx: Gra
   const a = await findIssue(issueId, ctx.user.id);
   const b = await findIssue(relatedIssueId, ctx.user.id);
   for (const teamId of new Set([a.teamId, b.teamId])) {
+    // Only a denial (403) means "try the other team"; anything else is rethrown.
     const granted = await assertPermission(teamId, ctx.user, 'work_items', 'edit').then(
       () => true,
-      () => false,
+      (err: unknown) => {
+        if (err instanceof HttpError && err.status === 403) return false;
+        throw err;
+      },
     );
     if (granted) return { issueId: a.id, relatedIssueId: b.id };
   }

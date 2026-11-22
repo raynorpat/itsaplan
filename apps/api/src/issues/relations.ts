@@ -1,13 +1,15 @@
 import { db, issue, issueRelation, team, workflowState } from '@repo/db';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
-import { recordActivity } from './activity';
+import { recordActivity, type ActivityExecutor } from './activity';
 import { updateIssue } from './store';
 
 // Issue relations (Linear's IssueRelation). blocks: the issue blocks the related
 // issue; duplicate: the issue is a duplicate of the related issue; related:
-// symmetric. One relation per unordered pair; relations may cross teams. Every
-// change is logged on both issues, and a duplicate is closed. Callers check access.
+// symmetric. One relation per unordered pair; relations may cross teams. A change
+// and its history on both issues are written in one transaction; closing a
+// duplicate is a separate issue update (its own history entry and webhook).
+// Callers check access.
 
 export type IssueRelationType = 'blocks' | 'duplicate' | 'related';
 const TYPES: IssueRelationType[] = ['blocks', 'duplicate', 'related'];
@@ -88,6 +90,7 @@ async function logRelation(
   r: Pick<IssueRelationRow, 'issueId' | 'relatedIssueId' | 'type'>,
   change: 'added' | 'removed',
   actorUserId: string | null,
+  executor?: ActivityExecutor,
 ): Promise<void> {
   const [fromSide, toSide] = SUBJECTS[r.type];
   const sides = [
@@ -112,6 +115,7 @@ async function logRelation(
         },
       ],
       actorUserId,
+      executor,
     );
   }
 }
@@ -141,8 +145,11 @@ async function closeDuplicate(issueId: string, actorUserId: string | null): Prom
   if (target) await updateIssue(issueId, { stateId: target.id }, actorUserId);
 }
 
+// A unique violation is the pair index (a concurrent relation between the same
+// issues); a foreign key violation is an issue deleted since the access check.
 const rethrowPair = (err: unknown): never => {
   if (pgErrorCode(err) === '23505') throw new HttpError(400, 'These issues are already related');
+  if (pgErrorCode(err) === '23503') throw new HttpError(404, 'Issue not found');
   throw err;
 };
 
@@ -151,19 +158,24 @@ export async function createIssueRelation(
   actorUserId: string,
 ): Promise<IssueRelationRow> {
   const type = checkType(input.type);
+  if (input.id && (await getIssueRelation(input.id)))
+    throw new HttpError(409, 'An issue relation with this id already exists');
   await checkPair(input.issueId, input.relatedIssueId);
-  const [row] = await db
-    .insert(issueRelation)
-    .values({
-      ...(input.id ? { id: input.id } : {}),
-      issueId: input.issueId,
-      relatedIssueId: input.relatedIssueId,
-      type,
-    })
-    .returning()
-    .catch(rethrowPair);
-  const created = mapIssueRelation(row!);
-  await logRelation(created, 'added', actorUserId);
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(issueRelation)
+      .values({
+        ...(input.id ? { id: input.id } : {}),
+        issueId: input.issueId,
+        relatedIssueId: input.relatedIssueId,
+        type,
+      })
+      .returning()
+      .catch(rethrowPair);
+    const inserted = mapIssueRelation(row!);
+    await logRelation(inserted, 'added', actorUserId, tx);
+    return inserted;
+  });
   if (type === 'duplicate') await closeDuplicate(created.issueId, actorUserId);
   return created;
 }
@@ -182,27 +194,32 @@ export async function updateIssueRelation(
     type: patch.type !== undefined ? checkType(patch.type) : current.type,
   };
   await checkPair(next.issueId, next.relatedIssueId, id);
-  const [row] = await db
-    .update(issueRelation)
-    .set({ ...next, updatedAt: new Date() })
-    .where(eq(issueRelation.id, id))
-    .returning()
-    .catch(rethrowPair);
-  const updated = mapIssueRelation(row!);
   const changed =
     next.issueId !== current.issueId ||
     next.relatedIssueId !== current.relatedIssueId ||
     next.type !== current.type;
-  if (changed) {
-    await logRelation(current, 'removed', actorUserId);
-    await logRelation(updated, 'added', actorUserId);
-    if (updated.type === 'duplicate') await closeDuplicate(updated.issueId, actorUserId);
-  }
+  if (!changed) return current;
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(issueRelation)
+      .set({ ...next, updatedAt: new Date() })
+      .where(eq(issueRelation.id, id))
+      .returning()
+      .catch(rethrowPair);
+    if (!row) throw new HttpError(404, 'Issue relation not found');
+    const saved = mapIssueRelation(row);
+    await logRelation(current, 'removed', actorUserId, tx);
+    await logRelation(saved, 'added', actorUserId, tx);
+    return saved;
+  });
+  if (updated.type === 'duplicate') await closeDuplicate(updated.issueId, actorUserId);
   return updated;
 }
 
 export async function deleteIssueRelation(id: string, actorUserId: string): Promise<void> {
-  const [row] = await db.delete(issueRelation).where(eq(issueRelation.id, id)).returning();
-  if (!row) throw new HttpError(404, 'Issue relation not found');
-  await logRelation(mapIssueRelation(row), 'removed', actorUserId);
+  await db.transaction(async (tx) => {
+    const [row] = await tx.delete(issueRelation).where(eq(issueRelation.id, id)).returning();
+    if (!row) throw new HttpError(404, 'Issue relation not found');
+    await logRelation(mapIssueRelation(row), 'removed', actorUserId, tx);
+  });
 }

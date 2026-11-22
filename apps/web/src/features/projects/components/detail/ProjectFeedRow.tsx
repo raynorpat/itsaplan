@@ -18,6 +18,7 @@ import { formatDate } from '@/utils/dates';
 import { issuePath } from '@/utils/paths';
 import { priorityLabel } from '@/utils/fieldOptions';
 import { STATUS_META } from '@/utils/projectMeta';
+import { RELATION_PHRASE } from '@/utils/issueRelations';
 
 const ICON: Record<string, typeof CircleDot> = {
   created: CirclePlus,
@@ -38,6 +39,7 @@ const ICON: Record<string, typeof CircleDot> = {
 };
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');
+
 const statusLabel = (v: string | null) =>
   v && v in STATUS_META ? STATUS_META[v as keyof typeof STATUS_META].label : v;
 
@@ -81,6 +83,10 @@ function describe(a: ProjectFeedItem): string {
       return a.toText ? `set type to ${a.toText}` : 'removed type';
     case 'project':
       return a.toText ? `linked to ${a.toText}` : 'unlinked from the project';
+    case 'relation': {
+      const phrase = RELATION_PHRASE[a.subject ?? ''] ?? 'related to';
+      return a.toText ? `marked as ${phrase} ${a.toText}` : `removed ${phrase} ${a.fromText}`;
+    }
     default:
       return a.action ?? '';
   }

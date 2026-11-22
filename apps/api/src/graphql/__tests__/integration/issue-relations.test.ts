@@ -157,4 +157,52 @@ describe('graphql issue relations', () => {
     expect(errorCode(res)).toBe('FORBIDDEN');
     expect((await (await client.issue(secIssue.id)).state)?.type).toBe('unstarted');
   });
+
+  it("does not reveal a hidden issue's id through a relation", async () => {
+    const { asOwner, client, make } = await setup();
+    const a = await make('A');
+    const c = await make('C', 'SEC');
+    const relation = (await (
+      await client.createIssueRelation({
+        issueId: c.id,
+        relatedIssueId: a.id,
+        type: IssueRelationType.Blocks,
+      })
+    ).issueRelation)!;
+    const member = await memberOf(asOwner, 'MKT');
+    expect((await (await member.client.issue(a.id)).inverseRelations()).nodes).toHaveLength(0);
+    const res = await gql(
+      { cookie: member.user.cookie },
+      `{ issueRelation(id: "${relation.id}") { id } }`,
+    );
+    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
+    expect(JSON.stringify(res.body.errors)).not.toContain(c.id);
+  });
+
+  it('checks edit permission on update and delete', async () => {
+    const { asOwner, client, make } = await setup();
+    const [a, b] = [await make('A'), await make('B')];
+    const relation = (await (
+      await client.createIssueRelation({
+        issueId: a.id,
+        relatedIssueId: b.id,
+        type: IssueRelationType.Related,
+      })
+    ).issueRelation)!;
+    const role = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
+    const reader = await memberOf(asOwner, 'MKT', role.data!.id);
+    const update = await gql(
+      { cookie: reader.user.cookie },
+      `mutation { issueRelationUpdate(id: "${relation.id}", input: { type: "blocks" }) { success } }`,
+    );
+    expect(errorCode(update)).toBe('FORBIDDEN');
+    const remove = await gql(
+      { cookie: reader.user.cookie },
+      `mutation { issueRelationDelete(id: "${relation.id}") { success } }`,
+    );
+    expect(errorCode(remove)).toBe('FORBIDDEN');
+    expect((await client.issueRelation(relation.id)).type).toBe('related');
+  });
 });

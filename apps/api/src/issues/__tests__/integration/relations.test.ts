@@ -148,4 +148,33 @@ describe('issue relations', () => {
     expect(entry!.toText).not.toContain(c.identifier);
     expect(entry!.toText).toBe('an issue in another team');
   });
+
+  it('reports a missing issue as not found and a reused id as a conflict', async () => {
+    const { owner, make } = await setup();
+    const [a, b, c] = [await make('A'), await make('B'), await make('C')];
+    expect(
+      await status(
+        createIssueRelation(
+          {
+            issueId: a.id,
+            relatedIssueId: '00000000-0000-4000-8000-000000000000',
+            type: 'related',
+          },
+          owner.userId,
+        ),
+      ),
+    ).toBe(404);
+    const first = await createIssueRelation(
+      { issueId: a.id, relatedIssueId: b.id, type: 'related' },
+      owner.userId,
+    );
+    expect(
+      await status(
+        createIssueRelation(
+          { issueId: a.id, relatedIssueId: c.id, type: 'related', id: first.id },
+          owner.userId,
+        ),
+      ),
+    ).toBe(409);
+  });
 });
