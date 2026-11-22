@@ -144,4 +144,38 @@ describe('initiative links and relations', () => {
     expect(updates.find((u) => u.data.id === b.id)!.data.parentInitiative?.id).toBe(a.id);
     expect(updates.find((u) => u.data.id === a.id && u.data.subInitiatives.length)).toBeTruthy();
   });
+
+  it("keeps other teams' initiatives and projects out of a lead-team webhook payload", async () => {
+    const { owner, asOwner, mkt, make } = await setup();
+    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!.team.id;
+    const hook = (
+      await asOwner
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
+    ).data!;
+    const parent = await make('Marketing goal', mkt);
+    const foreignChild = await make('Ops goal', ops);
+    const ownChild = await make('Workspace goal');
+    const opsProject = (await asOwner.projects.post({ teamIds: [ops], name: 'Ops site' })).data!;
+    await createRelation(
+      { initiativeId: parent.id, relatedInitiativeId: foreignChild.id },
+      owner.userId,
+    );
+    await createRelation(
+      { initiativeId: parent.id, relatedInitiativeId: ownChild.id },
+      owner.userId,
+    );
+    await linkProject({ initiativeId: parent.id, projectId: opsProject.id }, owner.userId);
+    const payloads = (
+      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
+    ).data!.items.map(
+      (d) =>
+        d.payload as {
+          data: { id: string; projects: { id: string }[]; subInitiatives: { id: string }[] };
+        },
+    );
+    const latest = payloads.find((p) => p.data.id === parent.id)!;
+    expect(latest.data.subInitiatives.map((i) => i.id)).toEqual([ownChild.id]);
+    expect(latest.data.projects).toEqual([]);
+  });
 });

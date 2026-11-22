@@ -6,13 +6,14 @@ import {
   issueLabel,
   label,
   project,
+  projectTeam,
   projectUpdate,
   team,
   user,
   workflowState,
 } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { toComment } from '../graphql/resolvers/comment';
 import { commentParentUrl, getComment } from '../comments/store';
 import { issueById } from '../graphql/resolvers/issue';
@@ -100,17 +101,34 @@ export async function projectUpdateData(updateId: string): Promise<WebhookData |
   return row ? toUpdate(row) : null;
 }
 
-// Linear's InitiativeWebhookPayload, with the fields this instance has.
+// Linear's InitiativeWebhookPayload, with the fields this instance has. The event
+// of a lead-team initiative goes to that team's webhooks, so its related projects
+// and initiatives are limited to those the team can see: projects of the team, and
+// initiatives led by the team or by no team.
 export async function initiativeData(id: string): Promise<WebhookData | null> {
   const row = await getInitiative(id);
   if (!row) return null;
   const { ownerUserId, creatorUserId, content: _content, ...rest } = row;
   const origin = trustedOrigins[0];
+  const lead = row.leadTeamId;
   const projects = await db
     .select({ id: project.id, name: project.name })
     .from(initiativeToProject)
     .innerJoin(project, eq(project.id, initiativeToProject.projectId))
-    .where(eq(initiativeToProject.initiativeId, id))
+    .where(
+      and(
+        eq(initiativeToProject.initiativeId, id),
+        lead
+          ? inArray(
+              project.id,
+              db
+                .select({ id: projectTeam.projectId })
+                .from(projectTeam)
+                .where(eq(projectTeam.teamId, lead)),
+            )
+          : undefined,
+      ),
+    )
     .orderBy(asc(project.id));
   const relative = (on: 'parent' | 'child') =>
     db
@@ -126,11 +144,14 @@ export async function initiativeData(id: string): Promise<WebhookData | null> {
         ),
       )
       .where(
-        eq(
-          on === 'parent'
-            ? initiativeRelation.relatedInitiativeId
-            : initiativeRelation.initiativeId,
-          row.id,
+        and(
+          eq(
+            on === 'parent'
+              ? initiativeRelation.relatedInitiativeId
+              : initiativeRelation.initiativeId,
+            row.id,
+          ),
+          lead ? or(isNull(initiative.leadTeamId), eq(initiative.leadTeamId, lead)) : undefined,
         ),
       )
       .orderBy(asc(initiative.id));

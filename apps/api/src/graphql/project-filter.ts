@@ -88,7 +88,9 @@ export function projectFilterSql(
         parts.push(inArray(project.id, linkedWhere(initiativeFilterSql(some, `${p}.some`))));
       if (every != null) {
         const cond = initiativeFilterSql(every, `${p}.every`);
-        if (cond) parts.push(notInArray(project.id, linkedWhere(not(cond))));
+        // A NULL comparison is not a match, so it counts as a violation too.
+        if (cond)
+          parts.push(notInArray(project.id, linkedWhere(sql`NOT COALESCE((${cond}), false)`)));
       }
       if (length != null) {
         const count = sql`(

@@ -15,6 +15,7 @@ import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { gqlError } from '../errors';
 import { toComment } from './comment';
+import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
 import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 
@@ -81,6 +82,13 @@ export const reactionResolvers = {
   Reaction: {
     user: (r: ReactionRow, _: unknown, ctx: GraphQLContext) => userById(r.userId, ctx.user.id),
     issue: (r: ReactionRow) => (r.issueId ? issueById(r.issueId) : null),
+    // Null when the update's initiative is not visible.
+    initiativeUpdate: (r: ReactionRow, _: unknown, ctx: GraphQLContext) =>
+      r.initiativeUpdateId
+        ? findInitiativeUpdate(r.initiativeUpdateId, ctx)
+            .then(toInitiativeUpdate)
+            .catch(() => null)
+        : null,
     comment: async (r: ReactionRow) => {
       if (!r.commentId) return null;
       const row = await getComment(r.commentId);

@@ -219,7 +219,10 @@ describe('graphql initiatives', () => {
       await client.createComment({ initiativeUpdateId: posted.id, body: 'Nice' })
     ).comment)!;
     expect((await comment.initiativeUpdate)?.id).toBe(posted.id);
-    await client.createReaction({ initiativeUpdateId: posted.id, emoji: '👍' });
+    const reaction = (await (
+      await client.createReaction({ initiativeUpdateId: posted.id, emoji: '👍' })
+    ).reaction)!;
+    expect((await reaction.initiativeUpdate)?.id).toBe(posted.id);
     const update = await client.initiativeUpdate(posted.id);
     expect((await update.comments()).nodes.map((c) => c.id)).toEqual([comment.id]);
     expect(update.commentCount).toBe(1);
@@ -241,5 +244,23 @@ describe('graphql initiatives', () => {
       .map((p) => `${p.type}:${p.action}`);
     expect(events).toContain('Initiative:create');
     expect(events).toContain('InitiativeUpdate:create');
+  });
+
+  it('treats a missing value as not matching an every filter on initiatives', async () => {
+    const { owner, asOwner, client, mkt } = await setup();
+    const dated = (await (
+      await client.createInitiative({ name: 'Dated', targetDate: '2026-12-01' })
+    ).initiative)!;
+    const undated = (await (await client.createInitiative({ name: 'Undated' })).initiative)!;
+    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
+    const p2 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P2' })).data!;
+    await linkProject({ initiativeId: dated.id, projectId: p1.id }, owner.userId);
+    await linkProject({ initiativeId: dated.id, projectId: p2.id }, owner.userId);
+    await linkProject({ initiativeId: undated.id, projectId: p2.id }, owner.userId);
+    const res = await gql(
+      { cookie: owner.cookie },
+      '{ projects(filter: { initiatives: { every: { targetDate: { lt: "2027-01-01" } } } }) { nodes { name } } }',
+    );
+    expect(res.body.data).toEqual({ projects: { nodes: [{ name: 'P1' }] } });
   });
 });
