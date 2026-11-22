@@ -14,6 +14,9 @@ import { canSeeDocument, type DocumentParent } from './access';
 
 const SORT_STEP = 1000;
 
+// updated_at is set with the database clock (sql`now()`), like created_at's
+// default, so it never reads earlier than the creation time.
+
 export interface DocumentRow {
   id: string;
   title: string;
@@ -241,7 +244,7 @@ export async function updateDocument(
           }
         : {}),
       updatedByUserId: actorUserId,
-      updatedAt: new Date(),
+      updatedAt: sql`now()`,
     })
     .where(eq(document.id, current.id))
     .returning();
@@ -257,7 +260,7 @@ export async function archiveDocument(id: string, actorUserId: string): Promise<
       archivedAt: sql`coalesce(${document.archivedAt}, now())`,
       trashed: true,
       updatedByUserId: actorUserId,
-      updatedAt: new Date(),
+      updatedAt: sql`now()`,
     })
     .where(eq(document.id, id))
     .returning();
@@ -273,7 +276,7 @@ export async function unarchiveDocument(id: string, actorUserId: string): Promis
   const before = await documentData(id);
   const [row] = await db
     .update(document)
-    .set({ archivedAt: null, trashed: null, updatedByUserId: actorUserId, updatedAt: new Date() })
+    .set({ archivedAt: null, trashed: null, updatedByUserId: actorUserId, updatedAt: sql`now()` })
     .where(eq(document.id, id))
     .returning();
   await sendDocumentEvent('update', id, actorUserId, before);

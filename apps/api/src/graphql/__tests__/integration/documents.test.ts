@@ -147,4 +147,70 @@ describe('graphql documents', () => {
       'create',
     ]);
   });
+
+  it('hides project documents and their comments from a member without projects.read', async () => {
+    const { asOwner, client, project } = await setup();
+    const doc = (await (
+      await client.createDocument({ title: 'Spec', projectId: project.id })
+    ).document)!;
+    await client.createComment({ documentContentId: doc.id, body: 'Note' });
+    const role = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .roles.post({ name: 'Blind', permissions: { projects: {} } });
+    const user = await signUpTestUser();
+    const invite = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: user.email, role: 'member', roleId: role.data!.id });
+    await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
+    const one = await gql({ cookie: user.cookie }, `{ document(id: "${doc.id}") { id } }`);
+    expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
+    const lists = await gql(
+      { cookie: user.cookie },
+      '{ documents { nodes { id } } comments { nodes { id } } }',
+    );
+    expect(lists.body.data).toEqual({ documents: { nodes: [] }, comments: { nodes: [] } });
+  });
+
+  it('needs edit access to the new parent to move a document', async () => {
+    const { asOwner, client, project, issue } = await setup();
+    const role = await asOwner
+      .teams({ teamKey: 'OPS' })
+      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
+    const user = await signUpTestUser();
+    for (const [teamKey, roleId] of [
+      ['MKT', undefined],
+      ['OPS', role.data!.id],
+    ] as const) {
+      const invite = await asOwner
+        .teams({ teamKey })
+        .invites.post({ email: user.email, role: 'member', ...(roleId ? { roleId } : {}) });
+      await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
+    }
+    const doc = (await (
+      await client.createDocument({ title: 'Spec', projectId: project.id })
+    ).document)!;
+    const res = await gql(
+      { cookie: user.cookie },
+      `mutation { documentUpdate(id: "${doc.id}", input: { issueId: "${issue.id}" }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect((await (await client.document(doc.id)).project)?.id).toBe(project.id);
+  });
+
+  it('never reports updatedAt before createdAt', async () => {
+    const { client, project } = await setup();
+    for (let i = 0; i < 5; i++) {
+      const doc = (await (
+        await client.createDocument({ title: `D${i}`, projectId: project.id })
+      ).document)!;
+      const updated = (await (await client.updateDocument(doc.id, { title: 'X' })).document)!;
+      expect(new Date(updated.updatedAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(doc.createdAt).getTime(),
+      );
+      const trashed = (await (await client.deleteDocument(doc.id)).entity)!;
+      expect(new Date(trashed.updatedAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(updated.updatedAt).getTime(),
+      );
+    }
+  });
 });
