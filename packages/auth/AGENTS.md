@@ -54,17 +54,25 @@ secure context, so passkeys work over http in dev.
 
 ## Google sign-in
 
-The credentials live in the database (`app_secret` key `auth.google`, encrypted), not in
-env, so god mode can change them without a restart. That is the only reason the provider
-is wired the way it is:
+The credentials come from `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; Google sign-in is
+available when both are set and the workspace allows `google` (below).
 
 `socialProviders.google` is a factory that returns the module-level `googleOptions`
 object. better-auth builds the provider list once at startup, but the provider keeps that
 object **by reference** and reads `clientId` / `clientSecret` off it on every call, so
-`refreshGoogleOptions()` in `hooks.before` reloads it on `/sign-in/social` and
-`/callback/google` and refuses the request when the credentials are missing or the toggle
-is off. Do not replace the object (`googleOptions = {...}`) — assign its fields, or the
-provider keeps reading the old one.
+`refreshGoogleOptions()` in `hooks.before` reloads it from the environment on
+`/sign-in/social` and `/callback/google` and refuses the request when the credentials are
+missing or the workspace does not allow Google. Do not replace the object
+(`googleOptions = {...}`) — assign its fields, or the provider keeps reading the old one.
+
+## Allowed sign-in services
+
+The workspace's `organization.allowed_auth_services` (`email` = magic link, `google`,
+`passkey`; empty = every configured one) is enforced in `hooks.before`: a magic-link
+request answers like a sent one and sends nothing when `email` is not allowed, unless the
+address is a workspace owner's (so a wrong setting cannot lock everyone out); Google and
+passkey sign-in are refused with 403. `/auth-config` reports what the sign-in page may
+offer.
 
 Account linking is left at better-auth's defaults, which means
 `accountLinking.requireLocalEmailVerified` is `true`: a Google address that already has an

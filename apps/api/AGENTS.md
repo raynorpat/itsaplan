@@ -142,6 +142,15 @@ Enforced declaratively through macros, never imperative calls in handlers.
   own role. Anyone who can see a team may join it (`POST /teams/:teamKey/join`);
   any team member may add people to a public team, a team manager to a private
   one or as a team owner (`members/`).
+- **Workspace settings** (`organization/`, Linear's `Organization`): one
+  `organization` row (name, URL key, logo, allowed sign-in services, allowed upload
+  types, and the minimum role for creating teams, managing workspace labels and project
+  labels, and inviting: `owner`, `admin` or `member`, checked by `assertAllowedTo`).
+  Owners and admins change it (`PATCH /organization`, `organizationUpdate`, whose
+  `securitySettings` carry the minimum roles); everyone signed in reads it. Instance
+  secrets and server limits are environment variables: the mail provider and Google
+  credentials (`@repo/auth`), `APPROVED_EMAIL_DOMAINS`, and `MAX_ATTACHMENT_MB`,
+  `MAX_AVATAR_MB`, `TEAM_QUOTA_MB` (`settings/storage.ts`).
 - **Workspace administration** (`workspace/`): admins change the roles of members
   and guests and suspend them; owners act on anyone and alone make or remove
   owners; the workspace keeps at least one active owner. A suspended user

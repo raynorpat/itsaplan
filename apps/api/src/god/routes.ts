@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { GOOGLE_REDIRECT_URI, getGoogleSettings, setGoogleSettings } from '@repo/auth';
 import { authContext } from '../shared/auth-context';
 import { assertWorkspaceRole, requireWorkspaceAdmin } from '../shared/access';
 import { HttpError } from '../shared/lib';
@@ -14,41 +13,13 @@ import {
   listInstanceUsers,
   verifyInstanceUserEmail,
 } from './store';
-import { getStorageSettings, setStorageSettings, StorageSettingsSchema } from '../settings/storage';
 import { getHotkeySettings, setHotkeySettings, HotkeyCombosSchema } from '../settings/hotkeys';
 import { getUpdateStatus, UpdateStatusSchema } from '../settings/updates';
 
-// God mode: instance-wide administration, open only to the "god" user (the first
-// registered account). It covers how people may register, the mail provider that
-// sends authentication email, and the Google OAuth credentials. Invites are per
-// team (team_invite), managed in the team's Members section — there is
-// nothing instance-level to add here.
-//
-// The settings themselves are owned by @repo/auth, which reads them at sign-up and
-// when sending mail; these routes only expose them over HTTP. Secrets are never
-// returned — each is replaced by a boolean telling whether a value is stored.
-
-const GoogleSettingsResponse = t.Object({
-  enabled: t.Boolean(),
-  clientId: t.String(),
-  hasClientSecret: t.Boolean(),
-  // The value to register in the Google Cloud console. Derived from the API origin,
-  // so the UI shows it rather than asking the owner to assemble it.
-  redirectUri: t.String(),
-});
-
-const GoogleSettingsBody = t.Object({
-  enabled: t.Optional(t.Boolean()),
-  clientId: t.Optional(t.String()),
-  clientSecret: t.Optional(t.String()),
-});
-
-const StorageSettingsBody = t.Object({
-  maxAttachmentMb: t.Optional(t.Integer({ minimum: 1, maximum: 10240 })),
-  maxAvatarMb: t.Optional(t.Integer({ minimum: 1, maximum: 1024 })),
-  attachmentMimeTypes: t.Optional(t.Array(t.String({ minLength: 1 }))),
-  teamQuotaMb: t.Optional(t.Integer({ minimum: 0 })),
-});
+// God mode: the instance's remaining administration (keyboard shortcuts, update
+// status, the user and team directories) for workspace owners and admins. Sign-in,
+// email, Google and upload settings are workspace settings (../organization) or
+// environment variables.
 
 // One account in the instance user directory.
 const InstanceUserResponse = t.Object({
@@ -116,84 +87,9 @@ const InstanceTeamDetailResponse = t.Composite([
 export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
   .use(authContext)
   // Every route in this plugin is instance administration, so the role check runs
-  // once here instead of per route: workspace admins and owners. The settings that
-  // hold instance secrets (sign-in, email, Google, storage) are changed by owners
-  // only: an admin who could repoint the mail provider could take over an owner
-  // through a password reset.
+  // once here instead of per route: workspace admins and owners.
   .onBeforeHandle(async ({ user }) => {
     await requireWorkspaceAdmin(user);
-  })
-
-  .get(
-    '/god/google-settings',
-    async () => ({ ...(await getGoogleSettings()), redirectUri: GOOGLE_REDIRECT_URI }),
-    {
-      response: { 200: GoogleSettingsResponse, 401: ErrorResponse, 403: ErrorResponse },
-      detail: {
-        summary: 'Get Google sign-in settings',
-        description: 'Get the Google OAuth credentials (the client secret redacted).',
-      },
-    },
-  )
-
-  .put(
-    '/god/google-settings',
-    async ({ body }) => {
-      const current = await getGoogleSettings();
-      const clientId = body.clientId ?? current.clientId;
-      const hasClientSecret = (body.clientSecret?.length ?? 0) > 0 || current.hasClientSecret;
-      // Turning it on without credentials would only offer a button that fails at
-      // Google, so the same rule as the mail-dependent options applies here.
-      if (body.enabled && (clientId.length === 0 || !hasClientSecret)) {
-        throw new HttpError(400, 'Add the Google client ID and secret first');
-      }
-      const next = await setGoogleSettings(body);
-      return { ...next, redirectUri: GOOGLE_REDIRECT_URI };
-    },
-    {
-      body: GoogleSettingsBody,
-      // Instance secrets are the owner's (see the plugin's role check).
-      beforeHandle: async ({ user }) => {
-        await assertWorkspaceRole(user, 'owner');
-      },
-      response: {
-        200: GoogleSettingsResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-      },
-      detail: {
-        summary: 'Update Google sign-in settings',
-        description: 'Update the Google OAuth credentials and whether Google sign-in is offered.',
-      },
-    },
-  )
-
-  .get('/god/storage-settings', () => getStorageSettings(), {
-    response: { 200: StorageSettingsSchema, 401: ErrorResponse, 403: ErrorResponse },
-    detail: {
-      summary: 'Get storage limits',
-      description: 'Get the instance upload limits: file sizes, accepted types, and team quota.',
-    },
-  })
-
-  .put('/god/storage-settings', ({ body }) => setStorageSettings(body), {
-    body: StorageSettingsBody,
-    // Instance secrets are the owner's (see the plugin's role check).
-    beforeHandle: async ({ user }) => {
-      await assertWorkspaceRole(user, 'owner');
-    },
-    response: {
-      200: StorageSettingsSchema,
-      400: ErrorResponse,
-      401: ErrorResponse,
-      403: ErrorResponse,
-    },
-    detail: {
-      summary: 'Update storage limits',
-      description:
-        'Update the instance upload limits. They apply to new uploads only; files already stored are untouched.',
-    },
   })
 
   .get('/god/hotkey-settings', () => getHotkeySettings(), {

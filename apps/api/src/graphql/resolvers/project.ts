@@ -1,4 +1,4 @@
-import { assertLabelManager } from '../../project-labels/store';
+import { assertLabelReader } from '../../project-labels/store';
 import { visibleTeamIdList } from '../../shared/access';
 import {
   db,
@@ -329,7 +329,7 @@ export const projectResolvers = {
       listUpdates(undefined, args, ctx),
     // Workspace project labels are not shown to guests (as on REST).
     projectLabel: async (_: unknown, args: { id: string }, ctx: GraphQLContext) => {
-      await guard(() => assertLabelManager(ctx.user.id));
+      await guard(() => assertLabelReader(ctx.user.id));
       const [row] = UUID_RE.test(args.id)
         ? await db.select().from(projectLabel).where(eq(projectLabel.id, args.id))
         : [];
@@ -337,7 +337,7 @@ export const projectResolvers = {
       return toLabel(row);
     },
     projectLabels: async (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) => {
-      await guard(() => assertLabelManager(ctx.user.id));
+      await guard(() => assertLabelReader(ctx.user.id));
       return listLabels(undefined, args);
     },
   },

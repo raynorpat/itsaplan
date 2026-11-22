@@ -4,6 +4,7 @@ import {
   trustedOrigins,
   hasConfiguredEmailProvider,
   hasConfiguredGoogle,
+  isAuthServiceAllowed,
 } from '@repo/auth';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
@@ -52,6 +53,7 @@ export const app = new Elysia()
           { name: 'Members', description: 'Team membership and team owners' },
           { name: 'Invites', description: 'Workspace invites (create, list, revoke)' },
           { name: 'Workspace', description: 'Workspace users: roles and suspension' },
+          { name: 'Organization', description: 'Workspace settings (Linear Organization)' },
           { name: 'States', description: 'Workflow states and their order' },
           { name: 'Labels', description: 'Labels and label groups' },
           { name: 'Issues', description: 'Issues, their feed, and comments' },
@@ -100,12 +102,14 @@ export const app = new Elysia()
   .get('/auth-config', async () => ({
     // People join by invite or an approved email domain; there is no open sign-up.
     registration: 'invite' as const,
-    // Sign-in by emailed link is always offered: without a mail provider the link
-    // is written to the API log.
+    // The sign-in services the workspace allows (organization settings). An owner
+    // may always use a magic link, so the sign-in page keeps the email field.
+    // Without a mail provider the link is written to the API log.
     magicLink: true,
     requireEmailVerification: false,
     emailEnabled: await hasConfiguredEmailProvider(),
-    google: await hasConfiguredGoogle(),
+    google: (await hasConfiguredGoogle()) && (await isAuthServiceAllowed('google')),
+    passkey: await isAuthServiceAllowed('passkey'),
   }))
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))

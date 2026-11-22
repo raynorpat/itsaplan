@@ -10,6 +10,7 @@ import * as schema from '@repo/db/schema';
 import {
   getGoogleConfig,
   isGoogleUsable,
+  isAuthServiceAllowed,
   hasConfiguredEmailProvider,
   mayJoin,
   pendingInviteFor,
@@ -69,30 +70,37 @@ if (!baseURL) {
 export const WORKSPACE_ROLES = ['owner', 'admin', 'member', 'guest'] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
-// Google OAuth credentials live in the database (god mode), not in env. The provider
-// is built once at startup, but it keeps this options object by reference and reads
-// clientId / clientSecret off it on every call, so refreshing the object per request
-// is what lets the owner change or revoke the credentials without a restart.
+// Google OAuth credentials come from GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET. The
+// provider is built once at startup, but it keeps this options object by reference
+// and reads clientId / clientSecret off it on every call, so it is refreshed per
+// request (tests change the environment between cases).
 const googleOptions = { clientId: '', clientSecret: '' };
 
 // The exact value that has to be registered as an authorized redirect URI in the
-// Google Cloud console. better-auth derives it from baseURL; god mode shows it so the
-// owner can copy it instead of assembling it by hand.
+// Google Cloud console. better-auth derives it from baseURL.
 export const GOOGLE_REDIRECT_URI = `${baseURL}/api/auth/callback/google`;
 
-// Loads the stored credentials into that object and reports whether Google sign-in
-// can run. A read failure disables the provider rather than failing the request with
-// a stale secret.
-async function refreshGoogleOptions(): Promise<boolean> {
-  try {
-    const config = await getGoogleConfig();
-    googleOptions.clientId = config.clientId;
-    googleOptions.clientSecret = config.clientSecret;
-    return isGoogleUsable(config);
-  } catch (error) {
-    console.error('[auth] could not read the Google credentials:', error);
-    return false;
-  }
+// Loads the credentials from the environment into that object and reports whether
+// Google sign-in can run.
+function refreshGoogleOptions(): boolean {
+  const config = getGoogleConfig();
+  googleOptions.clientId = config.clientId;
+  googleOptions.clientSecret = config.clientSecret;
+  return isGoogleUsable(config);
+}
+
+// Whether an address belongs to a workspace owner. An owner may always sign in with a
+// magic link, whatever the allowed sign-in services, so a wrong setting cannot lock
+// everyone out.
+async function isOwnerAddress(email: string): Promise<boolean> {
+  const address = email.trim().toLowerCase();
+  if (!address) return false;
+  return (
+    (await db.$count(
+      schema.user,
+      sql`${schema.user.email} = ${address} AND ${schema.user.workspaceRole} = 'owner'`,
+    )) > 0
+  );
 }
 
 // Whether an account exists for an address.
@@ -172,7 +180,7 @@ export const auth = betterAuth({
   // successful link better-auth marks the local user confirmed too.
   socialProviders: {
     google: async () => {
-      await refreshGoogleOptions();
+      refreshGoogleOptions();
       return googleOptions;
     },
   },
@@ -202,20 +210,37 @@ export const auth = betterAuth({
       // A magic link for an address with no account is sent only when the address
       // may join (./instance.ts mayJoin). Otherwise nothing is stored or sent, and the
       // request answers exactly as a sent one does, so it reveals nothing.
+      // The same silent answer when the workspace does not allow email sign-in,
+      // except for an owner.
       if (ctx.path === '/sign-in/magic-link') {
         const email = (ctx.body as { email?: string } | undefined)?.email ?? '';
+        if (!(await isAuthServiceAllowed('email')) && !(await isOwnerAddress(email)))
+          return ctx.json({ status: true });
         if (!(await hasAccount(email)) && !(await mayJoin(email)))
           return ctx.json({ status: true });
         return;
       }
 
-      // Both halves of the Google round trip: starting it and coming back from it.
-      // This is where the stored credentials are loaded into the provider's options,
-      // so a request never runs on a value the owner has since changed.
-      if (ctx.path === '/sign-in/social' || ctx.path.startsWith('/callback/google')) {
-        if (!(await refreshGoogleOptions())) {
+      // Passkey sign-in, when the workspace does not allow passkeys.
+      if (
+        ctx.path.startsWith('/passkey/generate-authenticate-options') ||
+        ctx.path.startsWith('/passkey/verify-authentication')
+      ) {
+        if (!(await isAuthServiceAllowed('passkey'))) {
           throw new APIError('FORBIDDEN', {
-            message: 'Google sign-in is disabled on this instance',
+            message: 'Passkey sign-in is not allowed in this workspace',
+          });
+        }
+        return;
+      }
+
+      // Both halves of the Google round trip: starting it and coming back from it.
+      // This is where the credentials are loaded into the provider's options. Google
+      // needs both credentials set and the workspace to allow it.
+      if (ctx.path === '/sign-in/social' || ctx.path.startsWith('/callback/google')) {
+        if (!refreshGoogleOptions() || !(await isAuthServiceAllowed('google'))) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Google sign-in is not available in this workspace',
           });
         }
       }
@@ -394,17 +419,11 @@ export {
   getEmailConfig,
   getNotificationEmailConfig,
   hasConfiguredEmailProvider,
-  getGoogleSettings,
-  setGoogleSettings,
   getGoogleConfig,
   hasConfiguredGoogle,
+  allowedAuthServices,
+  isAuthServiceAllowed,
   approvedDomains,
   mayJoin,
 } from './instance';
-export type {
-  InstanceEmailDto,
-  InstanceEmailConfig,
-  InstanceGoogleDto,
-  InstanceGooglePatch,
-  InstanceGoogleConfig,
-} from './instance';
+export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';

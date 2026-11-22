@@ -2,6 +2,7 @@ import { db, team, teamMember, workspaceInvite } from '@repo/db';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { getInvite, inviteToWorkspace, revokeInvite, type InviteRole } from '../../invites/store';
 import { addTeamMember, removeTeamMember } from '../../members/store';
+import { assertAllowedTo } from '../../organization/store';
 import {
   assertTeamAccess,
   assertWorkspaceRole,
@@ -250,7 +251,7 @@ export const workspaceResolvers = {
         onlySupported(input, ['name', 'key', 'description'], 'input');
         if (copySettingsFromTeamId != null)
           throw gqlError('INVALID_INPUT', 'copySettingsFromTeamId is not supported');
-        const actor = await assertWorkspaceRole(ctx.user, 'member');
+        const actor = await assertAllowedTo(ctx.user, 'teamCreation');
         const name = typeof input.name === 'string' ? input.name.trim() : '';
         if (!name) throw gqlError('INVALID_INPUT', 'input.name must be a non-empty string');
         const key = input.key == null ? keyFromName(name) : String(input.key);

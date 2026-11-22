@@ -29,8 +29,8 @@ const AttachmentSchema = t.Object({
   url: t.String(),
 });
 
-// The upload limits are instance settings (see ../settings/storage.ts), read per
-// request so a change in god mode takes effect without a restart.
+// The upload limits (see ../settings/storage.ts) are read per
+// request, so a change to the allowed types takes effect at once.
 async function assertUploadAllowed(
   limits: StorageSettings,
   teamId: string,

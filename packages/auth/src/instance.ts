@@ -1,6 +1,5 @@
-import { db, appSecret, user, workspaceInvite } from '@repo/db';
+import { db, organization, user, workspaceInvite } from '@repo/db';
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { encryptSecret, decryptSecret } from '@repo/crypto';
 import {
   hasEmailProvider,
   type SmtpConfig,
@@ -9,56 +8,10 @@ import {
 } from '@repo/mailer';
 
 // Instance-wide authentication configuration: the mail provider used for
-// authentication and notification email (from environment variables), the Google
-// OAuth credentials, the approved email domains and the rules for who may join the
-// workspace. Read by the better-auth instance in ./index.ts and by the api.
-//
-// The Google credentials are encrypted in app_secret under 'auth.google', with a
-// `redacted` mirror the settings UI can read without decrypting.
-
-const GOOGLE_SECRET_KEY = 'auth.google';
-
-// ── Encrypted config storage ──────────────────────────────────────────────────
-
-// The mail provider and the Google credentials are stored the same way: one JSON
-// blob per key in app_secret, encrypted as a whole, with a `redacted` mirror the
-// settings UI reads without decrypting.
-
-async function readSecret<T>(key: string): Promise<T | null> {
-  const rows = await db
-    .select({ ciphertext: appSecret.ciphertext, iv: appSecret.iv, authTag: appSecret.authTag })
-    .from(appSecret)
-    .where(eq(appSecret.key, key));
-  const row = rows[0];
-  return row ? (JSON.parse(decryptSecret(row)) as T) : null;
-}
-
-async function writeSecret(key: string, value: unknown, redacted: object): Promise<void> {
-  const enc = encryptSecret(JSON.stringify(value));
-  await db
-    .insert(appSecret)
-    .values({
-      key,
-      ciphertext: enc.ciphertext,
-      iv: enc.iv,
-      authTag: enc.authTag,
-      redacted,
-    })
-    .onConflictDoUpdate({
-      target: appSecret.key,
-      set: {
-        ciphertext: enc.ciphertext,
-        iv: enc.iv,
-        authTag: enc.authTag,
-        redacted,
-        updatedAt: sql`now()`,
-      },
-    });
-}
-
-function mergeSecret(current: string, next: string | undefined): string {
-  return next && next.length > 0 ? next : current;
-}
+// authentication and notification email and the Google OAuth credentials (both from
+// environment variables), the workspace's allowed sign-in services, the approved
+// email domains and the rules for who may join the workspace. Read by the
+// better-auth instance in ./index.ts and by the api.
 
 // ── Mail provider ─────────────────────────────────────────────────────────────
 
@@ -135,72 +88,47 @@ export async function getNotificationEmailConfig(): Promise<InstanceEmailConfig 
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
-// The stored, decrypted credentials. Read by the Google provider in ./index.ts on
-// every social request, never returned over HTTP.
+// The Google OAuth credentials, from `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+// Google sign-in is available only when both are set (and the workspace allows it,
+// ./index.ts). Read per call, so a test or a reload sees changes.
 export interface InstanceGoogleConfig {
-  enabled: boolean;
   clientId: string;
   clientSecret: string;
 }
 
-// The config as returned to the client: the secret replaced by a boolean telling
-// whether a value is stored.
-export interface InstanceGoogleDto {
-  enabled: boolean;
-  clientId: string;
-  hasClientSecret: boolean;
-}
-
-// A partial write. The secret keeps its stored value when omitted or sent empty (a
-// masked field the user did not edit).
-export interface InstanceGooglePatch {
-  enabled?: boolean;
-  clientId?: string;
-  clientSecret?: string;
-}
-
-function defaultGoogleConfig(): InstanceGoogleConfig {
-  return { enabled: false, clientId: '', clientSecret: '' };
-}
-
-function toGoogleDto(config: InstanceGoogleConfig): InstanceGoogleDto {
+export function getGoogleConfig(): InstanceGoogleConfig {
   return {
-    enabled: config.enabled,
-    clientId: config.clientId,
-    hasClientSecret: config.clientSecret.length > 0,
+    clientId: process.env.GOOGLE_CLIENT_ID?.trim() ?? '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() ?? '',
   };
 }
 
-export async function getGoogleConfig(): Promise<InstanceGoogleConfig> {
-  const stored = await readSecret<InstanceGoogleConfig>(GOOGLE_SECRET_KEY);
-  // Merge over the default so a config written before a field was added stays valid.
-  return { ...defaultGoogleConfig(), ...(stored ?? {}) };
-}
-
-export async function getGoogleSettings(): Promise<InstanceGoogleDto> {
-  return toGoogleDto(await getGoogleConfig());
-}
-
-// Whether Google sign-in can run right now. The provider is always mounted, so this
-// is what both the god settings and the public sign-in screen ask before offering it.
 export function isGoogleUsable(config: InstanceGoogleConfig): boolean {
-  return config.enabled && config.clientId.length > 0 && config.clientSecret.length > 0;
+  return config.clientId.length > 0 && config.clientSecret.length > 0;
 }
 
 export async function hasConfiguredGoogle(): Promise<boolean> {
-  return isGoogleUsable(await getGoogleConfig());
+  return isGoogleUsable(getGoogleConfig());
 }
 
-export async function setGoogleSettings(patch: InstanceGooglePatch): Promise<InstanceGoogleDto> {
-  const current = await getGoogleConfig();
-  const next: InstanceGoogleConfig = {
-    enabled: patch.enabled ?? current.enabled,
-    clientId: patch.clientId ?? current.clientId,
-    clientSecret: mergeSecret(current.clientSecret, patch.clientSecret),
-  };
-  const redacted = toGoogleDto(next);
-  await writeSecret(GOOGLE_SECRET_KEY, next, redacted);
-  return redacted;
+// ── Allowed sign-in services ──────────────────────────────────────────────────
+
+// The workspace's allowed sign-in services (organization.allowed_auth_services):
+// `email` (magic link), `google`, `passkey`. Empty, or no organization row yet, means
+// every configured service.
+export async function allowedAuthServices(): Promise<string[]> {
+  const [row] = await db
+    .select({ services: organization.allowedAuthServices })
+    .from(organization)
+    .limit(1);
+  return row?.services ?? [];
+}
+
+export async function isAuthServiceAllowed(
+  service: 'email' | 'google' | 'passkey',
+): Promise<boolean> {
+  const allowed = await allowedAuthServices();
+  return allowed.length === 0 || allowed.includes(service);
 }
 
 // ── Joining the workspace ───────────────────────────────────────────────────────

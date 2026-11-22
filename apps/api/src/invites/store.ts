@@ -8,6 +8,7 @@ import {
   type AuthUser,
 } from '../shared/access';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
+import { assertAllowedTo } from '../organization/store';
 
 // Workspace invites (Linear's organization invites). An invite gives an address the
 // role it will have and the teams it will join; the better-auth user-create hook
@@ -166,7 +167,7 @@ export async function inviteToWorkspace(
   input: { email: string; role: InviteRole; teamIds?: string[] },
   actor: AuthUser,
 ): Promise<InviteRow> {
-  const inviter = await assertWorkspaceRole(actor, 'member');
+  const inviter = await assertAllowedTo(actor, 'invitations');
   if (!atLeast(await workspaceRole(inviter.id), input.role))
     throw new HttpError(403, 'You cannot invite someone above your own role');
   const teamIds = input.teamIds ?? [];

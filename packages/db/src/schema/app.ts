@@ -33,6 +33,43 @@ export const appSetting = pgTable('app_setting', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// The workspace (Linear's Organization). One row per instance: `singleton` is always
+// true and unique, so a second row cannot be inserted. The three *_role columns are
+// the minimum workspace role for creating teams, managing workspace labels, project
+// labels and project statuses, and inviting (owner, admin or member).
+// allowed_auth_services lists the sign-in services allowed (email = magic link,
+// google, passkey); empty means every configured one.
+export const organization = pgTable(
+  'organization',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    singleton: boolean('singleton').notNull().default(true).unique(),
+    name: text('name').notNull().default('Workspace'),
+    urlKey: text('url_key').notNull().default('workspace'),
+    logoUrl: text('logo_url'),
+    allowedAuthServices: text('allowed_auth_services')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    allowedFileUploadContentTypes: text('allowed_file_upload_content_types')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    teamCreationRole: text('team_creation_role').notNull().default('member'),
+    labelManagementRole: text('label_management_role').notNull().default('member'),
+    invitationsRole: text('invitations_role').notNull().default('member'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('organization_singleton_check', sql`${t.singleton}`),
+    check(
+      'organization_roles_check',
+      sql`${t.teamCreationRole} IN ('owner', 'admin', 'member') AND ${t.labelManagementRole} IN ('owner', 'admin', 'member') AND ${t.invitationsRole} IN ('owner', 'admin', 'member')`,
+    ),
+  ],
+);
+
 // Instance-wide secrets, the encrypted counterpart of app_setting. One row per key
 // (e.g. 'auth.email' for the instance mail provider); the value is a JSON blob
 // encrypted as a whole, so a key can hold several credentials. `redacted` mirrors the

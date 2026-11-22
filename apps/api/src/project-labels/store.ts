@@ -1,4 +1,5 @@
-import { workspaceRole } from '../shared/access';
+import { assertWorkspaceRole, type AuthUser } from '../shared/access';
+import { assertAllowedTo } from '../organization/store';
 import { db, projectLabel } from '@repo/db';
 import { asc, eq } from 'drizzle-orm';
 import { HttpError, iso, rethrowDuplicate } from '../shared/lib';
@@ -114,7 +115,13 @@ export async function deleteProjectLabel(id: string): Promise<boolean> {
 
 // Project labels are workspace-level: owners, admins and members read and manage
 // them, guests do not (Linear). Throws 403 otherwise.
+// Workspace labels are read by everyone but guests.
+export async function assertLabelReader(userId: string): Promise<void> {
+  await assertWorkspaceRole({ id: userId } as AuthUser, 'member');
+}
+
+// Managing workspace labels, project labels and project statuses needs the
+// organization's label-management role.
 export async function assertLabelManager(userId: string): Promise<void> {
-  if ((await workspaceRole(userId)) === 'guest')
-    throw new HttpError(403, 'Guests cannot manage workspace labels');
+  await assertAllowedTo({ id: userId } as AuthUser, 'labelManagement');
 }

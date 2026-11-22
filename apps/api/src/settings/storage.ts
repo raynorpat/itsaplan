@@ -1,16 +1,11 @@
 import { t } from 'elysia';
-import { getSetting, setSetting } from '@repo/db';
+import { getOrganization } from '../organization/store';
 
-// Instance-wide upload limits (app_setting key 'storage'). They apply to every
-// upload path in the api and are read by the web app before a file is picked, so
-// the limit is visible in the UI instead of only surfacing as a 413.
-//
-// The row is seeded by migration 0046, so the limits are set in the database and
-// edited in god mode — there is no env var for them. defaultStorageSettings() is
-// the fallback for a missing row and the source of the seeded values; keep the two
-// in sync.
-
-const STORAGE_SETTING_KEY = 'storage';
+// Upload limits. The sizes and the team quota are server limits from the environment
+// (MAX_ATTACHMENT_MB, MAX_AVATAR_MB, TEAM_QUOTA_MB); the accepted attachment types are
+// the workspace setting `allowedFileUploadContentTypes` (../organization/store.ts).
+// They apply to every upload path in the api and are read by the web app before a
+// file is picked, so the limit is visible in the UI instead of only surfacing as a 413.
 
 export const MB = 1024 * 1024;
 
@@ -27,7 +22,7 @@ export interface StorageSettings {
   teamQuotaMb: number;
 }
 
-// Served by GET /settings/storage (any signed-in user) and the god routes.
+// Served by GET /settings/storage (any signed-in user).
 export const StorageSettingsSchema = t.Object({
   maxAttachmentMb: t.Number(),
   maxAvatarMb: t.Number(),
@@ -35,56 +30,27 @@ export const StorageSettingsSchema = t.Object({
   teamQuotaMb: t.Number(),
 });
 
-// Images, video, PDF, office documents and plain text formats. Executables,
-// archives and anything else are refused until an admin adds them.
-const DEFAULT_ATTACHMENT_MIME_TYPES = [
-  'image/*',
-  'video/*',
-  'application/pdf',
-  'text/plain',
-  'text/csv',
-  'text/markdown',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.oasis.opendocument.text',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.oasis.opendocument.spreadsheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.oasis.opendocument.presentation',
-];
+// A non-negative number from the environment, or the default when unset or invalid.
+function envNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
 
-function defaultStorageSettings(): StorageSettings {
+// Read per call, so a test or a reload sees changes.
+export async function getStorageSettings(): Promise<StorageSettings> {
+  const org = await getOrganization();
   return {
-    maxAttachmentMb: 25,
-    maxAvatarMb: 5,
-    attachmentMimeTypes: DEFAULT_ATTACHMENT_MIME_TYPES,
-    teamQuotaMb: 50 * 1024,
+    maxAttachmentMb: envNumber('MAX_ATTACHMENT_MB', 25),
+    maxAvatarMb: envNumber('MAX_AVATAR_MB', 5),
+    attachmentMimeTypes: org.allowedFileUploadContentTypes,
+    teamQuotaMb: envNumber('TEAM_QUOTA_MB', 50 * 1024),
   };
 }
 
-export async function getStorageSettings(): Promise<StorageSettings> {
-  const stored = await getSetting<Partial<StorageSettings>>(STORAGE_SETTING_KEY);
-  // Merge over the default so a value written before a field was added stays valid.
-  return { ...defaultStorageSettings(), ...(stored ?? {}) };
-}
-
-export async function setStorageSettings(
-  patch: Partial<StorageSettings>,
-): Promise<StorageSettings> {
-  const next = { ...(await getStorageSettings()), ...patch };
-  // Types are matched case-insensitively; store them normalized so the settings UI
-  // shows what is actually applied.
-  next.attachmentMimeTypes = [
-    ...new Set(next.attachmentMimeTypes.map((m) => m.trim().toLowerCase()).filter(Boolean)),
-  ];
-  await setSetting(STORAGE_SETTING_KEY, next);
-  return next;
-}
-
 // Whether a content type passes the allowlist. An empty list accepts anything.
-// Entries are already normalized by setStorageSettings.
+// Entries are already normalized by updateOrganization.
 export function mimeAllowed(contentType: string, allowed: string[]): boolean {
   if (allowed.length === 0) return true;
   const ct = contentType.split(';')[0]?.trim().toLowerCase() ?? '';

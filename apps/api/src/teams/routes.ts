@@ -4,7 +4,8 @@ import { noContent } from '../shared/http';
 import { HttpError } from '../shared/lib';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { assertWorkspaceRole, canManageTeam, requireUser, workspaceRole } from '../shared/access';
+import { canManageTeam, requireUser, workspaceRole } from '../shared/access';
+import { assertAllowedTo } from '../organization/store';
 import { isMcpRequest } from '../shared/mcp-request';
 import { ErrorResponse } from '../shared/responses';
 import { getMembership, listAssigneeCandidates } from '../members/store';
@@ -173,7 +174,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   .post(
     '/teams',
     async ({ body, user, set }) => {
-      const current = await assertWorkspaceRole(user, 'member');
+      const current = await assertAllowedTo(user, 'teamCreation');
       set.status = 201;
       return createTeam(body, current.id);
     },

@@ -9,7 +9,8 @@ import { getAppVersion } from './updates';
 // to a team. The MCP toggle is per-team (see teams/routes.ts), not here.
 //
 // Storage limits are readable by any signed-in user, because the upload UI shows
-// them before a file is picked. Changing them is god mode (/god/storage-settings).
+// them before a file is picked. The sizes come from the environment and the accepted
+// types from the workspace settings (../organization).
 export const settingsRoutes = new Elysia({
   name: 'settings',
   detail: { tags: ['Settings'] },

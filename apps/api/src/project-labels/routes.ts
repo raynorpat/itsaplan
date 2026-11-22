@@ -7,6 +7,7 @@ import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
   assertLabelManager,
+  assertLabelReader,
   createProjectLabel,
   deleteProjectLabel,
   listProjectLabels,
@@ -37,7 +38,16 @@ export const projectLabelRoutes = new Elysia({
 })
   .use(authContext)
   .macro({
-    teamMemberAnywhere(_enabled: boolean) {
+    // Reading: anyone but a guest. Changing: the organization's label-management role.
+    labelReader(_enabled: boolean) {
+      return {
+        async resolve({ user }: { user?: AuthUser | null }) {
+          await assertLabelReader(requireUser(user).id);
+          return {};
+        },
+      };
+    },
+    labelManager(_enabled: boolean) {
       return {
         async resolve({ user }: { user?: AuthUser | null }) {
           await assertLabelManager(requireUser(user).id);
@@ -47,7 +57,7 @@ export const projectLabelRoutes = new Elysia({
     },
   })
   .get('/project-labels', () => listProjectLabels(), {
-    teamMemberAnywhere: true,
+    labelReader: true,
     response: { 200: t.Array(ProjectLabelResponse), 401: ErrorResponse, 403: ErrorResponse },
     detail: {
       summary: 'List project labels',
@@ -62,7 +72,7 @@ export const projectLabelRoutes = new Elysia({
       return createProjectLabel(body);
     },
     {
-      teamMemberAnywhere: true,
+      labelManager: true,
       body: t.Object({
         name,
         color: t.Optional(color),
@@ -92,7 +102,7 @@ export const projectLabelRoutes = new Elysia({
       return label;
     },
     {
-      teamMemberAnywhere: true,
+      labelManager: true,
       params: labelParams,
       body: t.Object({
         name: t.Optional(name),
@@ -122,7 +132,7 @@ export const projectLabelRoutes = new Elysia({
       return noContent();
     },
     {
-      teamMemberAnywhere: true,
+      labelManager: true,
       params: labelParams,
       response: { 204: t.Void(), 401: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse },
       detail: {
