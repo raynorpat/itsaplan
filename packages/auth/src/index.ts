@@ -12,6 +12,7 @@ import {
   isGoogleUsable,
   isAuthServiceAllowed,
   hasConfiguredEmailProvider,
+  emailConfigWarnings,
   mayJoin,
   pendingInviteFor,
 } from './instance';
@@ -149,6 +150,9 @@ async function isSuspended(userId: string): Promise<boolean> {
   return !!row?.suspendedAt;
 }
 
+// Report mail misconfiguration once, at startup.
+for (const warning of emailConfigWarnings(process.env)) console.warn(warning);
+
 export const auth = betterAuth({
   baseURL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -176,8 +180,8 @@ export const auth = betterAuth({
   // Account linking is left at better-auth's defaults: a Google address that already
   // has an account signs into it and gains a linked google account row, but only when
   // that account's email is confirmed (accountLinking.requireLocalEmailVerified
-  // defaults to true). Google itself always reports a verified address, and after a
-  // successful link better-auth marks the local user confirmed too.
+  // defaults to true). A Google sign-up whose address Google has not verified is
+  // refused by the user-create hook below.
   socialProviders: {
     google: async () => {
       refreshGoogleOptions();
@@ -234,10 +238,15 @@ export const auth = betterAuth({
         return;
       }
 
-      // Both halves of the Google round trip: starting it and coming back from it.
-      // This is where the credentials are loaded into the provider's options. Google
-      // needs both credentials set and the workspace to allow it.
-      if (ctx.path === '/sign-in/social' || ctx.path.startsWith('/callback/google')) {
+      // Every Google step: starting a sign-in, coming back from Google (the callback
+      // route is declared as /callback/:id, so the provider is in the params), and
+      // linking Google to a signed-in account. This is where the credentials are
+      // loaded into the provider's options. Google needs both credentials set and the
+      // workspace to allow it.
+      const googleCallback =
+        ctx.path === '/callback/:id' &&
+        (ctx.params as { id?: string } | undefined)?.id === 'google';
+      if (ctx.path === '/sign-in/social' || ctx.path === '/link-social' || googleCallback) {
         if (!refreshGoogleOptions() || !(await isAuthServiceAllowed('google'))) {
           throw new APIError('FORBIDDEN', {
             message: 'Google sign-in is not available in this workspace',
@@ -268,6 +277,14 @@ export const auth = betterAuth({
         // (./instance.ts mayJoin): the first user becomes the owner, an invited
         // address takes the invite's role, an approved domain joins as a member.
         before: async (user) => {
+          // Only a verified address may claim an invite or an approved domain. A used
+          // magic link always verifies it; Google reports its own email_verified claim.
+          if (user.emailVerified !== true) {
+            throw new APIError('FORBIDDEN', {
+              code: 'EMAIL_NOT_VERIFIED',
+              message: 'The address must be verified to join the workspace',
+            });
+          }
           const join = await mayJoin(user.email);
           if (!join) {
             throw new APIError('FORBIDDEN', {
@@ -337,20 +354,29 @@ export const auth = betterAuth({
       },
     }),
     // Sign-in and sign-up by emailed link: the email route of the instance. With no
-    // mail provider configured the link is written to the API log instead, so an
-    // operator can still sign in. It reuses the `verification` table.
+    // mail provider configured, or when sending fails, the link is written to the API
+    // log instead, so an operator can always sign in. The send is not awaited: a
+    // request answers in the same time whether or not a link goes out, so its timing
+    // does not reveal whether an address has an account or may join. It reuses the
+    // `verification` table.
     magicLink({
       sendMagicLink: async ({ email, url }) => {
+        const logLink = () => console.info(`[auth] magic link for ${email}: ${url}`);
         if (!(await hasConfiguredEmailProvider())) {
-          console.info(`[auth] magic link for ${email}: ${url}`);
+          logLink();
           return;
         }
-        await sendAuthEmail({
+        void sendAuthEmail({
           to: email,
           subject: 'Your sign-in link',
           text: 'Use the link below to sign in. It works once and expires shortly.',
           url,
-        });
+        }).then(
+          (sent) => {
+            if (!sent) logLink();
+          },
+          () => logLink(),
+        );
       },
     }),
     // OpenAPI reference for the better-auth handler. Serves a Scalar UI at
@@ -425,5 +451,6 @@ export {
   isAuthServiceAllowed,
   approvedDomains,
   mayJoin,
+  emailConfigWarnings,
 } from './instance';
 export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';

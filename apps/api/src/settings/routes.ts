@@ -4,8 +4,7 @@ import { ErrorResponse } from '../shared/responses';
 import { getStorageSettings, StorageSettingsSchema } from './storage';
 import { getAppVersion } from './version';
 
-// Routes for global instance settings (app_setting): a key-value store not scoped
-// to a team. The MCP toggle is per-team (see teams/routes.ts), not here.
+// Instance-wide read-only settings: upload limits and the running version.
 //
 // Storage limits are readable by any signed-in user, because the upload UI shows
 // them before a file is picked. The sizes come from the environment and the accepted

@@ -16,8 +16,9 @@ roles) and `suspended_at`, both better-auth `additionalFields` with `input: fals
 may join and with which role (`mayJoin` in `src/instance.ts`): the first user of a
 fresh instance is the owner; an address with a pending, unexpired workspace invite
 gets the invite's role; an address on an `APPROVED_EMAIL_DOMAINS` domain is a member;
-anything else is refused. Every account is created from a proven address (a used
-magic link or Google), so the address is what claims the invite. `create.after`
+anything else is refused. The hook also refuses an address that is not verified
+(`emailVerified`): a used magic link always verifies it, and Google reports its own
+`email_verified` claim, so the address is what claims the invite. `create.after`
 joins the invite's teams and deletes the invite. `databaseHooks.session.create.before` refuses a session to a
 suspended user, whatever the sign-in method. `getActiveSession(headers)` wraps
 `getSession` and returns null for a suspended user, so their API keys stop working;
@@ -31,9 +32,13 @@ every API entry point resolves sessions through it.
   request never reveals whether an address may join or has an account.
 - The mail provider comes from environment variables (`SMTP_HOST`, `SMTP_PORT`,
   `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE` tls / starttls / none, or
-  `RESEND_API_KEY`; `EMAIL_FROM`). With none configured, `sendMagicLink` writes the
-  link to the log (`[auth] magic link for <email>: <url>`) so an operator can still
-  sign in; nothing else is emailed.
+  `RESEND_API_KEY`; `EMAIL_FROM`). With none configured, or when sending fails,
+  `sendMagicLink` writes the link to the log (`[auth] magic link for <email>: <url>`)
+  so an operator can always sign in; nothing else is emailed. The send is not
+  awaited, so a request answers in the same time whether or not a link goes out.
+  At startup `emailConfigWarnings` logs a provider that cannot send (Resend without
+  `EMAIL_FROM`, SMTP with neither `EMAIL_FROM` nor `SMTP_USER`) and a production
+  instance with no provider.
 - `approvedDomains()` reads `APPROVED_EMAIL_DOMAINS` per call (comma-separated, case
   and spaces ignored).
 
@@ -61,8 +66,9 @@ available when both are set and the workspace allows `google` (below).
 object. better-auth builds the provider list once at startup, but the provider keeps that
 object **by reference** and reads `clientId` / `clientSecret` off it on every call, so
 `refreshGoogleOptions()` in `hooks.before` reloads it from the environment on
-`/sign-in/social` and `/callback/google` and refuses the request when the credentials are
-missing or the workspace does not allow Google. Do not replace the object
+`/sign-in/social`, the Google callback (declared as `/callback/:id`, so the hook matches
+the path pattern and the `id` param) and `/link-social`, and refuses the request when the
+credentials are missing or the workspace does not allow Google. Do not replace the object
 (`googleOptions = {...}`) — assign its fields, or the provider keeps reading the old one.
 
 ## Allowed sign-in services

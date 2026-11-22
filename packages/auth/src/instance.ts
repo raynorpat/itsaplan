@@ -178,3 +178,28 @@ export async function mayJoin(
   if (domain && approvedDomains().includes(domain)) return { role: 'member', teamIds: [] };
   return null;
 }
+
+// Startup warnings about the mail environment variables: a provider that is set but
+// cannot send (Resend without a From address, SMTP with neither a From address nor
+// a username to send as), and a production instance with no provider, whose magic
+// links go to the API log.
+export function emailConfigWarnings(env: Record<string, string | undefined>): string[] {
+  const has = (key: string) => (env[key] ?? '').trim().length > 0;
+  const warnings: string[] = [];
+  if (has('SMTP_HOST')) {
+    if (!has('EMAIL_FROM') && !has('SMTP_USER'))
+      warnings.push(
+        '[auth] SMTP_HOST is set without EMAIL_FROM or SMTP_USER: mail has no From address',
+      );
+  } else if (has('RESEND_API_KEY')) {
+    if (!has('EMAIL_FROM'))
+      warnings.push(
+        '[auth] RESEND_API_KEY is set without EMAIL_FROM: Resend refuses every message',
+      );
+  } else if (env.NODE_ENV === 'production') {
+    warnings.push(
+      '[auth] no mail provider is configured: magic links are written to the API log, readable by anyone with log access',
+    );
+  }
+  return warnings;
+}

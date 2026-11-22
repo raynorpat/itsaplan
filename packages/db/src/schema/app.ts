@@ -24,15 +24,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { user } from './auth';
 
-// Global key-value settings for the instance, not scoped to a team. The value is
-// a jsonb blob owned by whatever feature reads the key, so one table backs many
-// settings.
-export const appSetting = pgTable('app_setting', {
-  key: text('key').primaryKey(),
-  value: jsonb('value').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
 // The workspace (Linear's Organization). One row per instance: `singleton` is always
 // true and unique, so a second row cannot be inserted. The three *_role columns are
 // the minimum workspace role for creating teams, managing workspace labels, project
@@ -69,21 +60,6 @@ export const organization = pgTable(
     ),
   ],
 );
-
-// Instance-wide secrets, the encrypted counterpart of app_setting. One row per key
-// (e.g. 'auth.email' for the instance mail provider); the value is a JSON blob
-// encrypted as a whole, so a key can hold several credentials. `redacted` mirrors the
-// same blob with every secret replaced by a boolean, for the settings UI to read
-// without decrypting. Encryption is AES-256-GCM with APP_ENCRYPTION_KEY — changing
-// that env value makes stored rows undecryptable.
-export const appSecret = pgTable('app_secret', {
-  key: text('key').primaryKey(),
-  ciphertext: text('ciphertext').notNull(),
-  iv: text('iv').notNull(),
-  authTag: text('auth_tag').notNull(),
-  redacted: jsonb('redacted').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
 
 // A team groups its own columns, labels and
 // issues. next_sequence is the atomic counter behind each issue's human
@@ -127,7 +103,7 @@ export const team = pgTable(
   (t) => [check('team_visibility_check', sql`${t.visibility} IN ('public', 'private')`)],
 );
 
-// Per-team key-value settings, mirroring app_setting but scoped to a team.
+// Per-team key-value settings.
 // The value is a jsonb blob owned by whatever feature reads the key, so one table
 // backs many team settings (e.g. auto-archive thresholds under key
 // 'auto_archive'). Composite PK (team_id, key).
@@ -169,8 +145,7 @@ export const userPreference = pgTable(
     issueStatsOpen: boolean('issue_stats_open').notNull().default(true),
     issueStatsView: text('issue_stats_view').notNull().default('compact'),
     // The user's own keyboard shortcut overrides, as { hotkeyId: combo }. Only the
-    // bindings they changed are stored; the rest come from the instance defaults
-    // (app_setting key 'hotkeys') and then the built-in ones.
+    // bindings they changed are stored; the rest are the built-in ones.
     hotkeys: jsonb('hotkeys').$type<Record<string, string>>(),
     lastTeamId: uuid('last_team_id').references(() => team.id, {
       onDelete: 'set null',

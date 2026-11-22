@@ -133,8 +133,8 @@ cd itsaplan
 cp .env.example .env
 # Set the public origins: API_URL, APP_URL
 # Generate each secret with `openssl rand -base64 32`:
-#   POSTGRES_PASSWORD, BETTER_AUTH_SECRET, APP_ENCRYPTION_KEY,
-#   WORKER_INTERNAL_TOKEN, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY
+#   POSTGRES_PASSWORD, BETTER_AUTH_SECRET, WORKER_INTERNAL_TOKEN,
+#   S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY
 
 docker compose up -d --build
 ```
@@ -186,7 +186,6 @@ apps/web        Next.js app, server-side rendered
 apps/worker     webhook and notification delivery, auto-archive, cycle upkeep
 packages/db     Drizzle client, schema, migrations
 packages/auth   better-auth server instance
-packages/crypto AES-256-GCM encryption for secrets at rest
 packages/mailer SMTP and Resend transport
 ```
 

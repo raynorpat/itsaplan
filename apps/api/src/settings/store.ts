@@ -1,9 +1,6 @@
 import { db, teamSetting } from '@repo/db';
 import { and, eq, sql } from 'drizzle-orm';
 
-// Instance settings (app_setting) are read through getSetting/setSetting in
-// @repo/db, because @repo/auth reads them too.
-
 // Per-team settings (team_setting): the same key-value store scoped to a
 // team. Typed accessors per key live in the feature that owns the key (e.g.
 // auto-archive in teams/store.ts).
