@@ -24,11 +24,10 @@ async function setupOwner(): Promise<Actor> {
 // and accepting on their behalf.
 async function addMember(owner: Actor, role: 'owner' | 'member' = 'member'): Promise<Actor> {
   const user = await signUpTestUser();
-  const created = await owner.api
+  await owner.api
     .teams({ teamKey: 'MKT' })
-    .invites.post({ email: user.email, role });
+    .members.post({ userId: user.userId, owner: role === 'owner' });
   const api = authedApi(user.cookie);
-  await api.invites({ token: created.data!.token }).accept.post();
   return { user, api };
 }
 

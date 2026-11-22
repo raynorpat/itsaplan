@@ -133,10 +133,22 @@ Enforced declaratively through macros, never imperative calls in handlers.
   macro via `entityGuard(notFound, resolveTeamId)` and set it in route options
   (e.g. `workItem: "see"`).
 - Guards/macros wrap the `shared/access.ts` primitives. Handlers that still need
-  `user` (team create, invite accept/reject, self-removal) call `requireUser(user)`.
-- **Members join only through invites/**, not a direct add. One pending invite per
-  (team, email) — partial unique index → 409. `members/` removes members and sets
-  the team owner flag; a team may have no owners.
+  `user` (team create, invites, joining, self-removal) call `requireUser(user)`.
+- **Joining the workspace and teams:** people join the workspace through workspace
+  invites (`invites/`, `workspace_invite`): an invite carries a role (admin, member,
+  guest) and teams, applied by the better-auth user-create hook when the address
+  signs up, which also deletes the invite; one pending invite per address, and an
+  address that already has an account cannot be invited. Nobody invites above their
+  own role. Anyone who can see a team may join it (`POST /teams/:teamKey/join`);
+  any team member may add people to a public team, a team manager to a private
+  one or as a team owner (`members/`).
+- **Workspace administration** (`workspace/`): admins change the roles of members
+  and guests and suspend them; owners act on anyone and alone make or remove
+  owners; the workspace keeps at least one active owner. A suspended user
+  (`user.suspended_at`) has no sessions, cannot sign in (better-auth session
+  create hook), is refused on API keys (`getActiveSession`, used by REST, GraphQL
+  and MCP) and receives no notifications; memberships and history stay. God mode's
+  hard user delete is owner-only.
 - **Projects span teams** (`project_team`), so routes that address a project use the
   `project: true` macro in `projects/routes.ts`, which resolves access through every
   team of the project (`projects/access.ts`): a project none of whose teams the user
@@ -209,7 +221,9 @@ receiver works against the instance.
   `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Webhooks are
   managed by workspace admins and owners: a team webhook by one who can see the team,
-  an all-teams webhook by any (`webhooks/access.ts`, checked on every operation).
+  an all-teams webhook by any (`webhooks/access.ts`, checked on every operation). An
+  all-teams webhook receives workspace-level events and events touching a public
+  team; a private team's events reach only its own team webhooks.
 - **Events:** the stores call `emitEvent` (`webhooks/event.ts`) after a change,
   with the entity's data from `webhooks/data.ts` before and after it. `data` is the
   GraphQL mapper's output plus Linear's relation ids; `updatedFrom` holds the

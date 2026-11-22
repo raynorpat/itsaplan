@@ -1,5 +1,5 @@
-import { db, appSecret, teamInvite, getSetting, setSetting } from '@repo/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { db, appSecret, workspaceInvite, getSetting, setSetting } from '@repo/db';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import { encryptSecret, decryptSecret } from '@repo/crypto';
 import {
   hasEmailProvider,
@@ -296,13 +296,23 @@ export async function setGoogleSettings(patch: InstanceGooglePatch): Promise<Ins
 //
 // The invite itself is accepted after sign-up, on the /invite/:token screen — this
 // only decides whether the account may be created, and leaves the invite pending.
-export async function hasPendingInvite(email: string): Promise<boolean> {
+// The pending, unexpired workspace invite for an address, or null.
+export async function pendingInvite(
+  email: string,
+): Promise<{ id: string; role: string; teamIds: string[] } | null> {
   const address = email.trim().toLowerCase();
-  if (!address) return false;
-  const rows = await db
-    .select({ id: teamInvite.id })
-    .from(teamInvite)
-    .where(and(eq(teamInvite.email, address), eq(teamInvite.status, 'pending')))
-    .limit(1);
-  return rows.length > 0;
+  if (!address) return null;
+  const [row] = await db
+    .select({
+      id: workspaceInvite.id,
+      role: workspaceInvite.role,
+      teamIds: workspaceInvite.teamIds,
+    })
+    .from(workspaceInvite)
+    .where(and(eq(workspaceInvite.email, address), gt(workspaceInvite.expiresAt, sql`now()`)));
+  return row ?? null;
+}
+
+export async function hasPendingInvite(email: string): Promise<boolean> {
+  return (await pendingInvite(email)) !== null;
 }

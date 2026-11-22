@@ -45,9 +45,8 @@ async function createProject(
 // roleId is omitted).
 async function addMember(owner: Api, teamKey: string) {
   const user = await signUpTestUser();
-  const invite = await owner.teams({ teamKey }).invites.post({ email: user.email, role: 'member' });
+  await owner.teams({ teamKey }).members.post({ userId: user.userId });
   const api = authedApi(user.cookie);
-  await api.invites({ token: invite.data!.token }).accept.post();
   return { user, api };
 }
 
@@ -472,11 +471,7 @@ describe('projects', () => {
       const project = (await createProject(asOwner, { name: 'Shared' }, ['MKT', 'OPS'])).data!;
       const member = await addMember(asOwner, 'MKT');
       // The MKT member also joins DES, so they can attach it.
-      const des = await asOwner.teams({ teamKey: 'DES' }).invites.post({
-        email: member.user.email,
-        role: 'member',
-      });
-      await member.api.invites({ token: des.data!.token }).accept.post();
+      await asOwner.teams({ teamKey: 'DES' }).members.post({ userId: member.user.userId });
 
       const seen = await member.api.projects({ projectId: project.id }).get();
       expect(seen.data!.teams.map((t) => t.key)).toEqual(['MKT']);

@@ -1,4 +1,4 @@
-import { APIError, auth } from '@repo/auth';
+import { APIError, getActiveSession } from '@repo/auth';
 import type { SessionUser } from '../shared/auth-context';
 
 export interface GraphQLContext {
@@ -19,7 +19,7 @@ export async function resolveGraphQLUser(request: Request): Promise<SessionUser 
     headers.delete('authorization');
   }
   try {
-    const session = await auth.api.getSession({ headers });
+    const session = await getActiveSession(headers);
     return session?.user ?? null;
   } catch (err) {
     // better-auth throws for an unknown, expired or disabled API key.

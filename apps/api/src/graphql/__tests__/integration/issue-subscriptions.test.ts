@@ -17,10 +17,7 @@ async function setup() {
   const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team;
   const join = async (name: string) => {
     const u = await signUpTestUser({ name });
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: u.email, role: 'member' });
-    await authedApi(u.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: u.userId });
     return u;
   };
   const b = await join('Bea');
@@ -131,10 +128,7 @@ describe('graphql issue subscriptions', () => {
     ).issue)!;
     const asOwner = authedApi(owner.cookie);
     const reader = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: reader.email, role: 'member' });
-    await authedApi(reader.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: reader.userId });
     const other = await gql(
       { cookie: reader.cookie },
       `mutation { issueUnsubscribe(id: "${issue.id}", userId: "${b.userId}") { success } }`,

@@ -40,7 +40,23 @@ async function actorName(id: string | null): Promise<string | null> {
   return rows[0]?.name ?? null;
 }
 
-async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
+async function insertNotifications(all: NewNotificationRow[]): Promise<void> {
+  if (all.length === 0) return;
+  // A suspended user receives no notifications.
+  const suspended = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(
+      and(
+        inArray(
+          user.id,
+          all.map((r) => r.userId),
+        ),
+        sql`${user.suspendedAt} IS NOT NULL`,
+      ),
+    );
+  const skip = new Set(suspended.map((r) => r.id));
+  const rows = all.filter((r) => !skip.has(r.userId));
   if (rows.length === 0) return;
   const name = await actorName(rows[0].actorUserId);
   await db.insert(notification).values(rows.map((r) => ({ ...r, actorName: name })));

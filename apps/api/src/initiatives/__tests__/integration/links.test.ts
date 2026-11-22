@@ -98,10 +98,7 @@ describe('initiative links and relations', () => {
     await createRelation({ initiativeId: a.id, relatedInitiativeId: b.id }, owner.userId);
     await createRelation({ initiativeId: b.id, relatedInitiativeId: c.id }, owner.userId);
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'OPS' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'OPS' }).members.post({ userId: member.userId });
     expect(await visibleSubtreeIds(a.id, await visibleInitiativesSql(member.userId))).toEqual([
       a.id,
     ]);

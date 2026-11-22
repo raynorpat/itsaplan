@@ -11,7 +11,7 @@ import {
   setGoogleSettings,
 } from '@repo/auth';
 import { authContext } from '../shared/auth-context';
-import { requireWorkspaceAdmin } from '../shared/access';
+import { assertWorkspaceRole, requireWorkspaceAdmin } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { noContent } from '../shared/http';
@@ -429,7 +429,9 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
 
   .delete(
     '/god/users/:userId',
-    async ({ params, query }) => {
+    async ({ params, query, user }) => {
+      // Hard deletion is the owner's: an admin suspends instead.
+      await assertWorkspaceRole(user, 'owner');
       const target = await getInstanceUser(params.userId);
       if (!target) throw new HttpError(404, 'User not found');
       // A workspace owner is not removable here, so the workspace keeps an owner.

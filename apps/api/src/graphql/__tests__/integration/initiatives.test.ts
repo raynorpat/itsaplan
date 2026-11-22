@@ -28,10 +28,7 @@ async function setup() {
 
 async function memberOf(asOwner: ReturnType<typeof authedApi>, teamKey: string) {
   const user = await signUpTestUser();
-  const invite = await asOwner
-    .teams({ teamKey })
-    .invites.post({ email: user.email, role: 'member' });
-  await authedApi(user.cookie).invites({ token: invite.data!.token }).accept.post();
+  await asOwner.teams({ teamKey: teamKey }).members.post({ userId: user.userId });
   return { user, client: linearClient(await createApiKey(user.cookie)) };
 }
 

@@ -57,10 +57,7 @@ describe('graphql project queries', () => {
     await makePrivate(asOwner, 'OPS');
     const rest = await createProject(asOwner, [mkt.team.id, ops.team.id]);
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const memberClient = linearClient(await createApiKey(member.cookie));
 
     const seen = await (await memberClient.project(rest.id)).teams();
@@ -129,10 +126,7 @@ describe('graphql project queries', () => {
     await createProject(asOwner, [mkt.team.id, ops.team.id]);
     await makePrivate(asOwner, 'OPS');
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const res = await gql(
       { cookie: member.cookie },
       '{ projects(filter: { accessibleTeams: { some: { key: { eq: "OPS" } } } }) { nodes { id } } }',

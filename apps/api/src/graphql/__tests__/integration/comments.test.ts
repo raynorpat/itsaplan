@@ -29,10 +29,7 @@ async function setup() {
 // A member of MKT with the given role (default member role when roleId is absent).
 async function addMember(asOwner: Api) {
   const member = await signUpTestUser({ name: 'Member' });
-  const invite = await asOwner
-    .teams({ teamKey: 'MKT' })
-    .invites.post({ email: member.email, role: 'member' });
-  await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+  await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
   return { ...member, api: authedApi(member.cookie) };
 }
 
@@ -184,10 +181,7 @@ describe('graphql comments', () => {
     const { asOwner, issue, client } = await setup();
     const first = await addMember(asOwner);
     const second = await signUpTestUser({ name: 'Second' });
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: second.email, role: 'member' });
-    await authedApi(second.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: second.userId });
     const c = (await (
       await client.createComment({
         issueId: issue.id,

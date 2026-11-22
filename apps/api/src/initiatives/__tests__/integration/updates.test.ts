@@ -71,10 +71,7 @@ describe('initiative updates', () => {
     const r = await createReaction({ parent, emoji: '👍', userId: owner.userId });
     expect(r.initiativeUpdateId).toBe(posted.id);
     const outsider = await signUpWithRole('guest');
-    const invite = await asOwner
-      .teams({ teamKey: 'OPS' })
-      .invites.post({ email: outsider.email, role: 'member' });
-    await authedApi(outsider.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'OPS' }).members.post({ userId: outsider.userId });
     const user = { id: outsider.userId } as Parameters<typeof assertParentAccess>[1];
     expect(await status(assertParentAccess(parent, user))).toBe(404);
     expect(await status(assertReactionParentAccess(parent, user))).toBe(404);

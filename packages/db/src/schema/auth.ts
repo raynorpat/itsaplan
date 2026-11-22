@@ -23,6 +23,7 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   workspaceRole: text("workspace_role").default("member").notNull(),
+  suspendedAt: timestamp("suspended_at"),
 });
 
 export const session = pgTable(

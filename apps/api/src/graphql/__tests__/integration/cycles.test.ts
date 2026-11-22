@@ -44,10 +44,7 @@ describe('graphql cycles', () => {
     expect(errorCode(bad)).toBe('INVALID_INPUT');
     expect(bad.body.errors?.[0]?.message).toContain('timezone');
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const denied = await gql(
       { cookie: member.cookie },
       `mutation { teamUpdate(id: "${teamId}", input: { cycleDuration: 3 }) { success } }`,

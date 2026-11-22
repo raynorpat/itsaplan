@@ -1,5 +1,6 @@
 import {
   auth,
+  getActiveSession,
   trustedOrigins,
   getAuthSettings,
   hasConfiguredEmailProvider,
@@ -50,7 +51,8 @@ export const app = new Elysia()
         tags: [
           { name: 'Teams', description: 'Teams and the full work items view' },
           { name: 'Members', description: 'Team membership and team owners' },
-          { name: 'Invites', description: 'Team invites (create, accept, reject)' },
+          { name: 'Invites', description: 'Workspace invites (create, list, revoke)' },
+          { name: 'Workspace', description: 'Workspace users: roles and suspension' },
           { name: 'States', description: 'Workflow states and their order' },
           { name: 'Labels', description: 'Labels and label groups' },
           { name: 'Issues', description: 'Issues, their feed, and comments' },
@@ -88,7 +90,7 @@ export const app = new Elysia()
   .all('/api/auth/*', ({ request }) => auth.handler(request))
   // Example protected handler: read the session from better-auth.
   .get('/me', async ({ request }) => {
-    const session = await auth.api.getSession({ headers: request.headers });
+    const session = await getActiveSession(request.headers);
     if (!session) return { authenticated: false };
     return { authenticated: true, user: session.user };
   })

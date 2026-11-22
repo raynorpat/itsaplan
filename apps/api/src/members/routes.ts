@@ -3,7 +3,9 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { assertTeamAccess, canManageTeam, requireUser } from '../shared/access';
+import { db, user as userTable } from '@repo/db';
+import { eq } from 'drizzle-orm';
+import { assertTeamAccess, canManageTeam, isTeamMember, requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
@@ -12,6 +14,7 @@ import {
   removeMember,
   setMembership,
   setMemberDescription,
+  upsertMember,
 } from './store';
 
 const memberParams = t.Object({ teamKey: t.String(), userId: t.String({ format: 'uuid' }) });
@@ -27,6 +30,9 @@ const MemberResponse = t.Object({
   description: t.String(),
   createdAt: t.String(),
 });
+
+// The membership a join or an add created.
+const JoinedResponse = t.Object({ teamKey: t.String(), userId: t.String({ format: 'uuid' }) });
 
 export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Members'] } })
   .use(authContext)
@@ -52,6 +58,72 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
 
   // Make a member a team owner or a plain member. Team managers only. A team may
   // have no owners; then any of its members manages it.
+  // Join a team yourself. Anyone who can see the team may join it, which in
+  // practice means public teams for owners, admins and members (a guest or a
+  // non-member of a private team cannot see it: 404).
+  .post(
+    '/teams/:teamKey/join',
+    async ({ team, user, set }) => {
+      const current = requireUser(user);
+      if (!(await isTeamMember(team.id, current.id)))
+        await upsertMember(team.id, current.id, 'member');
+      set.status = 201;
+      return { teamKey: team.key, userId: current.id };
+    },
+    {
+      teamAccess: 'see',
+      response: { 201: JoinedResponse, 401: ErrorResponse, 404: ErrorResponse },
+      detail: {
+        summary: 'Join a team',
+        description: 'Join a team you can see (a public team, without an invite).',
+        ...mcpTool('join_team'),
+      },
+    },
+  )
+
+  // Add someone to a team. Any team member may add people to a public team; a
+  // private team, and making someone a team owner, need a team manager.
+  .post(
+    '/teams/:teamKey/members',
+    async ({ team, body, user, set }) => {
+      const current = requireUser(user);
+      const manager = await canManageTeam(team.id, current.id);
+      if (!manager) {
+        if (body.owner || team.visibility === 'private')
+          throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
+        if (!(await isTeamMember(team.id, current.id)))
+          throw new HttpError(403, 'Join the team before adding people to it');
+      }
+      const [target] = await db
+        .select({ id: userTable.id, suspendedAt: userTable.suspendedAt })
+        .from(userTable)
+        .where(eq(userTable.id, body.userId));
+      if (!target) throw new HttpError(404, 'User not found');
+      if (target.suspendedAt) throw new HttpError(400, 'This user is suspended');
+      await upsertMember(team.id, body.userId, body.owner ? 'owner' : 'member');
+      set.status = 201;
+      return { teamKey: team.key, userId: body.userId };
+    },
+    {
+      body: t.Object({ userId: t.String({ format: 'uuid' }), owner: t.Optional(t.Boolean()) }),
+      teamAccess: 'see',
+      response: {
+        201: JoinedResponse,
+        400: ErrorResponse,
+        401: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+      detail: {
+        summary: 'Add a member',
+        description:
+          'Add a workspace user to the team, optionally as a team owner. Private teams and ' +
+          'team owners need a team manager.',
+        ...mcpTool('add_member'),
+      },
+    },
+  )
+
   .patch(
     '/teams/:teamKey/members/:userId',
     async ({ team, params, body, user }) => {
@@ -119,8 +191,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
   )
 
   // Remove a member, or leave the team yourself. Removing someone else needs a
-  // team manager; a member may always leave. New members join through
-  // invites, so there is no direct add here.
+  // team manager; a member may always leave.
   .delete(
     '/teams/:teamKey/members/:userId',
     async ({ team, params, user }) => {

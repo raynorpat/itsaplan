@@ -19,8 +19,7 @@ async function user(role: WorkspaceRole): Promise<TestUser & { api: Api }> {
 }
 
 async function addToTeam(owner: Api, teamKey: string, who: TestUser) {
-  const invite = await owner.teams({ teamKey }).invites.post({ email: who.email, role: 'member' });
-  await authedApi(who.cookie).invites({ token: invite.data!.token }).accept.post();
+  await owner.teams({ teamKey: teamKey }).members.post({ userId: who.userId });
 }
 
 async function setup() {

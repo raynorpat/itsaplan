@@ -170,10 +170,7 @@ describe('graphql issue queries', () => {
   it('keeps the creator visible after they leave the team', async () => {
     const { owner, asOwner, col } = await setup();
     const member = await signUpTestUser({ name: 'Leaver' });
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const created = await create(authedApi(member.cookie), col.backlog, {
       assigneeUserId: member.userId,
     });

@@ -4,6 +4,7 @@ import { authContext } from './shared/auth-context';
 import { teamRoutes } from './teams/routes';
 import { memberRoutes } from './members/routes';
 import { inviteRoutes } from './invites/routes';
+import { workspaceRoutes } from './workspace/routes';
 import { stateRoutes } from './states/routes';
 import { labelRoutes } from './labels/routes';
 import { issueRoutes } from './issues/routes';
@@ -62,6 +63,7 @@ export const planner = new Elysia({ name: 'planner' })
   .use(teamRoutes)
   .use(memberRoutes)
   .use(inviteRoutes)
+  .use(workspaceRoutes)
   .use(stateRoutes)
   .use(labelRoutes)
   .use(issueRoutes)

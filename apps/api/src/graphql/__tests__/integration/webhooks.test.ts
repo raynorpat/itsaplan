@@ -103,10 +103,7 @@ describe('graphql webhooks', () => {
       resourceTypes: ['Issue'],
     });
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const res = await gql({ cookie: member.cookie }, '{ webhooks { nodes { id } } }');
     expect(res.body.data).toEqual({ webhooks: { nodes: [] } });
   });

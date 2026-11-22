@@ -31,11 +31,8 @@ describe('notification email', () => {
     await api.teams.post({ key: 'MKT', name: 'Marketing' });
     const view = (await api.teams({ teamKey: 'MKT' }).get()).data!;
     const member = await signUpTestUser();
-    const invite = await api
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
+    await api.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const asMember = authedApi(member.cookie);
-    await asMember.invites({ token: invite.data!.token }).accept.post();
     const saved = await asMember.teams({ teamKey: 'MKT' })['notification-preferences'].put({
       emailEvents: { assigned: true, mentioned: false, commented: false, state_changed: false },
     } as never);

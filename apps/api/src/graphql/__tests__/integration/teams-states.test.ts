@@ -179,10 +179,7 @@ describe('graphql teams, users and workflow states', () => {
       const { owner, asOwner, other, client } = await setup();
       const guest = await signUpTestUser({ name: 'Guest' });
       await setWorkspaceRole(guest.userId, 'guest');
-      const invite = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .invites.post({ email: guest.email, role: 'member' });
-      await authedApi(guest.cookie).invites({ token: invite.data!.token }).accept.post();
+      await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: guest.userId });
 
       const ids = (await client.users()).nodes.map((u) => u.id);
       expect(ids).toEqual(expect.arrayContaining([owner.userId, guest.userId, other.userId]));

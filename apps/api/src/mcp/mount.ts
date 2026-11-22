@@ -1,6 +1,6 @@
 import { t } from 'elysia';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { auth } from '@repo/auth';
+import { getActiveSession } from '@repo/auth';
 import { buildMcpServer } from './server';
 import type { McpApp } from './types';
 
@@ -41,7 +41,7 @@ export function mountMcp(app: any): void {
       if (apiKey) {
         const headers = new Headers(request.headers);
         headers.set('x-api-key', apiKey);
-        const session = await auth.api.getSession({ headers });
+        const session = await getActiveSession(headers);
         if (session) {
           const server = buildMcpServer(mcpApp, apiKey);
           const transport = new WebStandardStreamableHTTPServerTransport({

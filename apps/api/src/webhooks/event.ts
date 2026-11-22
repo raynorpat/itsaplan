@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { db, user, webhook, webhookDelivery } from '@repo/db';
+import { db, team, user, webhook, webhookDelivery } from '@repo/db';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { getOrganization } from '../graphql/resolvers/organization';
 import type { WebhookResourceType } from './store';
@@ -40,9 +40,23 @@ async function actorFor(userId: string | null) {
   return row ? { id: row.id, type: 'user', name: row.name, email: row.email } : null;
 }
 
+// Whether all-teams webhooks receive an event of these teams: a workspace-level
+// event (no teams), or one that touches at least one public team (Linear's
+// `allPublicTeams`: private teams' events reach only their own team webhooks).
+async function reachesAllTeams(teamIds: string[]): Promise<boolean> {
+  if (teamIds.length === 0) return true;
+  const [row] = await db
+    .select({ id: team.id })
+    .from(team)
+    .where(and(inArray(team.id, teamIds), eq(team.visibility, 'public')))
+    .limit(1);
+  return !!row;
+}
+
 // Whether any enabled webhook receives `type` events of these teams. Lets a caller
 // skip building webhook data on an instance or team with no such webhook.
 export async function isWatched(type: WebhookResourceType, teamIds: string[]): Promise<boolean> {
+  const allTeams = await reachesAllTeams(teamIds);
   const rows = await db
     .select({ id: webhook.id })
     .from(webhook)
@@ -51,7 +65,7 @@ export async function isWatched(type: WebhookResourceType, teamIds: string[]): P
         eq(webhook.enabled, true),
         sql`${webhook.resourceTypes} @> ${JSON.stringify([type])}::jsonb`,
         or(
-          eq(webhook.allPublicTeams, true),
+          allTeams ? eq(webhook.allPublicTeams, true) : undefined,
           teamIds.length ? inArray(webhook.teamId, teamIds) : undefined,
         ),
       ),
@@ -76,6 +90,7 @@ export async function emitEvent(input: {
     if (Object.keys(changes).length <= 1) return; // only updatedAt
   }
   const teamMatch = input.teamIds.length ? inArray(webhook.teamId, input.teamIds) : undefined;
+  const allTeams = await reachesAllTeams(input.teamIds);
   const matching = await db
     .select({ id: webhook.id })
     .from(webhook)
@@ -83,7 +98,7 @@ export async function emitEvent(input: {
       and(
         eq(webhook.enabled, true),
         sql`${webhook.resourceTypes} @> ${JSON.stringify([input.type])}::jsonb`,
-        or(eq(webhook.allPublicTeams, true), teamMatch),
+        or(allTeams ? eq(webhook.allPublicTeams, true) : undefined, teamMatch),
       ),
     );
   if (matching.length === 0) return;

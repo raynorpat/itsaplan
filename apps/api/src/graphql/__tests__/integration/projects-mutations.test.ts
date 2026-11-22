@@ -50,10 +50,7 @@ describe('graphql project mutations', () => {
       await client.createProject({ name: 'Shared', teamIds: [mkt.team.id, ops.team.id] })
     ).project)!;
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const memberClient = linearClient(await createApiKey(member.cookie));
 
     await memberClient.updateProject(project.id, { teamIds: [mkt.team.id] });
@@ -118,10 +115,7 @@ describe('graphql project mutations', () => {
     expect(String((await client.project(project.id)).health)).toBe('atRisk');
 
     const member = await signUpTestUser();
-    const invite = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const res = await gql(
       { cookie: member.cookie },
       `mutation { projectUpdateUpdate(id: "${update.id}", input: { body: "mine now" }) { success } }`,

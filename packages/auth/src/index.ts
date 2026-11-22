@@ -1,5 +1,5 @@
 import { db } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { betterAuth } from 'better-auth';
 import { createAuthMiddleware, APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -10,6 +10,7 @@ import * as schema from '@repo/db/schema';
 import {
   getAuthSettings,
   hasPendingInvite,
+  pendingInvite,
   getGoogleConfig,
   isGoogleUsable,
   hasConfiguredEmailProvider,
@@ -129,6 +130,14 @@ async function isUnverified(email: string): Promise<boolean> {
   return rows[0] ? !rows[0].emailVerified : false;
 }
 
+async function isSuspended(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ suspendedAt: schema.user.suspendedAt })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId));
+  return !!row?.suspendedAt;
+}
+
 export const auth = betterAuth({
   baseURL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -205,6 +214,13 @@ export const auth = betterAuth({
         defaultValue: 'member',
         input: false,
       },
+      // Set while the user is suspended (Linear's `active` = not suspended): no
+      // sign-in, no session, no API key access.
+      suspendedAt: {
+        type: 'date',
+        required: false,
+        input: false,
+      },
     },
   },
 
@@ -248,6 +264,19 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    // A suspended user gets no new session, whichever sign-in method they use.
+    session: {
+      create: {
+        before: async (session) => {
+          if (await isSuspended(session.userId)) {
+            throw new APIError('FORBIDDEN', {
+              code: 'ACCOUNT_SUSPENDED',
+              message: 'This account is suspended',
+            });
+          }
+        },
+      },
+    },
     user: {
       create: {
         // Every account creation passes here, whichever method made it, so this is
@@ -255,11 +284,32 @@ export const auth = betterAuth({
         // with a direct insert and never reach this hook.
         //
         // Assign the workspace role before the row is inserted: first user ever →
-        // owner, everyone else → member.
+        // owner; an address with a pending workspace invite → the invite's role;
+        // everyone else → member.
         before: async (user) => {
           await assertRegistrationAllowed(user.email);
           const isFirstUser = (await db.$count(schema.user)) === 0;
-          return { data: { ...user, workspaceRole: isFirstUser ? 'owner' : 'member' } };
+          const invite = isFirstUser ? null : await pendingInvite(user.email);
+          const role = isFirstUser ? 'owner' : (invite?.role ?? 'member');
+          return { data: { ...user, workspaceRole: role } };
+        },
+        // Linear accepts an invite at sign-up: the new account joins the invite's
+        // teams that still exist, and the invite is consumed.
+        after: async (user) => {
+          const invite = await pendingInvite(user.email);
+          if (!invite) return;
+          if (invite.teamIds.length) {
+            const teams = await db
+              .select({ id: schema.team.id })
+              .from(schema.team)
+              .where(inArray(schema.team.id, invite.teamIds));
+            if (teams.length)
+              await db
+                .insert(schema.teamMember)
+                .values(teams.map((t) => ({ teamId: t.id, userId: user.id })))
+                .onConflictDoNothing();
+          }
+          await db.delete(schema.workspaceInvite).where(eq(schema.workspaceInvite.id, invite.id));
         },
       },
     },
@@ -355,6 +405,16 @@ export const auth = betterAuth({
 export { APIError };
 
 export type Auth = typeof auth;
+
+// The session for a request, or null when there is none or its user is suspended.
+// Every API entry point (REST, GraphQL, MCP) resolves sessions through this, so an
+// API key of a suspended user is refused too.
+export async function getActiveSession(headers: Headers) {
+  const session = await auth.api.getSession({ headers });
+  if (!session) return null;
+  if (await isSuspended(session.user.id)) return null;
+  return session;
+}
 export type Session = Auth['$Infer']['Session'];
 
 // Instance-wide authentication settings (registration mode, mail provider, invite

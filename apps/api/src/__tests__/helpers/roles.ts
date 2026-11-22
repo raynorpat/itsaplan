@@ -15,8 +15,7 @@ export async function signUpWithRole(
 }
 
 export async function addToTeam(owner: Api, teamKey: string, who: TestUser): Promise<void> {
-  const invite = await owner.teams({ teamKey }).invites.post({ email: who.email, role: 'member' });
-  await authedApi(who.cookie).invites({ token: invite.data!.token }).accept.post();
+  await owner.teams({ teamKey: teamKey }).members.post({ userId: who.userId });
 }
 
 export async function makePrivate(owner: Api, teamKey: string): Promise<void> {

@@ -6,13 +6,19 @@ The **server-side** better-auth instance. Consumed by `apps/api`. See root `AGEN
   (`provider: "pg"`) over `@repo/db`. Email+password enabled (no email confirmation:
   `requireEmailVerification: false`, `autoSignIn: true`), plus the WebAuthn passkey
   plugin (`@better-auth/passkey`).
-- Exports `auth`, `USER_ROLES` / `UserRole`, plus `Auth` / `Session` types.
+- Exports `auth`, `getActiveSession`, `WORKSPACE_ROLES` / `WorkspaceRole`, plus `Auth` / `Session` types.
 
-## User role
+## Workspace role and suspension
 
-The user table has a `role` column (`"god"` | `"user"`), declared as a better-auth
-`additionalField` with `input: false` (not client-settable). A `databaseHooks.user.create.before`
-hook sets it: the first user to register gets `"god"`, everyone after gets `"user"`.
+The user table has `workspace_role` (`owner` | `admin` | `member` | `guest`, Linear's
+roles) and `suspended_at`, both better-auth `additionalFields` with `input: false`
+(not client-settable). `databaseHooks.user.create.before` sets the role: the first
+user to register is the owner; an address with a pending workspace invite gets the
+invite's role; everyone else is a member. `create.after` joins the invite's teams and
+deletes the invite. `databaseHooks.session.create.before` refuses a session to a
+suspended user, whatever the sign-in method. `getActiveSession(headers)` wraps
+`getSession` and returns null for a suspended user, so their API keys stop working;
+every API entry point resolves sessions through it.
 
 ## Instance settings (`src/instance.ts`)
 
@@ -24,9 +30,9 @@ through this module — never inline a query on `app_setting` / `app_secret` els
 - `app_secret` key `auth.email` → the mail provider, encrypted with `@repo/crypto`,
   with a `redacted` mirror for the settings UI. Secrets never leave the server.
 
-"Invite only" means the address has a pending `team_invite` (`hasPendingInvite`).
-Invites are created and revoked inside a team, so there is no instance-level invite
-table and god mode has no invite section — do not add one.
+"Invite only" means the address has a pending, unexpired `workspace_invite`
+(`pendingInvite` / `hasPendingInvite`). Invites are managed through the API's
+`invites/` routes, not god mode.
 
 `hooks.before` gates `/sign-up/email` (closed → 403, invite → no pending invite for
 that address → 403) and holds back `/sign-in/email` for an unconfirmed address while

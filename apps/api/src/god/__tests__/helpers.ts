@@ -20,14 +20,12 @@ export async function setup(): Promise<{ god: Actor }> {
   return { god: await addUser({ name: 'Root', email: 'root@example.com' }) };
 }
 
-// Adds `invitee` to the given team on the given role, through the real invite
-// and accept flow rather than a direct membership insert.
+// Adds `invitee` to the given team as a member or team owner, through the API.
 export async function joinTeam(
   owner: Actor,
   invitee: Actor,
   teamKey: string,
   role: 'owner' | 'member',
 ): Promise<void> {
-  const invite = await owner.api.teams({ teamKey }).invites.post({ email: invitee.email, role });
-  await invitee.api.invites({ token: invite.data!.token }).accept.post();
+  await owner.api.teams({ teamKey }).members.post({ userId: invitee.id, owner: role === 'owner' });
 }

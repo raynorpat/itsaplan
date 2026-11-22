@@ -131,10 +131,7 @@ describe('removed features', () => {
   it('keeps a comment whose author was deleted', async () => {
     const { cookie, issueId, api } = await setup();
     const member = await signUpTestUser({ name: 'Gone' });
-    const invite = await api
-      .teams({ teamKey: 'MKT' })
-      .invites.post({ email: member.email, role: 'member' });
-    await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+    await api.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
     const created = await authedApi(member.cookie)
       .issues({ issueId })
       .comments.post({ body: 'Hello' } as never);

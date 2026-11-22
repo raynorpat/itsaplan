@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { auth } from '@repo/auth';
+import { auth, getActiveSession } from '@repo/auth';
 import { HttpError } from './lib';
 
 // GET routes that need no session. The raw attachment and avatar bytes routes
@@ -26,7 +26,7 @@ export type SessionUser = SessionResult['user'];
 export const authContext = new Elysia({ name: 'auth-context' }).resolve(
   { as: 'scoped' },
   async ({ request, path }): Promise<{ user: SessionUser | null }> => {
-    const session = await auth.api.getSession({ headers: request.headers });
+    const session = await getActiveSession(request.headers);
     if (session) return { user: session.user };
     // The public raw-attachment route has no session and needs none.
     if (request.method === 'GET' && PUBLIC_GET.test(path)) return { user: null };

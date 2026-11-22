@@ -25,11 +25,8 @@ async function setup() {
   await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
   const stateId = (await owner.api.teams({ teamKey: 'MKT' }).get()).data!.states[0]!.id;
   const u = await signUpTestUser({ name: 'Bea' });
-  const invite = await owner.api
-    .teams({ teamKey: 'MKT' })
-    .invites.post({ email: u.email, role: 'member' });
+  await owner.api.teams({ teamKey: 'MKT' }).members.post({ userId: u.userId });
   const b: Member = { api: authedApi(u.cookie), userId: u.userId, cookie: u.cookie };
-  await b.api.invites({ token: invite.data!.token }).accept.post();
   const client = linearClient(await createApiKey(u.cookie));
   const newIssue = async (patch: Record<string, unknown> = {}) =>
     (await owner.api.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task', ...patch }))

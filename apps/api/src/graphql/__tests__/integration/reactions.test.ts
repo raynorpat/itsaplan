@@ -28,10 +28,7 @@ async function setup() {
 
 async function addMember(asOwner: Api) {
   const member = await signUpTestUser({ name: 'Member' });
-  const invite = await asOwner
-    .teams({ teamKey: 'MKT' })
-    .invites.post({ email: member.email, role: 'member' });
-  await authedApi(member.cookie).invites({ token: invite.data!.token }).accept.post();
+  await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
   return member;
 }
 

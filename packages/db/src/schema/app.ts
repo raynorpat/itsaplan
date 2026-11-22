@@ -183,42 +183,31 @@ export const teamMember = pgTable(
   ],
 );
 
-// Team invites: a shareable link (token) that grants a specific email a
-// specific role in a team once accepted: team owner or member. A member creates an
-// invite (an owner invite needs a team manager); the
-// invited person opens the link and accepts (only if their session email matches
-// invite.email) or rejects it. Accepting creates the team_member row. At most
-// one pending invite per (team, email) — enforced by the partial unique index.
-// email is stored lowercased. Revoking a pending invite removes its row.
-export const teamInvite = pgTable(
-  'team_invite',
+// Workspace invites (Linear's organization invites). An invite carries the role the
+// invited address gets and the teams it joins; both are applied when the address
+// signs up (the better-auth user-create hook), and the invite is then deleted. One
+// pending invite per address; an invite past expires_at is ignored and can be
+// replaced.
+export const workspaceInvite = pgTable(
+  'workspace_invite',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     token: uuid('token').notNull().defaultRandom().unique(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    email: text('email').notNull(),
+    email: text('email').notNull().unique(),
     role: text('role').notNull().default('member'),
-    status: text('status').notNull().default('pending'),
+    teamIds: uuid('team_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     invitedByUserId: uuid('invited_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
-    acceptedByUserId: uuid('accepted_by_user_id').references(() => user.id, {
-      onDelete: 'set null',
-    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '14 days'`),
   },
-  (t) => [
-    check('team_invite_role_check', sql`${t.role} IN ('owner', 'member')`),
-    check('team_invite_status_check', sql`${t.status} IN ('pending', 'accepted', 'rejected')`),
-    // At most one pending invite per team + email.
-    uniqueIndex('team_invite_pending_uq')
-      .on(t.teamId, t.email)
-      .where(sql`${t.status} = 'pending'`),
-    index('team_invite_team_idx').on(t.teamId),
-  ],
+  (t) => [check('workspace_invite_role_check', sql`${t.role} IN ('admin', 'member', 'guest')`)],
 );
 
 export const workflowState = pgTable(
