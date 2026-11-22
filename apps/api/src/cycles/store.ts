@@ -147,6 +147,33 @@ export async function setTeamCycleSettings(
 
 // --- Creating cycles -------------------------------------------------------------
 
+type Executor = Pick<typeof db, 'select'>;
+
+// 400 when [startsAt, endsAt) overlaps a non-archived cycle of the team other than
+// `exceptId`.
+async function assertNoOverlap(
+  executor: Executor,
+  teamId: string,
+  startsAt: Date,
+  endsAt: Date,
+  exceptId?: string,
+): Promise<void> {
+  const [overlap] = await executor
+    .select({ id: cycle.id })
+    .from(cycle)
+    .where(
+      and(
+        eq(cycle.teamId, teamId),
+        isNull(cycle.archivedAt),
+        lt(cycle.startsAt, endsAt),
+        gt(cycle.endsAt, startsAt),
+        exceptId ? sql`${cycle.id} <> ${exceptId}` : undefined,
+      ),
+    )
+    .limit(1);
+  if (overlap) throw new HttpError(400, 'The cycle overlaps another cycle of the team');
+}
+
 // Inserts a cycle with the team's next number (under a row lock on the team) and
 // sends the Cycle create webhook. 400 when it overlaps a non-archived cycle.
 async function insertCycle(
@@ -168,19 +195,7 @@ async function insertCycle(
       .where(eq(team.id, teamId))
       .for('update');
     if (!locked) throw new HttpError(404, 'Team not found');
-    const [overlap] = await tx
-      .select({ id: cycle.id })
-      .from(cycle)
-      .where(
-        and(
-          eq(cycle.teamId, teamId),
-          isNull(cycle.archivedAt),
-          lt(cycle.startsAt, input.endsAt),
-          gt(cycle.endsAt, input.startsAt),
-        ),
-      )
-      .limit(1);
-    if (overlap) throw new HttpError(400, 'The cycle overlaps another cycle of the team');
+    await assertNoOverlap(tx, teamId, input.startsAt, input.endsAt);
     await tx
       .update(team)
       .set({ nextCycleNumber: sql`next_cycle_number + 1` })
@@ -521,20 +536,7 @@ export async function updateCycle(
   const endsAt = patch.endsAt ?? new Date(before.endsAt);
   if (patch.startsAt || patch.endsAt) {
     if (!(endsAt > startsAt)) throw new HttpError(400, 'endsAt must be after startsAt');
-    const [overlap] = await db
-      .select({ id: cycle.id })
-      .from(cycle)
-      .where(
-        and(
-          eq(cycle.teamId, before.teamId),
-          isNull(cycle.archivedAt),
-          lt(cycle.startsAt, endsAt),
-          gt(cycle.endsAt, startsAt),
-          sql`${cycle.id} <> ${id}`,
-        ),
-      )
-      .limit(1);
-    if (overlap) throw new HttpError(400, 'The cycle overlaps another cycle of the team');
+    await assertNoOverlap(db, before.teamId, startsAt, endsAt, id);
   }
   const set: Partial<typeof cycle.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
