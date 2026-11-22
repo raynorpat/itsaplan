@@ -102,6 +102,15 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `upsertLinkAttachment` updates the existing one. Every write goes through the
   store, which sends the `Attachment` webhooks; REST lists and quotas count uploads
   only. Access follows the issue's team.
+- **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
+  one user (content type, size, object key) and returns a signed URL; the bytes are a
+  plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, by the same user,
+  once, within 10 minutes. A request is accepted when either use allows it; the use
+  checks its own limits: `attachmentCreate` with the asset URL (`/uploads/<id>/raw`)
+  turns it into an upload attachment after the attachment size, the allowed types and
+  the team quota; `userUpdate({ avatarUrl })` takes only the user's own raster image
+  within the avatar limit. Uploads nothing used within a day are deleted
+  (`/internal/uploads/cleanup`, called by the worker).
 - **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
   Linear's issue subscribers. Creating an issue subscribes its creator and assignee;
   a new assignee, a comment's author and the members a comment mentions are
@@ -173,9 +182,10 @@ Enforced declaratively through macros, never imperative calls in handlers.
 
 ## Security
 
-- **`GET /attachments/:publicId/raw` is public and unauthenticated** (used in
-  `<img>`/`<video>`). Preserve its defenses if you touch it: `X-Content-Type-Options:
-nosniff`, forced download outside a strict media allowlist, locked-down CSP.
+- **`GET /attachments/:publicId/raw`, `/avatars/:id/raw` and `/uploads/:id/raw` are
+  public and unauthenticated** (used in `<img>`/`<video>`). They answer through
+  `shared/raw-object.ts`; preserve its defenses: `X-Content-Type-Options: nosniff`,
+  forced download outside a strict media allowlist, locked-down CSP.
 
 ## Tests
 
@@ -285,7 +295,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, cycles, initiatives (project links, sub-initiatives,
+  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar), cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

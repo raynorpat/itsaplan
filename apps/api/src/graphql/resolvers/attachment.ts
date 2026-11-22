@@ -10,7 +10,12 @@ import {
   upsertLinkAttachment,
   type AttachmentRow,
   type LinkInput,
+  assertUploadAllowed,
+  createAttachment,
 } from '../../attachments/store';
+import { getIssueTeamId } from '../../issues/store';
+import { getStorageSettings } from '../../settings/storage';
+import { ownStoredUpload, setUploadUsed, uploadIdFromAssetUrl } from '../../uploads/store';
 import { assertParentAccess, createComment } from '../../comments/store';
 import { assertTeamAccess, type AuthUser, canSeeTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
@@ -121,6 +126,31 @@ const payload = (row: AttachmentRow) => ({
 
 type Input = Record<string, unknown>;
 
+// Turns the viewer's stored upload into a file attachment on the issue, after the
+// attachment limits, the workspace's allowed types and the team quota.
+async function attachUpload(
+  issueId: string,
+  url: string,
+  title: unknown,
+  ctx: GraphQLContext,
+): Promise<AttachmentRow> {
+  const upload = await ownStoredUpload(url, ctx.user.id);
+  if (!upload) throw gqlError('INVALID_INPUT', 'input.url must be one of your finished uploads');
+  const teamId = await getIssueTeamId(issueId);
+  await assertUploadAllowed(await getStorageSettings(), teamId!, upload.size, upload.contentType);
+  const row = await createAttachment({
+    issueId,
+    s3Key: upload.objectKey,
+    filename: upload.filename,
+    contentType: upload.contentType,
+    sizeBytes: upload.size,
+    creatorUserId: ctx.user.id,
+    title: title == null ? undefined : String(title),
+  });
+  await setUploadUsed(upload.id, true);
+  return row;
+}
+
 // attachmentCreate and attachmentLinkURL: check access (and comment access for
 // commentBody) before writing, then upsert by issue and URL.
 async function createLink(input: Input, ctx: GraphQLContext, commentBody?: unknown) {
@@ -129,6 +159,17 @@ async function createLink(input: Input, ctx: GraphQLContext, commentBody?: unkno
   const issueId = (await findIssue(String(input.issueId), ctx.user.id)).id;
   await assertIssueAccess(issueId, ctx.user, 'create');
   if (commentBody) await assertParentAccess({ issueId }, ctx.user);
+  // An asset URL from fileUpload becomes an uploaded file on the issue.
+  if (uploadIdFromAssetUrl(String(input.url))) {
+    const row = await attachUpload(issueId, String(input.url), input.title, ctx);
+    if (commentBody)
+      await createComment({
+        parent: { issueId },
+        body: String(commentBody),
+        actorUserId: ctx.user.id,
+      });
+    return payload(row);
+  }
   const { row } = await upsertLinkAttachment(
     {
       ...(input as unknown as LinkInput),

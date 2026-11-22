@@ -1091,6 +1091,35 @@ export const webhookDelivery = pgTable(
   ],
 );
 
+// Linear's fileUpload: a pending upload of one file by one user. `token` is the
+// secret in the signed upload URL (single use: `completed_at` is set when the bytes
+// are stored, and a stored upload refuses another PUT); the content type and size are
+// bound at request time. `used_at` is set when an attachment or an avatar takes the
+// upload; the worker deletes uploads nothing used within 24 hours.
+export const fileUpload = pgTable(
+  'file_upload',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    token: uuid('token').notNull().defaultRandom().unique(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    contentType: text('content_type').notNull(),
+    filename: text('filename').notNull(),
+    size: integer('size').notNull(),
+    objectKey: text('object_key').notNull(),
+    metaData: jsonb('meta_data'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('file_upload_user_idx').on(t.userId),
+    index('file_upload_created_idx').on(t.createdAt),
+  ],
+);
+
 // Users subscribed to an issue (Linear's issue subscribers). Subscribers receive the
 // issue's comment and status-change notifications. Rows are added automatically
 // (creator, assignee, commenter, mentioned member) and by issueSubscribe; only

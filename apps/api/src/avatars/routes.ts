@@ -8,17 +8,13 @@ import { requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { putObject, getObject, deleteObject } from '../shared/s3';
 import { ErrorResponse } from '../shared/responses';
-import { getStorageSettings, MB } from '../settings/storage';
+import { AVATAR_IMAGE_TYPES, getStorageSettings, MB } from '../settings/storage';
 
 // Avatar images for the signed-in user. The bytes live in the S3-compatible
 // object store (../shared/s3.ts) under `avatars/<uuid>`; the user's `image`
 // column (managed by better-auth) holds the relative serve URL. Only image
 // types are accepted, so the public raw route can render them inline safely.
 // The size limit comes from the environment (see ../settings/storage.ts).
-
-// Raster image types only. SVG is excluded on purpose: it can carry script and
-// the raw route is public and same-origin, so an inline SVG would be stored XSS.
-const ALLOWED_TYPES = /^image\/(png|jpe?g|gif|webp|avif)$/i;
 
 // The relative URL stored in user.image for one of our avatars. The frontend
 // prefixes it with the API origin when rendering.
@@ -65,7 +61,7 @@ export const avatarRoutes = new Elysia({ name: 'avatars', detail: { tags: ['Avat
         throw new HttpError(413, `Image exceeds the ${maxAvatarMb} MB limit`);
       }
       const contentType = file.type || '';
-      if (!ALLOWED_TYPES.test(contentType)) {
+      if (!AVATAR_IMAGE_TYPES.test(contentType)) {
         throw new HttpError(400, 'Avatar must be a PNG, JPEG, GIF, WebP, or AVIF image');
       }
 

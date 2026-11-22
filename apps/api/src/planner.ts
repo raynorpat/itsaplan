@@ -12,6 +12,7 @@ import { projectRoutes } from './projects/routes';
 import { projectLabelRoutes } from './project-labels/routes';
 import { attachmentRoutes } from './attachments/routes';
 import { avatarRoutes } from './avatars/routes';
+import { uploadRoutes } from './uploads/routes';
 import { viewRoutes } from './views/routes';
 import { webhookRoutes } from './webhooks/routes';
 import { settingsRoutes } from './settings/routes';
@@ -71,6 +72,7 @@ export const planner = new Elysia({ name: 'planner' })
   .use(projectLabelRoutes)
   .use(attachmentRoutes)
   .use(avatarRoutes)
+  .use(uploadRoutes)
   .use(viewRoutes)
   .use(webhookRoutes)
   .use(notificationRoutes)

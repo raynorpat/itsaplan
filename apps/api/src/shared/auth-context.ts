@@ -7,7 +7,8 @@ import { HttpError } from './lib';
 // (`GET /invites/:token`) renders the accept screen for a logged-out invitee, who
 // signs up from there; only accept/reject (POST) require a session. All ids are
 // unguessable.
-const PUBLIC_GET = /^\/attachments\/[^/]+\/raw$|^\/avatars\/[^/]+\/raw$|^\/invites\/[^/]+$/;
+const PUBLIC_GET =
+  /^\/attachments\/[^/]+\/raw$|^\/avatars\/[^/]+\/raw$|^\/uploads\/[^/]+\/raw$|^\/invites\/[^/]+$/;
 
 type SessionResult = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 

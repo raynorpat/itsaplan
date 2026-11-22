@@ -32,6 +32,8 @@ const CODE_BY_STATUS: Record<number, GqlErrorCode> = {
   403: 'FORBIDDEN',
   404: 'ENTITY_NOT_FOUND',
   409: 'CONFLICT',
+  // A file or quota limit: the input cannot be accepted.
+  413: 'INVALID_INPUT',
 };
 
 // Turns a store HttpError into the matching GraphQL error. Anything else is

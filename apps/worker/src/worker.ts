@@ -2,7 +2,7 @@ import { workerConfig } from './config';
 import { deliver, nextRetryDelayS, renderBody } from './delivery';
 import { resolvesToPrivate } from './public-host';
 import { processNotificationDeliveries } from './notification-delivery';
-import { notifyIssuesArchived, runCycleUpkeep } from './internal-api';
+import { notifyIssuesArchived, runCycleUpkeep, runUploadCleanup } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
 import {
   type ClaimedDelivery,
@@ -37,6 +37,13 @@ async function tick(): Promise<void> {
     ticksSinceCleanup = 0;
     const removed = await cleanupOldDeliveries();
     if (removed > 0) console.log(`[worker] cleaned up ${removed} old deliveries`);
+    // An unreachable api must not read as a failed tick: the next run catches up.
+    try {
+      const uploads = await runUploadCleanup();
+      if (uploads > 0) console.log(`[worker] deleted ${uploads} unused uploads`);
+    } catch (error) {
+      console.error('[worker] upload cleanup failed:', error);
+    }
   }
   if (++ticksSinceAutoArchive >= cfg.autoArchiveEveryTicks) {
     ticksSinceAutoArchive = 0;

@@ -162,6 +162,13 @@
       "when": 1795384653343,
       "tag": "0022_daffy_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795385277683,
+      "tag": "0023_vengeful_tarot",
+      "breakpoints": true
     }
   ]
 }

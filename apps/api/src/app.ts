@@ -15,6 +15,7 @@ import { mountMcp } from './mcp/mount';
 import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
+import { internalUploadRoutes } from './uploads/routes';
 
 // The assembled Elysia app, without `.listen()`. `index.ts` imports this and
 // binds the port; tests import it and pass it to Eden Treaty to drive routes in
@@ -64,6 +65,7 @@ export const app = new Elysia()
           { name: 'Project labels', description: 'Workspace-level project labels' },
           { name: 'Attachments', description: 'Issue attachments and raw bytes' },
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
+          { name: 'Uploads', description: 'Signed file upload URLs and uploaded file bytes' },
           { name: 'Views', description: 'Saved work items views' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
           { name: 'Notifications', description: "The session user's inbox notifications" },
@@ -105,6 +107,7 @@ export const app = new Elysia()
   .use(internalNotificationRoutes)
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
+  .use(internalUploadRoutes)
   // Planner API: teams, issues, and their dependent entities.
   .use(planner);
 

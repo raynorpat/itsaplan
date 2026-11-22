@@ -9,6 +9,11 @@ import { getOrganization } from '../organization/store';
 
 export const MB = 1024 * 1024;
 
+// Raster image types an avatar may have. SVG is excluded on purpose: it can carry
+// script and the raw routes are public and same-origin, so an inline SVG would be
+// stored XSS.
+export const AVATAR_IMAGE_TYPES = /^image\/(png|jpe?g|gif|webp|avif)$/i;
+
 export interface StorageSettings {
   // Upper bound on a single attachment. The multipart body is buffered in memory,
   // so this also bounds per-upload memory.

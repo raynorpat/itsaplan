@@ -40,3 +40,12 @@ export async function runCycleUpkeep(): Promise<void> {
   const response = await postInternal('/internal/cycles/tick', {}, 120_000);
   if (!response.ok) throw new Error(`Cycle API returned ${response.status}`);
 }
+
+// Deletes uploads (Linear's fileUpload) that no attachment or avatar used within a
+// day, in the api, which holds the object-store credentials.
+export async function runUploadCleanup(): Promise<number> {
+  const response = await postInternal('/internal/uploads/cleanup', {}, 60_000);
+  if (!response.ok) throw new Error(`Upload cleanup API returned ${response.status}`);
+  const body = (await response.json()) as { removed?: number };
+  return body.removed ?? 0;
+}

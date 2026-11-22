@@ -3,6 +3,7 @@ import { attachment, db, issue } from '@repo/db';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { deleteObject } from '../shared/s3';
 import { HttpError, iso, num } from '../shared/lib';
+import { MB, mimeAllowed, type StorageSettings } from '../settings/storage';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
 import { attachmentData, issueData, type WebhookData } from '../webhooks/data';
 
@@ -133,6 +134,8 @@ export async function createAttachment(input: {
   contentType: string;
   sizeBytes: number;
   creatorUserId?: string | null;
+  // Defaults to the filename.
+  title?: string;
 }): Promise<AttachmentRow> {
   const publicId = randomUUID();
   const [row] = await db
@@ -140,7 +143,7 @@ export async function createAttachment(input: {
     .values({
       issueId: input.issueId,
       url: `/attachments/${publicId}/raw`,
-      title: input.filename,
+      title: input.title?.trim() || input.filename,
       sourceType: 'upload',
       creatorUserId: input.creatorUserId ?? null,
       publicId,
@@ -376,5 +379,30 @@ export async function removeAttachmentEmbeds(issueId: string, publicId: string):
         data,
         before: beforeData,
       });
+  }
+}
+
+// The upload limits (see ../settings/storage.ts) are read per
+// request, so a change to the allowed types takes effect at once.
+export async function assertUploadAllowed(
+  limits: StorageSettings,
+  teamId: string,
+  size: number,
+  contentType: string,
+): Promise<void> {
+  if (size > limits.maxAttachmentMb * MB) {
+    throw new HttpError(413, `File exceeds the ${limits.maxAttachmentMb} MB limit`);
+  }
+  if (!mimeAllowed(contentType, limits.attachmentMimeTypes)) {
+    throw new HttpError(400, `Files of type "${contentType}" are not accepted on this instance`);
+  }
+  if (limits.teamQuotaMb > 0) {
+    const used = await getTeamAttachmentBytes(teamId);
+    if (used + size > limits.teamQuotaMb * MB) {
+      throw new HttpError(
+        413,
+        `The team has used its ${limits.teamQuotaMb} MB storage quota. Delete attachments to free space.`,
+      );
+    }
   }
 }

@@ -9,13 +9,14 @@ import { assertPublicHttpUrl } from '../shared/net';
 import { getIssueTeamId } from '../issues/store';
 import { mcpTool } from '../mcp/generate';
 import { ErrorResponse } from '../shared/responses';
-import { getStorageSettings, mimeAllowed, MB, type StorageSettings } from '../settings/storage';
+import { rawObjectResponse } from '../shared/raw-object';
+import { getStorageSettings, MB } from '../settings/storage';
 import {
+  assertUploadAllowed,
   createAttachment,
   listAttachments,
   getAttachmentByPublicId,
   deleteAttachment,
-  getTeamAttachmentBytes,
   type AttachmentRow,
 } from './store';
 
@@ -28,31 +29,6 @@ const AttachmentSchema = t.Object({
   createdAt: t.String(),
   url: t.String(),
 });
-
-// The upload limits (see ../settings/storage.ts) are read per
-// request, so a change to the allowed types takes effect at once.
-async function assertUploadAllowed(
-  limits: StorageSettings,
-  teamId: string,
-  size: number,
-  contentType: string,
-): Promise<void> {
-  if (size > limits.maxAttachmentMb * MB) {
-    throw new HttpError(413, `File exceeds the ${limits.maxAttachmentMb} MB limit`);
-  }
-  if (!mimeAllowed(contentType, limits.attachmentMimeTypes)) {
-    throw new HttpError(400, `Files of type "${contentType}" are not accepted on this instance`);
-  }
-  if (limits.teamQuotaMb > 0) {
-    const used = await getTeamAttachmentBytes(teamId);
-    if (used + size > limits.teamQuotaMb * MB) {
-      throw new HttpError(
-        413,
-        `The team has used its ${limits.teamQuotaMb} MB storage quota. Delete attachments to free space.`,
-      );
-    }
-  }
-}
 
 // Object keys are grouped by team so a team's bytes sit under one prefix in
 // the bucket, which is what makes per-team listing, cleanup, and policies
@@ -310,24 +286,7 @@ export const attachmentRoutes = new Elysia({
         throw new HttpError(404, err instanceof Error ? err.message : 'Object not found');
       }
 
-      // The bytes and their content type are attacker-controlled, and this route
-      // is public and same-origin as the planner UI, so serving an HTML or SVG
-      // file inline would be stored XSS. Defenses: X-Content-Type-Options:nosniff
-      // stops MIME sniffing, and inline rendering is allowed only for a strict
-      // media allowlist (raster images, video, audio). Everything else — html,
-      // svg, xml, scripts — is forced to download and cannot execute.
-      const ct = row.contentType! || obj.contentType;
-      const inlineSafe = /^(image\/(png|jpe?g|gif|webp|avif|bmp)|video\/|audio\/)/i.test(ct);
-      const inline = inlineSafe && query.download == null;
-      const headers: Record<string, string> = {
-        'Content-Type': ct,
-        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.filename!)}`,
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      };
-      if (obj.contentLength != null) headers['Content-Length'] = String(obj.contentLength);
-      if (!inline) headers['Content-Security-Policy'] = "default-src 'none'; sandbox";
-      return new Response(obj.body, { headers });
+      return rawObjectResponse(obj, row.contentType!, row.filename!, query.download != null);
     },
     {
       query: t.Object({ download: t.Optional(t.String()) }),
