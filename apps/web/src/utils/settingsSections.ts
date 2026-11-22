@@ -1,6 +1,5 @@
 import {
   Archive,
-  Bell,
   Bot,
   BookText,
   Clock3,
@@ -45,15 +44,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'General',
     description: "The team's name, description, and the sections it shows.",
     icon: Info,
-    resource: 'danger_zone',
-    group: 'general',
-  },
-  {
-    slug: 'notifications',
-    label: 'Notification providers',
-    description:
-      'The email (SMTP or Resend) and Telegram bot credentials this team delivers notifications through.',
-    icon: Bell,
     resource: 'danger_zone',
     group: 'general',
   },

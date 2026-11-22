@@ -25,7 +25,6 @@ import {
   listInstanceUsers,
   verifyInstanceUserEmail,
 } from './store';
-import { getInstanceBotSettings, setInstanceBotSettings } from '../telegram/store';
 import { getStorageSettings, setStorageSettings, StorageSettingsSchema } from '../settings/storage';
 import { getHotkeySettings, setHotkeySettings, HotkeyCombosSchema } from '../settings/hotkeys';
 import { getUpdateStatus, UpdateStatusSchema } from '../settings/updates';
@@ -71,7 +70,6 @@ const EmailSettingsResponse = t.Object({
   from: t.String(),
   // Whether teams may deliver their notifications through this provider instead
   // of configuring one of their own.
-  allowTeams: t.Boolean(),
 });
 
 const EmailSettingsBody = t.Object({
@@ -88,7 +86,6 @@ const EmailSettingsBody = t.Object({
   ),
   resend: t.Optional(t.Object({ enabled: t.Boolean(), apiKey: t.Optional(t.String()) })),
   from: t.Optional(t.String()),
-  allowTeams: t.Optional(t.Boolean()),
 });
 
 const GoogleSettingsResponse = t.Object({
@@ -111,19 +108,6 @@ const StorageSettingsBody = t.Object({
   maxAvatarMb: t.Optional(t.Integer({ minimum: 1, maximum: 1024 })),
   attachmentMimeTypes: t.Optional(t.Array(t.String({ minLength: 1 }))),
   teamQuotaMb: t.Optional(t.Integer({ minimum: 0 })),
-});
-
-const TelegramSettingsResponse = t.Object({
-  enabled: t.Boolean(),
-  // Resolved from Telegram when the token is saved. Shown so the administrator can
-  // confirm which bot the token belongs to, and used to build the link deep link.
-  botUsername: t.String(),
-  hasBotToken: t.Boolean(),
-});
-
-const TelegramSettingsBody = t.Object({
-  enabled: t.Optional(t.Boolean()),
-  botToken: t.Optional(t.String()),
 });
 
 // One account in the instance user directory.
@@ -386,48 +370,6 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
         'Read the published releases again, ignoring the cache. Returns the update status either way: a failed check answers from the previous result.',
     },
   })
-
-  .get('/god/telegram-settings', () => getInstanceBotSettings(), {
-    response: { 200: TelegramSettingsResponse, 401: ErrorResponse, 403: ErrorResponse },
-    detail: {
-      summary: 'Get Telegram bot settings',
-      description: 'Get the instance Telegram bot (the token redacted).',
-    },
-  })
-
-  .put(
-    '/god/telegram-settings',
-    async ({ body }) => {
-      const current = await getInstanceBotSettings();
-      const hasBotToken = (body.botToken?.length ?? 0) > 0 || current.hasBotToken;
-      // Without a token the bot can neither link accounts nor deliver, so turning it
-      // on would only offer a button that leads nowhere.
-      if (body.enabled && !hasBotToken) {
-        throw new HttpError(400, 'Add the bot token first');
-      }
-      try {
-        return await setInstanceBotSettings(body);
-      } catch (err) {
-        // A token Telegram rejects is the administrator's mistake, not a server
-        // failure: report it as a bad request with what Telegram said.
-        throw new HttpError(400, err instanceof Error ? err.message : 'Invalid bot token');
-      }
-    },
-    {
-      body: TelegramSettingsBody,
-      response: {
-        200: TelegramSettingsResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-      },
-      detail: {
-        summary: 'Update Telegram bot settings',
-        description:
-          'Update the instance Telegram bot token and whether the bot is in use. The token is verified with Telegram before it is stored.',
-      },
-    },
-  )
 
   .get(
     '/god/users',

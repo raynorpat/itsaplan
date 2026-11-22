@@ -14,7 +14,6 @@ updates:
       - /apps/api
       - /apps/web
       - /apps/worker
-      - /apps/bot
     schedule:
       interval: weekly
     labels: ['dependencies', 'docker']

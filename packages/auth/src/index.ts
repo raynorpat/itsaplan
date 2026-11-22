@@ -367,7 +367,7 @@ export {
   getEmailSettings,
   setEmailSettings,
   getEmailConfig,
-  getTeamEmailConfig,
+  getNotificationEmailConfig,
   hasConfiguredEmailProvider,
   getGoogleSettings,
   setGoogleSettings,

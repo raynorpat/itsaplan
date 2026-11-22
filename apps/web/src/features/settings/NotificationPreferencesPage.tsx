@@ -11,8 +11,7 @@ import { useNotificationPreferencesForm } from './hooks/useNotificationPreferenc
 
 // The member's own notification preferences (/team/:teamKey/notifications).
 // A main-nav Configuration destination, open to any member: choose which issue events
-// you get and where (email, Telegram), plus your Telegram chat id. The delivery
-// providers are configured separately by admins (settings -> Notification providers).
+// you get by email. Email is sent through the instance email provider.
 export default function NotificationPreferencesPage() {
   const { team } = useShell();
   if (!team) return null;
@@ -23,7 +22,7 @@ function Chrome({ actions, children }: { actions?: ReactNode; children: ReactNod
   return (
     <SectionPageView
       title="Notifications"
-      description="Choose which issue events you get and where. Email goes to your account address; Telegram to the chat id you set below."
+      description="Choose which issue events you get by email. Email goes to your account address."
       wide
       widthClassName="min-w-[600px] max-w-[60%]"
       actions={actions}

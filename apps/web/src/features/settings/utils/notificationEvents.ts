@@ -1,7 +1,7 @@
 import type { NotificationEventToggles } from '@/lib/api';
 
 // The issue events a channel can send, matching the inbox notification types, with a
-// display label. Shared by the email and telegram event sections.
+// display label.
 export const NOTIFICATION_EVENTS: { key: keyof NotificationEventToggles; label: string }[] = [
   { key: 'assigned', label: 'Assigned to an issue' },
   { key: 'mentioned', label: 'Mentioned in a comment' },

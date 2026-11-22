@@ -27,8 +27,6 @@ export interface GodEmailForm {
   setTimeout: (v: string) => void;
   apiKey: string;
   setApiKey: (v: string) => void;
-  allowTeams: boolean;
-  setAllowTeams: (v: boolean) => void;
   settings: InstanceEmailSettings;
   dirty: boolean;
   saving: boolean;
@@ -60,7 +58,6 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
   const [password, setPassword] = useState('');
   const [timeout, setTimeout] = useState(initialTimeout);
   const [apiKey, setApiKey] = useState('');
-  const [allowTeams, setAllowTeams] = useState(settings.allowTeams);
 
   const smtpDirty =
     host !== settings.smtp.host ||
@@ -73,13 +70,11 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
     provider !== initialProvider ||
     enabled !== initialEnabled ||
     from !== settings.from ||
-    allowTeams !== settings.allowTeams ||
     (provider === 'smtp' ? smtpDirty : apiKey.length > 0);
 
   async function save() {
     await update.mutateAsync({
       from: from.trim(),
-      allowTeams,
       smtp: {
         enabled: provider === 'smtp' && enabled,
         host: host.trim(),
@@ -119,8 +114,6 @@ export function useGodEmailForm(settings: InstanceEmailSettings): GodEmailForm {
     setTimeout,
     apiKey,
     setApiKey,
-    allowTeams,
-    setAllowTeams,
     settings,
     dirty,
     saving: update.isPending,

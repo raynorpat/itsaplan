@@ -10,7 +10,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   api,
   type AutoArchiveSettings,
-  type NotificationSettingsPatch,
   type NotificationPreferences,
   type TeamFeatures,
 } from '@/lib/api';
@@ -132,23 +131,6 @@ export function useUpdateTeamFeatures(teamKey: string) {
     mutationFn: (input: Partial<TeamFeatures>) =>
       api.updateTeamSettings(teamKey, { features: input }),
     onSuccess: () => invalidate(),
-  });
-}
-
-// Notifications section: the team's notification delivery settings. A write
-// returns the redacted result, which replaces the cache directly.
-export function useNotificationSettingsQuery(teamKey: string) {
-  return useQuery({
-    queryKey: qk.notificationSettings(teamKey),
-    queryFn: () => api.getNotificationSettings(teamKey),
-  });
-}
-
-export function useUpdateNotificationSettings(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: NotificationSettingsPatch) => api.setNotificationSettings(teamKey, input),
-    onSuccess: (data) => qc.setQueryData(qk.notificationSettings(teamKey), data),
   });
 }
 

@@ -6,7 +6,6 @@ import {
   type InstanceAuthSettingsPatch,
   type InstanceEmailSettingsPatch,
   type InstanceGoogleSettingsPatch,
-  type InstanceTelegramSettingsPatch,
   type InstanceUserKind,
   type StorageSettingsPatch,
 } from '@/lib/api';
@@ -62,23 +61,6 @@ export function useUpdateInstanceGoogleSettings() {
   return useMutation({
     mutationFn: (patch: InstanceGoogleSettingsPatch) => api.updateInstanceGoogleSettings(patch),
     onSuccess: (data) => qc.setQueryData(qk.instanceGoogleSettings, data),
-  });
-}
-
-// The instance Telegram bot: the bot users link their accounts through, and the
-// default sender for Telegram notifications.
-export function useInstanceTelegramSettingsQuery() {
-  return useQuery({
-    queryKey: qk.instanceTelegramSettings,
-    queryFn: () => api.getInstanceTelegramSettings(),
-  });
-}
-
-export function useUpdateInstanceTelegramSettings() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (patch: InstanceTelegramSettingsPatch) => api.updateInstanceTelegramSettings(patch),
-    onSuccess: (data) => qc.setQueryData(qk.instanceTelegramSettings, data),
   });
 }
 

@@ -1,11 +1,10 @@
 import { cn } from '@/lib/utils';
 
-// 'system' is the instance provider a team can send through; it carries no
-// credentials of its own, so it is only offered where that choice exists.
-export type EmailProvider = 'system' | 'smtp' | 'resend';
+export type EmailProvider = 'smtp' | 'resend';
+
+const OPTIONS: EmailProvider[] = ['smtp', 'resend'];
 
 const LABELS: Record<EmailProvider, string> = {
-  system: 'System',
   smtp: 'SMTP',
   resend: 'Resend',
 };
@@ -16,17 +15,15 @@ const LABELS: Record<EmailProvider, string> = {
 export default function ProviderToggle({
   value,
   onChange,
-  options = ['smtp', 'resend'],
   disabled,
 }: {
   value: EmailProvider;
   onChange: (value: EmailProvider) => void;
-  options?: EmailProvider[];
   disabled?: boolean;
 }) {
   return (
     <div className="flex w-fit items-center gap-1 rounded-lg bg-muted p-[3px]" role="tablist">
-      {options.map((option) => {
+      {OPTIONS.map((option) => {
         const active = value === option;
         return (
           <button

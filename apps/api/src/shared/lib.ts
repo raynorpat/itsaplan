@@ -24,18 +24,6 @@ export const iso = (value: Date): string => value.toISOString();
 // numeric columns come back as strings; coerce to a JS number.
 export const num = (value: unknown): number => (value == null ? 0 : Number(value));
 
-// Escapes the five characters that are significant in HTML/XML text, so a value
-// (an issue title, a user name) is safe to interpolate into an HTML email body or a
-// Telegram HTML message.
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // The Postgres SQLSTATE of a driver error. Drizzle wraps the driver error in a
 // DrizzleQueryError with the original as `.cause`, so the code may be one level
 // down; unwrap the cause chain to find it.

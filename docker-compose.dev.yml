@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────
 # Local development: brings up the backing services the app needs — Postgres and
 # RustFS — with host-published ports, so one command starts them together instead
-# of running each by hand. The api, web, worker, and Telegram bot apps run on the
+# of running each by hand. The api, web, and worker apps run on the
 # host via `bun run dev` (watch/hot-reload, turbo) and reach these over localhost.
 #
 #   docker compose -f docker-compose.dev.yml up -d      # starts postgres + rustfs (+ bucket init)

@@ -577,44 +577,6 @@ export interface NotificationEventToggles {
   state_changed: boolean;
 }
 
-// The provider credentials as read from the API: secrets are never returned, only a
-// `hasX` flag telling whether a value is stored.
-export interface NotificationSettings {
-  // Deliver email through the instance provider instead of the team's own. Its
-  // credentials belong to the instance, so the team only turns it on.
-  system: { enabled: boolean };
-  // Whether the instance provider exists and is shared with teams right now.
-  systemAvailable: boolean;
-  smtp: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: NotificationEncryption;
-    username: string;
-    hasPassword: boolean;
-    timeout: number | null;
-  };
-  resend: { enabled: boolean; hasApiKey: boolean };
-  telegram: { enabled: boolean; hasBotToken: boolean };
-}
-
-// A partial write. Each section is optional so a provider card saves on its own.
-// A secret field left out or empty keeps its stored value.
-export interface NotificationSettingsPatch {
-  system?: { enabled: boolean };
-  smtp?: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: NotificationEncryption;
-    username: string;
-    password?: string;
-    timeout: number | null;
-  };
-  resend?: { enabled: boolean; apiKey?: string };
-  telegram?: { enabled: boolean; botToken?: string };
-}
-
 // ── Storage limits ────────────────────────────────────────────────────────────
 
 // The instance upload limits. Readable by any signed-in user, because the upload UI
@@ -688,8 +650,6 @@ export interface InstanceEmailSettings {
   };
   resend: { enabled: boolean; hasApiKey: boolean };
   from: string;
-  // Whether teams may deliver their notifications through this provider.
-  allowTeams: boolean;
 }
 
 export interface InstanceEmailSettingsPatch {
@@ -704,7 +664,6 @@ export interface InstanceEmailSettingsPatch {
   };
   resend?: { enabled: boolean; apiKey?: string };
   from?: string;
-  allowTeams?: boolean;
 }
 
 // The Google OAuth credentials used for social sign-in. The client secret is never
@@ -721,19 +680,6 @@ export interface InstanceGoogleSettingsPatch {
   enabled?: boolean;
   clientId?: string;
   clientSecret?: string;
-}
-
-// The instance Telegram bot: the one bot users link their accounts through, and the
-// default sender for Telegram notifications. `botUsername` is resolved from Telegram
-// when the token is saved.
-export interface InstanceTelegramSettings {
-  enabled: boolean;
-  botUsername: string;
-  hasBotToken: boolean;
-}
-export interface InstanceTelegramSettingsPatch {
-  enabled?: boolean;
-  botToken?: string;
 }
 
 // One account in the instance user directory. `role` is the global better-auth role
@@ -840,25 +786,9 @@ export interface PublicAuthConfig {
 }
 
 // The session member's own notification preferences for a team: which issue
-// events they want by email and/or Telegram. Email is sent to the member's account
-// address, Telegram to the account they linked in their profile.
+// events they want by email. Email is sent to the member's account address.
 export interface NotificationPreferences {
   emailEvents: NotificationEventToggles;
-  telegramEvents: NotificationEventToggles;
-}
-
-// The session user's Telegram link. `botUsername` is null when no instance bot is
-// configured, which is when Telegram is not offered at all; `link` is null while the
-// user has not connected an account.
-export interface TelegramAccount {
-  botUsername: string | null;
-  link: { username: string | null; firstName: string | null; linkedAt: string } | null;
-}
-
-// The deep link that completes a Telegram connection, and when its code expires.
-export interface TelegramLinkStart {
-  url: string;
-  expiresAt: string;
 }
 
 // The signed-in user's interface preferences, held per account so they apply on
@@ -2072,15 +2002,6 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  // Notification provider credentials (danger_zone: read to view, edit to change).
-  getNotificationSettings: (teamKey: string) =>
-    request<NotificationSettings>(`/teams/${teamKey}/notification-settings`),
-  setNotificationSettings: (teamKey: string, input: NotificationSettingsPatch) =>
-    request<NotificationSettings>(`/teams/${teamKey}/notification-settings`, {
-      method: 'PUT',
-      body: JSON.stringify(input),
-    }),
-
   // The session member's own notification preferences for a team (any member).
   getNotificationPreferences: (teamKey: string) =>
     request<NotificationPreferences>(`/teams/${teamKey}/notification-preferences`),
@@ -2089,13 +2010,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
-
-  // The session user's own Telegram account link. Starting a link returns the bot
-  // deep link that completes it; the bot service writes the connection when the user
-  // opens it.
-  getTelegramAccount: () => request<TelegramAccount>('/telegram/account'),
-  startTelegramLink: () => request<TelegramLinkStart>('/telegram/account/link', { method: 'POST' }),
-  unlinkTelegramAccount: () => request<void>('/telegram/account', { method: 'DELETE' }),
 
   // The session user's own interface preferences, held per account. A read returns
   // the defaults when nothing was saved; a write patches only the fields it carries.
@@ -2164,13 +2078,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(patch),
     }),
-  getInstanceTelegramSettings: () => request<InstanceTelegramSettings>('/god/telegram-settings'),
-  updateInstanceTelegramSettings: (patch: InstanceTelegramSettingsPatch) =>
-    request<InstanceTelegramSettings>('/god/telegram-settings', {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }),
-
   // The upload limits. The read is open to any signed-in user (the upload UI shows
   // the limit); the write is god mode.
   getStorageSettings: () => request<StorageSettings>('/settings/storage'),

@@ -7,7 +7,7 @@ import { postInternal } from './internal-api';
 // Drains the notification_delivery outbox: claims due rows and asks the API to send
 // each one. Follows the same claim/retry pattern as webhook delivery, but the send
 // itself runs in the API (POST /internal/notification-deliveries/send) because the
-// channel credentials are encrypted with the API's key — the worker never decrypts.
+// email credentials are encrypted with the API's key — the worker never decrypts.
 // A succeeded row is deleted (no delivery history is kept); a permanently failed row
 // is left as 'failed' with its last error for debugging.
 

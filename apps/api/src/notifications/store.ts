@@ -46,7 +46,7 @@ async function insertNotifications(rows: NewNotificationRow[]): Promise<void> {
   if (rows.length === 0) return;
   const name = await actorName(rows[0].actorUserId);
   await db.insert(notification).values(rows.map((r) => ({ ...r, actorName: name })));
-  // Fan out to the team's enabled delivery channels (email, Telegram). Best-effort:
+  // Queue notification email for members who want it. Best-effort:
   // a delivery failure must not break the inbox insert or the domain mutation.
   try {
     await enqueueOutbound(rows, name);

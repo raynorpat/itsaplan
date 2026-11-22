@@ -56,4 +56,17 @@ describe('removed features', () => {
     for (const [method, path, body] of routes)
       expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
   });
+
+  it('removes Telegram and team email settings', async () => {
+    const { cookie } = await setup();
+    const routes: [string, string, unknown?][] = [
+      ['GET', '/telegram/account'],
+      ['POST', '/telegram/account/link', {}],
+      ['DELETE', '/telegram/account'],
+      ['GET', '/teams/MKT/notification-settings'],
+      ['PUT', '/teams/MKT/notification-settings', {}],
+    ];
+    for (const [method, path, body] of routes)
+      expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
+  });
 });

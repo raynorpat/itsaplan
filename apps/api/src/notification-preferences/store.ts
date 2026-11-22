@@ -2,12 +2,9 @@ import { db, userNotificationPreference } from '@repo/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 // A member's own notification preferences for one team: for each issue event
-// type, whether they want it by email and/or Telegram. One row per (user, team);
-// absent means the member has not opted in and receives nothing (opt-in default).
-// The team's provider credentials live separately in notification-settings, and
-// which Telegram chat the member is reached at comes from the account they linked
-// (telegram/store.ts), which is instance-wide. Here is only the per-user choice of
-// events and channels.
+// type, whether they want it by email. One row per (user, team); absent means the
+// member has not opted in and receives nothing (opt-in default). Email is sent
+// through the instance email provider.
 
 // The issue events a member can subscribe to, matching the inbox notification types.
 export const EVENT_KEYS = ['assigned', 'mentioned', 'commented', 'state_changed'] as const;
@@ -16,7 +13,6 @@ export type EventToggles = Record<EventKey, boolean>;
 
 export interface NotificationPreferenceDto {
   emailEvents: EventToggles;
-  telegramEvents: EventToggles;
 }
 
 function emptyEvents(): EventToggles {
@@ -24,7 +20,7 @@ function emptyEvents(): EventToggles {
 }
 
 function defaults(): NotificationPreferenceDto {
-  return { emailEvents: emptyEvents(), telegramEvents: emptyEvents() };
+  return { emailEvents: emptyEvents() };
 }
 
 // Normalizes the stored jsonb (possibly partial or empty {}) into a full EventToggles.
@@ -38,11 +34,8 @@ function toToggles(value: unknown): EventToggles {
   };
 }
 
-function toDto(row: { emailEvents: unknown; telegramEvents: unknown }): NotificationPreferenceDto {
-  return {
-    emailEvents: toToggles(row.emailEvents),
-    telegramEvents: toToggles(row.telegramEvents),
-  };
+function toDto(row: { emailEvents: unknown }): NotificationPreferenceDto {
+  return { emailEvents: toToggles(row.emailEvents) };
 }
 
 // A member's preferences for a team, or opt-in defaults (nothing enabled) when
@@ -54,7 +47,6 @@ export async function getPreferences(
   const rows = await db
     .select({
       emailEvents: userNotificationPreference.emailEvents,
-      telegramEvents: userNotificationPreference.telegramEvents,
     })
     .from(userNotificationPreference)
     .where(
@@ -72,7 +64,7 @@ export async function setPreferences(
   teamId: string,
   input: NotificationPreferenceDto,
 ): Promise<NotificationPreferenceDto> {
-  const values = { emailEvents: input.emailEvents, telegramEvents: input.telegramEvents };
+  const values = { emailEvents: input.emailEvents };
   await db
     .insert(userNotificationPreference)
     .values({ userId, teamId, ...values })
@@ -85,7 +77,7 @@ export async function setPreferences(
 
 // Preferences for a set of members of one team, keyed by user id. Missing members
 // (no row) are omitted; the caller treats them as opted out. Used by the outbound
-// enqueue path to decide, per inbox row, which channels that member wants.
+// enqueue path to decide, per inbox row, whether that member wants the email.
 export async function getPreferencesForUsers(
   teamId: string,
   userIds: string[],
@@ -95,7 +87,6 @@ export async function getPreferencesForUsers(
     .select({
       userId: userNotificationPreference.userId,
       emailEvents: userNotificationPreference.emailEvents,
-      telegramEvents: userNotificationPreference.telegramEvents,
     })
     .from(userNotificationPreference)
     .where(

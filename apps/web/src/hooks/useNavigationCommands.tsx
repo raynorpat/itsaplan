@@ -63,13 +63,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
         add(`nav.ai-team.${s.slug}`, s.label, <s.icon />, aiTeamPath(key, s.slug), 'ai team');
     }
     add('nav.members', 'Members', <Users />, membersPath(key), 'team people invite');
-    add(
-      'nav.notifications',
-      'Notification preferences',
-      <Bell />,
-      notificationsPath(key),
-      'email telegram',
-    );
+    add('nav.notifications', 'Notification preferences', <Bell />, notificationsPath(key), 'email');
     // The settings destinations, already permission-filtered by the hook the
     // settings sidebar uses. The group label is a keyword so "workflow" or
     // "automation" finds its sections.

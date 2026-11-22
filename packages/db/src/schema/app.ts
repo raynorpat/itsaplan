@@ -495,36 +495,11 @@ export const integrationCredential = pgTable(
   (t) => [index('integration_credential_team_idx').on(t.teamId)],
 );
 
-// Per-team notification provider credentials: the outbound channels the team
-// can deliver through (SMTP or Resend for email, a Telegram bot). One row per
-// team, managed by an owner. The config carries secrets (SMTP password, Resend
-// API key, Telegram bot token), so it is stored encrypted (AES-256-GCM, see
-// apps/api/src/shared/crypto.ts): ciphertext + iv + auth_tag. `redacted` is the
-// same config with secret values dropped, kept in plaintext so the settings UI can
-// render the non-secret fields and show which secrets are set. Secrets are never
-// returned to the client. The plaintext config is read only by the delivery sender.
-// Which events reach a given member is a per-user choice held in
-// user_notification_preference, not here. The Telegram bot token here is optional: a
-// team that sets one delivers through its own bot, otherwise delivery falls back
-// to the instance bot in app_secret key 'telegram.bot'.
-export const teamNotificationSetting = pgTable('team_notification_setting', {
-  teamId: uuid('team_id')
-    .primaryKey()
-    .references(() => team.id, { onDelete: 'cascade' }),
-  ciphertext: text('ciphertext').notNull(),
-  iv: text('iv').notNull(),
-  authTag: text('auth_tag').notNull(),
-  redacted: jsonb('redacted').notNull().default({}),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
 // A member's own notification preferences for one team: for each issue event
-// type, whether they want it by email and/or Telegram. One row per (user, team);
-// absent means the member has not opted in and receives nothing.
-// email_events/telegram_events are EventToggles jsonb keyed by the four inbox
-// notification types (assigned/mentioned/commented/state_changed). Email is sent to
-// the member's account address; Telegram to the chat of the account they linked in
-// user_telegram_account, which is instance-wide rather than per team.
+// type, whether they want it by email. One row per (user, team); absent means the
+// member has not opted in and receives nothing. email_events is EventToggles jsonb
+// keyed by the four inbox notification types (assigned/mentioned/commented/
+// state_changed). Email is sent to the member's account address.
 export const userNotificationPreference = pgTable(
   'user_notification_preference',
   {
@@ -536,54 +511,19 @@ export const userNotificationPreference = pgTable(
       .notNull()
       .references(() => team.id, { onDelete: 'cascade' }),
     emailEvents: jsonb('email_events').notNull().default({}),
-    telegramEvents: jsonb('telegram_events').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique('user_notification_pref_user_team_unique').on(t.userId, t.teamId)],
 );
 
-// The Telegram account a user has linked, instance-wide (one row per user, whatever
-// the team). Linking runs through the instance bot: the user asks for a link, the
-// row is created with a one-time link_code, and the bot fills chat_id when that code
-// arrives as `/start <code>`. So the row is "pending" while chat_id is null and
-// "linked" once it is set — link_code is cleared at that point. chat_id is unique, so
-// one Telegram account cannot serve two product accounts.
-export const userTelegramAccount = pgTable(
-  'user_telegram_account',
-  {
-    userId: uuid('user_id')
-      .primaryKey()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    chatId: text('chat_id'),
-    // Display only, refreshed on every link: what to show the user so they can tell
-    // which Telegram account this is. A Telegram account may have no @username.
-    username: text('username'),
-    firstName: text('first_name'),
-    linkCode: text('link_code'),
-    linkCodeExpiresAt: timestamp('link_code_expires_at', { withTimezone: true }),
-    linkedAt: timestamp('linked_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    uniqueIndex('user_telegram_account_chat_id_unique')
-      .on(t.chatId)
-      .where(sql`${t.chatId} IS NOT NULL`),
-    uniqueIndex('user_telegram_account_link_code_unique')
-      .on(t.linkCode)
-      .where(sql`${t.linkCode} IS NOT NULL`),
-  ],
-);
-
-// Outbox for outbound notification delivery. One row per (recipient, channel,
-// message) to send for an issue event: an email or a Telegram message to one member.
-// Rows are enqueued when inbox notifications are created (see
-// apps/api/src/notifications/outbound.ts) and drained by the worker following the
-// same claim/retry pattern as webhook_delivery. The message text is composed at
-// enqueue time and stored in `payload`; the channel credentials are read from
-// team_notification_setting at send time. channel is 'email' | 'telegram'
-// ('email' picks SMTP or Resend from the team config). recipient is the member's
-// email address for email rows, or their Telegram chat id for telegram rows.
+// Outbox for outbound notification delivery. One row per (recipient, message) to
+// send for an issue event: an email to one member. Rows are enqueued when inbox
+// notifications are created (see apps/api/src/notifications/outbound.ts) and drained
+// by the worker following the same claim/retry pattern as webhook_delivery. The
+// message text is composed at enqueue time and stored in `payload`; the instance
+// email credentials are read at send time. channel is 'email'. recipient is the
+// member's email address.
 export const notificationDelivery = pgTable(
   'notification_delivery',
   {
@@ -602,7 +542,7 @@ export const notificationDelivery = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check('notification_delivery_channel_check', sql`${t.channel} IN ('email', 'telegram')`),
+    check('notification_delivery_channel_check', sql`${t.channel} IN ('email')`),
     // Backs the worker's claim query: due pending rows ordered by next_attempt_at.
     index('notification_delivery_due_idx')
       .on(t.nextAttemptAt)

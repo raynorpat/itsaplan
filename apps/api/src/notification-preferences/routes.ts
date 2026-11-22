@@ -14,15 +14,11 @@ const EventToggles = t.Object({
 
 const PreferenceBody = t.Object({
   emailEvents: EventToggles,
-  telegramEvents: EventToggles,
 });
 
 // A member's own notification preferences for a team: which issue events they want
-// by email and/or Telegram. Every route is self-scoped to the session user, so bare
-// team membership is enough (no admin gate) — a member only ever reads or writes
-// their own row. The team's provider credentials are a separate, owner-only
-// concern (notification-settings), and the Telegram chat to reach the member at comes
-// from their linked account (/telegram/account), not from here.
+// by email. Every route is self-scoped to the session user, so bare team membership
+// is enough (no admin gate) — a member only ever reads or writes their own row.
 export const notificationPreferenceRoutes = new Elysia({
   name: 'notification-preferences',
   detail: { tags: ['Settings'] },

@@ -9,8 +9,6 @@ import { eventsEqual } from '../utils/notificationEvents';
 export interface NotificationPreferencesForm {
   emailEvents: NotificationEventToggles;
   setEmailEvents: (v: NotificationEventToggles) => void;
-  telegramEvents: NotificationEventToggles;
-  setTelegramEvents: (v: NotificationEventToggles) => void;
   dirty: boolean;
   saving: boolean;
   save: () => Promise<void>;
@@ -24,24 +22,17 @@ export function useNotificationPreferencesForm(
 ): NotificationPreferencesForm {
   const update = useUpdateNotificationPreferences(teamKey);
   const [emailEvents, setEmailEvents] = useState<NotificationEventToggles>(initial.emailEvents);
-  const [telegramEvents, setTelegramEvents] = useState<NotificationEventToggles>(
-    initial.telegramEvents,
-  );
 
-  const dirty =
-    !eventsEqual(emailEvents, initial.emailEvents) ||
-    !eventsEqual(telegramEvents, initial.telegramEvents);
+  const dirty = !eventsEqual(emailEvents, initial.emailEvents);
 
   async function save() {
-    await update.mutateAsync({ emailEvents, telegramEvents });
+    await update.mutateAsync({ emailEvents });
     toast.success('Notification preferences saved');
   }
 
   return {
     emailEvents,
     setEmailEvents,
-    telegramEvents,
-    setTelegramEvents,
     dirty,
     saving: update.isPending,
     save,

@@ -14,7 +14,6 @@ export const qk = {
   issueSearch: (teamKey: string, q: string) => ['issueSearch', teamKey, q] as const,
   teamSettings: (teamKey: string) => ['teamSettings', teamKey] as const,
   // A team's notification delivery settings (the Notifications section).
-  notificationSettings: (teamKey: string) => ['notificationSettings', teamKey] as const,
   notificationPreferences: (teamKey: string) => ['notificationPreferences', teamKey] as const,
   views: (teamKey: string) => ['views', teamKey] as const,
   actions: (teamKey: string) => ['actions', teamKey] as const,
@@ -95,9 +94,8 @@ export const qk = {
   notificationsUnread: (teamKey: string) => ['notificationsUnread', teamKey] as const,
   // The signed-in user's WebAuthn passkeys (account security page).
   passkeys: ['passkeys'] as const,
-  // The signed-in user's connected external accounts (accounts page): the linked
-  // Telegram account, and the auth providers better-auth reports.
-  telegramAccount: ['telegramAccount'] as const,
+  // The signed-in user's connected external accounts (accounts page): the auth
+  // providers better-auth reports.
   linkedAccounts: ['linkedAccounts'] as const,
   // The instance sign-in policy, including which social providers are configured.
   authConfig: ['authConfig'] as const,
@@ -107,11 +105,10 @@ export const qk = {
   // start page). Read app-wide, not just on the preferences page.
   accountPreferences: ['accountPreferences'] as const,
   // Instance administration (god mode): the sign-in policy, the mail provider, the
-  // Google credentials and the Telegram bot. Not scoped to a team.
+  // Google credentials. Not scoped to a team.
   instanceAuthSettings: ['instanceAuthSettings'] as const,
   instanceEmailSettings: ['instanceEmailSettings'] as const,
   instanceGoogleSettings: ['instanceGoogleSettings'] as const,
-  instanceTelegramSettings: ['instanceTelegramSettings'] as const,
   instanceStorageSettings: ['instanceStorageSettings'] as const,
   // The upload limits as read by the upload UI (open to any signed-in user).
   storageSettings: ['storageSettings'] as const,

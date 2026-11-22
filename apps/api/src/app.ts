@@ -14,7 +14,6 @@ import { mountMcp } from './mcp/mount';
 import { setMcpApp } from './mcp/app-ref';
 import { internalAgentRunRoutes } from './ai-agents/internal-routes';
 import { internalNotificationRoutes } from './notifications/internal-routes';
-import { internalTelegramRoutes } from './telegram/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
 
@@ -83,10 +82,6 @@ export const app = new Elysia()
           { name: 'Agent Schedules', description: 'Recurring tasks for internal agents' },
           { name: 'Notifications', description: "The session user's inbox notifications" },
           {
-            name: 'Telegram',
-            description: "The session user's linked Telegram account",
-          },
-          {
             name: 'God',
             description:
               'Instance administration: registration policy, email provider, Google sign-in',
@@ -134,7 +129,6 @@ export const app = new Elysia()
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
   .use(internalAgentRunRoutes)
   .use(internalNotificationRoutes)
-  .use(internalTelegramRoutes)
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
   // Test receiver for inspecting webhook deliveries (unauthenticated, dev aid).

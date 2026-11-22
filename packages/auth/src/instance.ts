@@ -104,10 +104,6 @@ export interface InstanceEmailConfig extends EmailConfig {
   smtp: SmtpConfig;
   resend: ResendConfig;
   from: string;
-  // Let teams send their notifications through this provider instead of
-  // configuring one of their own. Off by default: the instance owner pays for the
-  // provider, so sharing it is an explicit decision.
-  allowTeams: boolean;
 }
 
 // The config as returned to the client: every secret replaced by a boolean telling
@@ -124,7 +120,6 @@ export interface InstanceEmailDto {
   };
   resend: { enabled: boolean; hasApiKey: boolean };
   from: string;
-  allowTeams: boolean;
 }
 
 // A partial write. Each section, when present, replaces that section's non-secret
@@ -142,7 +137,6 @@ export interface InstanceEmailPatch {
   };
   resend?: { enabled: boolean; apiKey?: string };
   from?: string;
-  allowTeams?: boolean;
 }
 
 function defaultEmailConfig(): InstanceEmailConfig {
@@ -158,7 +152,6 @@ function defaultEmailConfig(): InstanceEmailConfig {
     },
     resend: { enabled: false, apiKey: '' },
     from: '',
-    allowTeams: false,
   };
 }
 
@@ -175,7 +168,6 @@ function toEmailDto(config: InstanceEmailConfig): InstanceEmailDto {
     },
     resend: { enabled: config.resend.enabled, hasApiKey: config.resend.apiKey.length > 0 },
     from: config.from,
-    allowTeams: config.allowTeams,
   };
 }
 
@@ -199,13 +191,11 @@ export async function hasConfiguredEmailProvider(): Promise<boolean> {
   return config ? hasEmailProvider(config) : false;
 }
 
-// The instance provider a team may send its notifications through, or null when
-// teams are not allowed to use it or it is not configured. Read by the api on the
-// team notification paths (which channels are enabled, and the actual send).
-export async function getTeamEmailConfig(): Promise<InstanceEmailConfig | null> {
+// The instance provider notification email is sent through, or null when none is
+// configured. Read by the api when it queues and sends notification email.
+export async function getNotificationEmailConfig(): Promise<InstanceEmailConfig | null> {
   const config = await getEmailConfig();
-  if (!config || !config.allowTeams) return null;
-  return hasEmailProvider(config) ? config : null;
+  return config && hasEmailProvider(config) ? config : null;
 }
 
 export async function setEmailSettings(patch: InstanceEmailPatch): Promise<InstanceEmailDto> {
@@ -221,7 +211,6 @@ export async function setEmailSettings(patch: InstanceEmailPatch): Promise<Insta
         }
       : current.resend,
     from: patch.from ?? current.from,
-    allowTeams: patch.allowTeams ?? current.allowTeams,
   };
   const redacted = toEmailDto(next);
   await writeSecret(EMAIL_SECRET_KEY, next, redacted);

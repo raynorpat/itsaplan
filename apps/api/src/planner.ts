@@ -25,10 +25,8 @@ import { settingsRoutes } from './settings/routes';
 import { godRoutes } from './god/routes';
 import { agentScheduleRoutes } from './agent-schedules/routes';
 import { notificationRoutes } from './notifications/routes';
-import { notificationSettingsRoutes } from './notification-settings/routes';
 import { notificationPreferenceRoutes } from './notification-preferences/routes';
 import { userPreferenceRoutes } from './user-preferences/routes';
-import { telegramRoutes } from './telegram/routes';
 
 // The planner API: teams and their columns, issue types, labels, AI agents,
 // custom fields, issues, attachments, saved views, and actions. Mounted on the
@@ -93,9 +91,7 @@ export const planner = new Elysia({ name: 'planner' })
   .use(webhookRoutes)
   .use(agentScheduleRoutes)
   .use(notificationRoutes)
-  .use(notificationSettingsRoutes)
   .use(notificationPreferenceRoutes)
   .use(userPreferenceRoutes)
-  .use(telegramRoutes)
   .use(settingsRoutes)
   .use(godRoutes);

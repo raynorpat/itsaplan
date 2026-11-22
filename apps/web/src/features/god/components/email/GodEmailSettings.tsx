@@ -22,23 +22,13 @@ const ENCRYPTION_OPTIONS: { value: NotificationEncryption; label: string }[] = [
 ];
 
 // The instance mail provider, one of SMTP or Resend. Everything the instance sends
-// (password resets, address confirmation, sign-in links) goes through it, which is
-// why the sign-in options on the Authentication page stay off until it is set.
+// (password resets, address confirmation, sign-in links, notification email) goes
+// through it, which is why the sign-in options on the Authentication page stay off
+// until it is set.
 export default function GodEmailSettings({ form }: { form: GodEmailForm }) {
   return (
     <div className="space-y-8">
       <ProviderSection form={form} />
-      <SettingsSection
-        title="Team notifications"
-        description="Let teams deliver their notifications through this provider instead of configuring one of their own. Each team still chooses whether to use it."
-        action={
-          <EnabledSwitch
-            checked={form.allowTeams}
-            onChange={form.setAllowTeams}
-            disabled={form.saving}
-          />
-        }
-      />
     </div>
   );
 }

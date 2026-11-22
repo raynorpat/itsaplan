@@ -4,7 +4,6 @@ import {
   Keyboard,
   KeyRound,
   Mail,
-  Send,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -68,15 +67,6 @@ export const GOD_SECTIONS: GodSection[] = [
       'How much people may upload: the size of a single file, the attachment types accepted, and the storage each team gets.',
     group: 'Instance',
     icon: HardDrive,
-  },
-  {
-    slug: 'telegram',
-    label: 'Telegram',
-    description:
-      'The bot people connect their Telegram account to, and the one that delivers Telegram notifications for teams that set no bot of their own.',
-    group: 'Instance',
-    icon: Send,
-    integration: true,
   },
   {
     slug: 'email',

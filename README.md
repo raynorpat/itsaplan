@@ -73,7 +73,7 @@ stable release.
   to read and change teams, issues, workflow states and projects
 - Outgoing webhooks in Linear's format: per team or all teams, signed payloads, retries, and a delivery log
 - Email and password, passkey, and Google sign-in
-- Notifications by email (SMTP or Resend) and Telegram, with per-member preferences
+- Notifications by email (SMTP or Resend), with per-member preferences
 - Instance administration: storage limits, mail transport, and instance-wide settings
 
 ## Getting started
@@ -155,7 +155,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-One command brings up the whole stack: Postgres, RustFS, api, worker, bot, and web. Every
+One command brings up the whole stack: Postgres, RustFS, api, worker, and web. Every
 service is built from this checkout; web bakes `API_URL` into its bundle because Next.js
 inlines `NEXT_PUBLIC_*` at build time. The API applies migrations on startup, and the
 first account registered becomes the instance admin.
@@ -191,7 +191,6 @@ docker run --rm -v itsaplan_minio-data:/data -v "$PWD":/out alpine tar czf /out/
 apps/api        Elysia HTTP API, mounts better-auth at /api/auth/*
 apps/web        Next.js app, server-side rendered
 apps/worker     webhooks, notifications, agent runs
-apps/bot        Telegram bot
 packages/db     Drizzle client, schema, migrations
 packages/auth   better-auth server instance
 packages/crypto AES-256-GCM encryption for secrets at rest

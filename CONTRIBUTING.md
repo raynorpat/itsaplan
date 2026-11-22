@@ -58,7 +58,6 @@ or pnpm: the lockfile is `bun.lock`.
 apps/api        Elysia (Bun) HTTP API, mounts better-auth at /api/auth/*
 apps/web        Next.js App Router, server-side rendered
 apps/worker     background jobs: webhooks, notifications, agent runs
-apps/bot        Telegram bot, long polling
 packages/db     Drizzle client, schema, migrations
 packages/auth   better-auth server instance
 packages/crypto AES-256-GCM encryption for secrets at rest

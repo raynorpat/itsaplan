@@ -63,7 +63,6 @@ thinking.
 apps/api        Elysia (Bun) — mounts better-auth at /api/auth/*        :3000
 apps/web        Next.js App Router, SSR (not SPA) + shadcn + TanStack Q :3001
 apps/worker     webhook and notification delivery, agent runs, schedules
-apps/bot        Telegram bot, long polling
 packages/db     @repo/db     — Drizzle client, schema, migrations
 packages/auth   @repo/auth   — better-auth server instance + instance auth settings
 packages/crypto @repo/crypto — AES-256-GCM encryption for secrets at rest
@@ -125,7 +124,7 @@ bun run dev                                       # api :3000 + web :3001
 
 A change to the deploy stack usually has to land in **both** `docker-compose.yml` and
 `docker-compose.coolify.yml`. The **api applies migrations on startup** (`migrate.ts` in
-its Dockerfile CMD). `bot` runs Telegram long polling and must stay at one replica.
+its Dockerfile CMD).
 
 ## Test gate (Docker)
 
@@ -169,7 +168,7 @@ tags the commit and publishes the GitHub Release. PR titles are squash-merged
 into `main`, so the PR title is the commit subject release-please reads; it must
 be a valid Conventional Commit (enforced by `pr-title.yml`).
 
-The scope is the name of one app or package (`api`, `web`, `worker`, `bot`, `db`,
+The scope is the name of one app or package (`api`, `web`, `worker`, `db`,
 `auth`, …). A change spanning several of them carries no scope.
 
 `"package-name": ""` in `release-please-config.json` is what lets the release be
@@ -207,7 +206,7 @@ tidy moves the code. This is separate from the CI gate (`format:check` + `lint` 
 - Don't add a build step for shared packages — they're consumed as source.
 - When adding a new workspace member under `packages/*` or `apps/*`, add a matching
   `COPY <path>/package.json ./<path>/` line to every Dockerfile that installs deps
-  (`apps/api`, `apps/web`, `apps/worker`, `apps/bot`). The install stage
+  (`apps/api`, `apps/web`, `apps/worker`). The install stage
   copies manifests by an explicit list, so a missing one fails
   `bun install --frozen-lockfile` in the Docker build with
   `Workspace dependency "@repo/<name>" not found`, even though local dev works.

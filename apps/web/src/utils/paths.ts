@@ -19,8 +19,8 @@ export const aiChatPath = (key: string) => aiTeamPath(key, 'chat');
 
 export const inboxPath = (key: string) => `${teamPath(key)}/inbox`;
 
-// The member's own notification preferences (which events, by which channel, their
-// Telegram chat id). A main-nav Configuration destination, open to any member.
+// The member's own notification preferences (which events are sent by email). A
+// main-nav Configuration destination, open to any member.
 export const notificationsPath = (key: string) => `${teamPath(key)}/notifications`;
 
 export const aiAgentsPath = (key: string) => `${teamPath(key)}/ai-agents`;
