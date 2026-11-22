@@ -24,13 +24,14 @@ import { teamFilter, visibleTeamIds } from './resolvers/team';
 import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
+import { attachmentCollectionSql } from './attachment-filter';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
 // team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
 // email, isMe, null), parent (id, null), project, projectMilestone, cycle,
 // hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
-// hasRelatedRelations, and / or.
+// hasRelatedRelations, attachments (some, every, length, attachment fields), and / or.
 // Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
@@ -165,6 +166,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     assignee: userOn(issue.assigneeUserId, viewerId),
     delegate: userOn(issue.delegateUserId, viewerId),
     parent: parentFilter,
+    attachments: attachmentCollectionSql,
     project: (v, p) =>
       nullableRef(
         issue.projectId,

@@ -62,6 +62,7 @@ stable release.
 - Initiatives: workspace-level groups of projects with sub-initiatives and status updates (API-only for now)
 - Issue relations: blocks, related and duplicate links between issues, with duplicates closed automatically (API-only for now)
 - Documents: Markdown pages in projects and on issues, with comments (API-only for now)
+- Attachments: links on issues next to uploaded files, as Linear attachments (links API-only for now)
 - Mention an agent in a comment to trigger a run
 - Scheduled agent runs
 - Built-in chat with per-agent conversation history

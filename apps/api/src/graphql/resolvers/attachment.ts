@@ -16,6 +16,7 @@ import { getMembership } from '../../members/store';
 import { assertPermission, type AuthUser } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
+import { attachmentFilterSql } from '../attachment-filter';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { issueById, userById } from './issue';
@@ -64,7 +65,12 @@ async function listAttachments(where: SQL | undefined, args: ListArgs, ctx: Grap
   return paginate(
     args,
     { id: attachment.id, createdAt: attachment.createdAt, updatedAt: attachment.updatedAt },
-    and(visibleAttachmentsSql(ctx.user.id), where, args.includeArchived ? undefined : openOnly),
+    and(
+      visibleAttachmentsSql(ctx.user.id),
+      where,
+      args.includeArchived ? undefined : openOnly,
+      attachmentFilterSql(args.filter),
+    ),
     (w, order, limit) =>
       db
         .select()

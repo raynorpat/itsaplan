@@ -176,4 +176,45 @@ describe('graphql attachments', () => {
     );
     expect(errorCode(res)).toBe('FORBIDDEN');
   });
+
+  it('filters attachments', async () => {
+    const { owner, client, issueId } = await setup();
+    await client.createAttachment({ issueId, title: 'Spec doc', url: 'https://e.com/spec' });
+    const file = await upload(issueId);
+    const q = async (filter: string) =>
+      JSON.stringify(
+        (
+          await gql(
+            { cookie: owner.cookie },
+            `{ attachments(filter: ${filter}) { nodes { title } } }`,
+          )
+        ).body.data,
+      );
+    expect(await q('{ title: { contains: "Spec" } }')).not.toContain('shot.png');
+    expect(await q('{ title: { contains: "Spec" } }')).toContain('Spec doc');
+    const fileUrl = `${process.env.API_URL}/attachments/${file.publicId}/raw`;
+    expect(await q(`{ url: { eq: "${fileUrl}" } }`)).toContain('shot.png');
+    expect(await q(`{ url: { eq: "${fileUrl}" } }`)).not.toContain('Spec doc');
+    expect(await q('{ sourceType: { eq: "upload" } }')).not.toContain('Spec doc');
+    expect(await q(`{ creator: { id: { eq: "${owner.userId}" } } }`)).toContain('Spec doc');
+    expect(await q(`{ creator: { id: { eq: "${owner.userId}" } } }`)).not.toContain('shot.png');
+  });
+
+  it('filters issues by attachments', async () => {
+    const { owner, client, issueId } = await setup();
+    await client.createAttachment({ issueId, title: 'PR', url: 'https://github.com/a/b/pull/1' });
+    const q = async (filter: string) =>
+      JSON.stringify(
+        (await gql({ cookie: owner.cookie }, `{ issues(filter: ${filter}) { nodes { title } } }`))
+          .body.data,
+      );
+    const some = await q('{ attachments: { some: { url: { contains: "github" } } } }');
+    expect(some).toContain('Bug');
+    expect(some).not.toContain('Other');
+    const none = await q('{ attachments: { length: { eq: 0 } } }');
+    expect(none).toContain('Other');
+    expect(none).not.toContain('Bug');
+    const every = await q('{ attachments: { every: { title: { eq: "PR" } } } }');
+    expect(every).toContain('Bug');
+  });
 });

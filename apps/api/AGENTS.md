@@ -90,6 +90,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   comments on the document use. `documentDelete` archives and sets `trashed`;
   documents of archived parents are hidden from lists, and a document cannot be
   created in, moved to or restored under an archived parent.
+- **Attachments** (`attachments/`): Linear's `Attachment` on an issue, either a link
+  or an uploaded file, in one `attachment` table. An upload has the file columns
+  (all set or all null), `source_type` `upload` and `url` `/attachments/<publicId>/raw`,
+  returned as an absolute URL on `API_URL`; incoming URLs on that route are
+  normalised back before matching. One attachment per URL on an issue:
+  `upsertLinkAttachment` updates the existing one. Every write goes through the
+  store, which sends the `Attachment` webhooks; REST lists and quotas count uploads
+  only. Access follows the issue (`work_items` actions on its team).
 
 ## Auth and access
 
@@ -182,7 +190,7 @@ receiver works against the instance.
 - **Subscriptions** (`webhooks/store.ts`): a webhook covers one team or all teams
   (`all_public_teams`, including teams created later) and lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
-  `Initiative`, `InitiativeUpdate`, `Document`. Initiative events go to the lead team's
+  `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Team webhooks use
   the team's `webhooks.<action>` permission; all-teams webhooks are managed only by
   the god user or an owner of every team (`webhooks/access.ts`, checked on every
@@ -229,7 +237,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, issue relations, documents, cycles, initiatives (project links, sub-initiatives,
+  labels, issue relations, documents, attachments, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
