@@ -1,5 +1,5 @@
 import { db, label } from '@repo/db';
-import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
 import { issueLabelData, type WebhookData } from '../webhooks/data';
@@ -133,7 +133,9 @@ export async function updateLabel(
   const before = await issueLabelData(id);
   const [row] = await db
     .update(label)
-    .set({ ...set, updatedAt: new Date() })
+    // updated_at uses the database clock, like created_at's default, so it never
+    // reads earlier than the creation time.
+    .set({ ...set, updatedAt: sql`now()` })
     .where(eq(label.id, id))
     .returning();
   await emitLabel('update', scopeTeamId, actorUserId, await issueLabelData(id), before);
@@ -145,7 +147,7 @@ async function setRetired(id: string, retired: boolean, actorUserId: string | nu
   const before = await issueLabelData(id);
   const [row] = await db
     .update(label)
-    .set({ retiredAt: retired ? new Date() : null, updatedAt: new Date() })
+    .set({ retiredAt: retired ? new Date() : null, updatedAt: sql`now()` })
     .where(eq(label.id, id))
     .returning();
   if (!row) return null;
@@ -178,7 +180,7 @@ export async function deleteLabel(
     if (members.length)
       await tx
         .update(label)
-        .set({ parentId: null, updatedAt: new Date() })
+        .set({ parentId: null, updatedAt: sql`now()` })
         .where(eq(label.parentId, id));
     await tx.delete(label).where(eq(label.id, id));
   });
