@@ -10,8 +10,10 @@ import {
   useLinkedAccountsQuery,
 } from '../../services/accounts.service';
 
-// Connecting sends the browser through Google and back to this page. Disconnecting
-// never locks the account out: an emailed sign-in link always works.
+// Connecting sends the browser through Google and back to this page. better-auth
+// refuses to unlink an account's only linked sign-in (an account made from a magic
+// link has no other account row), so Disconnect is offered only when another one is
+// linked.
 export default function AccountGoogleConnection() {
   const { data: accounts } = useLinkedAccountsQuery();
   const disconnect = useDisconnectProvider();
@@ -40,6 +42,7 @@ export default function AccountGoogleConnection() {
       description="Sign in with your Google account."
       connectedTo={google ? 'Connected' : null}
       busy={connecting || disconnect.isPending}
+      disconnectHint={list.length > 1 ? undefined : 'Your only linked sign-in'}
       onConnect={() => void onConnect()}
       onDisconnect={() => {
         if (!google) return;

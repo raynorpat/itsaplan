@@ -79,6 +79,7 @@ function validatePatch(patch: OrganizationPatch): Partial<typeof organization.$i
   if (patch.name !== undefined) {
     const name = patch.name.trim();
     if (!name) throw new HttpError(400, 'name must not be empty');
+    if (name.length > 255) throw new HttpError(400, 'name must be at most 255 characters');
     set.name = name;
   }
   if (patch.urlKey !== undefined) {
@@ -90,6 +91,8 @@ function validatePatch(patch: OrganizationPatch): Partial<typeof organization.$i
   if (patch.logoUrl !== undefined) {
     if (patch.logoUrl !== null && !/^https?:\/\//i.test(patch.logoUrl))
       throw new HttpError(400, 'logoUrl must be an http or https URL');
+    if (patch.logoUrl !== null && patch.logoUrl.length > 2048)
+      throw new HttpError(400, 'logoUrl must be at most 2048 characters');
     set.logoUrl = patch.logoUrl;
   }
   if (patch.allowedAuthServices !== undefined) {

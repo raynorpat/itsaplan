@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { authContext } from '../shared/auth-context';
-import { requireUser } from '../shared/access';
+import { assertWorkspaceRole, requireUser } from '../shared/access';
 import { ErrorResponse } from '../shared/responses';
 import { organizationDto, updateOrganization } from './store';
 
@@ -34,11 +34,12 @@ export const organizationRoutes = new Elysia({
   .get(
     '/organization',
     async ({ user }) => {
-      requireUser(user);
+      // Linear keeps workspace settings from guests.
+      await assertWorkspaceRole(requireUser(user), 'member');
       return (await organizationDto()) as typeof OrganizationResponse.static;
     },
     {
-      response: { 200: OrganizationResponse, 401: ErrorResponse },
+      response: { 200: OrganizationResponse, 401: ErrorResponse, 403: ErrorResponse },
       detail: {
         summary: 'Get the workspace settings',
         description:

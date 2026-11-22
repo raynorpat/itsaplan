@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { auth, emailConfigWarnings } from '@repo/auth';
-import { db, user } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { db, user, verification, workspaceInvite } from '@repo/db';
+import { eq, like } from 'drizzle-orm';
 import { app } from '../../app';
-import { signUpTestUser } from '../helpers/auth';
+import { requestMagicLink, signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 
 // Sign-in gaps found in review: the Google return leg and account linking follow the
@@ -134,5 +134,46 @@ describe('sign-in review fixes', () => {
     expect(
       emailConfigWarnings({ SMTP_HOST: 'smtp.example.com', EMAIL_FROM: 'a@example.com' }),
     ).toEqual([]);
+  });
+
+  it('redirects a refused magic link to the error page', async () => {
+    const owner = await signUpTestUser();
+    const web = process.env.APP_URL!.split(',')[0]!;
+    await call('/invites', {
+      method: 'POST',
+      cookie: owner.cookie,
+      body: { email: 'late@x.test', role: 'member' },
+    });
+    const token = await requestMagicLink('late@x.test');
+    expect(token).not.toBeNull();
+    // The invite is revoked after the link went out.
+    await db.delete(workspaceInvite);
+    const res = await app.handle(
+      new Request(
+        `http://localhost/api/auth/magic-link/verify?token=${token}&callbackURL=${encodeURIComponent(`${web}/`)}&errorCallbackURL=${encodeURIComponent(`${web}/login`)}`,
+      ),
+    );
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('location')!);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('NOT_INVITED');
+  });
+
+  it('stores magic-link tokens hashed', async () => {
+    await signUpTestUser();
+    const token = await requestMagicLink('again@example.com');
+    const [row] = await db
+      .select({ identifier: verification.identifier })
+      .from(verification)
+      .where(like(verification.value, '%"email":"again@example.com"%'));
+    expect(token).not.toBeNull();
+    expect(row!.identifier).not.toBe(token);
+  });
+
+  it('validates the magic-link request body', async () => {
+    const send = (email: unknown) =>
+      call('/api/auth/sign-in/magic-link', { method: 'POST', body: { email } });
+    expect((await send(5)).status).toBe(400);
+    expect((await send('not-an-email')).status).toBe(400);
   });
 });

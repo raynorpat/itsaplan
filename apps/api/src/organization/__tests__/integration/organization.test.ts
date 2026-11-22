@@ -109,4 +109,22 @@ describe('organization settings', () => {
     const res = await api.issues({ issueId }).attachments.post({ file: big });
     expect(res.status).toBe(413);
   });
+
+  it('keeps the workspace settings from guests and limits field lengths', async () => {
+    const owner = await signUpTestUser();
+    const guest = await signUpWithRole('guest');
+    expect((await call('/organization', { cookie: guest.cookie })).status).toBe(403);
+    const long = await call('/organization', {
+      method: 'PATCH',
+      cookie: owner.cookie,
+      body: { name: 'x'.repeat(256) },
+    });
+    expect(long.status).toBe(400);
+    const longLogo = await call('/organization', {
+      method: 'PATCH',
+      cookie: owner.cookie,
+      body: { logoUrl: `https://example.com/${'x'.repeat(2048)}` },
+    });
+    expect(longLogo.status).toBe(400);
+  });
 });

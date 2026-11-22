@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { db } from '@repo/db';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { betterAuth } from 'better-auth';
@@ -103,6 +104,31 @@ async function isOwnerAddress(email: string): Promise<boolean> {
     )) > 0
   );
 }
+
+// Why a magic link's token would be refused when used, or null: the address has no
+// account and may no longer join (NOT_INVITED), or its account is suspended
+// (ACCOUNT_SUSPENDED). Tokens are stored as the plugin's hash (SHA-256, base64url).
+async function magicLinkRefusal(
+  adapter: {
+    findVerificationValue: (identifier: string) => Promise<{ value: string } | null>;
+  },
+  token: string | undefined,
+): Promise<'NOT_INVITED' | 'ACCOUNT_SUSPENDED' | null> {
+  if (!token) return null;
+  const identifier = createHash('sha256').update(token).digest('base64url');
+  const stored = await adapter.findVerificationValue(identifier);
+  if (!stored) return null;
+  const { email } = JSON.parse(stored.value) as { email: string };
+  const [existing] = await db
+    .select({ id: schema.user.id, suspendedAt: schema.user.suspendedAt })
+    .from(schema.user)
+    .where(eq(schema.user.email, email.toLowerCase()));
+  if (!existing) return (await mayJoin(email)) ? null : 'NOT_INVITED';
+  return existing.suspendedAt ? 'ACCOUNT_SUSPENDED' : null;
+}
+
+// A plain shape check for an email address: one @, no spaces, a dot in the domain.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Whether an account exists for an address.
 async function hasAccount(email: string): Promise<boolean> {
@@ -217,12 +243,34 @@ export const auth = betterAuth({
       // The same silent answer when the workspace does not allow email sign-in,
       // except for an owner.
       if (ctx.path === '/sign-in/magic-link') {
-        const email = (ctx.body as { email?: string } | undefined)?.email ?? '';
+        const email = (ctx.body as { email?: unknown } | undefined)?.email;
+        if (typeof email !== 'string' || !EMAIL_RE.test(email.trim()))
+          throw new APIError('BAD_REQUEST', { message: 'A valid email address is required' });
         if (!(await isAuthServiceAllowed('email')) && !(await isOwnerAddress(email)))
           return ctx.json({ status: true });
         if (!(await hasAccount(email)) && !(await mayJoin(email)))
           return ctx.json({ status: true });
         return;
+      }
+
+      // A magic link whose address may no longer join (its invite was revoked or has
+      // expired) or whose account is suspended would fail inside better-auth's verify
+      // endpoint, which does not catch the refusal. Check it first and send the reader
+      // to the web's error page with the refusal's code, as the plugin does for an
+      // invalid token; an API client without a callback URL gets the error itself.
+      if (ctx.path === '/magic-link/verify') {
+        const query = (ctx.query ?? {}) as {
+          token?: string;
+          callbackURL?: string;
+          errorCallbackURL?: string;
+        };
+        const refusal = await magicLinkRefusal(ctx.context.internalAdapter, query.token);
+        if (!refusal) return;
+        const target = query.errorCallbackURL ?? query.callbackURL;
+        if (!target) throw new APIError('FORBIDDEN', { code: refusal, message: refusal });
+        const url = new URL(decodeURIComponent(target), ctx.context.baseURL);
+        url.searchParams.set('error', refusal);
+        throw ctx.redirect(url.toString());
       }
 
       // Passkey sign-in, when the workspace does not allow passkeys.
@@ -360,6 +408,9 @@ export const auth = betterAuth({
     // does not reveal whether an address has an account or may join. It reuses the
     // `verification` table.
     magicLink({
+      // Only a hash of each token is stored, so reading the verification table does
+      // not give working links.
+      storeToken: 'hashed',
       sendMagicLink: async ({ email, url }) => {
         const logLink = () => console.info(`[auth] magic link for ${email}: ${url}`);
         if (!(await hasConfiguredEmailProvider())) {

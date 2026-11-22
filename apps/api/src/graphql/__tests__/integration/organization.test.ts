@@ -101,4 +101,28 @@ describe('graphql organization', () => {
     expect(errorCode(res)).toBe('INVALID_INPUT');
     expect(errorMessage(res)).toContain('roadmapEnabled');
   });
+
+  it("shows a guest only their teams' people and refuses their update", async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const stranger = await signUpWithRole('member', { name: 'Stranger' });
+    const guest = await signUpWithRole('guest', { name: 'Guest' });
+    const { authedApi } = await import('../../../__tests__/helpers/app');
+    const { addToTeam } = await import('../../../__tests__/helpers/roles');
+    const api = authedApi(owner.cookie);
+    await api.teams.post({ key: 'OPS', name: 'Ops' });
+    await addToTeam(api, 'OPS', guest);
+    const res = await gql(as(guest.cookie), '{ organization { users { nodes { name } } } }');
+    const names = (
+      res.body.data as { organization: { users: { nodes: { name: string }[] } } }
+    ).organization.users.nodes.map((u) => u.name);
+    expect(names).toContain('Owner');
+    expect(names).toContain('Guest');
+    expect(names).not.toContain('Stranger');
+    expect(stranger.userId).toBeTruthy();
+    const update = await gql(
+      as(guest.cookie),
+      'mutation { organizationUpdate(input: { name: "G" }) { success } }',
+    );
+    expect(errorCode(update)).toBe('FORBIDDEN');
+  });
 });

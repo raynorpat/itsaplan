@@ -3,7 +3,7 @@ import { db, user, verification } from '@repo/db';
 import { eq, like } from 'drizzle-orm';
 import { app } from '../../app';
 import { authedApi } from '../helpers/app';
-import { signUpTestUser } from '../helpers/auth';
+import { requestMagicLink, signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 
 // Passwordless sign-in: an email account is created only when its magic link is used,
@@ -19,21 +19,14 @@ const auth = (path: string, body: unknown) =>
     }),
   );
 
-// The token of the newest magic link stored for an address.
-async function linkToken(email: string): Promise<string | null> {
-  const rows = await db
-    .select({ identifier: verification.identifier, createdAt: verification.createdAt })
-    .from(verification)
-    .where(like(verification.value, `%"email":"${email}"%`));
-  rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  return rows[0]?.identifier ?? null;
-}
-
-async function useLink(email: string): Promise<Response> {
-  const token = await linkToken(email);
-  if (!token) throw new Error(`no magic link stored for ${email}`);
+// Uses the magic link most recently requested for an address.
+async function useLink(email: string, query = ''): Promise<Response> {
+  const token = await requestMagicLink(email);
+  if (!token) throw new Error(`no magic link issued for ${email}`);
   return app.handle(
-    new Request(`http://localhost/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`),
+    new Request(
+      `http://localhost/api/auth/magic-link/verify?token=${encodeURIComponent(token)}${query}`,
+    ),
   );
 }
 
@@ -100,7 +93,11 @@ describe('passwordless sign-in', () => {
     expect(await refused.json()).toEqual(await allowed.json());
     expect(log.mock.calls.some((c) => String(c.join(' ')).includes('z@nowhere.test'))).toBe(false);
     log.mockRestore();
-    expect(await linkToken('z@nowhere.test')).toBeNull();
+    const stored = await db
+      .select({ id: verification.id })
+      .from(verification)
+      .where(like(verification.value, '%"email":"z@nowhere.test"%'));
+    expect(stored).toHaveLength(0);
     expect(await db.$count(user, eq(user.email, 'z@nowhere.test'))).toBe(0);
   });
 
