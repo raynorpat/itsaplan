@@ -207,8 +207,8 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
 
   // Full team view: columns, labels, issues, and the caller's own
   // effective access (role + resolved permission matrix) — everything the work
-  // items UI needs in one call. Assignee options come from the team's members
-  // and AI agents, fetched separately. The web app gates its UI off `viewer`; the
+  // items UI needs in one call. Assignee options come from the team's members,
+  // fetched separately. The web app gates its UI off `viewer`; the
   // API still enforces the same matrix on every request.
   .get(
     '/teams/:teamKey',
@@ -244,8 +244,8 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       detail: {
         summary: 'Get a team',
         description:
-          'Get a team setup by key: states, issue types, labels, custom fields, and ' +
-          'assignable users and agents. Resolves the ids create_issue and update_issue ' +
+          'Get a team setup by key: states, labels and assignable users. Resolves the ids ' +
+          'create_issue and update_issue ' +
           'take. For issues use list_issues or search_issues.',
         ...mcpTool('get_team'),
       },

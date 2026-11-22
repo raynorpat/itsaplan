@@ -156,8 +156,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.Nullable(
             t.String({
               format: 'uuid',
-              description:
-                "Assignee user id (a team member), or null. From get_team.assignees where kind is 'member'.",
+              description: 'Assignee user id (a team member), or null. From get_team.assignees.',
             }),
           ),
         ),
@@ -166,7 +165,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             t.String({
               format: 'uuid',
               description:
-                "Delegate user id (an AI agent), or null. From get_team.assignees where kind is 'agent'.",
+                'Delegate user id. Only null is accepted: the instance has no agents yet.',
             }),
           ),
         ),
@@ -437,7 +436,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         stateId: t.Optional(t.String({ description: 'Exact column (state) id.' })),
         projectId: t.Optional(t.String({ description: 'Exact project id.' })),
         assigneeUserId: t.Optional(t.String({ description: 'Exact assignee user id.' })),
-        delegateUserId: t.Optional(t.String({ description: 'Exact delegate agent id.' })),
+        delegateUserId: t.Optional(t.String({ description: 'Exact delegate user id.' })),
         priority: t.Optional(
           t.Numeric({
             minimum: 0,
@@ -639,7 +638,8 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.Nullable(
             t.String({
               format: 'uuid',
-              description: 'New delegate user id (an AI agent), or null.',
+              description:
+                'New delegate user id. Only null is accepted: the instance has no agents yet.',
             }),
           ),
         ),

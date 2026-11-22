@@ -19,8 +19,7 @@ import {
 import { getTeamSetting, setTeamSetting } from '../settings/store';
 
 // Data access for teams: the top-level container that groups its own columns,
-// issue types, labels, assignees, custom fields, issues, saved views, and
-// actions. Access is by membership (team_member): the creator becomes an
+// labels, assignees, issues and saved views. Access is by membership (team_member): the creator becomes an
 // "owner" and only members can reach a team's entities.
 
 export interface TeamRow {
