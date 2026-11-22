@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/theme-toggle';
 import UserMenu from '@/components/layout/UserMenu';
 import GodSidebar from '@/components/layout/GodSidebar';
+import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // The shell for god mode: the instance settings sidebar and a slim header, with no
 // team loaded. It is the counterpart of Shell for the team routes, but far
@@ -27,7 +28,7 @@ export default function GodShell({
   // without it, so the role is only read after mount.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const isGod = mounted && session?.user.role === 'god';
+  const isGod = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   return (
     <SidebarProvider defaultOpen={defaultSidebarOpen} className="h-svh overflow-hidden">

@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import type { PermissionResource } from '@/lib/api';
+import type { AccessArea } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -14,7 +14,7 @@ export function SettingsHeaderAddButton({
   label,
   onClick,
 }: {
-  resource: PermissionResource;
+  resource: AccessArea;
   label: string;
   onClick: () => void;
 }) {

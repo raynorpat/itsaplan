@@ -3,22 +3,18 @@
 import type { Team } from '@/lib/api';
 import { Checkbox } from '@/components/ui/checkbox';
 
-// A checkbox per team, for choosing the teams a project belongs to. Only teams
-// where the user may perform `action` on projects are offered (owners always).
+// A checkbox per team, for choosing the teams a project belongs to. Every team the
+// user can see is offered: seeing a team is enough to add its projects.
 export default function ProjectTeamsChecklist({
   teams,
   value,
   onChange,
-  action,
 }: {
   teams: Team[];
   value: string[];
   onChange: (teamIds: string[]) => void;
-  action: 'create' | 'edit';
 }) {
-  const allowed = teams.filter(
-    (t) => t.role === 'owner' || t.permissions?.projects?.[action] === true,
-  );
+  const allowed = teams;
   const toggle = (id: string, on: boolean) =>
     onChange(on ? [...value, id] : value.filter((x) => x !== id));
   return (

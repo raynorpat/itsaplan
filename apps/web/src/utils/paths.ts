@@ -23,8 +23,6 @@ export const apiDocsPath = (key: string) => `${teamPath(key)}/api`;
 
 export const membersPath = (key: string) => `${teamPath(key)}/members`;
 
-export const rolesPath = (key: string) => `${teamPath(key)}/members/roles`;
-
 // Issues are addressed in the URL by their team-scoped number (the "42" in
 // "MKT-42"), not the internal database id: /team/MKT/issue/42.
 export const issuePath = (key: string, sequenceNumber: number) =>
@@ -79,6 +77,7 @@ export const startPagePath = (key: string, startPage: StartPage) => {
 // the team switcher. Lists every team the user belongs to and lets an owner
 // delete one.
 export const manageTeamsPath = () => '/account/teams';
+export const workspaceMembersPath = () => '/workspace/members';
 
 // The invitee-facing link an owner shares. Points at this web app's public
 // /invite/:token page, which reads the token and shows the accept screen.

@@ -43,7 +43,11 @@ export default function Shell({
   const { data: prefs } = useAccountPreferencesQuery();
   const fallbackKey =
     route.workspace && !route.teamKey
-      ? ((teamList?.find((t) => t.id === prefs?.lastTeamId) ?? teamList?.[0])?.key ?? null)
+      ? ((
+          teamList?.find((t) => t.id === prefs?.lastTeamId) ??
+          teamList?.find((t) => t.role != null) ??
+          teamList?.[0]
+        )?.key ?? null)
       : null;
   const teamKey = route.teamKey ?? fallbackKey;
 
@@ -64,6 +68,9 @@ export default function Shell({
   const issueQuery = useIssueBySeqQuery(teamKey, routeIssueSeq);
 
   useTeamRouteSync({ teams, teamsLoaded, teamKey, redirect: !route.workspace });
+  // The sidebar, switcher and team shortcuts list the teams the user joined; the
+  // route guard above accepts every team they can see.
+  const joinedTeams = teams.filter((t) => t.role != null);
 
   // The settings sections the member may open; the hotkey lands on the first of
   // them, the same entry the sidebar links to.
@@ -84,7 +91,7 @@ export default function Shell({
 
   useKeyboardShortcuts({
     hasTeam: !!team,
-    teams,
+    teams: joinedTeams,
     overlayOpen: overlays.anyOpen,
     onToggleCommand: () => overlays.setShowCommand((v) => !v),
     onSelectTeam: (key) => router.push(teamPath(key)),
@@ -125,7 +132,7 @@ export default function Shell({
     <ShellCtx.Provider value={context}>
       <SidebarProvider defaultOpen={defaultSidebarOpen} className="h-svh overflow-hidden">
         <AppSidebar
-          teams={teams}
+          teams={joinedTeams}
           currentTeamKey={teamKey}
           onSelectTeam={(key) => router.push(teamPath(key))}
           onNewTeam={() => overlays.setShowNewTeam(true)}
@@ -156,7 +163,7 @@ export default function Shell({
               hasTeam={!!team}
               hasError={!!errorMsg}
               teamsLoaded={teamsLoaded}
-              teamCount={teams.length}
+              teamCount={joinedTeams.length}
             >
               {children}
             </ShellBody>
@@ -166,7 +173,7 @@ export default function Shell({
         <CommandLayer
           open={overlays.showCommand}
           onOpenChange={overlays.setShowCommand}
-          teams={teams}
+          teams={joinedTeams}
           currentTeamKey={teamKey}
           onBoard={route.onBoard}
           view={editor.view}

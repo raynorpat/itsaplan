@@ -12,7 +12,7 @@ export interface GeneralForm {
   description: string;
   setName: (v: string) => void;
   setDescription: (v: string) => void;
-  // Only an owner may edit; others see the current values read-only.
+  // Only a team manager may edit; others see the current values read-only.
   editable: boolean;
   saving: boolean;
   canSave: boolean;
@@ -23,7 +23,7 @@ export interface GeneralForm {
 // key is read-only. Shared between the header Save button and the body fields, so
 // it lives in a hook and is threaded into both.
 export function useGeneralForm(team: TeamDetail): GeneralForm {
-  const { isOwner } = usePermissions();
+  const { canManage } = usePermissions();
   const { key, name: savedName, description: savedDescription } = team.team;
   const updateTeam = useUpdateTeam();
 
@@ -32,7 +32,7 @@ export function useGeneralForm(team: TeamDetail): GeneralForm {
 
   const trimmedName = name.trim();
   const dirty = trimmedName !== savedName || description !== savedDescription;
-  const canSave = isOwner && trimmedName.length > 0 && dirty && !updateTeam.isPending;
+  const canSave = canManage && trimmedName.length > 0 && dirty && !updateTeam.isPending;
 
   async function save() {
     await updateTeam.mutateAsync({
@@ -48,7 +48,7 @@ export function useGeneralForm(team: TeamDetail): GeneralForm {
     description,
     setName,
     setDescription,
-    editable: isOwner,
+    editable: canManage,
     saving: updateTeam.isPending,
     canSave,
     save,

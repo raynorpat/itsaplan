@@ -29,10 +29,10 @@ export default function Home() {
 
   useEffect(() => {
     if (teams == null || teams.length === 0 || prefsPending) return;
-    // The remembered team only counts while the user still has access to it: the
-    // list holds their teams only, so a deleted or revoked one falls to the first.
+    // The remembered team only counts while the user can still see it; otherwise
+    // the first joined team, else the first visible one.
     const last = teams.find((p) => p.id === prefs?.lastTeamId);
-    const target = last?.key ?? teams[0]?.key;
+    const target = last?.key ?? (teams.find((p) => p.role != null) ?? teams[0])?.key;
     if (target) router.replace(startPagePath(target, prefs?.startPage ?? 'work-items'));
   }, [teams, prefs, prefsPending, router]);
 

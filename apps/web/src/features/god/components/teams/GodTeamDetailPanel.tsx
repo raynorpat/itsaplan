@@ -6,7 +6,6 @@ import { formatDate, formatDateTime } from '@/utils/dates';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { usePermissionCatalogQuery } from '@/services/roles.service';
 import { useInstanceTeamQuery } from '../../services/god.service';
 import { compactCount } from '../../utils/numbers';
 import GodTeamMemberCard from './GodTeamMemberCard';
@@ -35,8 +34,7 @@ function stats(team: InstanceTeamDetail): { label: string; value: number }[] {
 }
 
 // One team in a right-hand side panel (the same surface the user directory uses):
-// what the team holds, and every member with the permissions their membership
-// resolves to. Escape or a backdrop click closes it.
+// what the team holds, and every member (team owners marked). Escape or a backdrop click closes it.
 export default function GodTeamDetailPanel({
   teamId,
   onClose,
@@ -45,7 +43,6 @@ export default function GodTeamDetailPanel({
   onClose: () => void;
 }) {
   const teamQuery = useInstanceTeamQuery(teamId);
-  const catalogQuery = usePermissionCatalogQuery();
   const team = teamQuery.data;
 
   useExitOnEscape(onClose);
@@ -121,7 +118,7 @@ export default function GodTeamDetailPanel({
                 ) : (
                   <div className="space-y-2">
                     {team.members.map((m) => (
-                      <GodTeamMemberCard key={m.userId} member={m} catalog={catalogQuery.data} />
+                      <GodTeamMemberCard key={m.userId} member={m} />
                     ))}
                   </div>
                 )}

@@ -11,8 +11,8 @@ const FEATURES: { key: keyof TeamFeatures; description: string }[] = [
   { key: 'projects', description: 'Groups of issues tracked as one piece of work.' },
 ];
 
-// The Features block of the General page. Each switch saves on its own. Only an
-// owner may change them; others see the current state read-only.
+// The Features block of the General page. Each switch saves on its own. Only a
+// team manager may change them; others see the current state read-only.
 export default function SettingsFeatures({ form }: { form: FeatureTogglesForm }) {
   return (
     <SettingsSection

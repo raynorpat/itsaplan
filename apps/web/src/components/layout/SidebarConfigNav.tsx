@@ -18,8 +18,6 @@ export default function SidebarConfigNav({ teamKey }: { teamKey: string | null }
   const disabled = !teamKey;
   const { firstHref } = useSettingsNavGroups(teamKey);
 
-  const onRoles = pathname.endsWith('/members/roles');
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Configuration</SidebarGroupLabel>
@@ -29,7 +27,7 @@ export default function SidebarConfigNav({ teamKey }: { teamKey: string | null }
             href={teamKey ? membersPath(teamKey) : '#'}
             icon={Users}
             label="Members"
-            active={pathname.includes('/members') && !onRoles}
+            active={pathname.includes('/members')}
             disabled={disabled}
           />
           <SidebarNavItem

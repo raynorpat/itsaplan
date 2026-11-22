@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { ChevronsUpDown, Plus, Settings2, SquareKanban } from 'lucide-react';
+import { ChevronsUpDown, Plus, Settings2, SquareKanban, Users } from 'lucide-react';
 import type { Team } from '@/lib/api';
-import { manageTeamsPath } from '@/utils/paths';
+import { manageTeamsPath, workspaceMembersPath } from '@/utils/paths';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -91,7 +91,15 @@ export default function TeamSwitcher({
                 <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                   <Settings2 className="size-4" />
                 </div>
-                <span className="font-medium text-muted-foreground">Manage teams</span>
+                <span className="font-medium text-muted-foreground">Browse teams</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="gap-2 p-2">
+              <Link href={workspaceMembersPath()}>
+                <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                  <Users className="size-4" />
+                </div>
+                <span className="font-medium text-muted-foreground">Workspace members</span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

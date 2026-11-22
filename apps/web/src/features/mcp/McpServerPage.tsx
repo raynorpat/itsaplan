@@ -8,7 +8,7 @@ import McpConnectionGuide from './components/McpConnectionGuide';
 
 export default function McpServerPage() {
   const { team } = useShell();
-  const { isOwner } = usePermissions();
+  const { canManage } = usePermissions();
 
   return (
     <SectionPageView
@@ -20,7 +20,7 @@ export default function McpServerPage() {
           teamKey={team?.team.key ?? ''}
           enabled={team?.team.mcpEnabled ?? false}
           isLoading={!team}
-          canManage={isOwner}
+          canManage={canManage}
         />
         <McpConnectionGuide />
       </div>

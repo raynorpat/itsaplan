@@ -25,7 +25,7 @@ export interface AutoArchiveForm {
 }
 
 export function useAutoArchiveForm(teamKey: string): AutoArchiveForm {
-  const { isOwner } = usePermissions();
+  const { canManage } = usePermissions();
   const settingsQuery = useAutoArchiveQuery(teamKey);
   const updateSettings = useUpdateAutoArchive(teamKey);
 
@@ -53,7 +53,7 @@ export function useAutoArchiveForm(teamKey: string): AutoArchiveForm {
   }
 
   return {
-    editable: isOwner,
+    editable: canManage,
     saving: updateSettings.isPending,
     save,
     completedOn,

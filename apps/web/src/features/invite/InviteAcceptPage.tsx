@@ -9,38 +9,34 @@ import InviteInfo from './components/InviteInfo';
 import InviteNotice from './components/InviteNotice';
 import InviteStep from './components/InviteStep';
 
-// The public invite accept screen (/invite/:token). Reachable without a session:
-// a logged-out invitee registers or signs in here and joins in one step; a
-// logged-in one accepts or rejects directly. Styled like the auth screens.
+// The public invite screen (/invite/:token). Reachable without a session: the
+// invitee signs up with the invited email, and the new account takes the invite's
+// role and teams. Styled like the auth screens.
 export default function InviteAcceptPage({ token }: { token: string }) {
   const inviteQuery = useInviteQuery(token);
   const invite = inviteQuery.data;
 
   // The heading reflects the invite state so the copy never contradicts the body
   // (e.g. an invalid link must not read "Accept your invitation").
-  let title = 'Join the team';
-  let subtitle = 'Accept your invitation to start collaborating';
+  let title = 'Join the workspace';
+  let subtitle = 'Create your account to start collaborating';
   let body = <p className="text-sm text-muted-foreground">Loading invite…</p>;
 
   if (!inviteQuery.isPending && !invite) {
     title = 'Invite not found';
     subtitle = 'This link is invalid or no longer active';
     body = (
-      <InviteNotice message="This invite link is invalid or has been revoked.">
+      <InviteNotice message="This invite link is invalid, expired or has been revoked.">
         <Button asChild variant="outline">
           <Link href="/login">Go to sign in</Link>
         </Button>
       </InviteNotice>
     );
   } else if (invite) {
-    if (invite.status !== 'pending') {
-      title = 'Invitation closed';
-      subtitle = `This invite was already ${invite.status}`;
-    }
     body = (
       <div className="flex flex-col gap-6">
         <InviteInfo invite={invite} />
-        <InviteStep token={token} invite={invite} />
+        <InviteStep invite={invite} />
       </div>
     );
   }
@@ -57,7 +53,7 @@ export default function InviteAcceptPage({ token }: { token: string }) {
               </div>
               {body}
             </div>
-            <BrandPanel subtitle="You have been invited to collaborate on a team." />
+            <BrandPanel subtitle="You have been invited to collaborate in this workspace." />
           </CardContent>
         </Card>
       </div>

@@ -10,11 +10,12 @@ import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { usePermissionCatalogQuery } from '@/services/roles.service';
 import { useDeleteInstanceUser, useInstanceUserQuery } from '../../services/god.service';
 import { providerList } from '../../utils/providers';
 import GodUserTeamCard from './GodUserTeamCard';
 import GodUserVerifyButton from './GodUserVerifyButton';
+import { useSession } from '@/lib/auth-client';
+import { isWorkspaceAdmin, ROLE_LABELS, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // One fact in the account grid: a quiet label with the value under it. Reading down
 // a column beats a row of label/value pairs when the values differ in length.
@@ -27,9 +28,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// One account in a right-hand side panel (the same surface the role editor uses):
-// the account facts and every team it can reach, each with the permissions its
-// membership resolves to. Escape or a backdrop click closes it.
+// One account in a right-hand side panel: the account facts, its workspace role and
+// every team it is a member of. Escape or a backdrop click closes it.
 export default function GodUserDetailPanel({
   userId,
   onClose,
@@ -38,7 +38,7 @@ export default function GodUserDetailPanel({
   onClose: () => void;
 }) {
   const userQuery = useInstanceUserQuery(userId);
-  const catalogQuery = usePermissionCatalogQuery();
+  const { data: session } = useSession();
   const deleteUser = useDeleteInstanceUser();
   const [confirming, setConfirming] = useState(false);
   const [withTeams, setWithTeams] = useState(false);
@@ -56,7 +56,11 @@ export default function GodUserDetailPanel({
 
   // An instance owner keeps god mode reachable. The API refuses it; the button is
   // hidden for them too.
-  const removable = user ? user.role !== 'god' : false;
+  // Only an owner deletes accounts, and never another owner's.
+  const removable =
+    user != null &&
+    toWorkspaceRole(session?.user.workspaceRole) === 'owner' &&
+    user.role !== 'owner';
 
   async function confirmDelete() {
     await deleteUser.mutateAsync({ userId, withTeams });
@@ -85,14 +89,14 @@ export default function GodUserDetailPanel({
               <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               {user && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {user.role === 'god' ? (
+                  {isWorkspaceAdmin(toWorkspaceRole(user.role)) ? (
                     <Badge className="gap-1 px-1.5 py-0 text-[10px] font-medium">
                       <Shield className="size-3" />
-                      Instance owner
+                      {ROLE_LABELS[toWorkspaceRole(user.role)]}
                     </Badge>
                   ) : (
                     <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
-                      User
+                      {ROLE_LABELS[toWorkspaceRole(user.role)]}
                     </Badge>
                   )}
                   {user.emailVerified && (
@@ -170,7 +174,7 @@ export default function GodUserDetailPanel({
                 ) : (
                   <div className="space-y-2">
                     {user.teams.map((p) => (
-                      <GodUserTeamCard key={p.teamId} team={p} catalog={catalogQuery.data} />
+                      <GodUserTeamCard key={p.teamId} team={p} />
                     ))}
                   </div>
                 )}

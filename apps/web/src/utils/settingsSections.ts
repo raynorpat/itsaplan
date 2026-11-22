@@ -1,5 +1,5 @@
 import { Archive, Columns3, Info, type LucideIcon, Tags, Webhook } from 'lucide-react';
-import type { PermissionResource } from '@/lib/api';
+import type { AccessArea } from '@/hooks/usePermissions';
 
 // The sidebar group a section is listed under: the team-level general settings,
 // workflow configuration, or automation.
@@ -16,7 +16,7 @@ export type SettingsSection = {
   label: string;
   description: string;
   icon: LucideIcon;
-  resource: PermissionResource;
+  resource: AccessArea;
   group: SettingsGroup;
 };
 

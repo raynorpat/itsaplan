@@ -63,15 +63,23 @@ export interface Team {
   // The optional sections, toggled by an owner in Settings -> General. Read through
   // useTeamFeatures, which hides the navigation and the section itself.
   projectsEnabled: boolean;
+  // Linear's team visibility: a public team is open to every owner, admin and
+  // member of the workspace; a private one to its members only.
+  visibility: TeamVisibility;
   createdAt: string;
-  // The caller's role in this team. Only present on the /teams list
-  // response (used to gate owner-only actions like deletion); absent on the
-  // create response.
-  role?: MemberRole;
-  // The caller's permission matrix in this team. Present only when the list is
-  // requested with permissions (listTeams({ permissions: true })).
-  permissions?: Permissions;
+  // The caller's membership in this team, only on the /teams list: 'owner' (a
+  // team owner), 'member', or null for a public team they have not joined.
+  role?: MemberRole | null;
+  // Whether the caller manages the team (team owner, workspace admin or owner, or
+  // any member of a team without owners). Only on the /teams list.
+  canManage?: boolean;
 }
+
+export type TeamVisibility = 'public' | 'private';
+
+// Linear's workspace roles. Owners and admins administer the workspace; guests
+// reach only the teams they were added to.
+export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
 
 export type StateType = 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled';
 
@@ -325,16 +333,12 @@ export interface InstanceUser {
   createdAt: string;
 }
 
-// A team the user can reach, with the permissions their membership resolves to
-// (full for an owner, the assigned role's matrix for a member).
+// A team the user is a member of; role 'owner' marks a team owner.
 export interface InstanceUserTeam {
   teamId: string;
   teamKey: string;
   teamName: string;
   role: MemberRole;
-  roleId: string | null;
-  roleName: string | null;
-  permissions: Permissions;
   // How many owners the team has. 1 on a team this user owns means deleting
   // the account would leave the team with nobody who can manage it.
   ownerCount: number;
@@ -369,17 +373,13 @@ export interface InstanceTeam {
   createdAt: string;
 }
 
-// One member of a team, with the permissions their membership resolves to (full
-// for an owner, the assigned role's matrix for a member).
+// One member of a team; role 'owner' marks a team owner.
 export interface InstanceTeamMember {
   userId: string;
   name: string;
   email: string;
   image: string | null;
   role: MemberRole;
-  roleId: string | null;
-  roleName: string | null;
-  permissions: Permissions;
   joinedAt: string;
 }
 
@@ -624,11 +624,13 @@ export interface TimelineSegment {
   durationMs: number;
 }
 
-// The caller's own role in a team (owner/member). Returned with the team;
-// the resolved permission matrix is a sibling `permissions` field. See
-// usePermissions.
+// The caller's access to a team, returned with it: their membership (null for a
+// public team they have not joined), their workspace role, and whether they
+// manage the team. See usePermissions.
 export interface TeamViewer {
-  role: MemberRole;
+  role: MemberRole | null;
+  workspaceRole: WorkspaceRole;
+  canManage: boolean;
 }
 
 export interface ProjectOption {
@@ -645,8 +647,6 @@ export interface TeamScaffold {
   labelGroups: LabelGroup[];
   assignees: Assignee[];
   viewer: TeamViewer;
-  // The caller's resolved permission matrix (owners get every flag).
-  permissions: Permissions;
 }
 
 // The board's issues plus its change marker, returned by getBoardIssues. Polled
@@ -837,43 +837,8 @@ export interface ProjectFeedPage {
   nextCursor: FeedCursor | null;
 }
 
-// The team permission matrix (mirrors apps/api shared/permissions.ts): 13
-// resources, each granting or denying 4 actions. A custom role carries one matrix.
-export type PermissionAction = 'create' | 'edit' | 'read' | 'delete';
-
-export type PermissionResource =
-  | 'work_items'
-  | 'projects'
-  | 'views'
-  | 'members_invite'
-  | 'members_manage'
-  | 'states'
-  | 'labels'
-  | 'webhooks'
-  | 'danger_zone';
-
-export type ResourcePermissions = Record<PermissionAction, boolean>;
-export type Permissions = Record<PermissionResource, ResourcePermissions>;
-
-// A team's custom role: a named permission matrix that can be assigned to a
-// member. `isDefault` marks the fallback role new members get; it cannot be deleted.
-export interface Role {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  permissions: Permissions;
-  createdAt: string;
-}
-
-// The resources and actions the role editor renders. Fetched so the UI matches the
-// API's matrix without hardcoding the list in two places.
-export interface PermissionCatalog {
-  resources: PermissionResource[];
-  actions: PermissionAction[];
-}
-
-// Team membership: a user's access to a team and their role in it. New
-// members join through invites, not a direct add.
+// Team membership: 'owner' marks a team owner, who manages the team's settings
+// with the workspace admins.
 export type MemberRole = 'owner' | 'member';
 
 export interface MemberRow {
@@ -882,51 +847,48 @@ export interface MemberRow {
   email: string;
   image: string | null;
   role: MemberRole;
-  // The assigned custom role. null when the member uses the team's default
-  // role; owners never use roles (both fields null).
-  roleId: string | null;
-  roleName: string | null;
-  // What this member does in the team, set by an owner. Empty string when unset.
+  // What this member does in the team, set by a team manager. Empty string when unset.
   description: string;
   createdAt: string;
 }
 
-export type InviteStatus = 'pending' | 'accepted' | 'rejected';
+// A user of the workspace, as owners and admins manage them.
+export interface WorkspaceUser {
+  userId: string;
+  name: string;
+  email: string;
+  image: string | null;
+  role: WorkspaceRole;
+  // Set while the user is suspended (Linear's way to remove someone).
+  suspendedAt: string | null;
+  createdAt: string;
+}
 
-// An invite as shown to the owner managing a team's invites: carries the token
-// so the owner can share the link, and who sent it.
+// The roles an invite can carry; owners are made by an owner after sign-up.
+export type InviteRole = 'admin' | 'member' | 'guest';
+
+// A pending workspace invite: the account created for its email takes its role
+// and joins its teams.
 export interface InviteRow {
   id: string;
   token: string;
   email: string;
-  role: MemberRole;
-  // The custom role the invitee joins on (for a member invite). null falls back
-  // to the default role; roleName resolves it for display. An owner invite has
-  // both null.
-  roleId: string | null;
-  roleName: string | null;
-  status: InviteStatus;
+  role: InviteRole;
+  teamIds: string[];
   createdAt: string;
-  respondedAt: string | null;
+  expiresAt: string;
+  invitedByUserId: string | null;
   invitedByName: string | null;
-  invitedByEmail: string | null;
 }
 
-// An invite as shown to the invitee opening the link: enough team context to
-// decide, never the internal team id.
+// An invite as shown to the invitee opening the link (no sign-in needed).
 export interface InviteView {
   token: string;
-  teamKey: string;
-  teamName: string;
   email: string;
-  role: MemberRole;
-  roleId: string | null;
-  roleName: string | null;
-  status: InviteStatus;
-  createdAt: string;
-  // Whether the invited email already has an account, so the accept screen can
-  // open in sign-in mode instead of registration.
-  hasAccount: boolean;
+  role: InviteRole;
+  teamNames: string[];
+  invitedByName: string | null;
+  expiresAt: string;
 }
 
 // The attachment DTO's url is relative to the API origin; make it absolute so it
@@ -976,13 +938,20 @@ export interface NotificationFilters {
 export type NotificationDeleteScope = 'all' | 'read' | 'read-completed';
 
 export const api = {
-  listTeams: (opts?: { permissions?: boolean }) =>
-    request<Team[]>(`/teams${opts?.permissions ? '?permissions=true' : ''}`),
-  createTeam: (input: { key: string; name: string; description?: string }) =>
-    request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
-  // Update a team's name/description. The key is immutable, so it is not sent.
-  updateTeam: (teamKey: string, patch: { name?: string; description?: string }) =>
-    request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  // The teams the caller can see: joined teams plus public teams not joined
+  // (role null).
+  listTeams: () => request<Team[]>('/teams'),
+  createTeam: (input: {
+    key: string;
+    name: string;
+    description?: string;
+    visibility?: TeamVisibility;
+  }) => request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
+  // Update a team's name, description or visibility. The key is immutable.
+  updateTeam: (
+    teamKey: string,
+    patch: { name?: string; description?: string; visibility?: TeamVisibility },
+  ) => request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTeam: (teamKey: string) => request<void>(`/teams/${teamKey}`, { method: 'DELETE' }),
   // The board scaffold (no issues). The issues come from getBoardIssues.
   getTeam: (teamKey: string) => request<TeamScaffold>(`/teams/${teamKey}`),
@@ -1212,73 +1181,59 @@ export const api = {
       body: JSON.stringify({ orderedIds }),
     }),
 
-  // Members: list who is on a team, and revoke access (an owner removes
-  // anyone; a member removes only themselves — leaving the team).
+  // Team members. Anyone who can see a team may join it (not guests); any member
+  // may add people to a public team, a team manager to a private one; a member
+  // may always leave (remove themselves).
   listMembers: (teamKey: string) => request<MemberRow[]>(`/teams/${teamKey}/members`),
+  joinTeam: (teamKey: string) =>
+    request<{ teamKey: string; userId: string }>(`/teams/${teamKey}/join`, { method: 'POST' }),
+  addMember: (teamKey: string, input: { userId: string; owner?: boolean }) =>
+    request<{ teamKey: string; userId: string }>(`/teams/${teamKey}/members`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   removeMember: (teamKey: string, userId: string) =>
     request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
     }),
-  // Set a member's role (owner-only). role 'owner' promotes to owner; role
-  // 'member' assigns a custom role via roleId (null resets to the default role).
-  // The last owner cannot be demoted — the API rejects it.
-  setMemberRole: (
-    teamKey: string,
-    userId: string,
-    input: { role: MemberRole; roleId?: string | null },
-  ) =>
+  // Make a member a team owner or a plain member (team managers).
+  setMemberRole: (teamKey: string, userId: string, role: MemberRole) =>
     request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(input),
+      body: JSON.stringify({ role }),
     }),
-  // Set what a member does in the team (owner-only). Empty string clears it.
+  // Set what a member does in the team (team managers). Empty string clears it.
   setMemberDescription: (teamKey: string, userId: string, description: string) =>
     request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}/description`, {
       method: 'PATCH',
       body: JSON.stringify({ description }),
     }),
 
-  // Roles: a team's custom roles and the permission catalog behind the role
-  // editor. Any member can list; create/update/delete are owner-only on the API.
-  getPermissionCatalog: () => request<PermissionCatalog>('/permission-catalog'),
-  listRoles: (teamKey: string) => request<Role[]>(`/teams/${teamKey}/roles`),
-  createRole: (teamKey: string, input: { name: string; permissions: Permissions }) =>
-    request<Role>(`/teams/${teamKey}/roles`, { method: 'POST', body: JSON.stringify(input) }),
-  updateRole: (
-    teamKey: string,
-    roleId: string,
-    patch: { name?: string; permissions?: Permissions },
-  ) =>
-    request<Role>(`/teams/${teamKey}/roles/${roleId}`, {
+  // Workspace users (owners, admins and members list; owners and admins change).
+  listWorkspaceUsers: () => request<WorkspaceUser[]>('/workspace/users'),
+  setWorkspaceRole: (userId: string, role: WorkspaceRole) =>
+    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ role }),
     }),
-  deleteRole: (teamKey: string, roleId: string) =>
-    request<void>(`/teams/${teamKey}/roles/${roleId}`, { method: 'DELETE' }),
-
-  // Invites — owner side: create, list, and revoke a team's invite links.
-  listInvites: (teamKey: string) => request<InviteRow[]>(`/teams/${teamKey}/invites`),
-  createInvite: (
-    teamKey: string,
-    input: { email: string; role: MemberRole; roleId?: string | null },
-  ) =>
-    request<InviteRow>(`/teams/${teamKey}/invites`, {
+  suspendUser: (userId: string) =>
+    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}/suspend`, {
       method: 'POST',
-      body: JSON.stringify(input),
     }),
-  deleteInvite: (teamKey: string, inviteId: string) =>
-    request<void>(`/teams/${teamKey}/invites/${inviteId}`, { method: 'DELETE' }),
+  unsuspendUser: (userId: string) =>
+    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}/unsuspend`, {
+      method: 'POST',
+    }),
 
-  // Invites — invitee side: open a link by token, then accept or reject it. The
-  // session email must match the invite. Accept returns where to go next.
+  // Workspace invites. Owners, admins and members invite (never above their own
+  // role); the sender or an admin revokes. The invitee reads one by its token
+  // without signing in, then signs up with the invited email.
+  listInvites: () => request<InviteRow[]>('/invites'),
+  createInvite: (input: { email: string; role: InviteRole; teamIds?: string[] }) =>
+    request<InviteRow>('/invites', { method: 'POST', body: JSON.stringify(input) }),
+  deleteInvite: (inviteId: string) =>
+    request<void>(`/invites/${encodeURIComponent(inviteId)}`, { method: 'DELETE' }),
   getInvite: (token: string) => request<InviteView>(`/invites/${encodeURIComponent(token)}`),
-  acceptInvite: (token: string) =>
-    request<{ teamKey: string; teamName: string; role: MemberRole }>(
-      `/invites/${encodeURIComponent(token)}/accept`,
-      { method: 'POST' },
-    ),
-  rejectInvite: (token: string) =>
-    request<void>(`/invites/${encodeURIComponent(token)}/reject`, { method: 'POST' }),
 
   listWebhooks: (teamKey: string) => request<Webhook[]>(`/teams/${teamKey}/webhooks`),
   createWebhook: (teamKey: string, input: NewWebhookInput) =>

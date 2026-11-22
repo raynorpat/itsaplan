@@ -6,7 +6,7 @@ import SettingsSection from '@/components/common/page/SettingsSection';
 import type { GeneralForm } from '../../hooks/useGeneralForm';
 
 // The Team block of the General page. The key is shown read-only: it prefixes
-// every issue and cannot change. Only an owner may edit; others see the values
+// every issue and cannot change. Only a team manager may edit; others see the values
 // read-only.
 export default function SettingsGeneral({ form }: { form: GeneralForm }) {
   return (

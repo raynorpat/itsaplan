@@ -26,8 +26,17 @@ export default function ManageTeamsLeaveDialog({
       }}
     >
       <p className="text-sm text-muted-foreground">
-        You will lose access to <span className="font-medium text-foreground">{team.name}</span> and
-        its work items. To join again you need a new invite from an owner.
+        {team.visibility === 'private' ? (
+          <>
+            You will lose access to <span className="font-medium text-foreground">{team.name}</span>{' '}
+            and its work items. A member of the team can add you back.
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-foreground">{team.name}</span> leaves your sidebar. It
+            stays public, so you can still open it and join again.
+          </>
+        )}
       </p>
     </ConfirmDialog>
   );

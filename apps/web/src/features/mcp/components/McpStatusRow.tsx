@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUpdateTeamMcp } from '../services/mcp.service';
 
-// Owner-only control; the API enforces the same restriction.
+// Team managers only; the API enforces the same restriction.
 export default function McpStatusRow({
   teamKey,
   enabled,

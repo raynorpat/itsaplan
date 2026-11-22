@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, Trash2 } from 'lucide-react';
+import { Lock, LogIn, LogOut, Trash2 } from 'lucide-react';
 import type { Team } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,17 +12,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PermissionsPopover } from '@/components/common/permissions/PermissionsPopover';
 import ManageTeamsRowAction from './ManageTeamsRowAction';
 
+// Every team the user can see: the ones they joined (with Leave, and Delete for a
+// team they manage) and the public ones they have not (with Join, unless they are
+// a guest).
 export default function ManageTeamsList({
   teams,
   isPending,
+  canJoin,
+  joining,
+  onJoin,
   onDelete,
   onLeave,
 }: {
   teams: Team[];
   isPending: boolean;
+  canJoin: boolean;
+  joining: string | null;
+  onJoin: (team: Team) => void;
   onDelete: (team: Team) => void;
   onLeave: (team: Team) => void;
 }) {
@@ -37,7 +45,7 @@ export default function ManageTeamsList({
 
   if (teams.length === 0) {
     return (
-      <p className="py-6 text-sm text-muted-foreground">You are not a member of any team yet.</p>
+      <p className="py-6 text-sm text-muted-foreground">There are no teams you can see yet.</p>
     );
   }
 
@@ -52,8 +60,8 @@ export default function ManageTeamsList({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead className="text-xs font-medium text-muted-foreground">Team</TableHead>
-          <TableHead className="text-xs font-medium text-muted-foreground">Role</TableHead>
-          <TableHead className="text-xs font-medium text-muted-foreground">Permissions</TableHead>
+          <TableHead className="text-xs font-medium text-muted-foreground">Membership</TableHead>
+          <TableHead className="text-xs font-medium text-muted-foreground">Visibility</TableHead>
           <TableHead className="text-right text-xs font-medium text-muted-foreground">
             Actions
           </TableHead>
@@ -76,30 +84,41 @@ export default function ManageTeamsList({
               </div>
             </TableCell>
             <TableCell className="px-3 py-3 align-top">
-              <span className="text-sm capitalize">{team.role ?? 'member'}</span>
+              <span className="text-sm">
+                {team.role === 'owner' && 'Team owner'}
+                {team.role === 'member' && 'Member'}
+                {team.role == null && <span className="text-muted-foreground">Not joined</span>}
+              </span>
             </TableCell>
             <TableCell className="px-3 py-3 align-top">
-              {team.permissions ? (
-                <PermissionsPopover permissions={team.permissions} label="Your permissions" />
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
-              )}
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                {team.visibility === 'private' && <Lock className="size-3.5" />}
+                {team.visibility === 'private' ? 'Private' : 'Public'}
+              </span>
             </TableCell>
             <TableCell className="px-3 py-2 align-top">
               <div className="flex items-center justify-end gap-1">
-                {team.role === 'owner' ? (
+                {team.role == null && canJoin && (
                   <ManageTeamsRowAction
-                    icon={Trash2}
-                    label="Delete team"
-                    destructive
-                    onClick={() => onDelete(team)}
+                    icon={LogIn}
+                    label={joining === team.key ? 'Joining…' : 'Join team'}
+                    onClick={() => onJoin(team)}
                   />
-                ) : (
+                )}
+                {team.role != null && (
                   <ManageTeamsRowAction
                     icon={LogOut}
                     label="Leave team"
                     destructive
                     onClick={() => onLeave(team)}
+                  />
+                )}
+                {team.canManage && (
+                  <ManageTeamsRowAction
+                    icon={Trash2}
+                    label="Delete team"
+                    destructive
+                    onClick={() => onDelete(team)}
                   />
                 )}
               </div>

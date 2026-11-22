@@ -1,6 +1,6 @@
 'use client';
 
-import type { MemberRow, Role } from '@/lib/api';
+import type { MemberRole, MemberRow } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -11,33 +11,19 @@ import {
 } from '@/components/ui/select';
 import { useSetMemberRole } from '@/services/members.service';
 
-// Owner is not a custom role, so it sits outside the roles list under this value.
-const OWNER_VALUE = 'owner';
-
-// A member's role, shown in the members list. An owner viewing the list gets a
-// select to reassign the role — the team's custom roles plus Owner; anyone
-// else sees the current role name as a read-only badge. The last owner cannot be
-// demoted, so their select is disabled.
+// A member's place in the team: a team owner or a member. A team manager gets a
+// select to change it; anyone else sees a badge.
 export default function MemberRoleControl({
   teamKey,
   member,
-  roles,
   canManage,
-  isLastOwner,
 }: {
   teamKey: string;
   member: MemberRow;
-  roles: Role[];
   canManage: boolean;
-  isLastOwner: boolean;
 }) {
   const setMemberRole = useSetMemberRole(teamKey);
   const isOwnerRow = member.role === 'owner';
-
-  // A null roleId means the member uses the team's default role.
-  const defaultRole = roles.find((r) => r.isDefault) ?? null;
-  const currentId = member.roleId ?? defaultRole?.id ?? null;
-  const currentName = member.roleName ?? defaultRole?.name ?? 'Member';
 
   if (!canManage) {
     return (
@@ -45,39 +31,24 @@ export default function MemberRoleControl({
         variant={isOwnerRow ? 'secondary' : 'outline'}
         className="px-1.5 py-0 text-[10px] font-normal"
       >
-        {isOwnerRow ? 'Owner' : currentName}
+        {isOwnerRow ? 'Team owner' : 'Member'}
       </Badge>
     );
   }
 
-  const value = isOwnerRow ? OWNER_VALUE : currentId?.toString();
-
   function onValueChange(next: string) {
-    if (next === value) return;
-    if (next === OWNER_VALUE) setMemberRole.mutate({ userId: member.userId, role: 'owner' });
-    else setMemberRole.mutate({ userId: member.userId, role: 'member', roleId: next });
+    if (next === member.role) return;
+    setMemberRole.mutate({ userId: member.userId, role: next as MemberRole });
   }
 
   return (
-    <Select
-      value={value}
-      disabled={setMemberRole.isPending || roles.length === 0 || (isOwnerRow && isLastOwner)}
-      onValueChange={onValueChange}
-    >
-      <SelectTrigger
-        size="sm"
-        className="h-7 w-36 text-xs"
-        title={isOwnerRow && isLastOwner ? 'A team must keep at least one owner' : undefined}
-      >
-        <SelectValue placeholder="Select role" />
+    <Select value={member.role} disabled={setMemberRole.isPending} onValueChange={onValueChange}>
+      <SelectTrigger size="sm" className="h-7 w-36 text-xs">
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {roles.map((r) => (
-          <SelectItem key={r.id} value={String(r.id)}>
-            {r.name}
-          </SelectItem>
-        ))}
-        <SelectItem value={OWNER_VALUE}>Owner</SelectItem>
+        <SelectItem value="member">Member</SelectItem>
+        <SelectItem value="owner">Team owner</SelectItem>
       </SelectContent>
     </Select>
   );

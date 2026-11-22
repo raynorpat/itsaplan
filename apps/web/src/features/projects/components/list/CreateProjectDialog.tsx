@@ -58,12 +58,7 @@ export default function CreateProjectDialog({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label>Teams</Label>
-          <ProjectTeamsChecklist
-            teams={teams}
-            value={chosen}
-            onChange={setTeamIds}
-            action="create"
-          />
+          <ProjectTeamsChecklist teams={teams} value={chosen} onChange={setTeamIds} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="project-description">Description</Label>

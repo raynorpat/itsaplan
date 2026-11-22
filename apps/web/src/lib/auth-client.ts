@@ -6,15 +6,16 @@ import { apiKeyClient } from '@better-auth/api-key/client';
 import { API_URL } from '@/lib/api';
 
 // The better-auth handler lives on the backend (Elysia), so baseURL is the API origin.
-// inferAdditionalFields declares the custom `role` column added in @repo/auth so the
-// session user is typed with it (the web app never imports server packages).
+// inferAdditionalFields declares the custom `workspaceRole` column added in
+// @repo/auth so the session user is typed with it (the web app never imports server
+// packages).
 export const authClient = createAuthClient({
   baseURL: API_URL,
   plugins: [
     inferAdditionalFields({
       user: {
         // Server-assigned (see @repo/auth) — not part of the sign-up input.
-        role: { type: 'string', input: false },
+        workspaceRole: { type: 'string', input: false },
       },
     }),
     // WebAuthn passkeys: signIn.passkey() and passkey.addPasskey().

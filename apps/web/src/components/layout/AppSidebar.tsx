@@ -22,6 +22,7 @@ import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarMainNav from '@/components/layout/SidebarMainNav';
 import SidebarSettingsNav from '@/components/layout/SidebarSettingsNav';
 import SidebarBrandFooter from '@/components/brand/SidebarBrandFooter';
+import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // The app sidebar. It has two modes driven by the route: the main work
 // navigation, and the team settings navigation reached through the "Team
@@ -50,7 +51,7 @@ export default function AppSidebar({
   // hydration.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const isGod = mounted && session?.user.role === 'god';
+  const isGod = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   // Settings mode is on whenever the route matches one of the settings nav items.
   // Members is not in those groups, so it keeps the main sidebar.

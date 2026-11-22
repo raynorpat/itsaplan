@@ -11,6 +11,19 @@ export function useMembersQuery(teamKey: string | null) {
   });
 }
 
+// Add a workspace user to the team (any member of a public team; a team manager of
+// a private one).
+export function useAddMember(teamKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => api.addMember(teamKey, { userId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.members(teamKey) });
+      toast.success('Member added');
+    },
+  });
+}
+
 export function useRemoveMember(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -19,28 +32,21 @@ export function useRemoveMember(teamKey: string) {
   });
 }
 
-// Set a member's role (owner-only on the API). role 'owner' promotes to owner;
-// role 'member' assigns a custom role by roleId (null resets to the default role).
+// Make a member a team owner, or back to a plain member (team managers).
 export function useSetMemberRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      userId,
-      role,
-      roleId,
-    }: {
-      userId: string;
-      role: MemberRole;
-      roleId?: string | null;
-    }) => api.setMemberRole(teamKey, userId, { role, roleId }),
+    mutationFn: ({ userId, role }: { userId: string; role: MemberRole }) =>
+      api.setMemberRole(teamKey, userId, role),
     onSuccess: (_data, { role }) => {
-      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
-      toast.success(role === 'owner' ? 'Member promoted to owner' : 'Member role updated');
+      void qc.invalidateQueries({ queryKey: qk.members(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
+      toast.success(role === 'owner' ? 'Member made a team owner' : 'Team owner removed');
     },
   });
 }
 
-// Set what a member does in the team (owner-only on the API).
+// Set what a member does in the team (team managers, or the member themselves).
 export function useSetMemberDescription(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -53,29 +59,12 @@ export function useSetMemberDescription(teamKey: string) {
   });
 }
 
-// Invites are owner-only on the API; pass enabled=false for a non-owner so the
-// list query does not fire a request that would 403.
-export function useInvitesQuery(teamKey: string | null, enabled = true) {
+// The workspace's users. Guests cannot list them; pass enabled=false for a guest so
+// the query does not fire a request that would 403.
+export function useWorkspaceUsersQuery(enabled = true) {
   return useQuery({
-    queryKey: qk.invites(teamKey ?? ''),
-    queryFn: () => api.listInvites(teamKey!),
-    enabled: teamKey != null && enabled,
-  });
-}
-
-export function useCreateInvite(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { email: string; role: MemberRole; roleId?: string | null }) =>
-      api.createInvite(teamKey, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(teamKey) }),
-  });
-}
-
-export function useDeleteInvite(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (inviteId: string) => api.deleteInvite(teamKey, inviteId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invites(teamKey) }),
+    queryKey: qk.workspaceUsers,
+    queryFn: () => api.listWorkspaceUsers(),
+    enabled,
   });
 }

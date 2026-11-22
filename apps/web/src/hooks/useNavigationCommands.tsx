@@ -17,6 +17,7 @@ import {
   inboxPath,
   projectsPath,
   manageTeamsPath,
+  workspaceMembersPath,
   mcpServerPath,
   membersPath,
   notificationsPath,
@@ -26,6 +27,7 @@ import { ACCOUNT_SECTIONS, accountPath } from '@/utils/accountSections';
 import { GOD_SECTIONS } from '@/utils/godSections';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import type { Command, CommandSection } from '@/utils/commands';
+import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // Every place the palette can navigate to; the settings destinations are filtered
 // by what the viewer may read.
@@ -38,7 +40,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
   const router = useRouter();
   const { data: session } = useSession();
   const { groups } = useSettingsNavGroups(teamKey);
-  const isGod = session?.user.role === 'god';
+  const isGod = isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   const items: Command[] = [];
 
@@ -71,12 +73,13 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
     add('nav.mcp', 'MCP Server', <Server />, mcpServerPath(key), 'model context protocol');
   }
 
+  add('nav.manage-teams', 'Browse teams', <FolderKanban />, manageTeamsPath(), 'join leave delete');
   add(
-    'nav.manage-teams',
-    'Manage teams',
-    <FolderKanban />,
-    manageTeamsPath(),
-    'account leave delete copy',
+    'nav.workspace-members',
+    'Workspace members',
+    <Users />,
+    workspaceMembersPath(),
+    'invite people roles suspend',
   );
   for (const s of ACCOUNT_SECTIONS) {
     add(`nav.account.${s.slug}`, s.label, <s.icon />, accountPath(s.slug), 'account');

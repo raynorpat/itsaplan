@@ -1,5 +1,6 @@
 'use client';
 
+import { ROLE_LABELS, toWorkspaceRole } from '@/utils/workspaceRoles';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -36,7 +37,7 @@ export default function UserMenu() {
   if (!session) return null;
 
   const { user } = session;
-  const role = (user as { role?: string }).role ?? 'user';
+  const role = ROLE_LABELS[toWorkspaceRole((user as { workspaceRole?: string }).workspaceRole)];
   const image = (user as { image?: string | null }).image ?? null;
 
   async function onSignOut() {

@@ -17,32 +17,34 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useMembersQuery, useRemoveMember } from '@/services/members.service';
-import { useRolesQuery } from '@/services/roles.service';
+import {
+  useMembersQuery,
+  useRemoveMember,
+  useWorkspaceUsersQuery,
+} from '@/services/members.service';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSession } from '@/lib/auth-client';
+import { Badge } from '@/components/ui/badge';
+import { ROLE_LABELS } from '@/utils/workspaceRoles';
 import MemberRoleControl from './MemberRoleControl';
 import MemberDescription from './MemberDescription';
 import MemberDescriptionDialog from './MemberDescriptionDialog';
 
-// The team's members, one row per person. An owner can revoke anyone's access;
-// a member can only leave (remove themselves). The last owner is protected — the
-// API rejects it and the action is disabled here too.
+// The team's members, one row per person, each with their workspace role. A team
+// manager makes team owners and removes anyone; a member can leave (remove
+// themselves). Guests cannot list workspace users, so they see no workspace roles.
 export default function MembersList({ teamKey }: { teamKey: string }) {
   const membersQuery = useMembersQuery(teamKey);
-  const { can, isOwner } = usePermissions();
+  const { canManage, workspaceRole } = usePermissions();
   const { data: session } = useSession();
   const currentUserId = session?.user.id ?? null;
   const removeMember = useRemoveMember(teamKey);
-  // Roles feed the per-member role select; only an owner can reassign, so only an
-  // owner needs the list fetched.
-  const rolesQuery = useRolesQuery(teamKey, isOwner);
+  const usersQuery = useWorkspaceUsersQuery(workspaceRole != null && workspaceRole !== 'guest');
   const router = useRouter();
   const [target, setTarget] = useState<MemberRow | null>(null);
 
   const members = membersQuery.data ?? [];
-  const roles = rolesQuery.data ?? [];
-  const ownerCount = members.filter((m) => m.role === 'owner').length;
+  const roleOf = new Map((usersQuery.data ?? []).map((u) => [u.userId, u.role]));
 
   if (membersQuery.isPending) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
@@ -80,10 +82,10 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
         <TableBody>
           {members.map((m) => {
             const self = m.userId === currentUserId;
-            const canRemove = self || can('members_manage', 'delete');
-            const canEditDescription = isOwner || self;
-            const lastOwner = m.role === 'owner' && ownerCount === 1;
-            const removeLabel = self ? 'Leave team' : 'Revoke access';
+            const canRemove = self || canManage;
+            const canEditDescription = canManage || self;
+            const workspace = roleOf.get(m.userId);
+            const removeLabel = self ? 'Leave team' : 'Remove from team';
             return (
               <TableRow key={m.userId} className="group/item">
                 <TableCell className="px-3 py-3 align-top whitespace-normal">
@@ -99,6 +101,11 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                         {self && (
                           <span className="text-xs font-normal text-muted-foreground">(you)</span>
                         )}
+                        {workspace && workspace !== 'member' && (
+                          <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                            {ROLE_LABELS[workspace]}
+                          </Badge>
+                        )}
                       </span>
                       <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                         <span className="truncate">{m.email}</span>
@@ -109,13 +116,7 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                   </div>
                 </TableCell>
                 <TableCell className="px-3 pt-4 pb-3 align-top whitespace-normal">
-                  <MemberRoleControl
-                    teamKey={teamKey}
-                    member={m}
-                    roles={roles}
-                    canManage={isOwner && !self}
-                    isLastOwner={lastOwner}
-                  />
+                  <MemberRoleControl teamKey={teamKey} member={m} canManage={canManage} />
                 </TableCell>
                 <TableCell className="px-3 pt-3 pb-2 align-top">
                   <div className="flex items-center justify-end gap-1">
@@ -129,7 +130,6 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                             variant="ghost"
                             size="icon"
                             className="size-8 text-muted-foreground hover:text-destructive"
-                            disabled={lastOwner}
                             aria-label={removeLabel}
                             onClick={() => setTarget(m)}
                           >
@@ -140,9 +140,7 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                             )}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          {lastOwner ? 'A team must keep at least one owner' : removeLabel}
-                        </TooltipContent>
+                        <TooltipContent>{removeLabel}</TooltipContent>
                       </Tooltip>
                     )}
                   </div>
@@ -156,16 +154,16 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
       {target && (
         <ConfirmDialog
           title={
-            targetIsSelf ? 'Leave this team' : `Revoke access for ${target.name || target.email}`
+            targetIsSelf ? 'Leave this team' : `Remove ${target.name || target.email} from the team`
           }
-          confirmLabel={targetIsSelf ? 'Leave team' : 'Revoke access'}
+          confirmLabel={targetIsSelf ? 'Leave team' : 'Remove'}
           onConfirm={confirmRemove}
           onClose={() => setTarget(null)}
         >
           <div className="text-sm text-muted-foreground">
             {targetIsSelf
-              ? 'You will lose access to this team and its issues. An owner can invite you back later.'
-              : `${target.name || target.email} will lose access to this team. They can be invited back later.`}
+              ? 'The team leaves your sidebar. A private team and its issues are no longer visible to you.'
+              : `${target.name || target.email} is no longer a member. They can be added back later.`}
           </div>
         </ConfirmDialog>
       )}

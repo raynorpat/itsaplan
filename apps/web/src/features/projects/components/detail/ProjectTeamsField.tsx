@@ -35,7 +35,7 @@ export default function ProjectTeamsField({ project }: { project: Project }) {
         </Pill>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64">
-        <ProjectTeamsChecklist teams={teams} value={current} onChange={change} action="edit" />
+        <ProjectTeamsChecklist teams={teams} value={current} onChange={change} />
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </PopoverContent>
     </Popover>

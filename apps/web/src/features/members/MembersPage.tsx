@@ -1,22 +1,28 @@
 'use client';
 
 import { useShell } from '@/context/shellContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import SectionPageView from '@/components/common/page/SectionPageView';
-import InvitesManager from './components/invites/InvitesManager';
+import MemberAddForm from './components/members/MemberAddForm';
 import MembersList from './components/members/MembersList';
 
-// The Members page (/team/:teamKey/members): who has access to the team.
-// Pending invites and the invite form sit above the members list.
+// The Members page (/team/:teamKey/members): who is in the team. Any member of a
+// public team adds people from the workspace; a private team's managers do. New
+// people are invited from the workspace Members page.
 export default function MembersPage() {
   const { team } = useShell();
+  const { canManage, workspaceRole, role } = usePermissions();
   if (!team) return null;
+  const isPublic = team.team.visibility === 'public';
+  const canAdd =
+    workspaceRole != null && workspaceRole !== 'guest' && (canManage || (isPublic && role != null));
   return (
     <SectionPageView
       title="Members"
-      description="People with access to this team. Invite people by email; owners can revoke access."
+      description="People in this team. Team owners and workspace admins manage the team; anyone can leave."
       wide
     >
-      <InvitesManager teamKey={team.team.key} />
+      {canAdd && <MemberAddForm teamKey={team.team.key} />}
       <MembersList teamKey={team.team.key} />
     </SectionPageView>
   );

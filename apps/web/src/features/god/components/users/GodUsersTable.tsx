@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { providerList } from '../../utils/providers';
+import { isWorkspaceAdmin, ROLE_LABELS, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // The account list. A row (or the pencil in its Actions cell) opens the account in
 // the side panel, where the email can be confirmed and the account deleted.
@@ -76,14 +77,14 @@ export default function GodUsersTable({
 
             <TableCell className="px-3 py-3 align-top">
               <div className="flex flex-wrap gap-1">
-                {u.role === 'god' ? (
+                {isWorkspaceAdmin(toWorkspaceRole(u.role)) ? (
                   <Badge className="gap-1 px-1.5 py-0 text-[10px] font-medium">
                     <Shield className="size-3" />
-                    God
+                    {ROLE_LABELS[toWorkspaceRole(u.role)]}
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
-                    User
+                    {ROLE_LABELS[toWorkspaceRole(u.role)]}
                   </Badge>
                 )}
               </div>

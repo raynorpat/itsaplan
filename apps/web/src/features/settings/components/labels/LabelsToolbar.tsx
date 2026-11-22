@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardPaste, Copy, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Label, LabelGroup, PermissionResource } from '@/lib/api';
+import type { Label, LabelGroup } from '@/lib/api';
+import type { AccessArea } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -32,7 +33,7 @@ export default function LabelsToolbar({
   labels,
 }: {
   teamKey: string;
-  resource: PermissionResource;
+  resource: AccessArea;
   groups: LabelGroup[];
   labels: Label[];
 }) {

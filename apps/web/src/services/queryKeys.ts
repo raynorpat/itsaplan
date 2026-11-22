@@ -19,12 +19,11 @@ export const qk = {
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
-  // Team membership, invite links, and custom roles (the Members section). The
-  // permission catalog is app-static, so it is not team-scoped.
+  // A team's members (the Members section), and the workspace's users and pending
+  // invites (the workspace Members page).
   members: (teamKey: string) => ['members', teamKey] as const,
-  invites: (teamKey: string) => ['invites', teamKey] as const,
-  roles: (teamKey: string) => ['roles', teamKey] as const,
-  permissionCatalog: ['permissionCatalog'] as const,
+  workspaceUsers: ['workspaceUsers'] as const,
+  invites: ['invites'] as const,
   issue: (id: string) => ['issue', id] as const,
   anyIssue: ['issue'] as const,
   // Resolving an issue by its team-scoped number (the identifier-based URL).

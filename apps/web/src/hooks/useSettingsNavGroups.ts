@@ -1,6 +1,6 @@
 import { usePathname } from 'next/navigation';
-import { Shield, type LucideIcon } from 'lucide-react';
-import { rolesPath, settingsPath } from '@/utils/paths';
+import type { LucideIcon } from 'lucide-react';
+import { settingsPath } from '@/utils/paths';
 import {
   AUTOMATION_SECTIONS,
   CONFIGURATION_SECTIONS,
@@ -40,7 +40,7 @@ export function useSettingsNavGroups(
   firstHref: string | null;
 } {
   const pathname = usePathname();
-  const { can, isOwner } = usePermissions(team);
+  const { can } = usePermissions(team);
 
   // The readable sections of one group as nav items. `activeBase` is the path
   // segment the slug is appended to when matching the current route.
@@ -63,22 +63,8 @@ export function useSettingsNavGroups(
   const workflowItems = toItems(CONFIGURATION_SECTIONS, settingsPath, '/settings');
   const automationItems = toItems(AUTOMATION_SECTIONS, settingsPath, '/settings');
 
-  // Roles is owner-only and sits in the Team group; Members lives in the main
-  // sidebar, not here.
-  const rolesItems: SettingsNavItem[] = isOwner
-    ? [
-        {
-          key: 'roles',
-          href: teamKey ? rolesPath(teamKey) : '#',
-          icon: Shield,
-          label: 'Roles',
-          active: pathname.endsWith('/members/roles'),
-        },
-      ]
-    : [];
-
   const groups: SettingsNavGroup[] = [
-    { key: 'general', label: 'Team', items: [...generalItems, ...rolesItems] },
+    { key: 'general', label: 'Team', items: generalItems },
     { key: 'workflow', label: 'Workflow', items: workflowItems },
     { key: 'automation', label: 'Automation', items: automationItems },
   ].filter((g) => g.items.length > 0);

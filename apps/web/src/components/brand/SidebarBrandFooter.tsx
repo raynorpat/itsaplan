@@ -6,6 +6,7 @@ import UpdatesDialog from '@/components/layout/UpdatesDialog';
 import { useSession } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 import { useAppVersionQuery, useUpdateStatusQuery } from '@/services/updates.service';
+import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
 
 // The product mark at the bottom of both sidebars, with the running version under
 // it. Collapses to the mark alone when the sidebar is in icon mode.
@@ -20,7 +21,7 @@ export default function SidebarBrandFooter() {
   // the first client render identical.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const isGod = mounted && session?.user.role === 'god';
+  const isGod = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
 
   const { data: appVersion } = useAppVersionQuery();
   const { data: status } = useUpdateStatusQuery(isGod);

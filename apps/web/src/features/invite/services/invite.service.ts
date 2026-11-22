@@ -1,10 +1,9 @@
-// Data access for the public invite accept page. The invite endpoints and the
-// auth client are both reached at the API origin, so the session cookie set by
-// sign-in/sign-up is sent with the accept call that follows.
+// Data access for the public invite page: read the invite by its token (no session
+// needed) and sign up with the invited email.
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { signIn, signUp } from '@/lib/auth-client';
+import { signUp } from '@/lib/auth-client';
 
 export function useInviteQuery(token: string) {
   return useQuery({
@@ -15,9 +14,8 @@ export function useInviteQuery(token: string) {
   });
 }
 
-// An auth failure during the join flow, carrying better-auth's error code so the
-// form can react — most importantly, switch to sign-in when the invited email
-// already has an account (there is no public "email exists" check to do upfront).
+// An auth failure during sign-up, carrying better-auth's error code so the form can
+// tell an email that already has an account (the invite does not apply to it).
 export class InviteAuthError extends Error {
   constructor(
     message: string,
@@ -36,10 +34,10 @@ export function isExistingAccountError(err: unknown): boolean {
   );
 }
 
-// Create an account for the invited email, then accept. autoSignIn (set in
-// @repo/auth) signs the new user in during sign-up, so the accept call that
-// follows carries their session.
-export async function registerAndAccept(input: { email: string; password: string; token: string }) {
+// Create an account for the invited email. The API applies the invite (its role and
+// teams) to the account it creates for that email, so there is no separate accept
+// call; autoSignIn (set in @repo/auth) signs the new user in.
+export async function registerWithInvite(input: { email: string; password: string }) {
   const result = await signUp.email({
     email: input.email,
     password: input.password,
@@ -50,15 +48,5 @@ export async function registerAndAccept(input: { email: string; password: string
       result.error.message ?? 'Could not create your account.',
       result.error.code,
     );
-  }
-  return api.acceptInvite(input.token);
-}
-
-// Sign in to an existing account. Does not accept: after the session updates the
-// page shows the accept/reject step for the invitee to decide.
-export async function signInForInvite(input: { email: string; password: string }): Promise<void> {
-  const result = await signIn.email({ email: input.email, password: input.password });
-  if (result.error) {
-    throw new InviteAuthError(result.error.message ?? 'Could not sign you in.', result.error.code);
   }
 }

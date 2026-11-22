@@ -8,7 +8,7 @@ import { useUpdateTeamFeatures } from '../services/settings.service';
 
 export interface FeatureTogglesForm {
   features: TeamFeatures;
-  // Only an owner may toggle; others see the current state read-only.
+  // Only a team manager may toggle; others see the current state read-only.
   editable: boolean;
   saving: boolean;
   toggle: (feature: keyof TeamFeatures, enabled: boolean) => Promise<void>;
@@ -18,7 +18,7 @@ export interface FeatureTogglesForm {
 // the team payload the Shell already loaded. Each switch saves on its own —
 // there is nothing to draft, so the General page's Save button does not cover it.
 export function useFeatureToggles(team: TeamDetail): FeatureTogglesForm {
-  const { isOwner } = usePermissions();
+  const { canManage } = usePermissions();
   const update = useUpdateTeamFeatures(team.team.key);
   const { projectsEnabled } = team.team;
 
@@ -29,7 +29,7 @@ export function useFeatureToggles(team: TeamDetail): FeatureTogglesForm {
 
   return {
     features: { projects: projectsEnabled },
-    editable: isOwner,
+    editable: canManage,
     saving: update.isPending,
     toggle,
   };

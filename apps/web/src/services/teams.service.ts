@@ -1,13 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Team } from '@/lib/api';
+import { api, type Team, type TeamVisibility } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
+// Every team the caller can see: joined teams plus public teams they have not
+// joined (role null). Pickers that add work to a team use this list.
 export function useTeamsQuery() {
-  // Request the caller's resolved permission matrix per team; the Manage
-  // teams page shows it and the sidebar/switcher ignore the extra field.
   return useQuery({
     queryKey: qk.teams,
-    queryFn: () => api.listTeams({ permissions: true }),
+    queryFn: () => api.listTeams(),
+  });
+}
+
+// Join a team the caller can see (Linear lets anyone but a guest join a public
+// team). Refetches the list so the team moves into the sidebar.
+export function useJoinTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (teamKey: string) => api.joinTeam(teamKey),
+    onSuccess: (_data, teamKey) => {
+      void qc.invalidateQueries({ queryKey: qk.teams });
+      void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.members(teamKey) });
+    },
   });
 }
 
@@ -75,7 +89,7 @@ export function useUpdateTeam() {
       patch,
     }: {
       teamKey: string;
-      patch: { name?: string; description?: string };
+      patch: { name?: string; description?: string; visibility?: TeamVisibility };
     }) => api.updateTeam(teamKey, patch),
     onSuccess: (updated, { teamKey }) => {
       // Reflect the new name/description in the cached list immediately, then
@@ -85,7 +99,14 @@ export function useUpdateTeam() {
       // spreading the whole object would wipe the caller's role in the list item.
       qc.setQueryData<Team[]>(qk.teams, (prev) =>
         prev?.map((p) =>
-          p.key === teamKey ? { ...p, name: updated.name, description: updated.description } : p,
+          p.key === teamKey
+            ? {
+                ...p,
+                name: updated.name,
+                description: updated.description,
+                visibility: updated.visibility,
+              }
+            : p,
         ),
       );
       void qc.invalidateQueries({ queryKey: qk.teams });
@@ -105,14 +126,23 @@ function forgetTeam(qc: ReturnType<typeof useQueryClient>, teamKey: string) {
   void qc.invalidateQueries({ queryKey: qk.teams });
 }
 
-// Leave a team you are a member of (self-removal). The API refuses if you are
-// the team's last owner.
+// Leave a team you are a member of (self-removal). A public team stays visible
+// (and listed with role null); a private one disappears, so its caches are dropped.
 export function useLeaveTeam() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ teamKey, userId }: { teamKey: string; userId: string }) =>
       api.removeMember(teamKey, userId),
-    onSuccess: (_data, { teamKey }) => forgetTeam(qc, teamKey),
+    onSuccess: (_data, { teamKey }) => {
+      const team = qc.getQueryData<Team[]>(qk.teams)?.find((t) => t.key === teamKey);
+      if (team?.visibility === 'private') {
+        forgetTeam(qc, teamKey);
+        return;
+      }
+      void qc.invalidateQueries({ queryKey: qk.teams });
+      void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.members(teamKey) });
+    },
   });
 }
 

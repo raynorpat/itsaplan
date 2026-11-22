@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { PermissionAction, PermissionResource } from '@/lib/api';
+import type { AccessAction, AccessArea } from '@/hooks/usePermissions';
 
 // Gates a whole page or section: renders children when the current user may perform
 // `action` on `resource`, otherwise a short access message. The API enforces the
@@ -14,8 +14,8 @@ export default function RequirePermission({
   message = 'You do not have access to this section.',
   children,
 }: {
-  resource: PermissionResource;
-  action: PermissionAction;
+  resource: AccessArea;
+  action: AccessAction;
   message?: string;
   children: ReactNode;
 }) {

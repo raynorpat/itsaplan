@@ -59,12 +59,10 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
     [team, editor.effectiveFilters],
   );
 
-  // The Shell provides the permission context, so the viewer is read directly
-  // rather than through usePermissions. Gates the create-issue keyboard shortcut;
-  // the header and command palette gate their own controls via usePermissions.
-  const viewer = team?.viewer ?? null;
-  const canCreateIssue =
-    !!viewer && (viewer.role === 'owner' || team?.permissions.work_items?.create === true);
+  // Anyone who can see the team creates issues in it. Gates the create-issue
+  // keyboard shortcut; the header and command palette gate their own controls via
+  // usePermissions.
+  const canCreateIssue = team?.viewer != null;
 
   const error = teamsQuery.error ?? teamQuery.error ?? boardIssuesQuery.error ?? viewsQuery.error;
 
