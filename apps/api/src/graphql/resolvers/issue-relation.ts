@@ -77,6 +77,18 @@ async function assertCanRelate(issueId: string, relatedIssueId: string, ctx: Gra
   throw new HttpError(403, 'You do not have permission to edit these issues');
 }
 
+// Marking an issue a duplicate closes it, so it needs work_items.edit in the
+// duplicate issue's own team (FORBIDDEN otherwise).
+async function assertCanMarkDuplicate(
+  type: unknown,
+  duplicateIssueId: string,
+  ctx: GraphQLContext,
+) {
+  if (type !== 'duplicate') return;
+  const found = await findIssue(duplicateIssueId, ctx.user.id);
+  await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
+}
+
 const payload = (r: IssueRelationRow) => ({
   success: true,
   lastSyncId: lastSyncId(),
@@ -111,6 +123,7 @@ export const issueRelationResolvers = {
         if (input.id != null && !UUID_RE.test(String(input.id)))
           throw gqlError('INVALID_INPUT', 'input.id is not a valid id');
         const ids = await assertCanRelate(String(input.issueId), String(input.relatedIssueId), ctx);
+        await assertCanMarkDuplicate(input.type, ids.issueId, ctx);
         const created = await createIssueRelation(
           { ...ids, type: String(input.type), id: input.id as string | undefined },
           ctx.user.id,
@@ -129,6 +142,11 @@ export const issueRelationResolvers = {
         const next = await assertCanRelate(
           (input.issueId as string | null | undefined) ?? current.issueId,
           (input.relatedIssueId as string | null | undefined) ?? current.relatedIssueId,
+          ctx,
+        );
+        await assertCanMarkDuplicate(
+          (input.type as string | null | undefined) ?? current.type,
+          next.issueId,
           ctx,
         );
         const updated = await updateIssueRelation(

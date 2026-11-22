@@ -62,13 +62,18 @@ async function checkPair(issueId: string, relatedIssueId: string, exceptId?: str
   if (existing) throw new HttpError(400, 'These issues are already related');
 }
 
-async function identifier(issueId: string): Promise<string | null> {
+// Written instead of the other issue's identifier when the two issues are in
+// different teams: the history of one issue is shown to every member of its team,
+// who may not be allowed to see the other team.
+const OTHER_TEAM_ISSUE = 'an issue in another team';
+
+async function issueTeamAndIdentifier(issueId: string) {
   const [row] = await db
-    .select({ key: team.key, seq: issue.sequenceNumber })
+    .select({ teamId: issue.teamId, key: team.key, seq: issue.sequenceNumber })
     .from(issue)
     .innerJoin(team, eq(team.id, issue.teamId))
     .where(eq(issue.id, issueId));
-  return row ? `${row.key}-${row.seq}` : null;
+  return row ? { teamId: row.teamId, identifier: `${row.key}-${row.seq}` } : null;
 }
 
 // The relation as seen from each side, for the history subject.
@@ -90,7 +95,12 @@ async function logRelation(
     { issueId: r.relatedIssueId, other: r.issueId, subject: toSide },
   ];
   for (const side of sides) {
-    const other = await identifier(side.other);
+    const [own, otherIssue] = await Promise.all([
+      issueTeamAndIdentifier(side.issueId),
+      issueTeamAndIdentifier(side.other),
+    ]);
+    const other =
+      otherIssue && own?.teamId === otherIssue.teamId ? otherIssue.identifier : OTHER_TEAM_ISSUE;
     await recordActivity(
       side.issueId,
       [

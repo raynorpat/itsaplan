@@ -137,4 +137,24 @@ describe('graphql issue relations', () => {
     const reader = await memberOf(asOwner, 'MKT', role.data!.id);
     expect(errorCode(await create(reader.user.cookie, 'related'))).toBe('FORBIDDEN');
   });
+
+  it("needs edit permission in the duplicate issue's team to mark it a duplicate", async () => {
+    const { asOwner, client, make } = await setup();
+    const mktIssue = await make('M');
+    const secIssue = await make('S', 'SEC');
+    const role = await asOwner
+      .teams({ teamKey: 'SEC' })
+      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
+    const bob = await memberOf(asOwner, 'MKT');
+    const invite = await asOwner
+      .teams({ teamKey: 'SEC' })
+      .invites.post({ email: bob.user.email, role: 'member', roleId: role.data!.id });
+    await authedApi(bob.user.cookie).invites({ token: invite.data!.token }).accept.post();
+    const res = await gql(
+      { cookie: bob.user.cookie },
+      `mutation { issueRelationCreate(input: { issueId: "${secIssue.id}", relatedIssueId: "${mktIssue.id}", type: duplicate }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect((await (await client.issue(secIssue.id)).state)?.type).toBe('unstarted');
+  });
 });

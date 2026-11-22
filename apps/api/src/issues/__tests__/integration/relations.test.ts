@@ -133,4 +133,19 @@ describe('issue relations', () => {
     await asOwner.issues({ issueId: b.id }).delete();
     expect(await getIssueRelation(relation.id)).toBeNull();
   });
+
+  it("does not name another team's issue in the history", async () => {
+    const { owner, asOwner, make } = await setup();
+    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
+    const a = await make('A');
+    const c = await make('C', ops.states.find((s) => s.stateType === 'unstarted')!.id, 'OPS');
+    await createIssueRelation(
+      { issueId: a.id, relatedIssueId: c.id, type: 'blocks' },
+      owner.userId,
+    );
+    const [entry] = await feed(asOwner, a.id);
+    expect(entry!.toText).not.toContain(c.identifier);
+    expect(entry!.toText).toBe('an issue in another team');
+  });
 });
