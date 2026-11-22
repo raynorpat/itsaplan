@@ -1,7 +1,26 @@
-import { db, issue, project, projectMilestone, team, workflowState, user } from '@repo/db';
-import { eq, inArray, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import {
+  db,
+  issue,
+  issueRelation,
+  project,
+  projectMilestone,
+  team,
+  workflowState,
+  user,
+} from '@repo/db';
+import {
+  and,
+  eq,
+  inArray,
+  isNull,
+  not,
+  notInArray,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
-import { teamFilter } from './resolvers/team';
+import { teamFilter, visibleTeamIds } from './resolvers/team';
 import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
@@ -9,7 +28,9 @@ import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
 // team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
-// email, isMe, null), parent (id, null), project, projectMilestone, cycle, and / or.
+// email, isMe, null), parent (id, null), project, projectMilestone, cycle,
+// hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
+// hasRelatedRelations, and / or.
 // Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
@@ -66,8 +87,55 @@ function nullableRef(
   return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : sql`true`;
 }
 
+// A RelationExistsComparator ({ eq, neq }) on whether the issue is in `withRelation`
+// (a subquery of issue ids).
+function relationExists(withRelation: () => SQL) {
+  return (value: unknown, path: string): SQL => {
+    const { eq: equals, neq, ...rest } = value as Record<string, unknown>;
+    if (Object.keys(rest).length)
+      throw gqlError('INVALID_INPUT', `Filter ${path}.${Object.keys(rest)[0]} is not supported`);
+    const parts: SQL[] = [];
+    for (const [want, v] of [
+      [true, equals],
+      [false, neq],
+    ] as const) {
+      if (v === undefined || v === null) continue;
+      parts.push(
+        v === want ? inArray(issue.id, withRelation()) : notInArray(issue.id, withRelation()),
+      );
+    }
+    return and(...parts) ?? sql`true`;
+  };
+}
+
+// Relation existence counts only relations to issues the viewer can see.
+function relationFilters(viewerId: string): FieldHandlers {
+  const visible = () =>
+    db
+      .select({ id: issue.id })
+      .from(issue)
+      .where(inArray(issue.teamId, visibleTeamIds(viewerId)));
+  // The issues on one side of relations of `type` whose other side is visible.
+  const side = (type: string, column: 'issueId' | 'relatedIssueId') => {
+    const other = column === 'issueId' ? issueRelation.relatedIssueId : issueRelation.issueId;
+    return db
+      .select({ id: issueRelation[column] })
+      .from(issueRelation)
+      .where(and(eq(issueRelation.type, type), inArray(other, visible())));
+  };
+  const eitherSide = (type: string) =>
+    sql`(${side(type, 'issueId')} UNION ${side(type, 'relatedIssueId')})`;
+  return {
+    hasBlockingRelations: relationExists(() => sql`(${side('blocks', 'issueId')})`),
+    hasBlockedByRelations: relationExists(() => sql`(${side('blocks', 'relatedIssueId')})`),
+    hasDuplicateRelations: relationExists(() => eitherSide('duplicate')),
+    hasRelatedRelations: relationExists(() => eitherSide('related')),
+  };
+}
+
 export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefined {
   const handlers: FieldHandlers = {
+    ...relationFilters(viewerId),
     id: (v, p) => compareId(issue.id, v, p),
     number: (v, p) => compare(issue.sequenceNumber, v, p),
     title: (v, p) => compare(issue.title, v, p),

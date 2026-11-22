@@ -15,6 +15,7 @@ import { commentResolvers } from './resolvers/comment';
 import { reactionResolvers } from './resolvers/reaction';
 import { issueLabelResolvers } from './resolvers/issue-label';
 import { cycleResolvers } from './resolvers/cycle';
+import { issueRelationResolvers } from './resolvers/issue-relation';
 import { initiativeResolvers } from './resolvers/initiative';
 import { initiativeMutationResolvers } from './resolvers/initiative-mutations';
 import { organizationResolvers } from './resolvers/organization';
@@ -37,6 +38,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   reactionResolvers,
   issueLabelResolvers,
   cycleResolvers,
+  issueRelationResolvers,
   initiativeResolvers,
   initiativeMutationResolvers,
 ];

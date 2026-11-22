@@ -77,6 +77,12 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `projects.<action>` the same way. Deleting the lead team makes its initiatives
   workspace initiatives. Health is the newest unarchived `initiative_update`'s.
   `initiativeDelete` archives and sets `trashed`.
+- **Issue relations** (`issues/relations.ts`): `blocks`, `duplicate` (the issue is a
+  duplicate of the related one) and `related`, one per unordered pair of issues,
+  across teams allowed. Every change is logged on both issues (action `relation`).
+  A new duplicate moves to its team's canceled state named "Duplicate", else the
+  first canceled state, unless already completed or canceled. A relation is visible
+  when both issues are; writes need `work_items.edit` in either issue's team.
 
 ## Auth and access
 
@@ -216,7 +222,8 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, cycles, initiatives (project links, sub-initiatives, updates) and webhooks
+  labels, issue relations, cycles, initiatives (project links, sub-initiatives,
+  updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
