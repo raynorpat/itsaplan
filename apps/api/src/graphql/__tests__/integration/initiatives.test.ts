@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { InitiativeStatus, InitiativeVisibility } from '@linear/sdk';
+import { InitiativeStatus, InitiativeUpdateHealthType, InitiativeVisibility } from '@linear/sdk';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -139,5 +139,107 @@ describe('graphql initiatives', () => {
       `{ projects(filter: { initiatives: { some: { id: { eq: "${a.id}" } } } }) { nodes { name } } }`,
     );
     expect(res.body.data).toEqual({ projects: { nodes: [{ name: 'Site' }] } });
+  });
+
+  it('links projects and lists them through sub-initiatives', async () => {
+    const { asOwner, client, mkt } = await setup();
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
+    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
+    const p2 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P2' })).data!;
+    await client.createInitiativeToProject({ initiativeId: a.id, projectId: p1.id });
+    await client.createInitiativeToProject({ initiativeId: b.id, projectId: p2.id });
+    const relation = (await (
+      await client.createInitiativeRelation({ initiativeId: a.id, relatedInitiativeId: b.id })
+    ).initiativeRelation)!;
+    expect((await relation.relatedInitiative)?.id).toBe(b.id);
+    const parent = await client.initiative(a.id);
+    expect((await parent.projects()).nodes.map((p) => p.name).sort()).toEqual(['P1', 'P2']);
+    expect(
+      (await parent.projects({ includeSubInitiatives: false })).nodes.map((p) => p.name),
+    ).toEqual(['P1']);
+    expect((await (await client.initiative(b.id)).parentInitiative)?.id).toBe(a.id);
+    expect((await parent.subInitiatives()).nodes.map((i) => i.id)).toEqual([b.id]);
+    expect((await client.initiativeToProjects()).nodes).toHaveLength(2);
+    expect((await client.initiativeRelations()).nodes).toHaveLength(1);
+  });
+
+  it('rejects a duplicate link, a hidden project and a loop', async () => {
+    const { owner, asOwner, client, mkt } = await setup();
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
+    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
+    await client.createInitiativeToProject({ initiativeId: a.id, projectId: p1.id });
+    const link = (projectId: string) =>
+      gql(
+        { cookie: owner.cookie },
+        `mutation { initiativeToProjectCreate(input: { initiativeId: "${a.id}", projectId: "${projectId}" }) { success } }`,
+      );
+    expect(errorCode(await link(p1.id))).toBe('INVALID_INPUT');
+    const stranger = await signUpTestUser();
+    const asStranger = authedApi(stranger.cookie);
+    await asStranger.teams.post({ key: 'SEC', name: 'Secret' });
+    const sec = (await asStranger.teams({ teamKey: 'SEC' }).get()).data!.team.id;
+    const hidden = (await asStranger.projects.post({ teamIds: [sec], name: 'Hidden' })).data!;
+    expect(errorCode(await link(hidden.id))).toBe('ENTITY_NOT_FOUND');
+    await client.createInitiativeRelation({ initiativeId: a.id, relatedInitiativeId: b.id });
+    const loop = await gql(
+      { cookie: owner.cookie },
+      `mutation { initiativeRelationCreate(input: { initiativeId: "${b.id}", relatedInitiativeId: "${a.id}" }) { success } }`,
+    );
+    expect(errorCode(loop)).toBe('INVALID_INPUT');
+  });
+
+  it('posts updates and derives health', async () => {
+    const { client } = await setup();
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    const posted = (await (
+      await client.createInitiativeUpdate({
+        initiativeId: a.id,
+        body: 'Slipping',
+        health: InitiativeUpdateHealthType.AtRisk,
+      })
+    ).initiativeUpdate)!;
+    const read = await client.initiative(a.id);
+    expect(read.health).toBe(InitiativeUpdateHealthType.AtRisk);
+    expect(read.healthUpdatedAt).toBeTruthy();
+    expect((await read.lastUpdate)?.id).toBe(posted.id);
+    expect((await read.initiativeUpdates()).nodes.map((u) => u.id)).toEqual([posted.id]);
+    await client.archiveInitiativeUpdate(posted.id);
+    expect((await client.initiative(a.id)).health).toBeFalsy();
+  });
+
+  it('comments and reacts on an update', async () => {
+    const { client } = await setup();
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    const posted = (await (
+      await client.createInitiativeUpdate({ initiativeId: a.id, body: 'Going well' })
+    ).initiativeUpdate)!;
+    const comment = (await (
+      await client.createComment({ initiativeUpdateId: posted.id, body: 'Nice' })
+    ).comment)!;
+    expect((await comment.initiativeUpdate)?.id).toBe(posted.id);
+    await client.createReaction({ initiativeUpdateId: posted.id, emoji: '👍' });
+    const update = await client.initiativeUpdate(posted.id);
+    expect((await update.comments()).nodes.map((c) => c.id)).toEqual([comment.id]);
+    expect(update.commentCount).toBe(1);
+    expect(JSON.stringify(update.reactionData)).toContain('👍');
+  });
+
+  it('sends Initiative and InitiativeUpdate webhooks over GraphQL', async () => {
+    const { asOwner, client } = await setup();
+    const hook = (
+      await asOwner.webhooks.post({
+        url: 'https://example.com/h',
+        resourceTypes: ['Initiative', 'InitiativeUpdate'],
+      })
+    ).data!;
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    await client.createInitiativeUpdate({ initiativeId: a.id, body: 'ok' });
+    const events = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+      .data!.items.map((d) => d.payload as { action: string; type: string })
+      .map((p) => `${p.type}:${p.action}`);
+    expect(events).toContain('Initiative:create');
+    expect(events).toContain('InitiativeUpdate:create');
   });
 });

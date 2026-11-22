@@ -12,15 +12,40 @@ import {
   type InitiativePatch,
   type NewInitiativeInput,
 } from '../../initiatives/store';
+import {
+  createRelation,
+  deleteRelation,
+  linkProject,
+  unlinkProject,
+  updateProjectLink,
+  updateRelation,
+} from '../../initiatives/links';
+import {
+  createInitiativeUpdate,
+  setInitiativeUpdateArchived,
+  updateInitiativeUpdate,
+} from '../../initiatives/updates';
+import { assertProjectAccess } from '../../projects/access';
+import type { UpdateHealth } from '../../projects/updates';
 import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { gqlError } from '../errors';
-import { toInitiative } from './initiative';
+import {
+  findInitiativeUpdate,
+  findProjectLink,
+  findRelation,
+  toInitiative,
+  toInitiativeUpdate,
+  toProjectLink,
+  toRelation,
+} from './initiative';
 import { guard, lastSyncId, onlySupported } from './mutations';
 
 // Initiative mutations. Access: create needs projects.create in the lead team (or
 // in any team for a workspace initiative), edit and archive projects.edit, delete
-// projects.delete; making a team the lead team needs membership in it.
+// projects.delete; making a team the lead team needs membership in it. Links,
+// relations and updates need projects.edit on the initiatives involved; linking a
+// project also needs the project to be visible.
 
 const UPDATE_FIELDS = [
   'name',
@@ -53,6 +78,21 @@ function toFields(input: Input): InitiativePatch {
   const { labelIds: _labelIds, id: _id, ...rest } = input;
   return rest as InitiativePatch;
 }
+
+// Ids given in the input must be UUIDs (INVALID_INPUT naming the field).
+function checkIds(input: Input, fields: string[]): void {
+  for (const f of fields)
+    if (input[f] != null && !UUID_RE.test(String(input[f])))
+      throw gqlError('INVALID_INPUT', `input.${f} is not a valid id`);
+}
+
+const sortOrderOf = (input: Input): number => {
+  if (typeof input.sortOrder !== 'number')
+    throw gqlError('INVALID_INPUT', 'input.sortOrder must be a number');
+  return input.sortOrder;
+};
+
+const deleted = (entityId: string) => ({ success: true, lastSyncId: lastSyncId(), entityId });
 
 const payload = async (id: string) => ({
   success: true,
@@ -110,6 +150,157 @@ export const initiativeMutationResolvers = {
         const found = await assertInitiativeAccess(id, ctx.user.id, 'delete');
         await archiveInitiative(found.id, ctx.user.id, { trash: true });
         return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
+      }),
+
+    initiativeToProjectCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>
+      guard(async () => {
+        onlySupported(input, ['initiativeId', 'projectId', 'sortOrder', 'id'], 'input');
+        checkIds(input, ['initiativeId', 'projectId', 'id']);
+        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id, 'edit');
+        await assertProjectAccess(String(input.projectId), ctx.user.id, 'read');
+        const link = await linkProject(
+          {
+            initiativeId: found.id,
+            projectId: String(input.projectId),
+            sortOrder: input.sortOrder as number | undefined,
+            id: input.id as string | undefined,
+          },
+          ctx.user.id,
+        );
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          initiativeToProject: toProjectLink(link),
+        };
+      }),
+    initiativeToProjectUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: Input },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        onlySupported(input, ['sortOrder'], 'input');
+        const link = await findProjectLink(id, ctx);
+        await assertInitiativeAccess(link.initiativeId, ctx.user.id, 'edit');
+        const updated = await updateProjectLink(
+          link.id,
+          { sortOrder: sortOrderOf(input) },
+          ctx.user.id,
+        );
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          initiativeToProject: toProjectLink(updated),
+        };
+      }),
+    initiativeToProjectDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const link = await findProjectLink(id, ctx);
+        await assertInitiativeAccess(link.initiativeId, ctx.user.id, 'edit');
+        await unlinkProject(link.id, ctx.user.id);
+        return deleted(link.id);
+      }),
+    initiativeRelationCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>
+      guard(async () => {
+        onlySupported(input, ['initiativeId', 'relatedInitiativeId', 'sortOrder', 'id'], 'input');
+        checkIds(input, ['initiativeId', 'relatedInitiativeId', 'id']);
+        const parent = await assertInitiativeAccess(
+          String(input.initiativeId),
+          ctx.user.id,
+          'edit',
+        );
+        const child = await assertInitiativeAccess(
+          String(input.relatedInitiativeId),
+          ctx.user.id,
+          'edit',
+        );
+        const relation = await createRelation(
+          {
+            initiativeId: parent.id,
+            relatedInitiativeId: child.id,
+            sortOrder: input.sortOrder as number | undefined,
+            id: input.id as string | undefined,
+          },
+          ctx.user.id,
+        );
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          initiativeRelation: toRelation(relation),
+        };
+      }),
+    initiativeRelationUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: Input },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        onlySupported(input, ['sortOrder'], 'input');
+        const relation = await findRelation(id, ctx);
+        await assertInitiativeAccess(relation.initiativeId, ctx.user.id, 'edit');
+        const updated = await updateRelation(
+          relation.id,
+          { sortOrder: sortOrderOf(input) },
+          ctx.user.id,
+        );
+        return { success: true, lastSyncId: lastSyncId(), initiativeRelation: toRelation(updated) };
+      }),
+    initiativeRelationDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const relation = await findRelation(id, ctx);
+        await assertInitiativeAccess(relation.initiativeId, ctx.user.id, 'edit');
+        await assertInitiativeAccess(relation.relatedInitiativeId, ctx.user.id, 'edit');
+        await deleteRelation(relation.id, ctx.user.id);
+        return deleted(relation.id);
+      }),
+    initiativeUpdateCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>
+      guard(async () => {
+        onlySupported(input, ['initiativeId', 'body', 'health', 'id'], 'input');
+        checkIds(input, ['initiativeId', 'id']);
+        const found = await assertInitiativeAccess(String(input.initiativeId), ctx.user.id, 'edit');
+        const created = await createInitiativeUpdate(found.id, ctx.user.id, {
+          body: (input.body as string | null | undefined) ?? '',
+          health: (input.health as UpdateHealth | null | undefined) ?? undefined,
+          id: input.id as string | undefined,
+        });
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          initiativeUpdate: toInitiativeUpdate(created),
+        };
+      }),
+    initiativeUpdateUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: Input },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        onlySupported(input, ['body', 'health'], 'input');
+        const found = await findInitiativeUpdate(id, ctx);
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        const patch: { body?: string; health?: UpdateHealth } = {};
+        if (input.body != null) patch.body = input.body as string;
+        if (input.health != null) patch.health = input.health as UpdateHealth;
+        const updated = await updateInitiativeUpdate(found.id, patch, ctx.user.id);
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          initiativeUpdate: toInitiativeUpdate(updated),
+        };
+      }),
+    initiativeUpdateArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const found = await findInitiativeUpdate(id, ctx);
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        const archived = await setInitiativeUpdateArchived(found.id, true, ctx.user.id);
+        return { success: true, lastSyncId: lastSyncId(), entity: toInitiativeUpdate(archived) };
+      }),
+    initiativeUpdateUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const found = await findInitiativeUpdate(id, ctx);
+        await assertInitiativeAccess(found.initiativeId, ctx.user.id, 'edit');
+        const restored = await setInitiativeUpdateArchived(found.id, false, ctx.user.id);
+        return { success: true, lastSyncId: lastSyncId(), entity: toInitiativeUpdate(restored) };
       }),
   },
 };

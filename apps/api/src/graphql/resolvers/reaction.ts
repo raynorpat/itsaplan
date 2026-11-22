@@ -18,13 +18,17 @@ import { toComment } from './comment';
 import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 
-// Linear's Reaction, read through the item it is on (Issue, Comment, ProjectUpdate),
+// Linear's Reaction, read through the item it is on (Issue, Comment, ProjectUpdate,
+// InitiativeUpdate),
 // with reactionCreate / reactionDelete. Access follows the item.
 
 const toReaction = (r: ReactionRow) => ({ ...r, updatedAt: r.createdAt, archivedAt: null });
 
 type ItemColumn =
-  typeof reaction.issueId | typeof reaction.commentId | typeof reaction.projectUpdateId;
+  | typeof reaction.issueId
+  | typeof reaction.commentId
+  | typeof reaction.projectUpdateId
+  | typeof reaction.initiativeUpdateId;
 
 const byItem = (column: ItemColumn) => (item: { id: string }) =>
   listReactions(eq(column, item.id)).then((rows) => rows.map(toReaction));
@@ -36,6 +40,7 @@ type CreateInput = Record<string, unknown> & {
   commentId?: string | null;
   issueId?: string | null;
   projectUpdateId?: string | null;
+  initiativeUpdateId?: string | null;
   id?: string | null;
 };
 
@@ -44,13 +49,20 @@ function parentOf(input: CreateInput): ReactionParent {
     input.commentId && { commentId: input.commentId },
     input.issueId && { issueId: input.issueId },
     input.projectUpdateId && { projectUpdateId: input.projectUpdateId },
+    input.initiativeUpdateId && { initiativeUpdateId: input.initiativeUpdateId },
   ].filter(Boolean) as ReactionParent[];
   if (given.length !== 1)
     throw gqlError(
       'INVALID_INPUT',
-      'Set exactly one of input.commentId, input.issueId, input.projectUpdateId',
+      'Set exactly one of input.commentId, input.issueId, input.projectUpdateId, input.initiativeUpdateId',
     );
-  for (const v of [input.commentId, input.issueId, input.projectUpdateId, input.id])
+  for (const v of [
+    input.commentId,
+    input.issueId,
+    input.projectUpdateId,
+    input.initiativeUpdateId,
+    input.id,
+  ])
     if (v && !UUID_RE.test(v)) throw gqlError('INVALID_INPUT', `${v} is not a valid id`);
   return given[0]!;
 }
@@ -61,6 +73,10 @@ export const reactionResolvers = {
   ProjectUpdate: {
     reactions: byItem(reaction.projectUpdateId),
     reactionData: dataByItem(reaction.projectUpdateId),
+  },
+  InitiativeUpdate: {
+    reactions: byItem(reaction.initiativeUpdateId),
+    reactionData: dataByItem(reaction.initiativeUpdateId),
   },
   Reaction: {
     user: (r: ReactionRow, _: unknown, ctx: GraphQLContext) => userById(r.userId, ctx.user.id),
@@ -74,7 +90,11 @@ export const reactionResolvers = {
   Mutation: {
     reactionCreate: (_: unknown, { input }: { input: CreateInput }, ctx: GraphQLContext) =>
       guard(async () => {
-        onlySupported(input, ['emoji', 'commentId', 'issueId', 'projectUpdateId', 'id'], 'input');
+        onlySupported(
+          input,
+          ['emoji', 'commentId', 'issueId', 'projectUpdateId', 'initiativeUpdateId', 'id'],
+          'input',
+        );
         const parent = parentOf(input);
         await assertReactionParentAccess(parent, ctx.user);
         const created = await createReaction({

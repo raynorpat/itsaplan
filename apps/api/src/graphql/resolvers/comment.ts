@@ -1,5 +1,5 @@
 import { comment, db, projectUpdate } from '@repo/db';
-import { and, eq, type SQL } from 'drizzle-orm';
+import { and, count, eq, type SQL } from 'drizzle-orm';
 import {
   assertParentAccess,
   commentParent,
@@ -23,6 +23,7 @@ import { gqlError } from '../errors';
 import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toUpdate } from './project';
+import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
 
 // Linear's Comment over a comment row. `parentUrl` is the web URL of the comment's
 // issue, project or project update; GraphQL resolves `url` lazily when it is empty.
@@ -38,6 +39,7 @@ export function toComment(row: CommentRow, parentUrl = '') {
     issueId: row.issueId,
     projectId: row.projectId,
     projectUpdateId: row.projectUpdateId,
+    initiativeUpdateId: row.initiativeUpdateId,
     parentId: row.parentId,
     userId: row.userId,
     resolvingUserId: row.resolvingUserId,
@@ -91,6 +93,7 @@ type CreateInput = Record<string, unknown> & {
   issueId?: string | null;
   projectId?: string | null;
   projectUpdateId?: string | null;
+  initiativeUpdateId?: string | null;
   parentId?: string | null;
   id?: string | null;
 };
@@ -100,13 +103,21 @@ function parentOf(input: CreateInput): CommentParent {
     input.issueId && { issueId: input.issueId },
     input.projectId && { projectId: input.projectId },
     input.projectUpdateId && { projectUpdateId: input.projectUpdateId },
+    input.initiativeUpdateId && { initiativeUpdateId: input.initiativeUpdateId },
   ].filter(Boolean) as CommentParent[];
   if (given.length !== 1)
     throw gqlError(
       'INVALID_INPUT',
-      'Set exactly one of input.issueId, input.projectId, input.projectUpdateId',
+      'Set exactly one of input.issueId, input.projectId, input.projectUpdateId, input.initiativeUpdateId',
     );
-  for (const v of [input.issueId, input.projectId, input.projectUpdateId, input.parentId, input.id])
+  for (const v of [
+    input.issueId,
+    input.projectId,
+    input.projectUpdateId,
+    input.initiativeUpdateId,
+    input.parentId,
+    input.id,
+  ])
     if (v && !UUID_RE.test(v)) throw gqlError('INVALID_INPUT', `${v} is not a valid id`);
   return given[0]!;
 }
@@ -129,6 +140,17 @@ export const commentResolvers = {
   ProjectUpdate: {
     comments: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
       listComments(eq(comment.projectUpdateId, u.id), args, ctx),
+  },
+  InitiativeUpdate: {
+    comments: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
+      listComments(eq(comment.initiativeUpdateId, u.id), args, ctx),
+    commentCount: async (u: { id: string }) => {
+      const [row] = await db
+        .select({ value: count() })
+        .from(comment)
+        .where(eq(comment.initiativeUpdateId, u.id));
+      return row?.value ?? 0;
+    },
   },
   Comment: {
     url: async (c: GraphQLComment) => {
@@ -168,13 +190,28 @@ export const commentResolvers = {
       );
       return visible ? toUpdate(row) : null;
     },
+    // Null when the update's initiative is not visible.
+    initiativeUpdate: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
+      c.initiativeUpdateId
+        ? findInitiativeUpdate(c.initiativeUpdateId, ctx)
+            .then(toInitiativeUpdate)
+            .catch(() => null)
+        : null,
   },
   Mutation: {
     commentCreate: (_: unknown, { input }: { input: CreateInput }, ctx: GraphQLContext) =>
       guard(async () => {
         onlySupported(
           input,
-          ['body', 'issueId', 'projectId', 'projectUpdateId', 'parentId', 'id'],
+          [
+            'body',
+            'issueId',
+            'projectId',
+            'projectUpdateId',
+            'initiativeUpdateId',
+            'parentId',
+            'id',
+          ],
           'input',
         );
         if (!input.body) throw gqlError('INVALID_INPUT', 'input.body is required');

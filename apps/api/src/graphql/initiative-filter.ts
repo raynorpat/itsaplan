@@ -1,5 +1,5 @@
-import { initiative } from '@repo/db';
-import { sql, type SQL } from 'drizzle-orm';
+import { db, initiative, initiativeUpdate } from '@repo/db';
+import { inArray, sql, type SQL } from 'drizzle-orm';
 import { compare, compareId, filterSql, refFilter, type FieldHandlers } from './filter';
 
 // InitiativeFilter as SQL over the initiative table. Supported: id, name, slugId,
@@ -33,4 +33,26 @@ export const initiativeFilterHandlers: FieldHandlers = {
 
 export function initiativeFilterSql(filter: unknown, path = 'filter'): SQL | undefined {
   return filterSql(filter, initiativeFilterHandlers, path);
+}
+
+// InitiativeUpdateFilter: id, initiative (InitiativeFilter), user (id), createdAt,
+// updatedAt, and / or.
+const initiativeUpdateHandlers: FieldHandlers = {
+  id: (v, p) => compareId(initiativeUpdate.id, v, p),
+  initiative: (v, p) =>
+    inArray(
+      initiativeUpdate.initiativeId,
+      db
+        .select({ id: initiative.id })
+        .from(initiative)
+        .where(initiativeFilterSql(v, p) ?? sql`true`),
+    ),
+  user: (v, p) =>
+    filterSql(v, { id: (x, q) => compareId(initiativeUpdate.userId, x, q) }, p) ?? sql`true`,
+  createdAt: (v, p) => compare(initiativeUpdate.createdAt, v, p),
+  updatedAt: (v, p) => compare(initiativeUpdate.updatedAt, v, p),
+};
+
+export function initiativeUpdateFilterSql(filter: unknown): SQL | undefined {
+  return filterSql(filter, initiativeUpdateHandlers);
 }

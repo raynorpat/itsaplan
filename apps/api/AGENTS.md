@@ -51,7 +51,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Object-store deletes are best-effort** — log a failed `deleteObject`, do not fail
   the request.
 - **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
-  project or a project update; replies are one level deep (a reply to a reply is
+  project, a project update or an initiative update; replies are one level deep (a reply to a reply is
   stored under the root). `issue_activity` holds the change log only. The feeds
   (issue, range, share, team activity, project), the revision markers and
   notification participants read the `feed_entry` view, which unions both tables in
@@ -61,7 +61,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
   nested. A retired label stays on its issues but cannot be newly applied. Check
   labels with `assertLabelsApplicable` before writing them to an issue.
 - **Reactions** (`reactions/store.ts`): one per user and exact emoji on a comment,
-  issue or project update.
+  issue, project update or initiative update.
 - **Cycles** (`cycles/`): a team with cycles enabled has a cycle containing now
   (except between closing the active cycle by hand and the next cycle's start) and `upcoming_cycle_count` cycles ahead; cycles never overlap and are on UTC
   days (`schedule.ts`). The worker calls `POST /internal/cycles/tick` hourly and
@@ -69,6 +69,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   cycle through `updateIssue`, creates upcoming cycles and appends the history
   arrays. Every upkeep step works from dates, so a missed run catches up and past
   cycles are never backfilled. Tests pass a fixed `now`.
+- **Initiatives** (`initiatives/`): workspace-level groups of projects
+  (`initiative_to_project`, a project once per initiative) with sub-initiatives
+  (`initiative_relation`: one parent, no loops, at most 5 levels). An initiative with
+  a lead team is visible to users holding `projects.read` in that team; one without
+  a lead team to users holding it in any team (`access.ts`); writes need
+  `projects.<action>` the same way. Deleting the lead team makes its initiatives
+  workspace initiatives. Health is the newest unarchived `initiative_update`'s.
+  `initiativeDelete` archives and sets `trashed`.
 
 ## Auth and access
 
@@ -160,7 +168,9 @@ receiver works against the instance.
 
 - **Subscriptions** (`webhooks/store.ts`): a webhook covers one team or all teams
   (`all_public_teams`, including teams created later) and lists resource types:
-  `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`. Team webhooks use
+  `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
+  `Initiative`, `InitiativeUpdate`. Initiative events go to the lead team's
+  webhooks, or only to all-teams webhooks for a workspace initiative. Team webhooks use
   the team's `webhooks.<action>` permission; all-teams webhooks are managed only by
   the god user or an owner of every team (`webhooks/access.ts`, checked on every
   operation).
@@ -201,10 +211,13 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
 - **Access:** a team and its issues and states are visible to members only; a
   project is visible through a team that grants `projects.read`; a user is visible
   when they share a team with the viewer. A comment or reaction follows the item it
-  is on; workspace labels are visible to anyone in a team.
+  is on; workspace labels are visible to anyone in a team. An initiative follows its
+  lead team (see Initiatives); a link or relation is listed only when both ends are
+  visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, cycles and webhooks have resolvers; the rest of the schema is neutral or NOT_IMPLEMENTED.
+  labels, cycles, initiatives (project links, sub-initiatives, updates) and webhooks
+  have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.

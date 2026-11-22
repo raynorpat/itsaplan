@@ -59,6 +59,7 @@ stable release.
   [Mastra](https://github.com/mastra-ai/mastra) agent framework
 - Comment threads with replies, resolving and emoji reactions (editing, replies, resolving and reactions are API-only for now)
 - Cycles: time-boxed iterations per team with automatic rollover of unfinished work (API-only for now)
+- Initiatives: workspace-level groups of projects with sub-initiatives and status updates (API-only for now)
 - Mention an agent in a comment to trigger a run
 - Scheduled agent runs
 - Built-in chat with per-agent conversation history
