@@ -213,4 +213,51 @@ describe('graphql documents', () => {
       );
     }
   });
+
+  it('gives a document comment a URL with one fragment', async () => {
+    const { client, project } = await setup();
+    const doc = (await (
+      await client.createDocument({ title: 'Spec', projectId: project.id })
+    ).document)!;
+    const comment = (await (
+      await client.createComment({ documentContentId: doc.id, body: 'Note' })
+    ).comment)!;
+    expect(comment.url.split('#')).toHaveLength(2);
+    expect(comment.url).toEndWith(`/projects/${project.id}#comment-${comment.id}`);
+  });
+
+  it('leaves a trashed document unchanged when it is deleted again', async () => {
+    const { asOwner, client, project } = await setup();
+    const hook = (
+      await asOwner
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
+    ).data!;
+    const doc = (await (
+      await client.createDocument({ title: 'Spec', projectId: project.id })
+    ).document)!;
+    const first = (await (await client.deleteDocument(doc.id)).entity)!;
+    const second = (await (await client.deleteDocument(doc.id)).entity)!;
+    expect(second.updatedAt).toEqual(first.updatedAt);
+    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    expect(items.map((d) => (d.payload as { action: string }).action).sort()).toEqual([
+      'create',
+      'remove',
+    ]);
+  });
+
+  it('rejects a null sortOrder naming the field', async () => {
+    const { owner, client, project } = await setup();
+    const doc = (await (
+      await client.createDocument({ title: 'Spec', projectId: project.id })
+    ).document)!;
+    for (const mutation of [
+      `documentCreate(input: { title: "X", projectId: "${project.id}", sortOrder: null })`,
+      `documentUpdate(id: "${doc.id}", input: { sortOrder: null })`,
+    ]) {
+      const res = await gql({ cookie: owner.cookie }, `mutation { ${mutation} { success } }`);
+      expect(errorCode(res)).toBe('INVALID_INPUT');
+      expect(errorMessage(res)).toContain('sortOrder');
+    }
+  });
 });

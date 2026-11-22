@@ -88,7 +88,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `projects.read` / `projects.edit`, issue documents through team membership and
   `work_items.edit`). The document id is also Linear's `documentContentId`, which
   comments on the document use. `documentDelete` archives and sets `trashed`;
-  documents of archived parents are hidden from lists and cannot be written to.
+  documents of archived parents are hidden from lists, and a document cannot be
+  created in, moved to or restored under an archived parent.
 
 ## Auth and access
 

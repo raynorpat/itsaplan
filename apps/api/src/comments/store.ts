@@ -26,7 +26,7 @@ import { assertProjectAccess, projectsInTeams, teamsGranting } from '../projects
 import { assertInitiativeAccess, visibleInitiativesSql } from '../initiatives/access';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
 import { assertDocumentParentAccess, visibleDocumentsSql } from '../documents/access';
-import { documentParent, documentTeamIds, documentUrl, getDocument } from '../documents/store';
+import { documentPageUrl, documentParent, documentTeamIds, getDocument } from '../documents/store';
 
 // Comments (Linear's Comment) on an issue, a project, a project update, an
 // initiative update or a document. A reply belongs to the thread of a root comment:
@@ -128,7 +128,7 @@ async function updateInitiativeId(initiativeUpdateId: string): Promise<string | 
 export async function commentParentUrl(c: CommentRow): Promise<string> {
   if (c.documentId) {
     const found = await getDocument(c.documentId);
-    return found ? documentUrl(found) : trustedOrigins[0]!;
+    return found ? documentPageUrl(found) : trustedOrigins[0]!;
   }
   if (c.initiativeUpdateId)
     return initiativeUrl((await updateInitiativeId(c.initiativeUpdateId)) ?? '');

@@ -80,6 +80,11 @@ const FIELDS = [
 ];
 type Input = Record<string, unknown>;
 
+// sortOrder is stored as a number; Linear's input allows null, which has no meaning here.
+function checkSortOrder(input: Input): void {
+  if (input.sortOrder === null) throw gqlError('INVALID_INPUT', 'input.sortOrder cannot be null');
+}
+
 function checkIds(input: Input, fields: string[]): void {
   for (const f of fields)
     if (input[f] != null && !UUID_RE.test(String(input[f])))
@@ -181,6 +186,7 @@ export const documentResolvers = {
       guard(async () => {
         onlySupported(input, [...FIELDS, 'id'], 'input');
         checkIds(input, ['id', 'projectId', 'issueId', 'ownerId']);
+        checkSortOrder(input);
         const parent = inputParent(input);
         if (!parent) throw gqlError('INVALID_INPUT', 'Set input.projectId or input.issueId');
         await assertDocumentParentAccess(parent, ctx.user, 'edit');
@@ -202,6 +208,7 @@ export const documentResolvers = {
       guard(async () => {
         onlySupported(input, [...FIELDS, 'hiddenAt'], 'input');
         checkIds(input, ['projectId', 'issueId', 'ownerId']);
+        checkSortOrder(input);
         const found = await findDocument(id, ctx);
         await assertDocumentParentAccess(documentParent(found), ctx.user, 'edit');
         const target = inputParent(input);

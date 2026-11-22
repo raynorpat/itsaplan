@@ -113,17 +113,20 @@ export async function isParentArchived(parent: DocumentParent): Promise<boolean>
 
 // The parent's web page with the document as a fragment; the web has no document
 // page yet.
-export async function documentUrl(row: DocumentRow): Promise<string> {
+// The web page of the document's project or issue; the web has no document page.
+export async function documentPageUrl(row: DocumentRow): Promise<string> {
   const origin = trustedOrigins[0];
-  if (row.projectId) return `${origin}/projects/${row.projectId}#document-${row.slugId}`;
+  if (row.projectId) return `${origin}/projects/${row.projectId}`;
   const [found] = await db
     .select({ key: team.key, seq: issue.sequenceNumber })
     .from(issue)
     .innerJoin(team, eq(team.id, issue.teamId))
     .where(eq(issue.id, row.issueId!));
-  return found
-    ? `${origin}/team/${found.key}/issue/${found.seq}#document-${row.slugId}`
-    : `${origin}#document-${row.slugId}`;
+  return found ? `${origin}/team/${found.key}/issue/${found.seq}` : `${origin}`;
+}
+
+export async function documentUrl(row: DocumentRow): Promise<string> {
+  return `${await documentPageUrl(row)}#document-${row.slugId}`;
 }
 
 // The parent named by an input: exactly one of projectId / issueId (400 otherwise).
@@ -253,7 +256,11 @@ export async function updateDocument(
 }
 
 // Linear's documentDelete: the document goes to the trash (archived and trashed).
+// Deleting a document already in the trash changes nothing and sends no event.
 export async function archiveDocument(id: string, actorUserId: string): Promise<DocumentRow> {
+  const current = await getDocument(id);
+  if (!current) throw new HttpError(404, 'Document not found');
+  if (current.trashed) return current;
   const [row] = await db
     .update(document)
     .set({
@@ -264,9 +271,8 @@ export async function archiveDocument(id: string, actorUserId: string): Promise<
     })
     .where(eq(document.id, id))
     .returning();
-  if (!row) throw new HttpError(404, 'Document not found');
   await sendDocumentEvent('remove', id, actorUserId);
-  return mapDocument(row);
+  return mapDocument(row!);
 }
 
 export async function unarchiveDocument(id: string, actorUserId: string): Promise<DocumentRow> {
