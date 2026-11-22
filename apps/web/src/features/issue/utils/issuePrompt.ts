@@ -32,8 +32,6 @@ export function buildIssuePrompt(
   user?: { name?: string | null; email?: string | null },
 ): string {
   const status = team.states.find((c) => c.id === issue.stateId)?.name;
-  const type =
-    issue.typeId != null ? team.issueTypes.find((t) => t.id === issue.typeId)?.name : undefined;
   const assignee = issue.assigneeUserId
     ? team.assignees.find((a) => a.userId === issue.assigneeUserId)?.name
     : undefined;
@@ -57,7 +55,6 @@ export function buildIssuePrompt(
   tags.push('<description>', issue.description.trim(), '</description>');
   if (status) tags.push(`<status>${status}</status>`);
   if (issue.priority) tags.push(`<priority>${priorityLabel(issue.priority)}</priority>`);
-  if (type) tags.push(`<type>${type}</type>`);
   if (assignee) tags.push(`<assignee>${assignee}</assignee>`);
   if (delegate) tags.push(`<delegate>${delegate}</delegate>`);
   if (issue.startDate) tags.push(`<startDate>${issue.startDate}</startDate>`);

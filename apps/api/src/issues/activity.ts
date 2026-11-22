@@ -6,7 +6,6 @@ import {
   issueActivity,
   user,
   workflowState,
-  issueType,
   label,
   project,
 } from '@repo/db';
@@ -333,14 +332,6 @@ async function columnName(id: string | null): Promise<string | null> {
     .where(eq(workflowState.id, id));
   return rows[0]?.name ?? null;
 }
-async function typeName(id: string | null): Promise<string | null> {
-  if (id == null) return null;
-  const rows = await db
-    .select({ name: issueType.name })
-    .from(issueType)
-    .where(eq(issueType.id, id));
-  return rows[0]?.name ?? null;
-}
 async function projectName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db.select({ title: project.name }).from(project).where(eq(project.id, id));
@@ -380,7 +371,6 @@ export interface IssueSnapshot {
   title: string;
   description: string;
   stateId: string;
-  typeId: string | null;
   projectId: string | null;
   cycleId: string | null;
   assigneeUserId: string | null;
@@ -410,12 +400,6 @@ export async function logIssueUpdate(
       action: 'status',
       fromText: await columnName(before.stateId),
       toText: await columnName(after.stateId),
-    });
-  if (before.typeId !== after.typeId)
-    events.push({
-      action: 'type',
-      fromText: await typeName(before.typeId),
-      toText: await typeName(after.typeId),
     });
   if (before.projectId !== after.projectId)
     events.push({

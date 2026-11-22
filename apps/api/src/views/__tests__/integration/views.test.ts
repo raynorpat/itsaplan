@@ -264,4 +264,19 @@ describe('views', () => {
       expect(del.status).toBe(403);
     });
   });
+
+  it('loads a view whose filter names removed fields', async () => {
+    const { asOwner } = await setupOwnerTeam();
+    const filters = {
+      conditions: [
+        { field: 'type', op: 'is', values: [crypto.randomUUID()] },
+        { field: `cf:${crypto.randomUUID()}`, op: 'is_set', values: [] },
+      ],
+    };
+    const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Old', filters });
+    expect(created.status).toBe(201);
+    const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
+    expect(list.status).toBe(200);
+    expect(list.data?.[0]).toMatchObject({ name: 'Old', filters });
+  });
 });

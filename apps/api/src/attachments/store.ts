@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { attachment, db, issue, issueFieldValue } from '@repo/db';
+import { attachment, db, issue } from '@repo/db';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { deleteObject } from '../shared/s3';
 import { HttpError, iso, num } from '../shared/lib';
@@ -336,8 +336,7 @@ function stripEmbeds(text: string, publicId: string): string {
     .trim();
 }
 
-// Remove embeds of one attachment from the issue description and its markdown
-// custom field values. Called on delete so a removed attachment leaves no broken
+// Remove embeds of one attachment from the issue description. Called on delete so a removed attachment leaves no broken
 // image behind.
 export async function removeAttachmentEmbeds(issueId: string, publicId: string): Promise<void> {
   let changed = false;
@@ -360,21 +359,8 @@ export async function removeAttachmentEmbeds(issueId: string, publicId: string):
     }
   }
 
-  const values = await db
-    .select({ id: issueFieldValue.id, valueText: issueFieldValue.valueText })
-    .from(issueFieldValue)
-    .where(eq(issueFieldValue.issueId, issueId));
-  for (const v of values) {
-    if (v.valueText == null) continue;
-    const next = stripEmbeds(v.valueText, publicId);
-    if (next !== v.valueText) {
-      await db.update(issueFieldValue).set({ valueText: next }).where(eq(issueFieldValue.id, v.id));
-      changed = true;
-    }
-  }
-
   // issueRev is derived from issue.updatedAt; bump it so an open detail view
-  // refetches the cleaned description and field values.
+  // refetches the cleaned description.
   if (changed) {
     await db
       .update(issue)

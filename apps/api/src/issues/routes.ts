@@ -26,8 +26,6 @@ import {
   bulkAddLabels,
   bulkArchiveIssues,
   bulkDeleteIssues,
-  setIssueFieldValue,
-  getIssueFieldValues,
   issueRev,
 } from './store';
 import { listFeed, listFeedRange, listStatusTimeline } from './activity';
@@ -39,21 +37,12 @@ const issueParams = t.Object({ issueId: t.String({ format: 'uuid' }) });
 
 // --- Response DTO schemas (mirror the store interfaces the handlers return) -------
 
-// IssueFieldValueEntry from the store: a compact custom field value carried on an
-// issue (scalar value plus selected option ids).
-const IssueFieldValueEntry = t.Object({
-  fieldId: t.String({ format: 'uuid' }),
-  value: t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()])),
-  optionIds: t.Array(t.String({ format: 'uuid' })),
-});
-
 // IssueRow from the store.
 const IssueResponse = t.Object({
   id: t.String({ format: 'uuid' }),
   teamId: t.String({ format: 'uuid' }),
   sequenceNumber: t.Number(),
   identifier: t.String(),
-  typeId: t.Nullable(t.String({ format: 'uuid' })),
   // The linked project expanded to id + title (for rendering), or null. Set
   // through create/update by projectId.
   project: t.Nullable(t.Object({ id: t.String({ format: 'uuid' }), title: t.String() })),
@@ -79,33 +68,15 @@ const IssueResponse = t.Object({
   archivedAt: t.Nullable(t.String()),
   statusSince: t.String(),
   labelIds: t.Array(t.String({ format: 'uuid' })),
-  fieldValues: t.Array(IssueFieldValueEntry),
 });
 
-// IssueFieldValueRow from the store: one applicable custom field joined with its
-// value on the issue. fieldType is the CustomFieldType union (a string).
-const IssueFieldValueRow = t.Object({
-  fieldId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  fieldType: t.String(),
-  value: t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()])),
-  optionIds: t.Array(t.String({ format: 'uuid' })),
-});
-
-// GET /issues/:issueId returns the full issue plus its custom field values.
-const IssueWithFieldsResponse = t.Composite([
-  IssueResponse,
-  t.Object({ fields: t.Array(IssueFieldValueRow) }),
-]);
-
-// IssueSearchHit from the store: a light search result (no description/field values).
+// IssueSearchHit from the store: a light search result (no description).
 const IssueSearchHitResponse = t.Object({
   id: t.String({ format: 'uuid' }),
   sequenceNumber: t.Number(),
   identifier: t.String(),
   title: t.String(),
   stateId: t.String({ format: 'uuid' }),
-  typeId: t.Nullable(t.String({ format: 'uuid' })),
   projectId: t.Nullable(t.String({ format: 'uuid' })),
   assigneeUserId: t.Nullable(t.String({ format: 'uuid' })),
   delegateUserId: t.Nullable(t.String({ format: 'uuid' })),
@@ -163,11 +134,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
     {
       body: t.Object({
-        typeId: t.Optional(
-          t.Nullable(
-            t.String({ format: 'uuid', description: 'Issue type id, or null. From get_team.' }),
-          ),
-        ),
         projectId: t.Optional(
           t.Nullable(
             t.String({
@@ -274,7 +240,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         }),
         patch: t.Object({
           stateId: t.Optional(t.String({ format: 'uuid' })),
-          typeId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
           projectId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
           assigneeUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
           delegateUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
@@ -395,7 +360,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   )
 
   // Text search: matches q (case-insensitive substring) against the title,
-  // description, issue number, and custom field text. Always searches every issue,
+  // description and issue number. Always searches every issue,
   // archived included (each hit carries an 'archived' flag); filtering by fields is
   // a separate concern (see list_issues). Declared before /issues/:sequenceNumber so
   // the static "search" segment wins over the numeric param.
@@ -411,7 +376,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         q: t.Optional(
           t.String({
             description:
-              'Case-insensitive substring, matched against the title, description, issue number, and custom field text.',
+              'Case-insensitive substring, matched against the title, description and issue number.',
           }),
         ),
         limit: t.Optional(t.Numeric({ description: 'Max results (1-500). Default 50.' })),
@@ -454,7 +419,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         team,
         {
           stateId: id(query.stateId),
-          typeId: id(query.typeId),
           projectId: id(query.projectId),
           assigneeUserId: id(query.assigneeUserId),
           delegateUserId: id(query.delegateUserId),
@@ -471,7 +435,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       params: t.Object({ teamKey: t.String() }),
       query: t.Object({
         stateId: t.Optional(t.String({ description: 'Exact column (state) id.' })),
-        typeId: t.Optional(t.String({ description: 'Exact issue type id.' })),
         projectId: t.Optional(t.String({ description: 'Exact project id.' })),
         assigneeUserId: t.Optional(t.String({ description: 'Exact assignee user id.' })),
         delegateUserId: t.Optional(t.String({ description: 'Exact delegate agent id.' })),
@@ -508,8 +471,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
   )
 
-  // The board's issue payload: every active issue with its labels and field
-  // values, plus the board change marker. The work-items UI loads this alongside
+  // The board's issue payload: every active issue with its labels, plus the board change marker. The work-items UI loads this alongside
   // the team scaffold (GET /teams/:teamKey) and polls the marker to
   // refetch. Web-only (not an MCP tool): agents use list_issues / search_issues.
   .get(
@@ -566,21 +528,20 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   })
 
   // Reads an issue by its team-scoped sequence number (the human number in a
-  // URL like /team/MKT/issue/42), with its custom field values. Backs the
+  // URL like /team/MKT/issue/42). Backs the
   // identifier-based issue page. Same read permission as the by-id read.
   .get(
     '/teams/:teamKey/issues/:sequenceNumber',
     async ({ team, params }) => {
       const issue = await getIssueBySequence(team.id, params.sequenceNumber);
       if (!issue) throw new HttpError(404, 'Issue not found');
-      const fields = await getIssueFieldValues(issue.id);
-      return { ...issue, fields };
+      return issue;
     },
     {
       params: t.Object({ teamKey: t.String(), sequenceNumber: t.Numeric() }),
       permission: ['work_items', 'read'],
       response: {
-        200: IssueWithFieldsResponse,
+        200: IssueResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
@@ -595,7 +556,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
   )
 
-  // Reads the full issue including its custom field values. The issue is fetched
+  // Reads the full issue. The issue is fetched
   // for the response, so access is asserted on the fetched row rather than
   // through the workItem guard (which would re-resolve the team id).
   .get(
@@ -610,13 +571,12 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         const team = await getTeamById(issue.teamId);
         if (team) assertMcpEnabled(team, true);
       }
-      const fields = await getIssueFieldValues(issue.id);
-      return { ...issue, fields };
+      return issue;
     },
     {
       params: issueParams,
       response: {
-        200: IssueWithFieldsResponse,
+        200: IssueResponse,
         400: ErrorResponse,
         401: ErrorResponse,
         403: ErrorResponse,
@@ -648,9 +608,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           t.String({ format: 'uuid', description: 'Move the issue to this column (state) id.' }),
         ),
         position: t.Optional(t.Number({ description: 'Ordering position within the column.' })),
-        typeId: t.Optional(
-          t.Nullable(t.String({ format: 'uuid', description: 'New issue type id, or null.' })),
-        ),
         projectId: t.Optional(
           t.Nullable(
             t.String({
@@ -730,7 +687,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
   )
 
-  // Deletes an issue. Its custom field values, labels, attachments, comments and
+  // Deletes an issue. Its labels, attachments, comments and
   // activity are removed with it. Attachment objects are then deleted from the
   // object store; a failed object delete only orphans bytes, so it does not fail
   // the request.
@@ -819,40 +776,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         summary: 'Restore an archived issue',
         description: 'Restore an archived issue by its id (a UUID).',
         ...mcpTool('restore_issue'),
-      },
-    },
-  )
-
-  // Sets one custom field's value on one issue. For select/multi_select fields,
-  // body.optionIds replaces the full selection; for every other field type,
-  // body.value must match the field's type (text/number/boolean/date).
-  .put(
-    '/issues/:issueId/fields/:fieldId',
-    async ({ params, body, user, teamId }) => {
-      await setIssueFieldValue(teamId, params.issueId, params.fieldId, body, requireUser(user).id);
-      return { ok: true };
-    },
-    {
-      body: t.Object({
-        value: t.Optional(t.Nullable(t.Union([t.String(), t.Number(), t.Boolean()]))),
-        optionIds: t.Optional(t.Array(t.String({ format: 'uuid' }))),
-      }),
-      params: t.Object({
-        issueId: t.String({ format: 'uuid' }),
-        fieldId: t.String({ format: 'uuid' }),
-      }),
-      workItem: 'edit',
-      response: {
-        200: t.Object({ ok: t.Boolean() }),
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'Set a custom field value',
-        description: 'Set a custom field value on an issue by its id (a UUID).',
-        ...mcpTool('set_issue_field_value'),
       },
     },
   )

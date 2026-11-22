@@ -17,15 +17,13 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { ActionDef, TeamDetail, Issue, IssuePatch } from '@/lib/api';
-import { actionIcon } from '@/utils/actionIcons';
-import { useActionsQuery } from '@/services/actions.service';
+import type { TeamDetail, Issue, IssuePatch } from '@/lib/api';
 import { useArchiveIssue, useRestoreIssue, useUpdateIssue } from '@/services/issues.service';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ShellCtx } from '@/context/shellContext';
-import { ApplyActionDialog, DeleteIssueDialog, matchedActions } from './IssueActions';
+import { DeleteIssueDialog } from './IssueActions';
 import { buildIssuePrompt } from '../../utils/issuePrompt';
 import { useSession } from '@/lib/auth-client';
 import { toDateStr } from '@/utils/dates';
@@ -77,10 +75,8 @@ export default function IssueContextMenu({
   const updateIssue = useUpdateIssue(team.team.key);
   const archiveIssue = useArchiveIssue(team.team.key);
   const restoreIssue = useRestoreIssue(team.team.key);
-  const actionsQuery = useActionsQuery(team.team.key);
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
   // Projects are not in the board scaffold, so they are fetched here — only
   // while this menu is open, as every card on the board mounts one.
   const projectsQuery = useProjectsQuery(open && team.team.projectsEnabled ? team.team.key : null, {
@@ -91,8 +87,6 @@ export default function IssueContextMenu({
   // No Shell (public share): render the card as-is, without the right-click menu.
   if (!shell) return <>{children}</>;
   const onOpenIssue = shell.onOpenIssue;
-
-  const actions = matchedActions(actionsQuery.data ?? [], team, issue);
 
   function patch(fields: IssuePatch) {
     updateIssue.mutate({ id: issue.id, patch: fields });
@@ -309,21 +303,6 @@ export default function IssueContextMenu({
                   </ContextMenuSubContent>
                 </ContextMenuSub>
               )}
-
-              {actions.length > 0 && (
-                <>
-                  <ContextMenuSeparator />
-                  {actions.map((a) => {
-                    const Icon = actionIcon(a.icon);
-                    return (
-                      <ContextMenuItem key={a.id} onSelect={() => setConfirmingAction(a)}>
-                        <Icon />
-                        <span className="truncate">{a.name}</span>
-                      </ContextMenuItem>
-                    );
-                  })}
-                </>
-              )}
             </>
           )}
 
@@ -374,15 +353,6 @@ export default function IssueContextMenu({
           issue={issue}
           onClose={() => setConfirmingDelete(false)}
           onDeleted={onDeleted}
-        />
-      )}
-
-      {confirmingAction && (
-        <ApplyActionDialog
-          team={team}
-          issue={issue}
-          action={confirmingAction}
-          onClose={() => setConfirmingAction(null)}
         />
       )}
     </>

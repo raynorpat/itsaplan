@@ -6,12 +6,10 @@ import type {
   Assignee,
   TeamDetail,
   Column,
-  CustomField,
   Label,
   StateType,
   Issue,
   IssuePatch,
-  IssueType,
   NewIssueInput,
 } from '@/lib/api';
 import { PRIORITIES } from '@/utils/fieldOptions';
@@ -22,10 +20,10 @@ export type { Sort, SortField } from '@/utils/viewTypes';
 
 export type NewIssueDefaults = Pick<
   NewIssueInput,
-  'stateId' | 'typeId' | 'projectId' | 'assigneeUserId' | 'delegateUserId' | 'priority'
+  'stateId' | 'projectId' | 'assigneeUserId' | 'delegateUserId' | 'priority'
 >;
 
-// Fallback dot/bar color for a group or issue whose status/type has no color.
+// Fallback dot/bar color for a group or issue whose status has no color.
 export const DEFAULT_COLOR = '#6b7280';
 
 // Every display mode (Team, Table, Timeline, Calendar) takes the same props, so
@@ -33,9 +31,6 @@ export const DEFAULT_COLOR = '#6b7280';
 // are the active team+view's display settings (see lib/viewSettings).
 export interface WorkItemsViewProps {
   team: TeamDetail;
-  // Custom field definitions applicable to this team (global + the team's
-  // type-scoped fields). The Table view renders enabled ones as columns.
-  customFields: CustomField[];
   settings: ViewSettings;
   // Persist a settings change (used by the flat team to store hidden columns in
   // the view's display). Routes through the view editor: on a saved view it
@@ -52,7 +47,6 @@ export interface WorkItemsViewProps {
 // Lookup maps over a team's reference data, built once per render and shared by
 // every column/row/cell so each render is a map get instead of an array find.
 export interface Maps {
-  typeById: Map<string, IssueType>;
   labelById: Map<string, Label>;
   assigneeById: Map<string, Assignee>;
   columnById: Map<string, Column>;
@@ -60,7 +54,6 @@ export interface Maps {
 
 export function buildMaps(team: TeamDetail): Maps {
   return {
-    typeById: new Map(team.issueTypes.map((t) => [t.id, t])),
     labelById: new Map(team.labels.map((l) => [l.id, l])),
     assigneeById: new Map(team.assignees.map((a) => [a.userId, a])),
     columnById: new Map(team.states.map((c) => [c.id, c])),
@@ -81,7 +74,6 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
 
   const columnIndex = new Map(team.states.map((c, i) => [c.id, i]));
   const assigneeName = new Map(team.assignees.map((a) => [a.userId, a.name]));
-  const typeName = new Map(team.issueTypes.map((t) => [t.id, t.name]));
   const dir = sort.dir === 'desc' ? -1 : 1;
 
   const numericField =
@@ -106,8 +98,6 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
         return t.title;
       case 'assignee':
         return t.assigneeUserId != null ? (assigneeName.get(t.assigneeUserId) ?? '') : null;
-      case 'type':
-        return t.typeId != null ? (typeName.get(t.typeId) ?? '') : null;
       case 'startDate':
         return t.startDate;
       case 'dueDate':
@@ -216,16 +206,6 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
         })),
         { key: 'p-none', name: 'No priority', assign: { priority: 0 } },
       ];
-    case 'type':
-      return [
-        ...team.issueTypes.map((t) => ({
-          key: `t${t.id}`,
-          name: t.name,
-          color: t.color,
-          assign: { typeId: t.id },
-        })),
-        { key: 't-none', name: 'No type', assign: { typeId: null } },
-      ];
     case 'project': {
       // Lanes come from the projects the loaded issues are linked to (each issue
       // carries its project). Projects with no issue on the board get no lane;
@@ -255,8 +235,6 @@ export function groupKeyOf(issue: Issue, group: GroupField): string {
       return issue.delegateUserId != null ? `d${issue.delegateUserId}` : 'd-none';
     case 'priority':
       return issue.priority ? `p${issue.priority}` : 'p-none';
-    case 'type':
-      return issue.typeId != null ? `t${issue.typeId}` : 't-none';
     case 'project':
       return issue.project != null ? `i${issue.project.id}` : 'i-none';
     case 'none':

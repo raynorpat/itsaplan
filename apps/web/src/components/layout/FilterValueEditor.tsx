@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { TeamDetail } from '@/lib/api';
 import type { FilterCondition, FilterValue } from '@/utils/filters';
-import { BOOLEAN_OPTIONS, valuesLabel, type FieldSpec } from '@/utils/filterFields';
+import { valuesLabel, type FieldSpec } from '@/utils/filterFields';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -57,33 +57,8 @@ export default function FilterValueEditor({
     );
   }
 
-  if (spec.kind === 'text') {
-    const current = typeof cond.values[0] === 'string' ? (cond.values[0] as string) : '';
-    return (
-      <Input
-        value={current}
-        placeholder="value"
-        onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}
-        className="h-6 w-36 px-1.5 py-0 text-xs"
-      />
-    );
-  }
-
-  if (spec.kind === 'number') {
-    const current = typeof cond.values[0] === 'number' ? String(cond.values[0]) : '';
-    return (
-      <Input
-        type="number"
-        value={current}
-        placeholder="value"
-        onChange={(e) => onChange(e.target.value === '' ? [] : [Number(e.target.value)])}
-        className="h-6 w-24 px-1.5 py-0 text-xs"
-      />
-    );
-  }
-
-  // set / boolean — a popover with a checkbox list; multiple values OR together.
-  const options = spec.kind === 'boolean' ? BOOLEAN_OPTIONS : (spec.options ?? []);
+  // set — a popover with a checkbox list; multiple values OR together.
+  const options = spec.options ?? [];
   const toggle = (value: FilterValue) => {
     const has = cond.values.some((v) => v === value);
     onChange(has ? cond.values.filter((v) => v !== value) : [...cond.values, value]);

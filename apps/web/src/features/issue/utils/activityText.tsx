@@ -10,7 +10,6 @@ import {
   FileText,
   Link2,
   Pencil,
-  Shapes,
   SignalHigh,
   Bot,
   Tag,
@@ -32,12 +31,10 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   assignee: UserRound,
   delegate: Bot,
   priority: SignalHigh,
-  type: Shapes,
   start_date: Calendar,
   due_date: Calendar,
   label_add: Tag,
   label_remove: Tag,
-  field: Pencil,
   archived: Archive,
   relation: Link2,
   restored: ArchiveRestore,
@@ -45,7 +42,7 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');
 
-// Long values (description, markdown/long custom fields) are shown behind a
+// Long values (a description) are shown behind a
 // popover rather than inline, so the feed row stays compact.
 const isLong = (text: string | null): text is string =>
   !!text && (text.length > 80 || text.includes('\n'));
@@ -99,8 +96,6 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
       return Number(a.toText)
         ? { line: <>set priority to {strong(priorityLabel(Number(a.toText)))}</> }
         : { line: 'removed priority' };
-    case 'type':
-      return a.toText ? { line: <>set type to {strong(a.toText)}</> } : { line: 'removed type' };
     case 'start_date':
       return a.toText
         ? { line: <>set start date to {strong(fmtDate(a.toText))}</> }
@@ -113,17 +108,6 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
       return { line: <>added label {strong(a.toText)}</> };
     case 'label_remove':
       return { line: <>removed label {strong(a.fromText)}</> };
-    case 'field':
-      if (isLong(a.toText)) return { line: <>updated {strong(a.subject)}</>, popover: a.toText };
-      return a.toText
-        ? {
-            line: (
-              <>
-                set {strong(a.subject)} to {strong(a.toText)}
-              </>
-            ),
-          }
-        : { line: <>cleared {strong(a.subject)}</> };
     case 'archived':
       return { line: 'archived the issue' };
     case 'restored':

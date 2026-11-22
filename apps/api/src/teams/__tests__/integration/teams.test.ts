@@ -201,25 +201,6 @@ describe('teams', () => {
       expect(view.data?.permissions.danger_zone.delete).toBe(true);
     });
 
-    it('includes every custom field of the team, both scopes', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      const type = (await api.teams({ teamKey: 'MKT' })['issue-types'].post({ name: 'Bug' })).data!;
-      const cf = api.teams({ teamKey: 'MKT' })['custom-fields'];
-      await cf.post({ name: 'Severity', fieldType: 'text' });
-      await cf.post({ name: 'Steps', fieldType: 'text', issueTypeId: type.id });
-
-      const view = await viewOf(api, 'MKT');
-      expect(
-        view.data?.customFields.map((f) => ({ name: f.name, issueTypeId: f.issueTypeId })),
-      ).toEqual(
-        expect.arrayContaining([
-          { name: 'Severity', issueTypeId: null },
-          { name: 'Steps', issueTypeId: type.id },
-        ]),
-      );
-    });
-
     it('returns 404 for an unknown team', async () => {
       const { api } = await signUpClient();
       const res = await viewOf(api, 'NOPE');

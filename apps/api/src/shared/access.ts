@@ -78,7 +78,7 @@ export function assertMcpEnabled(team: TeamRow, isMcp: boolean): void {
   }
 }
 
-// Formats a resource key for an error message: "custom_fields" -> "custom fields".
+// Formats a resource key for an error message: "members_invite" -> "members invite".
 function resourceLabel(resource: PermissionResource): string {
   return resource.replace(/_/g, ' ');
 }

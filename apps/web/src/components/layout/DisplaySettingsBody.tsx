@@ -1,4 +1,3 @@
-import type { CustomField, IssueType } from '@/lib/api';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import type { ViewSettings } from '@/utils/viewSettings';
 import DisplayCalendarRows from '@/components/layout/DisplayCalendarRows';
@@ -16,15 +15,11 @@ export default function DisplaySettingsBody({
   onViewChange,
   settings,
   onSettingsChange,
-  customFields,
-  issueTypes,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
   settings: ViewSettings;
   onSettingsChange: (settings: ViewSettings) => void;
-  customFields: CustomField[];
-  issueTypes: IssueType[];
 }) {
   const set = (patch: Partial<ViewSettings>) => onSettingsChange({ ...settings, ...patch });
 
@@ -39,13 +34,7 @@ export default function DisplaySettingsBody({
       {view === 'calendar' && <DisplayCalendarRows settings={settings} onChange={set} />}
 
       {(view === 'kanban' || view === 'table') && (
-        <DisplayPropertiesSection
-          view={view}
-          settings={settings}
-          onChange={set}
-          customFields={customFields}
-          issueTypes={issueTypes}
-        />
+        <DisplayPropertiesSection view={view} settings={settings} onChange={set} />
       )}
     </div>
   );

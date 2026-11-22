@@ -49,12 +49,6 @@ export const AGENT_ACTIONS: ToolMeta[] = [
     always: false,
   },
   {
-    key: 'set_issue_field_value',
-    label: 'Set custom field values',
-    description: 'Set custom field values on an issue.',
-    always: false,
-  },
-  {
     key: 'add_attachment',
     label: 'Add attachments',
     description: 'Attach a file to an issue from a URL or inline content.',
@@ -99,13 +93,13 @@ export const ALWAYS_ON_ACTIONS: ToolMeta[] = [
   {
     key: 'get_team',
     label: 'Read team setup',
-    description: 'View workflow states, issue types, labels, custom fields, and assignees.',
+    description: 'View workflow states, labels, and assignees.',
     always: true,
   },
   {
     key: 'search_issues',
     label: 'Search issues',
-    description: 'Find issues by a text query (title, description, number, custom fields).',
+    description: 'Find issues by a text query (title, description, number).',
     always: true,
   },
   {
@@ -117,7 +111,7 @@ export const ALWAYS_ON_ACTIONS: ToolMeta[] = [
   {
     key: 'get_issue',
     label: 'Read an issue',
-    description: 'View one issue in full, including its custom field values.',
+    description: 'View one issue in full.',
     always: true,
   },
   {

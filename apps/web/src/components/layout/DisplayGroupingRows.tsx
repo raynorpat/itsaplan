@@ -18,7 +18,6 @@ const GROUP_OPTIONS: { value: GroupField; label: string }[] = [
   { value: 'assignee', label: 'Assignee' },
   { value: 'delegate', label: 'Delegate' },
   { value: 'priority', label: 'Priority' },
-  { value: 'type', label: 'Type' },
   { value: 'project', label: 'Project' },
 ];
 

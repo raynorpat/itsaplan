@@ -1,4 +1,3 @@
-import type { CustomField, IssueType } from '@/lib/api';
 import {
   offeredDisplayProperties,
   type PropertyKey,
@@ -10,20 +9,15 @@ import PropertyChip from '@/components/layout/PropertyChip';
 import TableProperties from '@/components/layout/TableProperties';
 
 // The Display properties block. On the Table layout the chips are the column
-// list, sortable and extendable with custom fields; on Team they are plain
-// on/off chips for the built-in properties.
+// list, sortable; on Team they are plain on/off chips.
 export default function DisplayPropertiesSection({
   view,
   settings,
   onChange,
-  customFields,
-  issueTypes,
 }: {
   view: WorkItemsView;
   settings: ViewSettings;
   onChange: (patch: Partial<ViewSettings>) => void;
-  customFields: CustomField[];
-  issueTypes: IssueType[];
 }) {
   const features = useTeamFeatures();
   const properties = offeredDisplayProperties(features.projects);
@@ -44,8 +38,6 @@ export default function DisplayPropertiesSection({
         {view === 'table' ? (
           <TableProperties
             properties={settings.properties}
-            customFields={customFields}
-            issueTypes={issueTypes}
             onChange={(properties) => onChange({ properties })}
           />
         ) : (

@@ -9,14 +9,11 @@ const RESOURCE_LABELS: Record<string, string> = {
   members_invite: 'Invites',
   members_manage: 'Members',
   states: 'States',
-  issue_types: 'Issue types',
   labels: 'Labels',
   ai_agents: 'AI agents',
   integrations: 'Integrations',
   agent_skills: 'Agent skills',
   agent_tools: 'Agent tools',
-  custom_fields: 'Custom fields',
-  actions: 'Actions',
   webhooks: 'Webhooks',
   danger_zone: 'Danger zone',
 };
@@ -57,7 +54,7 @@ const GROUP_DEFS: PermissionGroup[] = [
   { title: 'AI', resources: ['ai_agents', 'integrations', 'agent_skills', 'agent_tools'] },
   {
     title: 'Configuration',
-    resources: ['states', 'issue_types', 'labels', 'custom_fields', 'actions', 'webhooks'],
+    resources: ['states', 'labels', 'webhooks'],
   },
   { title: 'Members', resources: ['members_manage', 'members_invite'] },
   { title: 'Team', resources: ['danger_zone'] },

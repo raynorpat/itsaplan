@@ -6,13 +6,10 @@ import {
   Columns3,
   Info,
   KeyRound,
-  ListPlus,
   type LucideIcon,
-  Shapes,
   Tags,
   Webhook,
   Wrench,
-  Zap,
 } from 'lucide-react';
 import type { PermissionResource } from '@/lib/api';
 
@@ -56,27 +53,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: 'configuration',
   },
   {
-    slug: 'issue-types',
-    label: 'Issue types',
-    description: 'The kinds of issues this team can hold, each with its own fields.',
-    icon: Shapes,
-    resource: 'issue_types',
-    group: 'configuration',
-  },
-  {
     slug: 'labels',
     label: 'Labels',
     description: 'Tags for organizing and filtering issues across the team.',
     icon: Tags,
     resource: 'labels',
-    group: 'configuration',
-  },
-  {
-    slug: 'custom-fields',
-    label: 'Custom fields',
-    description: 'Extra fields shown on issues, global or scoped to an issue type.',
-    icon: ListPlus,
-    resource: 'custom_fields',
     group: 'configuration',
   },
   {
@@ -86,14 +67,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Archive,
     resource: 'work_items',
     group: 'configuration',
-  },
-  {
-    slug: 'actions',
-    label: 'Actions',
-    description: 'Buttons on an issue that set fields in one click.',
-    icon: Zap,
-    resource: 'actions',
-    group: 'automation',
   },
   {
     slug: 'schedules',

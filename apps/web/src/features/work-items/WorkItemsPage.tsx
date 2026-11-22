@@ -31,7 +31,7 @@ interface TimelineCollapseState {
 // It renders the saved-view tabs, the inline edit bar and the selected layout;
 // the team data and the view editor come from the Shell through React context.
 export default function WorkItemsPage() {
-  const { team, filteredTeam, views, editor, customFields, onOpenIssue, onAddIssue } = useShell();
+  const { team, filteredTeam, views, editor, onOpenIssue, onAddIssue } = useShell();
   const { can } = usePermissions();
   const features = useTeamFeatures();
   const qc = useQueryClient();
@@ -104,7 +104,6 @@ export default function WorkItemsPage() {
 
   const viewProps = {
     team: filteredTeam,
-    customFields,
     settings,
     onSettingsChange: changeSettings,
     onOpenIssue,
@@ -135,8 +134,6 @@ export default function WorkItemsPage() {
     onViewChange: editor.changeView,
     settings,
     onSettingsChange: changeSettings,
-    customFields,
-    issueTypes: team.issueTypes,
   };
 
   return (
@@ -189,12 +186,7 @@ export default function WorkItemsPage() {
             </div>
           )}
           <div className={cn('px-3 pb-2', editor.editing ? '' : 'pt-2')}>
-            <FilterBar
-              filters={editor.filters}
-              onChange={editor.changeFilters}
-              team={team}
-              customFields={customFields}
-            />
+            <FilterBar filters={editor.filters} onChange={editor.changeFilters} team={team} />
           </div>
         </div>
       )}

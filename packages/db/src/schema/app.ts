@@ -12,7 +12,6 @@ import {
   index,
   integer,
   jsonb,
-  numeric,
   pgTable,
   pgView,
   primaryKey,
@@ -286,23 +285,6 @@ export const workflowState = pgTable(
       .on(t.teamId, t.position)
       .where(sql`${t.archivedAt} IS NULL`),
   ],
-);
-
-export const issueType = pgTable(
-  'issue_type',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    icon: text('icon').notNull().default(''),
-    color: text('color').notNull().default('#6b7280'),
-    isDefault: boolean('is_default').notNull().default(false),
-    position: integer('position').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [unique().on(t.teamId, t.name)],
 );
 
 export const label = pgTable(
@@ -641,49 +623,6 @@ export const agentToolLink = pgTable(
   ],
 );
 
-// Custom fields. Always scoped to a team. A NULL issue_type_id applies the
-// field to every issue in that team; a non-null issue_type_id scopes it to
-// that one type.
-export const customField = pgTable(
-  'custom_field',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    issueTypeId: uuid('issue_type_id').references(() => issueType.id, {
-      onDelete: 'cascade',
-    }),
-    name: text('name').notNull(),
-    fieldType: text('field_type').notNull(),
-    // When true the field renders in the issue body (under the description),
-    // like a second description; when false it renders as a Properties row.
-    showInBody: boolean('show_in_body').notNull().default(false),
-    position: integer('position').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    check(
-      'custom_field_field_type_check',
-      sql`${t.fieldType} IN ('text', 'markdown', 'url', 'number', 'boolean', 'date', 'select', 'multi_select')`,
-    ),
-  ],
-);
-
-export const customFieldOption = pgTable(
-  'custom_field_option',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    fieldId: uuid('field_id')
-      .notNull()
-      .references(() => customField.id, { onDelete: 'cascade' }),
-    value: text('value').notNull(),
-    color: text('color').notNull().default('#6b7280'),
-    position: integer('position').notNull().default(0),
-  },
-  (t) => [unique().on(t.fieldId, t.value)],
-);
-
 // Linear's project statuses. A fixed set of six rows (one per type) is seeded by the
 // baseline migration with the ids in project-statuses.ts; status CRUD is not
 // offered yet.
@@ -1019,9 +958,6 @@ export const issue = pgTable(
       .notNull()
       .references(() => team.id, { onDelete: 'cascade' }),
     sequenceNumber: integer('sequence_number').notNull(),
-    typeId: uuid('type_id').references(() => issueType.id, {
-      onDelete: 'set null',
-    }),
     // The project this issue belongs to; it must include the issue's team (enforced
     // by the store). Deleting the project unlinks its issues rather than deleting them.
     projectId: uuid('project_id').references(() => project.id, {
@@ -1130,40 +1066,6 @@ export const issueLabel = pgTable(
       .references(() => label.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.issueId, t.labelId] })],
-);
-
-export const issueFieldValue = pgTable(
-  'issue_field_value',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    issueId: uuid('issue_id')
-      .notNull()
-      .references(() => issue.id, { onDelete: 'cascade' }),
-    fieldId: uuid('field_id')
-      .notNull()
-      .references(() => customField.id, { onDelete: 'cascade' }),
-    valueText: text('value_text'),
-    valueNumber: numeric('value_number'),
-    valueBool: boolean('value_bool'),
-    valueDate: date('value_date'),
-  },
-  (t) => [unique().on(t.issueId, t.fieldId)],
-);
-
-export const issueFieldOption = pgTable(
-  'issue_field_option',
-  {
-    issueId: uuid('issue_id')
-      .notNull()
-      .references(() => issue.id, { onDelete: 'cascade' }),
-    fieldId: uuid('field_id')
-      .notNull()
-      .references(() => customField.id, { onDelete: 'cascade' }),
-    optionId: uuid('option_id')
-      .notNull()
-      .references(() => customFieldOption.id, { onDelete: 'cascade' }),
-  },
-  (t) => [primaryKey({ columns: [t.issueId, t.fieldId, t.optionId] })],
 );
 
 // Attachments on issues (Linear's Attachment): a link, or an uploaded file. A link
@@ -1417,27 +1319,6 @@ export const teamView = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('team_view_team_idx').on(t.teamId, t.position)],
-);
-
-// Manual actions: saved macros on a team. condition is a filter set deciding
-// which issues the action applies to (empty = always); effect is a partial
-// issue patch applied in one update. Both jsonb blobs are owned by the UI.
-export const teamAction = pgTable(
-  'team_action',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    // Icon key for the action, resolved to a lucide icon by the UI (empty = default).
-    icon: text('icon').notNull().default(''),
-    condition: jsonb('condition').notNull().default({}),
-    effect: jsonb('effect').notNull().default({}),
-    position: doublePrecision('position').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index('team_action_team_idx').on(t.teamId, t.position)],
 );
 
 // Outgoing webhook subscription (Linear's Webhook). A webhook covers one team

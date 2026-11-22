@@ -19,13 +19,6 @@ export function TableColumnHeader({
     >
       <span>Title</span>
       {columns.map((c) => {
-        if (c.kind === 'custom') {
-          return (
-            <span key={columnKey(c)} className="truncate">
-              {c.field.name}
-            </span>
-          );
-        }
         // The assignee column shows avatars, so its header is a right-aligned icon
         // rather than a label.
         if (c.col === 'assignee') {

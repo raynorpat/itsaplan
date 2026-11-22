@@ -55,7 +55,6 @@ export const app = new Elysia()
           { name: 'Roles', description: 'Team roles and their permissions' },
           { name: 'Invites', description: 'Team invites (create, accept, reject)' },
           { name: 'States', description: 'Workflow states and their order' },
-          { name: 'Issue Types', description: 'Per-team issue types' },
           { name: 'Labels', description: 'Labels and label groups' },
           { name: 'AI Agents', description: 'AI agents attached to a team' },
           {
@@ -67,8 +66,7 @@ export const app = new Elysia()
             name: 'Agent Tools',
             description: 'Tools configured on a credential and given to agents',
           },
-          { name: 'Custom Fields', description: 'Global and type-scoped custom fields' },
-          { name: 'Issues', description: 'Issues, their fields, feed, and comments' },
+          { name: 'Issues', description: 'Issues, their feed, and comments' },
           {
             name: 'Projects',
             description: 'Projects across teams, their statuses and activity feed',
@@ -77,7 +75,6 @@ export const app = new Elysia()
           { name: 'Attachments', description: 'Issue attachments and raw bytes' },
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
           { name: 'Views', description: 'Saved work items views' },
-          { name: 'Actions', description: 'Team automation actions' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
           { name: 'Agent Schedules', description: 'Recurring tasks for internal agents' },
           { name: 'Notifications', description: "The session user's inbox notifications" },

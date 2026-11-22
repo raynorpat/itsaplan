@@ -3,7 +3,6 @@ import {
   api,
   type BulkIssuePatch,
   type Issue,
-  type IssueFieldValueInput,
   type IssuePatch,
   type NewIssueInput,
   type BoardIssues,
@@ -154,29 +153,6 @@ export function useRestoreIssue(teamKey: string | null) {
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
       invalidateProjects(qc);
-    },
-  });
-}
-
-// Setting a custom field value. Invalidates the issue (the value lives on it),
-// its activity feed, and — since the team's issues carry field values for
-// filtering — the team detail.
-export function useSetFieldValue(teamKey: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      issueId,
-      fieldId,
-      value,
-    }: {
-      issueId: string;
-      fieldId: string;
-      value: IssueFieldValueInput;
-    }) => api.setFieldValue(issueId, fieldId, value),
-    onSettled: (_data, _err, { issueId }) => {
-      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
-      void qc.invalidateQueries({ queryKey: qk.feed(issueId) });
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
     },
   });
 }

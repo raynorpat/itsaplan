@@ -11,7 +11,7 @@ export function useTeamsQuery() {
   });
 }
 
-// The board scaffold (columns, types, labels, custom fields, viewer). The issues
+// The board scaffold (columns, labels, viewer). The issues
 // come from useBoardIssuesQuery; the Shell composes the two.
 export function useTeamQuery(teamKey: string | null) {
   return useQuery({
@@ -32,23 +32,20 @@ export function useBoardIssuesQuery(teamKey: string | null) {
 
 // Returns a callback that invalidates a team's detail query. Used by the
 // settings service mutations to refresh the team after a structural write.
-// Passing `withCustomFields` also refreshes the custom-field lists (the Custom
-// fields tab edits those).
 export function useInvalidateTeam(teamKey: string | null) {
   const qc = useQueryClient();
-  return (withCustomFields = false) => {
+  return () => {
     if (teamKey) {
       void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
-      // A structural change (deleted/renamed label, type, column, custom field) can
+      // A structural change (deleted/renamed label or column) can
       // affect how the board's issues render, so refresh the board issues too.
       void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
     }
-    // A structural change (renamed/deleted label, type, assignee, column, or
-    // custom field) can change what an open issue detail shows — its values come
+    // A structural change (renamed/deleted label, assignee or column) can change
+    // what an open issue detail shows — its values come
     // from the issue query, not the team — so refresh any open issue too. Only
     // the active (open) issue actually refetches.
     void qc.invalidateQueries({ queryKey: qk.anyIssue });
-    if (withCustomFields) void qc.invalidateQueries({ queryKey: qk.anyCustomFields });
   };
 }
 

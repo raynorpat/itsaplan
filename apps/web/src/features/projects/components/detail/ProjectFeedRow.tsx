@@ -79,8 +79,6 @@ function describe(a: ProjectFeedItem): string {
       return `added label ${a.toText}`;
     case 'label_remove':
       return `removed label ${a.fromText}`;
-    case 'type':
-      return a.toText ? `set type to ${a.toText}` : 'removed type';
     case 'project':
       return a.toText ? `linked to ${a.toText}` : 'unlinked from the project';
     case 'relation': {

@@ -1,10 +1,9 @@
-import type { TeamDetail, CustomField } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
 import type { FilterCondition, FilterOperator, FilterSet, FilterValue } from '@/utils/filters';
-import { customFieldKey } from '@/utils/viewSettings';
 
 // The kind of value a field holds, which decides its operators and value editor.
-export type FieldKind = 'set' | 'date' | 'text' | 'number' | 'boolean';
+export type FieldKind = 'set' | 'date';
 
 export interface FieldOption {
   value: FilterValue;
@@ -13,8 +12,7 @@ export interface FieldOption {
 }
 
 // One filterable field: how it is labeled, what kind of value it holds, and (for
-// set fields) the choices. `field` is the persisted key (a builtin name or
-// `cf:<id>`).
+// set fields) the choices. `field` is the persisted key.
 export interface FieldSpec {
   field: string;
   label: string;
@@ -26,9 +24,6 @@ export interface FieldSpec {
 export const OPERATORS_BY_KIND: Record<FieldKind, FilterOperator[]> = {
   set: ['is', 'is_not'],
   date: ['before', 'after', 'is_set', 'is_not_set'],
-  text: ['contains', 'not_contains', 'is_set', 'is_not_set'],
-  number: ['is', 'is_not', 'is_set', 'is_not_set'],
-  boolean: ['is'],
 };
 
 export const OPERATOR_LABELS: Record<FilterOperator, string> = {
@@ -38,37 +33,12 @@ export const OPERATOR_LABELS: Record<FilterOperator, string> = {
   after: 'after',
   is_set: 'is set',
   is_not_set: 'is not set',
-  contains: 'contains',
-  not_contains: 'does not contain',
 };
 
-export const BOOLEAN_OPTIONS: FieldOption[] = [
-  { value: true, label: 'True' },
-  { value: false, label: 'False' },
-];
-
-// Maps a custom field type to a filter field kind. select/multi_select are set
-// fields over their options; the scalar types map to their editors.
-function customFieldKind(field: CustomField): FieldKind {
-  switch (field.fieldType) {
-    case 'select':
-    case 'multi_select':
-      return 'set';
-    case 'number':
-      return 'number';
-    case 'boolean':
-      return 'boolean';
-    case 'date':
-      return 'date';
-    default:
-      return 'text'; // text, markdown
-  }
-}
-
-// The full catalog of filterable fields for a team: builtins plus every custom
-// field. Recomputed when the team or its custom fields change.
-export function buildFieldSpecs(team: TeamDetail, customFields: CustomField[]): FieldSpec[] {
-  const specs: FieldSpec[] = [
+// The full catalog of filterable fields for a team. Recomputed when the team
+// changes.
+export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
+  return [
     {
       field: 'status',
       label: 'State',
@@ -100,15 +70,6 @@ export function buildFieldSpecs(team: TeamDetail, customFields: CustomField[]): 
     },
     { field: 'priority', label: 'Priority', kind: 'set', options: PRIORITY_OPTIONS },
     {
-      field: 'type',
-      label: 'Type',
-      kind: 'set',
-      options: [
-        ...team.issueTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })),
-        { value: null, label: 'No type' },
-      ],
-    },
-    {
       field: 'labels',
       label: 'Labels',
       kind: 'set',
@@ -119,19 +80,6 @@ export function buildFieldSpecs(team: TeamDetail, customFields: CustomField[]): 
     { field: 'created', label: 'Created', kind: 'date' },
     { field: 'updated', label: 'Updated', kind: 'date' },
   ];
-  for (const f of customFields) {
-    const kind = customFieldKind(f);
-    specs.push({
-      field: customFieldKey(f.id),
-      label: f.name,
-      kind,
-      options:
-        kind === 'set'
-          ? f.options.map((o) => ({ value: o.id, label: o.value, color: o.color }))
-          : undefined,
-    });
-  }
-  return specs;
 }
 
 // A fresh condition for a newly picked field, with the kind's first operator and
@@ -149,8 +97,8 @@ export function newCondition(spec: FieldSpec): FilterCondition {
 export function valuesLabel(spec: FieldSpec, cond: FilterCondition): string {
   if (cond.op === 'is_set' || cond.op === 'is_not_set') return '';
   if (cond.values.length === 0) return '…';
-  if (spec.kind === 'set' || spec.kind === 'boolean') {
-    const opts = spec.kind === 'boolean' ? BOOLEAN_OPTIONS : (spec.options ?? []);
+  if (spec.kind === 'set') {
+    const opts = spec.options ?? [];
     const labels = cond.values.map((v) => opts.find((o) => o.value === v)?.label ?? String(v));
     return labels.length <= 2 ? labels.join(', ') : `${labels.length} selected`;
   }
@@ -163,10 +111,9 @@ export function valuesLabel(spec: FieldSpec, cond: FilterCondition): string {
 export function describeConditions(
   filters: FilterSet | null | undefined,
   team: TeamDetail,
-  customFields: CustomField[],
 ): string[] {
   if (!filters) return [];
-  const byField = new Map(buildFieldSpecs(team, customFields).map((s) => [s.field, s]));
+  const byField = new Map(buildFieldSpecs(team).map((s) => [s.field, s]));
   const out: string[] = [];
   for (const cond of filters.conditions) {
     const spec = byField.get(cond.field);

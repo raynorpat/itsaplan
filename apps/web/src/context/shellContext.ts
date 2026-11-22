@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { CustomField, IssueOpenMode, TeamDetail, View } from '@/lib/api';
+import type { IssueOpenMode, TeamDetail, View } from '@/lib/api';
 import type { NewIssueDefaults } from '@/utils/team';
 import type { useViewEditor } from '@/hooks/useViewEditor';
 
@@ -12,7 +12,6 @@ export type ShellContext = {
   filteredTeam: TeamDetail | null;
   views: View[];
   editor: ReturnType<typeof useViewEditor>;
-  customFields: CustomField[];
   // Opens an issue. Without `mode` the account's issueOpenMode preference decides
   // between the side panel and the issue page; pass it to force one of them.
   onOpenIssue: (id: string, mode?: IssueOpenMode) => void;

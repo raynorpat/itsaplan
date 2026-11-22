@@ -16,15 +16,9 @@ export const qk = {
   // A team's notification delivery settings (the Notifications section).
   notificationPreferences: (teamKey: string) => ['notificationPreferences', teamKey] as const,
   views: (teamKey: string) => ['views', teamKey] as const,
-  actions: (teamKey: string) => ['actions', teamKey] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
-  // Custom fields are team-scoped; typeId narrows to one issue type's fields,
-  // 'all' is the team's full list.
-  customFields: (teamKey: string, typeId?: string | null) =>
-    ['customFields', teamKey, typeId ?? 'all'] as const,
-  anyCustomFields: ['customFields'] as const,
   // Team membership, invite links, and custom roles (the Members section). The
   // permission catalog is app-static, so it is not team-scoped.
   members: (teamKey: string) => ['members', teamKey] as const,

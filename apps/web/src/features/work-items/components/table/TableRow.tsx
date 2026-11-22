@@ -9,7 +9,6 @@ import IssueContextMenu from '@/features/issue/components/actions/IssueContextMe
 import { DropLine } from '../shared/DropLine';
 import { columnKey, type OrderedColumn } from '../../utils/table';
 import { TableBuiltinCell } from './TableBuiltinCell';
-import { TableCustomCell } from './TableCustomCell';
 
 // A draggable, droppable table row. Dragging it starts a move; dropping another
 // row on it inserts before this one (onDrop). A click (no drag) opens it.
@@ -20,7 +19,6 @@ export function TableRow({
   maps,
   showId,
   indented,
-  alignTop,
   gridTemplate,
   dropDisabled,
   onDrop,
@@ -33,8 +31,6 @@ export function TableRow({
   showId: boolean;
   // Rows under a sub-section are indented to sit below their sub-header.
   indented: boolean;
-  // Top-align cells (a tall markdown cell is present) instead of centering.
-  alignTop: boolean;
   gridTemplate: string;
   // Dropping between rows only holds under manual ordering. With any other sort
   // the row stops being a drop target so the pointer falls through to the section
@@ -78,7 +74,7 @@ export function TableRow({
         onClick={onClick}
         className={cn(
           'relative grid cursor-grab gap-3 border-b py-2 pr-4 text-sm transition-colors hover:bg-accent/40 sm:touch-none',
-          alignTop ? 'items-start' : 'items-center',
+          'items-center',
           indented ? 'pl-9' : 'pl-4',
           isDragging && 'opacity-40',
         )}
@@ -94,13 +90,9 @@ export function TableRow({
           <span className="truncate text-foreground">{issue.title}</span>
         </div>
 
-        {orderedColumns.map((c) =>
-          c.kind === 'builtin' ? (
-            <TableBuiltinCell key={columnKey(c)} column={c.col} issue={issue} maps={maps} />
-          ) : (
-            <TableCustomCell key={columnKey(c)} field={c.field} issue={issue} />
-          ),
-        )}
+        {orderedColumns.map((c) => (
+          <TableBuiltinCell key={columnKey(c)} column={c.col} issue={issue} maps={maps} />
+        ))}
       </div>
     </IssueContextMenu>
   );

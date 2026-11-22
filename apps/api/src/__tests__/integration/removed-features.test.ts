@@ -69,4 +69,26 @@ describe('removed features', () => {
     for (const [method, path, body] of routes)
       expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
   });
+
+  it('removes team actions, issue types and custom fields', async () => {
+    const { cookie, issueId } = await setup();
+    const id = crypto.randomUUID();
+    const routes: [string, string, unknown?][] = [
+      ['GET', '/teams/MKT/actions'],
+      ['POST', '/teams/MKT/actions', { name: 'A' }],
+      ['PUT', '/teams/MKT/actions/reorder', { ids: [] }],
+      ['PATCH', `/actions/${id}`, { name: 'A' }],
+      ['DELETE', `/actions/${id}`],
+      ['POST', '/teams/MKT/issue-types', { name: 'Bug' }],
+      ['PATCH', `/teams/MKT/issue-types/${id}`, { name: 'Bug' }],
+      ['DELETE', `/teams/MKT/issue-types/${id}`],
+      ['GET', '/teams/MKT/custom-fields'],
+      ['POST', '/teams/MKT/custom-fields', { name: 'F', type: 'text' }],
+      ['PATCH', `/teams/MKT/custom-fields/${id}`, { name: 'F' }],
+      ['DELETE', `/teams/MKT/custom-fields/${id}`],
+      ['PUT', `/issues/${issueId}/fields/${id}`, { value: 'x' }],
+    ];
+    for (const [method, path, body] of routes)
+      expect([method, path, await call(cookie, method, path, body)]).toEqual([method, path, 404]);
+  });
 });

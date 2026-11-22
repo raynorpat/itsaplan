@@ -1,12 +1,6 @@
 import { type ReactNode } from 'react';
 import { Target } from 'lucide-react';
-import {
-  type CustomField,
-  type TeamDetail,
-  type IssueDetail as IssueDetailRow,
-  type IssueFieldValueInput,
-  type IssuePatch,
-} from '@/lib/api';
+import { type TeamDetail, type IssueDetail as IssueDetailRow, type IssuePatch } from '@/lib/api';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import { Pill } from '@/components/common/fields/Pill';
@@ -15,12 +9,8 @@ import DelegateSelect from '../fields/DelegateSelect';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
-import TypeSelect from '@/components/common/fields/TypeSelect';
 import ProjectSelect from '../fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
-import IssueCustomFieldControl from '../fields/IssueCustomFieldControl';
-import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
-import { type Embeddable } from '../../utils/attachmentEmbed';
 
 // One property row in the two-column list: name on the left, control on the right.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
@@ -32,32 +22,23 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-// The Properties grid of the issue detail: built-in fields (status, assignee,
-// priority, type, dates, labels) and non-markdown custom fields, each editable
-// inline. In the page layout it is a bordered card; in the panel a plain block.
+// The Properties grid of the issue detail: status, assignee, priority, project,
+// dates and labels, each editable inline. In the page layout it is a bordered card; in the panel a plain block.
 export default function IssueProperties({
   team,
   issue,
-  fieldDefs,
   onPatch,
-  onSetField,
   onToggleLabel,
-  uploadFile,
-  imageAttachments,
   hasSidebar,
   readOnly,
 }: {
   team: TeamDetail;
   issue: IssueDetailRow;
-  fieldDefs: CustomField[];
   onPatch: (fields: IssuePatch) => void;
-  onSetField: (fieldId: string, value: IssueFieldValueInput) => void;
   onToggleLabel: (id: string) => void;
-  uploadFile?: (file: File) => Promise<Embeddable>;
-  imageAttachments?: Embeddable[];
   hasSidebar: boolean;
   // When true every control is a non-interactive display of its value (public
-  // shared page). The onPatch/onSetField/onToggleLabel callbacks are never called.
+  // shared page). The onPatch/onToggleLabel callbacks are never called.
   readOnly?: boolean;
 }) {
   const hasMembers = team.assignees.some((a) => a.kind === 'member');
@@ -102,17 +83,6 @@ export default function IssueProperties({
           readOnly={readOnly}
         />
       </PropertyRow>
-
-      {team.issueTypes.length > 0 && (
-        <PropertyRow label="Type">
-          <TypeSelect
-            issueTypes={team.issueTypes}
-            value={issue.typeId}
-            onChange={(id) => onPatch({ typeId: id })}
-            readOnly={readOnly}
-          />
-        </PropertyRow>
-      )}
 
       {team.team.projectsEnabled && (
         <PropertyRow label="Project">
@@ -171,41 +141,6 @@ export default function IssueProperties({
           />
         </PropertyRow>
       )}
-
-      {/* Custom fields not flagged "show in main info". A markdown field here
-          spans both columns as a full-width block; the rest are property rows. */}
-      {fieldDefs
-        .filter((def) => !def.showInBody)
-        .map((def) => {
-          const current = issue.fields.find((f) => f.fieldId === def.id);
-          const saveKey = `${def.id}-${issue.updatedAt}`;
-          if (def.fieldType === 'markdown') {
-            return (
-              <div key={def.id} className="col-span-2">
-                <IssueCustomFieldBody
-                  def={def}
-                  current={current}
-                  saveKey={saveKey}
-                  uploadFile={uploadFile}
-                  imageAttachments={imageAttachments}
-                  onSetField={onSetField}
-                  readOnly={readOnly}
-                />
-              </div>
-            );
-          }
-          return (
-            <PropertyRow key={def.id} label={def.name}>
-              <IssueCustomFieldControl
-                def={def}
-                current={current}
-                saveKey={saveKey}
-                onChange={(value) => onSetField(def.id, value)}
-                readOnly={readOnly}
-              />
-            </PropertyRow>
-          );
-        })}
     </>
   );
 

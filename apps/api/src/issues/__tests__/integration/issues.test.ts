@@ -38,16 +38,14 @@ async function foreignLabel(client: Api) {
   return res.data!;
 }
 
-// A column and an issue type of a second team, which no issue of the first one
-// may point at.
+// A column of a second team, which no issue of the first one may point at.
 async function foreignTeam(client: Api) {
   await client.teams.post({ key: 'OPS', name: 'Operations' });
   const view = await client.teams({ teamKey: 'OPS' }).get();
-  const type = await client.teams({ teamKey: 'OPS' })['issue-types'].post({ name: 'Incident' });
-  return { stateId: view.data!.states[0].id, typeId: type.data!.id };
+  return { stateId: view.data!.states[0].id };
 }
 
-// The board's issue list (carries labelIds and set custom field values).
+// The board's issue list (carries labelIds).
 async function issuesOf(client: Api, teamKey = 'MKT') {
   const board = await client.teams({ teamKey }).issues.board.get();
   return board.data!.issues;
@@ -163,15 +161,6 @@ describe('issues', () => {
       const foreign = await foreignTeam(asOwner);
 
       const created = await createIssue(asOwner, foreign.stateId);
-      expect(created.status).toBe(400);
-      expect(await issuesOf(asOwner)).toHaveLength(0);
-    });
-
-    it('rejects an issue type of another team and creates no issue', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const foreign = await foreignTeam(asOwner);
-
-      const created = await createIssue(asOwner, stateId, { typeId: foreign.typeId });
       expect(created.status).toBe(400);
       expect(await issuesOf(asOwner)).toHaveLength(0);
     });
@@ -298,19 +287,13 @@ describe('issues', () => {
   });
 
   describe('get', () => {
-    it('returns the issue with its custom field values', async () => {
+    it('returns the issue', async () => {
       const { asOwner, stateId } = await setupTeam();
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        ['custom-fields'].post({ name: 'Severity', fieldType: 'text' });
       const issue = (await createIssue(asOwner, stateId)).data!;
 
       const res = await asOwner.issues({ issueId: issue.id }).get();
       expect(res.status).toBe(200);
       expect(res.data).toMatchObject({ id: issue.id, title: 'Task' });
-      // The team-wide field is listed (unset → value null).
-      expect(res.data?.fields.map((f) => f.name)).toContain('Severity');
-      expect(res.data?.fields.find((f) => f.name === 'Severity')?.value).toBeNull();
     });
 
     it('returns 404 for a missing issue', async () => {
@@ -443,20 +426,6 @@ describe('issues', () => {
       expect(read.data?.stateId).toBe(stateId);
     });
 
-    it('rejects an issue type of another team and keeps the current one', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const own = (await asOwner.teams({ teamKey: 'MKT' })['issue-types'].post({ name: 'Bug' }))
-        .data!;
-      const foreign = await foreignTeam(asOwner);
-      const issue = (await createIssue(asOwner, stateId, { typeId: own.id })).data!;
-
-      const patched = await asOwner.issues({ issueId: issue.id }).patch({ typeId: foreign.typeId });
-      expect(patched.status).toBe(400);
-
-      const read = await asOwner.issues({ issueId: issue.id }).get();
-      expect(read.data?.typeId).toBe(own.id);
-    });
-
     it('changes only the given fields', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId, { title: 'Keep', priority: 4 })).data!;
@@ -574,215 +543,6 @@ describe('issues', () => {
 
   // PUT /issues/:issueId/fields/:fieldId sets one custom field's value. Read back
   // through GET /issues/:issueId (the `fields` array).
-  describe('custom field values', () => {
-    async function fieldValue(client: Api, issueId: string, fieldId: string) {
-      const res = await client.issues({ issueId }).get();
-      return res.data?.fields.find((f) => f.fieldId === fieldId);
-    }
-
-    // A team-wide field (no issueTypeId) of a second team, which must stay
-    // invisible to the issues of the first one.
-    async function foreignField(client: Api) {
-      await client.teams.post({ key: 'OPS', name: 'Operations' });
-      const res = await client
-        .teams({ teamKey: 'OPS' })
-        ['custom-fields'].post({ name: 'Source URL', fieldType: 'text' });
-      return res.data!;
-    }
-
-    it('sets a text field value', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Notes', fieldType: 'text' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 'hello' });
-      expect(put.status).toBe(200);
-      expect(put.data).toMatchObject({ ok: true });
-
-      expect((await fieldValue(asOwner, issue.id, field.id))?.value).toBe('hello');
-    });
-
-    it("sets a select field's option ids", async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner.teams({ teamKey: 'MKT' })['custom-fields'].post({
-          name: 'Priority',
-          fieldType: 'select',
-          options: ['Low', 'High'],
-        })
-      ).data!;
-      const optionId = field.options[1].id;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ optionIds: [optionId] });
-      expect(put.status).toBe(200);
-
-      expect((await fieldValue(asOwner, issue.id, field.id))?.optionIds).toEqual([optionId]);
-    });
-
-    it('stores and reads back a number field value', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Points', fieldType: 'number' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 8 });
-      expect(put.status).toBe(200);
-
-      // The number column stores a string; the store coerces it back to a number.
-      expect((await fieldValue(asOwner, issue.id, field.id))?.value).toBe(8);
-    });
-
-    it('stores and reads back a boolean field value', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Done', fieldType: 'boolean' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: true });
-      expect(put.status).toBe(200);
-
-      expect((await fieldValue(asOwner, issue.id, field.id))?.value).toBe(true);
-    });
-
-    it('clears a field value when set to null', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Notes', fieldType: 'text' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-      const fields = asOwner.issues({ issueId: issue.id }).fields({ fieldId: field.id });
-
-      await fields.put({ value: 'set' });
-      expect((await fieldValue(asOwner, issue.id, field.id))?.value).toBe('set');
-
-      const cleared = await fields.put({ value: null });
-      expect(cleared.status).toBe(200);
-      expect((await fieldValue(asOwner, issue.id, field.id))?.value).toBeNull();
-    });
-
-    it('rejects an invalid number for a number field', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Points', fieldType: 'number' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 'not-a-number' });
-      expect(put.status).toBe(400);
-    });
-
-    it('rejects a non-http url for a url field', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Link', fieldType: 'url' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 'javascript:alert(1)' });
-      expect(put.status).toBe(400);
-    });
-
-    it('rejects an option id of another field and keeps the current selection', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const customFields = asOwner.teams({ teamKey: 'MKT' })['custom-fields'];
-      const target = (
-        await customFields.post({
-          name: 'Priority',
-          fieldType: 'select',
-          options: ['Low', 'High'],
-        })
-      ).data!;
-      const other = (
-        await customFields.post({ name: 'Stage', fieldType: 'select', options: ['Draft'] })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-      await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: target.id })
-        .put({ optionIds: [target.options[0].id] });
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: target.id })
-        .put({ optionIds: [other.options[0].id] });
-      expect(put.status).toBe(400);
-
-      expect((await fieldValue(asOwner, issue.id, target.id))?.optionIds).toEqual([
-        target.options[0].id,
-      ]);
-    });
-
-    it("omits another team's field from the issue", async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const foreign = await foreignField(asOwner);
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const res = await asOwner.issues({ issueId: issue.id }).get();
-      expect(res.status).toBe(200);
-      expect(res.data?.fields.map((f) => f.fieldId)).not.toContain(foreign.id);
-    });
-
-    it("returns 404 setting another team's field", async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const foreign = await foreignField(asOwner);
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const put = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: foreign.id })
-        .put({ value: 'hello' });
-      expect(put.status).toBe(404);
-    });
-
-    it('rejects a non-numeric field id', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const issue = (await createIssue(asOwner, stateId)).data!;
-      const res = await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: 'abc' as unknown as number })
-        .put({ value: 'x' });
-      expect(res.status).toBe(400);
-    });
-  });
-
-  // GET /issues/:issueId/rev is the cheap change marker clients poll for live
-  // refresh: an opaque string that must move whenever the issue's detail or feed
-  // changes (an edit or a new timeline entry) and stay put otherwise.
   describe('board', () => {
     it('returns the active issues and a string change marker for a member', async () => {
       const { asOwner, stateId } = await setupTeam();
@@ -938,43 +698,6 @@ describe('issues', () => {
       );
     });
 
-    it('matches by a scalar custom field text value', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner.teams({ teamKey: 'MKT' })['custom-fields'].post({
-          name: 'Notes',
-          fieldType: 'text',
-        })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId, { title: 'Plain title' })).data!;
-      await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 'narwhal note' });
-
-      const res = await search(asOwner, { q: 'narwhal' });
-      expect(res.data!.map((i) => i.id)).toEqual([issue.id]);
-    });
-
-    it('matches by a select option label', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner.teams({ teamKey: 'MKT' })['custom-fields'].post({
-          name: 'Severity',
-          fieldType: 'select',
-          options: ['Trivial', 'Critical'],
-        })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId, { title: 'Plain title' })).data!;
-      await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ optionIds: [field.options[1].id] });
-
-      const res = await search(asOwner, { q: 'critical' });
-      expect(res.data!.map((i) => i.id)).toEqual([issue.id]);
-    });
-
     it('caps the result count at limit', async () => {
       const { asOwner, stateId } = await setupTeam();
       for (let i = 0; i < 3; i++) await createIssue(asOwner, stateId, { title: `Item ${i}` });
@@ -1085,8 +808,7 @@ describe('issues', () => {
       // An id that is not a UUID must mean "any", not a filter.
       const res = await list(asOwner, {
         stateId: '',
-        typeId: '0',
-        projectId: '',
+        projectId: '0',
         assigneeUserId: '',
       });
       expect(res.status).toBe(200);

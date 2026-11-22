@@ -24,7 +24,6 @@ const tableCollision = preferPrefix('row:');
 
 export default function TableView({
   team,
-  customFields,
   settings,
   onOpenIssue,
   onAddIssue,
@@ -42,10 +41,7 @@ export default function TableView({
   const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
   const maps = buildMaps(team);
 
-  const { columns, gridTemplate, minWidth, alignTop } = resolveColumns(
-    settings.properties,
-    customFields,
-  );
+  const { columns, gridTemplate, minWidth } = resolveColumns(settings.properties);
 
   const items = buildTableItems({
     groups,
@@ -134,7 +130,6 @@ export default function TableView({
             orderedColumns={columns}
             maps={maps}
             showId={settings.properties.includes('id')}
-            alignTop={alignTop}
             indented={subgrouped}
             gridTemplate={gridTemplate}
             dropDisabled={!manualOrder && grouped}

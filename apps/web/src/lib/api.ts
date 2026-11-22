@@ -86,16 +86,6 @@ export interface Column {
   archivedAt: string | null;
 }
 
-export interface IssueType {
-  id: string;
-  teamId: string;
-  name: string;
-  icon: string;
-  color: string;
-  isDefault: boolean;
-  position: number;
-}
-
 export interface Label {
   id: string;
   // Null for a workspace label (shared by every team; managed over the API).
@@ -451,37 +441,6 @@ export async function* streamAiAgentRun(
   }
 }
 
-export type CustomFieldType =
-  'text' | 'markdown' | 'url' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select';
-
-export interface CustomFieldOption {
-  id: string;
-  value: string;
-  color: string;
-  position: number;
-}
-
-export interface CustomField {
-  id: string;
-  issueTypeId: string | null;
-  name: string;
-  fieldType: CustomFieldType;
-  // When true the field renders in the issue body (under the description);
-  // when false it renders as a Properties row.
-  showInBody: boolean;
-  position: number;
-  options: CustomFieldOption[];
-}
-
-// One custom field value on a team issue: the scalar value (null for
-// select/multi_select and unset fields) and the selected option ids. Only
-// fields with a value set appear; unset fields are omitted (see listIssues).
-export interface IssueFieldValueEntry {
-  fieldId: string;
-  value: string | number | boolean | null;
-  optionIds: string[];
-}
-
 export interface Issue {
   id: string;
   teamId: string;
@@ -489,7 +448,6 @@ export interface Issue {
   // its human number in URLs (/team/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
-  typeId: string | null;
   // The project this issue is linked to, expanded to id + title for rendering,
   // or null. Set through updateIssue by projectId.
   project: ProjectOption | null;
@@ -523,18 +481,16 @@ export interface Issue {
   // Drives the "time in current status" badge.
   statusSince: string;
   labelIds: string[];
-  fieldValues: IssueFieldValueEntry[];
 }
 
 // A light search result from GET /teams/:key/issues/search: enough to list and
-// open a match, without the full issue's description or field values.
+// open a match, without the full issue's description.
 export interface IssueSearchHit {
   id: string;
   sequenceNumber: number;
   identifier: string;
   title: string;
   stateId: string;
-  typeId: string | null;
   projectId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
@@ -854,41 +810,6 @@ export interface ViewPatch {
   display?: SavedViewDisplay;
 }
 
-// A manual action: a saved macro on a team. `condition` is a FilterSet (empty
-// = always available) that decides which issues the action shows on; `effect`
-// is a partial issue patch over built-in fields applied in one update when the
-// action runs. A present effect key sets that field (value may be null); an
-// absent key leaves it unchanged.
-export type ActionEffect = Pick<
-  IssuePatch,
-  'stateId' | 'assigneeUserId' | 'priority' | 'typeId' | 'startDate' | 'dueDate' | 'labelIds'
->;
-
-export interface ActionDef {
-  id: string;
-  teamId: string;
-  name: string;
-  icon: string;
-  condition: FilterSet;
-  effect: ActionEffect;
-  position: number;
-  createdAt: string;
-}
-
-export interface NewActionInput {
-  name: string;
-  icon?: string;
-  condition?: FilterSet;
-  effect?: ActionEffect;
-}
-
-export interface ActionPatch {
-  name?: string;
-  icon?: string;
-  condition?: FilterSet;
-  effect?: ActionEffect;
-}
-
 // Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The
 // resource types must stay in sync with WEBHOOK_RESOURCE_TYPES on the server.
 export type WebhookResourceType =
@@ -980,9 +901,9 @@ export interface Attachment {
 }
 
 // `action` selects how the UI renders an activity row; from_text/to_text are
-// display-ready value snapshots (column/label/type/assignee name, raw priority,
-// ISO date, or the new text of a long field). `subject` names the changed
-// sub-item where the action alone is not enough (the custom field name for 'field').
+// display-ready value snapshots (column/label/assignee name, raw priority, ISO
+// date, or the new text of a long field). `subject` names the changed sub-item
+// where the action alone is not enough (the relation type for 'relation').
 export type ActivityAction =
   | 'created'
   | 'title'
@@ -991,12 +912,10 @@ export type ActivityAction =
   | 'assignee'
   | 'delegate'
   | 'priority'
-  | 'type'
   | 'start_date'
   | 'due_date'
   | 'label_add'
   | 'label_remove'
-  | 'field'
   | 'archived'
   | 'restored'
   | 'relation';
@@ -1045,22 +964,6 @@ export interface TimelineSegment {
   durationMs: number;
 }
 
-export interface IssueFieldValue {
-  fieldId: string;
-  name: string;
-  fieldType: CustomFieldType;
-  value: string | number | boolean | null;
-  optionIds: string[];
-}
-
-// A custom field value on the way in (setFieldValue). `value` carries the
-// scalar types, `optionIds` the select/multi_select ones; a field uses one or
-// the other.
-export interface IssueFieldValueInput {
-  value?: string | number | boolean | null;
-  optionIds?: string[];
-}
-
 // The caller's own role in a team (owner/member). Returned with the team;
 // the resolved permission matrix is a sibling `permissions` field. See
 // usePermissions.
@@ -1078,13 +981,9 @@ export interface ProjectOption {
 export interface TeamScaffold {
   team: Team;
   states: Column[];
-  issueTypes: IssueType[];
   labels: Label[];
   labelGroups: LabelGroup[];
   assignees: Assignee[];
-  // Every custom field of the team (all type scopes); consumers filter by
-  // issueTypeId locally.
-  customFields: CustomField[];
   viewer: TeamViewer;
   // The caller's resolved permission matrix (owners get every flag).
   permissions: Permissions;
@@ -1101,12 +1000,9 @@ export interface BoardIssues {
 // down. Downstream reads team.issues / team.rev off this composite.
 export type TeamDetail = TeamScaffold & BoardIssues;
 
-export interface IssueDetail extends Issue {
-  fields: IssueFieldValue[];
-}
+export type IssueDetail = Issue;
 
 export interface NewIssueInput {
-  typeId?: string | null;
   projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
@@ -1123,7 +1019,6 @@ export interface NewIssueInput {
 // subset of IssuePatch: no title/description/position).
 export interface BulkIssuePatch {
   stateId?: string;
-  typeId?: string | null;
   projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
@@ -1135,7 +1030,6 @@ export interface BulkIssuePatch {
 export interface IssuePatch {
   stateId?: string;
   position?: number;
-  typeId?: string | null;
   projectId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
@@ -1283,14 +1177,6 @@ export interface ProjectFeedPage {
   nextCursor: FeedCursor | null;
 }
 
-export interface NewCustomFieldInput {
-  issueTypeId?: string | null;
-  name: string;
-  fieldType: CustomFieldType;
-  showInBody?: boolean;
-  options?: string[];
-}
-
 // The team permission matrix (mirrors apps/api shared/permissions.ts): 13
 // resources, each granting or denying 4 actions. A custom role carries one matrix.
 export type PermissionAction = 'create' | 'edit' | 'read' | 'delete';
@@ -1302,14 +1188,11 @@ export type PermissionResource =
   | 'members_invite'
   | 'members_manage'
   | 'states'
-  | 'issue_types'
   | 'labels'
   | 'ai_agents'
   | 'integrations'
   | 'agent_skills'
   | 'agent_tools'
-  | 'custom_fields'
-  | 'actions'
   | 'webhooks'
   | 'danger_zone';
 
@@ -1442,7 +1325,7 @@ export type NotificationDeleteScope = 'all' | 'read' | 'read-completed';
 export const api = {
   listTeams: (opts?: { permissions?: boolean }) =>
     request<Team[]>(`/teams${opts?.permissions ? '?permissions=true' : ''}`),
-  createTeam: (input: { key: string; name: string; description?: string; preset?: string }) =>
+  createTeam: (input: { key: string; name: string; description?: string }) =>
     request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
   // Update a team's name/description. The key is immutable, so it is not sent.
   updateTeam: (teamKey: string, patch: { name?: string; description?: string }) =>
@@ -1485,26 +1368,6 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  createIssueType: (
-    teamKey: string,
-    input: { name: string; icon?: string; color?: string; isDefault?: boolean },
-  ) =>
-    request<IssueType>(`/teams/${teamKey}/issue-types`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateIssueType: (
-    teamKey: string,
-    typeId: string,
-    patch: { name?: string; color?: string; isDefault?: boolean },
-  ) =>
-    request<IssueType>(`/teams/${teamKey}/issue-types/${typeId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteIssueType: (teamKey: string, typeId: string) =>
-    request<void>(`/teams/${teamKey}/issue-types/${typeId}`, { method: 'DELETE' }),
-
   createLabel: (
     teamKey: string,
     input: { name: string; color?: string; groupId?: string | null },
@@ -1537,27 +1400,6 @@ export const api = {
     }),
   deleteLabelGroup: (teamKey: string, groupId: string) =>
     request<void>(`/teams/${teamKey}/label-groups/${groupId}`, { method: 'DELETE' }),
-
-  listCustomFields: (teamKey: string, issueTypeId?: string) =>
-    request<CustomField[]>(
-      `/teams/${teamKey}/custom-fields${issueTypeId != null ? `?issueTypeId=${issueTypeId}` : ''}`,
-    ),
-  createCustomField: (teamKey: string, input: NewCustomFieldInput) =>
-    request<CustomField>(`/teams/${teamKey}/custom-fields`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateCustomField: (
-    teamKey: string,
-    fieldId: string,
-    patch: { name?: string; showInBody?: boolean },
-  ) =>
-    request<CustomField>(`/teams/${teamKey}/custom-fields/${fieldId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteCustomField: (teamKey: string, fieldId: string) =>
-    request<void>(`/teams/${teamKey}/custom-fields/${fieldId}`, { method: 'DELETE' }),
 
   createIssue: (teamKey: string, input: NewIssueInput) =>
     request<Issue>(`/teams/${teamKey}/issues`, {
@@ -1609,11 +1451,6 @@ export const api = {
     if (params.limit != null) qs.set('limit', String(params.limit));
     return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
-  setFieldValue: (issueId: string, fieldId: string, input: IssueFieldValueInput) =>
-    request<{ ok: boolean }>(`/issues/${issueId}/fields/${fieldId}`, {
-      method: 'PUT',
-      body: JSON.stringify(input),
-    }),
 
   listAttachments: (issueId: string) =>
     request<Attachment[]>(`/issues/${issueId}/attachments`).then((rows) =>
@@ -1949,21 +1786,6 @@ export const api = {
     ),
   rejectInvite: (token: string) =>
     request<void>(`/invites/${encodeURIComponent(token)}/reject`, { method: 'POST' }),
-
-  listActions: (teamKey: string) => request<ActionDef[]>(`/teams/${teamKey}/actions`),
-  createAction: (teamKey: string, input: NewActionInput) =>
-    request<ActionDef>(`/teams/${teamKey}/actions`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateAction: (actionId: string, patch: ActionPatch) =>
-    request<ActionDef>(`/actions/${actionId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteAction: (actionId: string) => request<void>(`/actions/${actionId}`, { method: 'DELETE' }),
-  reorderActions: (teamKey: string, orderedIds: string[]) =>
-    request<ActionDef[]>(`/teams/${teamKey}/actions/reorder`, {
-      method: 'PUT',
-      body: JSON.stringify({ orderedIds }),
-    }),
 
   listWebhooks: (teamKey: string) => request<Webhook[]>(`/teams/${teamKey}/webhooks`),
   createWebhook: (teamKey: string, input: NewWebhookInput) =>

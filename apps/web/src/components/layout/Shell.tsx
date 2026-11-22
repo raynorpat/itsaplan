@@ -54,7 +54,6 @@ export default function Shell({
     filteredTeam,
     views,
     editor,
-    customFields,
     canCreateIssue,
     errorMsg,
     forbidden,
@@ -118,7 +117,6 @@ export default function Shell({
     filteredTeam,
     views,
     editor,
-    customFields,
     onOpenIssue: openIssue,
     onAddIssue: overlays.setNewIssueDefaults,
   };

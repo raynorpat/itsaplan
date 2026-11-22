@@ -4,12 +4,10 @@ import IssueAttachmentsPanel from './IssueAttachmentsPanel';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
-import IssueCustomFieldBody from '../fields/IssueCustomFieldBody';
 import IssueProperties from './IssueProperties';
 import IssueActionsBar from '../actions/IssueActionsBar';
 
-// The full editable body of a issue — title, description, markdown custom
-// fields, attachments, the Properties grid, and the activity feed. Shared by the
+// The full editable body of a issue — title, description, attachments, the Properties grid, and the activity feed. Shared by the
 // side panel (IssueDetail) and the full-page view (IssueViewPage); each supplies
 // its own surrounding chrome (close button / breadcrumbs). Data loading and
 // mutations live in useIssueDetail; this component is layout only.
@@ -34,9 +32,7 @@ export default function IssueDetailContent({
 }) {
   const {
     issue,
-    fieldDefs,
     patch,
-    setField,
     toggleLabel,
     insertAttachment,
     uploadFile,
@@ -84,22 +80,6 @@ export default function IssueDetailContent({
         }}
       />
 
-      {/* Custom fields flagged "show in main info" render below the description,
-          each under its own heading, rather than as a Properties row. */}
-      {fieldDefs
-        .filter((def) => def.showInBody)
-        .map((def) => (
-          <IssueCustomFieldBody
-            key={def.id}
-            def={def}
-            current={issue.fields.find((f) => f.fieldId === def.id)}
-            saveKey={`${def.id}-${issue.updatedAt}`}
-            uploadFile={uploadFile}
-            imageAttachments={imageAttachments}
-            onSetField={setField}
-          />
-        ))}
-
       <IssueAttachmentsPanel issueId={issue.id} onInsert={insertAttachment} />
     </>
   );
@@ -108,12 +88,8 @@ export default function IssueDetailContent({
     <IssueProperties
       team={team}
       issue={issue}
-      fieldDefs={fieldDefs}
       onPatch={patch}
-      onSetField={setField}
       onToggleLabel={toggleLabel}
-      uploadFile={uploadFile}
-      imageAttachments={imageAttachments}
       hasSidebar={hasSidebar}
     />
   );

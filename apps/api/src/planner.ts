@@ -6,20 +6,17 @@ import { memberRoutes } from './members/routes';
 import { roleRoutes } from './roles/routes';
 import { inviteRoutes } from './invites/routes';
 import { stateRoutes } from './states/routes';
-import { issueTypeRoutes } from './issue-types/routes';
 import { labelRoutes } from './labels/routes';
 import { aiAgentRoutes } from './ai-agents/routes';
 import { integrationRoutes } from './integrations/routes';
 import { agentSkillRoutes } from './agent-skills/routes';
 import { agentToolRoutes } from './agent-tools/routes';
-import { customFieldRoutes } from './custom-fields/routes';
 import { issueRoutes } from './issues/routes';
 import { projectRoutes } from './projects/routes';
 import { projectLabelRoutes } from './project-labels/routes';
 import { attachmentRoutes } from './attachments/routes';
 import { avatarRoutes } from './avatars/routes';
 import { viewRoutes } from './views/routes';
-import { actionRoutes } from './actions/routes';
 import { webhookRoutes } from './webhooks/routes';
 import { settingsRoutes } from './settings/routes';
 import { godRoutes } from './god/routes';
@@ -74,20 +71,17 @@ export const planner = new Elysia({ name: 'planner' })
   .use(roleRoutes)
   .use(inviteRoutes)
   .use(stateRoutes)
-  .use(issueTypeRoutes)
   .use(labelRoutes)
   .use(aiAgentRoutes)
   .use(integrationRoutes)
   .use(agentSkillRoutes)
   .use(agentToolRoutes)
-  .use(customFieldRoutes)
   .use(issueRoutes)
   .use(projectRoutes)
   .use(projectLabelRoutes)
   .use(attachmentRoutes)
   .use(avatarRoutes)
   .use(viewRoutes)
-  .use(actionRoutes)
   .use(webhookRoutes)
   .use(agentScheduleRoutes)
   .use(notificationRoutes)

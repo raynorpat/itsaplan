@@ -5,15 +5,14 @@
 
 import type { TeamDetail, StateType, Issue } from '@/lib/api';
 
-// The built-in fields a condition can target. Custom fields are targeted with
-// the string `cf:<fieldId>` (see customFieldKey / parseCustomFieldKey).
+// The fields a condition can target. A stored condition on any other field (one
+// that is no longer offered) constrains nothing.
 export type BuiltinFilterField =
   | 'status' // the issue's column id
   | 'statusType' // the column's state type (backlog/unstarted/…)
   | 'assignee' // assignee id, or null for "no assignee"
   | 'delegate' // delegate agent id, or null for "no delegate"
   | 'priority' // priority string, or null for "no priority"
-  | 'type' // issue type id, or null for "no type"
   | 'labels' // label ids (a issue has any/none of the chosen ones)
   | 'dueDate'
   | 'startDate'
@@ -24,16 +23,14 @@ export type BuiltinFilterField =
 // - is / is_not: set membership (a value in / not in the chosen set)
 // - before / after: date comparison (single date value)
 // - is_set / is_not_set: presence (no value needed)
-// - contains / not_contains: substring match on text (single string value)
-export type FilterOperator =
-  'is' | 'is_not' | 'before' | 'after' | 'is_set' | 'is_not_set' | 'contains' | 'not_contains';
+export type FilterOperator = 'is' | 'is_not' | 'before' | 'after' | 'is_set' | 'is_not_set';
 
 export type FilterValue = string | number | boolean | null;
 
 export interface FilterCondition {
   // Client-only stable key for React lists; not persisted meaningfully.
   id: string;
-  // A BuiltinFilterField or `cf:<fieldId>`.
+  // A BuiltinFilterField.
   field: string;
   op: FilterOperator;
   // The chosen values (OR-ed within the condition). Empty for is_set/is_not_set.
@@ -45,10 +42,6 @@ export interface FilterSet {
 }
 
 export const EMPTY_FILTER_SET: FilterSet = { conditions: [] };
-
-export function parseCustomFieldKey(field: string): string | null {
-  return field.startsWith('cf:') ? field.slice(3) : null;
-}
 
 // A FilterSet is only "active" (narrows the team) when it has at least one
 // condition. A condition with an empty value set for a value-based operator is
@@ -92,8 +85,6 @@ function builtinSetValues(
     case 'priority':
       // null is "no priority" (0).
       return [issue.priority || null];
-    case 'type':
-      return [issue.typeId];
     case 'labels':
       return issue.labelIds.length ? issue.labelIds : [null];
     default:
@@ -119,72 +110,47 @@ function builtinDate(issue: Issue, field: BuiltinFilterField): string | null {
 
 const DATE_FIELDS: BuiltinFilterField[] = ['dueDate', 'startDate', 'created', 'updated'];
 
-// A custom field's stored value(s) on a issue: its selected option ids if any,
-// otherwise its scalar value. [null] when nothing is set, so presence and
-// "No value" style conditions work.
-function customFieldValues(issue: Issue, fieldId: string): FilterValue[] {
-  const entry = issue.fieldValues?.find((v) => v.fieldId === fieldId);
-  if (!entry) return [null];
-  if (entry.optionIds.length) return entry.optionIds;
-  return [entry.value];
-}
-
-function customFieldScalar(issue: Issue, fieldId: string): FilterValue {
-  const entry = issue.fieldValues?.find((v) => v.fieldId === fieldId);
-  return entry ? entry.value : null;
-}
-
 function hasValue(values: FilterValue[]): boolean {
   return values.some((v) => v !== null && v !== '');
 }
 
-// Whether one issue satisfies one condition.
+const SET_FIELDS: BuiltinFilterField[] = [
+  'status',
+  'statusType',
+  'assignee',
+  'delegate',
+  'priority',
+  'labels',
+];
+
+// Whether one issue satisfies one condition. A condition on a field that is not
+// offered (left in a saved view after the field was removed) matches every issue.
 function matchCondition(
   issue: Issue,
   cond: FilterCondition,
   columnStateType: Map<string, StateType>,
 ): boolean {
-  const cfId = parseCustomFieldKey(cond.field);
-  const isDate = cfId == null && DATE_FIELDS.includes(cond.field as BuiltinFilterField);
+  const field = cond.field as BuiltinFilterField;
+  const isDate = DATE_FIELDS.includes(field);
+  if (!isDate && !SET_FIELDS.includes(field)) return true;
 
-  // Date operators (built-in date fields; custom date fields also route here
-  // when the UI picks before/after/is_set on them).
   if (cond.op === 'before' || cond.op === 'after') {
-    const raw =
-      cfId != null
-        ? (customFieldScalar(issue, cfId) as string | null)
-        : builtinDate(issue, cond.field as BuiltinFilterField);
-    const day = toDay(typeof raw === 'string' ? raw : null);
+    const day = toDay(builtinDate(issue, field));
     const target = typeof cond.values[0] === 'string' ? (cond.values[0] as string) : null;
     if (!day || !target) return false;
     return cond.op === 'before' ? day < target : day > target;
   }
 
   if (cond.op === 'is_set' || cond.op === 'is_not_set') {
-    let present: boolean;
-    if (cfId != null) present = hasValue(customFieldValues(issue, cfId));
-    else if (isDate) present = builtinDate(issue, cond.field as BuiltinFilterField) != null;
-    else
-      present = hasValue(
-        builtinSetValues(issue, cond.field as BuiltinFilterField, columnStateType),
-      );
+    const present = isDate
+      ? builtinDate(issue, field) != null
+      : hasValue(builtinSetValues(issue, field, columnStateType));
     return cond.op === 'is_set' ? present : !present;
   }
 
-  if (cond.op === 'contains' || cond.op === 'not_contains') {
-    const raw = cfId != null ? customFieldScalar(issue, cfId) : null;
-    const text = typeof raw === 'string' ? raw.toLowerCase() : '';
-    const needle =
-      typeof cond.values[0] === 'string' ? (cond.values[0] as string).toLowerCase() : '';
-    const has = needle !== '' && text.includes(needle);
-    return cond.op === 'contains' ? has : !has;
-  }
-
-  // is / is_not — set membership.
-  const issueValues =
-    cfId != null
-      ? customFieldValues(issue, cfId)
-      : builtinSetValues(issue, cond.field as BuiltinFilterField, columnStateType);
+  // is / is_not — set membership. Any other stored operator constrains nothing.
+  if (cond.op !== 'is' && cond.op !== 'is_not') return true;
+  const issueValues = builtinSetValues(issue, field, columnStateType);
   const overlaps = cond.values.some((cv) => issueValues.includes(cv));
   return cond.op === 'is' ? overlaps : !overlaps;
 }
@@ -200,20 +166,4 @@ export function applyFilters(
   const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
   const active = filters!.conditions.filter(isEffectiveCondition);
   return issues.filter((t) => active.every((cond) => matchCondition(t, cond, columnStateType)));
-}
-
-// Whether one issue satisfies every effective condition in the set. An empty or
-// all-empty set matches every issue (used for a manual action that is always
-// available). Half-built conditions (a value-based operator with no values) are
-// ignored, matching applyFilters.
-export function matchesFilterSet(
-  issue: Issue,
-  filters: FilterSet | null | undefined,
-  team: TeamDetail,
-): boolean {
-  if (!isActiveFilterSet(filters)) return true;
-  const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
-  return filters!.conditions
-    .filter(isEffectiveCondition)
-    .every((cond) => matchCondition(issue, cond, columnStateType));
 }

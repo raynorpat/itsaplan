@@ -4,13 +4,12 @@
 // shows only the controls that apply to the active view. Missing fields fall
 // back to per-view defaults, so the store grows new options without a migration.
 
-import type { Sort, WorkItemsView } from '@/utils/viewTypes';
+import { SORT_FIELDS, type Sort, type WorkItemsView } from '@/utils/viewTypes';
 
 // Field the Team columns / Table sections group by. 'none' is a single flat
 // list (Table only). Team always groups by something. `subgroup` (below) adds a
 // second level: Team swimlanes / Table sub-sections, and may be 'none'.
-export type GroupField =
-  'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'type' | 'project';
+export type GroupField = 'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'project';
 
 // Issue properties that can be shown on a Team card or as a Table column.
 // 'id' is the issue identifier; 'status' the state; the rest map to issue
@@ -19,7 +18,6 @@ export type DisplayProperty =
   | 'id'
   | 'status'
   | 'priority'
-  | 'type'
   | 'assignee'
   | 'delegate'
   | 'project'
@@ -30,15 +28,7 @@ export type DisplayProperty =
   | 'updated'
   | 'statusAge';
 
-// A custom field shown as a Table column, keyed by its id as `cf:<id>`. Kept
-// distinct from the built-in DisplayProperty union so both can live in the same
-// `properties` list. Stale keys (a since-deleted field) are ignored at render.
-export type CustomFieldKey = `cf:${string}`;
-export type PropertyKey = DisplayProperty | CustomFieldKey;
-
-export const isCustomFieldKey = (p: string): p is CustomFieldKey => /^cf:\d+$/.test(p);
-export const customFieldKey = (id: string): CustomFieldKey => `cf:${id}`;
-export const customFieldId = (key: CustomFieldKey): string => key.slice(3);
+export type PropertyKey = DisplayProperty;
 
 // Every display property, in the canonical order they render (left to right on a
 // card, and as Table columns after the title). Used to render the property
@@ -47,7 +37,6 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'id', label: 'ID' },
   { value: 'status', label: 'State' },
   { value: 'priority', label: 'Priority' },
-  { value: 'type', label: 'Type' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'delegate', label: 'Delegate' },
   { value: 'project', label: 'Project' },
@@ -129,7 +118,6 @@ const DEFAULT_PROPERTIES: Record<WorkItemsView, DisplayProperty[]> = {
     'status',
     'statusAge',
     'priority',
-    'type',
     'dueDate',
     'labels',
     'assignee',
@@ -158,7 +146,6 @@ const GROUP_FIELDS: GroupField[] = [
   'assignee',
   'delegate',
   'priority',
-  'type',
   'project',
 ];
 const DISPLAY_VALUES = DISPLAY_PROPERTIES.map((p) => p.value);
@@ -167,7 +154,9 @@ const TIMELINE_SCALES: TimelineScale[] = ['week', 'month', 'quarter'];
 function normalizeSort(sort: unknown): Sort | null {
   if (sort && typeof sort === 'object') {
     const s = sort as Partial<Sort>;
-    if (s.field && (s.dir === 'asc' || s.dir === 'desc')) return { field: s.field, dir: s.dir };
+    // A field that is no longer offered (e.g. a stored 'type') falls back to the default.
+    if (SORT_FIELDS.some((f) => f.value === s.field) && (s.dir === 'asc' || s.dir === 'desc'))
+      return { field: s.field!, dir: s.dir };
   }
   return null;
 }
@@ -227,13 +216,11 @@ export function normalizeViewSettings(
     subgroup: rawSubgroup !== 'none' && rawSubgroup !== group ? rawSubgroup : 'none',
     showEmptyGroups: typeof s.showEmptyGroups === 'boolean' ? s.showEmptyGroups : d.showEmptyGroups,
     // Stored order is preserved as-is (it is the Table column order, reorderable
-    // by drag); only unknown entries are dropped. A since-deleted custom field's
-    // key stays until the next reorder, and is ignored when rendering.
+    // by drag); only unknown entries are dropped.
     properties: Array.isArray(s.properties)
       ? (s.properties as unknown[]).filter(
           (p): p is PropertyKey =>
-            typeof p === 'string' &&
-            ((DISPLAY_VALUES as string[]).includes(p) || isCustomFieldKey(p)),
+            typeof p === 'string' && (DISPLAY_VALUES as string[]).includes(p),
         )
       : d.properties,
     timelineScale: TIMELINE_SCALES.includes(s.timelineScale as TimelineScale)

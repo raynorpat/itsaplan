@@ -16,7 +16,7 @@ import { useProjectBoardSettings } from '../../hooks/useProjectBoardSettings';
 // fed a team whose issues are just this project's, so drag/edit still hit the
 // real issues and the live board refresh keeps it current.
 export default function ProjectIssuesBoard({ projectId }: { projectId: string }) {
-  const { team, customFields, onOpenIssue, onAddIssue } = useShell();
+  const { team, onOpenIssue, onAddIssue } = useShell();
   const board = useProjectBoardSettings(projectId);
 
   const viewTeam = useMemo(() => {
@@ -29,7 +29,6 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
 
   const viewProps = {
     team: viewTeam,
-    customFields,
     settings: board.settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
@@ -55,19 +54,12 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-        <FilterBar
-          filters={board.filters}
-          onChange={board.setFilters}
-          team={team}
-          customFields={customFields}
-        />
+        <FilterBar filters={board.filters} onChange={board.setFilters} team={team} />
         <DisplayPopover
           view={board.view}
           onViewChange={board.changeView}
           settings={board.settings}
           onSettingsChange={board.changeSettings}
-          customFields={customFields}
-          issueTypes={team.issueTypes}
         />
       </div>
       <div className="relative flex-1 overflow-hidden">{view}</div>

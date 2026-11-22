@@ -16,10 +16,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { ActionDef, IssuePatch, TeamDetail } from '@/lib/api';
-import { actionIcon } from '@/utils/actionIcons';
+import type { IssuePatch, TeamDetail } from '@/lib/api';
 import { toDateStr } from '@/utils/dates';
-import { useActionsQuery } from '@/services/actions.service';
 import {
   useArchiveIssue,
   useIssueQuery,
@@ -32,11 +30,7 @@ import { useShell } from '@/context/shellContext';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
 import type { Command, CommandSection } from '@/utils/commands';
-import {
-  ApplyActionDialog,
-  DeleteIssueDialog,
-  matchedActions,
-} from '../components/actions/IssueActions';
+import { DeleteIssueDialog } from '../components/actions/IssueActions';
 import { StateIcon } from '../components/shared/IssueIcons';
 import { dueDatePresets, formatPreset } from '../utils/dueDatePresets';
 import { buildIssuePrompt } from '../utils/issuePrompt';
@@ -60,9 +54,7 @@ export function useIssueCommands(
   const updateIssue = useUpdateIssue(teamKey);
   const archiveIssue = useArchiveIssue(teamKey);
   const restoreIssue = useRestoreIssue(teamKey);
-  const actionsQuery = useActionsQuery(teamKey);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
 
   const dialogs =
     team && issue ? (
@@ -75,14 +67,6 @@ export function useIssueCommands(
             onDeleted={onDeleted}
           />
         )}
-        {confirmingAction && (
-          <ApplyActionDialog
-            team={team}
-            issue={issue}
-            action={confirmingAction}
-            onClose={() => setConfirmingAction(null)}
-          />
-        )}
       </>
     ) : null;
 
@@ -93,7 +77,6 @@ export function useIssueCommands(
   const patch = (fields: IssuePatch) => updateIssue.mutate({ id: issue.id, patch: fields });
   const members = team.assignees.filter((a) => a.kind === 'member');
   const agents = team.assignees.filter((a) => a.kind === 'agent');
-  const actions = matchedActions(actionsQuery.data ?? [], team, issue);
   const currentColumn = team.states.find((c) => c.id === issue.stateId);
 
   const copyPrompt = async () => {
@@ -280,17 +263,6 @@ export function useIssueCommands(
               }),
           })),
         },
-      });
-    }
-
-    for (const a of actions) {
-      const Icon = actionIcon(a.icon);
-      items.push({
-        id: `issue.action.${a.id}`,
-        label: a.name,
-        icon: <Icon />,
-        keywords: 'action apply',
-        run: () => setConfirmingAction(a),
       });
     }
   }

@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { type Editor } from '@tiptap/react';
-import { MoreHorizontal } from 'lucide-react';
-import { type IssueFieldValueInput, type TeamDetail } from '@/lib/api';
+import { type TeamDetail } from '@/lib/api';
 import { type NewIssueDefaults } from '@/utils/team';
 import { useSession } from '@/lib/auth-client';
-import { useCreateIssue, useSetFieldValue, useUpdateIssue } from '@/services/issues.service';
-import { useCustomFieldsQuery } from '@/services/customFields.service';
+import { useCreateIssue, useUpdateIssue } from '@/services/issues.service';
 import { useUploadAttachment } from '../../services/attachments.service';
 import { attachmentHtml } from '../../utils/attachmentEmbed';
-import IssueCustomFieldPill from '../fields/IssueCustomFieldPill';
 import Modal from '@/components/common/overlay/Modal';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
@@ -17,18 +14,7 @@ import DelegateSelect from '../fields/DelegateSelect';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
-import TypeSelect from '@/components/common/fields/TypeSelect';
 import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Pill } from '@/components/common/fields/Pill';
 import ProjectSelect from '../fields/ProjectSelect';
 
 export default function NewIssueModal({
@@ -45,11 +31,6 @@ export default function NewIssueModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [stateId, setColumnId] = useState(defaults.stateId);
-  const [typeId, setTypeId] = useState<string | null>(
-    defaults.typeId === undefined
-      ? (team.issueTypes.find((t) => t.isDefault)?.id ?? null)
-      : defaults.typeId,
-  );
   const [projectId, setProjectId] = useState<string | null>(defaults.projectId ?? null);
   const { data: session } = useSession();
   // Assignee defaults to the creating user unless the caller set one explicitly
@@ -71,18 +52,8 @@ export default function NewIssueModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Custom fields for the selected type (global + type-scoped). Fields flagged
-  // "show in main info" render below the description; the rest are added on
-  // demand from the "…" menu.
-  const fieldsQuery = useCustomFieldsQuery(team.team.key, typeId ?? undefined);
-  const fieldDefs = fieldsQuery.data ?? [];
-  const [activeFieldIds, setActiveFieldIds] = useState<string[]>([]);
-  const [fieldValues, setFieldValues] = useState<Record<string, IssueFieldValueInput>>({});
-  const [justAddedId, setJustAddedId] = useState<string | null>(null);
-
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue(team.team.key);
-  const setFieldValueMutation = useSetFieldValue(team.team.key);
   const uploadAttachment = useUploadAttachment();
 
   // Files pasted or dropped into the description before the issue exists.
@@ -136,27 +107,8 @@ export default function NewIssueModal({
     dropFilesIntoDescription(files);
   }
 
-  const [addFieldOpen, setAddFieldOpen] = useState(false);
-
-  // Drop shown fields that no longer apply to the selected type. Nothing is shown
-  // by default — the user adds fields from the "…" menu.
-  useEffect(() => {
-    const valid = new Set(fieldDefs.filter((d) => !d.showInBody).map((d) => d.id));
-    setActiveFieldIds((prev) => prev.filter((id) => valid.has(id)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsQuery.data]);
-
-  const bodyDefs = fieldDefs.filter((d) => d.showInBody);
-  const propertyDefs = fieldDefs.filter((d) => !d.showInBody);
-  const activeDefs = propertyDefs.filter((d) => activeFieldIds.includes(d.id));
-  const availableDefs = propertyDefs.filter((d) => !activeFieldIds.includes(d.id));
-
   function toggleLabel(id: string) {
     setLabelIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-  }
-
-  function setFieldValue(id: string, patch: IssueFieldValueInput) {
-    setFieldValues((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
   async function submit() {
@@ -169,7 +121,6 @@ export default function NewIssueModal({
           title: title.trim(),
           description: description.trim() || undefined,
           stateId,
-          typeId,
           projectId,
           assigneeUserId,
           delegateUserId,
@@ -198,16 +149,6 @@ export default function NewIssueModal({
         }
       }
 
-      // Set custom field values on the freshly created issue. Body fields are
-      // always applicable; property fields only if the user added them.
-      for (const def of fieldDefs) {
-        if (!def.showInBody && !activeFieldIds.includes(def.id)) continue;
-        const v = fieldValues[def.id];
-        if (!v) continue;
-        const hasValue = (v.optionIds?.length ?? 0) > 0 || (v.value != null && v.value !== '');
-        if (!hasValue) continue;
-        await setFieldValueMutation.mutateAsync({ issueId: created.id, fieldId: def.id, value: v });
-      }
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -227,41 +168,14 @@ export default function NewIssueModal({
           autoFocus
         />
         <IssueMarkdownEditor
-          className={`mt-3 ${bodyDefs.length > 0 ? 'min-h-14' : 'min-h-24'}`}
+          className="mt-3 min-h-24"
           defaultValue={description}
           onChange={setDescription}
           onReady={setDescEditor}
           uploadFile={uploadFile}
         />
 
-        {bodyDefs.length > 0 && (
-          <div className="mt-2 space-y-4">
-            {bodyDefs.map((def) => (
-              <div key={def.id}>
-                <h3 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  {def.name}
-                </h3>
-                {def.fieldType === 'markdown' ? (
-                  <IssueMarkdownEditor
-                    defaultValue={(fieldValues[def.id]?.value as string) ?? ''}
-                    placeholder="Empty"
-                    onChange={(md) => setFieldValue(def.id, { value: md })}
-                  />
-                ) : (
-                  <IssueCustomFieldPill
-                    def={def}
-                    value={fieldValues[def.id]}
-                    onChange={(v) => setFieldValue(def.id, v)}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div
-          className={`${bodyDefs.length > 0 ? 'mt-8' : 'mt-4'} flex flex-wrap items-center gap-2`}
-        >
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <StatusSelect columns={team.states} value={stateId} onChange={setColumnId} />
 
           {team.assignees.some((a) => a.kind === 'member') && (
@@ -283,10 +197,6 @@ export default function NewIssueModal({
           )}
 
           <PrioritySelect value={priority} onChange={setPriority} />
-
-          {team.issueTypes.length > 0 && (
-            <TypeSelect issueTypes={team.issueTypes} value={typeId} onChange={setTypeId} />
-          )}
 
           {team.team.projectsEnabled && (
             <ProjectSelect teamKey={team.team.key} value={projectId} onChange={setProjectId} />
@@ -312,52 +222,6 @@ export default function NewIssueModal({
             placeholder="Due date"
             onChange={(v) => setDueDate(v ?? '')}
           />
-
-          {/* Custom fields the user added, each with its own value editor. */}
-          {activeDefs.map((def) => (
-            <IssueCustomFieldPill
-              key={def.id}
-              def={def}
-              value={fieldValues[def.id]}
-              defaultOpen={def.id === justAddedId}
-              onChange={(v) => setFieldValue(def.id, v)}
-            />
-          ))}
-
-          {/* "…" menu to add a custom field to this issue. */}
-          {availableDefs.length > 0 && (
-            <Popover open={addFieldOpen} onOpenChange={setAddFieldOpen}>
-              <PopoverTrigger asChild>
-                <Pill>
-                  <MoreHorizontal />
-                </Pill>
-              </PopoverTrigger>
-              <PopoverContent className="w-56 p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Add field…" />
-                  <CommandList>
-                    <CommandEmpty>No fields.</CommandEmpty>
-                    <CommandGroup>
-                      {availableDefs.map((def) => (
-                        <CommandItem
-                          key={def.id}
-                          value={def.name}
-                          onSelect={() => {
-                            setActiveFieldIds((ids) => [...ids, def.id]);
-                            setJustAddedId(def.id);
-                            setAddFieldOpen(false);
-                          }}
-                        >
-                          <span className="flex-1">{def.name}</span>
-                          <span className="text-xs text-muted-foreground">{def.fieldType}</span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          )}
         </div>
 
         {error && <p className="mt-3 text-xs text-destructive">{error}</p>}

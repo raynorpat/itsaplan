@@ -51,35 +51,39 @@ describe('shared access', () => {
       const owner = await setupOwnerTeam();
       const member = await addMember(owner);
 
-      // Owner: allowed on a resource the default member role denies (actions).
+      // Owner: allowed on a resource the default member role denies (webhooks).
       const ownerCreate = await owner.api
         .teams({ teamKey: 'MKT' })
-        .actions.post({ name: 'Auto-close' });
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] });
       expect(ownerCreate.status).toBe(201);
 
       // Default member: granted work_items (the team view) ...
       const view = await member.api.teams({ teamKey: 'MKT' }).get();
       expect(view.status).toBe(200);
 
-      // ... but denied on actions, which the default role does not grant.
-      const list = await member.api.teams({ teamKey: 'MKT' }).actions.get();
+      // ... but denied on webhooks, which the default role does not grant.
+      const list = await member.api.teams({ teamKey: 'MKT' }).webhooks.get();
       expect(list.status).toBe(403);
-      const create = await member.api.teams({ teamKey: 'MKT' }).actions.post({ name: 'Nope' });
+      const create = await member.api
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] });
       expect(create.status).toBe(403);
     });
 
     it("resolves and enforces a custom role's matrix", async () => {
       const owner = await setupOwnerTeam();
-      // A role that grants reading actions but not creating them.
+      // A role that grants reading webhooks but not creating them.
       const role = await owner.api
         .teams({ teamKey: 'MKT' })
-        .roles.post({ name: 'Auditor', permissions: { actions: { read: true, create: false } } });
+        .roles.post({ name: 'Auditor', permissions: { webhooks: { read: true, create: false } } });
       const member = await addMember(owner, { roleId: role.data!.id });
 
-      const list = await member.api.teams({ teamKey: 'MKT' }).actions.get();
+      const list = await member.api.teams({ teamKey: 'MKT' }).webhooks.get();
       expect(list.status).toBe(200);
 
-      const create = await member.api.teams({ teamKey: 'MKT' }).actions.post({ name: 'Nope' });
+      const create = await member.api
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] });
       expect(create.status).toBe(403);
     });
   });

@@ -1,20 +1,17 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Archive, ArchiveRestore, Check, ClipboardCopy, Share2, Trash2 } from 'lucide-react';
-import { type ActionDef, type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
-import { actionIcon } from '@/utils/actionIcons';
-import { useActionsQuery } from '@/services/actions.service';
+import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import { useArchiveIssue, useRestoreIssue } from '@/services/issues.service';
 import { usePermissions } from '@/hooks/usePermissions';
-import { ApplyActionDialog, DeleteIssueDialog, matchedActions } from './IssueActions';
+import { DeleteIssueDialog } from './IssueActions';
 import { buildIssuePrompt } from '../../utils/issuePrompt';
 import { useSession } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-// The issue detail Actions: the manual actions whose condition matches this
-// issue, plus Copy Prompt and a delete button. Owns the delete/apply
-// confirmations and the mutations they run. The 'section' variant is a standalone
+// The issue detail Actions: copy link, Copy Prompt, archive and delete. Owns the
+// delete confirmation and the mutations it runs. The 'section' variant is a standalone
 // block; the 'header' variant is the bare button row placed in the side panel's
 // header. The confirm dialogs render through a portal, so their position in the
 // tree does not matter.
@@ -39,18 +36,11 @@ export default function IssueActionsBar({
   const { data: session } = useSession();
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const actionsQuery = useActionsQuery(team.team.key);
   const archiveIssue = useArchiveIssue(team.team.key);
   const restoreIssue = useRestoreIssue(team.team.key);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmingAction, setConfirmingAction] = useState<ActionDef | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Manual actions whose condition matches this issue, applied as one patch.
-  // Applying one is a issue edit; Copy Prompt only reads the issue and is always
-  // available, so the block always renders.
-  const issueActions = canEdit ? matchedActions(actionsQuery.data ?? [], team, issue) : [];
 
   async function copyPrompt() {
     await navigator.clipboard.writeText(buildIssuePrompt(issue, team, session?.user));
@@ -101,24 +91,6 @@ export default function IssueActionsBar({
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied!' : 'Copy Prompt'}</TooltipContent>
       </Tooltip>
-      {issueActions.map((a) => {
-        const Icon = actionIcon(a.icon);
-        return (
-          <Tooltip key={a.id}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size={btnSize}
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => setConfirmingAction(a)}
-              >
-                <Icon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{a.name}</TooltipContent>
-          </Tooltip>
-        );
-      })}
       {canEdit && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -183,15 +155,6 @@ export default function IssueActionsBar({
           issue={issue}
           onClose={() => setConfirmingDelete(false)}
           onDeleted={onDeleted}
-        />
-      )}
-
-      {confirmingAction && (
-        <ApplyActionDialog
-          team={team}
-          issue={issue}
-          action={confirmingAction}
-          onClose={() => setConfirmingAction(null)}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import { db, workflowState, issue, issueLabel, issueFieldValue, issueFieldOption } from '@repo/db';
+import { db, workflowState, issue, issueLabel } from '@repo/db';
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { recordActivityForIssues } from '../issues/activity';
@@ -225,8 +225,6 @@ export async function deleteState(
       moved = rows.map((r) => r.id);
     } else {
       const issueIds = tx.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId));
-      await tx.delete(issueFieldOption).where(inArray(issueFieldOption.issueId, issueIds));
-      await tx.delete(issueFieldValue).where(inArray(issueFieldValue.issueId, issueIds));
       await tx.delete(issueLabel).where(inArray(issueLabel.issueId, issueIds));
       await tx.delete(issue).where(eq(issue.stateId, stateId));
     }

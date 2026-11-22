@@ -16,8 +16,8 @@ import { HttpError } from '../../shared/lib';
 // Runtime execution of internal agents via Mastra. An agent is built on demand
 // from its stored configuration (provider/model/instructions) and run against a
 // prompt. It is given the work-item system tools for its team (see tools/agent-tools),
-// so it can read and manage that team's issues, comments, labels, custom field
-// values, and attachments — acting as its own bot user, plus a read_skill tool for
+// so it can read and manage that team's issues, comments, labels
+// and attachments — acting as its own bot user, plus a read_skill tool for
 // any skills enabled on it.
 //
 // The model is addressed through Mastra's model router. When the team has a

@@ -50,24 +50,6 @@ export function TableBuiltinCell({
           {issue.priority ? <PriorityBadge priority={issue.priority} /> : DASH}
         </div>
       );
-    case 'type': {
-      const type = issue.typeId != null ? maps.typeById.get(issue.typeId) : undefined;
-      return (
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          {type ? (
-            <>
-              <span
-                className="inline-block size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: type.color }}
-              />
-              <span className="truncate">{type.name}</span>
-            </>
-          ) : (
-            DASH
-          )}
-        </div>
-      );
-    }
     case 'assignee': {
       const assignee =
         issue.assigneeUserId != null ? maps.assigneeById.get(issue.assigneeUserId) : undefined;

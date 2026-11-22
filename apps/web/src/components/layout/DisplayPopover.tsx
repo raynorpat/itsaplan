@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import type { CustomField, IssueType } from '@/lib/api';
 import type { ViewSettings } from '@/utils/viewSettings';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import { cn } from '@/lib/utils';
@@ -14,15 +13,11 @@ export default function DisplayPopover({
   onViewChange,
   settings,
   onSettingsChange,
-  customFields,
-  issueTypes,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
   settings: ViewSettings;
   onSettingsChange: (settings: ViewSettings) => void;
-  customFields: CustomField[];
-  issueTypes: IssueType[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -45,8 +40,6 @@ export default function DisplayPopover({
           onViewChange={onViewChange}
           settings={settings}
           onSettingsChange={onSettingsChange}
-          customFields={customFields}
-          issueTypes={issueTypes}
         />
       </PopoverContent>
     </Popover>

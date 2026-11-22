@@ -18,12 +18,9 @@ import {
   setTeamFeatures,
   getAutoArchiveSettings,
   setAutoArchiveSettings,
-  ISSUE_TYPE_PRESET_KEYS,
 } from './store';
 import { listStates } from '../states/store';
-import { listIssueTypes } from '../issue-types/store';
 import { listLabels, listLabelGroups } from '../labels/store';
-import { listCustomFields } from '../custom-fields/store';
 import { setTeamCycleSettings, teamCycleSettings } from '../cycles/store';
 
 const teamBody = t.Object({
@@ -33,21 +30,6 @@ const teamBody = t.Object({
   name: t.String({ minLength: 1 }),
   description: t.Optional(t.String()),
 });
-
-// Create adds the issue-type preset: which set of types the new team starts with.
-// Omitted → "general" (a single Task). Copy takes its types from the source team,
-// so the preset applies to create only.
-const createTeamBody = t.Composite([
-  teamBody,
-  t.Object({
-    preset: t.Optional(
-      t.Union(
-        ISSUE_TYPE_PRESET_KEYS.map((k) => t.Literal(k)),
-        { description: `Issue-type preset: ${ISSUE_TYPE_PRESET_KEYS.join(', ')}.` },
-      ),
-    ),
-  }),
-]);
 
 // A team DTO (TeamRow from the store).
 const TeamResponse = t.Object({
@@ -87,17 +69,6 @@ const WorkflowStateResponse = t.Object({
   position: t.Number(),
 });
 
-// An issue type (IssueTypeRow from issue-types/store).
-const IssueTypeResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  teamId: t.String({ format: 'uuid' }),
-  name: t.String(),
-  icon: t.String(),
-  color: t.String(),
-  isDefault: t.Boolean(),
-  position: t.Number(),
-});
-
 // A label (LabelRow from labels/store).
 const LabelResponse = t.Object({
   id: t.String({ format: 'uuid' }),
@@ -126,26 +97,6 @@ const AssigneeCandidateResponse = t.Object({
   image: t.Nullable(t.String()),
   kind: t.Union([t.Literal('member'), t.Literal('agent')]),
   agentKind: t.Nullable(t.Union([t.Literal('external'), t.Literal('internal')])),
-});
-
-// A custom field option (CustomFieldOptionRow from custom-fields/store).
-const CustomFieldOptionResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  value: t.String(),
-  color: t.String(),
-  position: t.Number(),
-});
-
-// A custom field (CustomFieldRow from custom-fields/store). The board carries every
-// field of the team; the client filters by issueTypeId.
-const CustomFieldResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  issueTypeId: t.Nullable(t.String({ format: 'uuid' })),
-  name: t.String(),
-  fieldType: t.String(),
-  showInBody: t.Boolean(),
-  position: t.Number(),
-  options: t.Array(CustomFieldOptionResponse),
 });
 
 // Auto-archive thresholds (AutoArchiveSettings from the store): days of inactivity
@@ -188,17 +139,15 @@ const ViewerResponse = t.Object({
 });
 
 // The team board scaffold (GET /teams/:teamKey): the team plus its
-// columns, issue types, labels, label groups, assignable users, custom fields, and
-// the caller's own effective access. The issues themselves come from
+// columns, labels, label groups, assignable users, and the caller's own effective
+// access. The issues themselves come from
 // GET /teams/:teamKey/issues/board.
 const TeamBoardResponse = t.Object({
   team: TeamResponse,
   states: t.Array(WorkflowStateResponse),
-  issueTypes: t.Array(IssueTypeResponse),
   labels: t.Array(LabelResponse),
   labelGroups: t.Array(LabelGroupResponse),
   assignees: t.Array(AssigneeCandidateResponse),
-  customFields: t.Array(CustomFieldResponse),
   viewer: ViewerResponse,
   // The caller's resolved permission matrix (owners get every flag).
   permissions: PermissionMatrix,
@@ -243,7 +192,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       return createTeam(body, requireUser(user).id);
     },
     {
-      body: createTeamBody,
+      body: teamBody,
       response: {
         201: TeamResponse,
         400: ErrorResponse,
@@ -253,14 +202,13 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
         summary: 'Create a team',
         description:
           'Create a team you own. `key` is the unique, immutable prefix for issue ids ' +
-          "(e.g. 'MKT' -> 'MKT-1'). Seeds the default columns and the issue types of the " +
-          'chosen `preset`.',
+          "(e.g. 'MKT' -> 'MKT-1'). Seeds the default columns.",
         ...mcpTool('create_team'),
       },
     },
   )
 
-  // Full team view: columns, issue types, labels, issues, and the caller's own
+  // Full team view: columns, labels, issues, and the caller's own
   // effective access (role + resolved permission matrix) — everything the work
   // items UI needs in one call. Assignee options come from the team's members
   // and AI agents, fetched separately. The web app gates its UI off `viewer`; the
@@ -268,27 +216,22 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   .get(
     '/teams/:teamKey',
     async ({ team, user }) => {
-      const [states, issueTypes, labels, labelGroups, assignees, customFields, viewer] =
-        await Promise.all([
-          listStates(team.id),
-          listIssueTypes(team.id),
-          listLabels(team.id),
-          listLabelGroups(team.id),
-          listAssigneeCandidates(team.id),
-          listCustomFields(team.id, { allTypes: true }),
-          getMemberContext(team.id, requireUser(user).id),
-        ]);
+      const [states, labels, labelGroups, assignees, viewer] = await Promise.all([
+        listStates(team.id),
+        listLabels(team.id),
+        listLabelGroups(team.id),
+        listAssigneeCandidates(team.id),
+        getMemberContext(team.id, requireUser(user).id),
+      ]);
       // The permission guard already asserted membership, so a context always
       // exists here; guard against a race (membership revoked mid-request).
       if (!viewer) throw new HttpError(403, 'You do not have access to this team');
       return {
         team,
         states,
-        issueTypes,
         labels,
         labelGroups,
         assignees,
-        customFields,
         viewer: { role: viewer.role },
         permissions: viewer.permissions,
       };

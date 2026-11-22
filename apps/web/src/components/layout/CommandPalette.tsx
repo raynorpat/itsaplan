@@ -19,7 +19,7 @@ import {
 // team list and every section they may open. A command with a submenu opens a
 // second level (status, priority, assignee, labels); Backspace on an empty input
 // goes back. While the user is typing, a last "Issues" group lists issues the
-// server matches by identifier, title, description, number or custom fields
+// server matches by identifier, title, description or number
 // (archived issues included), so a search separates sections, commands and issues.
 export default function CommandPalette({
   open,

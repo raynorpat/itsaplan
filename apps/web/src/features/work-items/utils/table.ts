@@ -1,12 +1,6 @@
-import { type CustomField, type Issue, type IssuePatch } from '@/lib/api';
+import { type Issue, type IssuePatch } from '@/lib/api';
 import { groupIssues, mergeAssign, nestIssues, type IssueGroup } from '@/utils/team';
-import {
-  customFieldId,
-  isCustomFieldKey,
-  type ViewSettings,
-  type DisplayProperty,
-  type PropertyKey,
-} from '@/utils/viewSettings';
+import { type ViewSettings, type DisplayProperty, type PropertyKey } from '@/utils/viewSettings';
 
 // The grid columns after the (always-present) title cell. 'id' is not here — the
 // identifier renders inside the title cell.
@@ -15,7 +9,6 @@ export const COLUMN_META: Record<TableColumn, { label: string; width: string }> 
   status: { label: 'State', width: '130px' },
   statusAge: { label: 'In status', width: '88px' },
   priority: { label: 'Priority', width: '88px' },
-  type: { label: 'Type', width: '120px' },
   assignee: { label: '', width: '56px' },
   delegate: { label: '', width: '56px' },
   project: { label: 'Project', width: 'minmax(140px,220px)' },
@@ -167,23 +160,16 @@ export function buildTableItems({
   return items;
 }
 
-// Grid width for a custom-field column; markdown fields render their full content
-// so they get a wider track.
-const CUSTOM_COLUMN_WIDTH = 'minmax(120px,180px)';
-const MARKDOWN_COLUMN_WIDTH = 'minmax(280px,480px)';
-
 // Title column: flexible but capped, so it does not stretch across the whole
 // table when few columns are shown; leftover width stays to the right.
 const TITLE_COLUMN_WIDTH = 'minmax(220px,520px)';
 
-// A resolved Table column, either a built-in property or a custom field. The
-// order of these follows settings.properties (reorderable in the Display panel).
-export type OrderedColumn =
-  { kind: 'builtin'; col: TableColumn } | { kind: 'custom'; field: CustomField };
-export const columnKey = (c: OrderedColumn) => (c.kind === 'builtin' ? c.col : `cf${c.field.id}`);
+// A resolved Table column. The order follows settings.properties (reorderable in
+// the Display panel).
+export type OrderedColumn = { kind: 'builtin'; col: TableColumn };
+export const columnKey = (c: OrderedColumn) => c.col;
 function columnWidth(c: OrderedColumn): string {
-  if (c.kind === 'builtin') return COLUMN_META[c.col].width;
-  return c.field.fieldType === 'markdown' ? MARKDOWN_COLUMN_WIDTH : CUSTOM_COLUMN_WIDTH;
+  return COLUMN_META[c.col].width;
 }
 
 // Floor width of a grid track: the fixed value, or the lower bound of a minmax().
@@ -208,32 +194,20 @@ function minTableWidth(columns: OrderedColumn[]): number {
 }
 
 // The table layout derived from the display settings: the ordered columns (each
-// enabled built-in — except 'id', which lives in the title cell — or existing
-// custom field, in settings.properties order), the CSS grid template, the
-// scroll min-width, and whether cells should top-align (a markdown column can
-// make a row tall).
+// enabled property except 'id', which lives in the title cell, in
+// settings.properties order), the CSS grid template and the scroll min-width.
 interface TableLayout {
   columns: OrderedColumn[];
   gridTemplate: string;
   minWidth: number;
-  alignTop: boolean;
 }
 
-export function resolveColumns(
-  properties: PropertyKey[],
-  customFields: CustomField[],
-): TableLayout {
+export function resolveColumns(properties: PropertyKey[]): TableLayout {
   const builtins = new Set<string>(Object.keys(COLUMN_META));
-  const fieldById = new Map(customFields.map((f) => [f.id, f]));
-  const columns: OrderedColumn[] = properties.flatMap((p): OrderedColumn[] => {
-    if (isCustomFieldKey(p)) {
-      const field = fieldById.get(customFieldId(p));
-      return field ? [{ kind: 'custom', field }] : [];
-    }
-    return builtins.has(p) ? [{ kind: 'builtin', col: p as TableColumn }] : [];
-  });
+  const columns: OrderedColumn[] = properties.flatMap((p): OrderedColumn[] =>
+    builtins.has(p) ? [{ kind: 'builtin', col: p as TableColumn }] : [],
+  );
   const gridTemplate = [TITLE_COLUMN_WIDTH, ...columns.map(columnWidth)].join(' ');
   const minWidth = minTableWidth(columns);
-  const alignTop = columns.some((c) => c.kind === 'custom' && c.field.fieldType === 'markdown');
-  return { columns, gridTemplate, minWidth, alignTop };
+  return { columns, gridTemplate, minWidth };
 }

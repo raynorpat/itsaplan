@@ -5,12 +5,7 @@ import {
   issueActivity,
   issueLabel,
   workflowState,
-  issueType,
-  issueFieldValue,
-  issueFieldOption,
   attachment,
-  customField,
-  customFieldOption,
   project,
   projectTeam,
 } from '@repo/db';
@@ -34,7 +29,6 @@ import { projectTeamIds } from '../projects/access';
 import { milestoneProjectId } from '../projects/milestones';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
 import type { TeamRow } from '../teams/store';
-import { getCustomFieldById, type CustomFieldType } from '../custom-fields/store';
 import {
   recordActivity,
   logIssueUpdate,
@@ -55,17 +49,8 @@ import { assertCycleOfTeam, autoAssignCycleId } from '../cycles/store';
 import { getMembership } from '../members/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
 
-// Data access for issues and their per-issue data: labels, custom field values,
-// and selected options. The human identifier (e.g. "MKT-42") is the team key
+// Data access for issues and their per-issue data (labels). The human identifier (e.g. "MKT-42") is the team key
 // plus the issue's team-scoped sequence number.
-
-// Compact custom field value for the work items payload: the scalar value (null for
-// select/multi_select and unset fields) and the selected option ids.
-export interface IssueFieldValueEntry {
-  fieldId: string;
-  value: string | number | boolean | null;
-  optionIds: string[];
-}
 
 export interface IssueRow {
   id: string;
@@ -74,7 +59,6 @@ export interface IssueRow {
   // issue by its human number in URLs (/team/MKT/issue/42).
   sequenceNumber: number;
   identifier: string;
-  typeId: string | null;
   // The project this issue is linked to, expanded to id + title for rendering,
   // or null. Filled by attachProjects; mapIssue alone leaves it null.
   project: { id: string; title: string } | null;
@@ -109,11 +93,6 @@ export interface IssueRow {
   // alone leaves it at createdAt.
   statusSince: string;
   labelIds: string[];
-  // Custom field values set on this issue, one entry per field that has a scalar
-  // value or selected options (unset fields are omitted). Included so the planner
-  // UI can filter by custom fields without a per-issue fetch. Only listIssues
-  // populates this; mapIssue alone leaves it empty.
-  fieldValues: IssueFieldValueEntry[];
 }
 
 function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
@@ -122,7 +101,6 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     teamId: row.teamId,
     sequenceNumber: row.sequenceNumber,
     identifier: `${teamKey}-${row.sequenceNumber}`,
-    typeId: row.typeId,
     project: null,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
@@ -146,7 +124,6 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
     statusSince: iso(row.createdAt),
     labelIds: [],
-    fieldValues: [],
   };
 }
 
@@ -188,7 +165,6 @@ function snapshot(row: IssueRow): IssueSnapshot {
     title: row.title,
     description: row.description,
     stateId: row.stateId,
-    typeId: row.typeId,
     projectId: row.project?.id ?? null,
     cycleId: row.cycleId,
     assigneeUserId: row.assigneeUserId,
@@ -207,7 +183,6 @@ export async function listIssues(team: TeamRow): Promise<IssueRow[]> {
     .orderBy(issue.stateId, issue.position);
   const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
-  await attachFieldValues(issues);
   await attachStatusSince(issues);
   await attachProjects(issues);
   return issues;
@@ -223,7 +198,6 @@ export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
     .orderBy(sql`${issue.archivedAt} desc`);
   const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
-  await attachFieldValues(issues);
   await attachStatusSince(issues);
   await attachProjects(issues);
   return issues;
@@ -231,15 +205,13 @@ export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
 
 // A light issue result for search and list: the fields the command palette and the
 // agent's search_issues / list_issues tools need to list and open a match. No
-// description (which may embed large data URIs) and no field values, so the payload
-// stays small.
+// description (which may embed large data URIs), so the payload stays small.
 export interface IssueSearchHit {
   id: string;
   sequenceNumber: number;
   identifier: string;
   title: string;
   stateId: string;
-  typeId: string | null;
   projectId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
@@ -258,8 +230,7 @@ function escapeLike(value: string): string {
 // Server-side issue read backing two routes: text search (search_issues) and the
 // filtered list (list_issues). Text search (filters.query) matches, case-
 // insensitively, the title, description, the issue number (a bare number, or
-// "KEY-42" for this team), scalar custom field text values, and
-// select/multi_select option labels. The other fields apply as exact filters (used
+// "KEY-42" for this team). The other fields apply as exact filters (used
 // by list_issues). includeArchived adds archived issues to the result (search always
 // sets it; list defaults to active only).
 export async function searchIssues(
@@ -282,27 +253,7 @@ export async function searchIssues(
       const m = raw.match(/^([A-Za-z][A-Za-z0-9]*)-(\d+)$/);
       if (m && m[1].toLowerCase() === team.key.toLowerCase()) seqMatch = Number(m[2]);
     }
-    const textConds: SQL[] = [
-      ilike(issue.title, pattern),
-      ilike(issue.description, pattern),
-      exists(
-        db
-          .select({ one: sql`1` })
-          .from(issueFieldValue)
-          .where(
-            and(eq(issueFieldValue.issueId, issue.id), ilike(issueFieldValue.valueText, pattern)),
-          ),
-      ),
-      exists(
-        db
-          .select({ one: sql`1` })
-          .from(issueFieldOption)
-          .innerJoin(customFieldOption, eq(customFieldOption.id, issueFieldOption.optionId))
-          .where(
-            and(eq(issueFieldOption.issueId, issue.id), ilike(customFieldOption.value, pattern)),
-          ),
-      ),
-    ];
+    const textConds: SQL[] = [ilike(issue.title, pattern), ilike(issue.description, pattern)];
     if (seqMatch !== null) textConds.push(eq(issue.sequenceNumber, seqMatch));
     conds.push(or(...textConds)!);
   }
@@ -310,8 +261,6 @@ export async function searchIssues(
   // Exact filters, mirroring matchesIssue: undefined skips the filter, null matches
   // rows where the column is null, a value matches equality.
   if (filters.stateId !== undefined) conds.push(eq(issue.stateId, filters.stateId));
-  if (filters.typeId !== undefined)
-    conds.push(filters.typeId === null ? isNull(issue.typeId) : eq(issue.typeId, filters.typeId));
   if (filters.projectId !== undefined)
     conds.push(
       filters.projectId === null ? isNull(issue.projectId) : eq(issue.projectId, filters.projectId),
@@ -357,7 +306,6 @@ export async function searchIssues(
     .select({
       id: issue.id,
       sequenceNumber: issue.sequenceNumber,
-      typeId: issue.typeId,
       projectId: issue.projectId,
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
@@ -378,7 +326,6 @@ export async function searchIssues(
     identifier: `${team.key}-${r.sequenceNumber}`,
     title: r.title,
     stateId: r.stateId,
-    typeId: r.typeId,
     projectId: r.projectId,
     assigneeUserId: r.assigneeUserId,
     delegateUserId: r.delegateUserId,
@@ -505,55 +452,6 @@ async function attachLabels<T extends { id: string; labelIds: string[] }>(
   for (const i of issues) i.labelIds = byIssue.get(i.id) ?? [];
 }
 
-// Loads every issue's custom field values in two queries (scalar values and
-// selected option ids) and merges them onto the issues. A field with no scalar
-// value and no options is omitted, so unset fields add nothing to the payload.
-// Mutates the passed issues in place.
-async function attachFieldValues(issues: IssueRow[]): Promise<void> {
-  if (issues.length === 0) return;
-  const issueIds = issues.map((i) => i.id);
-  const [scalarRows, optionRows] = await Promise.all([
-    db
-      .select({
-        issueId: issueFieldValue.issueId,
-        fieldId: issueFieldValue.fieldId,
-        valueText: issueFieldValue.valueText,
-        valueNumber: issueFieldValue.valueNumber,
-        valueBool: issueFieldValue.valueBool,
-        valueDate: issueFieldValue.valueDate,
-      })
-      .from(issueFieldValue)
-      .where(inArray(issueFieldValue.issueId, issueIds)),
-    db
-      .select({
-        issueId: issueFieldOption.issueId,
-        fieldId: issueFieldOption.fieldId,
-        optionId: issueFieldOption.optionId,
-      })
-      .from(issueFieldOption)
-      .where(inArray(issueFieldOption.issueId, issueIds)),
-  ]);
-
-  // issueId -> fieldId -> entry, built up from both queries then flushed onto
-  // each issue. Keyed maps keep the merge O(rows) rather than O(issues*rows).
-  const byIssue = new Map<string, Map<string, IssueFieldValueEntry>>();
-  const entryFor = (issueId: string, fieldId: string): IssueFieldValueEntry => {
-    let fields = byIssue.get(issueId);
-    if (!fields) byIssue.set(issueId, (fields = new Map()));
-    let entry = fields.get(fieldId);
-    if (!entry) fields.set(fieldId, (entry = { fieldId, value: null, optionIds: [] }));
-    return entry;
-  };
-
-  for (const row of scalarRows) entryFor(row.issueId, row.fieldId).value = pickScalarValue(row);
-  for (const row of optionRows) entryFor(row.issueId, row.fieldId).optionIds.push(row.optionId);
-
-  for (const i of issues) {
-    const fields = byIssue.get(i.id);
-    if (fields) i.fieldValues = [...fields.values()];
-  }
-}
-
 // The snapshot columns of an issue, without the label and team-key joins a
 // full load does. Used as the "before" state for the change-log diff, which
 // needs only these columns, plus the team id the update's scope checks run
@@ -566,7 +464,6 @@ async function loadSnapshot(id: string): Promise<(IssueSnapshot & { teamId: stri
       title: issue.title,
       description: issue.description,
       stateId: issue.stateId,
-      typeId: issue.typeId,
       projectId: issue.projectId,
       cycleId: issue.cycleId,
       assigneeUserId: issue.assigneeUserId,
@@ -622,7 +519,6 @@ export async function getIssueTeamId(id: string): Promise<string | null> {
 }
 
 export interface NewIssueInput {
-  typeId?: string | null;
   projectId?: string | null;
   projectMilestoneId?: string | null;
   cycleId?: string | null;
@@ -725,17 +621,6 @@ async function assertParent(
   if (ancestors.length > 0) throw new HttpError(400, 'Parent cannot be a sub-issue of this issue');
 }
 
-// Enforces that an issue type belongs to the issue's team. Only checks when set
-// to a non-null value (clearing the type is always allowed). Throws 400 otherwise.
-async function assertIssueType(teamId: string, typeId: string | null | undefined): Promise<void> {
-  if (typeId == null) return;
-  const rows = await db
-    .select({ id: issueType.id })
-    .from(issueType)
-    .where(and(eq(issueType.id, typeId), eq(issueType.teamId, teamId)));
-  if (rows.length === 0) throw new HttpError(400, 'Issue type must belong to this team');
-}
-
 // The issue's webhook data, or null when no webhook receives Issue events of its
 // team (so nothing is built for a later event).
 async function watchedIssueData(issueId: string, teamId?: string | null) {
@@ -798,7 +683,6 @@ export async function createIssue(
     stateType,
     new Date(),
   );
-  await assertIssueType(team.id, input.typeId);
   // Also checked by setIssueLabels below, but here it fails before the issue exists.
   await assertLabelsApplicable(team.id, input.labelIds ?? []);
   const issueId = await db.transaction(async (tx) => {
@@ -817,7 +701,6 @@ export async function createIssue(
       .values({
         teamId: team.id,
         sequenceNumber,
-        typeId: input.typeId ?? null,
         projectId: input.projectId ?? null,
         projectMilestoneId: input.projectMilestoneId ?? null,
         cycleId,
@@ -872,7 +755,6 @@ export async function createIssue(
 export interface IssuePatch {
   stateId?: string;
   position?: number;
-  typeId?: string | null;
   projectId?: string | null;
   projectMilestoneId?: string | null;
   cycleId?: string | null;
@@ -901,7 +783,6 @@ async function checkPatch(
   await assertMilestone(projectAfter, patch.projectMilestoneId);
   const stateType = await assertColumn(before.teamId, patch.stateId);
   await assertParent(before.teamId, id, patch.parentId);
-  await assertIssueType(before.teamId, patch.typeId);
   return stateType;
 }
 
@@ -948,7 +829,6 @@ export async function updateIssue(
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;
   if (patch.position !== undefined) set.position = patch.position;
-  if (patch.typeId !== undefined) set.typeId = patch.typeId;
   if (patch.projectId !== undefined) set.projectId = patch.projectId;
   // Moving the issue to another project (or out of one) clears its milestone,
   // unless the patch sets a milestone of the new project.
@@ -1229,172 +1109,4 @@ export async function issueRev(issueId: string): Promise<string> {
     .from(issue)
     .where(eq(issue.id, issueId));
   return row ? `${row.a ?? 0}:${row.u}` : '0:';
-}
-
-// --- Custom field values on an issue ---------------------------------------------
-
-export interface IssueFieldValueRow {
-  fieldId: string;
-  name: string;
-  fieldType: CustomFieldType;
-  value: string | number | boolean | null;
-  optionIds: string[];
-}
-
-function pickScalarValue(row: {
-  valueText: string | null;
-  valueNumber: string | null;
-  valueBool: boolean | null;
-  valueDate: string | null;
-}): string | number | boolean | null {
-  if (row.valueText != null) return row.valueText;
-  if (row.valueNumber != null) return Number(row.valueNumber);
-  if (row.valueBool != null) return row.valueBool;
-  if (row.valueDate != null) return row.valueDate;
-  return null;
-}
-
-// The fields of the issue's team that apply to it (the team-wide ones plus
-// its type's own), each joined with whatever value has been set for it (null if
-// unset).
-export async function getIssueFieldValues(issueId: string): Promise<IssueFieldValueRow[]> {
-  const rows = await db
-    .select({
-      fieldId: customField.id,
-      name: customField.name,
-      fieldType: customField.fieldType,
-      valueText: issueFieldValue.valueText,
-      valueNumber: issueFieldValue.valueNumber,
-      valueBool: issueFieldValue.valueBool,
-      valueDate: issueFieldValue.valueDate,
-    })
-    .from(issue)
-    .innerJoin(
-      customField,
-      and(
-        eq(customField.teamId, issue.teamId),
-        or(isNull(customField.issueTypeId), eq(customField.issueTypeId, issue.typeId)),
-      ),
-    )
-    .leftJoin(
-      issueFieldValue,
-      and(eq(issueFieldValue.fieldId, customField.id), eq(issueFieldValue.issueId, issue.id)),
-    )
-    .where(eq(issue.id, issueId))
-    .orderBy(customField.position);
-
-  const optionRows = await db
-    .select({ fieldId: issueFieldOption.fieldId, optionId: issueFieldOption.optionId })
-    .from(issueFieldOption)
-    .where(eq(issueFieldOption.issueId, issueId));
-  const optionsByField = new Map<string, string[]>();
-  for (const r of optionRows) {
-    let list = optionsByField.get(r.fieldId);
-    if (!list) optionsByField.set(r.fieldId, (list = []));
-    list.push(r.optionId);
-  }
-
-  return rows.map((row) => ({
-    fieldId: row.fieldId,
-    name: row.name,
-    fieldType: row.fieldType as CustomFieldType,
-    value: pickScalarValue(row),
-    optionIds: optionsByField.get(row.fieldId) ?? [],
-  }));
-}
-
-// A value is an acceptable url field value when it parses as an absolute
-// http(s) URL. Other schemes (mailto:, javascript:, file:) are rejected.
-function isHttpUrl(value: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  return url.protocol === 'http:' || url.protocol === 'https:';
-}
-
-// Sets one field's value on one issue. teamId is the issue's team: the field
-// is resolved inside it, so a field id belonging to another team does not match.
-// For select/multi_select fields, pass optionIds (replaces the full selection); for
-// every other field type, pass value matching the field's type.
-export async function setIssueFieldValue(
-  teamId: string,
-  issueId: string,
-  fieldId: string,
-  input: { value?: string | number | boolean | null; optionIds?: string[] },
-  actorUserId?: string | null,
-): Promise<void> {
-  const field = await getCustomFieldById(teamId, fieldId);
-  if (!field) throw new HttpError(404, 'Custom field not found');
-
-  // A url field stores its value as text but must hold a valid http(s) URL.
-  if (field.fieldType === 'url' && typeof input.value === 'string' && input.value !== '') {
-    if (!isHttpUrl(input.value)) throw new HttpError(400, 'Invalid URL');
-  }
-  // A number field must be a finite number; the value column is numeric.
-  if (field.fieldType === 'number' && input.value != null && input.value !== '') {
-    if (!Number.isFinite(Number(input.value))) throw new HttpError(400, 'Invalid number');
-  }
-
-  // to_text is the display-ready new value logged to the activity feed: option
-  // value names for select/multi_select, the raw value for everything else.
-  let toText: string | null;
-
-  if (field.fieldType === 'select' || field.fieldType === 'multi_select') {
-    const optionIds = input.optionIds ?? [];
-    // An option must be one of this field's own: the issue_field_option foreign key
-    // only requires it to exist somewhere. Resolved before the delete so a rejected
-    // request leaves the current selection untouched.
-    const names = optionIds.map((optionId) => {
-      const option = field.options.find((o) => o.id === optionId);
-      if (!option) throw new HttpError(400, 'Option does not belong to this field');
-      return option.value;
-    });
-
-    await db
-      .delete(issueFieldOption)
-      .where(and(eq(issueFieldOption.issueId, issueId), eq(issueFieldOption.fieldId, fieldId)));
-    if (optionIds.length) {
-      await db
-        .insert(issueFieldOption)
-        .values(optionIds.map((optionId) => ({ issueId, fieldId, optionId })));
-    }
-    toText = names.length ? names.join(', ') : null;
-  } else {
-    // The value column matching the field's type; the others stay NULL. Both the
-    // insert and the on-conflict update write only that one column.
-    let column: Partial<typeof issueFieldValue.$inferInsert>;
-    switch (field.fieldType) {
-      case 'number':
-        column = { valueNumber: input.value == null ? null : String(input.value) };
-        break;
-      case 'boolean':
-        column = { valueBool: input.value == null ? null : Boolean(input.value) };
-        break;
-      case 'date':
-        column = { valueDate: (input.value as string) ?? null };
-        break;
-      default:
-        column = { valueText: (input.value as string) ?? null };
-    }
-    await db
-      .insert(issueFieldValue)
-      .values({ issueId, fieldId, ...column })
-      .onConflictDoUpdate({
-        target: [issueFieldValue.issueId, issueFieldValue.fieldId],
-        set: column,
-      });
-    const value = input.value;
-    if (value == null || value === '') {
-      toText = null;
-    } else if (field.fieldType === 'boolean') {
-      toText = value ? 'true' : 'false';
-    } else {
-      toText = String(value);
-    }
-  }
-
-  await recordActivity(issueId, [{ action: 'field', subject: field.name, toText }], actorUserId);
 }

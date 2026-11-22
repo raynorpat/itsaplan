@@ -10,12 +10,6 @@ export const issueQuerySchema = z.object({
     .optional()
     .describe('Case-insensitive text search in the issue identifier, title, and description.'),
   stateId: z.string().uuid().optional().describe('Exact workflow state (column) id from get_team.'),
-  typeId: z
-    .string()
-    .uuid()
-    .nullable()
-    .optional()
-    .describe('Exact issue type id from get_team, or null for issues without a type.'),
   projectId: z
     .string()
     .uuid()

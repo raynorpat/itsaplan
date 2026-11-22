@@ -1,6 +1,5 @@
 import {
   db,
-  issueType,
   project,
   projectTeam,
   team,
@@ -126,81 +125,11 @@ export const DEFAULT_COLUMNS: { name: string; stateType: string; color: string }
   { name: 'Canceled', stateType: 'canceled', color: '#ef4444' },
 ];
 
-// Issue types a new team starts with, picked by sphere of work in the create
-// dialog. The first entry of a set becomes the team's default type. "general"
-// is the fallback when no preset is chosen: a single Task, so the team is
-// usable without committing to a classification.
-export const ISSUE_TYPE_PRESETS: Record<string, { name: string; color: string }[]> = {
-  general: [{ name: 'Task', color: '#0ea5e9' }],
-  software: [
-    { name: 'Feature', color: '#8b5cf6' },
-    { name: 'Bug', color: '#e11d48' },
-    { name: 'Task', color: '#0ea5e9' },
-    { name: 'Tech debt', color: '#f97316' },
-    { name: 'Research', color: '#14b8a6' },
-  ],
-  product: [
-    { name: 'Epic', color: '#8b5cf6' },
-    { name: 'Feature', color: '#0ea5e9' },
-    { name: 'Feedback', color: '#eab308' },
-    { name: 'Research', color: '#14b8a6' },
-  ],
-  content: [
-    { name: 'Article', color: '#0ea5e9' },
-    { name: 'Video', color: '#e11d48' },
-    { name: 'Social post', color: '#8b5cf6' },
-    { name: 'Idea', color: '#eab308' },
-    { name: 'Review', color: '#22c55e' },
-  ],
-  marketing: [
-    { name: 'Campaign', color: '#8b5cf6' },
-    { name: 'Landing', color: '#0ea5e9' },
-    { name: 'Asset', color: '#14b8a6' },
-    { name: 'Email', color: '#f97316' },
-    { name: 'Research', color: '#22c55e' },
-  ],
-  design: [
-    { name: 'Screen', color: '#0ea5e9' },
-    { name: 'Component', color: '#8b5cf6' },
-    { name: 'Asset', color: '#14b8a6' },
-    { name: 'Research', color: '#22c55e' },
-  ],
-  sales: [
-    { name: 'Lead', color: '#0ea5e9' },
-    { name: 'Deal', color: '#22c55e' },
-    { name: 'Follow-up', color: '#eab308' },
-    { name: 'Account', color: '#8b5cf6' },
-  ],
-  operations: [
-    { name: 'Request', color: '#0ea5e9' },
-    { name: 'Process', color: '#8b5cf6' },
-    { name: 'Purchase', color: '#22c55e' },
-    { name: 'Maintenance', color: '#f97316' },
-  ],
-  support: [
-    { name: 'Incident', color: '#e11d48' },
-    { name: 'Request', color: '#0ea5e9' },
-    { name: 'Question', color: '#eab308' },
-    { name: 'Change', color: '#8b5cf6' },
-  ],
-  recruiting: [
-    { name: 'Candidate', color: '#0ea5e9' },
-    { name: 'Onboarding', color: '#22c55e' },
-    { name: 'Request', color: '#8b5cf6' },
-    { name: 'Policy', color: '#6b7280' },
-  ],
-};
-
-export const ISSUE_TYPE_PRESET_KEYS = Object.keys(ISSUE_TYPE_PRESETS);
-
-export type IssueTypePreset = keyof typeof ISSUE_TYPE_PRESETS;
-
 export async function createTeam(
   input: {
     key: string;
     name: string;
     description?: string;
-    preset?: string;
   },
   ownerId: string,
 ): Promise<TeamRow> {
@@ -228,16 +157,6 @@ export async function createTeam(
         name: column.name,
         stateType: column.stateType,
         color: column.color,
-        position,
-      });
-    }
-    const types = ISSUE_TYPE_PRESETS[input.preset ?? 'general'] ?? ISSUE_TYPE_PRESETS.general;
-    for (const [position, type] of types.entries()) {
-      await tx.insert(issueType).values({
-        teamId: row.id,
-        name: type.name,
-        color: type.color,
-        isDefault: position === 0,
         position,
       });
     }

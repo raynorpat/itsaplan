@@ -10,14 +10,11 @@
 //   members_invite team invites
 //   members_manage the member list (view/remove members)
 //   states         workflow columns
-//   issue_types    issue types
 //   labels         labels and label groups
 //   ai_agents      AI agents attached to the team
 //   integrations   stored integration credentials (LLM keys and tool creds)
 //   agent_skills   the team skill library given to internal agents
 //   agent_tools    tools configured on a credential and given to agents
-//   custom_fields  custom field definitions
-//   actions        saved actions (macros)
 //   webhooks       outgoing webhook subscriptions
 //   danger_zone    team-level settings and deletion
 
@@ -28,14 +25,11 @@ export const PERMISSION_RESOURCES = [
   'members_invite',
   'members_manage',
   'states',
-  'issue_types',
   'labels',
   'ai_agents',
   'integrations',
   'agent_skills',
   'agent_tools',
-  'custom_fields',
-  'actions',
   'webhooks',
   'danger_zone',
 ] as const;
@@ -65,8 +59,8 @@ export function fullPermissions(): Permissions {
 // The default "Member" role assigned to members that join a team. Full access
 // to work items, read-only on views, and no access to member
 // management, invites, or team settings. read is left on for the entity
-// resources the board and issue editors need to render (states, issue types,
-// labels, ai_agents, custom fields). Keep this in sync with the backfill
+// resources the board and issue editors need to render (states, labels,
+// ai_agents). Keep this in sync with the backfill
 // migration that seeds existing teams.
 export function defaultMemberPermissions(): Permissions {
   const p = emptyPermissions();
@@ -74,10 +68,8 @@ export function defaultMemberPermissions(): Permissions {
   p.projects = fill(true);
   p.views.read = true;
   p.states.read = true;
-  p.issue_types.read = true;
   p.labels.read = true;
   p.ai_agents.read = true;
-  p.custom_fields.read = true;
   return p;
 }
 

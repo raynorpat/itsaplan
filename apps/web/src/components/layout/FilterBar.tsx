@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { TeamDetail, CustomField } from '@/lib/api';
+import type { TeamDetail } from '@/lib/api';
 import type { FilterCondition, FilterSet } from '@/utils/filters';
 import { buildFieldSpecs, newCondition, type FieldSpec } from '@/utils/filterFields';
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,13 @@ export default function FilterBar({
   filters,
   onChange,
   team,
-  customFields,
 }: {
   filters: FilterSet;
   onChange: (filters: FilterSet) => void;
   team: TeamDetail;
-  customFields: CustomField[];
 }) {
   const [addOpen, setAddOpen] = useState(false);
-  const specs = useMemo(() => buildFieldSpecs(team, customFields), [team, customFields]);
+  const specs = useMemo(() => buildFieldSpecs(team), [team]);
   const specByField = useMemo(() => new Map(specs.map((s) => [s.field, s])), [specs]);
 
   const update = (id: string, patch: Partial<FilterCondition>) =>
@@ -39,7 +37,7 @@ export default function FilterBar({
     <div className="flex flex-wrap items-center gap-1.5">
       {filters.conditions.map((cond) => {
         const spec = specByField.get(cond.field);
-        if (!spec) return null; // a field that no longer exists (deleted custom field / column)
+        if (!spec) return null; // a field that is no longer offered
         return (
           <FilterConditionPill
             key={cond.id}

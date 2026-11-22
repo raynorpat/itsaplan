@@ -202,24 +202,6 @@ describe('issue activity', () => {
       expect((await actions(asOwner, issue.id)).some((a) => a.action === 'label_add')).toBe(false);
     });
 
-    it('logs a custom field value change', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const field = (
-        await asOwner
-          .teams({ teamKey: 'MKT' })
-          ['custom-fields'].post({ name: 'Notes', fieldType: 'text' })
-      ).data!;
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      await asOwner
-        .issues({ issueId: issue.id })
-        .fields({ fieldId: field.id })
-        .put({ value: 'written' });
-
-      const entry = (await actions(asOwner, issue.id)).find((a) => a.action === 'field');
-      expect(entry).toMatchObject({ subject: 'Notes', toText: 'written' });
-    });
-
     it('does not log a position-only reorder', async () => {
       const { asOwner, stateId } = await setupTeam();
       const issue = (await createIssue(asOwner, stateId)).data!;

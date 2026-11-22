@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useCreateTeam } from '@/services/teams.service';
 import { normalizeKey, suggestKey } from '@/utils/teamKey';
-import type { PresetKey } from '@/utils/teamPresets';
 import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';
 import NewTeamForm from '@/components/layout/NewTeamForm';
@@ -20,8 +19,6 @@ export default function NewTeamModal({
   // Once the user edits the key, stop deriving it from the name. Clearing the
   // key field resumes auto-generation.
   const [keyEdited, setKeyEdited] = useState(false);
-  // Which issue types the new team starts with.
-  const [preset, setPreset] = useState<PresetKey>('general');
   const createTeam = useCreateTeam();
 
   function onNameChange(value: string) {
@@ -40,13 +37,12 @@ export default function NewTeamModal({
       key: key.trim().toUpperCase(),
       name: name.trim(),
       description: description.trim(),
-      preset,
     };
     createTeam.mutate({ input }, { onSuccess: (team) => onCreated(team.key) });
   }
 
   return (
-    <Modal title="New team" onClose={onClose} wide="xl">
+    <Modal title="New team" onClose={onClose}>
       <div className="space-y-4">
         {/* On a short viewport the form scrolls on its own so the submit button
             stays in place instead of sitting below the fold. */}
@@ -55,11 +51,9 @@ export default function NewTeamModal({
             name={name}
             teamKey={key}
             description={description}
-            preset={preset}
             onNameChange={onNameChange}
             onKeyChange={onKeyChange}
             onDescriptionChange={setDescription}
-            onPresetChange={setPreset}
           />
         </div>
         <Button

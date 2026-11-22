@@ -25,7 +25,6 @@ export function IssueCardBody({
   properties: PropertyKey[];
 }) {
   const has = (p: DisplayProperty) => properties.includes(p);
-  const type = issue.typeId != null ? maps.typeById.get(issue.typeId) : undefined;
   const assignee =
     issue.assigneeUserId != null ? maps.assigneeById.get(issue.assigneeUserId) : undefined;
   const delegate =
@@ -36,7 +35,6 @@ export function IssueCardBody({
     has('statusAge') ||
     (has('dueDate') && issue.dueDate) ||
     (has('startDate') && issue.startDate) ||
-    (has('type') && type) ||
     (has('project') && project) ||
     (has('labels') && issue.labelIds.length > 0);
   const footerShown =
@@ -100,18 +98,6 @@ export function IssueCardBody({
               title="Due date"
               overdue={isDueOverdue(issue.dueDate, column?.stateType)}
             />
-          )}
-          {has('type') && type && (
-            <Badge
-              variant="outline"
-              className="rounded-full px-1.5 py-0.5 text-[10px] text-muted-foreground"
-            >
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: type.color }}
-              />
-              {type.name}
-            </Badge>
           )}
           {has('project') && project && (
             <Badge

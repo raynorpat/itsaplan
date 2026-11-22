@@ -59,10 +59,6 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
     [team, editor.effectiveFilters],
   );
 
-  // Every custom field of the team comes with the board payload; consumers
-  // filter by issueTypeId locally.
-  const customFields = useMemo(() => team?.customFields ?? [], [team]);
-
   // The Shell provides the permission context, so the viewer is read directly
   // rather than through usePermissions. Gates the create-issue keyboard shortcut;
   // the header and command palette gate their own controls via usePermissions.
@@ -79,7 +75,6 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
     filteredTeam,
     views,
     editor,
-    customFields,
     canCreateIssue,
     errorMsg: errorMessage(error),
     // A 403 means the session is valid but the user is not a member of this

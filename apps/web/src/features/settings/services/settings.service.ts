@@ -1,6 +1,5 @@
 // React Query hooks for everything the settings feature reads and writes: the
-// team's structural entities (columns, issue types, labels and label groups,
-// custom fields), the auto-archive thresholds, the team notification delivery
+// team's structural entities (columns, labels and label groups), the auto-archive thresholds, the team notification delivery
 // settings, and the session member's own notification preferences. Structural
 // writes go through useTeamMutation and invalidate the team detail; the
 // settings and notification writes return the stored result and put it straight
@@ -20,7 +19,7 @@ import { qk } from '@/services/queryKeys';
 // Shared by every settings write below.
 function useTeamMutation<TArgs>(teamKey: string, mutationFn: (args: TArgs) => Promise<unknown>) {
   const invalidate = useInvalidateTeam(teamKey);
-  return useMutation({ mutationFn, onSuccess: () => invalidate(true) });
+  return useMutation({ mutationFn, onSuccess: () => invalidate() });
 }
 
 export function useCreateColumn(teamKey: string) {
@@ -47,24 +46,6 @@ export function useDeleteColumn(teamKey: string) {
     ({ id, body }: { id: string; body: Parameters<typeof api.deleteState>[2] }) =>
       api.deleteState(teamKey, id, body),
   );
-}
-
-export function useCreateIssueType(teamKey: string) {
-  return useTeamMutation(teamKey, (input: Parameters<typeof api.createIssueType>[1]) =>
-    api.createIssueType(teamKey, input),
-  );
-}
-
-export function useUpdateIssueType(teamKey: string) {
-  return useTeamMutation(
-    teamKey,
-    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateIssueType>[2] }) =>
-      api.updateIssueType(teamKey, id, patch),
-  );
-}
-
-export function useDeleteIssueType(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => api.deleteIssueType(teamKey, id));
 }
 
 export function useCreateLabel(teamKey: string) {
@@ -149,24 +130,4 @@ export function useUpdateNotificationPreferences(teamKey: string) {
     mutationFn: (input: NotificationPreferences) => api.setNotificationPreferences(teamKey, input),
     onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(teamKey), data),
   });
-}
-
-// Custom fields. Writes go through the team-scoped endpoint; the shared
-// invalidation also refreshes the custom-field lists the reads depend on.
-export function useCreateCustomField(teamKey: string) {
-  return useTeamMutation(teamKey, (input: Parameters<typeof api.createCustomField>[1]) =>
-    api.createCustomField(teamKey, input),
-  );
-}
-
-export function useUpdateCustomField(teamKey: string) {
-  return useTeamMutation(
-    teamKey,
-    ({ id, patch }: { id: string; patch: Parameters<typeof api.updateCustomField>[2] }) =>
-      api.updateCustomField(teamKey, id, patch),
-  );
-}
-
-export function useDeleteCustomField(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => api.deleteCustomField(teamKey, id));
 }

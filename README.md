@@ -42,10 +42,9 @@ stable release.
 
 **Tracking**
 
-- Configure issues per team: custom fields, labels, states, and issue types
+- Configure issues per team: labels and workflow states
 - Kanban, table, timeline, and calendar views, with configurable display fields and two-level grouping
 - Save any view as a reusable template
-- Custom quick actions that run on an issue
 - Projects that group work across teams, with statuses, milestones, updates and labels
 - Auto-archive, a notification inbox, role-based access control, and more
 

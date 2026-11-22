@@ -5,16 +5,14 @@ import {
   type Attachment,
   type TeamDetail,
   type IssueDetail as IssueDetailRow,
-  type IssueFieldValueInput,
   type IssuePatch,
 } from '@/lib/api';
-import { useIssueQuery, useSetFieldValue, useUpdateIssue } from '@/services/issues.service';
+import { useIssueQuery, useUpdateIssue } from '@/services/issues.service';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { qk } from '@/services/queryKeys';
 import { useAttachmentsQuery, useUploadAttachment } from '../services/attachments.service';
 import { useFeedQuery, useTimelineQuery } from '../services/comments.service';
 import { attachmentMarkdown, isImage } from '../utils/attachmentEmbed';
-import { fieldDefsForType } from '../utils/fieldDefs';
 
 // Loads one issue and exposes the edit operations for the detail surfaces.
 // onIssueLoaded surfaces the loaded issue to the surrounding chrome.
@@ -25,7 +23,6 @@ export function useIssueDetail(
 ) {
   const issueQuery = useIssueQuery(issueId);
   const issue = issueQuery.data ?? null;
-  const fieldDefs = fieldDefsForType(team.customFields, issue?.typeId ?? null);
 
   // Started here, not in the components that read them: those mount only after the
   // issue arrives, which would put these reads in a second wave after it.
@@ -37,7 +34,6 @@ export function useIssueDetail(
   const imageAttachments = (attachmentsQuery.data ?? []).filter(isImage);
 
   const updateIssue = useUpdateIssue(team.team.key);
-  const setFieldValue = useSetFieldValue(team.team.key);
   const uploadAttachment = useUploadAttachment();
   const [descEditor, setDescEditor] = useState<Editor | null>(null);
 
@@ -64,10 +60,6 @@ export function useIssueDetail(
     updateIssue.mutate({ id: issueId, patch: fields });
   }
 
-  function setField(fieldId: string, value: IssueFieldValueInput) {
-    setFieldValue.mutate({ issueId, fieldId, value });
-  }
-
   function toggleLabel(id: string) {
     if (!issue) return;
     const next = issue.labelIds.includes(id)
@@ -89,9 +81,7 @@ export function useIssueDetail(
 
   return {
     issue,
-    fieldDefs,
     patch,
-    setField,
     toggleLabel,
     insertAttachment,
     uploadFile,
