@@ -3,6 +3,7 @@ import {
   db,
   initiative,
   initiativeUpdate,
+  document,
   issue,
   projectTeam,
   projectUpdate,
@@ -24,17 +25,20 @@ import { assertPermission, type AuthUser } from '../shared/access';
 import { assertProjectAccess, projectsInTeams, teamsGranting } from '../projects/access';
 import { assertInitiativeAccess, visibleInitiativesSql } from '../initiatives/access';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
+import { assertDocumentParentAccess, visibleDocumentsSql } from '../documents/access';
+import { documentParent, documentTeamIds, documentUrl, getDocument } from '../documents/store';
 
-// Comments (Linear's Comment) on an issue, a project, a project update or an
-// initiative update. A reply belongs to the thread of a root comment: replying to a
-// reply stores the new comment under that reply's root, so threads are one level
-// deep (Linear).
+// Comments (Linear's Comment) on an issue, a project, a project update, an
+// initiative update or a document. A reply belongs to the thread of a root comment:
+// replying to a reply stores the new comment under that reply's root, so threads
+// are one level deep (Linear).
 
 export type CommentParent =
   | { issueId: string }
   | { projectId: string }
   | { projectUpdateId: string }
-  | { initiativeUpdateId: string };
+  | { initiativeUpdateId: string }
+  | { documentId: string };
 
 export interface CommentRow {
   id: string;
@@ -42,6 +46,7 @@ export interface CommentRow {
   projectId: string | null;
   projectUpdateId: string | null;
   initiativeUpdateId: string | null;
+  documentId: string | null;
   parentId: string | null;
   userId: string | null;
   userName: string | null;
@@ -61,6 +66,7 @@ export function mapComment(row: typeof comment.$inferSelect): CommentRow {
     projectId: row.projectId,
     projectUpdateId: row.projectUpdateId,
     initiativeUpdateId: row.initiativeUpdateId,
+    documentId: row.documentId,
     parentId: row.parentId,
     userId: row.userId,
     userName: row.userName,
@@ -117,9 +123,13 @@ async function updateInitiativeId(initiativeUpdateId: string): Promise<string | 
   return row?.initiativeId ?? null;
 }
 
-// The web URL of the issue, project, project update or initiative update a
-// comment is on.
+// The web URL of the issue, project, project update, initiative update or
+// document a comment is on.
 export async function commentParentUrl(c: CommentRow): Promise<string> {
+  if (c.documentId) {
+    const found = await getDocument(c.documentId);
+    return found ? documentUrl(found) : trustedOrigins[0]!;
+  }
   if (c.initiativeUpdateId)
     return initiativeUrl((await updateInitiativeId(c.initiativeUpdateId)) ?? '');
   if (c.issueId) {
@@ -141,12 +151,17 @@ const sameParent = (a: CommentParent, b: CommentRow) =>
   ('issueId' in a && a.issueId === b.issueId) ||
   ('projectId' in a && a.projectId === b.projectId) ||
   ('projectUpdateId' in a && a.projectUpdateId === b.projectUpdateId) ||
-  ('initiativeUpdateId' in a && a.initiativeUpdateId === b.initiativeUpdateId);
+  ('initiativeUpdateId' in a && a.initiativeUpdateId === b.initiativeUpdateId) ||
+  ('documentId' in a && a.documentId === b.documentId);
 
 // The teams a comment belongs to: its issue's team, its project's (or its project
 // update's project's) teams, or its initiative update's lead team (none for a
-// workspace initiative).
+// workspace initiative), or its document's parent's teams.
 export async function commentTeamIds(c: CommentRow): Promise<string[]> {
+  if (c.documentId) {
+    const found = await getDocument(c.documentId);
+    return found ? documentTeamIds(documentParent(found)) : [];
+  }
   if (c.initiativeUpdateId) {
     const initiativeId = await updateInitiativeId(c.initiativeUpdateId);
     const parent = initiativeId ? await getInitiative(initiativeId) : null;
@@ -204,6 +219,7 @@ export async function createComment(input: {
       projectUpdateId: 'projectUpdateId' in input.parent ? input.parent.projectUpdateId : null,
       initiativeUpdateId:
         'initiativeUpdateId' in input.parent ? input.parent.initiativeUpdateId : null,
+      documentId: 'documentId' in input.parent ? input.parent.documentId : null,
       parentId: rootId,
       userId: input.actorUserId,
       userName: await userName(input.actorUserId),
@@ -369,6 +385,12 @@ export async function assertParentAccess(
     if (action === 'create') await assertPermission(row.teamId, user, 'work_items', 'create');
     return;
   }
+  if ('documentId' in parent) {
+    const found = await getDocument(parent.documentId);
+    if (!found) throw new HttpError(404, 'Document not found');
+    await assertDocumentParentAccess(documentParent(found), user, 'read');
+    return;
+  }
   if ('initiativeUpdateId' in parent) {
     const initiativeId = await updateInitiativeId(parent.initiativeUpdateId);
     if (!initiativeId) throw new HttpError(404, 'Initiative update not found');
@@ -388,6 +410,7 @@ export function commentParent(c: CommentRow): CommentParent {
   if (c.issueId) return { issueId: c.issueId };
   if (c.projectId) return { projectId: c.projectId };
   if (c.initiativeUpdateId) return { initiativeUpdateId: c.initiativeUpdateId };
+  if (c.documentId) return { documentId: c.documentId };
   return { projectUpdateId: c.projectUpdateId! };
 }
 
@@ -419,6 +442,13 @@ export async function readableCommentsSql(userId: string): Promise<SQL> {
         .from(initiativeUpdate)
         .innerJoin(initiative, eq(initiative.id, initiativeUpdate.initiativeId))
         .where(await visibleInitiativesSql(userId)),
+    ),
+    inArray(
+      comment.documentId,
+      db
+        .select({ id: document.id })
+        .from(document)
+        .where(await visibleDocumentsSql(userId)),
     ),
   )!;
 }

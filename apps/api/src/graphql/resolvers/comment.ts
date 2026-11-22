@@ -24,6 +24,7 @@ import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toUpdate } from './project';
 import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
+import { toDocumentContent, visibleDocumentOrNull } from './document';
 
 // Linear's Comment over a comment row. `parentUrl` is the web URL of the comment's
 // issue, project or project update; GraphQL resolves `url` lazily when it is empty.
@@ -40,6 +41,8 @@ export function toComment(row: CommentRow, parentUrl = '') {
     projectId: row.projectId,
     projectUpdateId: row.projectUpdateId,
     initiativeUpdateId: row.initiativeUpdateId,
+    // Linear's documentContentId is the document id here.
+    documentContentId: row.documentId,
     parentId: row.parentId,
     userId: row.userId,
     resolvingUserId: row.resolvingUserId,
@@ -94,6 +97,7 @@ type CreateInput = Record<string, unknown> & {
   projectId?: string | null;
   projectUpdateId?: string | null;
   initiativeUpdateId?: string | null;
+  documentContentId?: string | null;
   parentId?: string | null;
   id?: string | null;
 };
@@ -104,17 +108,19 @@ function parentOf(input: CreateInput): CommentParent {
     input.projectId && { projectId: input.projectId },
     input.projectUpdateId && { projectUpdateId: input.projectUpdateId },
     input.initiativeUpdateId && { initiativeUpdateId: input.initiativeUpdateId },
+    input.documentContentId && { documentId: input.documentContentId },
   ].filter(Boolean) as CommentParent[];
   if (given.length !== 1)
     throw gqlError(
       'INVALID_INPUT',
-      'Set exactly one of input.issueId, input.projectId, input.projectUpdateId, input.initiativeUpdateId',
+      'Set exactly one of input.issueId, input.projectId, input.projectUpdateId, input.initiativeUpdateId, input.documentContentId',
     );
   for (const v of [
     input.issueId,
     input.projectId,
     input.projectUpdateId,
     input.initiativeUpdateId,
+    input.documentContentId,
     input.parentId,
     input.id,
   ])
@@ -140,6 +146,10 @@ export const commentResolvers = {
   ProjectUpdate: {
     comments: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
       listComments(eq(comment.projectUpdateId, u.id), args, ctx),
+  },
+  Document: {
+    comments: (d: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
+      listComments(eq(comment.documentId, d.id), args, ctx),
   },
   InitiativeUpdate: {
     comments: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
@@ -190,6 +200,11 @@ export const commentResolvers = {
       );
       return visible ? toUpdate(row) : null;
     },
+    // Null when the document is not visible.
+    documentContent: async (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => {
+      const found = await visibleDocumentOrNull(c.documentContentId, ctx);
+      return found ? toDocumentContent(found) : null;
+    },
     // Null when the update's initiative is not visible.
     initiativeUpdate: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       c.initiativeUpdateId
@@ -209,6 +224,7 @@ export const commentResolvers = {
             'projectId',
             'projectUpdateId',
             'initiativeUpdateId',
+            'documentContentId',
             'parentId',
             'id',
           ],
