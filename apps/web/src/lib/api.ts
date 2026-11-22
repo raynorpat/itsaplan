@@ -1184,7 +1184,7 @@ export interface ActionPatch {
 // Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The
 // resource types must stay in sync with WEBHOOK_RESOURCE_TYPES on the server.
 export type WebhookResourceType =
-  'Issue' | 'Comment' | 'IssueLabel' | 'Project' | 'ProjectUpdate' | 'Reaction';
+  'Issue' | 'Comment' | 'IssueLabel' | 'Project' | 'ProjectUpdate' | 'Reaction' | 'Cycle';
 
 export const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string }[] = [
   { value: 'Issue', label: 'Issues' },

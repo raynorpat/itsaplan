@@ -117,10 +117,10 @@ describe('graphql issue queries', () => {
     const { owner } = await setup();
     const res = await gql(
       { cookie: owner.cookie },
-      '{ issues(filter: { cycle: { id: { eq: "x" } } }) { nodes { id } } }',
+      '{ issues(filter: { subscribers: { some: { id: { eq: "x" } } } }) { nodes { id } } }',
     );
     expect(errorCode(res)).toBe('INVALID_INPUT');
-    expect(res.body.errors?.[0].message).toContain('cycle');
+    expect(res.body.errors?.[0].message).toContain('subscribers');
   });
 
   it('lists an archived issue only with includeArchived', async () => {

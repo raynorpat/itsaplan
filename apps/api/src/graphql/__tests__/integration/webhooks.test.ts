@@ -65,10 +65,10 @@ describe('graphql webhooks', () => {
     const { owner, teamId } = await setup();
     const bad = await gql(
       { cookie: owner.cookie },
-      `mutation { webhookCreate(input: { url: "https://example.com/h", teamId: "${teamId}", resourceTypes: ["Cycle"] }) { success } }`,
+      `mutation { webhookCreate(input: { url: "https://example.com/h", teamId: "${teamId}", resourceTypes: ["Document"] }) { success } }`,
     );
     expect(errorCode(bad)).toBe('INVALID_INPUT');
-    expect(errorMessage(bad)).toContain('Cycle');
+    expect(errorMessage(bad)).toContain('Document');
     const noScope = await gql(
       { cookie: owner.cookie },
       'mutation { webhookCreate(input: { url: "https://example.com/h", resourceTypes: ["Issue"] }) { success } }',
