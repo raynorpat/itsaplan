@@ -13,18 +13,10 @@ export interface TeamRow {
   key: string;
   name: string;
   description: string;
-  mcpEnabled: boolean;
-  projectsEnabled: boolean;
   // Linear's team visibility: public teams are open to the workspace's owners,
   // admins and members; private teams to their members only.
   visibility: 'public' | 'private';
   createdAt: string;
-}
-
-// The optional sections an owner can turn off per team (Settings -> General).
-// A disabled section is hidden in the web app; its rows are kept.
-export interface TeamFeatures {
-  projects: boolean;
 }
 
 // A team in the caller's list, with the caller's membership in it (null when they
@@ -41,20 +33,14 @@ function mapTeam(row: typeof team.$inferSelect): TeamRow {
     key: row.key,
     name: row.name,
     description: row.description,
-    mcpEnabled: row.mcpEnabled,
-    projectsEnabled: row.projectsEnabled,
     visibility: row.visibility === 'private' ? 'private' : 'public',
     createdAt: iso(row.createdAt),
   };
 }
 
 // The teams the user can see, ordered by key: their teams, plus every public team
-// unless they are a guest. When mcpOnly is set, teams with MCP disabled are
-// excluded, so an MCP caller only sees teams it can work with.
-export async function listTeams(
-  userId: string,
-  opts: { mcpOnly?: boolean } = {},
-): Promise<TeamListItem[]> {
+// unless they are a guest.
+export async function listTeams(userId: string): Promise<TeamListItem[]> {
   const visible = inArray(team.id, visibleTeamIds(userId));
   const isAdmin = atLeast(await workspaceRole(userId), 'admin');
   // canManageTeam for every row in one query: an admin manages every team, a member
@@ -67,7 +53,7 @@ export async function listTeams(
     })
     .from(team)
     .leftJoin(teamMember, and(eq(teamMember.teamId, team.id), eq(teamMember.userId, userId)))
-    .where(opts.mcpOnly ? and(visible, eq(team.mcpEnabled, true)) : visible)
+    .where(visible)
     .orderBy(team.key);
   return rows.map((r) => ({
     ...mapTeam(r.team),
@@ -144,37 +130,6 @@ export async function updateTeam(
   if (patch.name !== undefined) values.name = patch.name;
   if (patch.description !== undefined) values.description = patch.description;
   if (patch.visibility !== undefined) values.visibility = patch.visibility;
-  if (Object.keys(values).length === 0) return getTeamById(teamId);
-  const [row] = await db.update(team).set(values).where(eq(team.id, teamId)).returning();
-  return row ? mapTeam(row) : null;
-}
-
-// Toggles whether the team is reachable through the MCP server. Owner-only at
-// the route; the flag gates every MCP tool call scoped to this team.
-export async function setTeamMcpEnabled(teamId: string, enabled: boolean): Promise<TeamRow | null> {
-  const [row] = await db
-    .update(team)
-    .set({ mcpEnabled: enabled })
-    .where(eq(team.id, teamId))
-    .returning();
-  return row ? mapTeam(row) : null;
-}
-
-// The team's feature toggles, read from the team row.
-export function teamFeatures(row: TeamRow): TeamFeatures {
-  return {
-    projects: row.projectsEnabled,
-  };
-}
-
-// Turns the optional sections on or off. Only the supplied ones change; a section
-// that is turned off keeps its rows and shows again when it is turned back on.
-export async function setTeamFeatures(
-  teamId: string,
-  patch: Partial<TeamFeatures>,
-): Promise<TeamRow | null> {
-  const values: Partial<typeof team.$inferInsert> = {};
-  if (patch.projects !== undefined) values.projectsEnabled = patch.projects;
   if (Object.keys(values).length === 0) return getTeamById(teamId);
   const [row] = await db.update(team).set(values).where(eq(team.id, teamId)).returning();
   return row ? mapTeam(row) : null;

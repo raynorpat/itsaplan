@@ -17,7 +17,6 @@ import {
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { projectsInTeams, projectTeamIds } from './access';
 import { HttpError, iso, num } from '../shared/lib';
-import { computeHealth, type Health } from './health';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
@@ -65,8 +64,6 @@ export interface ProjectRow {
   progress: ProjectProgress;
   // The latest project update's health (Linear's Project.health), or null.
   health: UpdateHealth | null;
-  // Derived from issue progress against the timeline (see health.ts).
-  computedHealth: Health | null;
 }
 
 const projectColumns = { row: project, statusType: projectStatus.type };
@@ -174,12 +171,6 @@ function mapProject(
     labelIds,
     progress,
     health,
-    computedHealth: computeHealth({
-      ...progress,
-      startDate: row.startDate,
-      targetDate: row.targetDate,
-      createdAt: iso(row.createdAt),
-    }),
   };
 }
 
@@ -671,18 +662,4 @@ async function setProjectLabels(
   for (const labelId of removed)
     events.push({ action: 'label_remove', fromText: names.get(labelId) ?? null });
   await recordActivity(projectId, events, actorUserId);
-}
-
-// One project's change marker: moves on any project-level event, any activity of
-// a linked issue, and any in-place edit (updated_at). Clients poll this and
-// refetch the detail/feed only when it changes.
-export async function projectRev(id: string): Promise<string> {
-  const [row] = await db
-    .select({
-      a: sql<string>`(select count(*) || '-' || coalesce(max(coalesce(edited_at, created_at))::text, '') from feed_entry where project_id = ${id} or issue_id in (select id from issue where project_id = ${id}) or project_update_id in (select id from project_update where project_id = ${id}))`,
-      u: sql<string>`${project.updatedAt}::text`,
-    })
-    .from(project)
-    .where(eq(project.id, id));
-  return row ? `${row.a ?? 0}:${row.u}` : '0:';
 }

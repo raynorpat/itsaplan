@@ -5,6 +5,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey } from '../../../__tests__/helpers/linear';
 import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { workspaceRole } from '../../../shared/access';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Joining teams, workspace role changes, suspension, and all-teams webhooks that
 // skip private teams.
@@ -80,7 +81,7 @@ describe('roles administration', () => {
       const stateId = (await asOwner.teams({ teamKey }).get()).data!.states[0]!.id;
       await asOwner.teams({ teamKey }).issues.post({ stateId, title: teamKey });
     }
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     const titles = items.map((d) => (d.payload as { data: { title: string } }).data.title);
     expect(titles).toEqual(['MKT']);
   });

@@ -1,52 +1,19 @@
 import { db, userPreference } from '@repo/db';
 import { eq, sql } from 'drizzle-orm';
 
-// A user's own interface preferences, held per account so the same choices apply on
-// every device. One row per user; absent means nothing was changed yet and the
-// defaults below apply, so a read never fails. Timestamps stay UTC everywhere in the
-// API — `timezone` only tells the web app which zone to render them in.
-
-export const THEMES = ['light', 'dark', 'system'] as const;
-export const ISSUE_OPEN_MODES = ['panel', 'page'] as const;
-export const START_PAGES = ['inbox', 'work-items', 'projects'] as const;
-export const ISSUE_STATS_VIEWS = ['compact', 'timeline'] as const;
-
-export type Theme = (typeof THEMES)[number];
-export type IssueOpenMode = (typeof ISSUE_OPEN_MODES)[number];
-export type StartPage = (typeof START_PAGES)[number];
-export type IssueStatsView = (typeof ISSUE_STATS_VIEWS)[number];
+// A user's time zone (Linear's User.timezone). One row per user; absent means UTC, so
+// a read never fails. Timestamps stay UTC everywhere in the API — `timezone` only
+// tells the web app which zone to render them in. The other interface preferences
+// are kept in the browser.
 
 export interface UserPreferenceDto {
   timezone: string;
-  theme: Theme;
-  issueOpenMode: IssueOpenMode;
-  startPage: StartPage;
-  // How the status stats section of an issue starts out: expanded or collapsed, and
-  // in the compact bar or the full timeline. Switching it on an issue is not stored.
-  issueStatsOpen: boolean;
-  issueStatsView: IssueStatsView;
-  // The team the user was in last, or null before they opened one. The app root
-  // reopens it; a deleted team clears it through the FK.
-  lastTeamId: string | null;
-  // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
-  // changed ones are stored; the rest come from the instance settings and then the
-  // web app's built-in bindings.
-  hotkeys: Record<string, string>;
 }
 
 export type UserPreferencePatch = Partial<UserPreferenceDto>;
 
 export function defaults(): UserPreferenceDto {
-  return {
-    timezone: 'UTC',
-    theme: 'system',
-    issueOpenMode: 'panel',
-    startPage: 'work-items',
-    issueStatsOpen: true,
-    issueStatsView: 'compact',
-    lastTeamId: null,
-    hotkeys: {},
-  };
+  return { timezone: 'UTC' };
 }
 
 // Whether a string is an IANA zone this runtime knows ('Europe/Berlin', 'UTC').
@@ -60,44 +27,13 @@ export function isValidTimezone(value: string): boolean {
   }
 }
 
-function toDto(row: {
-  timezone: string;
-  theme: string;
-  issueOpenMode: string;
-  startPage: string;
-  issueStatsOpen: boolean;
-  issueStatsView: string;
-  lastTeamId: string | null;
-  hotkeys: Record<string, string> | null;
-}): UserPreferenceDto {
-  return {
-    timezone: row.timezone,
-    theme: row.theme as Theme,
-    issueOpenMode: row.issueOpenMode as IssueOpenMode,
-    startPage: row.startPage as StartPage,
-    issueStatsOpen: row.issueStatsOpen,
-    issueStatsView: row.issueStatsView as IssueStatsView,
-    lastTeamId: row.lastTeamId,
-    hotkeys: row.hotkeys ?? {},
-  };
-}
-
 // A user's preferences, or the defaults when they have no row yet.
 export async function getPreferences(userId: string): Promise<UserPreferenceDto> {
   const rows = await db
-    .select({
-      timezone: userPreference.timezone,
-      theme: userPreference.theme,
-      issueOpenMode: userPreference.issueOpenMode,
-      startPage: userPreference.startPage,
-      issueStatsOpen: userPreference.issueStatsOpen,
-      issueStatsView: userPreference.issueStatsView,
-      lastTeamId: userPreference.lastTeamId,
-      hotkeys: userPreference.hotkeys,
-    })
+    .select({ timezone: userPreference.timezone })
     .from(userPreference)
     .where(eq(userPreference.userId, userId));
-  return rows[0] ? toDto(rows[0]) : defaults();
+  return rows[0] ? { timezone: rows[0].timezone } : defaults();
 }
 
 // Applies a partial update and returns the full result. Fields left out keep their

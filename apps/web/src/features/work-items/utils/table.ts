@@ -7,13 +7,11 @@ import { type ViewSettings, type DisplayProperty, type PropertyKey } from '@/uti
 export type TableColumn = Exclude<DisplayProperty, 'id'>;
 export const COLUMN_META: Record<TableColumn, { label: string; width: string }> = {
   status: { label: 'State', width: '130px' },
-  statusAge: { label: 'In status', width: '88px' },
   priority: { label: 'Priority', width: '88px' },
   assignee: { label: '', width: '56px' },
   delegate: { label: '', width: '56px' },
   project: { label: 'Project', width: 'minmax(140px,220px)' },
   labels: { label: 'Labels', width: 'minmax(120px,220px)' },
-  startDate: { label: 'Start', width: '96px' },
   dueDate: { label: 'Due', width: '96px' },
   created: { label: 'Created', width: '96px' },
   updated: { label: 'Updated', width: '96px' },

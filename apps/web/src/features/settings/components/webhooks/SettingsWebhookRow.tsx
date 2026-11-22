@@ -1,15 +1,5 @@
 import { useState } from 'react';
-import {
-  Check,
-  Copy,
-  Eye,
-  EyeOff,
-  History,
-  KeyRound,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-} from 'lucide-react';
+import { Check, Copy, Eye, EyeOff, KeyRound, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import type { Webhook } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,18 +13,15 @@ import {
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import SettingsIconButton from '../SettingsIconButton';
 import { useSettingsCan } from '../../context/settingsPermission';
 
 export function SettingsWebhookRow({
   webhook,
-  onShowDeliveries,
   onEdit,
   onRotateSecret,
   onDelete,
 }: {
   webhook: Webhook;
-  onShowDeliveries: () => void;
   onEdit: () => void;
   onRotateSecret: () => void;
   onDelete: () => void;
@@ -117,9 +104,6 @@ export function SettingsWebhookRow({
       </TableCell>
       <TableCell className="px-3 py-3 align-top">
         <div className="flex items-center justify-end gap-1">
-          <SettingsIconButton title="Delivery history" onClick={onShowDeliveries}>
-            <History className="size-4" />
-          </SettingsIconButton>
           {(can('edit') || can('delete')) && (
             <DropdownMenu>
               <Tooltip>

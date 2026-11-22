@@ -5,6 +5,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createUpdate } from '../../../projects/updates';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Comments over the Linear API: replies one level deep, edit and delete rules,
 // resolving threads, comments on projects and project updates, and visibility.
@@ -212,8 +213,7 @@ describe('graphql comments', () => {
       projectId: project.id,
       body: `look ${mention('Member', member.userId)}`,
     });
-    const deliveries = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!
-      .items;
+    const deliveries = (await webhookDeliveries(hook.id)).data!.items;
     expect(deliveries).toHaveLength(1);
     expect((await member.api.notifications.get({ query: {} })).data!.items).toEqual([]);
   });
@@ -228,7 +228,7 @@ describe('graphql comments', () => {
     const c = (await (await client.createComment({ issueId: issue.id, body: 'v1' })).comment)!;
     await client.updateComment(c.id, { body: 'v2' });
     await client.deleteComment(c.id);
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const items = (await webhookDeliveries(hook.id))
       .data!.items.map((d) => d.payload as { action: string; updatedFrom?: { body?: string } })
       .reverse();
     expect(items.map((p) => p.action)).toEqual(['create', 'update', 'remove']);

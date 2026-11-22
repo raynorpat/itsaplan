@@ -4,7 +4,7 @@ import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
 import { requireUser } from '../shared/access';
-import { HttpError } from '../shared/lib';
+import { HttpError, rejectUnknownFields } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
   archiveState,
@@ -107,9 +107,10 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
       return column;
     },
     {
+      // A state's type is fixed once created (Linear); unknown fields are refused.
+      transform: ({ body }) => rejectUnknownFields(body, ['name', 'color', 'description']),
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
-        stateType: t.Optional(stateType),
         color: t.Optional(t.String()),
         description: t.Optional(t.String()),
       }),
@@ -124,7 +125,7 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
       },
       detail: {
         summary: 'Update a column',
-        description: "Update a column's name, stateType, color, or description.",
+        description: "Update a column's name, color, or description. The type is fixed.",
         ...mcpTool('update_state'),
       },
     },

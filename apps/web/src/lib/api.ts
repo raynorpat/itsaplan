@@ -57,12 +57,6 @@ export interface Team {
   key: string;
   name: string;
   description: string;
-  // Whether this team is reachable through the MCP server. Toggled by an owner
-  // on the MCP page; gates every MCP tool call scoped to the team.
-  mcpEnabled: boolean;
-  // The optional sections, toggled by an owner in Settings -> General. Read through
-  // useTeamFeatures, which hides the navigation and the section itself.
-  projectsEnabled: boolean;
   // Linear's team visibility: a public team is open to every owner, admin and
   // member of the workspace; a private one to its members only.
   visibility: TeamVisibility;
@@ -145,7 +139,6 @@ export interface Issue {
   // Linear's scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
   priority: number;
   estimate: number | null;
-  startDate: string | null;
   dueDate: string | null;
   position: number;
   // Status timestamps, kept in step with the column type by the API.
@@ -157,9 +150,6 @@ export interface Issue {
   // When the issue was archived (hidden from the board but kept), or null when it
   // is active. Set by the archive action or the worker's auto-archive sweep.
   archivedAt: string | null;
-  // When the issue entered its current column (or createdAt if it never moved).
-  // Drives the "time in current status" badge.
-  statusSince: string;
   labelIds: string[];
 }
 
@@ -188,17 +178,8 @@ export interface AutoArchiveSettings {
   canceledDays: number | null;
 }
 
-// Which optional sections a team shows. All on by default; turning one off
-// hides its navigation entry and its section, keeping the rows behind it.
-export interface TeamFeatures {
-  projects: boolean;
-}
-
-// A team's settings: MCP reachability, the enabled sections and the
-// auto-archive thresholds.
+// A team's settings: the auto-archive thresholds.
 export interface TeamSettings {
-  mcpEnabled: boolean;
-  features: TeamFeatures;
   autoArchive: AutoArchiveSettings;
 }
 
@@ -280,11 +261,12 @@ export interface NotificationPreferences {
   emailEvents: NotificationEventToggles;
 }
 
-// The signed-in user's interface preferences, held per account so they apply on
-// every device. timezone is an IANA zone name the app renders stored UTC timestamps
-// in; issueOpenMode decides whether a clicked issue opens in the side panel or on
-// its own page; startPage is the section the app root lands on; lastTeamId is the
-// team the app root reopens (null until the user has opened one).
+// The signed-in user's interface preferences. timezone is an IANA zone name the app
+// renders stored UTC timestamps in, saved on the account (Linear's User.timezone);
+// the rest are kept in this browser (services/preferences.service.ts).
+// issueOpenMode decides whether a clicked issue opens in the side panel or on its
+// own page; startPage is the section the app root lands on; lastTeamId is the team
+// the app root reopens (null until the user has opened one).
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type IssueOpenMode = 'panel' | 'page';
 export type StartPage = 'inbox' | 'work-items' | 'projects';
@@ -302,8 +284,7 @@ export interface AccountPreferences {
   issueStatsView: IssueStatsView;
   lastTeamId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
-  // changed ones; the rest come from the instance settings, then the built-in
-  // bindings (see lib/hotkeys).
+  // changed ones; the rest are the built-in bindings (see lib/hotkeys).
   hotkeys: HotkeyOverrides;
 }
 
@@ -398,29 +379,6 @@ export interface WebhookPatch {
   enabled?: boolean;
 }
 
-// A recorded delivery attempt for the history view. payload is the request body we
-// sent; responseStatus/responseBody come from the last attempt; lastError is set
-// on a failed or retrying delivery.
-export interface WebhookDelivery {
-  id: string;
-  eventId: string;
-  // The Linear resource type of the event (Issue, Comment, …).
-  eventType: string;
-  status: 'pending' | 'success' | 'failed';
-  attempts: number;
-  payload: unknown;
-  responseStatus: number | null;
-  responseBody: string | null;
-  lastError: string | null;
-  nextAttemptAt: string;
-  createdAt: string;
-}
-
-export interface WebhookDeliveryPage {
-  items: WebhookDelivery[];
-  nextCursor: string | null;
-}
-
 export interface Attachment {
   id: string;
   filename: string;
@@ -443,7 +401,6 @@ export type ActivityAction =
   | 'assignee'
   | 'delegate'
   | 'priority'
-  | 'start_date'
   | 'due_date'
   | 'label_add'
   | 'label_remove'
@@ -520,15 +477,13 @@ export interface TeamScaffold {
   viewer: TeamViewer;
 }
 
-// The board's issues plus its change marker, returned by getBoardIssues. Polled
-// for live refresh (rev matches getBoardIssuesRev).
+// The board's issues, returned by getBoardIssues and refetched on an interval.
 export interface BoardIssues {
   issues: Issue[];
-  rev: string;
 }
 
 // The scaffold composed with its issues, as the Shell assembles it and passes it
-// down. Downstream reads team.issues / team.rev off this composite.
+// down. Downstream reads team.issues off this composite.
 export type TeamDetail = TeamScaffold & BoardIssues;
 
 export type IssueDetail = Issue;
@@ -541,7 +496,6 @@ export interface NewIssueInput {
   title: string;
   description?: string;
   priority?: number;
-  startDate?: string | null;
   dueDate?: string | null;
   labelIds?: string[];
 }
@@ -554,7 +508,6 @@ export interface BulkIssuePatch {
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   priority?: number;
-  startDate?: string | null;
   dueDate?: string | null;
 }
 
@@ -567,14 +520,13 @@ export interface IssuePatch {
   title?: string;
   description?: string;
   priority?: number;
-  startDate?: string | null;
   dueDate?: string | null;
   labelIds?: string[];
 }
 
 // --- Projects -----------------------------------------------------------------
-// A project (Linear's Project) across one or more teams. progress and
-// computedHealth are derived server-side from the linked issues' states.
+// A project (Linear's Project) across one or more teams. progress is derived
+// server-side from the linked issues' states.
 
 // A project status type (Linear's six project status types).
 export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled';
@@ -611,8 +563,6 @@ export interface Project {
   progress: ProjectProgress;
   // The latest project update's health, or null when there is no update.
   health: ProjectHealth | null;
-  // Derived from issue progress against the timeline; shown when there is no update.
-  computedHealth: ProjectHealth | null;
 }
 
 // Columns the project list can be sorted by, server-side. progress and health
@@ -718,8 +668,6 @@ export interface MemberRow {
   email: string;
   image: string | null;
   role: MemberRole;
-  // What this member does in the team, set by a team manager. Empty string when unset.
-  description: string;
   createdAt: string;
 }
 
@@ -798,6 +746,8 @@ export interface NotificationCursor {
 export interface NotificationPage {
   items: Notification[];
   nextCursor: NotificationCursor | null;
+  // Unread, not-snoozed notifications in the inbox (or the team), for the badge.
+  unread: number;
 }
 
 export interface NotificationFilters {
@@ -831,18 +781,13 @@ export const api = {
   getBoardIssues: (teamKey: string) => request<BoardIssues>(`/teams/${teamKey}/issues/board`),
   // Cheap change marker for the board issues — polled for live refresh, refetch
   // getBoardIssues only when rev changes.
-  getBoardIssuesRev: (teamKey: string) => request<{ rev: string }>(`/teams/${teamKey}/issues/rev`),
 
   createState: (teamKey: string, input: { name: string; stateType: StateType; color?: string }) =>
     request<Column>(`/teams/${teamKey}/columns`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateState: (
-    teamKey: string,
-    stateId: string,
-    patch: { name?: string; stateType?: StateType; color?: string },
-  ) =>
+  updateState: (teamKey: string, stateId: string, patch: { name?: string; color?: string }) =>
     request<Column>(`/teams/${teamKey}/columns/${stateId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -906,7 +851,6 @@ export const api = {
   getIssueBySeq: (teamKey: string, seq: number) =>
     request<IssueDetail>(`/teams/${teamKey}/issues/${seq}`),
   // Cheap change marker for an issue's detail + feed — polled for live refresh.
-  getIssueRev: (id: string) => request<{ rev: string }>(`/issues/${id}/rev`),
   updateIssue: (id: string, patch: IssuePatch) =>
     request<Issue>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteIssue: (id: string) => request<void>(`/issues/${id}`, { method: 'DELETE' }),
@@ -1032,7 +976,6 @@ export const api = {
     request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   // Cheap change marker for an project's detail + feed — polled for live refresh.
-  getProjectRev: (id: string) => request<{ rev: string }>(`/projects/${id}/rev`),
   listProjectFeed: (id: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.limit) q.set('limit', String(params.limit));
@@ -1047,11 +990,6 @@ export const api = {
   updateView: (viewId: string, patch: ViewPatch) =>
     request<View>(`/views/${viewId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteView: (viewId: string) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
-  reorderViews: (teamKey: string, orderedIds: string[]) =>
-    request<View[]>(`/teams/${teamKey}/views/reorder`, {
-      method: 'PUT',
-      body: JSON.stringify({ orderedIds }),
-    }),
 
   // Team members. Anyone who can see a team may join it (not guests); any member
   // may add people to a public team, a team manager to a private one; a member
@@ -1073,12 +1011,6 @@ export const api = {
     request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
-    }),
-  // Set what a member does in the team (team managers). Empty string clears it.
-  setMemberDescription: (teamKey: string, userId: string, description: string) =>
-    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}/description`, {
-      method: 'PATCH',
-      body: JSON.stringify({ description }),
     }),
 
   // Workspace users (owners, admins and members list; owners and admins change).
@@ -1123,19 +1055,13 @@ export const api = {
   listAllTeamsWebhooks: () => request<Webhook[]>('/webhooks'),
   createAllTeamsWebhook: (input: NewWebhookInput) =>
     request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
-  listWebhookDeliveries: (webhookId: string, before?: string) =>
-    request<WebhookDeliveryPage>(
-      `/webhooks/${webhookId}/deliveries?limit=25${before ? `&before=${before}` : ''}`,
-    ),
 
-  // Team settings: MCP reachability and auto-archive thresholds. Any member
-  // reads; owner writes. The PATCH takes only the fields being changed.
+  // Team settings: the auto-archive thresholds. Anyone who can see the team reads;
+  // team managers write. The PATCH takes only the fields being changed.
   getTeamSettings: (teamKey: string) => request<TeamSettings>(`/teams/${teamKey}/settings`),
   updateTeamSettings: (
     teamKey: string,
     patch: {
-      mcpEnabled?: boolean;
-      features?: Partial<TeamFeatures>;
       autoArchive?: AutoArchiveSettings;
     },
   ) =>
@@ -1155,11 +1081,12 @@ export const api = {
 
   // The session user's own interface preferences, held per account. A read returns
   // the defaults when nothing was saved; a write patches only the fields it carries.
-  getAccountPreferences: () => request<AccountPreferences>('/account/preferences'),
-  updateAccountPreferences: (input: AccountPreferencesPatch) =>
-    request<AccountPreferences>('/account/preferences', {
+  // The account's time zone; the other preferences are kept in the browser.
+  getAccountTimezone: () => request<{ timezone: string }>('/account/preferences'),
+  updateAccountTimezone: (timezone: string) =>
+    request<{ timezone: string }>('/account/preferences', {
       method: 'PATCH',
-      body: JSON.stringify(input),
+      body: JSON.stringify({ timezone }),
     }),
 
   // Inbox notifications. The list is the session user's own; teamId scopes it to
@@ -1184,10 +1111,6 @@ export const api = {
     if (f.includeSnoozed) q.set('includeSnoozed', 'true');
     return request<NotificationPage>(`/notifications?${q.toString()}`);
   },
-  // Change marker + unread count for one team's inbox, for live refresh and the
-  // sidebar badge.
-  getNotificationsRev: (teamId: string) =>
-    request<{ rev: string; unread: number }>(`/notifications/rev?teamId=${teamId}`),
   setNotificationRead: (id: string, read: boolean) =>
     request<void>(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({ read }) }),
   snoozeNotification: (id: string, until: string | null) =>

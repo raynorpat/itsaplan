@@ -246,144 +246,16 @@ describe('teams', () => {
     });
   });
 
-  describe('mcp toggle', () => {
-    // Marks a request as an MCP tool dispatch. The MCP endpoint sets this header on
-    // its in-process loopback requests; the guards read it to gate the per-team
-    // MCP toggle. A test forges it to exercise that path without going through /mcp.
-    const asMcp = { headers: { 'x-mcp-loopback': '1' } };
-
-    it('defaults a new team to MCP disabled', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.data?.team.mcpEnabled).toBe(false);
-    });
-
-    it('lets an owner enable then disable MCP for the team', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const on = await api.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect(on.status).toBe(200);
-      expect(on.data).toMatchObject({ mcpEnabled: true });
-      expect((await viewOf(api, 'MKT')).data?.team.mcpEnabled).toBe(true);
-
-      const off = await api.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: false });
-      expect(off.status).toBe(200);
-      expect(off.data).toMatchObject({ mcpEnabled: false });
-      expect((await viewOf(api, 'MKT')).data?.team.mcpEnabled).toBe(false);
-    });
-
-    it('denies the toggle to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect(res.status).toBe(403);
-    });
-
-    it('blocks an MCP call to a team with MCP disabled, but not a web call', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      // Web request (no MCP marker) reaches the disabled team fine.
-      expect((await api.teams({ teamKey: 'MKT' }).get()).status).toBe(200);
-      // The same request marked as MCP is denied while MCP is off.
-      const blocked = await api.teams({ teamKey: 'MKT' }).get(asMcp);
-      expect(blocked.status).toBe(403);
-    });
-
-    it('allows an MCP call once the team has MCP enabled', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      await api.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-
-      const res = await api.teams({ teamKey: 'MKT' }).get(asMcp);
-      expect(res.status).toBe(200);
-    });
-
-    it('blocks an MCP call on an entity-by-id route of a disabled team', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      const backlog = (await viewOf(api, 'MKT')).data!.states.find((c) => c.name === 'Backlog')!;
-      const issue = (
-        await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: backlog.id, title: 'Task' })
-      ).data!;
-
-      // Web read works; the MCP-marked read is denied while the team has MCP off.
-      expect((await api.issues({ issueId: issue.id }).get()).status).toBe(200);
-      expect((await api.issues({ issueId: issue.id }).get(asMcp)).status).toBe(403);
-    });
-
-    it('hides MCP-disabled teams from an MCP list_teams call', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'ON', name: 'Enabled' });
-      await api.teams.post({ key: 'OFF', name: 'Disabled' });
-      await api.teams({ teamKey: 'ON' }).settings.patch({ mcpEnabled: true });
-
-      // A web list shows both; an MCP list shows only the enabled team.
-      expect((await api.teams.get()).data?.map((p) => p.key).sort()).toEqual(['OFF', 'ON']);
-      expect((await api.teams.get(asMcp)).data?.map((p) => p.key)).toEqual(['ON']);
-    });
-  });
-
   describe('settings', () => {
-    it('defaults a new team to MCP off and the default auto-archive thresholds', async () => {
+    it('defaults a new team to the default auto-archive thresholds', async () => {
       const { api } = await signUpClient();
       await api.teams.post({ key: 'MKT', name: 'Marketing' });
 
       const res = await api.teams({ teamKey: 'MKT' }).settings.get();
       expect(res.status).toBe(200);
       expect(res.data).toMatchObject({
-        mcpEnabled: false,
         autoArchive: { completedDays: 28, canceledDays: 7 },
       });
-    });
-
-    it('starts a new team with every optional section enabled', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api.teams({ teamKey: 'MKT' }).settings.get();
-      expect(res.data?.features).toMatchObject({
-        projects: true,
-      });
-      expect((await viewOf(api, 'MKT')).data?.team).toMatchObject({
-        projectsEnabled: true,
-      });
-    });
-
-    it('lets an owner turn a section off and back on', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const off = await api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ features: { projects: false } });
-      expect(off.status).toBe(200);
-      expect(off.data?.features).toMatchObject({
-        projects: false,
-      });
-      expect((await viewOf(api, 'MKT')).data?.team.projectsEnabled).toBe(false);
-
-      const on = await api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ features: { projects: true } });
-      expect(on.data?.features).toMatchObject({ projects: true });
-      expect((await viewOf(api, 'MKT')).data?.team.projectsEnabled).toBe(true);
-    });
-
-    it('denies turning a section off to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ features: { projects: false } });
-      expect(res.status).toBe(403);
     });
 
     it('lets an owner set and read back the auto-archive thresholds', async () => {
@@ -409,20 +281,6 @@ describe('teams', () => {
         .settings.patch({ autoArchive: { completedDays: 30, canceledDays: null } });
       expect(res.status).toBe(200);
       expect(res.data?.autoArchive).toMatchObject({ completedDays: 30, canceledDays: null });
-    });
-
-    it('changes only the supplied field, leaving the other', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      await api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 14, canceledDays: 3 } });
-
-      const res = await api.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect(res.data).toMatchObject({
-        mcpEnabled: true,
-        autoArchive: { completedDays: 14, canceledDays: 3 },
-      });
     });
 
     it('denies writing settings to a non-owner (owner-only)', async () => {

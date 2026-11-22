@@ -32,7 +32,7 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
   // page of linkable (open) projects only while selection is active, and only
   // while the team shows the Projects section (with none loaded the picker
   // is left out).
-  const projectsKey = selection.isSelecting && team.team.projectsEnabled ? team.team.key : null;
+  const projectsKey = selection.isSelecting ? team.team.key : null;
   const { data } = useProjectsQuery(projectsKey, {
     statuses: LINKABLE_STATUSES,
     pageSize: 50,

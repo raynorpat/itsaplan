@@ -100,13 +100,12 @@ export async function getStateById(id: string): Promise<WorkflowStateRow | null>
 export async function updateState(
   id: string,
   teamId: string,
-  patch: { name?: string; color?: string; stateType?: string; description?: string },
+  patch: { name?: string; color?: string; description?: string },
 ): Promise<WorkflowStateRow | null> {
   const scope = and(eq(workflowState.id, id), eq(workflowState.teamId, teamId));
   const set: Partial<typeof workflowState.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.color !== undefined) set.color = patch.color;
-  if (patch.stateType !== undefined) set.stateType = patch.stateType;
   if (patch.description !== undefined) set.description = patch.description;
   if (Object.keys(set).length === 0) {
     const rows = await db.select().from(workflowState).where(scope);

@@ -15,7 +15,6 @@ export type BuiltinFilterField =
   | 'priority' // priority string, or null for "no priority"
   | 'labels' // label ids (a issue has any/none of the chosen ones)
   | 'dueDate'
-  | 'startDate'
   | 'created'
   | 'updated';
 
@@ -104,8 +103,6 @@ function builtinDate(issue: Issue, field: BuiltinFilterField): string | null {
   switch (field) {
     case 'dueDate':
       return issue.dueDate;
-    case 'startDate':
-      return issue.startDate;
     case 'created':
       return issue.createdAt;
     case 'updated':
@@ -115,7 +112,7 @@ function builtinDate(issue: Issue, field: BuiltinFilterField): string | null {
   }
 }
 
-const DATE_FIELDS: BuiltinFilterField[] = ['dueDate', 'startDate', 'created', 'updated'];
+const DATE_FIELDS: BuiltinFilterField[] = ['dueDate', 'created', 'updated'];
 
 function hasValue(values: FilterValue[]): boolean {
   return values.some((v) => v !== null && v !== '');

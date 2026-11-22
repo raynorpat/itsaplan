@@ -6,7 +6,6 @@ import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
   listNotifications,
-  notificationsRev,
   unreadCount,
   setNotificationRead,
   markAllRead,
@@ -45,6 +44,7 @@ const NotificationResponse = t.Object({
 const NotificationPageResponse = t.Object({
   items: t.Array(NotificationResponse),
   nextCursor: t.Nullable(t.Object({ ts: t.String(), id: t.String({ format: 'uuid' }) })),
+  unread: t.Number(),
 });
 
 const idParams = t.Object({ id: t.String({ format: 'uuid' }) });
@@ -83,7 +83,13 @@ export const notificationRoutes = new Elysia({
       if (query.teamId) filters.teamId = query.teamId;
       filters.includeRead = query.includeRead !== 'false';
       filters.includeSnoozed = query.includeSnoozed === 'true';
-      return listNotifications(userId, { before, limit, filters });
+      const [page, unread] = await Promise.all([
+        listNotifications(userId, { before, limit, filters }),
+        unreadCount(userId, query.teamId || undefined),
+      ]);
+      // unread is the badge count (unread, not snoozed), across the whole inbox or
+      // the given team, whatever the other filters.
+      return { ...page, unread };
     },
     {
       query: t.Object({
@@ -101,28 +107,6 @@ export const notificationRoutes = new Elysia({
       }),
       response: { 200: NotificationPageResponse, 401: ErrorResponse },
       detail: { summary: 'List inbox notifications' },
-    },
-  )
-
-  // Cheap change marker for the inbox: clients poll this and refetch the list and
-  // badge only when it moves. Also returns the current unread count for the badge.
-  .get(
-    '/notifications/rev',
-    async ({ user, query }) => {
-      const userId = requireUser(user).id;
-      const teamId = query.teamId ? query.teamId : undefined;
-      const [rev, unread] = await Promise.all([
-        notificationsRev(userId, teamId),
-        unreadCount(userId, teamId),
-      ]);
-      return { rev, unread };
-    },
-    {
-      query: t.Object({
-        teamId: t.Optional(t.String({ description: 'Scope the marker to one team.' })),
-      }),
-      response: { 200: t.Object({ rev: t.String(), unread: t.Number() }), 401: ErrorResponse },
-      detail: { summary: 'Get inbox revision and unread count' },
     },
   )
 

@@ -12,6 +12,7 @@ import {
   setInitiativeUpdateArchived,
   updateInitiativeUpdate,
 } from '../../updates';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Initiative updates: health from the newest update, edits, archive, comments and
 // reactions on an update, and the InitiativeUpdate webhooks.
@@ -90,7 +91,7 @@ describe('initiative updates', () => {
     const posted = await createInitiativeUpdate(a.id, owner.userId, { body: 'ok' });
     await updateInitiativeUpdate(posted.id, { health: 'atRisk' }, owner.userId);
     await setInitiativeUpdateArchived(posted.id, true, owner.userId);
-    const payloads = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const payloads = (await webhookDeliveries(hook.id))
       .data!.items.map(
         (d) => d.payload as { action: string; type: string; data: { initiativeId: string } },
       )
@@ -112,9 +113,7 @@ describe('initiative updates', () => {
         .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
     ).data!;
     await createInitiativeUpdate(a.id, owner.userId, { body: 'meh', health: 'atRisk' });
-    const payloads = (
-      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
-    ).data!.items.map(
+    const payloads = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) =>
         d.payload as { action: string; data: { health: string }; updatedFrom?: { health?: null } },
     );

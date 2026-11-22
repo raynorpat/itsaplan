@@ -12,6 +12,7 @@ import {
   unarchiveInitiative,
   updateInitiative,
 } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Initiatives: defaults, status timestamps, archive / trash, visibility by lead
 // team, owner rules and webhooks. Users and teams are built through the REST API.
@@ -160,7 +161,7 @@ describe('initiatives', () => {
     const created = await createInitiative({ name: 'A', leadTeamId: mkt }, owner.userId);
     await updateInitiative(created.id, { name: 'B' }, owner.userId);
     await archiveInitiative(created.id, owner.userId);
-    const payloads = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const payloads = (await webhookDeliveries(hook.id))
       .data!.items.map(
         (d) =>
           d.payload as {

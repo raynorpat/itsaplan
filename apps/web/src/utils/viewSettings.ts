@@ -22,11 +22,9 @@ export type DisplayProperty =
   | 'delegate'
   | 'project'
   | 'labels'
-  | 'startDate'
   | 'dueDate'
   | 'created'
-  | 'updated'
-  | 'statusAge';
+  | 'updated';
 
 export type PropertyKey = DisplayProperty;
 
@@ -41,29 +39,18 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'delegate', label: 'Delegate' },
   { value: 'project', label: 'Project' },
   { value: 'labels', label: 'Labels' },
-  { value: 'startDate', label: 'Start date' },
   { value: 'dueDate', label: 'Due date' },
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },
-  { value: 'statusAge', label: 'Time in status' },
 ];
-
-// The display properties a team offers: Project only while its Projects
-// section is on.
-export function offeredDisplayProperties(
-  projectsEnabled: boolean,
-): { value: DisplayProperty; label: string }[] {
-  return projectsEnabled
-    ? DISPLAY_PROPERTIES
-    : DISPLAY_PROPERTIES.filter((p) => p.value !== 'project');
-}
 
 // Timeline zoom: how much horizontal space one day gets, which sets whether day
 // numbers or only week/month ticks are legible.
 export type TimelineScale = 'week' | 'month' | 'quarter';
 
-// Which date drives Calendar placement (and the Timeline is start->due always).
-export type DateField = 'dueDate' | 'startDate';
+// Which date drives Calendar placement: the due date (Linear issues have no start
+// date).
+export type DateField = 'dueDate';
 
 // date-fns weekStartsOn: 0 Sunday, 1 Monday.
 export type WeekStart = 0 | 1;
@@ -113,18 +100,8 @@ const COMMON: Omit<ViewSettings, 'group' | 'subgroup' | 'properties' | 'sort'> =
 // The properties shown by default per view; the Timeline and Calendar lay issues
 // out by date and show none.
 const DEFAULT_PROPERTIES: Record<WorkItemsView, DisplayProperty[]> = {
-  kanban: [
-    'id',
-    'status',
-    'statusAge',
-    'priority',
-    'dueDate',
-    'labels',
-    'assignee',
-    'created',
-    'updated',
-  ],
-  table: ['priority', 'labels', 'startDate', 'dueDate', 'assignee'],
+  kanban: ['id', 'status', 'priority', 'dueDate', 'labels', 'assignee', 'created', 'updated'],
+  table: ['priority', 'labels', 'dueDate', 'assignee'],
   timeline: [],
   calendar: [],
 };
@@ -228,10 +205,7 @@ export function normalizeViewSettings(
       : d.timelineScale,
     timelineCollapseAll:
       typeof s.timelineCollapseAll === 'boolean' ? s.timelineCollapseAll : d.timelineCollapseAll,
-    calendarDateField:
-      s.calendarDateField === 'startDate' || s.calendarDateField === 'dueDate'
-        ? s.calendarDateField
-        : d.calendarDateField,
+    calendarDateField: d.calendarDateField,
     weekStart: s.weekStart === 0 || s.weekStart === 1 ? s.weekStart : d.weekStart,
     hiddenGroups: Array.isArray(s.hiddenGroups)
       ? (s.hiddenGroups as unknown[]).filter((x): x is string => typeof x === 'string')
@@ -239,37 +213,6 @@ export function normalizeViewSettings(
     collapsedGroups: Array.isArray(s.collapsedGroups)
       ? (s.collapsedGroups as unknown[]).filter((x): x is string => typeof x === 'string')
       : d.collapsedGroups,
-  };
-}
-
-// The same settings without the Project property, grouping and sub-grouping,
-// for a team with the Projects section turned off: a display built while it
-// was on then renders no dead column or lane.
-export function withoutProject(settings: ViewSettings): ViewSettings {
-  return {
-    ...settings,
-    group: settings.group === 'project' ? 'status' : settings.group,
-    subgroup: settings.subgroup === 'project' ? 'none' : settings.subgroup,
-    properties: settings.properties.filter((p) => p !== 'project'),
-  };
-}
-
-// The counterpart of withoutProject: puts the stored Project choices back
-// into a display edited while the section was off, at the column position they
-// had. The panel could not show them, so an edit made then must not drop them —
-// the display comes back as it was once the section is on again. A value the user
-// did change carries through, since it then differs from what stripping left.
-export function restoreProject(edited: ViewSettings, stored: ViewSettings): ViewSettings {
-  const at = stored.properties.indexOf('project');
-  return {
-    ...edited,
-    group: stored.group === 'project' && edited.group === 'status' ? 'project' : edited.group,
-    subgroup:
-      stored.subgroup === 'project' && edited.subgroup === 'none' ? 'project' : edited.subgroup,
-    properties:
-      at === -1
-        ? edited.properties
-        : [...edited.properties.slice(0, at), 'project', ...edited.properties.slice(at)],
   };
 }
 

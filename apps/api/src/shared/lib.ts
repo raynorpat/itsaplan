@@ -58,3 +58,12 @@ export function rethrowDuplicate(err: unknown, what: string): never {
   }
   throw err;
 }
+
+// Refuses a JSON body field outside `allowed` with a 400 naming it. Elysia strips
+// unknown body fields before validation, so a route that must reject them (a field
+// that was removed) checks the raw body in its `transform` hook.
+export function rejectUnknownFields(body: unknown, allowed: readonly string[]): void {
+  if (body === null || typeof body !== 'object') return;
+  const extra = Object.keys(body).find((key) => !allowed.includes(key));
+  if (extra) throw new HttpError(400, `Unknown field: ${extra}`);
+}

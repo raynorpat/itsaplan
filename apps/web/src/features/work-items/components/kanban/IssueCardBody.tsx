@@ -1,7 +1,7 @@
-import { CalendarArrowUp, CalendarClock, Target, Timer } from 'lucide-react';
+import { CalendarClock, Target } from 'lucide-react';
 import { type Issue } from '@/lib/api';
 import { type Maps } from '@/utils/team';
-import { formatDurationShort, formatShortDate, isDueOverdue } from '@/utils/dates';
+import { formatShortDate, isDueOverdue } from '@/utils/dates';
 import type { DisplayProperty, PropertyKey } from '@/utils/viewSettings';
 import {
   AssigneeAvatar,
@@ -32,9 +32,7 @@ export function IssueCardBody({
   const project = issue.project ?? undefined;
   const column = maps.columnById.get(issue.stateId);
   const metaShown =
-    has('statusAge') ||
     (has('dueDate') && issue.dueDate) ||
-    (has('startDate') && issue.startDate) ||
     (has('project') && project) ||
     (has('labels') && issue.labelIds.length > 0);
   const footerShown =
@@ -68,29 +66,6 @@ export function IssueCardBody({
 
       {metaShown && (
         <div className="flex min-h-[22px] flex-wrap items-center gap-1">
-          {has('statusAge') && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge
-                  variant="outline"
-                  className="rounded-full px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                >
-                  <Timer className="size-2.5" />
-                  {formatDurationShort(issue.statusSince)}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                In current status since {formatShortDate(issue.statusSince)}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {has('startDate') && issue.startDate && (
-            <DateBadge
-              icon={<CalendarArrowUp className="size-2.5" />}
-              date={issue.startDate}
-              title="Start date"
-            />
-          )}
           {has('dueDate') && issue.dueDate && (
             <DateBadge
               icon={<CalendarClock className="size-2.5" />}

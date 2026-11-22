@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type View } from '@/lib/api';
 import { EMPTY_FILTER_SET, type FilterSet } from '@/utils/filters';
 import { normalizeSavedDisplay } from '@/utils/viewSettings';
-import { useOptimisticReorder } from '@/services/optimisticReorder';
 import { qk } from '@/services/queryKeys';
 
 // Coerces a view's jsonb blobs (opaque on the server) into the client shapes,
@@ -56,10 +55,4 @@ export function useDeleteView(teamKey: string | null) {
       if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
     },
   });
-}
-
-export function useReorderViews(teamKey: string | null) {
-  return useOptimisticReorder<View>(teamKey ? qk.views(teamKey) : null, (orderedIds) =>
-    api.reorderViews(teamKey!, orderedIds),
-  );
 }

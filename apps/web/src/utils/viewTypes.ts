@@ -16,7 +16,6 @@ export type SortField =
   | 'status'
   | 'priority'
   | 'assignee'
-  | 'startDate'
   | 'dueDate'
   | 'created'
   | 'updated';
@@ -48,7 +47,6 @@ export const SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'status', label: 'State' },
   { value: 'priority', label: 'Priority' },
   { value: 'assignee', label: 'Assignee' },
-  { value: 'startDate', label: 'Start date' },
   { value: 'dueDate', label: 'Due date' },
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },

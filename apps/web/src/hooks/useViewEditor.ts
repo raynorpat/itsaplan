@@ -5,7 +5,6 @@ import {
   normalizeView,
   useCreateView,
   useDeleteView,
-  useReorderViews,
   useUpdateView,
 } from '@/services/views.service';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';
@@ -86,7 +85,6 @@ export function useViewEditor(
   const createView = useCreateView(teamKey);
   const updateView = useUpdateView(teamKey);
   const deleteViewMutation = useDeleteView(teamKey);
-  const reorderViewsMutation = useReorderViews(teamKey);
 
   const activeView =
     activeViewId != null ? (views.find((v) => v.id === activeViewId) ?? null) : null;
@@ -236,21 +234,6 @@ export function useViewEditor(
     if (activeViewId === target.id) onSelectView(null);
   }
 
-  // Moves the dragged view to the dropped-on view's slot and persists the full
-  // tab order. The dragged view is removed then reinserted at the target's index
-  // in the original list, so dropping onto the first tab moves it to the front
-  // (next to the fixed All tab) and onto the last moves it to the end.
-  function reorderView(draggedId: string, targetId: string) {
-    if (draggedId === targetId) return;
-    const from = views.findIndex((v) => v.id === draggedId);
-    const to = views.findIndex((v) => v.id === targetId);
-    if (from < 0 || to < 0) return;
-    const next = [...views];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    reorderViewsMutation.mutate(next.map((v) => v.id));
-  }
-
   return {
     view,
     settings,
@@ -278,6 +261,5 @@ export function useViewEditor(
     saveEdits,
     beginEditView,
     deleteView,
-    reorderView,
   };
 }

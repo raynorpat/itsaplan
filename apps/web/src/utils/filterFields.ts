@@ -70,7 +70,6 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       options: team.labels.map((l) => ({ value: l.id, label: l.name, color: l.color })),
     },
     { field: 'dueDate', label: 'Due date', kind: 'date' },
-    { field: 'startDate', label: 'Start date', kind: 'date' },
     { field: 'created', label: 'Created', kind: 'date' },
     { field: 'updated', label: 'Updated', kind: 'date' },
   ];

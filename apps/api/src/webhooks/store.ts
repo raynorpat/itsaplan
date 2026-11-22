@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { db, webhook, webhookDelivery } from '@repo/db';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { db, webhook } from '@repo/db';
+import { eq } from 'drizzle-orm';
 import { iso } from '../shared/lib';
-import { afterCursor, encodeCursor } from '../shared/keyset';
 
 // Outgoing webhook subscriptions (Linear's Webhook). A subscription targets a
 // `url`, covers one team or all teams, lists the resource types it receives, and
@@ -143,72 +142,4 @@ export async function rotateWebhookSecret(id: string): Promise<WebhookRow | null
 
 export async function deleteWebhook(id: string): Promise<void> {
   await db.delete(webhook).where(eq(webhook.id, id));
-}
-
-// --- Delivery history ------------------------------------------------------------
-
-export interface WebhookDeliveryRow {
-  id: string;
-  eventId: string;
-  eventType: string;
-  status: string;
-  attempts: number;
-  // The payload we sent (the request body), for the "sent" view.
-  payload: unknown;
-  responseStatus: number | null;
-  responseBody: string | null;
-  lastError: string | null;
-  nextAttemptAt: string;
-  createdAt: string;
-}
-
-export interface WebhookDeliveryPage {
-  items: WebhookDeliveryRow[];
-  // The id to pass as `before` to load the next page, or null when at the end.
-  nextCursor: string | null;
-}
-
-function mapDelivery(row: typeof webhookDelivery.$inferSelect): WebhookDeliveryRow {
-  return {
-    id: row.id,
-    eventId: row.eventId,
-    eventType: row.eventType,
-    status: row.status,
-    attempts: row.attempts,
-    payload: row.payload,
-    responseStatus: row.responseStatus,
-    responseBody: row.responseBody,
-    lastError: row.lastError,
-    nextAttemptAt: iso(row.nextAttemptAt),
-    createdAt: iso(row.createdAt),
-  };
-}
-
-// One page of the webhook's deliveries, newest first. Keyset pagination on
-// (created_at, id) (see shared/keyset.ts): pass the previous page's nextCursor as
-// `before` to get the next page. limit is clamped to 1..50.
-export async function listWebhookDeliveries(
-  webhookId: string,
-  opts: { before?: string; limit?: number } = {},
-): Promise<WebhookDeliveryPage> {
-  const limit = Math.min(Math.max(opts.limit ?? 25, 1), 50);
-  const rows = await db
-    .select({ row: webhookDelivery, cursorTs: sql<string>`${webhookDelivery.createdAt}::text` })
-    .from(webhookDelivery)
-    .where(
-      and(
-        eq(webhookDelivery.webhookId, webhookId),
-        afterCursor(webhookDelivery.createdAt, webhookDelivery.id, opts.before),
-      ),
-    )
-    .orderBy(desc(webhookDelivery.createdAt), desc(webhookDelivery.id))
-    .limit(limit + 1);
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
-  return {
-    items: page.map((r) => mapDelivery(r.row)),
-    nextCursor: hasMore
-      ? encodeCursor({ cursorTs: page[page.length - 1].cursorTs, id: page[page.length - 1].row.id })
-      : null,
-  };
 }

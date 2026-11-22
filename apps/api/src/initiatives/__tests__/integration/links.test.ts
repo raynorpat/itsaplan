@@ -12,6 +12,7 @@ import {
   unlinkProject,
   visibleSubtreeIds,
 } from '../../links';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Project links and sub-initiatives: one link per project, one parent per
 // initiative, no loops, at most 5 levels, the visible subtree, webhooks.
@@ -118,7 +119,7 @@ describe('initiative links and relations', () => {
     const [a, b] = [await make('A'), await make('B')];
     await linkProject({ initiativeId: a.id, projectId: project.id }, owner.userId);
     await createRelation({ initiativeId: a.id, relatedInitiativeId: b.id }, owner.userId);
-    const updates = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const updates = (await webhookDeliveries(hook.id))
       .data!.items.map(
         (d) =>
           d.payload as {
@@ -165,9 +166,7 @@ describe('initiative links and relations', () => {
       owner.userId,
     );
     await linkProject({ initiativeId: parent.id, projectId: opsProject.id }, owner.userId);
-    const payloads = (
-      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
-    ).data!.items.map(
+    const payloads = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) =>
         d.payload as {
           data: { id: string; projects: { id: string }[]; subInitiatives: { id: string }[] };
@@ -208,9 +207,7 @@ describe('initiative links and relations', () => {
       await asOwner.webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
     ).data!;
     await asOwner.projects({ projectId: project.id }).delete();
-    const payloads = (
-      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
-    ).data!.items.map(
+    const payloads = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) => d.payload as { action: string; data: { id: string; projects: unknown[] } },
     );
     expect(payloads).toHaveLength(1);

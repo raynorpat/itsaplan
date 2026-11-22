@@ -1,7 +1,6 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import { SORT_FIELDS, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
@@ -37,11 +36,7 @@ export default function DisplayGroupingRows({
   const setGroup = (group: GroupField) =>
     onChange(group === settings.subgroup ? { group, subgroup: 'none' } : { group });
 
-  // Project is only offered while the team shows the Projects section.
-  const features = useTeamFeatures();
-  const options = features.projects
-    ? GROUP_OPTIONS
-    : GROUP_OPTIONS.filter((o) => o.value !== 'project');
+  const options = GROUP_OPTIONS;
 
   const groupOptions =
     view === 'kanban' || view === 'timeline' ? options.filter((o) => o.value !== 'none') : options;

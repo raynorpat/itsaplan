@@ -25,16 +25,6 @@ describe('roles review details', () => {
     await resetDb();
   });
 
-  it('keeps all-teams webhook delivery history to owners', async () => {
-    const { owner } = await setup();
-    const hook = (
-      await owner.webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] })
-    ).data!;
-    const admin = await signUpWithRole('admin');
-    expect((await admin.api.webhooks({ webhookId: hook.id }).deliveries.get()).status).toBe(403);
-    expect((await owner.webhooks({ webhookId: hook.id }).deliveries.get()).status).toBe(200);
-  });
-
   it('makes only one owner when the first two sign-ups race', async () => {
     await Promise.all([signUpTestUser(), signUpTestUser(), signUpTestUser()]);
     const owners = await db.$count(user, eq(user.workspaceRole, 'owner'));

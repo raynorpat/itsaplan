@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { type Editor } from '@tiptap/react';
 import {
-  api,
   type Attachment,
   type TeamDetail,
   type IssueDetail as IssueDetailRow,
@@ -41,10 +40,8 @@ export function useIssueDetail(
   // moves, so edits and new comments show
   // without a manual reload.
   useLiveRefresh({
-    revKey: ['rev', 'issue', issueId],
-    fetchRev: () => api.getIssueRev(issueId),
     targets: [qk.issue(issueId), qk.feed(issueId)],
-    intervalMs: 5000,
+    intervalMs: 15000,
   });
 
   // Upload a file dropped onto a markdown editor. Returns the attachment so the

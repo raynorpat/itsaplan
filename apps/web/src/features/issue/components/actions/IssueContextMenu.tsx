@@ -78,7 +78,7 @@ export default function IssueContextMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Projects are not in the board scaffold, so they are fetched here — only
   // while this menu is open, as every card on the board mounts one.
-  const projectsQuery = useProjectsQuery(open && team.team.projectsEnabled ? team.team.key : null, {
+  const projectsQuery = useProjectsQuery(open ? team.team.key : null, {
     statuses: LINKABLE_STATUSES,
     pageSize: 50,
   });
@@ -198,28 +198,26 @@ export default function IssueContextMenu({
                 </ContextMenuSub>
               )}
 
-              {team.team.projectsEnabled && (
-                <ContextMenuSub>
-                  <ContextMenuSubTrigger>
-                    {issue.project ? <Target /> : <CircleDashed />}
-                    Project
-                  </ContextMenuSubTrigger>
-                  <ContextMenuSubContent className="w-56">
-                    <ContextMenuItem onSelect={() => patch({ projectId: null })}>
-                      <CircleDashed />
-                      <span className="flex-1">No project</span>
-                      <SelectedCheck selected={issue.project == null} />
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  {issue.project ? <Target /> : <CircleDashed />}
+                  Project
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-56">
+                  <ContextMenuItem onSelect={() => patch({ projectId: null })}>
+                    <CircleDashed />
+                    <span className="flex-1">No project</span>
+                    <SelectedCheck selected={issue.project == null} />
+                  </ContextMenuItem>
+                  {projects.map((it) => (
+                    <ContextMenuItem key={it.id} onSelect={() => patch({ projectId: it.id })}>
+                      {colorDot(STATUS_META[it.status].color)}
+                      <span className="flex-1 truncate">{it.name}</span>
+                      <SelectedCheck selected={it.id === issue.project?.id} />
                     </ContextMenuItem>
-                    {projects.map((it) => (
-                      <ContextMenuItem key={it.id} onSelect={() => patch({ projectId: it.id })}>
-                        {colorDot(STATUS_META[it.status].color)}
-                        <span className="flex-1 truncate">{it.name}</span>
-                        <SelectedCheck selected={it.id === issue.project?.id} />
-                      </ContextMenuItem>
-                    ))}
-                  </ContextMenuSubContent>
-                </ContextMenuSub>
-              )}
+                  ))}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
 
               <ContextMenuSub>
                 <ContextMenuSubTrigger>

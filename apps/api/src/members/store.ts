@@ -15,8 +15,6 @@ export interface MemberRow {
   email: string;
   image: string | null;
   role: MemberRole;
-  // What this member does in the team, free text set by a manager. Empty when unset.
-  description: string;
   createdAt: string;
 }
 
@@ -31,15 +29,13 @@ export async function getMembership(teamId: string, userId: string): Promise<Mem
   return rows[0] ? roleOf(rows[0].owner) : null;
 }
 
-// A team member an issue can be assigned to, with their owner/member flag and their
-// team description.
+// A team member an issue can be assigned to, with their owner/member flag.
 export interface AssigneeCandidate {
   userId: string;
   name: string;
   email: string;
   image: string | null;
   role: MemberRole;
-  description: string;
 }
 
 export async function listAssigneeCandidates(teamId: string): Promise<AssigneeCandidate[]> {
@@ -50,7 +46,6 @@ export async function listAssigneeCandidates(teamId: string): Promise<AssigneeCa
       email: user.email,
       image: user.image,
       owner: teamMember.owner,
-      description: teamMember.description,
     })
     .from(teamMember)
     .innerJoin(user, eq(user.id, teamMember.userId))
@@ -68,7 +63,6 @@ export async function listMembers(teamId: string): Promise<MemberRow[]> {
       email: user.email,
       image: user.image,
       owner: teamMember.owner,
-      description: teamMember.description,
       createdAt: teamMember.createdAt,
     })
     .from(teamMember)
@@ -81,24 +75,8 @@ export async function listMembers(teamId: string): Promise<MemberRow[]> {
     email: r.email,
     image: r.image,
     role: roleOf(r.owner),
-    description: r.description,
     createdAt: iso(r.createdAt),
   }));
-}
-
-// Sets a member's team description (what they do). Returns false when the user is
-// not a member of the team.
-export async function setMemberDescription(
-  teamId: string,
-  userId: string,
-  description: string,
-): Promise<boolean> {
-  const updated = await db
-    .update(teamMember)
-    .set({ description })
-    .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)))
-    .returning({ userId: teamMember.userId });
-  return updated.length > 0;
 }
 
 // Adds a user to a team. Upserts the owner flag when the user is already a member,

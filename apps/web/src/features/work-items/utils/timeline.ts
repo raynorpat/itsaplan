@@ -11,9 +11,9 @@ export const LABEL_W = 256; // px, the left issue-label column (matches w-64)
 export const ROW_H = 36; // px, an issue row
 export const GROUP_H = 32; // px, a state group header row
 
-// An issue's bar span. Effective start is its start date, or its creation date
-// when no start date is set (inferredStart) — normal Gantt practice so every
-// issue has a bar. Effective end is the due date, or the start when there is
+// An issue's bar span. Effective start is when work on it started (startedAt), or
+// its creation date when it has not started (inferredStart), so every issue has a
+// bar. Effective end is the due date, or the start when there is
 // no due date (a single-day marker).
 export interface Span {
   start: Date;
@@ -23,7 +23,7 @@ export interface Span {
 
 export function effSpan(issue: Issue): Span {
   const created = startOfDay(new Date(issue.createdAt));
-  const startRaw = parseDate(issue.startDate);
+  const startRaw = issue.startedAt ? startOfDay(new Date(issue.startedAt)) : null;
   const dueRaw = parseDate(issue.dueDate);
   let start = startRaw ?? created;
   const end = dueRaw ?? start;

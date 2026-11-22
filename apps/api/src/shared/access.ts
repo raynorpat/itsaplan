@@ -105,37 +105,18 @@ export function visibleTeamIds(userId: string) {
   return db.select({ id: team.id }).from(team).where(visibleTeamCondition(userId));
 }
 
-// The teams the user can see, as ids. `mcpOnly` keeps the teams reachable over MCP.
-export async function visibleTeamIdList(
-  userId: string,
-  opts: { mcpOnly?: boolean } = {},
-): Promise<string[]> {
-  const rows = await db
-    .select({ id: team.id })
-    .from(team)
-    .where(
-      opts.mcpOnly
-        ? and(visibleTeamCondition(userId), eq(team.mcpEnabled, true))
-        : visibleTeamCondition(userId),
-    );
+// The teams the user can see, as ids.
+export async function visibleTeamIdList(userId: string): Promise<string[]> {
+  const rows = await db.select({ id: team.id }).from(team).where(visibleTeamCondition(userId));
   return rows.map((r) => r.id);
 }
 
-// The teams the user is a member of, as ids. `mcpOnly` keeps the teams reachable
-// over MCP.
-export async function memberTeamIdList(
-  userId: string,
-  opts: { mcpOnly?: boolean } = {},
-): Promise<string[]> {
+// The teams the user is a member of, as ids.
+export async function memberTeamIdList(userId: string): Promise<string[]> {
   const rows = await db
     .select({ id: teamMember.teamId })
     .from(teamMember)
-    .innerJoin(team, eq(team.id, teamMember.teamId))
-    .where(
-      opts.mcpOnly
-        ? and(eq(teamMember.userId, userId), eq(team.mcpEnabled, true))
-        : eq(teamMember.userId, userId),
-    );
+    .where(eq(teamMember.userId, userId));
   return rows.map((r) => r.id);
 }
 
@@ -213,13 +194,4 @@ export async function assertTeamWebhookAccess(
   if (!atLeast(await workspaceRole(current.id), 'admin'))
     throw new HttpError(403, 'Only a workspace admin can manage webhooks');
   return current;
-}
-
-// Denies an MCP tool call against a team that has MCP disabled. A no-op for
-// normal web/API requests (isMcp false), so the per-team toggle only gates the
-// MCP surface, not the UI. Called by the guards after the team is resolved.
-export function assertMcpEnabled(team: TeamRow, isMcp: boolean): void {
-  if (isMcp && !team.mcpEnabled) {
-    throw new HttpError(403, 'MCP is disabled for this team');
-  }
 }

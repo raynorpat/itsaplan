@@ -7,7 +7,9 @@ import type { GroupField } from '@/utils/viewSettings';
 import { effSpan } from '../utils/timeline';
 
 // Whether a bar drag moves the whole span or resizes one end.
-export type TimelineDragMode = 'move' | 'start' | 'end';
+// The bar's start comes from the issue (Linear issues have no start date), so a
+// drag moves the bar or its end, and both change only the due date.
+export type TimelineDragMode = 'move' | 'end';
 
 interface DragSession {
   startX: number;
@@ -76,9 +78,6 @@ export function useTimelineDrag({
             session.targetGroupKey === session.origGroupKey ? null : session.targetGroupKey,
           );
         }
-      } else if (mode === 'start') {
-        start = addDays(session.origStart, deltaDays);
-        if (start > end) start = end;
       } else {
         end = addDays(session.origEnd, deltaDays);
         if (end < start) end = start;
@@ -96,19 +95,15 @@ export function useTimelineDrag({
 
       const patch: IssuePatch = {};
       if (mode === 'move') {
-        // Only rewrite the dates on a horizontal move, so a purely vertical drag
-        // changes the status without materializing the inferred start date.
-        if (session.deltaDays !== 0) {
-          patch.startDate = toDateStr(session.curStart);
-          patch.dueDate = toDateStr(session.curEnd);
-        }
+        // Only rewrite the due date on a horizontal move, so a purely vertical
+        // drag changes the status alone.
+        if (session.deltaDays !== 0) patch.dueDate = toDateStr(session.curEnd);
         if (session.targetGroupKey !== session.origGroupKey) {
           const assign = groupByKey.get(session.targetGroupKey)?.assign;
           if (assign) Object.assign(patch, assign);
         }
       } else if (session.deltaDays !== 0) {
-        if (mode === 'start') patch.startDate = toDateStr(session.curStart);
-        else patch.dueDate = toDateStr(session.curEnd);
+        patch.dueDate = toDateStr(session.curEnd);
       }
 
       // Nothing changed — treat the gesture as a click that opens the issue.

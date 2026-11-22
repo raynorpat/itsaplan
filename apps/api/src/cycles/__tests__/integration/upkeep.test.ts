@@ -12,6 +12,7 @@ import {
   runUpkeep,
   setTeamCycleSettings,
 } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Cycle upkeep: closing ended cycles with rollover into the current cycle,
 // keeping upcoming cycles ahead, skipping ahead after a gap, and the daily
@@ -77,8 +78,7 @@ describe('cycle upkeep', () => {
     expect(await cycleOf(archived.id)).toBe(first!.id);
     const feed = await asOwner.issues({ issueId: started.id }).feed.get();
     expect(feed.data!.items.some((i) => i.action === 'cycle')).toBe(true);
-    const deliveries = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!
-      .items;
+    const deliveries = (await webhookDeliveries(hook.id)).data!.items;
     expect(
       deliveries.some(
         (d) =>

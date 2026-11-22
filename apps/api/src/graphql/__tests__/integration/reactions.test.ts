@@ -5,6 +5,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createUpdate } from '../../../projects/updates';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Emoji reactions on issues, comments and project updates: one per user and exact
 // emoji, removed only by the user who added it.
@@ -128,7 +129,7 @@ describe('graphql reactions', () => {
     ).data!;
     const r = (await (await client.createReaction({ emoji: '👀', issueId: issue.id })).reaction)!;
     await client.deleteReaction(r.id);
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const items = (await webhookDeliveries(hook.id))
       .data!.items.map(
         (d) => d.payload as { action: string; type: string; data: { emoji: string } },
       )

@@ -6,12 +6,7 @@
 // into the cache. This module wraps the low-level fetch client (api.ts).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  api,
-  type AutoArchiveSettings,
-  type NotificationPreferences,
-  type TeamFeatures,
-} from '@/lib/api';
+import { api, type AutoArchiveSettings, type NotificationPreferences } from '@/lib/api';
 import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
 
@@ -100,18 +95,6 @@ export function useUpdateAutoArchive(teamKey: string) {
     mutationFn: (input: AutoArchiveSettings) =>
       api.updateTeamSettings(teamKey, { autoArchive: input }),
     onSuccess: (data) => qc.setQueryData(qk.teamSettings(teamKey), data),
-  });
-}
-
-// General section: which optional sections the team shows. The current state
-// comes with the team payload (getTeam), so a write only invalidates it —
-// the navigation and the sections themselves read it from there.
-export function useUpdateTeamFeatures(teamKey: string) {
-  const invalidate = useInvalidateTeam(teamKey);
-  return useMutation({
-    mutationFn: (input: Partial<TeamFeatures>) =>
-      api.updateTeamSettings(teamKey, { features: input }),
-    onSuccess: () => invalidate(),
   });
 }
 

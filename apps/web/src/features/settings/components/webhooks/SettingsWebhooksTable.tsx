@@ -4,7 +4,6 @@ import { SettingsWebhookRow } from './SettingsWebhookRow';
 
 interface SettingsWebhooksTableProps {
   webhooks: Webhook[];
-  onShowDeliveries: (webhook: Webhook) => void;
   onEdit: (webhookId: string) => void;
   onRotateSecret: (webhook: Webhook) => void;
   onDelete: (webhook: Webhook) => void;
@@ -12,7 +11,6 @@ interface SettingsWebhooksTableProps {
 
 export function SettingsWebhooksTable({
   webhooks,
-  onShowDeliveries,
   onEdit,
   onRotateSecret,
   onDelete,
@@ -40,7 +38,6 @@ export function SettingsWebhooksTable({
           <SettingsWebhookRow
             key={webhook.id}
             webhook={webhook}
-            onShowDeliveries={() => onShowDeliveries(webhook)}
             onEdit={() => onEdit(webhook.id)}
             onRotateSecret={() => onRotateSecret(webhook)}
             onDelete={() => onDelete(webhook)}

@@ -4,8 +4,7 @@ import { HttpError } from '../shared/lib';
 import { visibleTeamIdList } from '../shared/access';
 
 // Access to projects, which span teams. A project is visible, and can be worked
-// on, when the user can see one of its teams (shared/access.ts). Over MCP only
-// teams with MCP enabled count.
+// on, when the user can see one of its teams (shared/access.ts).
 
 // The ids of the teams a project belongs to (empty when it does not exist).
 export async function projectTeamIds(projectId: string): Promise<string[]> {
@@ -39,10 +38,9 @@ export interface ProjectAccess {
 export async function assertProjectAccess(
   projectId: string,
   userId: string,
-  opts: { mcpOnly?: boolean } = {},
 ): Promise<ProjectAccess> {
   const teams = await projectTeamIds(projectId);
-  const visible = new Set(await visibleTeamIdList(userId, opts));
+  const visible = new Set(await visibleTeamIdList(userId));
   const readableTeamIds = teams.filter((t) => visible.has(t));
   if (readableTeamIds.length === 0) throw new HttpError(404, 'Project not found');
   return { readableTeamIds };

@@ -4,7 +4,6 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { requireUser, type AuthUser, visibleTeamIdList } from '../shared/access';
-import { isMcpRequest } from '../shared/mcp-request';
 import { getTeamByKey } from '../teams/store';
 import { assertProjectAccess } from './access';
 import { HttpError } from '../shared/lib';
@@ -19,7 +18,6 @@ import {
   listProjectStatuses,
   updateProject,
   deleteProject,
-  projectRev,
 } from './store';
 import { listFeed } from './activity';
 import { listMilestones } from './milestones';
@@ -70,7 +68,6 @@ const ProjectResponse = t.Object({
   labelIds: t.Array(t.String({ format: 'uuid' })),
   progress: t.Object({ completed: t.Number(), canceled: t.Number(), total: t.Number() }),
   health: t.Nullable(t.String()),
-  computedHealth: t.Nullable(t.String()),
 });
 
 // ProjectFeedItemRow from activity.ts: one timeline entry, from the project
@@ -110,15 +107,12 @@ export const projectRoutes = new Elysia({
         async resolve({
           params,
           user,
-          request,
         }: {
           params: Record<string, unknown>;
           user?: AuthUser | null;
           request: Request;
         }) {
-          const access = await assertProjectAccess(String(params.projectId), requireUser(user).id, {
-            mcpOnly: isMcpRequest(request.headers),
-          });
+          const access = await assertProjectAccess(String(params.projectId), requireUser(user).id);
           return { access };
         },
       };
@@ -127,10 +121,8 @@ export const projectRoutes = new Elysia({
 
   .get(
     '/projects',
-    async ({ user, query, request }) => {
-      const readable = await visibleTeamIdList(requireUser(user).id, {
-        mcpOnly: isMcpRequest(request.headers),
-      });
+    async ({ user, query }) => {
+      const readable = await visibleTeamIdList(requireUser(user).id);
       const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
       const statuses = query.status
         ? query.status
@@ -208,10 +200,8 @@ export const projectRoutes = new Elysia({
 
   .get(
     '/projects/counts',
-    async ({ user, query, request }) => {
-      const readable = await visibleTeamIdList(requireUser(user).id, {
-        mcpOnly: isMcpRequest(request.headers),
-      });
+    async ({ user, query }) => {
+      const readable = await visibleTeamIdList(requireUser(user).id);
       const teamId = query.teamKey ? await teamIdByKey(query.teamKey) : undefined;
       return projectStatusCounts(readable, teamId);
     },
@@ -241,12 +231,10 @@ export const projectRoutes = new Elysia({
 
   .post(
     '/projects',
-    async ({ body, user, set, request }) => {
+    async ({ body, user, set }) => {
       const actor = requireUser(user).id;
       // The create permission is needed in every team listed.
-      const creatable = await visibleTeamIdList(actor, {
-        mcpOnly: isMcpRequest(request.headers),
-      });
+      const creatable = await visibleTeamIdList(actor);
       if (!body.teamIds.every((t) => creatable.includes(t)))
         throw new HttpError(
           403,
@@ -255,10 +243,7 @@ export const projectRoutes = new Elysia({
       const { teamIds, ...input } = body;
       const created = await createProject(teamIds, input, actor);
       set.status = 201;
-      return (await getProject(
-        created.id,
-        await visibleTeamIdList(actor, { mcpOnly: isMcpRequest(request.headers) }),
-      ))!;
+      return (await getProject(created.id, await visibleTeamIdList(actor)))!;
     },
     {
       body: t.Object({
@@ -391,10 +376,9 @@ export const projectRoutes = new Elysia({
 
   .put(
     '/projects/:projectId/teams',
-    async ({ params, body, user, access, request }) => {
+    async ({ params, body, user, access }) => {
       const actor = requireUser(user).id;
-      const mcpOnly = isMcpRequest(request.headers);
-      const editable = await visibleTeamIdList(actor, { mcpOnly });
+      const editable = await visibleTeamIdList(actor);
       await setProjectTeams(
         params.projectId,
         access.readableTeamIds,
@@ -402,7 +386,7 @@ export const projectRoutes = new Elysia({
         body.teamIds,
         actor,
       );
-      return (await getProject(params.projectId, await visibleTeamIdList(actor, { mcpOnly })))!;
+      return (await getProject(params.projectId, await visibleTeamIdList(actor)))!;
     },
     {
       params: projectParams,
@@ -550,7 +534,7 @@ export const projectRoutes = new Elysia({
 
   .get(
     '/projects/:projectId/feed',
-    async ({ params, query, user, request }) => {
+    async ({ params, query, user }) => {
       const limit = query.limit != null ? Number(query.limit) : 25;
       let before = null;
       if (query.cursor) {
@@ -560,9 +544,7 @@ export const projectRoutes = new Elysia({
           // Ignore a malformed cursor and serve the first page.
         }
       }
-      const issueTeamIds = await visibleTeamIdList(requireUser(user).id, {
-        mcpOnly: isMcpRequest(request.headers),
-      });
+      const issueTeamIds = await visibleTeamIdList(requireUser(user).id);
       return listFeed(params.projectId, issueTeamIds, { before, limit });
     },
     {
@@ -586,23 +568,6 @@ export const projectRoutes = new Elysia({
         description: "Get a project's activity feed by its id (a UUID).",
         ...mcpTool('list_project_activity'),
       },
-    },
-  )
-
-  .get(
-    '/projects/:projectId/rev',
-    async ({ params }) => ({ rev: await projectRev(params.projectId) }),
-    {
-      params: projectParams,
-      project: true,
-      response: {
-        200: t.Object({ rev: t.String() }),
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: { summary: 'Get project revision' },
     },
   );
 

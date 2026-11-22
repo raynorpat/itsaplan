@@ -41,9 +41,7 @@ export function buildMcpServer(app: McpApp, apiKey: string): Server {
         isError: true,
       };
     }
-    const { text, isError } = await dispatchTool(app, tool, req.params.arguments ?? {}, apiKey, {
-      viaMcpEndpoint: true,
-    });
+    const { text, isError } = await dispatchTool(app, tool, req.params.arguments ?? {}, apiKey);
     return { content: [{ type: 'text', text }], isError };
   });
 

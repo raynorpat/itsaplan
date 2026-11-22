@@ -46,19 +46,6 @@ export function useSetMemberRole(teamKey: string) {
   });
 }
 
-// Set what a member does in the team (team managers, or the member themselves).
-export function useSetMemberDescription(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userId, description }: { userId: string; description: string }) =>
-      api.setMemberDescription(teamKey, userId, description),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.members(teamKey) });
-      toast.success('Member description updated');
-    },
-  });
-}
-
 // The workspace's users. Guests cannot list them; pass enabled=false for a guest so
 // the query does not fire a request that would 403.
 export function useWorkspaceUsersQuery(enabled = true) {

@@ -85,12 +85,12 @@ describe('notifications', () => {
     });
   });
 
-  it('rev and unread count track reads', async () => {
+  it('the unread count tracks reads', async () => {
     const { owner, stateId } = await setup();
     const member = await addMember(owner);
     await createIssue(owner.api, stateId, { assigneeUserId: member.userId });
 
-    const rev1 = await member.api.notifications.rev.get();
+    const rev1 = await member.api.notifications.get({ query: {} });
     expect(rev1.data!.unread).toBe(1);
 
     const inbox = await member.api.notifications.get({ query: {} });
@@ -98,9 +98,8 @@ describe('notifications', () => {
     const read = await member.api.notifications({ id }).read.post({ read: true } as never);
     expect(read.status).toBe(204);
 
-    const rev2 = await member.api.notifications.rev.get();
+    const rev2 = await member.api.notifications.get({ query: {} });
     expect(rev2.data!.unread).toBe(0);
-    expect(rev2.data!.rev).not.toBe(rev1.data!.rev);
 
     // includeRead=false hides the now-read notification.
     const unreadOnly = await member.api.notifications.get({ query: { includeRead: 'false' } });
@@ -135,6 +134,6 @@ describe('notifications', () => {
     await owner.api.teams({ teamKey: 'MKT' }).members({ userId: member.userId }).delete();
     await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
     expect((await member.api.notifications.get({ query: {} })).data!.items).toHaveLength(0);
-    expect((await member.api.notifications.rev.get()).data!.unread).toBe(0);
+    expect((await member.api.notifications.get({ query: {} })).data!.unread).toBe(0);
   });
 });

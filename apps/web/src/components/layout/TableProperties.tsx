@@ -1,12 +1,7 @@
 import { closestCenter, DndContext, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 import { useStripSortSensors } from '@/lib/dnd';
-import {
-  DISPLAY_PROPERTIES,
-  offeredDisplayProperties,
-  type PropertyKey,
-} from '@/utils/viewSettings';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
+import { DISPLAY_PROPERTIES, type PropertyKey } from '@/utils/viewSettings';
 import PropertyChip from '@/components/layout/PropertyChip';
 import SortablePropertyChip from '@/components/layout/SortablePropertyChip';
 
@@ -29,10 +24,7 @@ export default function TableProperties({
   // Enabled keys in display order, dropping any unknown key.
   const enabled = properties.filter((k) => labelFor(k) != null);
   const enabledSet = new Set(properties);
-  const features = useTeamFeatures();
-  const disabledBuiltins = offeredDisplayProperties(features.projects).filter(
-    (p) => !enabledSet.has(p.value),
-  );
+  const disabledBuiltins = DISPLAY_PROPERTIES.filter((p) => !enabledSet.has(p.value));
 
   const toggle = (key: PropertyKey) =>
     onChange(enabledSet.has(key) ? properties.filter((p) => p !== key) : [...properties, key]);

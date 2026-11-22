@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { api, type BoardIssues } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 import { buildGroups, groupIssues } from '@/utils/team';
-import { restoreProject, withoutProject, type ViewSettings } from '@/utils/viewSettings';
+import { type ViewSettings } from '@/utils/viewSettings';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,25 +30,18 @@ interface TimelineCollapseState {
 export default function WorkItemsPage() {
   const { team, filteredTeam, views, editor, onOpenIssue, onAddIssue } = useShell();
   const { can } = usePermissions();
-  const features = useTeamFeatures();
-  const qc = useQueryClient();
   const [timelineCollapseState, setTimelineCollapseState] = useState<TimelineCollapseState>({
     scope: '',
     groups: new Set(),
   });
 
-  // Live board: poll the board issues' change marker and refetch them when it
-  // moves, so another user's create/move/edit shows without a manual reload. On
-  // mount the first marker is compared against the cached issues' own marker, so
-  // entering the section with a stale cache refetches at once.
+  // Live board: refetch the board issues on an interval, so another user's
+  // create/move/edit shows without a manual reload.
   const teamKey = team?.team.key ?? '';
   useLiveRefresh({
-    revKey: ['rev', 'boardIssues', teamKey],
-    fetchRev: () => api.getBoardIssuesRev(teamKey),
     targets: [qk.boardIssues(teamKey)],
-    intervalMs: 12000,
+    intervalMs: 20000,
     enabled: !!teamKey,
-    getCachedRev: () => qc.getQueryData<BoardIssues>(qk.boardIssues(teamKey))?.rev ?? null,
   });
 
   if (!team || !filteredTeam) return null;
@@ -61,12 +51,8 @@ export default function WorkItemsPage() {
   // client-side); only persisting is gated.
   const canSaveView = can('views', editor.activeView ? 'edit' : 'create');
 
-  // With the Projects section off, its property and grouping are left out of
-  // what the layouts and the Display panel work with, and put back on the way out
-  // so the stored display keeps them for when the section is on again.
-  const settings = features.projects ? editor.settings : withoutProject(editor.settings);
-  const changeSettings = (next: ViewSettings) =>
-    editor.changeSettings(features.projects ? next : restoreProject(next, editor.settings));
+  const settings = editor.settings;
+  const changeSettings = (next: ViewSettings) => editor.changeSettings(next);
 
   const timelineGroups = buildGroups(filteredTeam, settings.group);
   const timelineIssuesByGroup = groupIssues(timelineGroups, filteredTeam.issues, settings.group);
@@ -145,7 +131,6 @@ export default function WorkItemsPage() {
         onNewView={editor.beginNewView}
         onEdit={editor.beginEditView}
         onDelete={(v) => void editor.deleteView(v)}
-        onReorder={editor.reorderView}
         onToggleFilter={editor.toggleFilters}
         displayControl={<DisplayPopover {...displayProps} />}
       />

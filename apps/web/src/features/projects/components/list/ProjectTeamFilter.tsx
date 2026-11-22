@@ -20,7 +20,7 @@ export default function ProjectTeamFilter({
   value: string | null;
   onChange: (teamKey: string | null) => void;
 }) {
-  const teams = (useTeamsQuery().data ?? []).filter((t) => t.projectsEnabled);
+  const teams = useTeamsQuery().data ?? [];
   return (
     <Select value={value ?? ALL} onValueChange={(v) => onChange(v === ALL ? null : v)}>
       <SelectTrigger size="sm" className="h-8 w-44">

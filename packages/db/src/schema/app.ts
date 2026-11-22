@@ -73,16 +73,9 @@ export const team = pgTable(
     name: text('name').notNull(),
     description: text('description').notNull().default(''),
     nextSequence: integer('next_sequence').notNull().default(1),
-    // Whether this team is reachable through the MCP server. Off by default: an
-    // owner opts a team in before agents can work with it over MCP.
-    mcpEnabled: boolean('mcp_enabled').notNull().default(false),
     // Linear's team visibility: a public team is open to every owner, admin and
     // member of the workspace; a private team only to its members.
     visibility: text('visibility').notNull().default('public'),
-    // Optional sections of the app, toggled per team in Settings -> Features. All
-    // on by default. Turning one off only hides its UI; the rows it owns stay and
-    // come back with it.
-    projectsEnabled: boolean('projects_enabled').notNull().default(true),
     // Cycles (Linear's team cycle settings). Weeks for duration and cooldown;
     // cycle_start_day is 0 = Sunday … 6 = Saturday. next_cycle_number issues cycle
     // numbers under a row lock, like next_sequence for issues.
@@ -120,52 +113,17 @@ export const teamSetting = pgTable(
   (t) => [primaryKey({ columns: [t.teamId, t.key] })],
 );
 
-// A user's own interface preferences, held per account rather than per team so
-// the same choices apply on every device. timezone is an IANA zone name used by the
-// web app to render stored UTC timestamps; the API keeps storing and returning UTC.
-// theme is 'light' | 'dark' | 'system', issue_open_mode is 'panel' | 'page' (how a
-// clicked issue opens), start_page is the section the app root lands on. Absent row
-// means the user has not changed anything and the defaults below apply.
-// last_team_id is the team the user was in last, so the app root reopens it
-// after signing in on any device; the FK clears it when that team is deleted.
-// hotkeys holds the keyboard shortcuts this user rebound. issue_stats_open and issue_stats_view are how the status stats section of
-// an issue starts out: expanded or collapsed, and 'compact' (one bar per status) or
-// 'timeline' (a lane per status on a time axis). Switching it on an issue is not
-// stored — it lasts as long as that issue stays open.
-export const userPreference = pgTable(
-  'user_preference',
-  {
-    userId: uuid('user_id')
-      .primaryKey()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    timezone: text('timezone').notNull().default('UTC'),
-    theme: text('theme').notNull().default('system'),
-    issueOpenMode: text('issue_open_mode').notNull().default('panel'),
-    startPage: text('start_page').notNull().default('work-items'),
-    issueStatsOpen: boolean('issue_stats_open').notNull().default(true),
-    issueStatsView: text('issue_stats_view').notNull().default('compact'),
-    // The user's own keyboard shortcut overrides, as { hotkeyId: combo }. Only the
-    // bindings they changed are stored; the rest are the built-in ones.
-    hotkeys: jsonb('hotkeys').$type<Record<string, string>>(),
-    lastTeamId: uuid('last_team_id').references(() => team.id, {
-      onDelete: 'set null',
-    }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    check('user_preference_theme_check', sql`${t.theme} IN ('light', 'dark', 'system')`),
-    check('user_preference_issue_open_mode_check', sql`${t.issueOpenMode} IN ('panel', 'page')`),
-    check(
-      'user_preference_start_page_check',
-      sql`${t.startPage} IN ('inbox', 'work-items', 'projects')`,
-    ),
-    check(
-      'user_preference_issue_stats_view_check',
-      sql`${t.issueStatsView} IN ('compact', 'timeline')`,
-    ),
-  ],
-);
+// A user's time zone (Linear's User.timezone), used by the web app to render stored
+// UTC timestamps; the API keeps storing and returning UTC. An absent row means UTC.
+export const userPreference = pgTable('user_preference', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  // Linear's User.timezone. The other interface preferences are kept in the browser.
+  timezone: text('timezone').notNull().default('UTC'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Team membership (Linear's TeamMembership). Members of a private team are the only
 // users who see it; a public team is open to the workspace's owners, admins and
@@ -183,10 +141,6 @@ export const teamMember = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    // What this member does in the team. Free text set by a manager, shown on the
-    // members page and given to agents so they can pick who to tag on an unassigned
-    // issue. Empty string when unset.
-    description: text('description').notNull().default(''),
     // Linear's team owner: manages the team's settings and members.
     owner: boolean('owner').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -702,7 +656,6 @@ export const issue = pgTable(
     // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
     priority: integer('priority').notNull().default(0),
     estimate: real('estimate'),
-    startDate: date('start_date'),
     dueDate: date('due_date'),
     position: doublePrecision('position').notNull().default(0),
     // Set when the issue first enters a started column; cleared when it moves back
@@ -1009,7 +962,7 @@ export const feedEntry = pgView('feed_entry', {
 
 // Saved views (the tabs above a team's work items view). filters and display are jsonb
 // blobs owned by the UI; the server stores and returns them without inspecting
-// them. position orders the tabs.
+// them. Tabs are ordered by creation.
 export const teamView = pgTable(
   'team_view',
   {
@@ -1021,10 +974,9 @@ export const teamView = pgTable(
     icon: text('icon'),
     filters: jsonb('filters').notNull().default({}),
     display: jsonb('display').notNull().default({}),
-    position: doublePrecision('position').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('team_view_team_idx').on(t.teamId, t.position)],
+  (t) => [index('team_view_team_idx').on(t.teamId, t.createdAt)],
 );
 
 // Outgoing webhook subscription (Linear's Webhook). A webhook covers one team

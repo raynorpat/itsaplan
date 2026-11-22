@@ -109,13 +109,11 @@ describe('issues', () => {
         title: 'With details',
         description: 'the body',
         priority: 2,
-        startDate: '2026-01-01',
         dueDate: '2026-02-01',
       });
       expect(created.status).toBe(201);
       expect(created.data).toMatchObject({ description: 'the body', priority: 2 });
       // `date` columns come back as 'YYYY-MM-DD', which Eden Treaty revives into a Date.
-      expect(new Date(created.data!.startDate!).getTime()).toBe(new Date('2026-01-01').getTime());
       expect(new Date(created.data!.dueDate!).getTime()).toBe(new Date('2026-02-01').getTime());
     });
 
@@ -543,7 +541,7 @@ describe('issues', () => {
   });
 
   describe('board', () => {
-    it('returns the active issues and a string change marker for a member', async () => {
+    it('returns the active issues for a member', async () => {
       const { asOwner, stateId } = await setupTeam();
       await createIssue(asOwner, stateId, { title: 'Task' });
 
@@ -551,35 +549,6 @@ describe('issues', () => {
       expect(res.status).toBe(200);
       expect(res.data?.issues).toHaveLength(1);
       expect(res.data?.issues[0]).toMatchObject({ title: 'Task' });
-      expect(typeof res.data?.rev).toBe('string');
-    });
-
-    it('changes the marker when an issue is added', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const board = asOwner.teams({ teamKey: 'MKT' }).issues.board;
-      const before = (await board.get()).data!.rev;
-
-      await createIssue(asOwner, stateId, { title: 'Task' });
-
-      expect((await board.get()).data!.rev).not.toBe(before);
-    });
-
-    it('changes the marker when an project is added', async () => {
-      const { asOwner } = await setupTeam();
-      const board = asOwner.teams({ teamKey: 'MKT' }).issues.board;
-      const before = (await board.get()).data!.rev;
-
-      const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
-      await asOwner.projects.post({ name: 'Q3 Launch', teamIds: [teamId] });
-
-      expect((await board.get()).data!.rev).not.toBe(before);
-    });
-
-    it('exposes the same marker through the rev endpoint', async () => {
-      const { asOwner } = await setupTeam();
-      const board = (await asOwner.teams({ teamKey: 'MKT' }).issues.board.get()).data!;
-      const rev = (await asOwner.teams({ teamKey: 'MKT' }).issues.rev.get()).data!.rev;
-      expect(board.rev).toBe(rev);
     });
 
     it('denies a non-member with 403', async () => {
@@ -587,53 +556,6 @@ describe('issues', () => {
       const outsider = (await signUpWithRole('guest')).api;
       const res = await outsider.teams({ teamKey: 'MKT' }).issues.board.get();
       expect(res.status).toBe(404);
-    });
-  });
-
-  describe('rev', () => {
-    it('returns a change marker for the issue', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const issue = (await createIssue(asOwner, stateId)).data!;
-
-      const res = await asOwner.issues({ issueId: issue.id }).rev.get();
-      expect(res.status).toBe(200);
-      expect(typeof res.data?.rev).toBe('string');
-    });
-
-    it('changes the marker after the issue is updated', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const issue = (await createIssue(asOwner, stateId)).data!;
-      const before = (await asOwner.issues({ issueId: issue.id }).rev.get()).data!.rev;
-
-      await asOwner.issues({ issueId: issue.id }).patch({ title: 'Renamed' });
-
-      const after = (await asOwner.issues({ issueId: issue.id }).rev.get()).data!.rev;
-      expect(after).not.toBe(before);
-    });
-
-    it('changes the marker after a comment is added', async () => {
-      const { asOwner, stateId } = await setupTeam();
-      const issue = (await createIssue(asOwner, stateId)).data!;
-      const before = (await asOwner.issues({ issueId: issue.id }).rev.get()).data!.rev;
-
-      await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'note' });
-
-      const after = (await asOwner.issues({ issueId: issue.id }).rev.get()).data!.rev;
-      expect(after).not.toBe(before);
-    });
-
-    it('returns 404 for a missing issue', async () => {
-      const { asOwner } = await setupTeam();
-      const res = await asOwner
-        .issues({ issueId: '00000000-0000-4000-8000-000000000000' })
-        .rev.get();
-      expect(res.status).toBe(404);
-    });
-
-    it('rejects a non-numeric issue id', async () => {
-      const { asOwner } = await setupTeam();
-      const res = await asOwner.issues({ issueId: 'abc' as unknown as number }).rev.get();
-      expect(res.status).toBe(400);
     });
   });
 
@@ -980,7 +902,6 @@ describe('issues', () => {
       expect((await outsider.issues({ issueId: issue.id }).get()).status).toBe(404);
       expect((await outsider.issues({ issueId: issue.id }).patch({ title: 'X' })).status).toBe(404);
       expect((await outsider.issues({ issueId: issue.id }).delete()).status).toBe(404);
-      expect((await outsider.issues({ issueId: issue.id }).rev.get()).status).toBe(404);
     });
   });
 });

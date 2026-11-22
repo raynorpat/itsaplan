@@ -4,6 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Issue labels over the Linear API: workspace and team labels, groups, retire and
 // restore, and labels on issues through issueCreate / issueUpdate.
@@ -120,12 +121,8 @@ describe('graphql labels', () => {
       await asOwner.webhooks.post({ url: 'https://example.com/a', resourceTypes: ['IssueLabel'] })
     ).data!;
     await client.createIssueLabel({ name: 'Security' });
-    expect(
-      (await asOwner.webhooks({ webhookId: teamHook.id }).deliveries.get()).data!.items,
-    ).toEqual([]);
-    expect(
-      (await asOwner.webhooks({ webhookId: allHook.id }).deliveries.get()).data!.items,
-    ).toHaveLength(1);
+    expect((await webhookDeliveries(teamHook.id)).data!.items).toEqual([]);
+    expect((await webhookDeliveries(allHook.id)).data!.items).toHaveLength(1);
   });
 
   it('keeps a client-supplied id', async () => {

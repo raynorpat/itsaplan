@@ -1,15 +1,12 @@
 import { Elysia } from 'elysia';
 import { authContext } from './auth-context';
 import {
-  assertMcpEnabled,
   assertTeamAccess,
   assertTeamWebhookAccess,
   requireTeamAccess,
   type AuthUser,
   type TeamLevel,
 } from './access';
-import { getTeamById } from '../teams/store';
-import { isMcpRequest } from './mcp-request';
 import { HttpError } from './lib';
 
 // The slice of the request context an entity guard reads. Annotated explicitly
@@ -38,14 +35,10 @@ export function entityGuard(
   resolveTeamId: (params: Record<string, string>) => Promise<string | null>,
 ) {
   return (level: TeamLevel) => ({
-    async resolve({ params, user, request }: EntityGuardCtx) {
+    async resolve({ params, user }: EntityGuardCtx) {
       const teamId = await resolveTeamId(params as Record<string, string>);
       if (teamId == null) throw new HttpError(404, notFound);
       await assertTeamAccess(teamId, user, level, notFound);
-      if (isMcpRequest(request.headers)) {
-        const team = await getTeamById(teamId);
-        if (team) assertMcpEnabled(team, true);
-      }
       return { teamId };
     },
   });
@@ -70,9 +63,8 @@ export const guards = new Elysia({ name: 'guards' }).use(authContext).macro({
   // `see`: read or work in the team; `manage`: its settings and members.
   teamAccess(level: TeamLevel) {
     return {
-      async resolve({ params, user, request }) {
+      async resolve({ params, user }) {
         const team = await requireTeamAccess((params as TeamKeyParams).teamKey, user, level);
-        assertMcpEnabled(team, isMcpRequest(request.headers));
         return { team };
       },
     };
@@ -81,10 +73,9 @@ export const guards = new Elysia({ name: 'guards' }).use(authContext).macro({
   // The team's webhooks: workspace admins and owners who can see the team.
   teamWebhooks(_enabled: boolean) {
     return {
-      async resolve({ params, user, request }) {
+      async resolve({ params, user }) {
         const team = await requireTeamAccess((params as TeamKeyParams).teamKey, user, 'see');
         await assertTeamWebhookAccess(team.id, user);
-        assertMcpEnabled(team, isMcpRequest(request.headers));
         return { team };
       },
     };

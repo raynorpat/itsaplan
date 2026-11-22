@@ -40,7 +40,6 @@ export default function NewIssueModal({
     return userId != null && team.assignees.some((a) => a.userId === userId) ? userId : null;
   });
   const [priority, setPriority] = useState(defaults.priority ?? 0);
-  const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [labelIds, setLabelIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +117,6 @@ export default function NewIssueModal({
           projectId,
           assigneeUserId,
           priority: priority,
-          startDate: startDate || null,
           dueDate: dueDate || null,
           labelIds,
         },
@@ -182,9 +180,7 @@ export default function NewIssueModal({
 
           <PrioritySelect value={priority} onChange={setPriority} />
 
-          {team.team.projectsEnabled && (
-            <ProjectSelect teamKey={team.team.key} value={projectId} onChange={setProjectId} />
-          )}
+          <ProjectSelect teamKey={team.team.key} value={projectId} onChange={setProjectId} />
 
           {team.labels.length > 0 && (
             <LabelsSelect
@@ -194,12 +190,6 @@ export default function NewIssueModal({
               onToggle={toggleLabel}
             />
           )}
-
-          <DatePill
-            value={startDate || null}
-            placeholder="Start date"
-            onChange={(v) => setStartDate(v ?? '')}
-          />
 
           <DatePill
             value={dueDate || null}

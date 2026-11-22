@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useShell } from '@/context/shellContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { api } from '@/lib/api';
 import { projectPath, type ProjectTab } from '@/utils/paths';
 import { qk } from '@/services/queryKeys';
 import { useProjectQuery } from '@/services/projects.service';
@@ -29,14 +28,12 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
   // Poll the project's change marker: refetch the project (progress/health),
   // its feed, and the board issues when its linked issues or its own fields change.
   useLiveRefresh({
-    revKey: ['rev', 'project', projectId ?? ''],
-    fetchRev: () => api.getProjectRev(projectId!),
     targets: [
       qk.project(projectId ?? ''),
       qk.projectFeed(projectId ?? ''),
       qk.boardIssues(teamKey),
     ],
-    intervalMs: 12000,
+    intervalMs: 20000,
     enabled: projectId != null && !!teamKey,
   });
 

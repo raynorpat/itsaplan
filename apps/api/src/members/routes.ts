@@ -3,15 +3,13 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { canManageTeam, isTeamMember, requireUser } from '../shared/access';
-import { HttpError } from '../shared/lib';
+import { isTeamMember, requireUser } from '../shared/access';
 import { ErrorResponse } from '../shared/responses';
 import {
   addTeamMember,
   changeTeamOwner,
   listMembers,
   removeTeamMember,
-  setMemberDescription,
   upsertMember,
 } from './store';
 
@@ -25,7 +23,6 @@ const MemberResponse = t.Object({
   email: t.String(),
   image: t.Nullable(t.String()),
   role: memberRole,
-  description: t.String(),
   createdAt: t.String(),
 });
 
@@ -132,40 +129,6 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         description:
           "Make a member a team owner ('owner') or a plain member ('member'). Team managers only.",
         ...mcpTool('set_member_role'),
-      },
-    },
-  )
-
-  // Set a member's team description (what they do). A member may edit their own;
-  // a team manager may edit anyone's. The description is shown on the members page and
-  // given to agents so they can pick who to tag on an unassigned issue.
-  .patch(
-    '/teams/:teamKey/members/:userId/description',
-    async ({ team, params, body, user }) => {
-      const current = requireUser(user);
-      if (params.userId !== current.id && !(await canManageTeam(team.id, current.id))) {
-        throw new HttpError(403, "Only a team manager can edit another member's description");
-      }
-      const ok = await setMemberDescription(team.id, params.userId, body.description);
-      if (!ok) throw new HttpError(404, 'Member not found');
-      return noContent();
-    },
-    {
-      params: memberParams,
-      body: t.Object({ description: t.String({ maxLength: 500 }) }),
-      teamAccess: 'see',
-      response: {
-        204: t.Void(),
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: "Set a member's description",
-        description:
-          'Set what a member does in the team. Up to 500 characters; empty string clears it.',
-        ...mcpTool('set_member_description'),
       },
     },
   )

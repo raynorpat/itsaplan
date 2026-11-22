@@ -53,8 +53,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
   project, a project update, an initiative update or a document; replies are one level deep (a reply to a reply is
   stored under the root). `issue_activity` holds the change log only. The feeds
-  (issue, range, share, team activity, project) and the revision markers
-  read the `feed_entry` view, which unions both tables in
+  (issue, range, team activity, project) read the `feed_entry` view, which unions both tables in
   one row shape; write comments through `createComment`, never into the view.
 - **Labels** (`labels/store.ts`): a label belongs to a team or to no team (a
   workspace label). A group is a label with `is_group`; it cannot be applied or

@@ -55,7 +55,7 @@ stable release.
 - MCP server, so an external assistant can read and change issues through the same API
 - Linear-compatible GraphQL API at `/graphql`: point the official `@linear/sdk` at your instance
   to read and change teams, issues, workflow states and projects
-- Outgoing webhooks in Linear's format: per team or all teams, signed payloads, retries, and a delivery log
+- Outgoing webhooks in Linear's format: per team or all teams, signed payloads and retries
 - Sign-in with an emailed link, a passkey, or Google; people join by invite or an approved email domain
 - Notifications by email (SMTP or Resend), with per-member preferences
 - Workspace settings: name, sign-in methods, upload types, and who may create teams, manage labels and invite

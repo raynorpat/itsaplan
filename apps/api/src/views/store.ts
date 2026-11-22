@@ -1,6 +1,6 @@
 import { db, teamView } from '@repo/db';
-import { and, eq, sql } from 'drizzle-orm';
-import { iso, num } from '../shared/lib';
+import { eq } from 'drizzle-orm';
+import { iso } from '../shared/lib';
 
 // Saved views: the tabs above a team's work items view. filters and display are jsonb
 // blobs owned by the UI; this layer stores and returns them without inspecting
@@ -13,7 +13,6 @@ export interface ViewRow {
   icon: string | null;
   filters: unknown;
   display: unknown;
-  position: number;
   createdAt: string;
 }
 
@@ -25,7 +24,6 @@ function mapView(row: typeof teamView.$inferSelect): ViewRow {
     icon: row.icon,
     filters: row.filters,
     display: row.display,
-    position: num(row.position),
     createdAt: iso(row.createdAt),
   };
 }
@@ -35,12 +33,12 @@ export async function listViews(teamId: string): Promise<ViewRow[]> {
     .select()
     .from(teamView)
     .where(eq(teamView.teamId, teamId))
-    .orderBy(teamView.position, teamView.id);
+    .orderBy(teamView.createdAt, teamView.id);
   return rows.map(mapView);
 }
 
-// New views go to the end of the tab row (max position + 1). filters/display are
-// stored verbatim in the jsonb columns.
+// New views go to the end of the tab row (tabs are ordered by creation).
+// filters/display are stored verbatim in the jsonb columns.
 export async function createView(input: {
   teamId: string;
   name: string;
@@ -48,10 +46,6 @@ export async function createView(input: {
   filters?: unknown;
   display?: unknown;
 }): Promise<ViewRow> {
-  const [{ pos }] = await db
-    .select({ pos: sql<number>`COALESCE(MAX(${teamView.position}) + 1, 0)` })
-    .from(teamView)
-    .where(eq(teamView.teamId, input.teamId));
   const [row] = await db
     .insert(teamView)
     .values({
@@ -60,7 +54,6 @@ export async function createView(input: {
       icon: input.icon ?? null,
       filters: input.filters ?? {},
       display: input.display ?? {},
-      position: Number(pos),
     })
     .returning();
   return mapView(row);
@@ -89,18 +82,4 @@ export async function updateView(
 
 export async function deleteView(id: string): Promise<void> {
   await db.delete(teamView).where(eq(teamView.id, id));
-}
-
-// Sets each view's position to its index in orderedIds, in one transaction, so
-// the tab order the UI sends is stored exactly. Ids not on the team are ignored.
-export async function reorderViews(teamId: string, orderedIds: string[]): Promise<ViewRow[]> {
-  await db.transaction(async (tx) => {
-    for (const [position, id] of orderedIds.entries()) {
-      await tx
-        .update(teamView)
-        .set({ position })
-        .where(and(eq(teamView.id, id), eq(teamView.teamId, teamId)));
-    }
-  });
-  return listViews(teamId);
 }

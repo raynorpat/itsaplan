@@ -22,8 +22,8 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data]);
 
   // The board loads as two queries: the scaffold (columns/types/labels/fields/
-  // viewer) and the issues + change marker. They are composed into one team
-  // object here so every child reads team.issues / team.rev as before.
+  // viewer) and the issues. They are composed into one team object here so every
+  // child reads team.issues.
   const teamQuery = useTeamQuery(teamKey);
   const boardIssuesQuery = useBoardIssuesQuery(teamKey);
   const scaffold = teamQuery.data ?? null;
@@ -33,7 +33,6 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
         ? {
             ...scaffold,
             issues: boardIssuesQuery.data?.issues ?? [],
-            rev: boardIssuesQuery.data?.rev ?? '',
           }
         : null,
     [scaffold, boardIssuesQuery.data],

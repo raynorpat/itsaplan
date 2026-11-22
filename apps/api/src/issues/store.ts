@@ -2,12 +2,10 @@ import {
   db,
   team as teamTable,
   issue,
-  issueActivity,
   issueLabel,
   workflowState,
   attachment,
   project,
-  projectTeam,
 } from '@repo/db';
 import {
   and,
@@ -71,7 +69,6 @@ export interface IssueRow {
   description: string;
   priority: number;
   estimate: number | null;
-  startDate: string | null;
   dueDate: string | null;
   position: number;
   // Status timestamps, kept in step with the column type (see status-timestamps.ts).
@@ -83,11 +80,6 @@ export interface IssueRow {
   // When the issue was archived (hidden from the board but kept), or null when it
   // is active. Set by the archive action or the worker's auto-archive sweep.
   archivedAt: string | null;
-  // When the issue entered its current column: the newest status-change activity,
-  // or createdAt when it has never changed column. Lets the board show how long an
-  // issue has sat in its current state. Populated by listIssues/getIssue; mapIssue
-  // alone leaves it at createdAt.
-  statusSince: string;
   labelIds: string[];
 }
 
@@ -109,7 +101,6 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     description: row.description,
     priority: row.priority,
     estimate: row.estimate,
-    startDate: row.startDate,
     dueDate: row.dueDate,
     position: num(row.position),
     startedAt: row.startedAt ? iso(row.startedAt) : null,
@@ -118,40 +109,8 @@ function mapIssue(row: typeof issue.$inferSelect, teamKey: string): IssueRow {
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
-    statusSince: iso(row.createdAt),
     labelIds: [],
   };
-}
-
-// Sets each issue's statusSince to the newest status-change activity's timestamp,
-// leaving the createdAt default (set by mapIssue) for issues that never changed
-// column. One grouped query for the whole set. Mutates the passed issues in place.
-async function attachStatusSince(issues: IssueRow[]): Promise<void> {
-  if (issues.length === 0) return;
-  const rows = await db
-    .select({
-      issueId: issueActivity.issueId,
-      // A raw sql aggregate is not mapped to a Date by Drizzle (that mapping is
-      // keyed on a column type), so this comes back as the Postgres timestamp
-      // string; parse it before iso(), the same way Drizzle decodes a timestamp
-      // column.
-      lastStatusAt: sql<string | null>`max(${issueActivity.createdAt})`,
-    })
-    .from(issueActivity)
-    .where(
-      and(
-        inArray(
-          issueActivity.issueId,
-          issues.map((i) => i.id),
-        ),
-        eq(issueActivity.action, 'status'),
-      ),
-    )
-    .groupBy(issueActivity.issueId);
-  const byIssue = new Map<string, string>();
-  for (const r of rows)
-    if (r.issueId != null && r.lastStatusAt) byIssue.set(r.issueId, iso(new Date(r.lastStatusAt)));
-  for (const i of issues) i.statusSince = byIssue.get(i.id) ?? i.statusSince;
 }
 
 // The subset of issue columns the change log diffs.
@@ -166,7 +125,6 @@ function snapshot(row: IssueRow): IssueSnapshot {
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     priority: row.priority,
-    startDate: row.startDate,
     dueDate: row.dueDate,
   };
 }
@@ -179,7 +137,6 @@ export async function listIssues(team: TeamRow): Promise<IssueRow[]> {
     .orderBy(issue.stateId, issue.position);
   const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
-  await attachStatusSince(issues);
   await attachProjects(issues);
   return issues;
 }
@@ -194,7 +151,6 @@ export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
     .orderBy(sql`${issue.archivedAt} desc`);
   const issues = rows.map((row) => mapIssue(row, team.key));
   await attachLabels(issues);
-  await attachStatusSince(issues);
   await attachProjects(issues);
   return issues;
 }
@@ -476,7 +432,6 @@ async function loadSnapshot(id: string): Promise<(IssueSnapshot & { teamId: stri
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
       priority: issue.priority,
-      startDate: issue.startDate,
       dueDate: issue.dueDate,
     })
     .from(issue)
@@ -493,7 +448,6 @@ export async function getIssue(id: string): Promise<IssueRow | null> {
   if (!rows[0]) return null;
   const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
   await attachLabels([mapped]);
-  await attachStatusSince([mapped]);
   await attachProjects([mapped]);
   return mapped;
 }
@@ -513,7 +467,6 @@ export async function getIssueBySequence(
   if (!rows[0]) return null;
   const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
   await attachLabels([mapped]);
-  await attachStatusSince([mapped]);
   await attachProjects([mapped]);
   return mapped;
 }
@@ -537,7 +490,6 @@ export interface NewIssueInput {
   priority?: number;
   estimate?: number | null;
   parentId?: string | null;
-  startDate?: string | null;
   dueDate?: string | null;
   labelIds?: string[];
   // Sort position in the column; defaults to after the column's last issue.
@@ -719,7 +671,6 @@ export async function createIssue(
         priority: input.priority ?? 0,
         estimate: input.estimate ?? null,
         ...timestamps,
-        startDate: input.startDate ?? null,
         dueDate: input.dueDate ?? null,
         position: input.position ?? Number(posRow.pos),
       })
@@ -767,7 +718,6 @@ export interface IssuePatch {
   priority?: number;
   estimate?: number | null;
   parentId?: string | null;
-  startDate?: string | null;
   dueDate?: string | null;
 }
 
@@ -856,7 +806,6 @@ export async function updateIssue(
       .where(eq(issue.id, id));
     Object.assign(set, nextStatusTimestamps(prev, stateType, new Date()));
   }
-  if (patch.startDate !== undefined) set.startDate = patch.startDate;
   if (patch.dueDate !== undefined) set.dueDate = patch.dueDate;
 
   const changed = Object.keys(set).length > 0;
@@ -1053,43 +1002,4 @@ export async function bulkDeleteIssues(
     if (rows) attachments.push(...rows);
   }
   return { deleted: valid.length, attachments };
-}
-
-// --- Change markers (cheap watermarks for live refresh) --------------------------
-// Opaque strings that change whenever the corresponding view's data changes.
-// Clients poll these cheaply and refetch the heavy payload only when the marker
-// moved, so a live board / open issue stays current without constant full reads.
-
-// The board's marker: changes when any issue or project in the team is
-// created, updated, or deleted. Issue label changes bump updated_at too (see
-// setIssueLabels). Project metadata is part of the work-items board payload.
-export async function teamBoardRev(teamId: string): Promise<string> {
-  const [row] = await db
-    .select({
-      n: sql<number>`count(*)`,
-      m: sql<string | null>`max(${issue.updatedAt})::text`,
-      projectCount: sql<number>`(select count(*) from ${projectTeam} where ${projectTeam.teamId} = ${teamId})`,
-      projectMax: sql<
-        string | null
-      >`(select max(${project.updatedAt})::text from ${project} where ${project.id} in (select ${projectTeam.projectId} from ${projectTeam} where ${projectTeam.teamId} = ${teamId}))`,
-    })
-    // Only active issues count: archiving one (manual or the worker's sweep) drops
-    // the count, which moves the marker and makes the board refetch it away.
-    .from(issue)
-    .where(and(eq(issue.teamId, teamId), isNull(issue.archivedAt)));
-  return `${row?.n ?? 0}:${row?.m ?? ''}:${row?.projectCount ?? 0}:${row?.projectMax ?? ''}`;
-}
-
-// One issue's marker: changes on any edit or new timeline entry (comment or
-// activity), including an agent's reply. The activity count and newest created_at
-// cover the feed and every logged edit; updated_at covers in-place field edits.
-export async function issueRev(issueId: string): Promise<string> {
-  const [row] = await db
-    .select({
-      a: sql<string>`(select count(*) || '-' || coalesce(max(coalesce(edited_at, created_at))::text, '') from feed_entry where issue_id = ${issueId})`,
-      u: sql<string>`${issue.updatedAt}::text`,
-    })
-    .from(issue)
-    .where(eq(issue.id, issueId));
-  return row ? `${row.a ?? 0}:${row.u}` : '0:';
 }

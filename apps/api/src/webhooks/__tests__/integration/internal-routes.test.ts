@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { api, authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // The worker's auto-archive sweep writes archived_at with raw SQL and reports the
 // ids here, so the API sends the Issue updates. The sweep is reproduced with the
@@ -53,7 +54,7 @@ describe('internal webhook routes', () => {
       { headers: { 'x-worker-token': TOKEN } },
     );
     expect(res.status).toBe(200);
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items[0]!.payload).toMatchObject({
       action: 'update',
       actor: null,

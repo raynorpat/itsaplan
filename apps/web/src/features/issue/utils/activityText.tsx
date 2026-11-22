@@ -31,7 +31,6 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   assignee: UserRound,
   delegate: Bot,
   priority: SignalHigh,
-  start_date: Calendar,
   due_date: Calendar,
   label_add: Tag,
   label_remove: Tag,
@@ -96,10 +95,6 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
       return Number(a.toText)
         ? { line: <>set priority to {strong(priorityLabel(Number(a.toText)))}</> }
         : { line: 'removed priority' };
-    case 'start_date':
-      return a.toText
-        ? { line: <>set start date to {strong(fmtDate(a.toText))}</> }
-        : { line: 'removed start date' };
     case 'due_date':
       return a.toText
         ? { line: <>set due date to {strong(fmtDate(a.toText))}</> }

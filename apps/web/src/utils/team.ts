@@ -98,8 +98,6 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
         return t.title;
       case 'assignee':
         return t.assigneeUserId != null ? (assigneeName.get(t.assigneeUserId) ?? '') : null;
-      case 'startDate':
-        return t.startDate;
       case 'dueDate':
         return t.dueDate;
       case 'created':

@@ -8,10 +8,8 @@ import SectionPageView from '@/components/common/page/SectionPageView';
 import RequirePermission from '@/components/common/permissions/RequirePermission';
 import { SettingsResourceProvider } from './context/settingsPermission';
 import SettingsGeneral from './components/general/SettingsGeneral';
-import SettingsFeatures from './components/general/SettingsFeatures';
 import SettingsVisibility from './components/general/SettingsVisibility';
 import { useGeneralForm } from './hooks/useGeneralForm';
-import { useFeatureToggles } from './hooks/useFeatureToggles';
 import { useVisibilityToggle } from './hooks/useVisibilityToggle';
 
 const section = settingsSection('general');
@@ -27,7 +25,6 @@ export default function SettingsGeneralPage() {
 
 function GeneralPage({ team }: { team: TeamDetail }) {
   const form = useGeneralForm(team);
-  const features = useFeatureToggles(team);
   const visibility = useVisibilityToggle(team);
   return (
     <SectionPageView
@@ -48,7 +45,6 @@ function GeneralPage({ team }: { team: TeamDetail }) {
           <div className="space-y-10">
             <SettingsGeneral form={form} />
             <SettingsVisibility form={visibility} />
-            <SettingsFeatures form={features} />
           </div>
         </RequirePermission>
       </SettingsResourceProvider>

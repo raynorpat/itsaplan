@@ -1,11 +1,6 @@
-import type { DateField, ViewSettings, WeekStart } from '@/utils/viewSettings';
+import type { ViewSettings, WeekStart } from '@/utils/viewSettings';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
 import DisplaySettingsSelect from '@/components/layout/DisplaySettingsSelect';
-
-const DATE_FIELD_OPTIONS: { value: DateField; label: string }[] = [
-  { value: 'dueDate', label: 'Due date' },
-  { value: 'startDate', label: 'Start date' },
-];
 
 const WEEK_START_OPTIONS: { value: string; label: string }[] = [
   { value: '0', label: 'Sunday' },
@@ -22,13 +17,6 @@ export default function DisplayCalendarRows({
 }) {
   return (
     <>
-      <DisplaySettingsRow label="Place by">
-        <DisplaySettingsSelect
-          value={settings.calendarDateField}
-          onChange={(v) => onChange({ calendarDateField: v as DateField })}
-          options={DATE_FIELD_OPTIONS}
-        />
-      </DisplaySettingsRow>
       <DisplaySettingsRow label="Start week on">
         <DisplaySettingsSelect
           value={String(settings.weekStart)}

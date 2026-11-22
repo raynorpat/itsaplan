@@ -7,6 +7,7 @@ import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/line
 import { assertParentAccess, createComment } from '../../../comments/store';
 import type { AuthUser } from '../../../shared/access';
 import { createDocument } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Comments on documents: stored with document_id, visible through the document's
 // parent, sent as Comment webhooks to its teams, and reachable over GraphQL with
@@ -50,7 +51,7 @@ describe('document comments', () => {
         .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Comment'] })
     ).data!;
     await createComment({ parent: { documentId: doc.id }, body: 'Hi', actorUserId: owner.userId });
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items).toHaveLength(1);
   });
 

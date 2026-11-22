@@ -3,10 +3,8 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
-import { assertTeamAccess, assertMcpEnabled, requireUser } from '../shared/access';
-import { isMcpRequest } from '../shared/mcp-request';
-import { getTeamById } from '../teams/store';
-import { HttpError, UUID_RE } from '../shared/lib';
+import { assertTeamAccess, requireUser } from '../shared/access';
+import { HttpError, rejectUnknownFields, UUID_RE } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { deleteObject } from '../shared/s3';
 import {
@@ -14,7 +12,6 @@ import {
   searchIssues,
   listIssues,
   listArchivedIssues,
-  teamBoardRev,
   getIssue,
   getIssueBySequence,
   getIssueTeamId,
@@ -26,10 +23,27 @@ import {
   bulkAddLabels,
   bulkArchiveIssues,
   bulkDeleteIssues,
-  issueRev,
 } from './store';
 import { listFeed, listFeedRange, listStatusTimeline } from './activity';
 import { createComment, commentFeedItem } from '../comments/store';
+
+// The fields PATCH /issues/:issueId accepts.
+const ISSUE_PATCH_FIELDS = [
+  'stateId',
+  'position',
+  'projectId',
+  'projectMilestoneId',
+  'cycleId',
+  'assigneeUserId',
+  'delegateUserId',
+  'title',
+  'description',
+  'priority',
+  'dueDate',
+  'parentId',
+  'estimate',
+  'labelIds',
+] as const;
 
 // Id path params are validated as UUIDs (t.String({ format: "uuid" })),
 // so a malformed id is rejected with a 400 before reaching the store.
@@ -57,7 +71,6 @@ const IssueResponse = t.Object({
   description: t.String(),
   priority: t.Integer(),
   estimate: t.Nullable(t.Number()),
-  startDate: t.Nullable(t.String()),
   dueDate: t.Nullable(t.String()),
   position: t.Number(),
   startedAt: t.Nullable(t.String()),
@@ -66,7 +79,6 @@ const IssueResponse = t.Object({
   createdAt: t.String(),
   updatedAt: t.String(),
   archivedAt: t.Nullable(t.String()),
-  statusSince: t.String(),
   labelIds: t.Array(t.String({ format: 'uuid' })),
 });
 
@@ -184,9 +196,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
           }),
         ),
-        startDate: t.Optional(
-          t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
-        ),
         dueDate: t.Optional(
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
         ),
@@ -243,7 +252,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
           assigneeUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
           delegateUserId: t.Optional(t.Nullable(t.String({ format: 'uuid' }))),
           priority: t.Optional(t.Integer({ minimum: 0, maximum: 4 })),
-          startDate: t.Optional(t.Nullable(t.String())),
           dueDate: t.Optional(t.Nullable(t.String())),
         }),
       }),
@@ -470,47 +478,20 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
     },
   )
 
-  // The board's issue payload: every active issue with its labels, plus the board change marker. The work-items UI loads this alongside
-  // the team scaffold (GET /teams/:teamKey) and polls the marker to
-  // refetch. Web-only (not an MCP tool): agents use list_issues / search_issues.
-  .get(
-    '/teams/:teamKey/issues/board',
-    async ({ team }) => ({
-      issues: await listIssues(team),
-      rev: await teamBoardRev(team.id),
-    }),
-    {
-      params: t.Object({ teamKey: t.String() }),
-      teamAccess: 'see',
-      response: {
-        200: t.Object({ issues: t.Array(IssueResponse), rev: t.String() }),
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: { summary: 'Get board issues' },
+  // The board's issue payload: every active issue with its labels. The work-items UI
+  // loads this alongside the team scaffold (GET /teams/:teamKey) and refetches it on
+  // an interval. Web-only (not an MCP tool): agents use list_issues / search_issues.
+  .get('/teams/:teamKey/issues/board', async ({ team }) => ({ issues: await listIssues(team) }), {
+    params: t.Object({ teamKey: t.String() }),
+    teamAccess: 'see',
+    response: {
+      200: t.Object({ issues: t.Array(IssueResponse) }),
+      401: ErrorResponse,
+      403: ErrorResponse,
+      404: ErrorResponse,
     },
-  )
-
-  // Cheap change marker for the board's issues. Clients poll this and refetch the
-  // board issues only when it moves (live refresh without constant heavy reads).
-  .get(
-    '/teams/:teamKey/issues/rev',
-    async ({ team }) => ({
-      rev: await teamBoardRev(team.id),
-    }),
-    {
-      params: t.Object({ teamKey: t.String() }),
-      teamAccess: 'see',
-      response: {
-        200: t.Object({ rev: t.String() }),
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: { summary: 'Get board revision' },
-    },
-  )
+    detail: { summary: 'Get board issues' },
+  })
 
   // The team's archived issues, newest archived first, for the archive view
   // and restore. Same read permission as the board.
@@ -560,16 +541,10 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
   // through the workItem guard (which would re-resolve the team id).
   .get(
     '/issues/:issueId',
-    async ({ params, user, request }) => {
+    async ({ params, user }) => {
       const issue = await getIssue(params.issueId);
       if (!issue) throw new HttpError(404, 'Issue not found');
       await assertTeamAccess(issue.teamId, user, 'see');
-      // This route resolves the team itself, so it also enforces the per-team
-      // MCP toggle itself (it does not run through the workItem guard).
-      if (isMcpRequest(request.headers)) {
-        const team = await getTeamById(issue.teamId);
-        if (team) assertMcpEnabled(team, true);
-      }
       return issue;
     },
     {
@@ -602,6 +577,8 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       return issue;
     },
     {
+      // Unknown fields are refused (400) rather than dropped.
+      transform: ({ body }) => rejectUnknownFields(body, ISSUE_PATCH_FIELDS),
       body: t.Object({
         stateId: t.Optional(
           t.String({ format: 'uuid', description: 'Move the issue to this column (state) id.' }),
@@ -618,7 +595,10 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         ),
         projectMilestoneId: t.Optional(
           t.Nullable(
-            t.String({ format: 'uuid', description: "Milestone of the issue's project, or null." }),
+            t.String({
+              format: 'uuid',
+              description: "Milestone of the issue's project, or null.",
+            }),
           ),
         ),
         cycleId: t.Optional(
@@ -651,9 +631,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             maximum: 4,
             description: '0 none, 1 urgent, 2 high, 3 medium, 4 low.',
           }),
-        ),
-        startDate: t.Optional(
-          t.Nullable(t.String({ description: "Start date 'YYYY-MM-DD', or null." })),
         ),
         dueDate: t.Optional(
           t.Nullable(t.String({ description: "Due date 'YYYY-MM-DD', or null." })),
@@ -869,22 +846,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       },
     },
   )
-
-  // Cheap change marker for the issue's detail + feed. Clients poll this and
-  // refetch the full issue/feed only when it changes (live refresh without
-  // constant heavy reads). Same read permission as the feed.
-  .get('/issues/:issueId/rev', async ({ params }) => ({ rev: await issueRev(params.issueId) }), {
-    params: issueParams,
-    workItem: 'see',
-    response: {
-      200: t.Object({ rev: t.String() }),
-      400: ErrorResponse,
-      401: ErrorResponse,
-      403: ErrorResponse,
-      404: ErrorResponse,
-    },
-    detail: { summary: 'Get issue revision' },
-  })
 
   // Post a comment on an issue. The author is the session user (a member or an
   // agent's bot user).

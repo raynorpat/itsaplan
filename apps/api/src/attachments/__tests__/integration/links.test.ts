@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
+import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { attachment, db } from '@repo/db';
@@ -11,6 +11,7 @@ import {
   updateAttachment,
   upsertLinkAttachment,
 } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Link attachments and uploads in one table: defaults, the upsert by issue and URL,
 // URL rules, the absolute URL of uploads, REST and quota counting files only, and
@@ -42,8 +43,8 @@ const status = (p: Promise<unknown>) =>
     (e: { status?: number }) => e.status,
   );
 
-async function payloads(api: Api, webhookId: string) {
-  return (await api.webhooks({ webhookId }).deliveries.get())
+async function payloads(webhookId: string) {
+  return (await webhookDeliveries(webhookId))
     .data!.items.map(
       (d) => d.payload as { action: string; type: string; data: Record<string, unknown> },
     )
@@ -141,7 +142,7 @@ describe('link attachments', () => {
     );
     await updateAttachment(row.id, { title: 'L2' }, owner.userId);
     await deleteAttachment(row.id, owner.userId);
-    const events = await payloads(asOwner, hook.id);
+    const events = await payloads(hook.id);
     expect(events.map((p) => `${p.type}:${p.action}`)).toEqual([
       'Attachment:create',
       'Attachment:update',

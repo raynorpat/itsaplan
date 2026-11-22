@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { api, type Notification, type NotificationFilters, type TeamDetail } from '@/lib/api';
+import { type Notification, type NotificationFilters, type TeamDetail } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useInboxUnread } from '@/hooks/useInboxUnread';
@@ -35,10 +35,8 @@ export default function InboxView({ team }: { team: TeamDetail }) {
   const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
 
   useLiveRefresh({
-    revKey: ['rev', 'notifications', teamKey],
-    fetchRev: () => api.getNotificationsRev(teamId),
     targets: [['notifications', teamKey], qk.notificationsUnread(teamKey)],
-    intervalMs: 10000,
+    intervalMs: 15000,
   });
 
   const onSelect = (n: Notification) => {

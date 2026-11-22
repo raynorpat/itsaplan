@@ -325,28 +325,6 @@ export async function unreadCount(userId: string, teamId?: string): Promise<numb
   return row?.n ?? 0;
 }
 
-// Cheap change marker for live refresh: total count, newest created_at, and unread
-// count, optionally scoped to one team. It moves on a new notification (newest),
-// a delete (total), and a read/unread toggle (unread).
-export async function notificationsRev(userId: string, teamId?: string): Promise<string> {
-  const conds = [
-    eq(notification.userId, userId),
-    isNull(notification.archivedAt),
-    // Only notifications about teams the user can still see.
-    inArray(notification.teamId, visibleTeamIds(userId)),
-  ];
-  if (teamId != null) conds.push(eq(notification.teamId, teamId));
-  const [row] = await db
-    .select({
-      total: sql<number>`count(*)::int`,
-      newest: sql<string>`coalesce(max(${notification.createdAt})::text, '')`,
-      unread: sql<number>`count(*) filter (where ${notification.readAt} is null)::int`,
-    })
-    .from(notification)
-    .where(and(...conds));
-  return `${row?.total ?? 0}:${row?.newest ?? ''}:${row?.unread ?? 0}`;
-}
-
 // Marks one of the user's notifications read or unread. Returns false if no such
 // notification belongs to the user.
 export async function setNotificationRead(

@@ -4,6 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Documents over the Linear API: CRUD, the trash, archived parents, visibility,
 // filters, unsupported input and the Document webhook.
@@ -143,7 +144,7 @@ describe('graphql documents', () => {
         .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
     ).data!;
     await client.createDocument({ title: 'Spec', projectId: project.id });
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items.map((d) => (d.payload as { type: string; action: string }).action)).toEqual([
       'create',
     ]);
@@ -223,7 +224,7 @@ describe('graphql documents', () => {
     const first = (await (await client.deleteDocument(doc.id)).entity)!;
     const second = (await (await client.deleteDocument(doc.id)).entity)!;
     expect(second.updatedAt).toEqual(first.updatedAt);
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items.map((d) => (d.payload as { action: string }).action).sort()).toEqual([
       'create',
       'remove',

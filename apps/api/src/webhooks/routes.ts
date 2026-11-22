@@ -2,8 +2,7 @@ import { Elysia, t } from 'elysia';
 import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
 import { requireUser, type AuthUser } from '../shared/access';
-import { isMcpRequest } from '../shared/mcp-request';
-import { assertAllTeamsManager, assertDeliveryHistoryAccess, assertWebhookAccess } from './access';
+import { assertAllTeamsManager, assertWebhookAccess } from './access';
 import { validateWebhookUrl } from './url';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
@@ -17,7 +16,6 @@ import {
   updateWebhook,
   rotateWebhookSecret,
   deleteWebhook,
-  listWebhookDeliveries,
 } from './store';
 
 const webhookParams = t.Object({ webhookId: t.String({ format: 'uuid' }) });
@@ -47,27 +45,6 @@ const createBody = t.Object({
   enabled: t.Optional(t.Boolean()),
 });
 
-// A webhook delivery attempt DTO (WebhookDeliveryRow from the store).
-const WebhookDeliveryResponse = t.Object({
-  id: t.String({ format: 'uuid' }),
-  eventId: t.String(),
-  eventType: t.String(),
-  status: t.String(),
-  attempts: t.Number(),
-  payload: t.Any(),
-  responseStatus: t.Nullable(t.Number()),
-  responseBody: t.Nullable(t.String()),
-  lastError: t.Nullable(t.String()),
-  nextAttemptAt: t.String(),
-  createdAt: t.String(),
-});
-
-// One page of deliveries (WebhookDeliveryPage from the store).
-const WebhookDeliveryPageResponse = t.Object({
-  items: t.Array(WebhookDeliveryResponse),
-  nextCursor: t.Nullable(t.String()),
-});
-
 export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['Webhooks'] } })
   .use(authContext)
   .use(guards)
@@ -79,23 +56,19 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
       async resolve({
         params,
         user,
-        request,
       }: {
         params: Record<string, unknown>;
         user?: AuthUser | null;
         request: Request;
       }) {
-        await assertWebhookAccess(String(params.webhookId), user, {
-          mcp: isMcpRequest(request.headers),
-        });
+        await assertWebhookAccess(String(params.webhookId), user);
         return {};
       },
     }),
     // Workspace-level routes for all-teams webhooks.
     allTeamsManager: (enabled: boolean) => ({
-      async resolve({ user, request }: { user?: AuthUser | null; request: Request }) {
-        if (enabled)
-          await assertAllTeamsManager(requireUser(user), { mcp: isMcpRequest(request.headers) });
+      async resolve({ user }: { user?: AuthUser | null; request: Request }) {
+        if (enabled) await assertAllTeamsManager(requireUser(user));
         return {};
       },
     }),
@@ -254,33 +227,5 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         404: ErrorResponse,
       },
       detail: { summary: 'Delete a webhook', ...mcpTool('delete_webhook') },
-    },
-  )
-
-  .get(
-    '/webhooks/:webhookId/deliveries',
-    async ({ params, query, user }) => {
-      await assertDeliveryHistoryAccess(params.webhookId, requireUser(user));
-      return listWebhookDeliveries(params.webhookId, { before: query.before, limit: query.limit });
-    },
-    {
-      params: webhookParams,
-      query: t.Object({
-        before: t.Optional(t.String()),
-        limit: t.Optional(t.Numeric()),
-      }),
-      webhook: true,
-      response: {
-        200: WebhookDeliveryPageResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'List webhook deliveries',
-        description: "List a webhook's delivery attempts.",
-        ...mcpTool('list_webhook_deliveries'),
-      },
     },
   );

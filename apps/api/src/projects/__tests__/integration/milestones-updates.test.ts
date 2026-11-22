@@ -68,7 +68,6 @@ describe('project milestones and updates', () => {
     await createUpdate(project.id, owner.userId, { body: 'Slipping', health: 'atRisk' });
     const after = (await asOwner.projects({ projectId: project.id }).get()).data!;
     expect(after.health).toBe('atRisk');
-    expect(after).toHaveProperty('computedHealth');
   });
 
   it('lists milestones over REST to members only', async () => {

@@ -4,7 +4,7 @@ import { authedApi } from '../helpers/app';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
-import { db, user, userPreference } from '@repo/db';
+import { db, user } from '@repo/db';
 import { eq } from 'drizzle-orm';
 
 // Features Linear does not have are removed: their routes answer 404 for a team
@@ -165,19 +165,6 @@ describe('removed features', () => {
     expect(JSON.stringify(feed.data)).toContain('Gone');
   });
 
-  it('refuses the removed ai-chat start page in the database', async () => {
-    const u = await signUpTestUser();
-    const insert = db
-      .insert(userPreference)
-      .values({ userId: u.userId, startPage: 'ai-chat' } as typeof userPreference.$inferInsert);
-    expect(
-      await insert.then(
-        () => 'stored',
-        () => 'refused',
-      ),
-    ).toBe('refused');
-  });
-
   it('documents no removed feature in the API docs and MCP tool descriptions', async () => {
     const res = await app.handle(new Request('http://localhost/docs/json'));
     const spec = await res.text();
@@ -191,5 +178,35 @@ describe('removed features', () => {
       'delegate agent',
     ])
       expect(spec).not.toContain(phrase);
+  });
+
+  it('removes revision markers, view order, delivery log, member descriptions and start dates', async () => {
+    const { cookie, issueId, api, userId } = await setup();
+    const view = (await api.teams({ teamKey: 'MKT' }).get()).data!;
+    const stateId = view.states[0]!.id;
+    const hook = (
+      await api
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] })
+    ).data!;
+    const project = (await api.projects.post({ teamIds: [view.team.id], name: 'P' })).data!;
+    // `/teams/MKT/issues/rev` now reaches the issue-number route, which refuses `rev`
+    // as a number.
+    expect(await call(cookie, 'GET', '/teams/MKT/issues/rev')).toBe(400);
+    for (const [method, path, body] of [
+      ['GET', `/issues/${issueId}/rev`],
+      ['GET', `/projects/${project.id}/rev`],
+      ['GET', '/notifications/rev'],
+      ['PUT', '/teams/MKT/views/reorder', { ids: [] }],
+      ['GET', `/webhooks/${hook.id}/deliveries`],
+      ['PATCH', `/teams/MKT/members/${userId}/description`, { description: 'x' }],
+    ] as [string, string, unknown?][])
+      expect([path, await call(cookie, method, path, body)]).toEqual([path, 404]);
+    expect(await call(cookie, 'PATCH', `/issues/${issueId}`, { startDate: '2026-01-01' })).toBe(
+      400,
+    );
+    expect(
+      await call(cookie, 'PATCH', `/teams/MKT/states/${stateId}`, { stateType: 'started' }),
+    ).toBe(400);
   });
 });

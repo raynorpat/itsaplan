@@ -1,10 +1,5 @@
-import {
-  offeredDisplayProperties,
-  type PropertyKey,
-  type ViewSettings,
-} from '@/utils/viewSettings';
+import { DISPLAY_PROPERTIES, type PropertyKey, type ViewSettings } from '@/utils/viewSettings';
 import type { WorkItemsView } from '@/utils/viewTypes';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import PropertyChip from '@/components/layout/PropertyChip';
 import TableProperties from '@/components/layout/TableProperties';
 
@@ -19,8 +14,7 @@ export default function DisplayPropertiesSection({
   settings: ViewSettings;
   onChange: (patch: Partial<ViewSettings>) => void;
 }) {
-  const features = useTeamFeatures();
-  const properties = offeredDisplayProperties(features.projects);
+  const properties = DISPLAY_PROPERTIES;
 
   // Enabling appends to the end (a new column shows on the right); disabling
   // removes. Order is otherwise preserved.

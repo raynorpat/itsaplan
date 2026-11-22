@@ -5,10 +5,9 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Saved views are the tabs above a team's work items view. List and create are
-// team-scoped (/teams/:teamKey/views), reorder is team-scoped, but
-// patch and delete address a view by its own id (/views/:viewId) and resolve the
+// team-scoped (/teams/:teamKey/views), but patch and delete address a view by its own id (/views/:viewId) and resolve the
 // owning team through the savedView guard. filters/display are jsonb blobs the
-// store keeps verbatim; icon is nullable; position orders the tabs, first is 0.
+// store keeps verbatim; icon is nullable; tabs are ordered by creation.
 
 async function setupOwnerTeam() {
   const owner = await signUpTestUser();
@@ -36,7 +35,6 @@ describe('views', () => {
         icon: null,
         filters: {},
         display: {},
-        position: 0,
       });
       expect(typeof created.data?.id).toBe('string');
 
@@ -61,20 +59,7 @@ describe('views', () => {
       expect(created.data).toMatchObject({ icon: 'inbox', filters, display });
     });
 
-    it('appends each new view after the existing ones', async () => {
-      const { asOwner } = await setupOwnerTeam();
-
-      await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'First' });
-      await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Second' });
-
-      const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.data).toMatchObject([
-        { name: 'First', position: 0 },
-        { name: 'Second', position: 1 },
-      ]);
-    });
-
-    it('lists views ordered by position', async () => {
+    it('lists views in creation order', async () => {
       const { asOwner } = await setupOwnerTeam();
       const scope = asOwner.teams({ teamKey: 'MKT' }).views;
       const a = (await scope.post({ name: 'A' })).data!;
@@ -152,52 +137,6 @@ describe('views', () => {
     });
   });
 
-  describe('reorder', () => {
-    it('sets the order to the ids given', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const a = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'A' })).data!;
-      const b = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'B' })).data!;
-      const c = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'C' })).data!;
-
-      const reordered = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .views.reorder.put({ orderedIds: [c.id, a.id, b.id] });
-      expect(reordered.status).toBe(200);
-      expect(reordered.data).toMatchObject([
-        { id: c.id, position: 0 },
-        { id: a.id, position: 1 },
-        { id: b.id, position: 2 },
-      ]);
-
-      const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.data?.map((v) => v.id)).toEqual([c.id, a.id, b.id]);
-    });
-
-    it('ignores ids that belong to another team', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-      const mkt = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Mine' })).data!;
-      // The OPS view sits at position 0; the reorder below places its id at index
-      // 1, so a scope leak would move it to position 1.
-      const ops = (await asOwner.teams({ teamKey: 'OPS' }).views.post({ name: 'Theirs' })).data!;
-
-      const reordered = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .views.reorder.put({ orderedIds: [mkt.id, ops.id] });
-      expect(reordered.status).toBe(200);
-      expect(reordered.data?.map((v) => v.id)).toEqual([mkt.id]);
-
-      const opsList = await asOwner.teams({ teamKey: 'OPS' }).views.get();
-      expect(opsList.data).toMatchObject([{ id: ops.id, position: 0 }]);
-    });
-
-    it('rejects a reorder with an empty list', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.teams({ teamKey: 'MKT' }).views.reorder.put({ orderedIds: [] });
-      expect(res.status).toBe(400);
-    });
-  });
-
   describe('delete', () => {
     it('deletes a view', async () => {
       const { asOwner } = await setupOwnerTeam();
@@ -255,11 +194,6 @@ describe('views', () => {
 
       const patch = await outsider.views({ viewId }).patch({ name: 'Hacked' });
       expect(patch.status).toBe(404);
-
-      const reorder = await outsider
-        .teams({ teamKey: 'MKT' })
-        .views.reorder.put({ orderedIds: [viewId] });
-      expect(reorder.status).toBe(404);
 
       const del = await outsider.views({ viewId }).delete();
       expect(del.status).toBe(404);

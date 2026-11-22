@@ -5,6 +5,7 @@ import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { subscribe, subscriberIds, unsubscribe } from '../../subscriptions';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Issue subscriptions: who is subscribed automatically, who is notified of comments
 // and status changes, re-subscription after unsubscribing, archived notifications
@@ -104,7 +105,7 @@ describe('issue subscriptions', () => {
     const [n] = (await b.api.notifications.get({ query: {} })).data!.items;
     await db.update(notification).set({ archivedAt: new Date() }).where(eq(notification.id, n!.id));
     expect(await inbox(b)).toEqual([]);
-    expect((await b.api.notifications.rev.get()).data!.unread).toBe(0);
+    expect((await b.api.notifications.get({ query: {} })).data!.unread).toBe(0);
   });
 
   it('sends subscriberIds in the Issue webhook', async () => {
@@ -116,7 +117,7 @@ describe('issue subscriptions', () => {
         .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] })
     ).data!;
     const issueId = await newIssue(owner, stateId, { assigneeUserId: b.userId });
-    const items = (await owner.api.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     const created = items.find((d) => (d.payload as { action: string }).action === 'create')!;
     const data = (created.payload as { data: { id: string; subscriberIds: string[] } }).data;
     expect(data.id).toBe(issueId);

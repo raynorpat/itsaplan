@@ -4,6 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Issue and workflow state mutations over the Linear API. They go through the same
 // store functions as REST, so activity, webhooks and permissions match.
@@ -114,7 +115,7 @@ describe('graphql mutations', () => {
 
       const feed = await asOwner.issues({ issueId: issue.id }).feed.get();
       expect(feed.data!.items.map((i) => i.action)).toContain('status');
-      const deliveries = await asOwner.webhooks({ webhookId: hook.data!.id }).deliveries.get();
+      const deliveries = await webhookDeliveries(hook.data!.id);
       const moved = deliveries.data!.items.find(
         (d) => (d.payload as { action: string }).action === 'update',
       );

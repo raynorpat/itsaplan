@@ -1,15 +1,11 @@
 import { useState } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { type View } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import ViewTabChrome from '@/components/layout/ViewTabChrome';
 import ViewTabLabel from '@/components/layout/ViewTabLabel';
 
-// A saved view tab. Sortable (drag to reorder); when active it shows a "…" menu
-// with Edit view / Delete.
+// A saved view tab; when active it shows a "…" menu with Edit view / Delete.
 export default function SavedViewTab({
   view,
   active,
@@ -28,23 +24,10 @@ export default function SavedViewTab({
   onDelete: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  // Reordering views is a views edit; disable dragging without it.
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: view.id,
-    disabled: !canEdit,
-  });
-  const style = { transform: CSS.Transform.toString(transform), transition };
   const showMenu = active && (canEdit || canDelete);
 
   return (
-    <ViewTabChrome
-      active={active}
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={cn(canEdit ? 'cursor-grab' : 'cursor-default', isDragging && 'opacity-40')}
-    >
+    <ViewTabChrome active={active}>
       <button type="button" onClick={onSelect} className="flex items-center gap-1.5 py-1 pr-1 pl-2">
         <ViewTabLabel view={view} />
       </button>

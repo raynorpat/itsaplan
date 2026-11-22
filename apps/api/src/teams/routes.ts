@@ -6,7 +6,6 @@ import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
 import { canManageTeam, requireUser, workspaceRole } from '../shared/access';
 import { assertAllowedTo } from '../organization/store';
-import { isMcpRequest } from '../shared/mcp-request';
 import { ErrorResponse } from '../shared/responses';
 import { getMembership, listAssigneeCandidates } from '../members/store';
 import {
@@ -14,9 +13,6 @@ import {
   createTeam,
   updateTeam,
   deleteTeam,
-  setTeamMcpEnabled,
-  teamFeatures,
-  setTeamFeatures,
   getAutoArchiveSettings,
   setAutoArchiveSettings,
 } from './store';
@@ -39,10 +35,6 @@ const TeamResponse = t.Object({
   key: t.String(),
   name: t.String(),
   description: t.String(),
-  mcpEnabled: t.Boolean(),
-  // The optional sections, toggled in Settings -> General. All on by default; a
-  // disabled section is hidden in the web app and its rows are kept.
-  projectsEnabled: t.Boolean(),
   visibility: t.UnionEnum(['public', 'private']),
   createdAt: t.String(),
 });
@@ -102,13 +94,6 @@ const AutoArchiveResponse = t.Object({
   canceledDays: t.Nullable(t.Number()),
 });
 
-// Which optional sections the team shows (TeamFeatures from the store).
-const FeaturesResponse = t.Object({
-  projects: t.Boolean(),
-});
-
-// The team's settings: MCP reachability, the enabled sections and the
-// auto-archive thresholds.
 // Cycle settings (TeamCycleSettings from cycles/store). Weeks for duration and
 // cooldown; startDay is 0 = Sunday … 6 = Saturday.
 const CycleSettingsResponse = t.Object({
@@ -122,8 +107,6 @@ const CycleSettingsResponse = t.Object({
 });
 
 const TeamSettingsResponse = t.Object({
-  mcpEnabled: t.Boolean(),
-  features: FeaturesResponse,
   autoArchive: AutoArchiveResponse,
   cycles: CycleSettingsResponse,
 });
@@ -152,24 +135,19 @@ const TeamBoardResponse = t.Object({
 export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] } })
   .use(authContext)
   .use(guards)
-  .get(
-    '/teams',
-    ({ user, request }) =>
-      listTeams(requireUser(user).id, { mcpOnly: isMcpRequest(request.headers) }),
-    {
-      response: {
-        200: t.Array(TeamListItemResponse),
-        401: ErrorResponse,
-      },
-      detail: {
-        summary: 'List teams',
-        description:
-          'List the teams you can see: your teams, plus every public team unless you are a ' +
-          'guest. `role` is your membership (null when not joined).',
-        ...mcpTool('list_teams'),
-      },
+  .get('/teams', ({ user }) => listTeams(requireUser(user).id), {
+    response: {
+      200: t.Array(TeamListItemResponse),
+      401: ErrorResponse,
     },
-  )
+    detail: {
+      summary: 'List teams',
+      description:
+        'List the teams you can see: your teams, plus every public team unless you are a ' +
+        'guest. `role` is your membership (null when not joined).',
+      ...mcpTool('list_teams'),
+    },
+  })
 
   .post(
     '/teams',
@@ -272,15 +250,12 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
     },
   )
 
-  // Reads the team's settings: whether it is reachable over MCP, which optional
-  // sections are enabled, and the auto-archive thresholds (days of inactivity in a
+  // Reads the team's settings: the auto-archive thresholds (days of inactivity in a
   // completed/canceled column before the worker archives an issue; null = off).
   // Any member may read.
   .get(
     '/teams/:teamKey/settings',
     async ({ team }) => ({
-      mcpEnabled: team.mcpEnabled,
-      features: teamFeatures(team),
       autoArchive: await getAutoArchiveSettings(team.id),
       cycles: await teamCycleSettings(team.id),
     }),
@@ -297,25 +272,11 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   )
 
   // Updates the team's settings. Each field is optional; only the supplied ones
-  // change. mcpEnabled toggles MCP access to the team. features turns the
-  // optional sections (projects) on or off. autoArchive sets
-  // the day count per state group (positive integer) or disables it (null).
-  // Owner-only. Not an MCP tool: it governs MCP access, so an agent must not
-  // change it.
+  // change. autoArchive sets the day count per state group (positive integer) or
+  // disables it (null). Team managers only.
   .patch(
     '/teams/:teamKey/settings',
     async ({ team, body }) => {
-      let current = team;
-      if (body.mcpEnabled !== undefined) {
-        const updated = await setTeamMcpEnabled(team.id, body.mcpEnabled);
-        if (!updated) throw new HttpError(404, 'Team not found');
-        current = updated;
-      }
-      if (body.features !== undefined) {
-        const updated = await setTeamFeatures(team.id, body.features);
-        if (!updated) throw new HttpError(404, 'Team not found');
-        current = updated;
-      }
       const autoArchive =
         body.autoArchive !== undefined
           ? await setAutoArchiveSettings(team.id, body.autoArchive)
@@ -325,20 +286,12 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
           ? await setTeamCycleSettings(team.id, body.cycles)
           : await teamCycleSettings(team.id);
       return {
-        mcpEnabled: current.mcpEnabled,
-        features: teamFeatures(current),
         autoArchive,
         cycles,
       };
     },
     {
       body: t.Object({
-        mcpEnabled: t.Optional(t.Boolean()),
-        features: t.Optional(
-          t.Object({
-            projects: t.Optional(t.Boolean()),
-          }),
-        ),
         autoArchive: t.Optional(
           t.Object({
             completedDays: t.Nullable(t.Integer({ minimum: 1 })),

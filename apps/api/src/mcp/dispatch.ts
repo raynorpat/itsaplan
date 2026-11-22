@@ -1,6 +1,5 @@
 import type { McpApp } from './types';
 import type { McpRouteTool } from './generate';
-import { MCP_LOOPBACK_HEADER } from '../shared/mcp-request';
 
 // Methods that carry a request body; the rest put their arguments in the query.
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
@@ -15,18 +14,11 @@ const BASE = 'http://localhost';
 // the JSON body (POST/PUT/PATCH) or the query string (GET/DELETE). The caller's API
 // key is forwarded as x-api-key so the route's session guard and permission checks
 // run exactly as they do over HTTP.
-//
-// viaMcpEndpoint says whether the call came from POST /mcp. It is explicit at both
-// call sites because it selects a real behaviour: only an MCP call carries the
-// loopback header, and only a request carrying that header is subject to the
-// per-team MCP toggle. An internal agent run dispatches through the same routes
-// but is not MCP, so disabling MCP on a team must not disarm its agents.
 export async function dispatchTool(
   app: McpApp,
   tool: McpRouteTool,
   args: Record<string, unknown>,
   apiKey: string,
-  opts: { viaMcpEndpoint: boolean },
 ): Promise<{ text: string; isError: boolean }> {
   const rest: Record<string, unknown> = { ...args };
 
@@ -55,8 +47,6 @@ export async function dispatchTool(
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey,
-      // Marks this as an MCP call so guards enforce the per-team MCP toggle.
-      ...(opts.viaMcpEndpoint ? { [MCP_LOOPBACK_HEADER]: '1' } : {}),
     },
     body,
   });

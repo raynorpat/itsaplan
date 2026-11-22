@@ -87,16 +87,9 @@ export function TimelineIssueRow({
             borderLeft: span.inferredStart ? '2px dashed rgba(255,255,255,0.75)' : undefined,
           }}
           title={
-            span.inferredStart ? 'Start inferred from the created date — drag to set it' : undefined
+            span.inferredStart ? 'Starts at the created date (work has not started)' : undefined
           }
         >
-          {!readOnly && (
-            <span
-              onPointerDown={(e) => onBeginDrag(e, issue, 'start')}
-              className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100"
-              style={{ background: 'rgba(255,255,255,0.4)' }}
-            />
-          )}
           <span className="truncate text-[11px] leading-none">{issue.title}</span>
           {!readOnly && (
             <span

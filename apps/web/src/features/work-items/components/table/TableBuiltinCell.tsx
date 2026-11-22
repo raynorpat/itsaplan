@@ -1,7 +1,7 @@
 import { CalendarClock } from 'lucide-react';
 import { type Issue } from '@/lib/api';
 import { type Maps } from '@/utils/team';
-import { formatDurationShort, formatShortDate, isDueOverdue } from '@/utils/dates';
+import { formatShortDate, isDueOverdue } from '@/utils/dates';
 import {
   AssigneeAvatar,
   DateBadge,
@@ -84,12 +84,6 @@ export function TableBuiltinCell({
             : DASH}
         </div>
       );
-    case 'startDate':
-      return (
-        <div className="text-xs text-muted-foreground">
-          {issue.startDate ? formatShortDate(issue.startDate) : DASH}
-        </div>
-      );
     case 'dueDate':
       return (
         <div className="text-xs">
@@ -111,12 +105,6 @@ export function TableBuiltinCell({
     case 'updated':
       return (
         <div className="text-xs text-muted-foreground">{formatShortDate(issue.updatedAt)}</div>
-      );
-    case 'statusAge':
-      return (
-        <div className="text-xs text-muted-foreground">
-          {formatDurationShort(issue.statusSince)}
-        </div>
       );
   }
 }

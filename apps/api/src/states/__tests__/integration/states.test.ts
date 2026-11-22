@@ -72,15 +72,6 @@ describe('columns', () => {
         .states.post({ name: '', stateType: 'started' });
       expect(res.status).toBe(400);
     });
-
-    it('rejects an unknown state type', async () => {
-      const { asOwner } = await setupTeam();
-      const res = await asOwner.teams({ teamKey: 'MKT' }).states.post({
-        name: 'Weird',
-        stateType: 'nonsense' as unknown as 'started',
-      });
-      expect(res.status).toBe(400);
-    });
   });
 
   describe('reorder', () => {
@@ -143,23 +134,6 @@ describe('columns', () => {
       expect(cols.find((c) => c.id === todo.id)?.name).toBe('To Do');
     });
 
-    it('moves a column to a different state type', async () => {
-      const { asOwner } = await setupTeam();
-      const todo = await columnByName(asOwner, 'Todo');
-
-      const patched = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .states({ stateId: todo.id })
-        .patch({ stateType: 'started' });
-      expect(patched.status).toBe(200);
-      expect(patched.data).toMatchObject({ stateType: 'started' });
-
-      // The view groups by state type, so the former Todo now lists among the
-      // started columns.
-      const started = (await columnsOf(asOwner)).filter((c) => c.stateType === 'started');
-      expect(started.map((c) => c.id)).toContain(todo.id);
-    });
-
     it('returns 404 for a missing column', async () => {
       const { asOwner } = await setupTeam();
       const res = await asOwner
@@ -179,13 +153,13 @@ describe('columns', () => {
       expect(res.status).toBe(400);
     });
 
-    it('rejects an unknown state type', async () => {
+    it('refuses changing the state type', async () => {
       const { asOwner } = await setupTeam();
       const todo = await columnByName(asOwner, 'Todo');
       const res = await asOwner
         .teams({ teamKey: 'MKT' })
         .states({ stateId: todo.id })
-        .patch({ stateType: 'nonsense' as unknown as 'started' });
+        .patch({ stateType: 'started' } as never);
       expect(res.status).toBe(400);
     });
   });

@@ -18,7 +18,6 @@ export const qk = {
   views: (teamKey: string) => ['views', teamKey] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
-  webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
   // A team's members (the Members section), and the workspace's users and pending
   // invites (the workspace Members page).
   members: (teamKey: string) => ['members', teamKey] as const,

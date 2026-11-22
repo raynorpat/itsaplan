@@ -57,7 +57,6 @@ export function buildIssuePrompt(
   if (issue.priority) tags.push(`<priority>${priorityLabel(issue.priority)}</priority>`);
   if (assignee) tags.push(`<assignee>${assignee}</assignee>`);
   if (delegate) tags.push(`<delegate>${delegate}</delegate>`);
-  if (issue.startDate) tags.push(`<startDate>${issue.startDate}</startDate>`);
   if (issue.dueDate) tags.push(`<dueDate>${issue.dueDate}</dueDate>`);
   for (const label of labels) tags.push(`<label>${label}</label>`);
   tags.push(`<team name="${team.team.name}"/>`);

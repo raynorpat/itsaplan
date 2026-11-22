@@ -27,8 +27,6 @@ import { useSession } from '@/lib/auth-client';
 import { Badge } from '@/components/ui/badge';
 import { ROLE_LABELS } from '@/utils/workspaceRoles';
 import MemberRoleControl from './MemberRoleControl';
-import MemberDescription from './MemberDescription';
-import MemberDescriptionDialog from './MemberDescriptionDialog';
 
 // The team's members, one row per person, each with their workspace role. A team
 // manager makes team owners and removes anyone; a member can leave (remove
@@ -83,7 +81,6 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
           {members.map((m) => {
             const self = m.userId === currentUserId;
             const canRemove = self || canManage;
-            const canEditDescription = canManage || self;
             const workspace = roleOf.get(m.userId);
             const removeLabel = self ? 'Leave team' : 'Remove from team';
             return (
@@ -111,7 +108,6 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                         <span className="truncate">{m.email}</span>
                         <span>· joined {formatShortDate(m.createdAt)}</span>
                       </span>
-                      <MemberDescription member={m} />
                     </div>
                   </div>
                 </TableCell>
@@ -120,9 +116,6 @@ export default function MembersList({ teamKey }: { teamKey: string }) {
                 </TableCell>
                 <TableCell className="px-3 pt-3 pb-2 align-top">
                   <div className="flex items-center justify-end gap-1">
-                    {canEditDescription && (
-                      <MemberDescriptionDialog teamKey={teamKey} member={m} self={self} />
-                    )}
                     {canRemove && (
                       <Tooltip>
                         <TooltipTrigger asChild>

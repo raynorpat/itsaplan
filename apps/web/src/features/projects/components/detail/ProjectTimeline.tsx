@@ -45,7 +45,7 @@ export default function ProjectTimeline({ project }: { project: Project }) {
           </h4>
           <HealthInfoPopover />
         </div>
-        <HealthBadge health={project.health ?? project.computedHealth} />
+        <HealthBadge health={project.health} />
       </div>
 
       <dl className="mb-3 flex flex-col gap-1.5 text-sm">

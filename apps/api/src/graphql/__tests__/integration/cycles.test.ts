@@ -4,6 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { listCycles } from '../../../cycles/store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Cycles over the Linear API: team settings through teamUpdate, cycle CRUD,
 // closing by hand, archiving, progress, flags, the issue cycle filter, webhooks.
@@ -193,7 +194,7 @@ describe('graphql cycles', () => {
     const last = (await listCycles(teamId)).at(-1)!;
     const startsAt = new Date(new Date(last.endsAt).getTime() + 7 * DAY);
     await client.createCycle({ teamId, startsAt, endsAt: new Date(startsAt.getTime() + DAY) });
-    const items = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items;
+    const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items.map((d) => (d.payload as { action: string; type: string }).type)).toContain(
       'Cycle',
     );
@@ -221,7 +222,7 @@ describe('graphql cycles', () => {
     ).data!;
     const [active] = await listCycles(teamId);
     await client.updateCycle(active!.id, { completedAt: new Date() });
-    const data = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items.map(
+    const data = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) => (d.payload as { data: Record<string, unknown> }).data,
     );
     expect(data.some((d) => 'uncompletedIssuesUponCloseIds' in d)).toBe(true);

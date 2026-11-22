@@ -347,7 +347,6 @@ export interface IssueSnapshot {
   assigneeUserId: string | null;
   delegateUserId: string | null;
   priority: number;
-  startDate: string | null;
   dueDate: string | null;
 }
 
@@ -402,8 +401,6 @@ export async function logIssueUpdate(
       fromText: String(before.priority),
       toText: String(after.priority),
     });
-  if (before.startDate !== after.startDate)
-    events.push({ action: 'start_date', fromText: before.startDate, toText: after.startDate });
   if (before.dueDate !== after.dueDate)
     events.push({ action: 'due_date', fromText: before.dueDate, toText: after.dueDate });
   const inserted = await recordActivity(after.id, events, actorUserId);

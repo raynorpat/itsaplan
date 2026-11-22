@@ -5,7 +5,7 @@ import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { mcpTool } from '../mcp/generate';
-import { listViews, createView, getView, updateView, deleteView, reorderViews } from './store';
+import { listViews, createView, getView, updateView, deleteView } from './store';
 
 const viewParams = t.Object({ viewId: t.String({ format: 'uuid' }) });
 
@@ -18,7 +18,6 @@ const ViewResponse = t.Object({
   icon: t.Nullable(t.String()),
   filters: t.Any(),
   display: t.Any(),
-  position: t.Number(),
   createdAt: t.String(),
 });
 
@@ -79,30 +78,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
         summary: 'Create a saved view',
         description: 'Create a saved view in a team.',
         ...mcpTool('create_view'),
-      },
-    },
-  )
-
-  // Sets the tab order to orderedIds.
-  .put(
-    '/teams/:teamKey/views/reorder',
-    async ({ team, body }) => {
-      return reorderViews(team.id, body.orderedIds);
-    },
-    {
-      body: t.Object({ orderedIds: t.Array(t.String({ format: 'uuid' }), { minItems: 1 }) }),
-      teamAccess: 'see',
-      response: {
-        200: t.Array(ViewResponse),
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'Reorder saved views',
-        description: "Set the display order of a team's saved views.",
-        ...mcpTool('reorder_views'),
       },
     },
   )

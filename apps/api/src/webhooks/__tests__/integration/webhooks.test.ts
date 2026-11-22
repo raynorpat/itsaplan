@@ -6,6 +6,7 @@ import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { db, webhook } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import type { WebhookResourceType } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 async function setupOwnerTeam() {
   const owner = await signUpTestUser();
@@ -209,64 +210,10 @@ describe('webhooks', () => {
     });
   });
 
-  describe('deliveries', () => {
-    it('returns an empty page for a webhook with no deliveries', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['Issue']);
-
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
-      expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({ items: [], nextCursor: null });
-    });
-
-    it('returns 404 for a missing webhook', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner
-        .webhooks({ webhookId: '00000000-0000-4000-8000-000000000000' })
-        .deliveries.get();
-      expect(res.status).toBe(404);
-    });
-
-    it('rejects a non-numeric webhook id', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.webhooks({ webhookId: 'abc' }).deliveries.get();
-      expect(res.status).toBe(400);
-    });
-
-    it('paginates newest-first with a keyset cursor', async () => {
-      const { asOwner, stateId } = await setupOwnerTeam();
-      const id = await createWebhook(asOwner, ['Issue']);
-
-      // Three issue.created events queue three deliveries on this webhook.
-      for (const title of ['a', 'b', 'c']) {
-        await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title });
-      }
-
-      const first = await asOwner
-        .webhooks({ webhookId: id })
-        .deliveries.get({ query: { limit: 2 } });
-      expect(first.status).toBe(200);
-      expect(first.data?.items).toHaveLength(2);
-      expect(first.data?.nextCursor).not.toBeNull();
-      // Newest first.
-      expect(new Date(first.data!.items[0].createdAt).getTime()).toBeGreaterThanOrEqual(
-        new Date(first.data!.items[1].createdAt).getTime(),
-      );
-
-      const second = await asOwner
-        .webhooks({ webhookId: id })
-        .deliveries.get({ query: { before: first.data!.nextCursor!, limit: 2 } });
-      expect(second.data?.items).toHaveLength(1);
-      expect(second.data?.nextCursor).toBeNull();
-      // The cursor page holds the remaining item, not a repeat of the first page.
-      expect(first.data!.items.map((i) => i.id)).not.toContain(second.data!.items[0].id);
-    });
-  });
-
   // emit.ts queues one webhook_delivery per active, subscribed webhook when a
-  // domain mutation fires an event. The queued rows are observable through the
-  // deliveries endpoint (the delivery worker does not run in tests, so they stay
-  // pending). These assert the fan-out selection, not the worker.
+  // domain mutation fires an event. The tests read the queued rows from the
+  // database (the delivery worker does not run in tests, so they stay pending).
+  // These assert the fan-out selection, not the worker.
   describe('fan-out', () => {
     it('queues a pending delivery for a subscribed enabled webhook on issue create', async () => {
       const { asOwner, stateId } = await setupOwnerTeam();
@@ -274,7 +221,7 @@ describe('webhooks', () => {
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
+      const res = await webhookDeliveries(id);
       expect(res.data?.items).toHaveLength(1);
       expect(res.data!.items[0]).toMatchObject({
         eventType: 'Issue',
@@ -291,7 +238,7 @@ describe('webhooks', () => {
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
+      const res = await webhookDeliveries(id);
       expect(res.data?.items).toHaveLength(0);
     });
 
@@ -301,7 +248,7 @@ describe('webhooks', () => {
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
+      const res = await webhookDeliveries(id);
       expect(res.data?.items).toHaveLength(0);
     });
 
@@ -312,8 +259,8 @@ describe('webhooks', () => {
 
       await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
 
-      const da = await asOwner.webhooks({ webhookId: a }).deliveries.get();
-      const db = await asOwner.webhooks({ webhookId: b }).deliveries.get();
+      const da = await webhookDeliveries(a);
+      const db = await webhookDeliveries(b);
       expect(da.data?.items).toHaveLength(1);
       expect(db.data?.items).toHaveLength(1);
       // One event, one id shared across both deliveries so a receiver can dedupe.
@@ -327,7 +274,7 @@ describe('webhooks', () => {
       const issue = await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' });
       await asOwner.issues({ issueId: issue.data!.id }).comments.post({ body: 'looks good' });
 
-      const res = await asOwner.webhooks({ webhookId: id }).deliveries.get();
+      const res = await webhookDeliveries(id);
       expect(res.data?.items).toHaveLength(1);
       expect(res.data!.items[0]).toMatchObject({ eventType: 'Comment' });
     });
@@ -382,8 +329,6 @@ describe('webhooks', () => {
       expect(created.status).toBe(201);
       const id = created.data!.id;
       expect((await user.webhooks({ webhookId: id }).patch({ label: 'x' })).status).toBe(200);
-      // The delivery history of an all-teams webhook is for owners only.
-      expect((await user.webhooks({ webhookId: id }).deliveries.get()).status).toBe(403);
       expect((await user.webhooks({ webhookId: id }).delete()).status).toBe(204);
     });
 
@@ -414,25 +359,6 @@ describe('webhooks', () => {
         expect(res.status).toBe(400);
       });
     }
-  });
-
-  describe('all teams over MCP', () => {
-    const mcp = { headers: { 'x-mcp-loopback': '1' } };
-    const hook = { url: 'https://example.com/all', resourceTypes: ['Issue' as const] };
-
-    it('is refused while a team has MCP turned off', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      expect((await asOwner.webhooks.post(hook, mcp)).status).toBe(403);
-      expect((await asOwner.webhooks.get(mcp)).status).toBe(403);
-      const id = (await asOwner.webhooks.post(hook)).data!.id;
-      expect((await asOwner.webhooks({ webhookId: id }).delete(undefined, mcp)).status).toBe(403);
-    });
-
-    it('is allowed when every team has MCP turned on', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      await asOwner.teams({ teamKey: 'MKT' }).settings.patch({ mcpEnabled: true });
-      expect((await asOwner.webhooks.post(hook, mcp)).status).toBe(201);
-    });
   });
 
   describe('access', () => {
@@ -469,9 +395,6 @@ describe('webhooks', () => {
 
       const del = await outsider.webhooks({ webhookId }).delete();
       expect(del.status).toBe(404);
-
-      const deliveries = await outsider.webhooks({ webhookId }).deliveries.get();
-      expect(deliveries.status).toBe(404);
     });
   });
 });

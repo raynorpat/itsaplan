@@ -71,26 +71,24 @@ export default function IssueProperties({
         />
       </PropertyRow>
 
-      {team.team.projectsEnabled && (
-        <PropertyRow label="Project">
-          {readOnly ? (
-            // Read-only shows the linked project from the issue itself, avoiding
-            // the authenticated projects query the editable select runs.
-            <ReadOnlyPill>
-              <Pill active={!!issue.project}>
-                <Target />
-                {issue.project?.title ?? 'Project'}
-              </Pill>
-            </ReadOnlyPill>
-          ) : (
-            <ProjectSelect
-              teamKey={team.team.key}
-              value={issue.project?.id ?? null}
-              onChange={(id) => onPatch({ projectId: id })}
-            />
-          )}
-        </PropertyRow>
-      )}
+      <PropertyRow label="Project">
+        {readOnly ? (
+          // Read-only shows the linked project from the issue itself, avoiding
+          // the authenticated projects query the editable select runs.
+          <ReadOnlyPill>
+            <Pill active={!!issue.project}>
+              <Target />
+              {issue.project?.title ?? 'Project'}
+            </Pill>
+          </ReadOnlyPill>
+        ) : (
+          <ProjectSelect
+            teamKey={team.team.key}
+            value={issue.project?.id ?? null}
+            onChange={(id) => onPatch({ projectId: id })}
+          />
+        )}
+      </PropertyRow>
 
       {/* Hidden read-only: the milestone name needs the authenticated milestones query. */}
       {!readOnly && issue.project && issue.projectMilestoneId && (
@@ -98,15 +96,6 @@ export default function IssueProperties({
           <IssueMilestoneName projectId={issue.project.id} milestoneId={issue.projectMilestoneId} />
         </PropertyRow>
       )}
-
-      <PropertyRow label="Start date">
-        <DatePill
-          value={issue.startDate}
-          placeholder="Start date"
-          onChange={(v) => onPatch({ startDate: v })}
-          readOnly={readOnly}
-        />
-      </PropertyRow>
 
       <PropertyRow label="Due date">
         <DatePill

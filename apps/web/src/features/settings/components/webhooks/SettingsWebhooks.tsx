@@ -13,7 +13,6 @@ import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
 import { SettingsWebhookDialog, type WebhookFormValue } from './SettingsWebhookDialog';
 import { SettingsWebhooksTable } from './SettingsWebhooksTable';
-import { SettingsWebhookDeliveriesSheet } from './SettingsWebhookDeliveriesSheet';
 
 // Team settings tab for outgoing webhooks. Each webhook posts the events of its
 // resource types to its URL in Linear's format, signed with a per-webhook secret.
@@ -40,7 +39,6 @@ export default function SettingsWebhooks({
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Webhook | null>(null);
   const [rotating, setRotating] = useState<Webhook | null>(null);
-  const [deliveriesFor, setDeliveriesFor] = useState<Webhook | null>(null);
 
   // The "New webhook" button lives in the page header; opening is signalled here.
   useEffect(() => {
@@ -74,7 +72,6 @@ export default function SettingsWebhooks({
         <div className="space-y-4">
           <SettingsWebhooksTable
             webhooks={webhooks}
-            onShowDeliveries={setDeliveriesFor}
             onEdit={setEditing}
             onRotateSecret={setRotating}
             onDelete={setDeleting}
@@ -129,11 +126,6 @@ export default function SettingsWebhooks({
           </div>
         </ConfirmDialog>
       )}
-
-      <SettingsWebhookDeliveriesSheet
-        webhook={deliveriesFor}
-        onClose={() => setDeliveriesFor(null)}
-      />
     </>
   );
 }

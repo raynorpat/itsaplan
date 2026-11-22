@@ -6,6 +6,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { linkProject } from '../../../initiatives/links';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Initiatives over the Linear API: CRUD, archive / trash, visibility by lead team,
 // filters, unsupported input, and the project side (Project.initiatives,
@@ -239,7 +240,7 @@ describe('graphql initiatives', () => {
     ).data!;
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
     await client.createInitiativeUpdate({ initiativeId: a.id, body: 'ok' });
-    const events = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get())
+    const events = (await webhookDeliveries(hook.id))
       .data!.items.map((d) => d.payload as { action: string; type: string })
       .map((p) => `${p.type}:${p.action}`);
     expect(events).toContain('Initiative:create');

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
+import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
@@ -12,6 +12,7 @@ import {
   unarchiveDocument,
   updateDocument,
 } from '../../store';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Documents: defaults, one parent, access through the parent, moves, archived
 // parents, the trash, and Document webhooks.
@@ -39,8 +40,8 @@ const status = (p: Promise<unknown>) =>
     (e: { status?: number }) => e.status,
   );
 
-async function payloads(api: Api, webhookId: string) {
-  return (await api.webhooks({ webhookId }).deliveries.get())
+async function payloads(webhookId: string) {
+  return (await webhookDeliveries(webhookId))
     .data!.items.map(
       (d) => d.payload as { action: string; type: string; data: Record<string, unknown> },
     )
@@ -119,7 +120,7 @@ describe('documents', () => {
     const moved = (await updateDocument(doc.id, { issueId: issue.id }, owner.userId))!;
     expect(moved).toMatchObject({ projectId: null, issueId: issue.id });
     for (const hook of hooks)
-      expect((await payloads(asOwner, hook.id)).map((p) => p.action)).toEqual(['update']);
+      expect((await payloads(hook.id)).map((p) => p.action)).toEqual(['update']);
   });
 
   it('rejects an archived parent', async () => {
@@ -146,7 +147,7 @@ describe('documents', () => {
     expect(trashed.trashed).toBe(true);
     const restored = await unarchiveDocument(doc.id, owner.userId);
     expect(restored).toMatchObject({ archivedAt: null, trashed: null });
-    const events = await payloads(asOwner, hook.id);
+    const events = await payloads(hook.id);
     expect(events.map((p) => `${p.type}:${p.action}`)).toEqual([
       'Document:create',
       'Document:remove',
