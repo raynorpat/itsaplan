@@ -168,8 +168,9 @@ export async function canManageTeam(teamId: string, userId: string): Promise<boo
 }
 
 // What a request needs on a team: `see` to read or work in it, `manage` for its
-// settings and members.
-export type TeamLevel = 'see' | 'manage';
+// settings and members, `join` to become a member (anyone who can see it, and
+// workspace admins and owners on a private team they are not in).
+export type TeamLevel = 'see' | 'manage' | 'join';
 
 // Asserts the user may act on the team at `level`: 404 when they cannot see it
 // (`notFound` names what was addressed), 403 when they may not manage it.
@@ -180,7 +181,10 @@ export async function assertTeamAccess(
   notFound = 'Team not found',
 ): Promise<AuthUser> {
   const current = requireUser(user);
-  if (!(await canSeeTeam(teamId, current.id))) throw new HttpError(404, notFound);
+  if (!(await canSeeTeam(teamId, current.id))) {
+    const adminJoining = level === 'join' && atLeast(await workspaceRole(current.id), 'admin');
+    if (!adminJoining) throw new HttpError(404, notFound);
+  }
   if (level === 'manage' && !(await canManageTeam(teamId, current.id)))
     throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
   return current;

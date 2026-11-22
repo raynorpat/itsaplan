@@ -124,4 +124,17 @@ describe('notifications', () => {
     expect((await user.notifications.get({ query: { from: 'abc' } })).status).toBe(400);
     expect((await user.notifications.get({ query: { teamId: 'abc' } })).status).toBe(400);
   });
+
+  it('hides notifications about teams the user can no longer see', async () => {
+    const { owner, stateId } = await setup();
+    const member = await addMember(owner);
+    await owner.api
+      .teams({ teamKey: 'MKT' })
+      .issues.post({ stateId, title: 'Ship it', assigneeUserId: member.userId });
+    expect((await member.api.notifications.get({ query: {} })).data!.items).toHaveLength(1);
+    await owner.api.teams({ teamKey: 'MKT' }).members({ userId: member.userId }).delete();
+    await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
+    expect((await member.api.notifications.get({ query: {} })).data!.items).toHaveLength(0);
+    expect((await member.api.notifications.rev.get()).data!.unread).toBe(0);
+  });
 });

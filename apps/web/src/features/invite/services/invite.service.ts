@@ -3,7 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { signUp } from '@/lib/auth-client';
+import { signOut, signUp } from '@/lib/auth-client';
 
 export function useInviteQuery(token: string) {
   return useQuery({
@@ -34,19 +34,33 @@ export function isExistingAccountError(err: unknown): boolean {
   );
 }
 
-// Create an account for the invited email. The API applies the invite (its role and
-// teams) to the account it creates for that email, so there is no separate accept
-// call; autoSignIn (set in @repo/auth) signs the new user in.
-export async function registerWithInvite(input: { email: string; password: string }) {
-  const result = await signUp.email({
-    email: input.email,
-    password: input.password,
-    name: input.email.split('@')[0] || input.email,
-  });
+// Create an account for the invited email. The invite's token goes with the request
+// (x-invite-token): the API applies the invite (its role and teams) only to a sign-up
+// that presents it, so there is no separate accept call. autoSignIn (set in
+// @repo/auth) signs the new user in.
+export async function registerWithInvite(input: {
+  email: string;
+  password: string;
+  token: string;
+}) {
+  const result = await signUp.email(
+    {
+      email: input.email,
+      password: input.password,
+      name: input.email.split('@')[0] || input.email,
+    },
+    { headers: { 'x-invite-token': input.token } },
+  );
   if (result.error) {
     throw new InviteAuthError(
       result.error.message ?? 'Could not create your account.',
       result.error.code,
     );
   }
+}
+
+// With email confirmation required, sign-up still opens a session (autoSignIn), so it
+// is dropped right away: the account stays unusable until the emailed link is opened.
+export async function signOutUnconfirmed(): Promise<void> {
+  await signOut();
 }

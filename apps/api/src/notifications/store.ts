@@ -4,6 +4,7 @@ import { parseMentions } from '../shared/mentions';
 import { iso } from '../shared/lib';
 import { enqueueOutbound } from './outbound';
 import { subscribe, subscriberIds } from './subscriptions';
+import { visibleTeamIds } from '../shared/access';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
 // about an issue they are involved in. Comment and status-change notifications go to
@@ -254,7 +255,12 @@ export async function listNotifications(
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
   const before = opts.before ?? null;
   const f = opts.filters ?? {};
-  const conds = [eq(notification.userId, userId), isNull(notification.archivedAt)];
+  const conds = [
+    eq(notification.userId, userId),
+    isNull(notification.archivedAt),
+    // Only notifications about teams the user can still see.
+    inArray(notification.teamId, visibleTeamIds(userId)),
+  ];
   if (f.types && f.types.length) conds.push(inArray(notification.type, f.types));
   if (f.fromUserId) conds.push(eq(notification.actorUserId, f.fromUserId));
   if (f.teamId != null) conds.push(eq(notification.teamId, f.teamId));
@@ -307,6 +313,7 @@ export async function unreadCount(userId: string, teamId?: string): Promise<numb
   const conds = [
     eq(notification.userId, userId),
     isNull(notification.archivedAt),
+    inArray(notification.teamId, visibleTeamIds(userId)),
     isNull(notification.readAt),
     or(isNull(notification.snoozedUntil), lt(notification.snoozedUntil, sql`now()`)),
   ];
@@ -322,7 +329,12 @@ export async function unreadCount(userId: string, teamId?: string): Promise<numb
 // count, optionally scoped to one team. It moves on a new notification (newest),
 // a delete (total), and a read/unread toggle (unread).
 export async function notificationsRev(userId: string, teamId?: string): Promise<string> {
-  const conds = [eq(notification.userId, userId), isNull(notification.archivedAt)];
+  const conds = [
+    eq(notification.userId, userId),
+    isNull(notification.archivedAt),
+    // Only notifications about teams the user can still see.
+    inArray(notification.teamId, visibleTeamIds(userId)),
+  ];
   if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const [row] = await db
     .select({

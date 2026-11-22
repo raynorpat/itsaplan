@@ -9,8 +9,7 @@ import { openAPI, magicLink } from 'better-auth/plugins';
 import * as schema from '@repo/db/schema';
 import {
   getAuthSettings,
-  hasPendingInvite,
-  pendingInvite,
+  inviteForToken,
   getGoogleConfig,
   isGoogleUsable,
   hasConfiguredEmailProvider,
@@ -96,12 +95,20 @@ async function refreshGoogleOptions(): Promise<boolean> {
   }
 }
 
+// The invite token a sign-up presents in the x-invite-token header (sent by the web
+// invite page). A Google sign-up carries none, so it never applies an invite.
+function inviteTokenOf(
+  ctx: { headers?: Headers; request?: Request } | null | undefined,
+): string | null {
+  return ctx?.headers?.get('x-invite-token') ?? ctx?.request?.headers.get('x-invite-token') ?? null;
+}
+
 // The registration gate: who may create an account. Both sign-up paths run it — the
 // email form checks it up front (below), and the user create hook catches every other
 // path, which is what stops a Google sign-up on a closed or invite-only instance.
 // Each refusal carries a `code`, which is what the social callback turns into the
 // ?error= it redirects with; without one the callback would fail the request instead.
-async function assertRegistrationAllowed(email: string): Promise<void> {
+async function assertRegistrationAllowed(email: string, inviteToken: string | null): Promise<void> {
   const settings = await getAuthSettings();
   if (settings.registration === 'closed') {
     throw new APIError('FORBIDDEN', {
@@ -109,7 +116,7 @@ async function assertRegistrationAllowed(email: string): Promise<void> {
       message: 'Registration is closed on this instance',
     });
   }
-  if (settings.registration === 'invite' && !(await hasPendingInvite(email))) {
+  if (settings.registration === 'invite' && !(await inviteForToken(email, inviteToken))) {
     throw new APIError('FORBIDDEN', {
       code: 'INVITE_ONLY',
       message: 'This instance is invite-only. Ask a team owner to invite this address.',
@@ -229,7 +236,10 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path === '/sign-up/email') {
-        await assertRegistrationAllowed((ctx.body as { email?: string } | undefined)?.email ?? '');
+        await assertRegistrationAllowed(
+          (ctx.body as { email?: string } | undefined)?.email ?? '',
+          inviteTokenOf(ctx),
+        );
         return;
       }
 
@@ -284,19 +294,20 @@ export const auth = betterAuth({
         // with a direct insert and never reach this hook.
         //
         // Assign the workspace role before the row is inserted: first user ever →
-        // owner; an address with a pending workspace invite → the invite's role;
-        // everyone else → member.
-        before: async (user) => {
-          await assertRegistrationAllowed(user.email);
+        // owner; a sign-up presenting a pending invite's token for its address → the
+        // invite's role; everyone else → member.
+        before: async (user, ctx) => {
+          const token = inviteTokenOf(ctx);
+          await assertRegistrationAllowed(user.email, token);
           const isFirstUser = (await db.$count(schema.user)) === 0;
-          const invite = isFirstUser ? null : await pendingInvite(user.email);
+          const invite = isFirstUser ? null : await inviteForToken(user.email, token);
           const role = isFirstUser ? 'owner' : (invite?.role ?? 'member');
           return { data: { ...user, workspaceRole: role } };
         },
         // Linear accepts an invite at sign-up: the new account joins the invite's
-        // teams that still exist, and the invite is consumed.
-        after: async (user) => {
-          const invite = await pendingInvite(user.email);
+        // teams that still exist, and the invite is consumed. Only with its token.
+        after: async (user, ctx) => {
+          const invite = await inviteForToken(user.email, inviteTokenOf(ctx));
           if (!invite) return;
           if (invite.teamIds.length) {
             const teams = await db

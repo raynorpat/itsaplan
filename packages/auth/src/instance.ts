@@ -289,19 +289,18 @@ export async function setGoogleSettings(patch: InstanceGooglePatch): Promise<Ins
 
 // ── Invites ───────────────────────────────────────────────────────────────────
 
-// True when this address has a pending team invite. That is what "invite only"
-// means on this instance: an owner invites someone to a team, and that invite is
-// what lets them register at all. Invites are created and revoked inside a team
-// (team_invite), so there is nothing instance-level to manage.
+// "Invite only" registration admits a sign-up that presents a pending workspace
+// invite's token for its address (see ./index.ts).
 //
-// The invite itself is accepted after sign-up, on the /invite/:token screen — this
-// only decides whether the account may be created, and leaves the invite pending.
-// The pending, unexpired workspace invite for an address, or null.
-export async function pendingInvite(
+// The pending, unexpired workspace invite for an address that carries this token, or
+// null. An invite applies only to a sign-up that presents its token (from the invite
+// link), so knowing an invited address is not enough to claim the invite's role.
+export async function inviteForToken(
   email: string,
+  token: string | null | undefined,
 ): Promise<{ id: string; role: string; teamIds: string[] } | null> {
   const address = email.trim().toLowerCase();
-  if (!address) return null;
+  if (!address || !token || !UUID_RE.test(token)) return null;
   const [row] = await db
     .select({
       id: workspaceInvite.id,
@@ -309,10 +308,14 @@ export async function pendingInvite(
       teamIds: workspaceInvite.teamIds,
     })
     .from(workspaceInvite)
-    .where(and(eq(workspaceInvite.email, address), gt(workspaceInvite.expiresAt, sql`now()`)));
+    .where(
+      and(
+        eq(workspaceInvite.email, address),
+        eq(workspaceInvite.token, token),
+        gt(workspaceInvite.expiresAt, sql`now()`),
+      ),
+    );
   return row ?? null;
 }
 
-export async function hasPendingInvite(email: string): Promise<boolean> {
-  return (await pendingInvite(email)) !== null;
-}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

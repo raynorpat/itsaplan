@@ -2,9 +2,14 @@ import { db, team, teamMember, workspaceInvite } from '@repo/db';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { getInvite, inviteToWorkspace, revokeInvite, type InviteRole } from '../../invites/store';
 import { addTeamMember, removeTeamMember } from '../../members/store';
-import { assertWorkspaceRole, visibleTeamIds, type WorkspaceRole } from '../../shared/access';
+import {
+  assertTeamAccess,
+  assertWorkspaceRole,
+  visibleTeamIds,
+  type WorkspaceRole,
+} from '../../shared/access';
 import { HttpError, UUID_RE, rethrowDuplicate } from '../../shared/lib';
-import { createTeam } from '../../teams/store';
+import { createTeam, getTeamById, getTeamByKey } from '../../teams/store';
 import { changeWorkspaceRole, suspendUser, unsuspendUser } from '../../workspace/store';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -122,6 +127,15 @@ const uuidArg = (id: string, what: string) => {
   if (!UUID_RE.test(id)) throw gqlError('INVALID_INPUT', `${what} is not a valid id`);
   return id;
 };
+
+// The team a membership is created in: one the viewer can see, or, for a workspace
+// admin or owner, a private team they are not in yet (they may add themselves).
+async function teamToJoin(idOrKey: string, ctx: GraphQLContext) {
+  const found = UUID_RE.test(idOrKey) ? await getTeamById(idOrKey) : await getTeamByKey(idOrKey);
+  if (!found) throw gqlError('ENTITY_NOT_FOUND', `Team ${idOrKey} not found`);
+  await assertTeamAccess(found.id, ctx.user, 'join', `Team ${idOrKey} not found`);
+  return found;
+}
 
 export const workspaceResolvers = {
   Query: {
@@ -263,7 +277,7 @@ export const workspaceResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ['teamId', 'userId'], 'input');
-        const found = await findTeam(String(input.teamId), ctx.user.id);
+        const found = await teamToJoin(String(input.teamId), ctx);
         const userId = uuidArg(String(input.userId), 'input.userId');
         await addTeamMember(found, userId, false, ctx.user);
         const [row] = await db

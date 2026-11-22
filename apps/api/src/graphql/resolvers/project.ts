@@ -1,3 +1,4 @@
+import { assertLabelManager } from '../../project-labels/store';
 import { visibleTeamIdList } from '../../shared/access';
 import {
   db,
@@ -21,6 +22,7 @@ import { projectsInTeams } from '../../projects/access';
 import { getProjectsByIds, type ProjectRow } from '../../projects/store';
 import { listIssues, userById } from './issue';
 import { toTeam } from './team';
+import { guard } from './mutations';
 
 // Linear's Project and its items (ProjectStatus, ProjectMilestone, ProjectUpdate,
 // ProjectLabel). Project data comes from the REST store (getProjectsByIds), so
@@ -325,14 +327,19 @@ export const projectResolvers = {
     },
     projectUpdates: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUpdates(undefined, args, ctx),
-    projectLabel: async (_: unknown, args: { id: string }) => {
+    // Workspace project labels are not shown to guests (as on REST).
+    projectLabel: async (_: unknown, args: { id: string }, ctx: GraphQLContext) => {
+      await guard(() => assertLabelManager(ctx.user.id));
       const [row] = UUID_RE.test(args.id)
         ? await db.select().from(projectLabel).where(eq(projectLabel.id, args.id))
         : [];
       if (!row) throw gqlError('ENTITY_NOT_FOUND', `Project label ${args.id} not found`);
       return toLabel(row);
     },
-    projectLabels: (_: unknown, args: ConnectionArgs) => listLabels(undefined, args),
+    projectLabels: async (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) => {
+      await guard(() => assertLabelManager(ctx.user.id));
+      return listLabels(undefined, args);
+    },
   },
   Project: {
     status: async (p: GraphQLProject) => {

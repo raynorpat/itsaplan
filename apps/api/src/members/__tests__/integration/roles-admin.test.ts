@@ -105,4 +105,18 @@ describe('roles administration', () => {
     const inbox = (await authedApi(cookie).notifications.get({ query: {} })).data!;
     expect(inbox.items).toHaveLength(0);
   });
+
+  it('admins and owners can add themselves to a private team', async () => {
+    await setup();
+    const admin = await signUpWithRole('admin');
+    const member = await signUpWithRole('member');
+    const guest = await signUpWithRole('guest');
+    expect((await member.api.teams({ teamKey: 'SEC' }).join.post()).status).toBe(404);
+    expect((await guest.api.teams({ teamKey: 'SEC' }).join.post()).status).toBe(404);
+    expect((await admin.api.teams({ teamKey: 'SEC' }).join.post()).status).toBe(201);
+    expect((await admin.api.teams({ teamKey: 'SEC' }).get()).status).toBe(200);
+    const other = await signUpWithRole('admin');
+    const added = await other.api.teams({ teamKey: 'SEC' }).members.post({ userId: other.userId });
+    expect(added.status).toBe(201);
+  });
 });

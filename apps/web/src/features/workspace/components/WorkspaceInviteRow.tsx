@@ -27,6 +27,7 @@ export default function WorkspaceInviteRow({
 
   async function copy() {
     const origin = typeof window === 'undefined' ? '' : window.location.origin;
+    if (!invite.token) return;
     try {
       await navigator.clipboard.writeText(inviteLink(origin, invite.token));
       setCopied(true);
@@ -51,10 +52,13 @@ export default function WorkspaceInviteRow({
           {teamNames.length > 0 ? ` · ${teamNames.join(', ')}` : ''}
         </p>
       </div>
-      <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={copy}>
-        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-        {copied ? 'Copied' : 'Copy link'}
-      </Button>
+      {/* The link is shown only to the invite's sender and to admins (token set). */}
+      {invite.token && (
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={copy}>
+          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          {copied ? 'Copied' : 'Copy link'}
+        </Button>
+      )}
       {canRevoke && (
         <Button
           variant="ghost"

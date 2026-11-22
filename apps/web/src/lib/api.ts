@@ -871,7 +871,8 @@ export type InviteRole = 'admin' | 'member' | 'guest';
 // and joins its teams.
 export interface InviteRow {
   id: string;
-  token: string;
+  // Null unless the viewer sent the invite or is an admin or owner.
+  token: string | null;
   email: string;
   role: InviteRole;
   teamIds: string[];

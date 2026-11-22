@@ -69,7 +69,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
       return { teamKey: team.key, userId: current.id };
     },
     {
-      teamAccess: 'see',
+      teamAccess: 'join',
       response: { 201: JoinedResponse, 401: ErrorResponse, 404: ErrorResponse },
       detail: {
         summary: 'Join a team',
@@ -90,7 +90,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
     },
     {
       body: t.Object({ userId: t.String({ format: 'uuid' }), owner: t.Optional(t.Boolean()) }),
-      teamAccess: 'see',
+      teamAccess: 'join',
       response: {
         201: JoinedResponse,
         400: ErrorResponse,

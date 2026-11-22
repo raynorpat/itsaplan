@@ -67,8 +67,6 @@ const EmailSettingsResponse = t.Object({
   }),
   resend: t.Object({ enabled: t.Boolean(), hasApiKey: t.Boolean() }),
   from: t.String(),
-  // Whether teams may deliver their notifications through this provider instead
-  // of configuring one of their own.
 });
 
 const EmailSettingsBody = t.Object({
@@ -175,7 +173,10 @@ const InstanceTeamDetailResponse = t.Composite([
 export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
   .use(authContext)
   // Every route in this plugin is instance administration, so the role check runs
-  // once here instead of per route.
+  // once here instead of per route: workspace admins and owners. The settings that
+  // hold instance secrets (sign-in, email, Google, storage) are changed by owners
+  // only: an admin who could repoint the mail provider could take over an owner
+  // through a password reset.
   .onBeforeHandle(async ({ user }) => {
     await requireWorkspaceAdmin(user);
   })
@@ -209,6 +210,10 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     },
     {
       body: AuthSettingsBody,
+      // Instance secrets are the owner's (see the plugin's role check).
+      beforeHandle: async ({ user }) => {
+        await assertWorkspaceRole(user, 'owner');
+      },
       response: {
         200: AuthSettingsResponse,
         400: ErrorResponse,
@@ -232,6 +237,10 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
 
   .put('/god/email-settings', ({ body }) => setEmailSettings(body), {
     body: EmailSettingsBody,
+    // Instance secrets are the owner's (see the plugin's role check).
+    beforeHandle: async ({ user }) => {
+      await assertWorkspaceRole(user, 'owner');
+    },
     response: {
       200: EmailSettingsResponse,
       400: ErrorResponse,
@@ -272,6 +281,10 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
     },
     {
       body: GoogleSettingsBody,
+      // Instance secrets are the owner's (see the plugin's role check).
+      beforeHandle: async ({ user }) => {
+        await assertWorkspaceRole(user, 'owner');
+      },
       response: {
         200: GoogleSettingsResponse,
         400: ErrorResponse,
@@ -295,6 +308,10 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
 
   .put('/god/storage-settings', ({ body }) => setStorageSettings(body), {
     body: StorageSettingsBody,
+    // Instance secrets are the owner's (see the plugin's role check).
+    beforeHandle: async ({ user }) => {
+      await assertWorkspaceRole(user, 'owner');
+    },
     response: {
       200: StorageSettingsSchema,
       400: ErrorResponse,

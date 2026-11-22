@@ -2,7 +2,7 @@ import { Elysia, t } from 'elysia';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
-import { assertWorkspaceRole, requireUser } from '../shared/access';
+import { assertWorkspaceRole, atLeast, requireUser, workspaceRole } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { getInviteByToken, inviteToWorkspace, listInvites, revokeInvite } from './store';
@@ -19,7 +19,10 @@ const idParams = t.Object({ id: t.String({ format: 'uuid' }) });
 
 const InviteRowResponse = t.Object({
   id: t.String({ format: 'uuid' }),
-  token: t.String(),
+  // The invite link's token: shown to the invite's sender and to admins and owners
+  // (copy link), null for everyone else, so an invite cannot be claimed by another
+  // member.
+  token: t.Nullable(t.String()),
   email: t.String(),
   role: inviteRole,
   teamIds: t.Array(t.String()),
@@ -76,7 +79,11 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
     '/invites',
     async ({ user }) => {
       await assertWorkspaceRole(user, 'member');
-      return listInvites();
+      const viewer = requireUser(user);
+      const admin = atLeast(await workspaceRole(viewer.id), 'admin');
+      return (await listInvites()).map((i) =>
+        admin || i.invitedByUserId === viewer.id ? i : { ...i, token: null },
+      );
     },
     {
       response: { 200: t.Array(InviteRowResponse), 401: ErrorResponse, 403: ErrorResponse },

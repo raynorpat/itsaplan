@@ -16,7 +16,7 @@ export default function InviteStep({ invite }: { invite: InviteView }) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
-  if (!session) return <InviteAuthForm email={invite.email} />;
+  if (!session) return <InviteAuthForm email={invite.email} token={invite.token} />;
 
   return (
     <InviteNotice

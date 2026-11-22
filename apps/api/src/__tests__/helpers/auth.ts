@@ -15,19 +15,23 @@ let counter = 0;
 // we read the Set-Cookie off the response. Each call uses a unique email so
 // tests do not collide. Pass this cookie to authenticated requests.
 //
-// Note: the very first user created in a fresh database becomes the "god" role
+// Note: the very first user created in a fresh database becomes the workspace owner
 // (better-auth create hook). resetDb() clears users between tests, so whichever
-// user a test creates first is "god" — keep that in mind for role-sensitive tests.
+// user a test creates first is the owner — keep that in mind for role-sensitive tests.
 export async function signUpTestUser(
-  overrides: { email?: string; password?: string; name?: string } = {},
+  overrides: { email?: string; password?: string; name?: string; inviteToken?: string } = {},
 ): Promise<TestUser> {
   counter += 1;
   const email = overrides.email ?? `test-user-${counter}@example.com`;
   const password = overrides.password ?? 'test-password-123';
   const name = overrides.name ?? `Test User ${counter}`;
 
+  // An invite applies only when its token comes with the sign-up (x-invite-token).
   const response = await auth.api.signUpEmail({
     body: { email, password, name },
+    headers: overrides.inviteToken
+      ? new Headers({ 'x-invite-token': overrides.inviteToken })
+      : undefined,
     asResponse: true,
   });
 

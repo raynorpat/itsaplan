@@ -6,18 +6,27 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { isExistingAccountError, registerWithInvite } from '../services/invite.service';
+import { useAuthConfig } from '@/services/authConfig.service';
+import {
+  isExistingAccountError,
+  registerWithInvite,
+  signOutUnconfirmed,
+} from '../services/invite.service';
 
 // Sign-up for the invitee. The email is fixed to the invited address: the account
 // created for it takes the invite's role and teams. An email that already has an
-// account is already in the workspace, so it is sent to the sign-in page.
-export default function InviteAuthForm({ email }: { email: string }) {
+// account is already in the workspace, so it is sent to the sign-in page. When the
+// instance requires email confirmation, the session sign-up opens is dropped and the
+// invitee is asked to open the emailed link, as on the normal sign-up page.
+export default function InviteAuthForm({ email, token }: { email: string; token: string }) {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState(false);
   const [pending, setPending] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const needsConfirmation = useAuthConfig()?.requireEmailVerification === true;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -28,7 +37,13 @@ export default function InviteAuthForm({ email }: { email: string }) {
     }
     setPending(true);
     try {
-      await registerWithInvite({ email, password });
+      await registerWithInvite({ email, password, token });
+      if (needsConfirmation) {
+        await signOutUnconfirmed();
+        setAwaitingConfirmation(true);
+        setPending(false);
+        return;
+      }
       router.push('/');
       router.refresh();
     } catch (err) {
@@ -36,6 +51,20 @@ export default function InviteAuthForm({ email }: { email: string }) {
       else setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setPending(false);
     }
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div className="flex flex-col gap-4 text-sm text-muted-foreground">
+        <p>
+          We sent a link to <span className="font-medium text-foreground">{email}</span>. Open it to
+          finish creating your account.
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/login">Back to sign in</Link>
+        </Button>
+      </div>
+    );
   }
 
   if (existing) {
