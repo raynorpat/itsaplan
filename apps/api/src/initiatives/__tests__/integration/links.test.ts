@@ -3,7 +3,7 @@ import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { visibleInitiativesSql } from '../../access';
-import { createInitiative } from '../../store';
+import { archiveInitiative, createInitiative } from '../../store';
 import {
   createRelation,
   getProjectLink,
@@ -177,5 +177,44 @@ describe('initiative links and relations', () => {
     const latest = payloads.find((p) => p.data.id === parent.id)!;
     expect(latest.data.subInitiatives.map((i) => i.id)).toEqual([ownChild.id]);
     expect(latest.data.projects).toEqual([]);
+  });
+
+  it('never lets concurrent relations form a loop', async () => {
+    const { owner, make } = await setup();
+    for (let round = 0; round < 5; round++) {
+      const [a, b] = [await make(`A${round}`), await make(`B${round}`)];
+      const results = await Promise.allSettled([
+        createRelation({ initiativeId: a.id, relatedInitiativeId: b.id }, owner.userId),
+        createRelation({ initiativeId: b.id, relatedInitiativeId: a.id }, owner.userId),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    }
+  });
+
+  it('leaves archived sub-initiatives out of the subtree', async () => {
+    const { owner, make } = await setup();
+    const [a, b] = [await make('A'), await make('B')];
+    await createRelation({ initiativeId: a.id, relatedInitiativeId: b.id }, owner.userId);
+    await archiveInitiative(b.id, owner.userId);
+    expect(await visibleSubtreeIds(a.id, await visibleInitiativesSql(owner.userId))).toEqual([
+      a.id,
+    ]);
+  });
+
+  it('sends an Initiative update when a deleted project drops out', async () => {
+    const { owner, asOwner, project, make } = await setup();
+    const a = await make('A');
+    await linkProject({ initiativeId: a.id, projectId: project.id }, owner.userId);
+    const hook = (
+      await asOwner.webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
+    ).data!;
+    await asOwner.projects({ projectId: project.id }).delete();
+    const payloads = (
+      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
+    ).data!.items.map(
+      (d) => d.payload as { action: string; data: { id: string; projects: unknown[] } },
+    );
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).toMatchObject({ action: 'update', data: { id: a.id, projects: [] } });
   });
 });

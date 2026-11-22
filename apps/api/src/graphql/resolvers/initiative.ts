@@ -90,6 +90,20 @@ export async function listInitiatives(where: SQL | undefined, args: ListArgs, ct
   );
 }
 
+// The newest unarchived update of an initiative, looked up once per request:
+// health, healthUpdatedAt and lastUpdate all read it.
+const latestUpdates = new WeakMap<
+  GraphQLContext,
+  Map<string, Promise<InitiativeUpdateRow | null>>
+>();
+function latestUpdate(initiativeId: string, ctx: GraphQLContext) {
+  let cache = latestUpdates.get(ctx);
+  if (!cache) latestUpdates.set(ctx, (cache = new Map()));
+  let found = cache.get(initiativeId);
+  if (!found) cache.set(initiativeId, (found = latestInitiativeUpdate(initiativeId)));
+  return found;
+}
+
 // A visible initiative by id or slug, or ENTITY_NOT_FOUND.
 export async function findInitiative(id: string, ctx: GraphQLContext) {
   return guard(async () => toInitiative(await assertInitiativeAccess(id, ctx.user.id, 'read')));
@@ -124,8 +138,9 @@ export const toRelation = (row: InitiativeRelationRow) => row;
 // visibleInitiativesSql). Not awaited: awaiting a query builder runs it.
 const idsWhere = (visible: SQL) => db.select({ id: initiative.id }).from(initiative).where(visible);
 
-// Links whose initiative and project are both visible.
-async function listProjectLinks(where: SQL | undefined, args: PageArgs, ctx: GraphQLContext) {
+// Links whose initiative and project are both visible; links to archived
+// initiatives only with includeArchived.
+async function listProjectLinks(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
   const projects = projectsInTeams(await teamsGranting(ctx.user.id, 'read'));
   return paginate(
     args,
@@ -135,7 +150,15 @@ async function listProjectLinks(where: SQL | undefined, args: PageArgs, ctx: Gra
       updatedAt: initiativeToProject.updatedAt,
     },
     and(
-      inArray(initiativeToProject.initiativeId, idsWhere(await visibleInitiativesSql(ctx.user.id))),
+      inArray(
+        initiativeToProject.initiativeId,
+        idsWhere(
+          and(
+            await visibleInitiativesSql(ctx.user.id),
+            args.includeArchived ? undefined : isNull(initiative.archivedAt),
+          )!,
+        ),
+      ),
       inArray(initiativeToProject.projectId, projects),
       where,
     ),
@@ -241,7 +264,7 @@ export const initiativeResolvers = {
       listInitiatives(undefined, args, ctx),
     initiativeToProject: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       toProjectLink(await findProjectLink(id, ctx)),
-    initiativeToProjects: (_: unknown, args: PageArgs, ctx: GraphQLContext) =>
+    initiativeToProjects: (_: unknown, args: ListArgs, ctx: GraphQLContext) =>
       listProjectLinks(undefined, args, ctx),
     initiativeRelation: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       toRelation(await findRelation(id, ctx)),
@@ -264,11 +287,12 @@ export const initiativeResolvers = {
             .catch(() => null)
         : null,
     organization: () => getOrganization(),
-    health: async (i: GraphQLInitiative) => (await latestInitiativeUpdate(i.id))?.health ?? null,
-    healthUpdatedAt: async (i: GraphQLInitiative) =>
-      (await latestInitiativeUpdate(i.id))?.createdAt ?? null,
-    lastUpdate: async (i: GraphQLInitiative) => {
-      const last = await latestInitiativeUpdate(i.id);
+    health: async (i: GraphQLInitiative, _: unknown, ctx: GraphQLContext) =>
+      (await latestUpdate(i.id, ctx))?.health ?? null,
+    healthUpdatedAt: async (i: GraphQLInitiative, _: unknown, ctx: GraphQLContext) =>
+      (await latestUpdate(i.id, ctx))?.createdAt ?? null,
+    lastUpdate: async (i: GraphQLInitiative, _: unknown, ctx: GraphQLContext) => {
+      const last = await latestUpdate(i.id, ctx);
       return last ? toInitiativeUpdate(last) : null;
     },
     initiativeUpdates: (i: GraphQLInitiative, args: ListArgs, ctx: GraphQLContext) =>
@@ -334,7 +358,7 @@ export const initiativeResolvers = {
       userById(u.userId, ctx.user.id),
   },
   Project: {
-    initiativeToProjects: (p: { id: string }, args: PageArgs, ctx: GraphQLContext) =>
+    initiativeToProjects: (p: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
       listProjectLinks(eq(initiativeToProject.projectId, p.id), args, ctx),
     initiatives: (p: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
       listInitiatives(

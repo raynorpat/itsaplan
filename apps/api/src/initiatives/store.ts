@@ -1,6 +1,6 @@
 import { db, initiative } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
 import { initiativeData, type WebhookData } from '../webhooks/data';
@@ -219,7 +219,12 @@ export async function archiveInitiative(
 ): Promise<InitiativeRow> {
   const [row] = await db
     .update(initiative)
-    .set({ archivedAt: new Date(), trashed: opts.trash ? true : null })
+    .set({
+      // Archiving again (or trashing an archived initiative) keeps the first time.
+      archivedAt: sql`coalesce(${initiative.archivedAt}, now())`,
+      trashed: opts.trash ? true : null,
+      updatedAt: new Date(),
+    })
     .where(eq(initiative.id, id))
     .returning();
   if (!row) throw new HttpError(404, 'Initiative not found');

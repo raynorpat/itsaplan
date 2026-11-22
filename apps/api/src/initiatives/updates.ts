@@ -2,9 +2,9 @@ import { db, initiativeUpdate } from '@repo/db';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
-import { initiativeUpdateData, type WebhookData } from '../webhooks/data';
+import { initiativeData, initiativeUpdateData, type WebhookData } from '../webhooks/data';
 import type { UpdateHealth } from '../projects/updates';
-import { getInitiative } from './store';
+import { getInitiative, sendInitiativeEvent } from './store';
 
 // Initiative updates (Linear's InitiativeUpdate): status posts with a health
 // reading. The newest update that is not archived gives the initiative its health.
@@ -64,24 +64,39 @@ export async function getInitiativeUpdate(id: string): Promise<InitiativeUpdateR
   return row ? mapInitiativeUpdate(row) : null;
 }
 
+// Runs `change` and sends an Initiative update when it changed the initiative's
+// health or last update (emitEvent drops an update with no changed field).
+async function withHealthEvent<T>(
+  initiativeId: string,
+  actorUserId: string | null,
+  change: () => Promise<T>,
+): Promise<T> {
+  const before = await initiativeData(initiativeId);
+  const result = await change();
+  await sendInitiativeEvent('update', initiativeId, actorUserId, before);
+  return result;
+}
+
 export async function createInitiativeUpdate(
   initiativeId: string,
   userId: string,
   input: { body: string; health?: UpdateHealth; id?: string },
 ): Promise<InitiativeUpdateRow> {
-  const [row] = await db
-    .insert(initiativeUpdate)
-    .values({
-      ...(input.id ? { id: input.id } : {}),
-      initiativeId,
-      userId,
-      body: input.body,
-      health: input.health ?? 'onTrack',
-    })
-    .returning();
-  const created = mapInitiativeUpdate(row!);
-  await sendUpdateEvent('create', created, userId);
-  return created;
+  return withHealthEvent(initiativeId, userId, async () => {
+    const [row] = await db
+      .insert(initiativeUpdate)
+      .values({
+        ...(input.id ? { id: input.id } : {}),
+        initiativeId,
+        userId,
+        body: input.body,
+        health: input.health ?? 'onTrack',
+      })
+      .returning();
+    const created = mapInitiativeUpdate(row!);
+    await sendUpdateEvent('create', created, userId);
+    return created;
+  });
 }
 
 export async function updateInitiativeUpdate(
@@ -89,16 +104,19 @@ export async function updateInitiativeUpdate(
   patch: { body?: string; health?: UpdateHealth },
   actorUserId: string | null,
 ): Promise<InitiativeUpdateRow> {
-  const before = await initiativeUpdateData(id);
-  const [row] = await db
-    .update(initiativeUpdate)
-    .set({ ...patch, editedAt: new Date(), updatedAt: new Date() })
-    .where(eq(initiativeUpdate.id, id))
-    .returning();
-  if (!row) throw new HttpError(404, 'Initiative update not found');
-  const updated = mapInitiativeUpdate(row);
-  await sendUpdateEvent('update', updated, actorUserId, before);
-  return updated;
+  const current = await getInitiativeUpdate(id);
+  if (!current) throw new HttpError(404, 'Initiative update not found');
+  return withHealthEvent(current.initiativeId, actorUserId, async () => {
+    const before = await initiativeUpdateData(id);
+    const [row] = await db
+      .update(initiativeUpdate)
+      .set({ ...patch, editedAt: new Date(), updatedAt: new Date() })
+      .where(eq(initiativeUpdate.id, id))
+      .returning();
+    const updated = mapInitiativeUpdate(row!);
+    await sendUpdateEvent('update', updated, actorUserId, before);
+    return updated;
+  });
 }
 
 // Archiving sends `remove`, unarchiving `update`.
@@ -107,16 +125,19 @@ export async function setInitiativeUpdateArchived(
   archived: boolean,
   actorUserId: string | null,
 ): Promise<InitiativeUpdateRow> {
-  const before = await initiativeUpdateData(id);
-  const [row] = await db
-    .update(initiativeUpdate)
-    .set({ archivedAt: archived ? new Date() : null })
-    .where(eq(initiativeUpdate.id, id))
-    .returning();
-  if (!row) throw new HttpError(404, 'Initiative update not found');
-  const changed = mapInitiativeUpdate(row);
-  await sendUpdateEvent(archived ? 'remove' : 'update', changed, actorUserId, before);
-  return changed;
+  const current = await getInitiativeUpdate(id);
+  if (!current) throw new HttpError(404, 'Initiative update not found');
+  return withHealthEvent(current.initiativeId, actorUserId, async () => {
+    const before = await initiativeUpdateData(id);
+    const [row] = await db
+      .update(initiativeUpdate)
+      .set({ archivedAt: archived ? new Date() : null })
+      .where(eq(initiativeUpdate.id, id))
+      .returning();
+    const changed = mapInitiativeUpdate(row!);
+    await sendUpdateEvent(archived ? 'remove' : 'update', changed, actorUserId, before);
+    return changed;
+  });
 }
 
 export async function latestInitiativeUpdate(

@@ -1,5 +1,6 @@
 import {
   db,
+  initiativeToProject,
   issue,
   project,
   projectLabel,
@@ -20,7 +21,8 @@ import { computeHealth, type Health } from './health';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
-import { projectData, type WebhookData } from '../webhooks/data';
+import { initiativeData, projectData, type WebhookData } from '../webhooks/data';
+import { sendInitiativeEvent } from '../initiatives/store';
 
 // Data access for projects (Linear's Project): a body of work linked to teams
 // through project_team. Issues link to a project through issue.project_id.
@@ -583,10 +585,21 @@ export async function listProjectStatuses(): Promise<ProjectStatusRow[]> {
 
 // Linked issues keep existing (issue.project_id is set null by the FK); the
 // project's own activity rows, team links and label links cascade.
+// Deleting a project removes its initiative links (cascade); each initiative it was
+// linked to gets an Initiative update.
 export async function deleteProject(id: string, actorUserId: string | null): Promise<void> {
   const beforeData = await projectData(id);
+  const links = await db
+    .select({ initiativeId: initiativeToProject.initiativeId })
+    .from(initiativeToProject)
+    .where(eq(initiativeToProject.projectId, id));
+  const initiativesBefore = await Promise.all(
+    links.map(async (l) => [l.initiativeId, await initiativeData(l.initiativeId)] as const),
+  );
   await db.delete(project).where(eq(project.id, id));
   await emitProject('remove', beforeData, actorUserId);
+  for (const [initiativeId, before] of initiativesBefore)
+    await sendInitiativeEvent('update', initiativeId, actorUserId, before);
 }
 
 // Sends a Project webhook event to the webhooks of the project's teams. An update

@@ -105,8 +105,7 @@ export const initiativeMutationResolvers = {
     initiativeCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>
       guard(async () => {
         checkInput(input, [...UPDATE_FIELDS, 'id']);
-        if (input.id !== undefined && !UUID_RE.test(String(input.id)))
-          throw gqlError('INVALID_INPUT', 'input.id is not a valid id');
+        checkIds(input, ['id', 'leadTeamId', 'ownerId']);
         const leadTeamId = (input.leadTeamId as string | null | undefined) ?? null;
         if (leadTeamId) await assertLeadTeamMember(ctx.user.id, leadTeamId);
         await assertCanCreateInitiative(ctx.user.id, leadTeamId);
@@ -123,6 +122,7 @@ export const initiativeMutationResolvers = {
     ) =>
       guard(async () => {
         checkInput(input, UPDATE_FIELDS);
+        checkIds(input, ['leadTeamId', 'ownerId']);
         const found = await assertInitiativeAccess(id, ctx.user.id, 'edit');
         const fields = toFields(input);
         // Linear: an empty or null content leaves the overview unchanged.

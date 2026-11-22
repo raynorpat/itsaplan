@@ -104,4 +104,24 @@ describe('initiative updates', () => {
     ]);
     expect(payloads[0]!.data.initiativeId).toBe(a.id);
   });
+
+  it('sends an Initiative update when a new update changes the health', async () => {
+    const { owner, asOwner, mkt } = await setup();
+    const a = await createInitiative({ name: 'A', leadTeamId: mkt }, owner.userId);
+    const hook = (
+      await asOwner
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
+    ).data!;
+    await createInitiativeUpdate(a.id, owner.userId, { body: 'meh', health: 'atRisk' });
+    const payloads = (
+      await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()
+    ).data!.items.map(
+      (d) =>
+        d.payload as { action: string; data: { health: string }; updatedFrom?: { health?: null } },
+    );
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).toMatchObject({ action: 'update', data: { health: 'atRisk' } });
+    expect(payloads[0]!.updatedFrom).toHaveProperty('health', null);
+  });
 });

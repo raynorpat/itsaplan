@@ -138,9 +138,11 @@ export async function getRelation(id: string): Promise<InitiativeRelationRow | n
   return row ? mapRelation(row) : null;
 }
 
+type Executor = Pick<typeof db, 'execute' | 'select' | 'insert'>;
+
 // The initiative and its ancestors, nearest first.
-async function ancestorIds(id: string): Promise<string[]> {
-  const rows = await db.execute<{ id: string }>(sql`
+async function ancestorIds(executor: Executor, id: string): Promise<string[]> {
+  const rows = await executor.execute<{ id: string }>(sql`
     WITH RECURSIVE up(id, depth) AS (
       SELECT ${id}::uuid, 0
       UNION ALL
@@ -153,8 +155,8 @@ async function ancestorIds(id: string): Promise<string[]> {
 }
 
 // The number of levels in the subtree under `id`, counting `id`.
-async function subtreeHeight(id: string): Promise<number> {
-  const [row] = await db.execute<{ height: number }>(sql`
+async function subtreeHeight(executor: Executor, id: string): Promise<number> {
+  const [row] = await executor.execute<{ height: number }>(sql`
     WITH RECURSIVE down(id, level) AS (
       SELECT ${id}::uuid, 1
       UNION ALL
@@ -166,8 +168,9 @@ async function subtreeHeight(id: string): Promise<number> {
   return row?.height ?? 1;
 }
 
-// The root and the descendants reachable through initiatives matching `visible`
-// (SQL over `initiative`). A hidden initiative's own descendants are not reached.
+// The root and the descendants reachable through unarchived initiatives matching
+// `visible` (SQL over `initiative`). The walk does not enter a hidden or archived
+// initiative, so its own descendants are not reached either.
 export async function visibleSubtreeIds(rootId: string, visible: SQL): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
     WITH RECURSIVE down(id, level) AS (
@@ -177,42 +180,45 @@ export async function visibleSubtreeIds(rootId: string, visible: SQL): Promise<s
       FROM initiative_relation r
       JOIN down ON r.initiative_id = down.id
       JOIN initiative ON initiative.id = r.related_initiative_id
-      WHERE down.level < 100 AND ${visible}
+      WHERE down.level < 100 AND initiative.archived_at IS NULL AND ${visible}
     )
     SELECT id FROM down`);
   return rows.map((r) => r.id);
 }
 
-// Makes `relatedInitiativeId` a sub-initiative of `initiativeId`. The messages
-// name no initiative: the checks see the whole tree, including initiatives the
-// caller cannot see.
+// Makes `relatedInitiativeId` a sub-initiative of `initiativeId`. The checks and
+// the insert run in one transaction holding a lock on the initiative tree, so two
+// concurrent relations cannot together form a loop or exceed the depth. The
+// messages name no initiative: the checks see the whole tree, including
+// initiatives the caller cannot see.
 export async function createRelation(
   input: { initiativeId: string; relatedInitiativeId: string; sortOrder?: number; id?: string },
   actorUserId: string,
 ): Promise<InitiativeRelationRow> {
   const { initiativeId: parentId, relatedInitiativeId: childId } = input;
   if (parentId === childId) throw new HttpError(400, 'An initiative cannot be its own parent');
-  const [existing] = await db
-    .select({ id: initiativeRelation.id })
-    .from(initiativeRelation)
-    .where(eq(initiativeRelation.relatedInitiativeId, childId));
-  if (existing) throw new HttpError(400, 'The initiative already has a parent initiative');
-  const ancestors = await ancestorIds(parentId);
-  if (ancestors.includes(childId))
-    throw new HttpError(400, 'The relation would create a loop of initiatives');
-  if (ancestors.length + (await subtreeHeight(childId)) > MAX_LEVELS)
-    throw new HttpError(400, `Initiatives can be nested at most ${MAX_LEVELS} levels deep`);
-  return withInitiativeUpdates([parentId, childId], actorUserId, async () => {
-    let sortOrder = input.sortOrder;
-    if (sortOrder === undefined) {
-      const [last] = await db
-        .select({ value: max(initiativeRelation.sortOrder) })
+  return withInitiativeUpdates([parentId, childId], actorUserId, () =>
+    db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('initiative_relation'))`);
+      const [existing] = await tx
+        .select({ id: initiativeRelation.id })
         .from(initiativeRelation)
-        .where(eq(initiativeRelation.initiativeId, parentId));
-      sortOrder = (last?.value ?? 0) + SORT_STEP;
-    }
-    try {
-      const [row] = await db
+        .where(eq(initiativeRelation.relatedInitiativeId, childId));
+      if (existing) throw new HttpError(400, 'The initiative already has a parent initiative');
+      const ancestors = await ancestorIds(tx, parentId);
+      if (ancestors.includes(childId))
+        throw new HttpError(400, 'The relation would create a loop of initiatives');
+      if (ancestors.length + (await subtreeHeight(tx, childId)) > MAX_LEVELS)
+        throw new HttpError(400, `Initiatives can be nested at most ${MAX_LEVELS} levels deep`);
+      let sortOrder = input.sortOrder;
+      if (sortOrder === undefined) {
+        const [last] = await tx
+          .select({ value: max(initiativeRelation.sortOrder) })
+          .from(initiativeRelation)
+          .where(eq(initiativeRelation.initiativeId, parentId));
+        sortOrder = (last?.value ?? 0) + SORT_STEP;
+      }
+      const [row] = await tx
         .insert(initiativeRelation)
         .values({
           ...(input.id ? { id: input.id } : {}),
@@ -223,12 +229,8 @@ export async function createRelation(
         })
         .returning();
       return mapRelation(row!);
-    } catch (err) {
-      if (pgErrorCode(err) === '23505')
-        throw new HttpError(400, 'The initiative already has a parent initiative');
-      throw err;
-    }
-  });
+    }),
+  );
 }
 
 export async function updateRelation(

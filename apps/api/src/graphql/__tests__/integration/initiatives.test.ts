@@ -263,4 +263,50 @@ describe('graphql initiatives', () => {
     );
     expect(res.body.data).toEqual({ projects: { nodes: [{ name: 'P1' }] } });
   });
+
+  it('names a malformed lead team and reports an unknown one as not found', async () => {
+    const { owner } = await setup();
+    const malformed = await gql(
+      { cookie: owner.cookie },
+      'mutation { initiativeCreate(input: { name: "X", leadTeamId: "nope" }) { success } }',
+    );
+    expect(errorCode(malformed)).toBe('INVALID_INPUT');
+    expect(errorMessage(malformed)).toContain('leadTeamId');
+    const unknown = await gql(
+      { cookie: owner.cookie },
+      'mutation { initiativeCreate(input: { name: "X", leadTeamId: "00000000-0000-4000-8000-000000000000" }) { success } }',
+    );
+    expect(errorCode(unknown)).toBe('ENTITY_NOT_FOUND');
+  });
+
+  it('forbids moving an initiative to a team the caller is not in', async () => {
+    const { asOwner, client } = await setup();
+    const ops = await memberOf(asOwner, 'OPS');
+    const created = (await (await ops.client.createInitiative({ name: 'W' })).initiative)!;
+    const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+    const res = await gql(
+      { cookie: ops.user.cookie },
+      `mutation { initiativeUpdate(id: "${created.id}", input: { leadTeamId: "${mkt}" }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('FORBIDDEN');
+    expect((await client.initiative(created.id)).visibility).toBe(InitiativeVisibility.Public);
+  });
+
+  it('hides archived initiatives from sub-initiatives and project lists', async () => {
+    const { owner, asOwner, client, mkt } = await setup();
+    const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
+    const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
+    const site = (await asOwner.projects.post({ teamIds: [mkt], name: 'Site' })).data!;
+    await client.createInitiativeRelation({ initiativeId: a.id, relatedInitiativeId: b.id });
+    await linkProject({ initiativeId: b.id, projectId: site.id }, owner.userId);
+    await client.archiveInitiative(b.id);
+    const parent = await client.initiative(a.id);
+    expect((await parent.subInitiatives()).nodes).toHaveLength(0);
+    expect((await parent.subInitiatives({ includeArchived: true })).nodes).toHaveLength(1);
+    const project = await client.project(site.id);
+    expect((await project.initiatives()).nodes).toHaveLength(0);
+    expect((await project.initiatives({ includeArchived: true })).nodes).toHaveLength(1);
+    expect((await project.initiativeToProjects()).nodes).toHaveLength(0);
+    expect((await parent.projects()).nodes).toHaveLength(0);
+  });
 });

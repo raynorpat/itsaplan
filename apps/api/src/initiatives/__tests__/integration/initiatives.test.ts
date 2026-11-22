@@ -188,4 +188,17 @@ describe('initiatives', () => {
     expect(await status(createInitiative({ name: '  ' }, owner.userId))).toBe(400);
     expect(await status(createInitiative({ name: 'A', priority: 5 }, owner.userId))).toBe(400);
   });
+
+  it('bumps updatedAt on archive and keeps the first archivedAt', async () => {
+    const { owner } = await setup();
+    const created = await createInitiative({ name: 'A' }, owner.userId);
+    await Bun.sleep(5);
+    const archived = await archiveInitiative(created.id, owner.userId);
+    expect(new Date(archived.updatedAt).getTime()).toBeGreaterThan(
+      new Date(created.updatedAt).getTime(),
+    );
+    await Bun.sleep(5);
+    const again = await archiveInitiative(created.id, owner.userId, { trash: true });
+    expect(again.archivedAt).toBe(archived.archivedAt);
+  });
 });
