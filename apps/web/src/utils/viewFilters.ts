@@ -1,0 +1,240 @@
+// Converts between the web's filter set (the conditions the filter bar edits) and
+// Linear's IssueFilter, which saved views store (CustomView.filterData). The same
+// rules are applied to views saved before the change by the database migration
+// that introduced filterData (packages/db/drizzle/0021_*.sql); keep the two in step.
+//
+// A filter set becomes { and: [element, …] } with one element per effective
+// condition, in order; an empty set becomes {}. Reading back recognises exactly the
+// shapes written here; anything else is dropped.
+
+import type { FilterCondition, FilterSet, FilterValue } from './filters';
+
+export type IssueFilter = Record<string, unknown>;
+
+type Element = Record<string, unknown>;
+
+const DATE_KEYS: Record<string, string> = {
+  dueDate: 'dueDate',
+  created: 'createdAt',
+  updated: 'updatedAt',
+};
+
+function split(values: FilterValue[]): { ids: FilterValue[]; hasNull: boolean } {
+  return {
+    ids: values.filter((v) => v !== null && v !== ''),
+    hasNull: values.some((v) => v === null),
+  };
+}
+
+function conditionToElement(c: FilterCondition): Element | null {
+  const { field, op } = c;
+  const values = c.values ?? [];
+  const { ids, hasNull } = split(values);
+  const hasIds = ids.length > 0;
+
+  if (field === 'status' || field === 'statusType') {
+    const key = field === 'status' ? 'id' : 'type';
+    if (op === 'is' && hasIds) return { state: { [key]: { in: ids } } };
+    if (op === 'is_not' && hasIds) return { state: { [key]: { nin: ids } } };
+    return null;
+  }
+
+  if (field === 'assignee' || field === 'delegate') {
+    if (op === 'is_set') return { [field]: { null: false } };
+    if (op === 'is_not_set') return { [field]: { null: true } };
+    if (op === 'is') {
+      if (hasIds && hasNull)
+        return { or: [{ [field]: { id: { in: ids } } }, { [field]: { null: true } }] };
+      if (hasIds) return { [field]: { id: { in: ids } } };
+      if (hasNull) return { [field]: { null: true } };
+      return null;
+    }
+    if (op === 'is_not') {
+      if (hasIds && hasNull) return { [field]: { id: { nin: ids } } };
+      if (hasIds) return { or: [{ [field]: { null: true } }, { [field]: { id: { nin: ids } } }] };
+      if (hasNull) return { [field]: { null: false } };
+      return null;
+    }
+    return null;
+  }
+
+  if (field === 'priority') {
+    if (op === 'is_set') return { priority: { neq: 0 } };
+    if (op === 'is_not_set') return { priority: { eq: 0 } };
+    if (values.length === 0) return null;
+    const nums = values.map((v) => (v === null ? 0 : v));
+    if (op === 'is') return { priority: { in: nums } };
+    if (op === 'is_not') return { priority: { nin: nums } };
+    return null;
+  }
+
+  if (field === 'labels') {
+    const some = { labels: { some: { id: { in: ids } } } };
+    const every = { labels: { every: { id: { nin: ids } } } };
+    const none = { labels: { length: { eq: 0 } } };
+    const any = { labels: { length: { gt: 0 } } };
+    if (op === 'is_set') return any;
+    if (op === 'is_not_set') return none;
+    if (op === 'is') {
+      if (hasIds && hasNull) return { or: [some, none] };
+      if (hasIds) return some;
+      if (hasNull) return none;
+      return null;
+    }
+    if (op === 'is_not') {
+      if (hasIds && hasNull) return { and: [every, any] };
+      if (hasIds) return every;
+      if (hasNull) return any;
+      return null;
+    }
+    return null;
+  }
+
+  const dateKey = DATE_KEYS[field];
+  if (dateKey) {
+    if (op === 'is_set') return { [dateKey]: { null: false } };
+    if (op === 'is_not_set') return { [dateKey]: { null: true } };
+    const value = values[0];
+    if (typeof value !== 'string') return null;
+    if (op === 'before') return { [dateKey]: { lt: value } };
+    if (op === 'after') return { [dateKey]: { gt: value } };
+    return null;
+  }
+
+  return null;
+}
+
+export function filterSetToIssueFilter(set: FilterSet | null | undefined): IssueFilter {
+  const elements = (set?.conditions ?? [])
+    .map(conditionToElement)
+    .filter((e): e is Element => e !== null);
+  return elements.length ? { and: elements } : {};
+}
+
+// --- Reading back ----------------------------------------------------------------
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+const only = (o: Record<string, unknown>): [string, unknown] | null => {
+  const keys = Object.keys(o);
+  return keys.length === 1 ? [keys[0]!, o[keys[0]!]] : null;
+};
+
+const ids = (comparator: unknown, op: 'in' | 'nin'): FilterValue[] | null => {
+  if (!isObject(comparator)) return null;
+  const entry = only(comparator);
+  return entry && entry[0] === op && Array.isArray(entry[1]) ? (entry[1] as FilterValue[]) : null;
+};
+
+type Partial = Omit<FilterCondition, 'id'>;
+
+const isNullCheck = (v: unknown, expected: boolean) =>
+  isObject(v) && only(v)?.[0] === 'null' && v.null === expected;
+
+function userElement(field: 'assignee' | 'delegate', value: unknown): Partial | null {
+  if (!isObject(value)) return null;
+  if (isNullCheck(value, true)) return { field, op: 'is_not_set', values: [] };
+  if (isNullCheck(value, false)) return { field, op: 'is_set', values: [] };
+  const entry = only(value);
+  if (entry?.[0] !== 'id') return null;
+  const inIds = ids(entry[1], 'in');
+  if (inIds) return { field, op: 'is', values: inIds };
+  const ninIds = ids(entry[1], 'nin');
+  if (ninIds) return { field, op: 'is_not', values: [...ninIds, null] };
+  return null;
+}
+
+function labelsElement(value: unknown): Partial | null {
+  if (!isObject(value)) return null;
+  const entry = only(value);
+  if (!entry) return null;
+  const [key, inner] = entry;
+  if (key === 'length' && isObject(inner)) {
+    if (inner.eq === 0) return { field: 'labels', op: 'is_not_set', values: [] };
+    if (inner.gt === 0) return { field: 'labels', op: 'is_set', values: [] };
+    return null;
+  }
+  if ((key === 'some' || key === 'every') && isObject(inner)) {
+    const idEntry = only(inner);
+    if (idEntry?.[0] !== 'id') return null;
+    const list = ids(idEntry[1], key === 'some' ? 'in' : 'nin');
+    if (!list) return null;
+    return { field: 'labels', op: key === 'some' ? 'is' : 'is_not', values: list };
+  }
+  return null;
+}
+
+function elementToCondition(element: unknown): Partial | null {
+  if (!isObject(element)) return null;
+  const entry = only(element);
+  if (!entry) return null;
+  const [key, value] = entry;
+
+  if (key === 'or' || key === 'and') {
+    if (!Array.isArray(value) || value.length !== 2) return null;
+    const [a, b] = value.map(elementToCondition);
+    if (!a || !b || a.field !== b.field) return null;
+    if (key === 'or' && a.op === 'is' && b.op === 'is_not_set')
+      return { field: a.field, op: 'is', values: [...a.values, null] };
+    if (key === 'or' && a.op === 'is_not_set' && b.op === 'is_not')
+      return { field: b.field, op: 'is_not', values: b.values.filter((v) => v !== null) };
+    if (key === 'and' && a.op === 'is_not' && b.op === 'is_set')
+      return { field: a.field, op: 'is_not', values: [...a.values, null] };
+    return null;
+  }
+
+  if (key === 'state' && isObject(value)) {
+    const inner = only(value);
+    if (!inner || (inner[0] !== 'id' && inner[0] !== 'type')) return null;
+    const field = inner[0] === 'id' ? 'status' : 'statusType';
+    const inIds = ids(inner[1], 'in');
+    if (inIds) return { field, op: 'is', values: inIds };
+    const ninIds = ids(inner[1], 'nin');
+    if (ninIds) return { field, op: 'is_not', values: ninIds };
+    return null;
+  }
+
+  if (key === 'assignee' || key === 'delegate') return userElement(key, value);
+
+  if (key === 'priority' && isObject(value)) {
+    const inner = only(value);
+    if (!inner) return null;
+    if (inner[0] === 'neq' && inner[1] === 0)
+      return { field: 'priority', op: 'is_set', values: [] };
+    if (inner[0] === 'eq' && inner[1] === 0)
+      return { field: 'priority', op: 'is_not_set', values: [] };
+    if ((inner[0] === 'in' || inner[0] === 'nin') && Array.isArray(inner[1]))
+      return {
+        field: 'priority',
+        op: inner[0] === 'in' ? 'is' : 'is_not',
+        values: (inner[1] as FilterValue[]).map((v) => (v === 0 ? null : v)),
+      };
+    return null;
+  }
+
+  if (key === 'labels') return labelsElement(value);
+
+  const dateField = Object.entries(DATE_KEYS).find(([, k]) => k === key)?.[0];
+  if (dateField && isObject(value)) {
+    if (isNullCheck(value, false)) return { field: dateField, op: 'is_set', values: [] };
+    if (isNullCheck(value, true)) return { field: dateField, op: 'is_not_set', values: [] };
+    const inner = only(value);
+    if (inner && (inner[0] === 'lt' || inner[0] === 'gt') && typeof inner[1] === 'string')
+      return { field: dateField, op: inner[0] === 'lt' ? 'before' : 'after', values: [inner[1]] };
+    return null;
+  }
+
+  return null;
+}
+
+export function issueFilterToFilterSet(filter: unknown): FilterSet {
+  if (!isObject(filter) || Object.keys(filter).length === 0) return { conditions: [] };
+  const elements =
+    Array.isArray(filter.and) && Object.keys(filter).length === 1 ? filter.and : [filter];
+  const conditions = elements
+    .map(elementToCondition)
+    .filter((c): c is Partial => c !== null)
+    .map((c, i) => ({ id: `c${i}`, ...c }));
+  return { conditions };
+}

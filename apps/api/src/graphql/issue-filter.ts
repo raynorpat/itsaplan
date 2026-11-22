@@ -27,13 +27,14 @@ import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
 import { attachmentCollectionSql } from './attachment-filter';
+import { labelCollectionSql } from './label-collection-filter';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
 // team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
 // email, isMe, null), parent (id, null), project, projectMilestone, cycle,
 // hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
-// hasRelatedRelations, attachments and subscribers (some, every, length and their
+// hasRelatedRelations, attachments, labels and subscribers (some, every, length and their
 // fields), and / or.
 // Anything else is INVALID_INPUT.
 
@@ -208,6 +209,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     delegate: userOn(issue.delegateUserId, viewerId),
     parent: parentFilter,
     attachments: attachmentCollectionSql,
+    labels: labelCollectionSql,
     subscribers: subscribersFilter(viewerId),
     project: (v, p) =>
       nullableRef(

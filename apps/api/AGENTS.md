@@ -40,8 +40,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
 
 - **DTOs, not rows.** `timestamptz` → `iso()` string; `numeric` → `num()`; `date` is
   already `'YYYY-MM-DD'`.
-- **jsonb** (view `filters`/`display`, action `condition`/`effect`) passes through as
-  JS objects — never `JSON.stringify`; validate only as `t.Any()`.
+- **jsonb** (a view's `filter_data`, view preferences) passes through as JS objects —
+  never `JSON.stringify`; validate only as `t.Any()`. GraphQL input objects have no
+  prototype: copy them into plain objects before storing (`JSON.parse(JSON.stringify(x))`).
+- **Saved views** (`views/`, Linear's `CustomView`): a team's named view. `filter_data`
+  is Linear's `IssueFilter` and the only stored filter (the web converts its filter
+  bar's set with `apps/web/src/utils/viewFilters.ts`); the layout and display are the
+  view's `view_preferences` (`organization` defaults, `user` overrides). A view is
+  visible, and changeable, by anyone who can see its team.
 - **Sequence numbers** ("MKT-42") are issued under a row lock on `team` inside
   `createIssue`'s transaction — keep the lock so concurrent creates don't collide.
 - **`position` is a sparse float** (`MAX(position) + 1000`); do not assume contiguous
@@ -278,7 +284,8 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   workspace roles (`userChangeRole`, `userSuspend` / `userUnsuspend`, the role flags on
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
-  `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), cycles, initiatives (project links, sub-initiatives,
+  `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
+  views and view preferences, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

@@ -1,0 +1,305 @@
+import { db, issue, teamView } from '@repo/db';
+import { and, eq, inArray } from 'drizzle-orm';
+import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
+import { HttpError } from '../../shared/lib';
+import {
+  createView,
+  deleteView,
+  deleteViewPreferences,
+  getView,
+  getViewPreferences,
+  mapView,
+  updateView,
+  updateViewPreferences,
+  upsertViewPreferences,
+  viewPreferencesFor,
+  type ViewPreferencesRow,
+  type ViewRow,
+} from '../../views/store';
+import type { GraphQLContext } from '../context';
+import { paginate, type PageArgs } from '../connection';
+import { gqlError } from '../errors';
+import { compare, compareId, filterSql, refFilter, type FieldHandlers } from '../filter';
+import { issueFilterSql } from '../issue-filter';
+import { getOrganization } from './organization';
+import { listIssues, userById } from './issue';
+import { guard, lastSyncId, onlySupported } from './mutations';
+import { findTeam, toTeam } from './team';
+
+// Linear's CustomView over the saved team views, and ViewPreferences for their
+// layout. A view is visible when its team is (project 2 rules); anyone who can see
+// the team may create, change or delete its views, as over REST.
+
+const toCustomView = (row: ViewRow) => ({
+  ...row,
+  filters: row.filterData,
+  modelName: 'Issue',
+  archivedAt: null,
+});
+
+type GraphQLCustomView = ReturnType<typeof toCustomView>;
+
+// GraphQL input objects have no prototype; JSON stored through Drizzle must be
+// plain objects.
+const plainJson = (value: unknown) =>
+  value === undefined ? undefined : (JSON.parse(JSON.stringify(value)) as unknown);
+
+const toViewPreferences = (row: ViewPreferencesRow) => ({ ...row, archivedAt: null });
+
+// CustomViewFilter fields this API supports, as SQL over team_view.
+const customViewFilter: FieldHandlers = {
+  id: (v, p) => compareId(teamView.id, v, p),
+  name: (v, p) => compare(teamView.name, v, p),
+  createdAt: (v, p) => compare(teamView.createdAt, v, p),
+  updatedAt: (v, p) => compare(teamView.updatedAt, v, p),
+  shared: (v, p) => compare(teamView.shared, v, p),
+  creator: (v, p) => refFilter(teamView.creatorUserId, v, p),
+  team: (v, p) => refFilter(teamView.teamId, v, p),
+};
+
+// A view the viewer can see, by id or slug, or ENTITY_NOT_FOUND.
+async function findView(id: string, ctx: GraphQLContext): Promise<ViewRow> {
+  const found = await getView(id);
+  if (found) {
+    try {
+      await assertTeamAccess(found.teamId, ctx.user, 'see');
+      return found;
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+    }
+  }
+  throw gqlError('ENTITY_NOT_FOUND', `Custom view ${id} not found`);
+}
+
+const UNSUPPORTED_VIEW_FIELDS = [
+  'feedItemFilterData',
+  'initiativeFilterData',
+  'projectFilterData',
+  'initiativeId',
+  'projectId',
+];
+
+function checkViewInput(input: Record<string, unknown>, allowed: string[]): void {
+  onlySupported(input, allowed, 'input');
+  for (const field of UNSUPPORTED_VIEW_FIELDS)
+    if (input[field] != null) throw gqlError('INVALID_INPUT', `input.${field} is not supported`);
+}
+
+const viewPayload = (row: ViewRow) => ({
+  success: true,
+  lastSyncId: lastSyncId(),
+  customView: toCustomView(row),
+});
+
+const prefsPayload = (row: ViewPreferencesRow) => ({
+  success: true,
+  lastSyncId: lastSyncId(),
+  viewPreferences: toViewPreferences(row),
+});
+
+// The preferences a user sees for a view: the organization's, with their own on top.
+async function viewPreferencesValues(viewId: string, userId: string) {
+  const org = await viewPreferencesFor(viewId, 'organization');
+  const mine = await viewPreferencesFor(viewId, 'user', userId);
+  if (!org && !mine) return null;
+  return { ...(org?.preferences ?? {}), ...(mine?.preferences ?? {}) };
+}
+
+// A preferences row the viewer may change: its view is visible, and a user row is
+// their own.
+async function findViewPreferences(id: string, ctx: GraphQLContext): Promise<ViewPreferencesRow> {
+  const found = await getViewPreferences(id);
+  if (found && (found.type === 'organization' || found.userId === ctx.user.id)) {
+    await findView(found.customViewId, ctx);
+    return found;
+  }
+  throw gqlError('ENTITY_NOT_FOUND', `View preferences ${id} not found`);
+}
+
+export const customViewResolvers = {
+  Query: {
+    customView: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => toCustomView(await findView(id, ctx))),
+    customViews: (_: unknown, args: PageArgs & { filter?: unknown }, ctx: GraphQLContext) =>
+      paginate(
+        args,
+        { id: teamView.id, createdAt: teamView.createdAt, updatedAt: teamView.updatedAt },
+        and(
+          inArray(teamView.teamId, visibleTeamIds(ctx.user.id)),
+          filterSql(args.filter, customViewFilter),
+        ),
+        (w, order, limit) =>
+          db
+            .select()
+            .from(teamView)
+            .where(w)
+            .orderBy(...order)
+            .limit(limit),
+        (row) => toCustomView(mapView(row)),
+      ),
+  },
+  CustomView: {
+    team: async (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>
+      toTeam(await findTeam(v.teamId, ctx.user.id)),
+    creator: (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>
+      userById(v.creatorUserId, ctx.user.id),
+    owner: (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>
+      userById(v.ownerUserId ?? v.creatorUserId, ctx.user.id),
+    updatedBy: (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>
+      userById(v.updatedByUserId, ctx.user.id),
+    organization: () => getOrganization(),
+    // The view's issues: its filter within its team.
+    issues: (
+      v: GraphQLCustomView,
+      args: PageArgs & { filter?: unknown; includeArchived?: boolean | null },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () =>
+        listIssues(
+          and(eq(issue.teamId, v.teamId), issueFilterSql(v.filterData, ctx.user.id)),
+          args,
+          ctx.user.id,
+        ),
+      ),
+    viewPreferencesValues: (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>
+      viewPreferencesValues(v.id, ctx.user.id),
+    organizationViewPreferences: async (v: GraphQLCustomView) => {
+      const row = await viewPreferencesFor(v.id, 'organization');
+      return row ? toViewPreferences(row) : null;
+    },
+    userViewPreferences: async (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) => {
+      const row = await viewPreferencesFor(v.id, 'user', ctx.user.id);
+      return row ? toViewPreferences(row) : null;
+    },
+  },
+  Mutation: {
+    customViewCreate: (
+      _: unknown,
+      { input }: { input: Record<string, unknown> },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        checkViewInput(input, [
+          'name',
+          'description',
+          'icon',
+          'color',
+          'teamId',
+          'filterData',
+          'shared',
+          'ownerId',
+          'id',
+          ...UNSUPPORTED_VIEW_FIELDS,
+        ]);
+        if (!input.teamId) throw gqlError('INVALID_INPUT', 'input.teamId is required');
+        const team = await findTeam(String(input.teamId), ctx.user.id);
+        const created = await createView(
+          team.id,
+          {
+            name: String(input.name ?? ''),
+            description: (input.description as string | null) ?? null,
+            icon: (input.icon as string | null) ?? null,
+            color: (input.color as string | null) ?? null,
+            filterData: plainJson(input.filterData) ?? {},
+            shared: (input.shared as boolean | undefined) ?? true,
+            ownerUserId: (input.ownerId as string | undefined) ?? undefined,
+            id: (input.id as string | undefined) ?? undefined,
+          },
+          ctx.user.id,
+        );
+        return viewPayload(created);
+      }),
+    customViewUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: Record<string, unknown> },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        checkViewInput(input, [
+          'name',
+          'description',
+          'icon',
+          'color',
+          'teamId',
+          'filterData',
+          'shared',
+          'ownerId',
+          ...UNSUPPORTED_VIEW_FIELDS,
+        ]);
+        const found = await findView(id, ctx);
+        if (input.teamId === null) throw gqlError('INVALID_INPUT', 'A view needs a team');
+        const teamId = input.teamId
+          ? (await findTeam(String(input.teamId), ctx.user.id)).id
+          : undefined;
+        const updated = await updateView(
+          found.id,
+          {
+            name: input.name as string | undefined,
+            description: input.description as string | null | undefined,
+            icon: input.icon as string | null | undefined,
+            color: input.color as string | null | undefined,
+            filterData: plainJson(input.filterData),
+            shared: input.shared as boolean | undefined,
+            ownerUserId: input.ownerId as string | undefined,
+            teamId,
+          },
+          ctx.user.id,
+        );
+        return viewPayload(updated!);
+      }),
+    customViewDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const found = await findView(id, ctx);
+        await deleteView(found.id);
+        return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
+      }),
+    viewPreferencesCreate: (
+      _: unknown,
+      { input }: { input: Record<string, unknown> },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        onlySupported(
+          input,
+          ['type', 'viewType', 'customViewId', 'preferences', 'userId', 'id'],
+          'input',
+        );
+        if (input.viewType !== 'customView' || !input.customViewId)
+          throw gqlError(
+            'INVALID_INPUT',
+            'Only custom view preferences are supported (viewType customView with customViewId)',
+          );
+        if (input.type === 'user' && input.userId && input.userId !== ctx.user.id)
+          throw gqlError('INVALID_INPUT', "input.userId must be the viewer's own id");
+        const view = await findView(String(input.customViewId), ctx);
+        const row = await upsertViewPreferences({
+          customViewId: view.id,
+          type: input.type as 'organization' | 'user',
+          userId: input.type === 'user' ? ctx.user.id : null,
+          preferences: (plainJson(input.preferences) ?? {}) as Record<string, unknown>,
+          id: (input.id as string | undefined) ?? undefined,
+        });
+        return prefsPayload(row);
+      }),
+    viewPreferencesUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: Record<string, unknown> },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        onlySupported(input, ['preferences'], 'input');
+        const found = await findViewPreferences(id, ctx);
+        const row = await updateViewPreferences(
+          found.id,
+          (plainJson(input.preferences) ?? found.preferences) as Record<string, unknown>,
+        );
+        return prefsPayload(row!);
+      }),
+    viewPreferencesDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const found = await findViewPreferences(id, ctx);
+        await deleteViewPreferences(found.id);
+        return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
+      }),
+  },
+};

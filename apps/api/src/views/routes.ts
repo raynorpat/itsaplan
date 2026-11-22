@@ -5,21 +5,55 @@ import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import { mcpTool } from '../mcp/generate';
-import { listViews, createView, getView, updateView, deleteView } from './store';
+import { requireUser } from '../shared/access';
+import {
+  listViews,
+  createView,
+  getView,
+  updateView,
+  deleteView,
+  upsertViewPreferences,
+  viewPreferencesFor,
+  type ViewRow,
+} from './store';
 
 const viewParams = t.Object({ viewId: t.String({ format: 'uuid' }) });
 
-// A saved view DTO (ViewRow from the store). filters and display are jsonb blobs
-// owned by the UI, returned as-is (t.Any()).
+// A saved view DTO. filterData is Linear's IssueFilter; display is the view's
+// organization view preferences, owned by the UI and returned as-is (t.Any()).
 const ViewResponse = t.Object({
   id: t.String({ format: 'uuid' }),
   teamId: t.String({ format: 'uuid' }),
   name: t.String(),
   icon: t.Nullable(t.String()),
-  filters: t.Any(),
+  filterData: t.Any(),
   display: t.Any(),
   createdAt: t.String(),
 });
+
+async function viewDto(view: ViewRow) {
+  const prefs = await viewPreferencesFor(view.id, 'organization');
+  return {
+    id: view.id,
+    teamId: view.teamId,
+    name: view.name,
+    icon: view.icon,
+    filterData: view.filterData,
+    display: prefs?.preferences ?? {},
+    createdAt: view.createdAt,
+  };
+}
+
+// The display blob of a create or update goes to the view's organization view
+// preferences.
+async function saveDisplay(viewId: string, display: unknown) {
+  if (display === undefined) return;
+  await upsertViewPreferences({
+    customViewId: viewId,
+    type: 'organization',
+    preferences: (display && typeof display === 'object' ? display : {}) as Record<string, unknown>,
+  });
+}
 
 export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] } })
   .use(authContext)
@@ -35,7 +69,7 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
   .get(
     '/teams/:teamKey/views',
     async ({ team }) => {
-      return listViews(team.id);
+      return Promise.all((await listViews(team.id)).map(viewDto));
     },
     {
       teamAccess: 'see',
@@ -55,15 +89,18 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
 
   .post(
     '/teams/:teamKey/views',
-    async ({ team, body, set }) => {
+    async ({ team, body, set, user }) => {
+      const { display, ...input } = body;
+      const view = await createView(team.id, input, requireUser(user).id);
+      await saveDisplay(view.id, display);
       set.status = 201;
-      return createView({ teamId: team.id, ...body });
+      return viewDto(view);
     },
     {
       body: t.Object({
         name: t.String({ minLength: 1 }),
         icon: t.Optional(t.Nullable(t.String())),
-        filters: t.Optional(t.Any()),
+        filterData: t.Optional(t.Any()),
         display: t.Optional(t.Any()),
       }),
       teamAccess: 'see',
@@ -84,16 +121,18 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
 
   .patch(
     '/views/:viewId',
-    async ({ params, body }) => {
-      const view = await updateView(params.viewId, body);
+    async ({ params, body, user }) => {
+      const { display, ...patch } = body;
+      const view = await updateView(params.viewId, patch, requireUser(user).id);
       if (!view) throw new HttpError(404, 'View not found');
-      return view;
+      await saveDisplay(view.id, display);
+      return viewDto(view);
     },
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
         icon: t.Optional(t.Nullable(t.String())),
-        filters: t.Optional(t.Any()),
+        filterData: t.Optional(t.Any()),
         display: t.Optional(t.Any()),
       }),
       params: viewParams,

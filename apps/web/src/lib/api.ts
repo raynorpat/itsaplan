@@ -5,6 +5,7 @@
 
 import type { FilterSet } from '@/utils/filters';
 import type { SavedViewDisplay } from '@/utils/viewSettings';
+import { filterSetToIssueFilter, issueFilterToFilterSet } from '@/utils/viewFilters';
 
 // NEXT_PUBLIC_* is inlined at build time, so a build without it ships a client
 // that cannot reach the API. Fail at import instead of pointing at a wrong origin.
@@ -295,8 +296,9 @@ export type HotkeyOverrides = Record<string, string>;
 export type AccountPreferencesPatch = Partial<AccountPreferences>;
 
 // A saved view (a tab above the work items view): a named filter set plus a display
-// snapshot (layout + that layout's settings). Shared across clients — there is
-// no per-user identity. filters/display are stored as jsonb.
+// snapshot (layout + that layout's settings). The API stores the filter as Linear's
+// IssueFilter (`filterData`) and the display as the view's organization view
+// preferences; the client converts the filter to and from the filter bar's set.
 export interface View {
   id: string;
   teamId: string;
@@ -304,9 +306,22 @@ export interface View {
   icon: string | null;
   filters: FilterSet;
   display: SavedViewDisplay;
-  position: number;
   createdAt: string;
 }
+
+interface ViewDto extends Omit<View, 'filters'> {
+  filterData: unknown;
+}
+
+const fromViewDto = ({ filterData, ...rest }: ViewDto): View => ({
+  ...rest,
+  filters: issueFilterToFilterSet(filterData),
+});
+
+const toViewBody = ({ filters, ...rest }: NewViewInput | ViewPatch) =>
+  JSON.stringify(
+    filters === undefined ? rest : { ...rest, filterData: filterSetToIssueFilter(filters) },
+  );
 
 export interface NewViewInput {
   name: string;
@@ -984,11 +999,19 @@ export const api = {
     return request<ProjectFeedPage>(`/projects/${id}/feed${qs ? `?${qs}` : ''}`);
   },
 
-  listViews: (teamKey: string) => request<View[]>(`/teams/${teamKey}/views`),
-  createView: (teamKey: string, input: NewViewInput) =>
-    request<View>(`/teams/${teamKey}/views`, { method: 'POST', body: JSON.stringify(input) }),
-  updateView: (viewId: string, patch: ViewPatch) =>
-    request<View>(`/views/${viewId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  listViews: async (teamKey: string) =>
+    (await request<ViewDto[]>(`/teams/${teamKey}/views`)).map(fromViewDto),
+  createView: async (teamKey: string, input: NewViewInput) =>
+    fromViewDto(
+      await request<ViewDto>(`/teams/${teamKey}/views`, {
+        method: 'POST',
+        body: toViewBody(input),
+      }),
+    ),
+  updateView: async (viewId: string, patch: ViewPatch) =>
+    fromViewDto(
+      await request<ViewDto>(`/views/${viewId}`, { method: 'PATCH', body: toViewBody(patch) }),
+    ),
   deleteView: (viewId: string) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
 
   // Team members. Anyone who can see a team may join it (not guests); any member

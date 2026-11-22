@@ -6,8 +6,8 @@ import { signUpWithRole } from '../../../__tests__/helpers/roles';
 
 // Saved views are the tabs above a team's work items view. List and create are
 // team-scoped (/teams/:teamKey/views), but patch and delete address a view by its own id (/views/:viewId) and resolve the
-// owning team through the savedView guard. filters/display are jsonb blobs the
-// store keeps verbatim; icon is nullable; tabs are ordered by creation.
+// owning team through the savedView guard. filterData (Linear's IssueFilter) and
+// display (the view's organization view preferences) are kept verbatim; icon is nullable; tabs are ordered by creation.
 
 async function setupOwnerTeam() {
   const owner = await signUpTestUser();
@@ -33,7 +33,7 @@ describe('views', () => {
         name: 'My issues',
         teamId,
         icon: null,
-        filters: {},
+        filterData: {},
         display: {},
       });
       expect(typeof created.data?.id).toBe('string');
@@ -46,17 +46,17 @@ describe('views', () => {
 
     it('stores icon, filters and display verbatim', async () => {
       const { asOwner } = await setupOwnerTeam();
-      const filters = { state: ['backlog'], assignee: [7] };
+      const filterData = { state: ['backlog'], assignee: [7] };
       const display = { group_by: 'state', order_by: '-created_at' };
 
       const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({
         name: 'Backlog',
         icon: 'inbox',
-        filters,
+        filterData,
         display,
       });
       expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ icon: 'inbox', filters, display });
+      expect(created.data).toMatchObject({ icon: 'inbox', filterData, display });
     });
 
     it('lists views in creation order', async () => {
@@ -76,7 +76,7 @@ describe('views', () => {
       const { asOwner } = await setupOwnerTeam();
       const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({
         name: 'Original',
-        filters: { keep: true },
+        filterData: { keep: true },
         display: { keep: true },
       });
       const id = created.data!.id;
@@ -85,17 +85,17 @@ describe('views', () => {
       expect(patchedName.status).toBe(200);
       expect(patchedName.data).toMatchObject({
         name: 'Renamed',
-        filters: { keep: true },
+        filterData: { keep: true },
         display: { keep: true },
       });
 
       const patchedFilters = await asOwner
         .views({ viewId: id })
-        .patch({ filters: { replaced: true } });
+        .patch({ filterData: { replaced: true } });
       expect(patchedFilters.status).toBe(200);
       expect(patchedFilters.data).toMatchObject({
         name: 'Renamed',
-        filters: { replaced: true },
+        filterData: { replaced: true },
       });
     });
 
@@ -202,16 +202,16 @@ describe('views', () => {
 
   it('loads a view whose filter names removed fields', async () => {
     const { asOwner } = await setupOwnerTeam();
-    const filters = {
+    const filterData = {
       conditions: [
         { field: 'type', op: 'is', values: [crypto.randomUUID()] },
         { field: `cf:${crypto.randomUUID()}`, op: 'is_set', values: [] },
       ],
     };
-    const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Old', filters });
+    const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Old', filterData });
     expect(created.status).toBe(201);
     const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
     expect(list.status).toBe(200);
-    expect(list.data?.[0]).toMatchObject({ name: 'Old', filters });
+    expect(list.data?.[0]).toMatchObject({ name: 'Old', filterData });
   });
 });

@@ -1,7 +1,7 @@
-// Client-side filter model and matching engine for the team views. A view's
-// filters are stored in the DB (kanban_views.filters) as a FilterSet; the same
-// set is applied to every layout (Team, Table, Timeline, Calendar) before the
-// issues are handed to the view. The server never inspects this shape.
+// Client-side filter model and matching engine for the team views. A saved view's
+// filter is stored as Linear's IssueFilter and converted to and from this set by
+// ./viewFilters.ts; the set is applied to every layout (Team, Table, Timeline,
+// Calendar) before the issues are handed to the view.
 
 import type { TeamDetail, StateType, Issue } from '@/lib/api';
 

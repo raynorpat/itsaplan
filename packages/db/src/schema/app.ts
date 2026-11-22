@@ -976,12 +976,56 @@ export const teamView = pgTable(
       .notNull()
       .references(() => team.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    description: text('description'),
     icon: text('icon'),
-    filters: jsonb('filters').notNull().default({}),
-    display: jsonb('display').notNull().default({}),
+    color: text('color'),
+    // Linear's IssueFilter, the view's only stored filter.
+    filterData: jsonb('filter_data').notNull().default({}),
+    shared: boolean('shared').notNull().default(true),
+    slugId: text('slug_id')
+      .notNull()
+      .unique()
+      .default(sql`substr(md5(random()::text), 1, 12)`),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    updatedByUserId: uuid('updated_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('team_view_team_idx').on(t.teamId, t.createdAt)],
+);
+
+// Linear's ViewPreferences for a custom view: the layout and display settings.
+// `organization` preferences are the view's shared defaults (one per view); `user`
+// preferences override them for one user. `preferences` is Linear's
+// ViewPreferencesValues as JSON (the web's display blob, with Linear's key names
+// where they exist, such as `layout`).
+export const viewPreferences = pgTable(
+  'view_preferences',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull(),
+    viewType: text('view_type').notNull(),
+    customViewId: uuid('custom_view_id')
+      .notNull()
+      .references(() => teamView.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    preferences: jsonb('preferences').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('view_preferences_type_check', sql`${t.type} IN ('organization', 'user')`),
+    check('view_preferences_user_check', sql`(${t.type} = 'user') = (${t.userId} IS NOT NULL)`),
+    uniqueIndex('view_preferences_org_uq')
+      .on(t.customViewId)
+      .where(sql`${t.type} = 'organization'`),
+    uniqueIndex('view_preferences_user_uq')
+      .on(t.customViewId, t.userId)
+      .where(sql`${t.type} = 'user'`),
+  ],
 );
 
 // Outgoing webhook subscription (Linear's Webhook). A webhook covers one team

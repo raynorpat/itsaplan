@@ -148,6 +148,20 @@
       "when": 1795384074322,
       "tag": "0020_powerful_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795384615314,
+      "tag": "0021_daffy_carlie_cooper",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795384653343,
+      "tag": "0022_daffy_zemo",
+      "breakpoints": true
     }
   ]
 }
