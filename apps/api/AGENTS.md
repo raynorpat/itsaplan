@@ -51,7 +51,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Object-store deletes are best-effort** — log a failed `deleteObject`, do not fail
   the request.
 - **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
-  project, a project update or an initiative update; replies are one level deep (a reply to a reply is
+  project, a project update, an initiative update or a document; replies are one level deep (a reply to a reply is
   stored under the root). `issue_activity` holds the change log only. The feeds
   (issue, range, share, team activity, project), the revision markers and
   notification participants read the `feed_entry` view, which unions both tables in
@@ -83,6 +83,12 @@ Rules and invariants for this package below; read the code for the walkthrough.
   A new duplicate moves to its team's canceled state named "Duplicate", else the
   first canceled state, unless already completed or canceled. A relation is visible
   when both issues are; writes need `work_items.edit` in either issue's team.
+- **Documents** (`documents/`): a titled Markdown page in exactly one project or
+  issue. Access follows the parent (`access.ts`: project documents through
+  `projects.read` / `projects.edit`, issue documents through team membership and
+  `work_items.edit`). The document id is also Linear's `documentContentId`, which
+  comments on the document use. `documentDelete` archives and sets `trashed`;
+  documents of archived parents are hidden from lists and cannot be written to.
 
 ## Auth and access
 
@@ -175,7 +181,7 @@ receiver works against the instance.
 - **Subscriptions** (`webhooks/store.ts`): a webhook covers one team or all teams
   (`all_public_teams`, including teams created later) and lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
-  `Initiative`, `InitiativeUpdate`. Initiative events go to the lead team's
+  `Initiative`, `InitiativeUpdate`, `Document`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Team webhooks use
   the team's `webhooks.<action>` permission; all-teams webhooks are managed only by
   the god user or an owner of every team (`webhooks/access.ts`, checked on every
@@ -222,7 +228,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, issue relations, cycles, initiatives (project links, sub-initiatives,
+  labels, issue relations, documents, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

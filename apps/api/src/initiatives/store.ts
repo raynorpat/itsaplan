@@ -223,7 +223,8 @@ export async function archiveInitiative(
       // Archiving again (or trashing an archived initiative) keeps the first time.
       archivedAt: sql`coalesce(${initiative.archivedAt}, now())`,
       trashed: opts.trash ? true : null,
-      updatedAt: new Date(),
+      // The database clock, like created_at's default, so the bump is never earlier.
+      updatedAt: sql`now()`,
     })
     .where(eq(initiative.id, id))
     .returning();
