@@ -43,7 +43,7 @@ function isIpLiteral(host: string): boolean {
 //
 // Exception for local development (NODE_ENV neither production nor test): a
 // localhost / 0.0.0.0 / IP-literal target is allowed over http, so a local test
-// receiver (e.g. http://localhost:3000/webhook-test/sink) can be registered.
+// receiver (e.g. http://localhost:4000/hook) can be registered.
 // Production and the test suite stay strict.
 export function validateWebhookUrl(raw: string): string {
   let url: URL;

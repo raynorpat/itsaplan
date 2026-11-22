@@ -10,10 +10,6 @@ import type { TeamFeatures } from '@/lib/api';
 // the same way usePermissions grants nothing until the team is there.
 export function useTeamFeatures(): TeamFeatures {
   const team = useContext(ShellCtx)?.team ?? null;
-  if (!team) return { projects: false, dashboards: false, notes: false };
-  return {
-    projects: team.team.projectsEnabled,
-    dashboards: team.team.dashboardsEnabled,
-    notes: team.team.notesEnabled,
-  };
+  if (!team) return { projects: false };
+  return { projects: team.team.projectsEnabled };
 }

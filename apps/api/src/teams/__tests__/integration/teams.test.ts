@@ -236,218 +236,6 @@ describe('teams', () => {
     });
   });
 
-  describe('copy', () => {
-    // Builds a source team with one label and one issue, so a copy can assert
-    // the structure is copied but the issues are not.
-    async function setupSource(api: Api) {
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      const backlog = (await viewOf(api, 'SRC')).data!.states.find((c) => c.name === 'Backlog')!;
-      await api.teams({ teamKey: 'SRC' }).labels.post({ name: 'bug', color: '#ff0000' });
-      await api.teams({ teamKey: 'SRC' }).issues.post({ stateId: backlog.id, title: 'Task' });
-    }
-
-    it('copies the structure into a new team owned by the caller', async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-
-      const copied = await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(copied.status).toBe(201);
-      expect(copied.data).toMatchObject({ key: 'DST', name: 'Destination' });
-
-      // The copy is owned by the caller: it shows up in their team list.
-      const list = await api.teams.get();
-      expect(list.data?.map((p) => p.key)).toContain('DST');
-
-      const view = await viewOf(api, 'DST');
-      expect(view.data?.states.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      expect(view.data?.labels.map((l) => l.name)).toEqual(['bug']);
-      expect(view.data?.viewer.role).toBe('owner');
-    });
-
-    it("does not copy the source team's issues", async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-      const src = await api.teams({ teamKey: 'SRC' }).issues.board.get();
-      expect(src.data?.issues).toHaveLength(1);
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const dst = await api.teams({ teamKey: 'DST' }).issues.board.get();
-      expect(dst.data?.issues).toHaveLength(0);
-    });
-
-    it("copies the source team's issue types", async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      await api.teams({ teamKey: 'SRC' })['issue-types'].post({ name: 'Bug' });
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const view = await viewOf(api, 'DST');
-      // The source starts with the seeded default "Task" type; both it and the
-      // added "Bug" carry over to the copy.
-      expect(view.data?.issueTypes.map((t) => t.name)).toEqual(['Task', 'Bug']);
-    });
-
-    it('copies which optional sections the source team shows', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      await api
-        .teams({ teamKey: 'SRC' })
-        .settings.patch({ features: { notes: false, dashboards: false } });
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const settings = await api.teams({ teamKey: 'DST' }).settings.get();
-      expect(settings.data?.features).toEqual({
-        projects: true,
-        dashboards: false,
-        notes: false,
-      });
-    });
-
-    it("remaps a saved view's filter ids to the copied team's entities", async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      const srcBacklog = (await viewOf(api, 'SRC')).data!.states.find((c) => c.name === 'Backlog')!;
-      // A view whose status filter references the source team's Backlog column.
-      await api.teams({ teamKey: 'SRC' }).views.post({
-        name: 'Open',
-        filters: { conditions: [{ field: 'status', op: 'in', values: [srcBacklog.id] }] },
-      });
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({ key: 'DST', name: 'Destination' });
-
-      const dstBacklog = (await viewOf(api, 'DST')).data!.states.find((c) => c.name === 'Backlog')!;
-      // The columns are distinct rows, so the copied view's filter must point at
-      // the new column id, not the source's.
-      expect(dstBacklog.id).not.toBe(srcBacklog.id);
-      const dstViews = await api.teams({ teamKey: 'DST' }).views.get();
-      const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: string[] }[];
-      };
-      expect(filters.conditions[0].values).toEqual([dstBacklog.id]);
-    });
-
-    it('copies only the sections named in include, seeding default states', async () => {
-      const { api } = await signUpClient();
-      await setupSource(api);
-      await api.teams({ teamKey: 'SRC' })['issue-types'].post({ name: 'Bug' });
-
-      // Copy the labels only. States are not selected, so the copy gets the default
-      // columns; issue types are not selected, so it has none.
-      const copied = await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { labels: true },
-      });
-      expect(copied.status).toBe(201);
-
-      const view = await viewOf(api, 'DST');
-      expect(view.data?.labels.map((l) => l.name)).toEqual(['bug']);
-      expect(view.data?.states.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      expect(view.data?.issueTypes).toHaveLength(0);
-    });
-
-    it('force-enables a dependency: copying views pulls in the referenced states', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      const review = (
-        await api
-          .teams({ teamKey: 'SRC' })
-          .states.post({ name: 'Review', stateType: 'started', color: '#123456' })
-      ).data!;
-      await api.teams({ teamKey: 'SRC' }).views.post({
-        name: 'In review',
-        filters: { conditions: [{ field: 'status', op: 'in', values: [review.id] }] },
-      });
-
-      // include names views only; the API must also copy the states the view's
-      // filter references, and remap the filter to the copied column.
-      await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { views: true },
-      });
-
-      const dstReview = (await viewOf(api, 'DST')).data!.states.find((c) => c.name === 'Review')!;
-      expect(dstReview).toBeDefined();
-      expect(dstReview.id).not.toBe(review.id);
-      const dstViews = await api.teams({ teamKey: 'DST' }).views.get();
-      const filters = dstViews.data![0].filters as {
-        conditions: { field: string; values: string[] }[];
-      };
-      expect(filters.conditions[0].values).toEqual([dstReview.id]);
-    });
-
-    it('copies custom roles when selected, and not by default', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      await api.teams({ teamKey: 'SRC' }).roles.post({
-        name: 'Editor',
-        permissions: { work_items: { create: true, edit: true, read: true, delete: false } },
-      });
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'NOR',
-        name: 'No roles',
-      });
-      const withoutRoles = await api.teams({ teamKey: 'NOR' }).roles.get();
-      expect(withoutRoles.data?.map((r) => r.name).sort()).toEqual(['Member']);
-
-      await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-        include: { roles: true },
-      });
-      const withRoles = await api.teams({ teamKey: 'DST' }).roles.get();
-      expect(withRoles.data?.map((r) => r.name).sort()).toEqual(['Editor', 'Member']);
-    });
-
-    it('returns 400 with an error body on a duplicate key', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      await api.teams.post({ key: 'DST', name: 'Existing' });
-
-      const res = await api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 404 for an unknown source team', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams({ teamKey: 'NOPE' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'SRC', name: 'Source' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api.teams({ teamKey: 'SRC' }).copy.post({
-        key: 'DST',
-        name: 'Destination',
-      });
-      expect(res.status).toBe(403);
-    });
-
-    it('rejects an empty key', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'SRC', name: 'Source' });
-      const res = await api.teams({ teamKey: 'SRC' }).copy.post({ key: '', name: 'Destination' });
-      expect(res.status).toBe(400);
-    });
-  });
-
   describe('delete', () => {
     it('deletes a team and its scoped entities for an owner', async () => {
       const { api } = await signUpClient();
@@ -583,17 +371,13 @@ describe('teams', () => {
       const res = await api.teams({ teamKey: 'MKT' }).settings.get();
       expect(res.data?.features).toMatchObject({
         projects: true,
-        dashboards: true,
-        notes: true,
       });
       expect((await viewOf(api, 'MKT')).data?.team).toMatchObject({
         projectsEnabled: true,
-        dashboardsEnabled: true,
-        notesEnabled: true,
       });
     });
 
-    it('lets an owner turn a section off and back on, leaving the others', async () => {
+    it('lets an owner turn a section off and back on', async () => {
       const { api } = await signUpClient();
       await api.teams.post({ key: 'MKT', name: 'Marketing' });
 
@@ -603,8 +387,6 @@ describe('teams', () => {
       expect(off.status).toBe(200);
       expect(off.data?.features).toMatchObject({
         projects: false,
-        dashboards: true,
-        notes: true,
       });
       expect((await viewOf(api, 'MKT')).data?.team.projectsEnabled).toBe(false);
 
@@ -622,7 +404,7 @@ describe('teams', () => {
       const outsider = await signUpClient();
       const res = await outsider.api
         .teams({ teamKey: 'MKT' })
-        .settings.patch({ features: { notes: false } });
+        .settings.patch({ features: { projects: false } });
       expect(res.status).toBe(403);
     });
 

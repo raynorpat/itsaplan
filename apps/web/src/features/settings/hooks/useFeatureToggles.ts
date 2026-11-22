@@ -14,13 +14,13 @@ export interface FeatureTogglesForm {
   toggle: (feature: keyof TeamFeatures, enabled: boolean) => Promise<void>;
 }
 
-// The optional sections of the team (projects, dashboards, notes), read from
+// The optional sections of the team (projects), read from
 // the team payload the Shell already loaded. Each switch saves on its own —
 // there is nothing to draft, so the General page's Save button does not cover it.
 export function useFeatureToggles(team: TeamDetail): FeatureTogglesForm {
   const { isOwner } = usePermissions();
   const update = useUpdateTeamFeatures(team.team.key);
-  const { projectsEnabled, dashboardsEnabled, notesEnabled } = team.team;
+  const { projectsEnabled } = team.team;
 
   async function toggle(feature: keyof TeamFeatures, enabled: boolean) {
     await update.mutateAsync({ [feature]: enabled });
@@ -28,11 +28,7 @@ export function useFeatureToggles(team: TeamDetail): FeatureTogglesForm {
   }
 
   return {
-    features: {
-      projects: projectsEnabled,
-      dashboards: dashboardsEnabled,
-      notes: notesEnabled,
-    },
+    features: { projects: projectsEnabled },
     editable: isOwner,
     saving: update.isPending,
     toggle,

@@ -25,7 +25,6 @@ import ViewTabLabel from '@/components/layout/ViewTabLabel';
 // edit bar for a view (see WorkItemsPage).
 export default function ViewTabs({
   views,
-  teamKey,
   activeViewId,
   onSelect,
   onNewView,
@@ -36,7 +35,6 @@ export default function ViewTabs({
   displayControl,
 }: {
   views: View[];
-  teamKey: string;
   activeViewId: string | null;
   onSelect: (id: string | null) => void;
   onNewView: () => void;
@@ -101,7 +99,6 @@ export default function ViewTabs({
               <SavedViewTab
                 key={view.id}
                 view={view}
-                teamKey={teamKey}
                 active={activeViewId === view.id}
                 canEdit={canEditView}
                 canDelete={canDeleteView}

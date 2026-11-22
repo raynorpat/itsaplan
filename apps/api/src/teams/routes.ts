@@ -20,7 +20,6 @@ import {
   setAutoArchiveSettings,
   ISSUE_TYPE_PRESET_KEYS,
 } from './store';
-import { copyTeam, COPY_INCLUDE_KEYS } from './copy';
 import { listStates } from '../states/store';
 import { listIssueTypes } from '../issue-types/store';
 import { listLabels, listLabelGroups } from '../labels/store';
@@ -50,19 +49,6 @@ const createTeamBody = t.Composite([
   }),
 ]);
 
-// Copy adds an optional selection of which parts of the source team to carry over.
-// Omitted → the source team's structure (states, types, labels, custom fields,
-// views, dashboards, actions), matching the copy's original behavior. Each flag maps
-// to a section of the team settings menu; the store force-enables dependencies.
-const copyTeamBody = t.Composite([
-  teamBody,
-  t.Object({
-    include: t.Optional(
-      t.Object(Object.fromEntries(COPY_INCLUDE_KEYS.map((k) => [k, t.Optional(t.Boolean())]))),
-    ),
-  }),
-]);
-
 // A team DTO (TeamRow from the store).
 const TeamResponse = t.Object({
   id: t.String({ format: 'uuid' }),
@@ -73,8 +59,6 @@ const TeamResponse = t.Object({
   // The optional sections, toggled in Settings -> General. All on by default; a
   // disabled section is hidden in the web app and its rows are kept.
   projectsEnabled: t.Boolean(),
-  dashboardsEnabled: t.Boolean(),
-  notesEnabled: t.Boolean(),
   createdAt: t.String(),
 });
 
@@ -174,8 +158,6 @@ const AutoArchiveResponse = t.Object({
 // Which optional sections the team shows (TeamFeatures from the store).
 const FeaturesResponse = t.Object({
   projects: t.Boolean(),
-  dashboards: t.Boolean(),
-  notes: t.Boolean(),
 });
 
 // The team's settings: MCP reachability, the enabled sections and the
@@ -274,47 +256,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
           "(e.g. 'MKT' -> 'MKT-1'). Seeds the default columns and the issue types of the " +
           'chosen `preset`.',
         ...mcpTool('create_team'),
-      },
-    },
-  )
-
-  // Creates a new team copying the selected parts of the source team's
-  // configuration (states, issue types, labels, custom fields, views, dashboards,
-  // actions, roles, settings, notification providers, webhooks, integrations, tools,
-  // skills, agents, schedules) but none of its issues. `include` picks the sections;
-  // omitted, the team structure is copied as before.
-  .post(
-    '/teams/:teamKey/copy',
-    async ({ team, body, user, set }) => {
-      const { include, ...meta } = body;
-      try {
-        set.status = 201;
-        return await copyTeam(team.id, meta, requireUser(user).id, include);
-      } catch (err) {
-        // Return the real cause in the body so the UI shows the actual error.
-        console.error('copyTeam failed:', err);
-        set.status = 400;
-        return { error: err instanceof Error ? err.message : 'Failed to copy team' };
-      }
-    },
-    {
-      body: copyTeamBody,
-      permission: ['work_items', 'read'],
-      response: {
-        201: TeamResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
-      detail: {
-        summary: 'Copy a team',
-        description:
-          "Copy a team's configuration into a new team you own, without its issues. " +
-          'By default the structure (states, issue types, labels, custom fields, views, ' +
-          'dashboards, actions) is copied. Pass `include` to choose sections; the API ' +
-          'force-enables dependencies (e.g. a view pulls in the states it references).',
-        ...mcpTool('copy_team'),
       },
     },
   )
@@ -427,7 +368,7 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
 
   // Updates the team's settings. Each field is optional; only the supplied ones
   // change. mcpEnabled toggles MCP access to the team. features turns the
-  // optional sections (projects, dashboards, notes) on or off. autoArchive sets
+  // optional sections (projects) on or off. autoArchive sets
   // the day count per state group (positive integer) or disables it (null).
   // Owner-only. Not an MCP tool: it governs MCP access, so an agent must not
   // change it.
@@ -466,8 +407,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
         features: t.Optional(
           t.Object({
             projects: t.Optional(t.Boolean()),
-            dashboards: t.Optional(t.Boolean()),
-            notes: t.Optional(t.Boolean()),
           }),
         ),
         autoArchive: t.Optional(

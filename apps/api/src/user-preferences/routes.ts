@@ -11,7 +11,6 @@ const Theme = t.Union([t.Literal('light'), t.Literal('dark'), t.Literal('system'
 const IssueOpenMode = t.Union([t.Literal('panel'), t.Literal('page')]);
 const StartPage = t.Union([
   t.Literal('inbox'),
-  t.Literal('dashboard'),
   t.Literal('work-items'),
   t.Literal('projects'),
   t.Literal('ai-chat'),

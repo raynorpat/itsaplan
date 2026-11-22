@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 
 export const THEMES = ['light', 'dark', 'system'] as const;
 export const ISSUE_OPEN_MODES = ['panel', 'page'] as const;
-export const START_PAGES = ['inbox', 'dashboard', 'work-items', 'projects', 'ai-chat'] as const;
+export const START_PAGES = ['inbox', 'work-items', 'projects', 'ai-chat'] as const;
 export const ISSUE_STATS_VIEWS = ['compact', 'timeline'] as const;
 
 export type Theme = (typeof THEMES)[number];

@@ -21,20 +21,6 @@ export const qk = {
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   webhookDeliveries: (webhookId: string) => ['webhookDeliveries', webhookId] as const,
-  // Saved dashboards (the analytics tabs) and the read-only metrics behind their
-  // widgets. `kind` names the metric (stats/pulse/throughput/breakdown/...) and
-  // `params` scopes it to the widget's query (window, filters).
-  dashboards: (teamKey: string) => ['dashboards', teamKey] as const,
-  // Note boards (the notes canvases). `noteBoardsForTeam` is the invalidation
-  // base for every list/search variant; `noteBoardsSearch` is one paged switcher
-  // query (scoped by search text); `noteBoard` is a single board with its canvas.
-  noteBoardsForTeam: (teamKey: string) => ['noteBoards', teamKey] as const,
-  noteBoardsSearch: (teamKey: string, q: string) => ['noteBoards', teamKey, 'search', q] as const,
-  noteBoard: (teamKey: string, boardId: string) =>
-    ['noteBoards', teamKey, 'board', boardId] as const,
-  analytics: (teamKey: string, kind: string, params?: unknown) =>
-    ['analytics', teamKey, kind, params ?? {}] as const,
-  analyticsForTeam: (teamKey: string) => ['analytics', teamKey] as const,
   // Custom fields are team-scoped; typeId narrows to one issue type's fields,
   // 'all' is the team's full list.
   customFields: (teamKey: string, typeId?: string | null) =>

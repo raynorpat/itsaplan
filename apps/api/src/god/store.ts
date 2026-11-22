@@ -11,7 +11,6 @@ import {
   issue,
   feedEntry,
   team,
-  teamDashboard,
   teamMember,
   teamRole,
   teamView,
@@ -295,7 +294,6 @@ export interface InstanceTeamCounts {
   issueCount: number;
   archivedIssueCount: number;
   projectCount: number;
-  dashboardCount: number;
   viewCount: number;
   agentCount: number;
   skillCount: number;
@@ -362,7 +360,6 @@ const EMPTY_FACTS: TeamFacts = {
   issueCount: 0,
   archivedIssueCount: 0,
   projectCount: 0,
-  dashboardCount: 0,
   viewCount: 0,
   agentCount: 0,
   skillCount: 0,
@@ -382,7 +379,6 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
     issues,
     archivedIssues,
     projects,
-    dashboards,
     views,
     agents,
     skills,
@@ -394,7 +390,6 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
     countByTeam(issue, issue.teamId, teamIds, isNull(issue.archivedAt)),
     countByTeam(issue, issue.teamId, teamIds, isNotNull(issue.archivedAt)),
     countByTeam(projectTeam, projectTeam.teamId, teamIds),
-    countByTeam(teamDashboard, teamDashboard.teamId, teamIds),
     countByTeam(teamView, teamView.teamId, teamIds),
     countByTeam(aiAgent, aiAgent.teamId, teamIds),
     countByTeam(agentSkill, agentSkill.teamId, teamIds),
@@ -423,7 +418,6 @@ async function loadTeamFacts(teamIds: string[]): Promise<(id: string) => TeamFac
       issueCount: counts(issues, id),
       archivedIssueCount: counts(archivedIssues, id),
       projectCount: counts(projects, id),
-      dashboardCount: counts(dashboards, id),
       viewCount: counts(views, id),
       agentCount: counts(agents, id),
       skillCount: counts(skills, id),

@@ -19,7 +19,6 @@ const ViewResponse = t.Object({
   filters: t.Any(),
   display: t.Any(),
   position: t.Number(),
-  shareToken: t.Nullable(t.String()),
   createdAt: t.String(),
 });
 

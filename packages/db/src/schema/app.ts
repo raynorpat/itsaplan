@@ -66,8 +66,6 @@ export const team = pgTable('team', {
   // on by default. Turning one off only hides its UI; the rows it owns stay and
   // come back with it.
   projectsEnabled: boolean('projects_enabled').notNull().default(true),
-  dashboardsEnabled: boolean('dashboards_enabled').notNull().default(true),
-  notesEnabled: boolean('notes_enabled').notNull().default(true),
   // Cycles (Linear's team cycle settings). Weeks for duration and cooldown;
   // cycle_start_day is 0 = Sunday … 6 = Saturday. next_cycle_number issues cycle
   // numbers under a row lock, like next_sequence for issues.
@@ -143,7 +141,7 @@ export const userPreference = pgTable(
     check('user_preference_issue_open_mode_check', sql`${t.issueOpenMode} IN ('panel', 'page')`),
     check(
       'user_preference_start_page_check',
-      sql`${t.startPage} IN ('inbox', 'dashboard', 'work-items', 'projects', 'ai-chat')`,
+      sql`${t.startPage} IN ('inbox', 'work-items', 'projects', 'ai-chat')`,
     ),
     check(
       'user_preference_issue_stats_view_check',
@@ -1137,9 +1135,6 @@ export const issue = pgTable(
     // sweep for issues that sat in a completed/canceled column past the team's
     // configured threshold. NULL means active (on the board).
     archivedAt: timestamp('archived_at', { withTimezone: true }),
-    // Unguessable token for the public read-only share link. NULL means the issue
-    // is not shared; setting it enables the link, clearing it revokes access.
-    shareToken: uuid('share_token').unique(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1479,53 +1474,9 @@ export const teamView = pgTable(
     filters: jsonb('filters').notNull().default({}),
     display: jsonb('display').notNull().default({}),
     position: doublePrecision('position').notNull().default(0),
-    // Unguessable token for the public read-only share link of this view. NULL
-    // means not shared; setting it enables the link, clearing it revokes access.
-    shareToken: uuid('share_token').unique(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('team_view_team_idx').on(t.teamId, t.position)],
-);
-
-// Saved dashboards (the analytics tabs of a team). layout is a jsonb blob
-// owned by the UI: an ordered list of widget entries, each carrying its type,
-// width, title, and widget-specific config. The server stores and returns it
-// without inspecting it. position orders the tabs.
-export const teamDashboard = pgTable(
-  'team_dashboard',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    icon: text('icon'),
-    layout: jsonb('layout').notNull().default([]),
-    position: doublePrecision('position').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index('team_dashboard_team_idx').on(t.teamId, t.position)],
-);
-
-// Note boards: a freeform canvas of sticky notes. canvas is a jsonb blob owned by
-// the UI (React Flow nodes + edges + viewport), stored and returned verbatim.
-// owner_user_id NULL means a public board visible to every team member; a set
-// owner_user_id means a personal board only its owner can see or edit.
-export const noteBoard = pgTable(
-  'note_board',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    canvas: jsonb('canvas').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  // Listed by updatedAt within a team; the index covers the team filter.
-  (t) => [index('note_board_team_idx').on(t.teamId, t.updatedAt)],
 );
 
 // Manual actions: saved macros on a team. condition is a filter set deciding

@@ -5,7 +5,6 @@ import type { PermissionAction, PermissionResource } from '@/lib/api';
 const RESOURCE_LABELS: Record<string, string> = {
   work_items: 'Work items',
   projects: 'Projects',
-  dashboards: 'Dashboards',
   views: 'Work item views',
   members_invite: 'Invites',
   members_manage: 'Members',
@@ -55,7 +54,6 @@ export interface PermissionGroup {
 // The resources shown together in the role editor. Ordering is display order.
 const GROUP_DEFS: PermissionGroup[] = [
   { title: 'Work items', resources: ['work_items', 'projects', 'views'] },
-  { title: 'Dashboards', resources: ['dashboards'] },
   { title: 'AI', resources: ['ai_agents', 'integrations', 'agent_skills', 'agent_tools'] },
   {
     title: 'Configuration',

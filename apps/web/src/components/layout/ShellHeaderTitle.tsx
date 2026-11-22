@@ -8,7 +8,6 @@ function pageLabel(route: ShellRoute, teamName: string): string {
   const { sub, section, aiTeamCrumb } = route;
   if (section) return SETTINGS_SECTIONS.find((s) => s.slug === section)?.label ?? 'Settings';
   if (sub === 'members') return 'Members';
-  if (sub === 'dashboard') return 'Dashboards';
   if (sub === 'projects') return 'Projects';
   if (aiTeamCrumb) return aiTeamCrumb;
   if (sub === 'ai-agents') return 'AI agents';

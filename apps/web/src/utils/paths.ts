@@ -8,23 +8,6 @@ export const teamPath = (key: string) => `/team/${encodeURIComponent(key)}`;
 export const viewPath = (key: string, viewId: string | null) =>
   viewId != null ? `${teamPath(key)}/view/${viewId}` : teamPath(key);
 
-export const dashboardsPath = (key: string) => `${teamPath(key)}/dashboard`;
-
-// Public read-only share pages (no auth). The token is the unguessable share key.
-export const shareIssuePath = (token: string) => `/share/issue/${token}`;
-export const shareViewPath = (token: string) => `/share/view/${token}`;
-
-// The absolute share URL to copy, built from the current origin at call time.
-export const shareUrl = (path: string) =>
-  typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
-
-export const dashboardPath = (key: string, dashboardId: string) =>
-  `${dashboardsPath(key)}/${dashboardId}`;
-
-export const notesPath = (key: string) => `${teamPath(key)}/notes`;
-
-export const notePath = (key: string, boardId: string) => `${notesPath(key)}/${boardId}`;
-
 export const settingsPath = (key: string, section: string) =>
   `${teamPath(key)}/settings/${section}`;
 
@@ -99,8 +82,6 @@ export const startPagePath = (key: string, startPage: StartPage) => {
   switch (startPage) {
     case 'inbox':
       return inboxPath(key);
-    case 'dashboard':
-      return dashboardsPath(key);
     case 'projects':
       return projectsPath(key);
     case 'ai-chat':

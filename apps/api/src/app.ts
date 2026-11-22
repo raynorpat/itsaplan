@@ -10,7 +10,6 @@ import { swagger } from '@elysiajs/swagger';
 import { Elysia } from 'elysia';
 import { planner } from './planner';
 import { mountGraphql } from './graphql/mount';
-import { webhookTestRoutes } from './webhook-test/routes';
 import { mountMcp } from './mcp/mount';
 import { setMcpApp } from './mcp/app-ref';
 import { internalAgentRunRoutes } from './ai-agents/internal-routes';
@@ -79,24 +78,13 @@ export const app = new Elysia()
           { name: 'Attachments', description: 'Issue attachments and raw bytes' },
           { name: 'Avatars', description: "Current user's avatar image (upload and raw bytes)" },
           { name: 'Views', description: 'Saved work items views' },
-          { name: 'Share', description: 'Public read-only sharing of issues and views' },
           { name: 'Actions', description: 'Team automation actions' },
           { name: 'Webhooks', description: 'Outgoing webhook subscriptions' },
           { name: 'Agent Schedules', description: 'Recurring tasks for internal agents' },
-          { name: 'Dashboards', description: 'Saved analytics dashboards' },
-          { name: 'Note boards', description: 'Freeform canvases of sticky notes' },
           { name: 'Notifications', description: "The session user's inbox notifications" },
           {
             name: 'Telegram',
             description: "The session user's linked Telegram account",
-          },
-          {
-            name: 'Analytics',
-            description: 'Team metrics: stats, pulse, throughput, breakdowns, activity',
-          },
-          {
-            name: 'Webhook test',
-            description: 'Test receiver for inspecting webhook deliveries (dev aid)',
           },
           {
             name: 'God',
@@ -150,7 +138,6 @@ export const app = new Elysia()
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
   // Test receiver for inspecting webhook deliveries (unauthenticated, dev aid).
-  .use(webhookTestRoutes)
   // Planner API: teams, issues, and their dependent entities.
   .use(planner);
 

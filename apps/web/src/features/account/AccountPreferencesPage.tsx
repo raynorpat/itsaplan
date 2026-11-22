@@ -41,7 +41,6 @@ const ISSUE_STATS_VIEW_OPTIONS: { value: IssueStatsView; label: string }[] = [
 const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
   { value: 'work-items', label: 'Work items' },
   { value: 'inbox', label: 'Inbox' },
-  { value: 'dashboard', label: 'Dashboards' },
   { value: 'projects', label: 'Projects' },
   { value: 'ai-chat', label: 'AI chat' },
 ];

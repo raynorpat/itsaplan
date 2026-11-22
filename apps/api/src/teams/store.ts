@@ -32,8 +32,6 @@ export interface TeamRow {
   description: string;
   mcpEnabled: boolean;
   projectsEnabled: boolean;
-  dashboardsEnabled: boolean;
-  notesEnabled: boolean;
   createdAt: string;
 }
 
@@ -41,8 +39,6 @@ export interface TeamRow {
 // A disabled section is hidden in the web app; its rows are kept.
 export interface TeamFeatures {
   projects: boolean;
-  dashboards: boolean;
-  notes: boolean;
 }
 
 // A team in the caller's list, carrying the caller's own role in it. The list
@@ -63,8 +59,6 @@ function mapTeam(row: typeof team.$inferSelect): TeamRow {
     description: row.description,
     mcpEnabled: row.mcpEnabled,
     projectsEnabled: row.projectsEnabled,
-    dashboardsEnabled: row.dashboardsEnabled,
-    notesEnabled: row.notesEnabled,
     createdAt: iso(row.createdAt),
   };
 }
@@ -88,8 +82,6 @@ export async function listTeams(
       description: team.description,
       mcpEnabled: team.mcpEnabled,
       projectsEnabled: team.projectsEnabled,
-      dashboardsEnabled: team.dashboardsEnabled,
-      notesEnabled: team.notesEnabled,
       createdAt: team.createdAt,
       role: teamMember.role,
       rolePermissions: teamRole.permissions,
@@ -286,8 +278,6 @@ export async function setTeamMcpEnabled(teamId: string, enabled: boolean): Promi
 export function teamFeatures(row: TeamRow): TeamFeatures {
   return {
     projects: row.projectsEnabled,
-    dashboards: row.dashboardsEnabled,
-    notes: row.notesEnabled,
   };
 }
 
@@ -299,8 +289,6 @@ export async function setTeamFeatures(
 ): Promise<TeamRow | null> {
   const values: Partial<typeof team.$inferInsert> = {};
   if (patch.projects !== undefined) values.projectsEnabled = patch.projects;
-  if (patch.dashboards !== undefined) values.dashboardsEnabled = patch.dashboards;
-  if (patch.notes !== undefined) values.notesEnabled = patch.notes;
   if (Object.keys(values).length === 0) return getTeamById(teamId);
   const [row] = await db.update(team).set(values).where(eq(team.id, teamId)).returning();
   return row ? mapTeam(row) : null;
@@ -353,7 +341,7 @@ export async function setAutoArchiveSettings(
 
 // Deletes a team and everything scoped to it. Every team-scoped foreign key
 // has ON DELETE CASCADE on team_id, so deleting the team row removes its
-// columns, issue types, labels, projects, issues, views, dashboards, and
+// columns, issue types, labels, projects, issues, views, and
 // actions, which in turn cascade to their own dependents (an issue's labels, field
 // values/options, attachments, and activity; a custom field's values). The
 // issue.state_id foreign key is NO ACTION, checked at end of statement — both the

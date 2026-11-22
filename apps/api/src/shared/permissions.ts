@@ -6,7 +6,6 @@
 // Resources map to the areas a team exposes:
 //   work_items     issues, their comments, attachments, and the board view
 //   projects    projects (issue groupings) and their activity feed
-//   dashboards     saved dashboards and the analytics that back them
 //   views          saved work-items views
 //   members_invite team invites
 //   members_manage the member list (view/remove members)
@@ -25,7 +24,6 @@
 export const PERMISSION_RESOURCES = [
   'work_items',
   'projects',
-  'dashboards',
   'views',
   'members_invite',
   'members_manage',
@@ -65,7 +63,7 @@ export function fullPermissions(): Permissions {
 }
 
 // The default "Member" role assigned to members that join a team. Full access
-// to work items, read-only on dashboards and views, and no access to member
+// to work items, read-only on views, and no access to member
 // management, invites, or team settings. read is left on for the entity
 // resources the board and issue editors need to render (states, issue types,
 // labels, ai_agents, custom fields). Keep this in sync with the backfill
@@ -74,7 +72,6 @@ export function defaultMemberPermissions(): Permissions {
   const p = emptyPermissions();
   p.work_items = fill(true);
   p.projects = fill(true);
-  p.dashboards.read = true;
   p.views.read = true;
   p.states.read = true;
   p.issue_types.read = true;

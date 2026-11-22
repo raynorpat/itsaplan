@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { api, authedApi } from '../../../__tests__/helpers/app';
+import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { claimDueRuns } from '../../../ai-agents/run-queue';
@@ -67,16 +67,6 @@ describe('comments', () => {
       .issues({ issueId: issue.id })
       .timeline.items.get({ query: { from: new Date(0).toISOString() } });
     expect(res.data!.some((i) => i.kind === 'comment' && i.body === 'in range')).toBe(true);
-  });
-
-  it('lists comments on the share page', async () => {
-    const { asOwner, issue } = await setup();
-    await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'public note' });
-    const token = (await asOwner.issues({ issueId: issue.id }).share.post()).data!.token;
-    const shared = await api.share.issue({ token }).get();
-    expect(shared.data!.feed.some((i: { body: string | null }) => i.body === 'public note')).toBe(
-      true,
-    );
   });
 
   it("lists an issue's comments in its project's feed", async () => {

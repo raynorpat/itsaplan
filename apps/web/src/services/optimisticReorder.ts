@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
-// Reorder mutation for a team's ordered lists (views, dashboards, actions).
+// Reorder mutation for a team's ordered lists (views, actions).
 // Optimistically reorders the cached list so the drag lands immediately, rolls
 // back on error, and refetches on settle to reconcile with the server's
 // renumbered positions. Pass a null key to disable the cache work when there is

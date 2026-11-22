@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, LogOut, Trash2 } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
 import type { Team } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,13 +18,11 @@ import ManageTeamsRowAction from './ManageTeamsRowAction';
 export default function ManageTeamsList({
   teams,
   isPending,
-  onCopy,
   onDelete,
   onLeave,
 }: {
   teams: Team[];
   isPending: boolean;
-  onCopy: (team: Team) => void;
   onDelete: (team: Team) => void;
   onLeave: (team: Team) => void;
 }) {
@@ -89,7 +87,6 @@ export default function ManageTeamsList({
             </TableCell>
             <TableCell className="px-3 py-2 align-top">
               <div className="flex items-center justify-end gap-1">
-                <ManageTeamsRowAction icon={Copy} label="Copy team" onClick={() => onCopy(team)} />
                 {team.role === 'owner' ? (
                   <ManageTeamsRowAction
                     icon={Trash2}

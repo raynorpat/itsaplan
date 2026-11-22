@@ -14,9 +14,6 @@ export interface ViewRow {
   filters: unknown;
   display: unknown;
   position: number;
-  // Unguessable token for the public read-only share link, or null when the view
-  // is not shared.
-  shareToken: string | null;
   createdAt: string;
 }
 
@@ -29,7 +26,6 @@ function mapView(row: typeof teamView.$inferSelect): ViewRow {
     filters: row.filters,
     display: row.display,
     position: num(row.position),
-    shareToken: row.shareToken,
     createdAt: iso(row.createdAt),
   };
 }

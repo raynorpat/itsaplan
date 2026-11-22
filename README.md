@@ -45,10 +45,7 @@ stable release.
 - Configure issues per team: custom fields, labels, states, and issue types
 - Kanban, table, timeline, and calendar views, with configurable display fields and two-level grouping
 - Save any view as a reusable template
-- Configurable dashboards for team analytics: throughput, breakdown, pulse
 - Custom quick actions that run on an issue
-- Freeform notes boards: sticky notes on a canvas, with colors, checklists, and connections
-- Share a view or an issue by public link, read-only and without sign-in
 - Projects that group work across teams, with statuses, milestones, updates and labels
 - Auto-archive, a notification inbox, role-based access control, and more
 

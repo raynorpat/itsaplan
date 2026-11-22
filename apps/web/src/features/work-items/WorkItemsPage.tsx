@@ -143,7 +143,6 @@ export default function WorkItemsPage() {
     <>
       <ViewTabs
         views={views}
-        teamKey={team.team.key}
         activeViewId={editor.activeViewId}
         onSelect={editor.selectView}
         onNewView={editor.beginNewView}

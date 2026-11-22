@@ -69,7 +69,6 @@ describe('god teams', () => {
         archivedIssueCount: 0,
         projectCount: 1,
         agentCount: 1,
-        dashboardCount: 0,
         viewCount: 0,
         skillCount: 0,
         toolCount: 0,

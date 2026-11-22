@@ -8,9 +8,7 @@ import type { FeatureTogglesForm } from '../../hooks/useFeatureToggles';
 
 // What each optional section holds, in the order the sidebar lists them.
 const FEATURES: { key: keyof TeamFeatures; description: string }[] = [
-  { key: 'dashboards', description: 'Charts and metrics on saved dashboards.' },
   { key: 'projects', description: 'Groups of issues tracked as one piece of work.' },
-  { key: 'notes', description: 'Freeform boards of sticky notes.' },
 ];
 
 // The Features block of the General page. Each switch saves on its own. Only an

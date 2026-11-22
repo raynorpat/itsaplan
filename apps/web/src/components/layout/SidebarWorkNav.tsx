@@ -1,13 +1,11 @@
 import { usePathname } from 'next/navigation';
-import { Inbox, LayoutDashboard, SquareKanban, StickyNote } from 'lucide-react';
-import { dashboardsPath, inboxPath, notesPath, teamPath } from '@/utils/paths';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
+import { Inbox, SquareKanban } from 'lucide-react';
+import { inboxPath, teamPath } from '@/utils/paths';
 import { useInboxUnread } from '@/hooks/useInboxUnread';
 import { SidebarGroup, SidebarGroupContent, SidebarMenu } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
-// The team's sidebar group: Inbox, Dashboards, Work items, Notes.
+// The team's sidebar group: Inbox and Work items.
 export default function SidebarWorkNav({
   teamKey,
   teamId,
@@ -16,8 +14,6 @@ export default function SidebarWorkNav({
   teamId: string | null;
 }) {
   const pathname = usePathname();
-  const { can } = usePermissions();
-  const features = useTeamFeatures();
   const disabled = !teamKey;
   const { data: inboxUnread } = useInboxUnread(teamKey, teamId);
 
@@ -41,15 +37,6 @@ export default function SidebarWorkNav({
             disabled={disabled}
             badge={inboxUnread}
           />
-          {features.dashboards && can('dashboards', 'read') && (
-            <SidebarNavItem
-              href={teamKey ? dashboardsPath(teamKey) : '#'}
-              icon={LayoutDashboard}
-              label="Dashboards"
-              active={pathname.includes('/dashboard')}
-              disabled={disabled}
-            />
-          )}
           <SidebarNavItem
             href={teamKey ? teamPath(teamKey) : '#'}
             icon={SquareKanban}
@@ -57,15 +44,6 @@ export default function SidebarWorkNav({
             active={onWorkItems}
             disabled={disabled}
           />
-          {features.notes && (
-            <SidebarNavItem
-              href={teamKey ? notesPath(teamKey) : '#'}
-              icon={StickyNote}
-              label="Notes"
-              active={pathname.includes('/notes')}
-              disabled={disabled}
-            />
-          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Team, type CopyTeamIncludeKey } from '@/lib/api';
+import { api, type Team } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 
 export function useTeamsQuery() {
@@ -56,18 +56,10 @@ export function useCreateTeam() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      copyFromKey,
       input,
     }: {
-      copyFromKey?: string;
-      input: {
-        key: string;
-        name: string;
-        description?: string;
-        include?: Partial<Record<CopyTeamIncludeKey, boolean>>;
-        preset?: string;
-      };
-    }) => (copyFromKey ? api.copyTeam(copyFromKey, input) : api.createTeam(input)),
+      input: { key: string; name: string; description?: string; preset?: string };
+    }) => api.createTeam(input),
     onSuccess: (team) => {
       // Add the new team to the cached list immediately so navigating to it
       // (onCreated → setTeamKey) sticks. Otherwise the list has not refetched
@@ -113,8 +105,6 @@ function forgetTeam(qc: ReturnType<typeof useQueryClient>, teamKey: string) {
   qc.removeQueries({ queryKey: qk.team(teamKey) });
   qc.removeQueries({ queryKey: qk.boardIssues(teamKey) });
   qc.removeQueries({ queryKey: qk.views(teamKey) });
-  qc.removeQueries({ queryKey: qk.dashboards(teamKey) });
-  qc.removeQueries({ queryKey: qk.analyticsForTeam(teamKey) });
   void qc.invalidateQueries({ queryKey: qk.teams });
 }
 

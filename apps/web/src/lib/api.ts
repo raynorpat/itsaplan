@@ -5,7 +5,6 @@
 
 import type { FilterSet } from '@/utils/filters';
 import type { SavedViewDisplay } from '@/utils/viewSettings';
-import type { DashboardLayout, BreakdownBy } from '@/utils/dashboardWidgets';
 
 // NEXT_PUBLIC_* is inlined at build time, so a build without it ships a client
 // that cannot reach the API. Fail at import instead of pointing at a wrong origin.
@@ -64,38 +63,15 @@ export interface Team {
   // The optional sections, toggled by an owner in Settings -> General. Read through
   // useTeamFeatures, which hides the navigation and the section itself.
   projectsEnabled: boolean;
-  dashboardsEnabled: boolean;
-  notesEnabled: boolean;
   createdAt: string;
   // The caller's role in this team. Only present on the /teams list
   // response (used to gate owner-only actions like deletion); absent on the
-  // create/copy responses.
+  // create response.
   role?: MemberRole;
   // The caller's permission matrix in this team. Present only when the list is
   // requested with permissions (listTeams({ permissions: true })).
   permissions?: Permissions;
 }
-
-// Parts of a source team the copy can carry over, one key per team settings
-// section. Passed to copyTeam as an include map; omitted keys are not copied. The
-// API force-enables dependencies (a view needs its states/types/labels/fields).
-export type CopyTeamIncludeKey =
-  | 'states'
-  | 'issueTypes'
-  | 'labels'
-  | 'customFields'
-  | 'views'
-  | 'dashboards'
-  | 'actions'
-  | 'archive'
-  | 'roles'
-  | 'notificationProviders'
-  | 'webhooks'
-  | 'integrations'
-  | 'tools'
-  | 'skills'
-  | 'agents'
-  | 'schedules';
 
 export type StateType = 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled';
 
@@ -546,8 +522,6 @@ export interface Issue {
   // When the issue entered its current column (or createdAt if it never moved).
   // Drives the "time in current status" badge.
   statusSince: string;
-  // Unguessable token for the public read-only share link, or null when not shared.
-  shareToken: string | null;
   labelIds: string[];
   fieldValues: IssueFieldValueEntry[];
 }
@@ -582,8 +556,6 @@ export interface AutoArchiveSettings {
 // hides its navigation entry and its section, keeping the rows behind it.
 export interface TeamFeatures {
   projects: boolean;
-  dashboards: boolean;
-  notes: boolean;
 }
 
 // A team's settings: MCP reachability, the enabled sections and the
@@ -823,7 +795,6 @@ export interface InstanceTeam {
   issueCount: number;
   archivedIssueCount: number;
   projectCount: number;
-  dashboardCount: number;
   viewCount: number;
   agentCount: number;
   skillCount: number;
@@ -898,7 +869,7 @@ export interface TelegramLinkStart {
 // team the app root reopens (null until the user has opened one).
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type IssueOpenMode = 'panel' | 'page';
-export type StartPage = 'inbox' | 'dashboard' | 'work-items' | 'projects' | 'ai-chat';
+export type StartPage = 'inbox' | 'work-items' | 'projects' | 'ai-chat';
 export type IssueStatsView = 'compact' | 'timeline';
 
 export interface AccountPreferences {
@@ -936,8 +907,6 @@ export interface View {
   filters: FilterSet;
   display: SavedViewDisplay;
   position: number;
-  // Unguessable token for the public read-only share link, or null when not shared.
-  shareToken: string | null;
   createdAt: string;
 }
 
@@ -953,197 +922,6 @@ export interface ViewPatch {
   icon?: string | null;
   filters?: FilterSet;
   display?: SavedViewDisplay;
-}
-
-// A saved dashboard: the analytics counterpart of a View. `layout` is the ordered
-// list of widgets (owned by the UI, stored verbatim server-side as jsonb).
-export interface Dashboard {
-  id: string;
-  teamId: string;
-  name: string;
-  icon: string | null;
-  layout: DashboardLayout;
-  position: number;
-  createdAt: string;
-}
-
-export interface NewDashboardInput {
-  name: string;
-  icon?: string | null;
-  layout?: DashboardLayout;
-}
-
-export interface DashboardPatch {
-  name?: string;
-  icon?: string | null;
-  layout?: DashboardLayout;
-}
-
-// --- Note board DTOs -------------------------------------------------------------
-
-// One sticky note on the canvas. body is markdown (may contain task-list items).
-// color keys a background swatch defined by the UI. Declared as a type alias (not
-// an interface) so it carries an implicit index signature and satisfies React
-// Flow's Node data constraint (Record<string, unknown>).
-export type NoteSticker = {
-  title: string;
-  body: string;
-  color: string;
-};
-
-// A React Flow node holding a sticker. Kept structurally compatible with React
-// Flow's Node so the canvas can use it directly.
-export interface NoteNode {
-  id: string;
-  type: 'sticker';
-  position: { x: number; y: number };
-  width?: number;
-  height?: number;
-  data: NoteSticker;
-}
-
-// A connection between two stickers (React Flow edge).
-export interface NoteEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-// The board canvas, stored verbatim as jsonb on the server.
-export interface NoteCanvas {
-  nodes: NoteNode[];
-  edges: NoteEdge[];
-}
-
-export interface NoteBoard {
-  id: string;
-  teamId: string;
-  // null for a public board (every member sees it); a user id for a personal
-  // board only its owner sees.
-  ownerUserId: string | null;
-  name: string;
-  canvas: NoteCanvas;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// A board without its canvas — what the switcher and MRU tabs list. The canvas is
-// loaded one board at a time via getNoteBoard when the board is opened.
-export type NoteBoardSummary = Omit<NoteBoard, 'canvas'>;
-
-export interface NewNoteBoardInput {
-  name: string;
-  personal?: boolean;
-  canvas?: NoteCanvas;
-}
-
-export interface NoteBoardPatch {
-  name?: string;
-  canvas?: NoteCanvas;
-  // Sets the board's visibility: true makes it personal to the caller, false public.
-  personal?: boolean;
-}
-
-export interface NoteBoardListParams {
-  q?: string;
-  limit?: number;
-  offset?: number;
-}
-
-// --- Analytics DTOs (team metrics behind the dashboard widgets) ---------------
-
-export interface AnalyticsStats {
-  open: number;
-  inProgress: number;
-  backlog: number;
-  overdue: number;
-  unassigned: number;
-  closedLast7d: number;
-}
-
-export interface BreakdownItem {
-  key: string;
-  label: string;
-  count: number;
-  color: string | null;
-}
-
-export type PulseUnit = 'hour' | 'day' | 'week';
-
-// One heatmap cell from the server: a preformatted bucket label (for the hover
-// tooltip) and its activity count. The series is ordered oldest to newest.
-export interface PulseBucket {
-  label: string;
-  count: number;
-}
-
-export interface ThroughputWeek {
-  week: string;
-  created: number;
-  closed: number;
-}
-
-// One agent run in the team-wide feed (agent runs widget).
-export interface AgentRunFeedItem {
-  id: string;
-  status: 'pending' | 'success' | 'failed';
-  trigger: 'mention' | 'delegation' | 'schedule' | 'manual';
-  agentId: string;
-  agentName: string;
-  issueId: string | null;
-  issueSequence: number | null;
-  lastError: string | null;
-  createdAt: string;
-}
-
-// Agent run outcome counts over a window (agent health widget).
-export interface AgentRunStats {
-  total: number;
-  success: number;
-  failed: number;
-  pending: number;
-}
-
-// Webhook delivery health over a window plus the subscription split (webhook health widget).
-export interface WebhookStats {
-  total: number;
-  success: number;
-  failed: number;
-  pending: number;
-  activeWebhooks: number;
-  disabledWebhooks: number;
-}
-
-// One agent's workload row: delegated open issues and lifetime run outcomes.
-export interface AgentWorkloadItem {
-  agentId: string;
-  agentName: string;
-  kind: string;
-  delegatedOpen: number;
-  runsTotal: number;
-  runsSuccess: number;
-  runsFailed: number;
-}
-
-export interface ActivityItem {
-  id: string;
-  issueId: string;
-  issueSequence: number;
-  issueTitle: string;
-  kind: 'comment' | 'activity';
-  actorUserId: string | null;
-  actorName: string | null;
-  body: string | null;
-  action: ActivityAction | null;
-  subject: string | null;
-  fromText: string | null;
-  toText: string | null;
-  createdAt: string;
-}
-
-export interface ActivityPage {
-  items: ActivityItem[];
-  nextCursor: FeedCursor | null;
 }
 
 // A manual action: a saved macro on a team. `condition` is a FilterSet (empty
@@ -1397,25 +1175,6 @@ export interface IssueDetail extends Issue {
   fields: IssueFieldValue[];
 }
 
-// Public read-only share bundles, returned by the /share/* routes with no session.
-// The scaffold mirrors TeamScaffold minus the caller's viewer/permissions and
-// member emails (a public page shows names and avatars only).
-export type PublicScaffold = Omit<TeamScaffold, 'viewer' | 'permissions' | 'assignees'> & {
-  assignees: Omit<Assignee, 'email'>[];
-};
-
-export interface SharedIssueBundle {
-  team: PublicScaffold;
-  issue: IssueDetail;
-  feed: FeedItem[];
-}
-
-export interface SharedViewBundle {
-  team: PublicScaffold;
-  view: { name: string; icon: string | null; filters: FilterSet; display: SavedViewDisplay };
-  issues: Issue[];
-}
-
 export interface NewIssueInput {
   typeId?: string | null;
   projectId?: string | null;
@@ -1609,7 +1368,6 @@ export type PermissionAction = 'create' | 'edit' | 'read' | 'delete';
 export type PermissionResource =
   | 'work_items'
   | 'projects'
-  | 'dashboards'
   | 'views'
   | 'members_invite'
   | 'members_manage'
@@ -1756,19 +1514,6 @@ export const api = {
     request<Team[]>(`/teams${opts?.permissions ? '?permissions=true' : ''}`),
   createTeam: (input: { key: string; name: string; description?: string; preset?: string }) =>
     request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
-  copyTeam: (
-    teamKey: string,
-    input: {
-      key: string;
-      name: string;
-      description?: string;
-      include?: Partial<Record<CopyTeamIncludeKey, boolean>>;
-    },
-  ) =>
-    request<Team>(`/teams/${teamKey}/copy`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
   // Update a team's name/description. The key is immutable, so it is not sent.
   updateTeam: (teamKey: string, patch: { name?: string; description?: string }) =>
     request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
@@ -1891,18 +1636,6 @@ export const api = {
     }),
   getIssue: (id: string) => request<IssueDetail>(`/issues/${id}`),
 
-  // Public read-only sharing. Enable returns the link token (idempotent); disable
-  // revokes it. The getShared* reads need no session (public /share/* routes).
-  enableIssueShare: (id: string) =>
-    request<{ token: string }>(`/issues/${id}/share`, { method: 'POST' }),
-  disableIssueShare: (id: string) => request<void>(`/issues/${id}/share`, { method: 'DELETE' }),
-  enableViewShare: (id: string) =>
-    request<{ token: string }>(`/views/${id}/share`, { method: 'POST' }),
-  disableViewShare: (id: string) => request<void>(`/views/${id}/share`, { method: 'DELETE' }),
-  getSharedIssue: (token: string) => request<SharedIssueBundle>(`/share/issue/${token}`),
-  getSharedView: (token: string) => request<SharedViewBundle>(`/share/view/${token}`),
-  getSharedViewIssue: (token: string, issueId: string) =>
-    request<SharedIssueBundle>(`/share/view/${token}/issues/${issueId}`),
   // Resolve an issue by its team-scoped number (the human "42" in the URL).
   getIssueBySeq: (teamKey: string, seq: number) =>
     request<IssueDetail>(`/teams/${teamKey}/issues/${seq}`),
@@ -2058,96 +1791,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ orderedIds }),
     }),
-
-  // Dashboards — same CRUD shape as views: collection ops take teamKey, ops on
-  // a single dashboard take its own id and hit /dashboards/:id.
-  listDashboards: (teamKey: string) => request<Dashboard[]>(`/teams/${teamKey}/dashboards`),
-  createDashboard: (teamKey: string, input: NewDashboardInput) =>
-    request<Dashboard>(`/teams/${teamKey}/dashboards`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateDashboard: (dashboardId: string, patch: DashboardPatch) =>
-    request<Dashboard>(`/dashboards/${dashboardId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteDashboard: (dashboardId: string) =>
-    request<void>(`/dashboards/${dashboardId}`, { method: 'DELETE' }),
-  reorderDashboards: (teamKey: string, orderedIds: string[]) =>
-    request<Dashboard[]>(`/teams/${teamKey}/dashboards/reorder`, {
-      method: 'PUT',
-      body: JSON.stringify({ orderedIds }),
-    }),
-
-  // Note boards — all ops are team-scoped (a personal board is filtered to its
-  // owner server-side), so board ops take teamKey plus the board id. The list
-  // is paged and searchable (switcher); a single board carries its canvas.
-  listNoteBoards: (teamKey: string, params: NoteBoardListParams = {}) => {
-    const qs = new URLSearchParams();
-    if (params.q) qs.set('q', params.q);
-    if (params.limit != null) qs.set('limit', String(params.limit));
-    if (params.offset != null) qs.set('offset', String(params.offset));
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return request<NoteBoardSummary[]>(`/teams/${teamKey}/note-boards${suffix}`);
-  },
-  getNoteBoard: (teamKey: string, boardId: string) =>
-    request<NoteBoard>(`/teams/${teamKey}/note-boards/${boardId}`),
-  createNoteBoard: (teamKey: string, input: NewNoteBoardInput) =>
-    request<NoteBoard>(`/teams/${teamKey}/note-boards`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateNoteBoard: (teamKey: string, boardId: string, patch: NoteBoardPatch) =>
-    request<NoteBoard>(`/teams/${teamKey}/note-boards/${boardId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteNoteBoard: (teamKey: string, boardId: string) =>
-    request<void>(`/teams/${teamKey}/note-boards/${boardId}`, { method: 'DELETE' }),
-
-  // Analytics — read-only team metrics behind the dashboard widgets.
-  getStats: (teamKey: string) => request<AnalyticsStats>(`/teams/${teamKey}/analytics/stats`),
-  getBreakdown: (teamKey: string, by: BreakdownBy) =>
-    request<BreakdownItem[]>(`/teams/${teamKey}/analytics/breakdown?by=${by}`),
-  getPulse: (teamKey: string, unit: PulseUnit, columns: number) =>
-    request<PulseBucket[]>(`/teams/${teamKey}/analytics/pulse?unit=${unit}&columns=${columns}`),
-  getThroughput: (teamKey: string, weeks = 12) =>
-    request<ThroughputWeek[]>(`/teams/${teamKey}/analytics/throughput?weeks=${weeks}`),
-  listActivity: (
-    teamKey: string,
-    params: {
-      cursor?: FeedCursor | null;
-      limit?: number;
-      actorUserId?: string | null;
-      action?: string | null;
-      issueIds?: string[] | null;
-    } = {},
-  ) => {
-    const q = new URLSearchParams();
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
-    if (params.actorUserId != null) q.set('actorUserId', params.actorUserId);
-    if (params.action) q.set('action', params.action);
-    if (params.issueIds) q.set('issueIds', params.issueIds.join(','));
-    const qs = q.toString();
-    return request<ActivityPage>(`/teams/${teamKey}/analytics/activity${qs ? `?${qs}` : ''}`);
-  },
-  getAgentRuns: (teamKey: string, params: { status?: string | null; limit?: number } = {}) => {
-    const q = new URLSearchParams();
-    if (params.status) q.set('status', params.status);
-    if (params.limit) q.set('limit', String(params.limit));
-    const qs = q.toString();
-    return request<AgentRunFeedItem[]>(
-      `/teams/${teamKey}/analytics/agent-runs${qs ? `?${qs}` : ''}`,
-    );
-  },
-  getAgentRunStats: (teamKey: string, days = 30) =>
-    request<AgentRunStats>(`/teams/${teamKey}/analytics/agent-run-stats?days=${days}`),
-  getWebhookStats: (teamKey: string, days = 30) =>
-    request<WebhookStats>(`/teams/${teamKey}/analytics/webhook-stats?days=${days}`),
-  getAgentWorkload: (teamKey: string) =>
-    request<AgentWorkloadItem[]>(`/teams/${teamKey}/analytics/agent-workload`),
 
   // Members: list who is on a team, and revoke access (an owner removes
   // anyone; a member removes only themselves — leaving the team).

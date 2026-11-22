@@ -4,7 +4,6 @@ import {
   Braces,
   FolderKanban,
   Inbox,
-  LayoutDashboard,
   MessagesSquare,
   Server,
   Shield,
@@ -17,7 +16,6 @@ import {
   aiChatPath,
   aiTeamPath,
   apiDocsPath,
-  dashboardsPath,
   godPath,
   inboxPath,
   projectsPath,
@@ -31,7 +29,6 @@ import { ACCOUNT_SECTIONS, accountPath } from '@/utils/accountSections';
 import { AI_TEAM_SECTIONS } from '@/utils/settingsSections';
 import { GOD_SECTIONS } from '@/utils/godSections';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useTeamFeatures } from '@/hooks/useTeamFeatures';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import type { Command, CommandSection } from '@/utils/commands';
 
@@ -44,7 +41,6 @@ import type { Command, CommandSection } from '@/utils/commands';
 export function useNavigationCommands(teamKey: string | null): CommandSection | null {
   const router = useRouter();
   const { can } = usePermissions();
-  const features = useTeamFeatures();
   const { data: session } = useSession();
   const { groups } = useSettingsNavGroups(teamKey);
   const isGod = session?.user.role === 'god';
@@ -58,8 +54,6 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
   if (teamKey) {
     const key = teamKey;
     add('nav.inbox', 'Inbox', <Inbox />, inboxPath(key), 'notifications unread');
-    if (features.dashboards && can('dashboards', 'read'))
-      add('nav.dashboards', 'Dashboards', <LayoutDashboard />, dashboardsPath(key), 'charts');
     add('nav.work-items', 'Work items', <SquareKanban />, teamPath(key), 'board issues kanban');
     add('nav.projects', 'Projects', <Target />, projectsPath(), 'epics roadmap');
     if (can('ai_agents', 'read'))

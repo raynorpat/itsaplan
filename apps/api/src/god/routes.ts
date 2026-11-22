@@ -176,7 +176,6 @@ const InstanceTeamResponse = t.Object({
   issueCount: t.Number(),
   archivedIssueCount: t.Number(),
   projectCount: t.Number(),
-  dashboardCount: t.Number(),
   viewCount: t.Number(),
   agentCount: t.Number(),
   skillCount: t.Number(),
