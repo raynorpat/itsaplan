@@ -6,7 +6,16 @@
     "allowJs": true,
     "incremental": true,
     "types": ["node"],
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      },
+      {
+        "name": "@0no-co/graphqlsp",
+        "schema": "../api/src/graphql/schema.graphql",
+        "tadaOutputLocation": "./src/graphql-env.d.ts"
+      }
+    ],
     "paths": {
       "@/*": ["./src/*"]
     }
