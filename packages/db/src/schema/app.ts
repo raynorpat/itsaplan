@@ -1288,8 +1288,46 @@ export const issueActivity = pgTable(
   ],
 );
 
-// Comments (Linear's Comment) on an issue, a project, a project update or an
-// initiative update — exactly one of the four. A reply's parent_id is the root comment of its thread (replies
+// A document (Linear's Document): a titled Markdown page in a project or on an
+// issue — exactly one of the two. Its id is also Linear's documentContentId, the
+// id comments on the document refer to. documentDelete trashes it: archived_at
+// and trashed are set together.
+export const document = pgTable(
+  'document',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: text('title').notNull(),
+    content: text('content'),
+    icon: text('icon'),
+    color: text('color'),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    // Linear's short document id (12 lowercase hex chars), usable in place of the id.
+    slugId: text('slug_id')
+      .notNull()
+      .unique()
+      .default(sql`substr(md5(gen_random_uuid()::text), 1, 12)`),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    updatedByUserId: uuid('updated_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    trashed: boolean('trashed'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('document_parent_check', sql`num_nonnulls(${t.projectId}, ${t.issueId}) = 1`),
+    index('document_project_idx').on(t.projectId),
+    index('document_issue_idx').on(t.issueId),
+  ],
+);
+
+// Comments (Linear's Comment) on an issue, a project, a project update, an
+// initiative update or a document — exactly one of the five. A reply's parent_id is the root comment of its thread (replies
 // are one level deep); a reply has the same parent entity as its root. user_name is
 // the author's name at write time. resolved_at / resolving_* apply to root comments.
 export const comment = pgTable(
@@ -1304,6 +1342,7 @@ export const comment = pgTable(
     initiativeUpdateId: uuid('initiative_update_id').references(() => initiativeUpdate.id, {
       onDelete: 'cascade',
     }),
+    documentId: uuid('document_id').references(() => document.id, { onDelete: 'cascade' }),
     parentId: uuid('parent_id').references((): AnyPgColumn => comment.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
     userName: text('user_name'),
@@ -1320,12 +1359,13 @@ export const comment = pgTable(
   (t) => [
     check(
       'comment_parent_check',
-      sql`num_nonnulls(${t.issueId}, ${t.projectId}, ${t.projectUpdateId}, ${t.initiativeUpdateId}) = 1`,
+      sql`num_nonnulls(${t.issueId}, ${t.projectId}, ${t.projectUpdateId}, ${t.initiativeUpdateId}, ${t.documentId}) = 1`,
     ),
     index('comment_issue_idx').on(t.issueId, t.createdAt, t.id),
     index('comment_project_idx').on(t.projectId, t.createdAt, t.id),
     index('comment_project_update_idx').on(t.projectUpdateId, t.createdAt, t.id),
     index('comment_initiative_update_idx').on(t.initiativeUpdateId, t.createdAt, t.id),
+    index('comment_document_idx').on(t.documentId, t.createdAt, t.id),
     index('comment_parent_idx').on(t.parentId),
     index('comment_resolving_comment_idx').on(t.resolvingCommentId),
   ],
@@ -1379,6 +1419,7 @@ export const feedEntry = pgView('feed_entry', {
   projectId: uuid('project_id'),
   projectUpdateId: uuid('project_update_id'),
   initiativeUpdateId: uuid('initiative_update_id'),
+  documentId: uuid('document_id'),
   kind: text('kind').notNull(),
   actorUserId: uuid('actor_user_id'),
   actorName: text('actor_name'),
@@ -1392,12 +1433,13 @@ export const feedEntry = pgView('feed_entry', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }).as(sql`
   SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,
-    NULL::uuid AS initiative_update_id, 'activity' AS kind,
+    NULL::uuid AS initiative_update_id, NULL::uuid AS document_id, 'activity' AS kind,
     actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
     NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
   FROM issue_activity
   UNION ALL
-  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, 'comment' AS kind,
+  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, document_id,
+    'comment' AS kind,
     user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
   FROM comment
 `);

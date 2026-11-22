@@ -21,6 +21,7 @@ export const WEBHOOK_RESOURCE_TYPES = [
   'Cycle',
   'Initiative',
   'InitiativeUpdate',
+  'Document',
 ] as const;
 export type WebhookResourceType = (typeof WEBHOOK_RESOURCE_TYPES)[number];
 

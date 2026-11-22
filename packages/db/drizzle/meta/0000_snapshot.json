@@ -1,5 +1,5 @@
 {
-  "id": "61ffbe0c-ad63-419c-bfbb-23dc8d7aea13",
+  "id": "22689051-0201-4825-9f5d-f16cd6a4c6d1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1817,6 +1817,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "parent_id": {
           "name": "parent_id",
           "type": "uuid",
@@ -1989,6 +1995,33 @@
           "method": "btree",
           "with": {}
         },
+        "comment_document_idx": {
+          "name": "comment_document_idx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "comment_parent_idx": {
           "name": "comment_parent_idx",
           "columns": [
@@ -2073,6 +2106,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "comment_document_id_document_id_fk": {
+          "name": "comment_document_id_document_id_fk",
+          "tableFrom": "comment",
+          "tableTo": "document",
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "comment_parent_id_comment_id_fk": {
           "name": "comment_parent_id_comment_id_fk",
           "tableFrom": "comment",
@@ -2132,7 +2178,7 @@
       "checkConstraints": {
         "comment_parent_check": {
           "name": "comment_parent_check",
-          "value": "num_nonnulls(\"comment\".\"issue_id\", \"comment\".\"project_id\", \"comment\".\"project_update_id\", \"comment\".\"initiative_update_id\") = 1"
+          "value": "num_nonnulls(\"comment\".\"issue_id\", \"comment\".\"project_id\", \"comment\".\"project_update_id\", \"comment\".\"initiative_update_id\", \"comment\".\"document_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -2473,6 +2519,236 @@
         "cycle_dates_check": {
           "name": "cycle_dates_check",
           "value": "\"cycle\".\"ends_at\" > \"cycle\".\"starts_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.document": {
+      "name": "document",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "slug_id": {
+          "name": "slug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "substr(md5(gen_random_uuid()::text), 1, 12)"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_user_id": {
+          "name": "creator_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trashed": {
+          "name": "trashed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "document_project_idx": {
+          "name": "document_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "document_issue_idx": {
+          "name": "document_issue_idx",
+          "columns": [
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "document_project_id_project_id_fk": {
+          "name": "document_project_id_project_id_fk",
+          "tableFrom": "document",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "document_issue_id_issue_id_fk": {
+          "name": "document_issue_id_issue_id_fk",
+          "tableFrom": "document",
+          "tableTo": "issue",
+          "columnsFrom": [
+            "issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "document_creator_user_id_user_id_fk": {
+          "name": "document_creator_user_id_user_id_fk",
+          "tableFrom": "document",
+          "tableTo": "user",
+          "columnsFrom": [
+            "creator_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "document_updated_by_user_id_user_id_fk": {
+          "name": "document_updated_by_user_id_user_id_fk",
+          "tableFrom": "document",
+          "tableTo": "user",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "document_owner_user_id_user_id_fk": {
+          "name": "document_owner_user_id_user_id_fk",
+          "tableFrom": "document",
+          "tableTo": "user",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "document_slug_id_unique": {
+          "name": "document_slug_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "document_parent_check": {
+          "name": "document_parent_check",
+          "value": "num_nonnulls(\"document\".\"project_id\", \"document\".\"issue_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -7561,6 +7837,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "kind": {
           "name": "kind",
           "type": "text",
@@ -7628,7 +7910,7 @@
           "notNull": true
         }
       },
-      "definition": "\n  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,\n    NULL::uuid AS initiative_update_id, 'activity' AS kind,\n    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,\n    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at\n  FROM issue_activity\n  UNION ALL\n  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, 'comment' AS kind,\n    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at\n  FROM comment\n",
+      "definition": "\n  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,\n    NULL::uuid AS initiative_update_id, NULL::uuid AS document_id, 'activity' AS kind,\n    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,\n    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at\n  FROM issue_activity\n  UNION ALL\n  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, document_id,\n    'comment' AS kind,\n    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at\n  FROM comment\n",
       "name": "feed_entry",
       "schema": "public",
       "isExisting": false,

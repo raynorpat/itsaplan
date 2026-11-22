@@ -124,7 +124,7 @@ describe('webhooks', () => {
       const res = await asOwner.teams({ teamKey: 'MKT' }).webhooks.post({
         url: 'https://example.com/hook',
         // @ts-expect-error an unknown resource type is rejected by the schema
-        resourceTypes: ['Document'],
+        resourceTypes: ['Customer'],
       });
       expect(res.status).toBe(400);
     });
