@@ -331,10 +331,22 @@ async function cycleContaining(teamId: string, at: Date): Promise<CycleRow | nul
   return row ? mapCycle(row) : null;
 }
 
+// The team's earliest non-archived cycle starting after `now`, or null.
+async function nextUpcomingCycle(teamId: string, now: Date): Promise<CycleRow | null> {
+  const [row] = await db
+    .select()
+    .from(cycle)
+    .where(and(eq(cycle.teamId, teamId), isNull(cycle.archivedAt), gt(cycle.startsAt, now)))
+    .orderBy(asc(cycle.startsAt))
+    .limit(1);
+  return row ? mapCycle(row) : null;
+}
+
 // Closes a cycle at `closedAt` (its end, or earlier when closed by hand): records
 // its unfinished issues (not completed or canceled, not archived) and moves them to
-// the team's cycle containing `now`, through updateIssue so the move is logged and
-// sent as Issue webhooks. Sends the Cycle update webhook.
+// the team's cycle containing `now` — or, after an early close, the next upcoming
+// cycle — through updateIssue so the move is logged and sent as Issue webhooks.
+// Sends the Cycle update webhook.
 export async function closeCycle(
   cycleId: string,
   closedAt: Date,
@@ -366,7 +378,8 @@ export async function closeCycle(
     .where(eq(cycle.id, cycleId))
     .returning();
   const closed = mapCycle(row!);
-  const target = await cycleContaining(closed.teamId, now);
+  const target =
+    (await cycleContaining(closed.teamId, now)) ?? (await nextUpcomingCycle(closed.teamId, now));
   if (target && target.id !== cycleId)
     for (const { id } of unfinished) await updateIssue(id, { cycleId: target.id }, actorUserId);
   await sendCycleEvent('update', closed, actorUserId, before);
@@ -479,4 +492,63 @@ export async function archiveCycle(id: string, actorUserId: string | null, now: 
   const archived = mapCycle(row!);
   await sendCycleEvent('remove', archived, actorUserId);
   return archived;
+}
+
+// Changes a cycle's name, description or dates (400 on an overlap), or closes it
+// by hand with completedAt: only the active cycle, not in the future; its end
+// becomes completedAt and the close rolls over like a scheduled one.
+export async function updateCycle(
+  id: string,
+  patch: {
+    name?: string | null;
+    description?: string | null;
+    startsAt?: Date;
+    endsAt?: Date;
+    completedAt?: Date;
+  },
+  actorUserId: string | null,
+  now: Date,
+): Promise<CycleRow> {
+  const before = await getCycle(id);
+  if (!before) throw new HttpError(404, 'Cycle not found');
+  if (patch.completedAt) {
+    const isActive =
+      !before.completedAt && new Date(before.startsAt) <= now && new Date(before.endsAt) > now;
+    if (!isActive) throw new HttpError(400, 'Only the active cycle can be completed');
+    if (patch.completedAt > now) throw new HttpError(400, 'completedAt cannot be in the future');
+  }
+  const startsAt = patch.startsAt ?? new Date(before.startsAt);
+  const endsAt = patch.endsAt ?? new Date(before.endsAt);
+  if (patch.startsAt || patch.endsAt) {
+    if (!(endsAt > startsAt)) throw new HttpError(400, 'endsAt must be after startsAt');
+    const [overlap] = await db
+      .select({ id: cycle.id })
+      .from(cycle)
+      .where(
+        and(
+          eq(cycle.teamId, before.teamId),
+          isNull(cycle.archivedAt),
+          lt(cycle.startsAt, endsAt),
+          gt(cycle.endsAt, startsAt),
+          sql`${cycle.id} <> ${id}`,
+        ),
+      )
+      .limit(1);
+    if (overlap) throw new HttpError(400, 'The cycle overlaps another cycle of the team');
+  }
+  const set: Partial<typeof cycle.$inferInsert> = {};
+  if (patch.name !== undefined) set.name = patch.name;
+  if (patch.description !== undefined) set.description = patch.description;
+  if (patch.startsAt) set.startsAt = patch.startsAt;
+  if (patch.endsAt) set.endsAt = patch.endsAt;
+  if (Object.keys(set).length) {
+    const [row] = await db
+      .update(cycle)
+      .set({ ...set, updatedAt: new Date() })
+      .where(eq(cycle.id, id))
+      .returning();
+    await sendCycleEvent('update', mapCycle(row!), actorUserId, before);
+  }
+  if (patch.completedAt) return closeCycle(id, patch.completedAt, now, actorUserId);
+  return (await getCycle(id))!;
 }

@@ -63,6 +63,7 @@ const ISSUE_FIELDS = [
   'sortOrder',
   'projectId',
   'projectMilestoneId',
+  'cycleId',
 ];
 
 // Label inputs of issueUpdate: a full replacement, or labels to add / remove.
@@ -106,6 +107,7 @@ type IssueInput = Record<string, unknown> & {
   sortOrder?: number;
   projectId?: string | null;
   projectMilestoneId?: string | null;
+  cycleId?: string | null;
 };
 
 const ID_FIELDS = [
@@ -115,6 +117,7 @@ const ID_FIELDS = [
   'delegateId',
   'projectId',
   'projectMilestoneId',
+  'cycleId',
 ] as const;
 
 // The checks REST does in its route schema: ids are UUIDs, priority is 0..4, a
@@ -150,6 +153,7 @@ function toPatch(input: IssueInput): IssuePatch {
   if (input.sortOrder !== undefined) patch.position = input.sortOrder;
   if (input.projectId !== undefined) patch.projectId = input.projectId;
   if (input.projectMilestoneId !== undefined) patch.projectMilestoneId = input.projectMilestoneId;
+  if (input.cycleId !== undefined) patch.cycleId = input.cycleId;
   return patch;
 }
 
@@ -201,6 +205,7 @@ export const mutationResolvers = {
             parentId: patch.parentId,
             projectId: patch.projectId,
             projectMilestoneId: patch.projectMilestoneId,
+            cycleId: patch.cycleId,
             position: patch.position,
             labelIds: labelIdsInput(input.labelIds, 'input.labelIds'),
           },

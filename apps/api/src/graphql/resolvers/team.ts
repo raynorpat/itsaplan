@@ -26,6 +26,13 @@ export function toTeam(row: TeamRecord) {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.createdAt.toISOString(),
     private: false,
+    cyclesEnabled: row.cyclesEnabled,
+    cycleDuration: row.cycleDuration,
+    cycleStartDay: row.cycleStartDay,
+    cycleCooldownTime: row.cycleCooldownTime,
+    upcomingCycleCount: row.upcomingCycleCount,
+    cycleIssueAutoAssignStarted: row.cycleIssueAutoAssignStarted,
+    cycleIssueAutoAssignCompleted: row.cycleIssueAutoAssignCompleted,
   };
 }
 

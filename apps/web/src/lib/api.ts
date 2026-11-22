@@ -1193,6 +1193,7 @@ export const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string
   { value: 'Project', label: 'Projects' },
   { value: 'ProjectUpdate', label: 'Project updates' },
   { value: 'Reaction', label: 'Reactions' },
+  { value: 'Cycle', label: 'Cycles' },
 ];
 
 export interface Webhook {

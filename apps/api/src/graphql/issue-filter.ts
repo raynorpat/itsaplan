@@ -4,11 +4,13 @@ import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { teamFilter } from './resolvers/team';
 import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
+import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
 // team (id, key, name), state (id, name, type, team), assignee and delegate (id, name,
-// email, isMe, null), parent (id, null), and / or. Anything else is INVALID_INPUT.
+// email, isMe, null), parent (id, null), project, projectMilestone, cycle, and / or.
+// Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
 // viewer; `null: true` matches issues with no user set.
@@ -106,6 +108,17 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
         },
         project,
       ),
+    // NullableCycleFilter: `null: true` matches issues outside any cycle; the other
+    // fields (id, number, isActive, isNext, isPrevious, …) match the cycle.
+    cycle: (v, p) => {
+      const { null: isNullFilter, ...rest } = v as Record<string, unknown>;
+      const parts: SQL[] = [];
+      if (isNullFilter !== undefined)
+        parts.push(isNullFilter ? isNull(issue.cycleId) : sql`${issue.cycleId} IS NOT NULL`);
+      const match = filterSql(rest, cycleFilterHandlers, p);
+      if (match) parts.push(inArray(issue.cycleId, cycleIdsMatching(match)));
+      return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : sql`true`;
+    },
     projectMilestone: (v, p) =>
       nullableRef(
         issue.projectMilestoneId,
