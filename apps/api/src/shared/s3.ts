@@ -5,13 +5,13 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 
-// S3-compatible object store (MinIO) for issue attachments. Only the file
-// bytes live here; the metadata and object key are rows in attachment
-// (see ../attachments/store.ts).
+// S3-compatible object store (RustFS in the Compose stacks) for issue
+// attachments. Only the file bytes live here; the metadata and object key are
+// rows in attachment (see ../attachments/store.ts).
 //
-// Config comes from env. forcePathStyle is required for MinIO (and most
+// Config comes from env. forcePathStyle is required for RustFS (and most
 // self-hosted S3 gateways) because they do not serve virtual-host-style buckets.
-// region is sent but ignored by MinIO; a value is still required by the SDK.
+// region is sent but ignored by RustFS; a value is still required by the SDK.
 
 let cached: { client: S3Client; bucket: string } | null = null;
 

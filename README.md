@@ -89,7 +89,7 @@ bun install
 cp .env.example .env
 cp apps/web/.env.example apps/web/.env
 
-docker compose -f docker-compose.dev.yml up -d   # Postgres + MinIO only
+docker compose -f docker-compose.dev.yml up -d   # Postgres + RustFS only
 bun run db:migrate
 bun run dev                                      # api + web together, via Turborepo
 ```
@@ -115,8 +115,8 @@ bun run db:migrate:test          # migrate the test database
 bun run test                     # run all suites via Turborepo
 ```
 
-The dev compose (`docker-compose.dev.yml`) provides Postgres and MinIO for these tests;
-the attachments suite needs the MinIO bucket it creates.
+The dev compose (`docker-compose.dev.yml`) provides Postgres and RustFS for these tests;
+the attachments suite needs the RustFS bucket it creates.
 
 Alternatively, run the same gate CI uses — the suite against a throwaway Postgres in a
 container built from the production image:
@@ -157,12 +157,22 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-One command brings up the whole stack: Postgres, MinIO, api, worker, bot, and web. Every
+One command brings up the whole stack: Postgres, RustFS, api, worker, bot, and web. Every
 service is built from this checkout; web bakes `API_URL` into its bundle because Next.js
 inlines `NEXT_PUBLIC_*` at build time. The API applies migrations on startup, and the
 first account registered becomes the instance admin.
 
 After an update, rebuild: `git pull` then `docker compose up -d --build`.
+
+Attachments are stored in RustFS. An instance set up with MinIO switches to it on the next
+`docker compose up -d --build`: the `minio` service keeps its name and its `minio-data`
+volume, and RustFS reads the files MinIO wrote in place, with the same credentials. Nothing
+is copied. The upgrade does not change attachment data, but a copy of the volume before it
+takes one command:
+
+```bash
+docker run --rm -v itsaplan_minio-data:/data -v "$PWD":/out alpine tar czf /out/minio-data.tgz -C /data .
+```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the commands, the layout, and the conventions.
 
@@ -176,7 +186,7 @@ After an update, rebuild: `git pull` then `docker compose up -d --build`.
 | UI        | [shadcn/ui](https://ui.shadcn.com/) + Tailwind v4        |
 | Auth      | [better-auth](https://better-auth.com/)                  |
 | Database  | [Drizzle](https://orm.drizzle.team/) + PostgreSQL        |
-| Storage   | S3-compatible object store (MinIO)                       |
+| Storage   | S3-compatible object store (RustFS)                      |
 | AI agents | [Mastra](https://github.com/mastra-ai/mastra)            |
 
 ```

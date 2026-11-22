@@ -5,7 +5,7 @@ async function errorMessage(res: Response): Promise<string> {
   return body?.error ?? `${res.status} ${res.statusText}`;
 }
 
-// Uploads an avatar image to the API (stored in MinIO). The API writes the new URL
+// Uploads an avatar image to the API (stored in RustFS). The API writes the new URL
 // to the user's image column itself and returns it, so the caller only has to read
 // the session again. Multipart, so the browser sets the boundary itself — no
 // Content-Type header.

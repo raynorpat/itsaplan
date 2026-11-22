@@ -29,7 +29,7 @@ cp apps/web/.env.example apps/web/.env
 # BETTER_AUTH_SECRET, APP_ENCRYPTION_KEY, WORKER_INTERNAL_TOKEN in .env:
 openssl rand -base64 32
 
-# Postgres and MinIO for local development
+# Postgres and RustFS for local development
 docker compose -f docker-compose.dev.yml up -d
 # If host port 5432 is taken, use another one and update DATABASE_URL in .env:
 #   POSTGRES_PORT=5433 docker compose -f docker-compose.dev.yml up -d
@@ -38,7 +38,7 @@ bun run db:migrate
 bun run dev
 ```
 
-The apps run on: web `:3001`, api `:3000`, MinIO console `:9001`.
+The apps run on: web `:3001`, api `:3000`, RustFS console `:9001/rustfs/console/`.
 
 Run everything from the repository root through Turborepo. Use `bun`, never npm, yarn,
 or pnpm: the lockfile is `bun.lock`.

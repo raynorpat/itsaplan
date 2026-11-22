@@ -6,7 +6,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 // The team skill library: SKILL.md documents (plus optional reference files) given
 // to internal agents. Content lives in the object store; the row holds metadata.
 // Access is the ai_agents permission resource. These tests need the object store
-// (MinIO), like the attachments test.
+// (RustFS), like the attachments test.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
