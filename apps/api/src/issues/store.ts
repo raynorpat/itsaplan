@@ -49,6 +49,7 @@ import { issueData, type WebhookData } from '../webhooks/data';
 import { getAssignTriggerAgent, isTeamAgent } from '../ai-agents/store';
 import { deleteThreadsWhere } from '../ai-agents/runtime/memory';
 import { assertLabelsApplicable } from '../labels/store';
+import { assertCycleOfTeam, autoAssignCycleId } from '../cycles/store';
 
 import { getMembership } from '../members/store';
 import { enqueueAgentRun } from '../ai-agents/run-queue';
@@ -785,7 +786,12 @@ export async function createIssue(
   await assertAssignments(team.id, input);
   await assertProject(team.id, input.projectId);
   await assertMilestone(input.projectId ?? null, input.projectMilestoneId);
+  await assertCycleOfTeam(team.id, input.cycleId);
   const stateType = (await assertColumn(team.id, input.stateId))!;
+  const cycleId =
+    (await autoAssignCycleId(team.id, stateType, null, input.cycleId, new Date())) ??
+    input.cycleId ??
+    null;
   await assertParent(team.id, null, input.parentId);
   const timestamps = nextStatusTimestamps(
     { startedAt: null, completedAt: null, canceledAt: null },
@@ -814,6 +820,7 @@ export async function createIssue(
         typeId: input.typeId ?? null,
         projectId: input.projectId ?? null,
         projectMilestoneId: input.projectMilestoneId ?? null,
+        cycleId,
         assigneeUserId: input.assigneeUserId ?? null,
         delegateUserId: input.delegateUserId ?? null,
         stateId: input.stateId,
@@ -882,6 +889,7 @@ async function checkPatch(
 ): Promise<StateType | null> {
   await assertAssignments(before.teamId, patch);
   await assertProject(before.teamId, patch.projectId);
+  await assertCycleOfTeam(before.teamId, patch.cycleId);
   const projectAfter = patch.projectId !== undefined ? patch.projectId : before.projectId;
   await assertMilestone(projectAfter, patch.projectMilestoneId);
   const stateType = await assertColumn(before.teamId, patch.stateId);
@@ -911,6 +919,16 @@ export async function updateIssue(
   if (!before) return null;
 
   const stateType = await checkPatch(id, before, patch);
+  if (patch.stateId !== undefined && patch.stateId !== before.stateId) {
+    const assigned = await autoAssignCycleId(
+      before.teamId,
+      stateType,
+      before.cycleId,
+      patch.cycleId,
+      new Date(),
+    );
+    if (assigned) patch = { ...patch, cycleId: assigned };
+  }
   if (opts.labelIds)
     await assertLabelsApplicable(before.teamId, opts.labelIds, await issueLabelIds(id));
   const beforeData = opts.before ?? (await watchedIssueData(id, before.teamId));

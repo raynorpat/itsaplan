@@ -523,6 +523,8 @@ export interface Issue {
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
   projectMilestoneId: string | null;
+  // The team cycle the issue belongs to (managed over the API for now).
+  cycleId: string | null;
   creatorUserId: string | null;
   title: string;
   description: string;

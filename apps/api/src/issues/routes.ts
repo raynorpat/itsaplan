@@ -182,6 +182,11 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             t.String({ format: 'uuid', description: "Milestone of the issue's project, or null." }),
           ),
         ),
+        cycleId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: "A cycle of the issue's team, or null." }),
+          ),
+        ),
         assigneeUserId: t.Optional(
           t.Nullable(
             t.String({
@@ -659,6 +664,11 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         projectMilestoneId: t.Optional(
           t.Nullable(
             t.String({ format: 'uuid', description: "Milestone of the issue's project, or null." }),
+          ),
+        ),
+        cycleId: t.Optional(
+          t.Nullable(
+            t.String({ format: 'uuid', description: "A cycle of the issue's team, or null." }),
           ),
         ),
         assigneeUserId: t.Optional(

@@ -427,3 +427,56 @@ export async function runUpkeep(now: Date): Promise<void> {
     await recordHistory(id, now);
   }
 }
+
+// --- Issues and cycles -----------------------------------------------------------
+
+// A cycle an issue of `teamId` may join: the team's own, not archived. 400 otherwise.
+export async function assertCycleOfTeam(teamId: string, cycleId: string | null | undefined) {
+  if (!cycleId) return;
+  const found = await getCycle(cycleId);
+  if (!found || found.teamId !== teamId || found.archivedAt)
+    throw new HttpError(400, "The cycle must be an active or upcoming cycle of the issue's team");
+}
+
+// The cycle an issue gets from auto-assign, or undefined to leave it as it is: an
+// issue with no cycle that is created in, or moves to, a started (or completed)
+// state joins the active cycle when the team's matching setting is on. A cycleId
+// given in the same write (including null) wins.
+export async function autoAssignCycleId(
+  teamId: string,
+  stateType: string | null,
+  current: string | null,
+  explicit: string | null | undefined,
+  now: Date,
+): Promise<string | undefined> {
+  if (explicit !== undefined || current || !stateType) return undefined;
+  const settings = await teamCycleSettings(teamId);
+  if (!settings.enabled) return undefined;
+  const wanted =
+    (stateType === 'started' && settings.autoAssignStarted) ||
+    (stateType === 'completed' && settings.autoAssignCompleted);
+  if (!wanted) return undefined;
+  return (await activeCycle(teamId, now))?.id;
+}
+
+// Archives a completed or future cycle (400 for the active one). Archiving a future
+// cycle takes its issues out of it. Sends the Cycle remove webhook.
+export async function archiveCycle(id: string, actorUserId: string | null, now: Date) {
+  const found = await getCycle(id);
+  if (!found) throw new HttpError(404, 'Cycle not found');
+  const isFuture = new Date(found.startsAt) > now;
+  if (!found.completedAt && !isFuture)
+    throw new HttpError(400, 'The active cycle cannot be archived');
+  if (isFuture) {
+    const members = await db.select({ id: issue.id }).from(issue).where(eq(issue.cycleId, id));
+    for (const m of members) await updateIssue(m.id, { cycleId: null }, actorUserId);
+  }
+  const [row] = await db
+    .update(cycle)
+    .set({ archivedAt: now, updatedAt: new Date() })
+    .where(eq(cycle.id, id))
+    .returning();
+  const archived = mapCycle(row!);
+  await sendCycleEvent('remove', archived, actorUserId);
+  return archived;
+}
