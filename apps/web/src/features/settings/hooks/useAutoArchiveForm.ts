@@ -3,66 +3,32 @@ import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAutoArchiveQuery, useUpdateAutoArchive } from '../services/settings.service';
 
-// Default day counts prefilled when a state group's auto-archive is switched on.
-const DEFAULT_COMPLETED_DAYS = 28;
-const DEFAULT_CANCELED_DAYS = 7;
-
-// The auto-archive thresholds form state, shared between the page header (the Save
-// action) and the body (the threshold rows). Seeds from the stored settings and
-// reseeds whenever they change (e.g. after a save).
+// The auto-archive period form state (months; 0 = off), shared between the page
+// header (the Save action) and the body (the period select). Seeds from the stored
+// setting and reseeds whenever it changes (e.g. after a save).
 export interface AutoArchiveForm {
   editable: boolean;
   saving: boolean;
   save: () => Promise<void>;
-  completedOn: boolean;
-  setCompletedOn: (v: boolean) => void;
-  completedDays: string;
-  setCompletedDays: (v: string) => void;
-  canceledOn: boolean;
-  setCanceledOn: (v: boolean) => void;
-  canceledDays: string;
-  setCanceledDays: (v: string) => void;
+  period: number;
+  setPeriod: (v: number) => void;
 }
 
 export function useAutoArchiveForm(teamKey: string): AutoArchiveForm {
   const { canManage } = usePermissions();
   const settingsQuery = useAutoArchiveQuery(teamKey);
   const updateSettings = useUpdateAutoArchive(teamKey);
+  const [period, setPeriod] = useState(0);
 
-  const [completedOn, setCompletedOn] = useState(false);
-  const [completedDays, setCompletedDays] = useState(String(DEFAULT_COMPLETED_DAYS));
-  const [canceledOn, setCanceledOn] = useState(false);
-  const [canceledDays, setCanceledDays] = useState(String(DEFAULT_CANCELED_DAYS));
-
-  const data = settingsQuery.data;
+  const stored = settingsQuery.data;
   useEffect(() => {
-    setCompletedOn(data?.completedDays != null);
-    setCompletedDays(String(data?.completedDays ?? DEFAULT_COMPLETED_DAYS));
-    setCanceledOn(data?.canceledDays != null);
-    setCanceledDays(String(data?.canceledDays ?? DEFAULT_CANCELED_DAYS));
-  }, [data]);
+    if (stored !== undefined) setPeriod(stored);
+  }, [stored]);
 
   async function save() {
-    await updateSettings.mutateAsync({
-      completedDays: completedOn
-        ? Math.max(1, Number(completedDays) || DEFAULT_COMPLETED_DAYS)
-        : null,
-      canceledDays: canceledOn ? Math.max(1, Number(canceledDays) || DEFAULT_CANCELED_DAYS) : null,
-    });
+    await updateSettings.mutateAsync(period);
     toast.success('Auto-archive settings saved');
   }
 
-  return {
-    editable: canManage,
-    saving: updateSettings.isPending,
-    save,
-    completedOn,
-    setCompletedOn,
-    completedDays,
-    setCompletedDays,
-    canceledOn,
-    setCanceledOn,
-    canceledDays,
-    setCanceledDays,
-  };
+  return { editable: canManage, saving: updateSettings.isPending, save, period, setPeriod };
 }

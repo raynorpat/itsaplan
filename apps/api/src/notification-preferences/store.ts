@@ -1,99 +1,77 @@
-import { db, userNotificationPreference } from '@repo/db';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { db, userPreference } from '@repo/db';
+import { inArray, sql } from 'drizzle-orm';
+import type { NotificationType } from '../notifications/store';
 
-// A member's own notification preferences for one team: for each issue event
-// type, whether they want it by email. One row per (user, team); absent means the
-// member has not opted in and receives nothing (opt-in default). Email is sent
-// through the instance email provider.
+// A user's email notification preferences for the whole workspace, per Linear
+// notification category (Linear's notificationCategoryPreferences, email channel).
+// Stored on user_preference.notification_categories; null or a missing row means the
+// defaults: email for assignments and mentions only.
 
-// The issue events a member can subscribe to, matching the inbox notification types.
-export const EVENT_KEYS = ['assigned', 'mentioned', 'commented', 'state_changed'] as const;
-export type EventKey = (typeof EVENT_KEYS)[number];
-export type EventToggles = Record<EventKey, boolean>;
+export const CATEGORIES = [
+  'assignments',
+  'mentions',
+  'commentsAndReplies',
+  'statusChanges',
+] as const;
+export type Category = (typeof CATEGORIES)[number];
+export type EmailCategories = Record<Category, boolean>;
 
-export interface NotificationPreferenceDto {
-  emailEvents: EventToggles;
+// The category each inbox notification type belongs to.
+export const CATEGORY_OF: Record<NotificationType, Category> = {
+  assigned: 'assignments',
+  mentioned: 'mentions',
+  commented: 'commentsAndReplies',
+  state_changed: 'statusChanges',
+};
+
+export function defaultCategories(): EmailCategories {
+  return { assignments: true, mentions: true, commentsAndReplies: false, statusChanges: false };
 }
 
-function emptyEvents(): EventToggles {
-  return { assigned: false, mentioned: false, commented: false, state_changed: false };
+// The stored value (possibly partial) over the defaults.
+function toCategories(value: unknown): EmailCategories {
+  const stored = (value ?? {}) as Partial<Record<Category, unknown>>;
+  const result = defaultCategories();
+  for (const c of CATEGORIES) if (typeof stored[c] === 'boolean') result[c] = stored[c] as boolean;
+  return result;
 }
 
-function defaults(): NotificationPreferenceDto {
-  return { emailEvents: emptyEvents() };
+export async function getEmailCategories(userId: string): Promise<EmailCategories> {
+  const [row] = await db
+    .select({ value: userPreference.notificationCategories })
+    .from(userPreference)
+    .where(sql`${userPreference.userId} = ${userId}`);
+  return toCategories(row?.value);
 }
 
-// Normalizes the stored jsonb (possibly partial or empty {}) into a full EventToggles.
-function toToggles(value: unknown): EventToggles {
-  const o = (value ?? {}) as Partial<Record<EventKey, boolean>>;
-  return {
-    assigned: Boolean(o.assigned),
-    mentioned: Boolean(o.mentioned),
-    commented: Boolean(o.commented),
-    state_changed: Boolean(o.state_changed),
-  };
-}
-
-function toDto(row: { emailEvents: unknown }): NotificationPreferenceDto {
-  return { emailEvents: toToggles(row.emailEvents) };
-}
-
-// A member's preferences for a team, or opt-in defaults (nothing enabled) when
-// they have no row yet.
-export async function getPreferences(
+// Changes the given categories and keeps the rest; returns the full set.
+export async function setEmailCategories(
   userId: string,
-  teamId: string,
-): Promise<NotificationPreferenceDto> {
-  const rows = await db
-    .select({
-      emailEvents: userNotificationPreference.emailEvents,
-    })
-    .from(userNotificationPreference)
-    .where(
-      and(
-        eq(userNotificationPreference.userId, userId),
-        eq(userNotificationPreference.teamId, teamId),
-      ),
-    );
-  return rows[0] ? toDto(rows[0]) : defaults();
-}
-
-// Upserts a member's preferences for a team and returns the normalized result.
-export async function setPreferences(
-  userId: string,
-  teamId: string,
-  input: NotificationPreferenceDto,
-): Promise<NotificationPreferenceDto> {
-  const values = { emailEvents: input.emailEvents };
+  patch: Partial<EmailCategories>,
+): Promise<EmailCategories> {
+  const next = { ...(await getEmailCategories(userId)) };
+  for (const c of CATEGORIES) if (typeof patch[c] === 'boolean') next[c] = patch[c] as boolean;
   await db
-    .insert(userNotificationPreference)
-    .values({ userId, teamId, ...values })
+    .insert(userPreference)
+    .values({ userId, notificationCategories: next })
     .onConflictDoUpdate({
-      target: [userNotificationPreference.userId, userNotificationPreference.teamId],
-      set: { ...values, updatedAt: sql`now()` },
+      target: userPreference.userId,
+      set: { notificationCategories: next, updatedAt: sql`now()` },
     });
-  return toDto(values);
+  return next;
 }
 
-// Preferences for a set of members of one team, keyed by user id. Missing members
-// (no row) are omitted; the caller treats them as opted out. Used by the outbound
-// enqueue path to decide, per inbox row, whether that member wants the email.
-export async function getPreferencesForUsers(
-  teamId: string,
+// The email categories of several users, keyed by user id; users without stored
+// preferences get the defaults. Used by the outbound enqueue path.
+export async function getEmailCategoriesForUsers(
   userIds: string[],
-): Promise<Map<string, NotificationPreferenceDto>> {
-  if (userIds.length === 0) return new Map();
+): Promise<Map<string, EmailCategories>> {
+  const result = new Map(userIds.map((id) => [id, defaultCategories()]));
+  if (userIds.length === 0) return result;
   const rows = await db
-    .select({
-      userId: userNotificationPreference.userId,
-      emailEvents: userNotificationPreference.emailEvents,
-    })
-    .from(userNotificationPreference)
-    .where(
-      and(
-        eq(userNotificationPreference.teamId, teamId),
-        inArray(userNotificationPreference.userId, userIds),
-      ),
-    );
-  return new Map(rows.map((r) => [r.userId, toDto(r)]));
+    .select({ userId: userPreference.userId, value: userPreference.notificationCategories })
+    .from(userPreference)
+    .where(inArray(userPreference.userId, userIds));
+  for (const r of rows) result.set(r.userId, toCategories(r.value));
+  return result;
 }

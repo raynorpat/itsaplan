@@ -1,19 +1,14 @@
-import type { NotificationEventToggles } from '@/lib/api';
+import type { EmailCategories } from '@/lib/api';
 
-// The issue events a channel can send, matching the inbox notification types, with a
-// display label.
-export const NOTIFICATION_EVENTS: { key: keyof NotificationEventToggles; label: string }[] = [
-  { key: 'assigned', label: 'Assigned to an issue' },
-  { key: 'mentioned', label: 'Mentioned in a comment' },
-  { key: 'commented', label: 'New comment on a followed issue' },
-  { key: 'state_changed', label: 'Issue state changed' },
+// The Linear notification categories this instance sends by email, with a display
+// label.
+export const NOTIFICATION_CATEGORIES: { key: keyof EmailCategories; label: string }[] = [
+  { key: 'assignments', label: 'Assigned to an issue' },
+  { key: 'mentions', label: 'Mentioned in a comment' },
+  { key: 'commentsAndReplies', label: 'Comments and replies on issues you follow' },
+  { key: 'statusChanges', label: 'Status changes on issues you follow' },
 ];
 
-export function eventsEqual(a: NotificationEventToggles, b: NotificationEventToggles): boolean {
-  return (
-    a.assigned === b.assigned &&
-    a.mentioned === b.mentioned &&
-    a.commented === b.commented &&
-    a.state_changed === b.state_changed
-  );
+export function categoriesEqual(a: EmailCategories, b: EmailCategories): boolean {
+  return NOTIFICATION_CATEGORIES.every(({ key }) => a[key] === b[key]);
 }

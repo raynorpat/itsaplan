@@ -13,8 +13,8 @@ import {
   createTeam,
   updateTeam,
   deleteTeam,
-  getAutoArchiveSettings,
-  setAutoArchiveSettings,
+  getAutoArchivePeriod,
+  setAutoArchivePeriod,
 } from './store';
 import { listStates } from '../states/store';
 import { listLabels, listLabelGroups } from '../labels/store';
@@ -87,13 +87,6 @@ const AssigneeCandidateResponse = t.Object({
   image: t.Nullable(t.String()),
 });
 
-// Auto-archive thresholds (AutoArchiveSettings from the store): days of inactivity
-// in a completed/canceled column before the worker archives an issue; null = off.
-const AutoArchiveResponse = t.Object({
-  completedDays: t.Nullable(t.Number()),
-  canceledDays: t.Nullable(t.Number()),
-});
-
 // Cycle settings (TeamCycleSettings from cycles/store). Weeks for duration and
 // cooldown; startDay is 0 = Sunday … 6 = Saturday.
 const CycleSettingsResponse = t.Object({
@@ -107,7 +100,8 @@ const CycleSettingsResponse = t.Object({
 });
 
 const TeamSettingsResponse = t.Object({
-  autoArchive: AutoArchiveResponse,
+  // Linear's auto-archive period in months (0, 1, 3, 6, 9 or 12; 0 = off).
+  autoArchivePeriod: t.Integer(),
   cycles: CycleSettingsResponse,
 });
 
@@ -250,13 +244,13 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
     },
   )
 
-  // Reads the team's settings: the auto-archive thresholds (days of inactivity in a
-  // completed/canceled column before the worker archives an issue; null = off).
-  // Any member may read.
+  // Reads the team's settings: the auto-archive period (months a completed or
+  // canceled issue stays before the worker archives it; 0 = off) and the cycle
+  // settings. Anyone who can see the team may read.
   .get(
     '/teams/:teamKey/settings',
     async ({ team }) => ({
-      autoArchive: await getAutoArchiveSettings(team.id),
+      autoArchivePeriod: await getAutoArchivePeriod(team.id),
       cycles: await teamCycleSettings(team.id),
     }),
     {
@@ -272,32 +266,25 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
   )
 
   // Updates the team's settings. Each field is optional; only the supplied ones
-  // change. autoArchive sets the day count per state group (positive integer) or
-  // disables it (null). Team managers only.
+  // change. autoArchivePeriod is 0, 1, 3, 6, 9 or 12 months (0 = off). Team managers
+  // only.
   .patch(
     '/teams/:teamKey/settings',
     async ({ team, body }) => {
-      const autoArchive =
-        body.autoArchive !== undefined
-          ? await setAutoArchiveSettings(team.id, body.autoArchive)
-          : await getAutoArchiveSettings(team.id);
+      const autoArchivePeriod =
+        body.autoArchivePeriod !== undefined
+          ? await setAutoArchivePeriod(team.id, body.autoArchivePeriod)
+          : await getAutoArchivePeriod(team.id);
       const cycles =
         body.cycles !== undefined
           ? await setTeamCycleSettings(team.id, body.cycles)
           : await teamCycleSettings(team.id);
-      return {
-        autoArchive,
-        cycles,
-      };
+      return { autoArchivePeriod, cycles };
     },
     {
       body: t.Object({
-        autoArchive: t.Optional(
-          t.Object({
-            completedDays: t.Nullable(t.Integer({ minimum: 1 })),
-            canceledDays: t.Nullable(t.Integer({ minimum: 1 })),
-          }),
-        ),
+        // Checked by the store (400 with the allowed values).
+        autoArchivePeriod: t.Optional(t.Integer()),
         // Ranges are checked by the store (400 with the allowed range).
         cycles: t.Optional(
           t.Object({

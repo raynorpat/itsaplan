@@ -14,7 +14,7 @@ export const qk = {
   issueSearch: (teamKey: string, q: string) => ['issueSearch', teamKey, q] as const,
   teamSettings: (teamKey: string) => ['teamSettings', teamKey] as const,
   // A team's notification delivery settings (the Notifications section).
-  notificationPreferences: (teamKey: string) => ['notificationPreferences', teamKey] as const,
+  notificationPreferences: () => ['notificationPreferences'] as const,
   views: (teamKey: string) => ['views', teamKey] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,

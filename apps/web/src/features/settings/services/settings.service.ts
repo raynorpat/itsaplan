@@ -6,7 +6,7 @@
 // into the cache. This module wraps the low-level fetch client (api.ts).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type AutoArchiveSettings, type NotificationPreferences } from '@/lib/api';
+import { api, type NotificationPreferences } from '@/lib/api';
 import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
 
@@ -79,38 +79,38 @@ export function useDeleteLabelGroup(teamKey: string) {
   return useTeamMutation(teamKey, (id: string) => api.deleteLabelGroup(teamKey, id));
 }
 
-// Archive section: the team's auto-archive thresholds, read from the team
-// settings resource and narrowed to the autoArchive part for this section.
+// Archive section: the team's auto-archive period in months, read from the team
+// settings resource.
 export function useAutoArchiveQuery(teamKey: string) {
   return useQuery({
     queryKey: qk.teamSettings(teamKey),
     queryFn: () => api.getTeamSettings(teamKey),
-    select: (s) => s.autoArchive,
+    select: (s) => s.autoArchivePeriod,
   });
 }
 
 export function useUpdateAutoArchive(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: AutoArchiveSettings) =>
-      api.updateTeamSettings(teamKey, { autoArchive: input }),
+    mutationFn: (autoArchivePeriod: number) =>
+      api.updateTeamSettings(teamKey, { autoArchivePeriod }),
     onSuccess: (data) => qc.setQueryData(qk.teamSettings(teamKey), data),
   });
 }
 
-// The session member's own notification preferences for a team. A write returns
-// the normalized result, which replaces the cache directly.
-export function useNotificationPreferencesQuery(teamKey: string) {
+// The signed-in user's own email notification preferences, for the whole workspace.
+// A write returns the full result, which replaces the cache directly.
+export function useNotificationPreferencesQuery() {
   return useQuery({
-    queryKey: qk.notificationPreferences(teamKey),
-    queryFn: () => api.getNotificationPreferences(teamKey),
+    queryKey: qk.notificationPreferences(),
+    queryFn: () => api.getNotificationPreferences(),
   });
 }
 
-export function useUpdateNotificationPreferences(teamKey: string) {
+export function useUpdateNotificationPreferences() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NotificationPreferences) => api.setNotificationPreferences(teamKey, input),
-    onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(teamKey), data),
+    mutationFn: (input: NotificationPreferences) => api.setNotificationPreferences(input),
+    onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(), data),
   });
 }

@@ -34,6 +34,10 @@ export function toTeam(row: TeamRecord) {
     upcomingCycleCount: row.upcomingCycleCount,
     cycleIssueAutoAssignStarted: row.cycleIssueAutoAssignStarted,
     cycleIssueAutoAssignCompleted: row.cycleIssueAutoAssignCompleted,
+    autoArchivePeriod: row.autoArchivePeriod,
+    // Auto-close is not offered.
+    autoClosePeriod: 0,
+    autoCloseStateId: null,
   };
 }
 

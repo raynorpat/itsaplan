@@ -142,17 +142,12 @@ export async function cleanupOldDeliveries(): Promise<number> {
   return (res as unknown as { count?: number }).count ?? 0;
 }
 
-// Auto-archive sweep: archives active issues that have sat inactive in a
-// completed/canceled column past their team's configured threshold. The
-// threshold lives in team_setting under key 'auto_archive' as
-// { completedDays, canceledDays }; a positive day count enables archiving for that
-// state group, null/absent disables it (kept in sync with getAutoArchiveSettings in
-// apps/api/src/teams/store.ts). Inactivity is measured by issue.updated_at:
-// moving to a terminal column bumps it, and any later edit resets the clock, so an
-// issue is archived only after the full period with no activity. The ->> is guarded
-// by a numeric-string regex so a malformed or missing value is treated as disabled,
-// never cast. Returns the ids archived, which the caller reports for webhooks, with
-// each issue's updated_at from before the sweep. Idempotent (archived_at IS NULL filter).
+// Auto-archive sweep (Linear's Team.autoArchivePeriod): archives active issues in a
+// completed or canceled state closed longer than their team's period in months
+// (team.auto_archive_period; 0 turns it off). The close time is completed_at or
+// canceled_at, falling back to updated_at for an issue that has neither. Returns the
+// ids archived, which the caller reports for webhooks, with each issue's updated_at
+// from before the sweep. Idempotent (archived_at IS NULL filter).
 export interface ArchivedIssue {
   id: string;
   previousUpdatedAt: string;
@@ -162,20 +157,16 @@ export async function archiveStaleIssues(): Promise<ArchivedIssue[]> {
   const rows = await db.execute(sql`
     WITH stale AS (
       SELECT i.id, i.updated_at
-      FROM issue i, workflow_state c, team_setting s
+      FROM issue i, workflow_state c, team t
       WHERE i.state_id = c.id
-        AND i.team_id = s.team_id
-        AND s.key = 'auto_archive'
+        AND i.team_id = t.id
+        AND t.auto_archive_period > 0
         AND i.archived_at IS NULL
-        AND (
-          (c.state_type = 'completed'
-            AND (s.value->>'completedDays') ~ '^[0-9]+$'
-            AND i.updated_at < now() - make_interval(days => (s.value->>'completedDays')::int))
-          OR
-          (c.state_type = 'canceled'
-            AND (s.value->>'canceledDays') ~ '^[0-9]+$'
-            AND i.updated_at < now() - make_interval(days => (s.value->>'canceledDays')::int))
-        )
+        AND c.state_type IN ('completed', 'canceled')
+        AND coalesce(
+              CASE c.state_type WHEN 'completed' THEN i.completed_at ELSE i.canceled_at END,
+              i.updated_at
+            ) < now() - make_interval(months => t.auto_archive_period)
       FOR UPDATE OF i
     )
     UPDATE issue

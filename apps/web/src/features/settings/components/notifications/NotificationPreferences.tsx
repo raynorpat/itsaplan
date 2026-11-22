@@ -2,34 +2,33 @@ import { type ReactNode } from 'react';
 import { Mail } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import SettingsSection from '@/components/common/page/SettingsSection';
-import { NOTIFICATION_EVENTS } from '../../utils/notificationEvents';
+import { NOTIFICATION_CATEGORIES } from '../../utils/notificationEvents';
 import type { NotificationPreferencesForm } from '../../hooks/useNotificationPreferencesForm';
 
-// A member's own notification preferences for the team: for each issue event, whether
-// it is sent by email. Visible to every member (each edits only their own). Email is
-// sent to the account address through the instance email provider. Save lives in the
-// page header.
+// The user's own email notification preferences for the whole workspace: for each
+// notification category, whether it is sent by email. Email is sent to the account
+// address through the instance email provider. Save lives in the page header.
 
 // Shared column template so the header label lines up with every event row.
 const COLS = 'grid grid-cols-[1fr_5rem] items-center';
 
 export default function NotificationPreferences({ form }: { form: NotificationPreferencesForm }) {
-  const { emailEvents, setEmailEvents } = form;
+  const { emailCategories, setEmailCategories } = form;
   return (
     <div className="flex flex-col gap-10">
-      <SettingsSection title="Events">
+      <SettingsSection title="Categories">
         <div className="max-w-xl">
           <div className={`${COLS} px-3 pb-1`}>
             <span />
             <ChannelHeader icon={<Mail className="size-3.5" />} label="Email" />
           </div>
           <div className="flex flex-col">
-            {NOTIFICATION_EVENTS.map((event) => (
+            {NOTIFICATION_CATEGORIES.map((category) => (
               <ChannelRow
-                key={event.key}
-                label={event.label}
-                emailChecked={emailEvents[event.key]}
-                onEmail={(v) => setEmailEvents({ ...emailEvents, [event.key]: v })}
+                key={category.key}
+                label={category.label}
+                emailChecked={emailCategories[category.key]}
+                onEmail={(v) => setEmailCategories({ ...emailCategories, [category.key]: v })}
               />
             ))}
           </div>

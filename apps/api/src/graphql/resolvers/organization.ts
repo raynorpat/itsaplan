@@ -1,3 +1,4 @@
+import { approvedDomains } from '@repo/auth';
 import { db, issue, user } from '@repo/db';
 import { isNull } from 'drizzle-orm';
 import {
@@ -40,7 +41,11 @@ export async function getOrganization() {
     gitBranchFormat: '{issueIdentifier}-{issueTitle}',
     allowedAuthServices: org.allowedAuthServices,
     allowedFileUploadContentTypes: org.allowedFileUploadContentTypes,
-    authSettings: { allowedAuthServices: org.allowedAuthServices },
+    // approvedDomains is read-only: it comes from APPROVED_EMAIL_DOMAINS.
+    authSettings: {
+      allowedAuthServices: org.allowedAuthServices,
+      approvedDomains: approvedDomains(),
+    },
     securitySettings: {
       teamCreationRole: linearRole(org.teamCreationRole),
       labelManagementRole: linearRole(org.labelManagementRole),

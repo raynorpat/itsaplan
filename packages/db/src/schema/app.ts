@@ -91,9 +91,15 @@ export const team = pgTable(
       .notNull()
       .default(false),
     nextCycleNumber: integer('next_cycle_number').notNull().default(1),
+    // Linear's Team.autoArchivePeriod: completed and canceled issues closed longer than
+    // this many months are archived by the worker; 0 turns it off.
+    autoArchivePeriod: integer('auto_archive_period').notNull().default(6),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check('team_visibility_check', sql`${t.visibility} IN ('public', 'private')`)],
+  (t) => [
+    check('team_visibility_check', sql`${t.visibility} IN ('public', 'private')`),
+    check('team_auto_archive_period_check', sql`${t.autoArchivePeriod} IN (0, 1, 3, 6, 9, 12)`),
+  ],
 );
 
 // Per-team key-value settings.
@@ -121,6 +127,10 @@ export const userPreference = pgTable('user_preference', {
     .references(() => user.id, { onDelete: 'cascade' }),
   // Linear's User.timezone. The other interface preferences are kept in the browser.
   timezone: text('timezone').notNull().default('UTC'),
+  // Linear's notificationCategoryPreferences, email channel: { assignments, mentions,
+  // commentsAndReplies, statusChanges } → boolean. Null means the defaults (email for
+  // assignments and mentions only).
+  notificationCategories: jsonb('notification_categories').$type<Record<string, boolean>>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -227,28 +237,6 @@ export const label = pgTable(
   },
   // Names are unique per team, and among workspace labels (team_id null).
   (t) => [unique().on(t.teamId, t.name).nullsNotDistinct()],
-);
-
-// A member's own notification preferences for one team: for each issue event
-// type, whether they want it by email. One row per (user, team); absent means the
-// member has not opted in and receives nothing. email_events is EventToggles jsonb
-// keyed by the four inbox notification types (assigned/mentioned/commented/
-// state_changed). Email is sent to the member's account address.
-export const userNotificationPreference = pgTable(
-  'user_notification_preference',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => team.id, { onDelete: 'cascade' }),
-    emailEvents: jsonb('email_events').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [unique('user_notification_pref_user_team_unique').on(t.userId, t.teamId)],
 );
 
 // Outbox for outbound notification delivery. One row per (recipient, message) to

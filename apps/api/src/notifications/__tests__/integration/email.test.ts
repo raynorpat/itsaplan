@@ -24,9 +24,9 @@ describe('notification email', () => {
     process.env.SMTP_HOST = 'smtp.example.com';
     process.env.EMAIL_FROM = 'Plan <plan@example.com>';
     const asMember = authedApi(member.cookie);
-    const saved = await asMember.teams({ teamKey: 'MKT' })['notification-preferences'].put({
-      emailEvents: { assigned: true, mentioned: false, commented: false, state_changed: false },
-    } as never);
+    const saved = await asMember.account['notification-preferences'].patch({
+      emailCategories: { assignments: true, mentions: false },
+    });
     expect(saved.status).toBe(200);
     await api
       .teams({ teamKey: 'MKT' })

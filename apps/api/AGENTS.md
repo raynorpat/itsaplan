@@ -121,7 +121,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   is left out of the inbox and the unread count; GraphQL serves every notification
   as an `IssueNotification` with Linear's type and category names, limited to the
   viewer's own on teams they are in. `subscriberIds` is accepted on `issueCreate` and
-  `issueUpdate`, not on `issueBatchUpdate`.
+  `issueUpdate`, not on `issueBatchUpdate`. Email notification preferences are per
+  Linear category for the whole workspace (`user_preference.notification_categories`,
+  `notification-preferences/`; null means email for assignments and mentions only),
+  served as `userSettings.notificationCategoryPreferences` (email channel only).
+- **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
+  months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
+  canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is
+  not offered: `autoClosePeriod` reads 0 and a non-zero value is INVALID_INPUT.
 
 ## Auth and access
 
@@ -273,7 +280,10 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   operation against it.
 - **Auth:** `Authorization: <key>` or `Authorization: Bearer <key>` is resolved as
   `x-api-key` through better-auth (`context.ts`); a session cookie also works. No
-  valid credentials → HTTP 401 with `extensions.code: AUTHENTICATION_ERROR`.
+  valid credentials → HTTP 401 with `extensions.code: AUTHENTICATION_ERROR`, except a
+  query whose root fields are only `organizationInviteDetails` (`anonymous.ts`), so the
+  invite page works before the invitee has an account. Its `id` is the invite's secret
+  token, not the invite's id.
 - **Unimplemented parts:** a root Query/Mutation field without a resolver answers
   `NOT_IMPLEMENTED`. Any other field without a resolver reads its parent's property
   or resolves to a neutral value by type (`schema.ts`). Add a resolver; do not
@@ -295,7 +305,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar), cycles, initiatives (project links, sub-initiatives,
+  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar),
+  `userSettings` / `userSettingsUpdate` (email notification categories),
+  `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

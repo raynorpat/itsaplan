@@ -14,7 +14,7 @@ import {
 } from '../../cycles/store';
 import { assertTeamAccess, canSeeTeam, canManageTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
-import { updateTeam } from '../../teams/store';
+import { isAutoArchivePeriod, setAutoArchivePeriod, updateTeam } from '../../teams/store';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { cycleFilterSql } from '../cycle-filter';
@@ -226,7 +226,14 @@ export const cycleResolvers = {
       guard(async () => {
         onlySupported(
           input,
-          ['name', 'description', 'private', ...Object.keys(TEAM_CYCLE_FIELDS)],
+          [
+            'name',
+            'description',
+            'private',
+            'autoArchivePeriod',
+            'autoClosePeriod',
+            ...Object.keys(TEAM_CYCLE_FIELDS),
+          ],
           'input',
         );
         const found = await findTeam(id, ctx.user.id);
@@ -242,6 +249,17 @@ export const cycleResolvers = {
         validateCycleSettings(settings);
         if (input.private != null && typeof input.private !== 'boolean')
           throw gqlError('INVALID_INPUT', 'input.private must be a boolean');
+        if (input.autoArchivePeriod != null && !isAutoArchivePeriod(input.autoArchivePeriod))
+          throw gqlError(
+            'INVALID_INPUT',
+            'input.autoArchivePeriod must be one of 0, 1, 3, 6, 9 or 12 months',
+          );
+        // Auto-close is not offered: only 0 (off) is accepted.
+        if (input.autoClosePeriod != null && input.autoClosePeriod !== 0)
+          throw gqlError(
+            'INVALID_INPUT',
+            'input.autoClosePeriod is not supported (auto-close is off)',
+          );
         if (input.name !== undefined || input.description !== undefined || input.private != null)
           await updateTeam(found.id, {
             name: input.name as string | undefined,
@@ -251,6 +269,8 @@ export const cycleResolvers = {
               : {}),
           });
         if (Object.keys(settings).length) await setTeamCycleSettings(found.id, settings);
+        if (input.autoArchivePeriod != null)
+          await setAutoArchivePeriod(found.id, input.autoArchivePeriod as number);
         const [row] = await db.select().from(team).where(eq(team.id, found.id));
         return { success: true, lastSyncId: lastSyncId(), team: toTeam(row!) };
       }),

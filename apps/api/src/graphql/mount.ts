@@ -3,6 +3,7 @@ import { GraphQLError } from 'graphql';
 import { PG_INVALID_INPUT_CODES, pgErrorCode } from '../shared/lib';
 import type { SessionUser } from '../shared/auth-context';
 import { resolveGraphQLUser, type GraphQLContext } from './context';
+import { isAnonymousRequest } from './anonymous';
 import { buildSchema } from './schema';
 import { maxDepthRule } from './depth';
 import { gqlError } from './errors';
@@ -19,6 +20,8 @@ import { issueRelationResolvers } from './resolvers/issue-relation';
 import { documentResolvers } from './resolvers/document';
 import { attachmentResolvers } from './resolvers/attachment';
 import { notificationResolvers } from './resolvers/notification';
+import { userSettingsResolvers } from './resolvers/user-settings';
+import { inviteDetailsResolvers } from './resolvers/invite-details';
 import { uploadResolvers } from './resolvers/upload';
 import { customViewResolvers } from './resolvers/custom-view';
 import { issueSubscriptionResolvers } from './resolvers/issue-subscription';
@@ -50,6 +53,8 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   documentResolvers,
   attachmentResolvers,
   notificationResolvers,
+  userSettingsResolvers,
+  inviteDetailsResolvers,
   uploadResolvers,
   customViewResolvers,
   issueSubscriptionResolvers,
@@ -76,7 +81,8 @@ const AUTH_MESSAGE = 'Authentication required, not authenticated';
 // Adds the Linear-compatible GraphQL endpoint (/graphql) to the app. Mounted on the
 // root app after the chain, like the MCP endpoint, so `type App` stays the REST
 // surface. Authentication is resolved before Yoga runs: a request without valid
-// credentials gets a 401 with Linear's AUTHENTICATION_ERROR shape.
+// credentials gets a 401 with Linear's AUTHENTICATION_ERROR shape, except the invite
+// lookup (anonymous.ts).
 // Typed as `any` for the same reason as mountMcp: Elysia's generics are invariant.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mountGraphql(app: any): void {
@@ -112,6 +118,10 @@ export function mountGraphql(app: any): void {
           { status: 415 },
         );
       const user = await resolveGraphQLUser(request);
+      // Without credentials only the invite lookup is answered; its resolver does not
+      // read the user.
+      if (!user && (await isAnonymousRequest(request)))
+        return yoga.fetch(request, { user: null as unknown as SessionUser });
       if (!user)
         return Response.json(
           {

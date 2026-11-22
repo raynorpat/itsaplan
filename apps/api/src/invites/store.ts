@@ -161,6 +161,34 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
   };
 }
 
+// What a pending, unexpired invite shows on Linear's organizationInviteDetails, by its
+// secret token (the value in the invite link), or null. Leaves out the invite's
+// teams, which may include private ones.
+export async function getInviteDetailsByToken(token: string): Promise<{
+  email: string;
+  role: InviteRole;
+  invitedByName: string | null;
+  createdAt: string;
+} | null> {
+  const [row] = await db
+    .select({
+      email: workspaceInvite.email,
+      role: workspaceInvite.role,
+      createdAt: workspaceInvite.createdAt,
+      invitedByName: user.name,
+    })
+    .from(workspaceInvite)
+    .leftJoin(user, eq(user.id, workspaceInvite.invitedByUserId))
+    .where(and(eq(workspaceInvite.token, token), active));
+  if (!row) return null;
+  return {
+    email: row.email,
+    role: row.role as InviteRole,
+    invitedByName: row.invitedByName,
+    createdAt: iso(row.createdAt),
+  };
+}
+
 // Linear's organizationInviteCreate / POST /invites: owners, admins and members
 // invite, never above their own role, only to teams they can see.
 export async function inviteToWorkspace(

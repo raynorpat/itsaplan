@@ -1,65 +1,52 @@
 import { Elysia, t } from 'elysia';
-import { guards } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
 import { requireUser } from '../shared/access';
 import { ErrorResponse } from '../shared/responses';
-import { getPreferences, setPreferences } from './store';
+import { getEmailCategories, setEmailCategories } from './store';
 
-const EventToggles = t.Object({
-  assigned: t.Boolean(),
-  mentioned: t.Boolean(),
-  commented: t.Boolean(),
-  state_changed: t.Boolean(),
+// Email on or off per Linear notification category.
+const EmailCategories = t.Object({
+  assignments: t.Boolean(),
+  mentions: t.Boolean(),
+  commentsAndReplies: t.Boolean(),
+  statusChanges: t.Boolean(),
 });
 
-const PreferenceBody = t.Object({
-  emailEvents: EventToggles,
-});
+const PreferenceBody = t.Object({ emailCategories: EmailCategories });
 
-// A member's own notification preferences for a team: which issue events they want
-// by email. Every route is self-scoped to the session user, so bare team membership
-// is enough (no admin gate) — a member only ever reads or writes their own row.
+const PreferencePatch = t.Object({ emailCategories: t.Partial(EmailCategories) });
+
+// The session user's own email notification preferences for the whole workspace
+// (Linear's notificationCategoryPreferences, email channel).
 export const notificationPreferenceRoutes = new Elysia({
   name: 'notification-preferences',
   detail: { tags: ['Settings'] },
 })
   .use(authContext)
-  .use(guards)
 
   .get(
-    '/teams/:teamKey/notification-preferences',
-    ({ team, user }) => getPreferences(requireUser(user).id, team.id),
+    '/account/notification-preferences',
+    async ({ user }) => ({ emailCategories: await getEmailCategories(requireUser(user).id) }),
     {
-      teamAccess: 'see',
-      response: {
-        200: PreferenceBody,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
+      response: { 200: PreferenceBody, 401: ErrorResponse },
       detail: {
         summary: 'Get notification preferences',
-        description: "Get the current user's notification preferences for a team.",
+        description: "Get the current user's email notification preferences per category.",
       },
     },
   )
 
-  .put(
-    '/teams/:teamKey/notification-preferences',
-    ({ team, user, body }) => setPreferences(requireUser(user).id, team.id, body),
+  .patch(
+    '/account/notification-preferences',
+    async ({ user, body }) => ({
+      emailCategories: await setEmailCategories(requireUser(user).id, body.emailCategories),
+    }),
     {
-      body: PreferenceBody,
-      teamAccess: 'see',
-      response: {
-        200: PreferenceBody,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-        404: ErrorResponse,
-      },
+      body: PreferencePatch,
+      response: { 200: PreferenceBody, 400: ErrorResponse, 401: ErrorResponse },
       detail: {
         summary: 'Update notification preferences',
-        description: "Update the current user's notification preferences for a team.",
+        description: "Change the current user's email notification preferences per category.",
       },
     },
   );

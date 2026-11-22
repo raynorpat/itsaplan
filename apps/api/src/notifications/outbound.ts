@@ -1,7 +1,7 @@
 import { db, notificationDelivery, issue, team, user } from '@repo/db';
 import { eq, inArray } from 'drizzle-orm';
 import { getNotificationEmailConfig } from '@repo/auth';
-import { getPreferencesForUsers } from '../notification-preferences/store';
+import { CATEGORY_OF, getEmailCategoriesForUsers } from '../notification-preferences/store';
 import type { NotificationType, NewNotificationRow } from './store';
 
 // Outbound notification delivery: turns the inbox notification rows produced by an
@@ -96,16 +96,14 @@ export async function enqueueOutbound(
   const userIds = [...new Set(notifications.map((n) => n.userId))];
   const [users, prefsByUser] = await Promise.all([
     db.select({ id: user.id, email: user.email }).from(user).where(inArray(user.id, userIds)),
-    getPreferencesForUsers(teamId, userIds),
+    getEmailCategoriesForUsers(userIds),
   ]);
   const emailById = new Map(users.map((u) => [u.id, u.email]));
 
   const out: OutboxRow[] = [];
   for (const n of notifications) {
     const prefs = prefsByUser.get(n.userId);
-    if (!prefs) continue; // member has not opted in
-
-    if (prefs.emailEvents[n.type]) {
+    if (prefs?.[CATEGORY_OF[n.type]]) {
       const email = emailById.get(n.userId);
       if (email) {
         out.push({

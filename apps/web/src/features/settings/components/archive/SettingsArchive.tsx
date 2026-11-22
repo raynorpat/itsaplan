@@ -1,63 +1,40 @@
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { AUTO_ARCHIVE_PERIODS } from '@/lib/api';
 import type { AutoArchiveForm } from '../../hooks/useAutoArchiveForm';
 
-// Only a team manager may edit; others see the values read-only.
+const periodLabel = (months: number) =>
+  months === 0 ? 'Never' : months === 1 ? 'After 1 month' : `After ${months} months`;
+
+// Linear's auto-archive period: completed and canceled issues are archived this long
+// after they were closed. Only a team manager may edit; others see it read-only.
 export default function SettingsArchive({ form }: { form: AutoArchiveForm }) {
   return (
     <section className="flex flex-col gap-4">
-      <div className="divide-y divide-border rounded-lg border border-border">
-        <ThresholdRow
-          label="Completed issues"
-          on={form.completedOn}
-          days={form.completedDays}
-          editable={form.editable}
-          onToggle={form.setCompletedOn}
-          onDays={form.setCompletedDays}
-        />
-        <ThresholdRow
-          label="Canceled issues"
-          on={form.canceledOn}
-          days={form.canceledDays}
-          editable={form.editable}
-          onToggle={form.setCanceledOn}
-          onDays={form.setCanceledDays}
-        />
+      <div className="flex items-center gap-3 rounded-lg border border-border px-4 py-3">
+        <span className="flex-1 text-sm">Archive closed issues</span>
+        <Select
+          value={String(form.period)}
+          onValueChange={(v) => form.setPeriod(Number(v))}
+          disabled={!form.editable}
+        >
+          <SelectTrigger size="sm" className="h-8 w-44" aria-label="Auto-archive period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AUTO_ARCHIVE_PERIODS.map((months) => (
+              <SelectItem key={months} value={String(months)}>
+                {periodLabel(months)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </section>
-  );
-}
-
-function ThresholdRow({
-  label,
-  on,
-  days,
-  editable,
-  onToggle,
-  onDays,
-}: {
-  label: string;
-  on: boolean;
-  days: string;
-  editable: boolean;
-  onToggle: (v: boolean) => void;
-  onDays: (v: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <Switch checked={on} onCheckedChange={onToggle} disabled={!editable} />
-      <span className="flex-1 text-sm">{label}</span>
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          min={1}
-          value={days}
-          onChange={(e) => onDays(e.target.value)}
-          disabled={!editable || !on}
-          className="h-8 w-20"
-        />
-        <span className="text-sm text-muted-foreground">days</span>
-      </div>
-    </div>
   );
 }

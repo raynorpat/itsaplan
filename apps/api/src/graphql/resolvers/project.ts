@@ -56,6 +56,14 @@ export function toProject(p: ProjectRow) {
     archivedAt: p.archivedAt,
     health: p.health,
     progress: open > 0 ? p.progress.completed / open : 0,
+    // Linear's scope is the number of open (not canceled) issues. No history is
+    // stored, so each history array holds the current value only.
+    scope: open,
+    scopeHistory: [open],
+    completedScopeHistory: [p.progress.completed],
+    inProgressScopeHistory: [],
+    issueCountHistory: [p.progress.total],
+    completedIssueCountHistory: [p.progress.completed],
     // Deprecated in Linear, still selected by the SDK: the status type.
     state: p.status,
     url: `${trustedOrigins[0]}/projects/${p.id}`,

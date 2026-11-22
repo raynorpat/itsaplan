@@ -169,6 +169,13 @@
       "when": 1795385277683,
       "tag": "0023_vengeful_tarot",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795385912046,
+      "tag": "0024_naive_bishop",
+      "breakpoints": true
     }
   ]
 }

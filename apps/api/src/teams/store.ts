@@ -7,13 +7,11 @@ import {
   team,
   workflowState,
   teamMember,
-  teamSetting,
 } from '@repo/db';
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { deleteObjects } from '../shared/s3';
-import { iso } from '../shared/lib';
+import { HttpError, iso } from '../shared/lib';
 import { atLeast, visibleTeamIds, workspaceRole } from '../shared/access';
-import { getTeamSetting, setTeamSetting } from '../settings/store';
 
 // Data access for teams: the top-level container that groups its own columns,
 // labels, assignees, issues and saved views. Access is by membership (team_member): the creator becomes an
@@ -123,9 +121,6 @@ export async function createTeam(
         position,
       });
     }
-    await tx
-      .insert(teamSetting)
-      .values({ teamId: row.id, key: AUTO_ARCHIVE_KEY, value: DEFAULT_AUTO_ARCHIVE });
     return mapTeam(row);
   });
 }
@@ -146,49 +141,27 @@ export async function updateTeam(
   return row ? mapTeam(row) : null;
 }
 
-// Auto-archive thresholds for a team. Stored in team_setting under
-// AUTO_ARCHIVE_KEY as { completedDays, canceledDays }. Each value is the number of
-// days an issue may sit inactive in a completed/canceled column before the worker
-// archives it; null disables archiving for that state group. A new team is
-// created with DEFAULT_AUTO_ARCHIVE; a team with no stored row (created before
-// this) keeps both null, so nothing is archived until an owner turns it on. The
-// worker reads the same key and jsonb fields directly (apps/worker/src/store.ts) —
-// keep them in sync.
-const AUTO_ARCHIVE_KEY = 'auto_archive';
+// Linear's auto-archive period in months (team.auto_archive_period): the worker
+// archives completed and canceled issues closed longer than this; 0 turns it off.
+export const AUTO_ARCHIVE_PERIODS = [0, 1, 3, 6, 9, 12] as const;
 
-const DEFAULT_AUTO_ARCHIVE = { completedDays: 28, canceledDays: 7 };
-
-export interface AutoArchiveSettings {
-  completedDays: number | null;
-  canceledDays: number | null;
+export function isAutoArchivePeriod(value: unknown): value is number {
+  return typeof value === 'number' && (AUTO_ARCHIVE_PERIODS as readonly number[]).includes(value);
 }
 
-// Coerces a stored/input value to a positive integer day count, or null (disabled)
-// for anything else. Guards against non-integer or non-positive thresholds.
-function normalizeDays(value: unknown): number | null {
-  if (value == null) return null;
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : null;
+export async function getAutoArchivePeriod(teamId: string): Promise<number> {
+  const [row] = await db
+    .select({ period: team.autoArchivePeriod })
+    .from(team)
+    .where(eq(team.id, teamId));
+  return row?.period ?? 0;
 }
 
-export async function getAutoArchiveSettings(teamId: string): Promise<AutoArchiveSettings> {
-  const stored = await getTeamSetting<Partial<AutoArchiveSettings>>(teamId, AUTO_ARCHIVE_KEY);
-  return {
-    completedDays: normalizeDays(stored?.completedDays),
-    canceledDays: normalizeDays(stored?.canceledDays),
-  };
-}
-
-export async function setAutoArchiveSettings(
-  teamId: string,
-  input: { completedDays?: number | null; canceledDays?: number | null },
-): Promise<AutoArchiveSettings> {
-  const next: AutoArchiveSettings = {
-    completedDays: normalizeDays(input.completedDays),
-    canceledDays: normalizeDays(input.canceledDays),
-  };
-  await setTeamSetting(teamId, AUTO_ARCHIVE_KEY, next);
-  return next;
+export async function setAutoArchivePeriod(teamId: string, period: number): Promise<number> {
+  if (!isAutoArchivePeriod(period))
+    throw new HttpError(400, 'autoArchivePeriod must be one of 0, 1, 3, 6, 9 or 12 months');
+  await db.update(team).set({ autoArchivePeriod: period }).where(eq(team.id, teamId));
+  return period;
 }
 
 // Deletes a team and everything scoped to it. Every team-scoped foreign key

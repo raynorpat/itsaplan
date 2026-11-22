@@ -247,40 +247,35 @@ describe('teams', () => {
   });
 
   describe('settings', () => {
-    it('defaults a new team to the default auto-archive thresholds', async () => {
+    it("defaults a new team to Linear's six-month auto-archive period", async () => {
       const { api } = await signUpClient();
       await api.teams.post({ key: 'MKT', name: 'Marketing' });
 
       const res = await api.teams({ teamKey: 'MKT' }).settings.get();
       expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({
-        autoArchive: { completedDays: 28, canceledDays: 7 },
-      });
+      expect(res.data).toMatchObject({ autoArchivePeriod: 6 });
     });
 
-    it('lets an owner set and read back the auto-archive thresholds', async () => {
+    it('lets an owner set and read back the auto-archive period', async () => {
       const { api } = await signUpClient();
       await api.teams.post({ key: 'MKT', name: 'Marketing' });
 
-      const patch = await api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 28, canceledDays: 7 } });
+      const patch = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 3 });
       expect(patch.status).toBe(200);
-      expect(patch.data?.autoArchive).toMatchObject({ completedDays: 28, canceledDays: 7 });
+      expect(patch.data?.autoArchivePeriod).toBe(3);
 
       const get = await api.teams({ teamKey: 'MKT' }).settings.get();
-      expect(get.data?.autoArchive).toMatchObject({ completedDays: 28, canceledDays: 7 });
+      expect(get.data?.autoArchivePeriod).toBe(3);
     });
 
-    it('stores null to disable a state group', async () => {
+    it('turns auto-archive off with 0 and refuses other values', async () => {
       const { api } = await signUpClient();
       await api.teams.post({ key: 'MKT', name: 'Marketing' });
 
-      const res = await api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 30, canceledDays: null } });
-      expect(res.status).toBe(200);
-      expect(res.data?.autoArchive).toMatchObject({ completedDays: 30, canceledDays: null });
+      const off = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 0 });
+      expect(off.data?.autoArchivePeriod).toBe(0);
+      const odd = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 2 });
+      expect(odd.status).toBe(400);
     });
 
     it('denies writing settings to a non-owner (owner-only)', async () => {
@@ -290,7 +285,7 @@ describe('teams', () => {
       const outsider = await signUpClient();
       const res = await outsider.api
         .teams({ teamKey: 'MKT' })
-        .settings.patch({ autoArchive: { completedDays: 28, canceledDays: 7 } });
+        .settings.patch({ autoArchivePeriod: 3 });
       expect(res.status).toBe(403);
     });
   });

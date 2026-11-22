@@ -171,28 +171,21 @@ export interface IssueSearchHit {
   archived: boolean;
 }
 
-// Per-team auto-archive thresholds: days an issue may sit inactive in a
-// completed/canceled column before the worker archives it. null disables archiving
-// for that state group. Both null by default (nothing is archived until enabled).
-export interface AutoArchiveSettings {
-  completedDays: number | null;
-  canceledDays: number | null;
-}
+// The auto-archive periods a team may pick (Linear's Team.autoArchivePeriod): months
+// a completed or canceled issue stays before the worker archives it; 0 = off.
+export const AUTO_ARCHIVE_PERIODS = [0, 1, 3, 6, 9, 12] as const;
 
-// A team's settings: the auto-archive thresholds.
+// A team's settings: the auto-archive period in months.
 export interface TeamSettings {
-  autoArchive: AutoArchiveSettings;
+  autoArchivePeriod: number;
 }
 
-// Per-team notification provider credentials (owner-managed) plus a member's own
-// delivery preferences. The issue events match the inbox notification types.
-export type NotificationEncryption = 'none' | 'ssl' | 'tls';
-
-export interface NotificationEventToggles {
-  assigned: boolean;
-  mentioned: boolean;
-  commented: boolean;
-  state_changed: boolean;
+// Email on or off per Linear notification category.
+export interface EmailCategories {
+  assignments: boolean;
+  mentions: boolean;
+  commentsAndReplies: boolean;
+  statusChanges: boolean;
 }
 
 // ── Storage limits ────────────────────────────────────────────────────────────
@@ -256,10 +249,10 @@ export interface PublicAuthConfig {
   passkey: boolean;
 }
 
-// The session member's own notification preferences for a team: which issue
-// events they want by email. Email is sent to the member's account address.
+// The signed-in user's email notification preferences for the whole workspace, per
+// Linear notification category. Email is sent to the account address.
 export interface NotificationPreferences {
-  emailEvents: NotificationEventToggles;
+  emailCategories: EmailCategories;
 }
 
 // The signed-in user's interface preferences. timezone is an IANA zone name the app
@@ -1079,13 +1072,13 @@ export const api = {
   createAllTeamsWebhook: (input: NewWebhookInput) =>
     request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
 
-  // Team settings: the auto-archive thresholds. Anyone who can see the team reads;
-  // team managers write. The PATCH takes only the fields being changed.
+  // Team settings: the auto-archive period. Anyone who can see the team reads; team
+  // managers write. The PATCH takes only the fields being changed.
   getTeamSettings: (teamKey: string) => request<TeamSettings>(`/teams/${teamKey}/settings`),
   updateTeamSettings: (
     teamKey: string,
     patch: {
-      autoArchive?: AutoArchiveSettings;
+      autoArchivePeriod?: number;
     },
   ) =>
     request<TeamSettings>(`/teams/${teamKey}/settings`, {
@@ -1093,12 +1086,12 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  // The session member's own notification preferences for a team (any member).
-  getNotificationPreferences: (teamKey: string) =>
-    request<NotificationPreferences>(`/teams/${teamKey}/notification-preferences`),
-  setNotificationPreferences: (teamKey: string, input: NotificationPreferences) =>
-    request<NotificationPreferences>(`/teams/${teamKey}/notification-preferences`, {
-      method: 'PUT',
+  // The signed-in user's own email notification preferences, for the whole workspace.
+  getNotificationPreferences: () =>
+    request<NotificationPreferences>('/account/notification-preferences'),
+  setNotificationPreferences: (input: NotificationPreferences) =>
+    request<NotificationPreferences>('/account/notification-preferences', {
+      method: 'PATCH',
       body: JSON.stringify(input),
     }),
 
