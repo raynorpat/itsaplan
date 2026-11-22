@@ -899,6 +899,127 @@ export const projectLabelLink = pgTable(
   (t) => [primaryKey({ columns: [t.projectId, t.labelId] })],
 );
 
+// A Linear initiative: a workspace-level goal grouping projects
+// (initiative_to_project) and sub-initiatives (initiative_relation). An initiative
+// with a lead team is visible to that team only; without one, to the workspace.
+// started_at is set on entering Active; completed_at is set on entering Completed
+// and cleared on leaving it. Health is the newest initiative update's health.
+export const initiative = pgTable(
+  'initiative',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description'),
+    content: text('content'),
+    color: text('color'),
+    icon: text('icon'),
+    status: text('status').notNull().default('Active'),
+    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    leadTeamId: uuid('lead_team_id').references(() => team.id, { onDelete: 'set null' }),
+    // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
+    priority: integer('priority').notNull().default(0),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    prioritySortOrder: doublePrecision('priority_sort_order').notNull().default(0),
+    targetDate: date('target_date'),
+    targetDateResolution: text('target_date_resolution'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    // Linear's short initiative id (12 lowercase hex chars), usable in place of the id.
+    slugId: text('slug_id')
+      .notNull()
+      .unique()
+      .default(sql`substr(md5(gen_random_uuid()::text), 1, 12)`),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // Set with archived_at by initiativeDelete (Linear's trash).
+    trashed: boolean('trashed'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'initiative_status_check',
+      sql`${t.status} IN ('Proposed', 'Planned', 'Active', 'Completed', 'Canceled')`,
+    ),
+    check('initiative_priority_check', sql`${t.priority} BETWEEN 0 AND 4`),
+    check(
+      'initiative_target_date_resolution_check',
+      sql`${t.targetDateResolution} IN ('month', 'quarter', 'halfYear', 'year')`,
+    ),
+    index('initiative_lead_team_idx').on(t.leadTeamId),
+  ],
+);
+
+// A project linked to an initiative (Linear's InitiativeToProject). A project may
+// be linked to several initiatives, once each.
+export const initiativeToProject = pgTable(
+  'initiative_to_project',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    initiativeId: uuid('initiative_id')
+      .notNull()
+      .references(() => initiative.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('initiative_to_project_unique').on(t.initiativeId, t.projectId),
+    index('initiative_to_project_project_idx').on(t.projectId),
+  ],
+);
+
+// A sub-initiative link (Linear's InitiativeRelation): initiative_id is the parent,
+// related_initiative_id the child. A child has one parent; loops and depth are
+// checked by the store.
+export const initiativeRelation = pgTable(
+  'initiative_relation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    initiativeId: uuid('initiative_id')
+      .notNull()
+      .references(() => initiative.id, { onDelete: 'cascade' }),
+    relatedInitiativeId: uuid('related_initiative_id')
+      .notNull()
+      .unique()
+      .references(() => initiative.id, { onDelete: 'cascade' }),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('initiative_relation_not_self', sql`${t.initiativeId} <> ${t.relatedInitiativeId}`),
+    index('initiative_relation_parent_idx').on(t.initiativeId),
+  ],
+);
+
+// An initiative update: a status post with a health reading. The newest one that
+// is not archived gives the initiative its health.
+export const initiativeUpdate = pgTable(
+  'initiative_update',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    initiativeId: uuid('initiative_id')
+      .notNull()
+      .references(() => initiative.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
+    body: text('body').notNull(),
+    health: text('health').notNull(),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('initiative_update_health_check', sql`${t.health} IN ('onTrack', 'atRisk', 'offTrack')`),
+    index('initiative_update_initiative_idx').on(t.initiativeId, t.createdAt.desc()),
+  ],
+);
+
 // A team's cycle (Linear's Cycle): a time box from starts_at to ends_at, numbered
 // in order within the team. completed_at is set when the cycle closes (on schedule
 // or by hand). The *_history arrays hold one value per day since the cycle
@@ -1138,8 +1259,8 @@ export const issueActivity = pgTable(
   ],
 );
 
-// Comments (Linear's Comment) on an issue, a project or a project update — exactly
-// one of the three. A reply's parent_id is the root comment of its thread (replies
+// Comments (Linear's Comment) on an issue, a project, a project update or an
+// initiative update — exactly one of the four. A reply's parent_id is the root comment of its thread (replies
 // are one level deep); a reply has the same parent entity as its root. user_name is
 // the author's name at write time. resolved_at / resolving_* apply to root comments.
 export const comment = pgTable(
@@ -1149,6 +1270,9 @@ export const comment = pgTable(
     issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
     projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
     projectUpdateId: uuid('project_update_id').references(() => projectUpdate.id, {
+      onDelete: 'cascade',
+    }),
+    initiativeUpdateId: uuid('initiative_update_id').references(() => initiativeUpdate.id, {
       onDelete: 'cascade',
     }),
     parentId: uuid('parent_id').references((): AnyPgColumn => comment.id, { onDelete: 'cascade' }),
@@ -1167,18 +1291,19 @@ export const comment = pgTable(
   (t) => [
     check(
       'comment_parent_check',
-      sql`num_nonnulls(${t.issueId}, ${t.projectId}, ${t.projectUpdateId}) = 1`,
+      sql`num_nonnulls(${t.issueId}, ${t.projectId}, ${t.projectUpdateId}, ${t.initiativeUpdateId}) = 1`,
     ),
     index('comment_issue_idx').on(t.issueId, t.createdAt, t.id),
     index('comment_project_idx').on(t.projectId, t.createdAt, t.id),
     index('comment_project_update_idx').on(t.projectUpdateId, t.createdAt, t.id),
+    index('comment_initiative_update_idx').on(t.initiativeUpdateId, t.createdAt, t.id),
     index('comment_parent_idx').on(t.parentId),
     index('comment_resolving_comment_idx').on(t.resolvingCommentId),
   ],
 );
 
-// Emoji reactions (Linear's Reaction) on a comment, an issue or a project update —
-// exactly one of the three. A user reacts once with each emoji on an item. emoji is
+// Emoji reactions (Linear's Reaction) on a comment, an issue, a project update or
+// an initiative update — exactly one of the four. A user reacts once with each emoji on an item. emoji is
 // stored as given (trimmed), such as `+1` or a Unicode emoji.
 export const reaction = pgTable(
   'reaction',
@@ -1187,6 +1312,9 @@ export const reaction = pgTable(
     commentId: uuid('comment_id').references(() => comment.id, { onDelete: 'cascade' }),
     issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
     projectUpdateId: uuid('project_update_id').references(() => projectUpdate.id, {
+      onDelete: 'cascade',
+    }),
+    initiativeUpdateId: uuid('initiative_update_id').references(() => initiativeUpdate.id, {
       onDelete: 'cascade',
     }),
     userId: uuid('user_id')
@@ -1198,10 +1326,10 @@ export const reaction = pgTable(
   (t) => [
     check(
       'reaction_parent_check',
-      sql`num_nonnulls(${t.commentId}, ${t.issueId}, ${t.projectUpdateId}) = 1`,
+      sql`num_nonnulls(${t.commentId}, ${t.issueId}, ${t.projectUpdateId}, ${t.initiativeUpdateId}) = 1`,
     ),
     uniqueIndex('reaction_once_per_emoji_idx').on(
-      sql`coalesce(${t.commentId}, ${t.issueId}, ${t.projectUpdateId})`,
+      sql`coalesce(${t.commentId}, ${t.issueId}, ${t.projectUpdateId}, ${t.initiativeUpdateId})`,
       t.userId,
       t.emoji,
     ),
@@ -1209,6 +1337,7 @@ export const reaction = pgTable(
     index('reaction_comment_idx').on(t.commentId),
     index('reaction_issue_idx').on(t.issueId),
     index('reaction_project_update_idx').on(t.projectUpdateId),
+    index('reaction_initiative_update_idx').on(t.initiativeUpdateId),
   ],
 );
 
@@ -1220,6 +1349,7 @@ export const feedEntry = pgView('feed_entry', {
   issueId: uuid('issue_id'),
   projectId: uuid('project_id'),
   projectUpdateId: uuid('project_update_id'),
+  initiativeUpdateId: uuid('initiative_update_id'),
   kind: text('kind').notNull(),
   actorUserId: uuid('actor_user_id'),
   actorName: text('actor_name'),
@@ -1232,12 +1362,13 @@ export const feedEntry = pgView('feed_entry', {
   editedAt: timestamp('edited_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }).as(sql`
-  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id, 'activity' AS kind,
+  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,
+    NULL::uuid AS initiative_update_id, 'activity' AS kind,
     actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
     NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
   FROM issue_activity
   UNION ALL
-  SELECT id, issue_id, project_id, project_update_id, 'comment' AS kind,
+  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, 'comment' AS kind,
     user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
   FROM comment
 `);

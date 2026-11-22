@@ -204,6 +204,7 @@ CREATE TABLE "comment" (
 	"issue_id" uuid,
 	"project_id" uuid,
 	"project_update_id" uuid,
+	"initiative_update_id" uuid,
 	"parent_id" uuid,
 	"user_id" uuid,
 	"user_name" text,
@@ -214,7 +215,7 @@ CREATE TABLE "comment" (
 	"resolving_comment_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "comment_parent_check" CHECK (num_nonnulls("comment"."issue_id", "comment"."project_id", "comment"."project_update_id") = 1)
+	CONSTRAINT "comment_parent_check" CHECK (num_nonnulls("comment"."issue_id", "comment"."project_id", "comment"."project_update_id", "comment"."initiative_update_id") = 1)
 );
 --> statement-breakpoint
 CREATE TABLE "custom_field" (
@@ -258,6 +259,70 @@ CREATE TABLE "cycle" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "cycle_team_id_number_unique" UNIQUE("team_id","number"),
 	CONSTRAINT "cycle_dates_check" CHECK ("cycle"."ends_at" > "cycle"."starts_at")
+);
+--> statement-breakpoint
+CREATE TABLE "initiative" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"content" text,
+	"color" text,
+	"icon" text,
+	"status" text DEFAULT 'Active' NOT NULL,
+	"owner_user_id" uuid,
+	"creator_user_id" uuid,
+	"lead_team_id" uuid,
+	"priority" integer DEFAULT 0 NOT NULL,
+	"sort_order" double precision DEFAULT 0 NOT NULL,
+	"priority_sort_order" double precision DEFAULT 0 NOT NULL,
+	"target_date" date,
+	"target_date_resolution" text,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"slug_id" text DEFAULT substr(md5(gen_random_uuid()::text), 1, 12) NOT NULL,
+	"archived_at" timestamp with time zone,
+	"trashed" boolean,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "initiative_slug_id_unique" UNIQUE("slug_id"),
+	CONSTRAINT "initiative_status_check" CHECK ("initiative"."status" IN ('Proposed', 'Planned', 'Active', 'Completed', 'Canceled')),
+	CONSTRAINT "initiative_priority_check" CHECK ("initiative"."priority" BETWEEN 0 AND 4),
+	CONSTRAINT "initiative_target_date_resolution_check" CHECK ("initiative"."target_date_resolution" IN ('month', 'quarter', 'halfYear', 'year'))
+);
+--> statement-breakpoint
+CREATE TABLE "initiative_relation" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"initiative_id" uuid NOT NULL,
+	"related_initiative_id" uuid NOT NULL,
+	"sort_order" double precision DEFAULT 0 NOT NULL,
+	"user_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "initiative_relation_related_initiative_id_unique" UNIQUE("related_initiative_id"),
+	CONSTRAINT "initiative_relation_not_self" CHECK ("initiative_relation"."initiative_id" <> "initiative_relation"."related_initiative_id")
+);
+--> statement-breakpoint
+CREATE TABLE "initiative_to_project" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"initiative_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
+	"sort_order" double precision DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "initiative_to_project_unique" UNIQUE("initiative_id","project_id")
+);
+--> statement-breakpoint
+CREATE TABLE "initiative_update" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"initiative_id" uuid NOT NULL,
+	"user_id" uuid,
+	"body" text NOT NULL,
+	"health" text NOT NULL,
+	"edited_at" timestamp with time zone,
+	"archived_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "initiative_update_health_check" CHECK ("initiative_update"."health" IN ('onTrack', 'atRisk', 'offTrack'))
 );
 --> statement-breakpoint
 CREATE TABLE "integration_credential" (
@@ -509,10 +574,11 @@ CREATE TABLE "reaction" (
 	"comment_id" uuid,
 	"issue_id" uuid,
 	"project_update_id" uuid,
+	"initiative_update_id" uuid,
 	"user_id" uuid NOT NULL,
 	"emoji" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "reaction_parent_check" CHECK (num_nonnulls("reaction"."comment_id", "reaction"."issue_id", "reaction"."project_update_id") = 1)
+	CONSTRAINT "reaction_parent_check" CHECK (num_nonnulls("reaction"."comment_id", "reaction"."issue_id", "reaction"."project_update_id", "reaction"."initiative_update_id") = 1)
 );
 --> statement-breakpoint
 CREATE TABLE "team" (
@@ -733,6 +799,7 @@ ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_role_id_team_role_id_fk" FOREIGN
 ALTER TABLE "comment" ADD CONSTRAINT "comment_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_project_update_id_project_update_id_fk" FOREIGN KEY ("project_update_id") REFERENCES "public"."project_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comment" ADD CONSTRAINT "comment_initiative_update_id_initiative_update_id_fk" FOREIGN KEY ("initiative_update_id") REFERENCES "public"."initiative_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_parent_id_comment_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."comment"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_resolving_user_id_user_id_fk" FOREIGN KEY ("resolving_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -741,6 +808,16 @@ ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_team_id_team_id_fk" FORE
 ALTER TABLE "custom_field" ADD CONSTRAINT "custom_field_issue_type_id_issue_type_id_fk" FOREIGN KEY ("issue_type_id") REFERENCES "public"."issue_type"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_field_option" ADD CONSTRAINT "custom_field_option_field_id_custom_field_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."custom_field"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cycle" ADD CONSTRAINT "cycle_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative" ADD CONSTRAINT "initiative_owner_user_id_user_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative" ADD CONSTRAINT "initiative_creator_user_id_user_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative" ADD CONSTRAINT "initiative_lead_team_id_team_id_fk" FOREIGN KEY ("lead_team_id") REFERENCES "public"."team"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_relation" ADD CONSTRAINT "initiative_relation_initiative_id_initiative_id_fk" FOREIGN KEY ("initiative_id") REFERENCES "public"."initiative"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_relation" ADD CONSTRAINT "initiative_relation_related_initiative_id_initiative_id_fk" FOREIGN KEY ("related_initiative_id") REFERENCES "public"."initiative"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_relation" ADD CONSTRAINT "initiative_relation_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_to_project" ADD CONSTRAINT "initiative_to_project_initiative_id_initiative_id_fk" FOREIGN KEY ("initiative_id") REFERENCES "public"."initiative"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_to_project" ADD CONSTRAINT "initiative_to_project_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_update" ADD CONSTRAINT "initiative_update_initiative_id_initiative_id_fk" FOREIGN KEY ("initiative_id") REFERENCES "public"."initiative"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "initiative_update" ADD CONSTRAINT "initiative_update_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_credential" ADD CONSTRAINT "integration_credential_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue" ADD CONSTRAINT "issue_type_id_issue_type_id_fk" FOREIGN KEY ("type_id") REFERENCES "public"."issue_type"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -790,6 +867,7 @@ ALTER TABLE "project_update" ADD CONSTRAINT "project_update_user_id_user_id_fk" 
 ALTER TABLE "reaction" ADD CONSTRAINT "reaction_comment_id_comment_id_fk" FOREIGN KEY ("comment_id") REFERENCES "public"."comment"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reaction" ADD CONSTRAINT "reaction_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reaction" ADD CONSTRAINT "reaction_project_update_id_project_update_id_fk" FOREIGN KEY ("project_update_id") REFERENCES "public"."project_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reaction" ADD CONSTRAINT "reaction_initiative_update_id_initiative_update_id_fk" FOREIGN KEY ("initiative_update_id") REFERENCES "public"."initiative_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reaction" ADD CONSTRAINT "reaction_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_action" ADD CONSTRAINT "team_action_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_dashboard" ADD CONSTRAINT "team_dashboard_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -836,9 +914,14 @@ CREATE INDEX "ai_agent_team_idx" ON "ai_agent" USING btree ("team_id");--> state
 CREATE INDEX "comment_issue_idx" ON "comment" USING btree ("issue_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "comment_initiative_update_idx" ON "comment" USING btree ("initiative_update_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_parent_idx" ON "comment" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "comment_resolving_comment_idx" ON "comment" USING btree ("resolving_comment_id");--> statement-breakpoint
 CREATE INDEX "cycle_team_starts_idx" ON "cycle" USING btree ("team_id","starts_at");--> statement-breakpoint
+CREATE INDEX "initiative_lead_team_idx" ON "initiative" USING btree ("lead_team_id");--> statement-breakpoint
+CREATE INDEX "initiative_relation_parent_idx" ON "initiative_relation" USING btree ("initiative_id");--> statement-breakpoint
+CREATE INDEX "initiative_to_project_project_idx" ON "initiative_to_project" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "initiative_update_initiative_idx" ON "initiative_update" USING btree ("initiative_id","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "integration_credential_team_idx" ON "integration_credential" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "issue_team_active_idx" ON "issue" USING btree ("team_id","state_id") WHERE "issue"."archived_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "issue_cycle_idx" ON "issue" USING btree ("cycle_id");--> statement-breakpoint
@@ -853,10 +936,11 @@ CREATE INDEX "notification_delivery_due_idx" ON "notification_delivery" USING bt
 CREATE INDEX "project_milestone_project_idx" ON "project_milestone" USING btree ("project_id","sort_order");--> statement-breakpoint
 CREATE INDEX "project_team_team_idx" ON "project_team" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "project_update_project_idx" ON "project_update" USING btree ("project_id","created_at" DESC NULLS LAST);--> statement-breakpoint
-CREATE UNIQUE INDEX "reaction_once_per_emoji_idx" ON "reaction" USING btree (coalesce("comment_id", "issue_id", "project_update_id"),"user_id","emoji");--> statement-breakpoint
+CREATE UNIQUE INDEX "reaction_once_per_emoji_idx" ON "reaction" USING btree (coalesce("comment_id", "issue_id", "project_update_id", "initiative_update_id"),"user_id","emoji");--> statement-breakpoint
 CREATE INDEX "reaction_comment_idx" ON "reaction" USING btree ("comment_id");--> statement-breakpoint
 CREATE INDEX "reaction_issue_idx" ON "reaction" USING btree ("issue_id");--> statement-breakpoint
 CREATE INDEX "reaction_project_update_idx" ON "reaction" USING btree ("project_update_id");--> statement-breakpoint
+CREATE INDEX "reaction_initiative_update_idx" ON "reaction" USING btree ("initiative_update_id");--> statement-breakpoint
 CREATE INDEX "team_action_team_idx" ON "team_action" USING btree ("team_id","position");--> statement-breakpoint
 CREATE INDEX "team_dashboard_team_idx" ON "team_dashboard" USING btree ("team_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_invite_pending_uq" ON "team_invite" USING btree ("team_id","email") WHERE "team_invite"."status" = 'pending';--> statement-breakpoint
@@ -872,16 +956,16 @@ CREATE INDEX "webhook_delivery_due_idx" ON "webhook_delivery" USING btree ("next
 CREATE INDEX "webhook_delivery_webhook_idx" ON "webhook_delivery" USING btree ("webhook_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_state_active_position_idx" ON "workflow_state" USING btree ("team_id","position") WHERE "workflow_state"."archived_at" IS NULL;--> statement-breakpoint
 CREATE VIEW "public"."feed_entry" AS (
-  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id, 'activity' AS kind,
+  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,
+    NULL::uuid AS initiative_update_id, 'activity' AS kind,
     actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
     NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
   FROM issue_activity
   UNION ALL
-  SELECT id, issue_id, project_id, project_update_id, 'comment' AS kind,
+  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, 'comment' AS kind,
     user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
   FROM comment
-);
--- Seed the instance upload limits so every installation has a row to edit in god
+);-- Seed the instance upload limits so every installation has a row to edit in god
 -- mode, from the first migration. Keep these values in sync with
 -- defaultStorageSettings() in apps/api/src/settings/storage.ts, which still applies
 -- them in memory if the row is missing.

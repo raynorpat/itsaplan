@@ -1,5 +1,5 @@
 {
-  "id": "6d512cc5-6e49-4bb5-92ae-9f98bd3d61ca",
+  "id": "b03fdfc6-3550-4561-8537-33054152a390",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1811,6 +1811,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "initiative_update_id": {
+          "name": "initiative_update_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "parent_id": {
           "name": "parent_id",
           "type": "uuid",
@@ -1956,6 +1962,33 @@
           "method": "btree",
           "with": {}
         },
+        "comment_initiative_update_idx": {
+          "name": "comment_initiative_update_idx",
+          "columns": [
+            {
+              "expression": "initiative_update_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "comment_parent_idx": {
           "name": "comment_parent_idx",
           "columns": [
@@ -2027,6 +2060,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "comment_initiative_update_id_initiative_update_id_fk": {
+          "name": "comment_initiative_update_id_initiative_update_id_fk",
+          "tableFrom": "comment",
+          "tableTo": "initiative_update",
+          "columnsFrom": [
+            "initiative_update_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "comment_parent_id_comment_id_fk": {
           "name": "comment_parent_id_comment_id_fk",
           "tableFrom": "comment",
@@ -2086,7 +2132,7 @@
       "checkConstraints": {
         "comment_parent_check": {
           "name": "comment_parent_check",
-          "value": "num_nonnulls(\"comment\".\"issue_id\", \"comment\".\"project_id\", \"comment\".\"project_update_id\") = 1"
+          "value": "num_nonnulls(\"comment\".\"issue_id\", \"comment\".\"project_id\", \"comment\".\"project_update_id\", \"comment\".\"initiative_update_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -2427,6 +2473,593 @@
         "cycle_dates_check": {
           "name": "cycle_dates_check",
           "value": "\"cycle\".\"ends_at\" > \"cycle\".\"starts_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.initiative": {
+      "name": "initiative",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Active'"
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_user_id": {
+          "name": "creator_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lead_team_id": {
+          "name": "lead_team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "priority_sort_order": {
+          "name": "priority_sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_date_resolution": {
+          "name": "target_date_resolution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slug_id": {
+          "name": "slug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "substr(md5(gen_random_uuid()::text), 1, 12)"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trashed": {
+          "name": "trashed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "initiative_lead_team_idx": {
+          "name": "initiative_lead_team_idx",
+          "columns": [
+            {
+              "expression": "lead_team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "initiative_owner_user_id_user_id_fk": {
+          "name": "initiative_owner_user_id_user_id_fk",
+          "tableFrom": "initiative",
+          "tableTo": "user",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "initiative_creator_user_id_user_id_fk": {
+          "name": "initiative_creator_user_id_user_id_fk",
+          "tableFrom": "initiative",
+          "tableTo": "user",
+          "columnsFrom": [
+            "creator_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "initiative_lead_team_id_team_id_fk": {
+          "name": "initiative_lead_team_id_team_id_fk",
+          "tableFrom": "initiative",
+          "tableTo": "team",
+          "columnsFrom": [
+            "lead_team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "initiative_slug_id_unique": {
+          "name": "initiative_slug_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "initiative_status_check": {
+          "name": "initiative_status_check",
+          "value": "\"initiative\".\"status\" IN ('Proposed', 'Planned', 'Active', 'Completed', 'Canceled')"
+        },
+        "initiative_priority_check": {
+          "name": "initiative_priority_check",
+          "value": "\"initiative\".\"priority\" BETWEEN 0 AND 4"
+        },
+        "initiative_target_date_resolution_check": {
+          "name": "initiative_target_date_resolution_check",
+          "value": "\"initiative\".\"target_date_resolution\" IN ('month', 'quarter', 'halfYear', 'year')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.initiative_relation": {
+      "name": "initiative_relation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "initiative_id": {
+          "name": "initiative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "related_initiative_id": {
+          "name": "related_initiative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "initiative_relation_parent_idx": {
+          "name": "initiative_relation_parent_idx",
+          "columns": [
+            {
+              "expression": "initiative_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "initiative_relation_initiative_id_initiative_id_fk": {
+          "name": "initiative_relation_initiative_id_initiative_id_fk",
+          "tableFrom": "initiative_relation",
+          "tableTo": "initiative",
+          "columnsFrom": [
+            "initiative_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "initiative_relation_related_initiative_id_initiative_id_fk": {
+          "name": "initiative_relation_related_initiative_id_initiative_id_fk",
+          "tableFrom": "initiative_relation",
+          "tableTo": "initiative",
+          "columnsFrom": [
+            "related_initiative_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "initiative_relation_user_id_user_id_fk": {
+          "name": "initiative_relation_user_id_user_id_fk",
+          "tableFrom": "initiative_relation",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "initiative_relation_related_initiative_id_unique": {
+          "name": "initiative_relation_related_initiative_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "related_initiative_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "initiative_relation_not_self": {
+          "name": "initiative_relation_not_self",
+          "value": "\"initiative_relation\".\"initiative_id\" <> \"initiative_relation\".\"related_initiative_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.initiative_to_project": {
+      "name": "initiative_to_project",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "initiative_id": {
+          "name": "initiative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "initiative_to_project_project_idx": {
+          "name": "initiative_to_project_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "initiative_to_project_initiative_id_initiative_id_fk": {
+          "name": "initiative_to_project_initiative_id_initiative_id_fk",
+          "tableFrom": "initiative_to_project",
+          "tableTo": "initiative",
+          "columnsFrom": [
+            "initiative_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "initiative_to_project_project_id_project_id_fk": {
+          "name": "initiative_to_project_project_id_project_id_fk",
+          "tableFrom": "initiative_to_project",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "initiative_to_project_unique": {
+          "name": "initiative_to_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "initiative_id",
+            "project_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.initiative_update": {
+      "name": "initiative_update",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "initiative_id": {
+          "name": "initiative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health": {
+          "name": "health",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edited_at": {
+          "name": "edited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "initiative_update_initiative_idx": {
+          "name": "initiative_update_initiative_idx",
+          "columns": [
+            {
+              "expression": "initiative_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "initiative_update_initiative_id_initiative_id_fk": {
+          "name": "initiative_update_initiative_id_initiative_id_fk",
+          "tableFrom": "initiative_update",
+          "tableTo": "initiative",
+          "columnsFrom": [
+            "initiative_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "initiative_update_user_id_user_id_fk": {
+          "name": "initiative_update_user_id_user_id_fk",
+          "tableFrom": "initiative_update",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "initiative_update_health_check": {
+          "name": "initiative_update_health_check",
+          "value": "\"initiative_update\".\"health\" IN ('onTrack', 'atRisk', 'offTrack')"
         }
       },
       "isRLSEnabled": false
@@ -4818,6 +5451,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "initiative_update_id": {
+          "name": "initiative_update_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -4843,7 +5482,7 @@
           "name": "reaction_once_per_emoji_idx",
           "columns": [
             {
-              "expression": "coalesce(\"comment_id\", \"issue_id\", \"project_update_id\")",
+              "expression": "coalesce(\"comment_id\", \"issue_id\", \"project_update_id\", \"initiative_update_id\")",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -4910,6 +5549,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "reaction_initiative_update_idx": {
+          "name": "reaction_initiative_update_idx",
+          "columns": [
+            {
+              "expression": "initiative_update_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4952,6 +5606,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "reaction_initiative_update_id_initiative_update_id_fk": {
+          "name": "reaction_initiative_update_id_initiative_update_id_fk",
+          "tableFrom": "reaction",
+          "tableTo": "initiative_update",
+          "columnsFrom": [
+            "initiative_update_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "reaction_user_id_user_id_fk": {
           "name": "reaction_user_id_user_id_fk",
           "tableFrom": "reaction",
@@ -4972,7 +5639,7 @@
       "checkConstraints": {
         "reaction_parent_check": {
           "name": "reaction_parent_check",
-          "value": "num_nonnulls(\"reaction\".\"comment_id\", \"reaction\".\"issue_id\", \"reaction\".\"project_update_id\") = 1"
+          "value": "num_nonnulls(\"reaction\".\"comment_id\", \"reaction\".\"issue_id\", \"reaction\".\"project_update_id\", \"reaction\".\"initiative_update_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -6748,6 +7415,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "initiative_update_id": {
+          "name": "initiative_update_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "kind": {
           "name": "kind",
           "type": "text",
@@ -6815,7 +7488,7 @@
           "notNull": true
         }
       },
-      "definition": "\n  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id, 'activity' AS kind,\n    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,\n    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at\n  FROM issue_activity\n  UNION ALL\n  SELECT id, issue_id, project_id, project_update_id, 'comment' AS kind,\n    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at\n  FROM comment\n",
+      "definition": "\n  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,\n    NULL::uuid AS initiative_update_id, 'activity' AS kind,\n    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,\n    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at\n  FROM issue_activity\n  UNION ALL\n  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, 'comment' AS kind,\n    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at\n  FROM comment\n",
       "name": "feed_entry",
       "schema": "public",
       "isExisting": false,

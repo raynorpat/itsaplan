@@ -6,6 +6,7 @@ import { issueById } from '../graphql/resolvers/issue';
 import { toIssueLabel } from '../graphql/resolvers/issue-label';
 import { toProject, toUpdate } from '../graphql/resolvers/project';
 import { getProject } from '../projects/store';
+import { getInitiative, initiativeUrl } from '../initiatives/store';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -83,4 +84,26 @@ export async function projectData(projectId: string): Promise<WebhookData | null
 export async function projectUpdateData(updateId: string): Promise<WebhookData | null> {
   const [row] = await db.select().from(projectUpdate).where(eq(projectUpdate.id, updateId));
   return row ? toUpdate(row) : null;
+}
+
+// Linear's InitiativeWebhookPayload, with the fields this instance has.
+export async function initiativeData(id: string): Promise<WebhookData | null> {
+  const row = await getInitiative(id);
+  if (!row) return null;
+  const { ownerUserId, creatorUserId, content: _content, ...rest } = row;
+  return {
+    ...rest,
+    description: row.description ?? '',
+    ownerId: ownerUserId,
+    creatorId: creatorUserId,
+    url: initiativeUrl(row.id),
+    labelIds: [],
+    frequencyResolution: 'weekly',
+    health: null,
+    healthUpdatedAt: null,
+    lastUpdateId: null,
+    projects: [],
+    parentInitiative: null,
+    subInitiatives: [],
+  };
 }
