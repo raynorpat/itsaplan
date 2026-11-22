@@ -176,14 +176,18 @@ describe('agent skills', () => {
     // The reference-content routes are gated too (read for GET, edit for PATCH).
     expect(
       (
-        await skills(asOutsider)({ skillId: 1 }).references.content.get({
+        await skills(asOutsider)({
+          skillId: '00000000-0000-4000-8000-000000000000',
+        }).references.content.get({
           query: { path: 'refs/x.md' },
         })
       ).status,
     ).toBe(403);
     expect(
       (
-        await skills(asOutsider)({ skillId: 1 }).references.content.patch({
+        await skills(asOutsider)({
+          skillId: '00000000-0000-4000-8000-000000000000',
+        }).references.content.patch({
           path: 'refs/x.md',
           content: 'x',
         })
