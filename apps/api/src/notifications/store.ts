@@ -1,5 +1,5 @@
 import { db, notification, teamMember, user, issue, team, workflowState } from '@repo/db';
-import { and, desc, eq, inArray, lt, or, sql, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or, sql, isNull, type SQL } from 'drizzle-orm';
 import { parseMentions } from '../ai-agents/mentions';
 import { iso } from '../shared/lib';
 import { enqueueOutbound } from './outbound';
@@ -402,4 +402,26 @@ export async function deleteNotifications(
     .where(and(...conds))
     .returning({ id: notification.id });
   return rows.length;
+}
+
+// --- Linear's Notification API ----------------------------------------------------
+
+export type NotificationRecord = typeof notification.$inferSelect;
+
+export async function getNotificationRecord(id: string): Promise<NotificationRecord | null> {
+  const [row] = await db.select().from(notification).where(eq(notification.id, id));
+  return row ?? null;
+}
+
+// Sets read / snooze / archive fields on the notifications `where` selects and bumps
+// updated_at. Returns the changed rows.
+export async function updateNotificationRecords(
+  where: SQL,
+  patch: { readAt?: Date | null; snoozedUntil?: Date | null; archivedAt?: Date | null },
+): Promise<NotificationRecord[]> {
+  return db
+    .update(notification)
+    .set({ ...patch, updatedAt: sql`now()` })
+    .where(where)
+    .returning();
 }
