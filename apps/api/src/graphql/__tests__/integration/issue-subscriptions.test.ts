@@ -99,4 +99,69 @@ describe('graphql issue subscriptions', () => {
     expect(none).not.toContain('Mine');
     expect(mine.id).toBeTruthy();
   });
+
+  it('leaves subscribers alone when the rest of an update fails', async () => {
+    const { owner, b, client, teamId } = await setup();
+    const issue = (await (
+      await client.createIssue({ teamId, title: 'T', subscriberIds: [b.userId] })
+    ).issue)!;
+    const outsider = await signUpTestUser();
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { issueUpdate(id: "${issue.id}", input: { subscriberIds: ["${b.userId}"], assigneeId: "${outsider.userId}" }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    expect(await subscriberIdsOf(client, issue.id)).toEqual([owner.userId, b.userId].sort());
+  });
+
+  it('rejects a userId that is not an id', async () => {
+    const { owner, client, teamId } = await setup();
+    const issue = (await (await client.createIssue({ teamId, title: 'T' })).issue)!;
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { issueUnsubscribe(id: "${issue.id}", userId: "nope") { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+  });
+
+  it('needs work_items.edit to unsubscribe someone else', async () => {
+    const { owner, b, client, teamId } = await setup();
+    const issue = (await (
+      await client.createIssue({ teamId, title: 'T', subscriberIds: [b.userId] })
+    ).issue)!;
+    const asOwner = authedApi(owner.cookie);
+    const role = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .roles.post({ name: 'Readers', permissions: { work_items: { read: true } } });
+    const reader = await signUpTestUser();
+    const invite = await asOwner
+      .teams({ teamKey: 'MKT' })
+      .invites.post({ email: reader.email, role: 'member', roleId: role.data!.id });
+    await authedApi(reader.cookie).invites({ token: invite.data!.token }).accept.post();
+    const other = await gql(
+      { cookie: reader.cookie },
+      `mutation { issueUnsubscribe(id: "${issue.id}", userId: "${b.userId}") { success } }`,
+    );
+    expect(errorCode(other)).toBe('FORBIDDEN');
+    expect(await subscriberIdsOf(client, issue.id)).toContain(b.userId);
+    const self = await gql(
+      { cookie: reader.cookie },
+      `mutation { issueSubscribe(id: "${issue.id}") { success } }`,
+    );
+    expect(self.body.errors).toBeUndefined();
+  });
+
+  it('answers the same for an unknown email and an outsider email', async () => {
+    const { owner, client, teamId } = await setup();
+    const outsider = await signUpTestUser();
+    const issue = (await (await client.createIssue({ teamId, title: 'T' })).issue)!;
+    const message = async (email: string) =>
+      (
+        await gql(
+          { cookie: owner.cookie },
+          `mutation { issueSubscribe(id: "${issue.id}", userEmail: "${email}") { success } }`,
+        )
+      ).body.errors?.[0]?.message;
+    expect(await message('nobody@example.com')).toBe(await message(outsider.email));
+  });
 });

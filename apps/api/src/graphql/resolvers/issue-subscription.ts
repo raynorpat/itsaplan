@@ -6,6 +6,8 @@ import {
   subscribedMembers,
   unsubscribe,
 } from '../../notifications/subscriptions';
+import { assertPermission } from '../../shared/access';
+import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import type { PageArgs } from '../connection';
 import { gqlError } from '../errors';
@@ -18,16 +20,24 @@ import { listUsers } from './team';
 
 type Args = { id: string; userId?: string | null; userEmail?: string | null };
 
+const notSubscribable = () =>
+  gqlError('INVALID_INPUT', "The subscriber must be a member of the issue's team");
+
 // The user an issueSubscribe / issueUnsubscribe call names: userId, else userEmail,
 // else the viewer.
 async function targetUser(args: Args, ctx: GraphQLContext): Promise<string> {
-  if (args.userId) return args.userId;
+  if (args.userId) {
+    if (!UUID_RE.test(args.userId)) throw gqlError('INVALID_INPUT', 'userId is not a valid id');
+    return args.userId;
+  }
   if (args.userEmail) {
     const [row] = await db
       .select({ id: user.id })
       .from(user)
       .where(sql`lower(${user.email}) = lower(${args.userEmail})`);
-    if (!row) throw gqlError('INVALID_INPUT', `No user with email ${args.userEmail}`);
+    // Same answer as a user outside the team, so the call does not reveal which
+    // emails have accounts.
+    if (!row) throw notSubscribable();
     return row.id;
   }
   return ctx.user.id;
@@ -49,15 +59,18 @@ export const issueSubscriptionResolvers = {
       guard(async () => {
         const found = await findIssue(args.id, ctx.user.id);
         const userId = await targetUser(args, ctx);
-        if ((await nonMembers(found.id, [userId])).length)
-          throw gqlError('INVALID_INPUT', "The subscriber must be a member of the issue's team");
+        if ((await nonMembers(found.id, [userId])).length) throw notSubscribable();
         await subscribe(found.id, [userId]);
         return payload(found.id);
       }),
     issueUnsubscribe: (_: unknown, args: Args, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findIssue(args.id, ctx.user.id);
-        await unsubscribe(found.id, await targetUser(args, ctx));
+        const userId = await targetUser(args, ctx);
+        // Taking someone else off an issue needs the edit right subscriberIds needs.
+        if (userId !== ctx.user.id)
+          await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
+        await unsubscribe(found.id, userId);
         return payload(found.id);
       }),
   },

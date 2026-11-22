@@ -107,7 +107,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   mentioned members, never to the actor. An archived notification (`archived_at`)
   is left out of the inbox and the unread count; GraphQL serves every notification
   as an `IssueNotification` with Linear's type and category names, limited to the
-  viewer's own on teams they are in.
+  viewer's own on teams they are in. `subscriberIds` is accepted on `issueCreate` and
+  `issueUpdate`, not on `issueBatchUpdate`.
 
 ## Auth and access
 

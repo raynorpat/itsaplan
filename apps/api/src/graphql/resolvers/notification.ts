@@ -1,5 +1,5 @@
 import { db, notification, teamMember } from '@repo/db';
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import { commentParentUrl, getComment } from '../../comments/store';
 import {
   getNotificationRecord,
@@ -203,7 +203,10 @@ export const notificationResolvers = {
       _: unknown,
       { input }: { input: Record<string, unknown> },
       ctx: GraphQLContext,
-    ) => guard(async () => batch(entityWhere(input, ctx), { readAt: null })),
+    ) =>
+      guard(async () =>
+        batch(and(entityWhere(input, ctx), isNotNull(notification.readAt))!, { readAt: null }),
+      ),
     notificationSnoozeAll: (
       _: unknown,
       { input, snoozedUntilAt }: { input: Record<string, unknown>; snoozedUntilAt: unknown },
@@ -216,7 +219,12 @@ export const notificationResolvers = {
       _: unknown,
       { input }: { input: Record<string, unknown> },
       ctx: GraphQLContext,
-    ) => guard(async () => batch(entityWhere(input, ctx), { snoozedUntil: null })),
+    ) =>
+      guard(async () =>
+        batch(and(entityWhere(input, ctx), isNotNull(notification.snoozedUntil))!, {
+          snoozedUntil: null,
+        }),
+      ),
     notificationArchiveAll: (
       _: unknown,
       { input }: { input: Record<string, unknown> },

@@ -911,10 +911,15 @@ async function checkPatch(
 
 // Checks a patch against an issue without writing, so a batch can reject the
 // whole call before its first update. Throws 404 when the issue does not exist.
-export async function validateIssuePatch(id: string, patch: IssuePatch): Promise<void> {
+export async function validateIssuePatch(
+  id: string,
+  patch: IssuePatch,
+  labelIds?: string[],
+): Promise<void> {
   const before = await loadSnapshot(id);
   if (!before) throw new HttpError(404, 'Issue not found');
   await checkPatch(id, before, patch);
+  if (labelIds) await assertLabelsApplicable(before.teamId, labelIds, await issueLabelIds(id));
 }
 
 // opts.labelIds also replaces the issue's labels, so a field and label edit sends

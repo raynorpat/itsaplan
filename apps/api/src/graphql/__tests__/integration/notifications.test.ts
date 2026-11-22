@@ -172,4 +172,36 @@ describe('graphql notifications', () => {
     expect(errorCode(all)).toBe('INVALID_INPUT');
     expect(errorMessage(all)).toContain('projectId');
   });
+
+  it('bumps updatedAt when the web inbox marks a notification read', async () => {
+    const { b, newIssue } = await setup();
+    await newIssue({ assigneeUserId: b.userId });
+    const read = async () =>
+      (
+        (await gql({ cookie: b.cookie }, '{ notifications { nodes { id updatedAt } } }')).body
+          .data as { notifications: { nodes: { id: string; updatedAt: string }[] } }
+      ).notifications.nodes[0]!;
+    const before = await read();
+    await new Promise((r) => setTimeout(r, 5));
+    await b.api.notifications({ id: before.id }).read.post({ read: true });
+    expect(new Date((await read()).updatedAt).getTime()).toBeGreaterThan(
+      new Date(before.updatedAt).getTime(),
+    );
+  });
+
+  it('returns only the notifications a bulk action changed', async () => {
+    const { owner, b, newIssue } = await setup();
+    const x = await newIssue({ assigneeUserId: b.userId });
+    await comment(owner, x, 'on x');
+    const [first] = (await b.api.notifications.get({ query: {} })).data!.items;
+    await b.api.notifications({ id: first!.id }).read.post({ read: true });
+    const res = await gql(
+      { cookie: b.cookie },
+      `mutation { notificationMarkUnreadAll(input: { issueId: "${x}" }) { notifications { id } } }`,
+    );
+    const ids = (
+      res.body.data as { notificationMarkUnreadAll: { notifications: { id: string }[] } }
+    ).notificationMarkUnreadAll.notifications.map((n) => n.id);
+    expect(ids).toEqual([first!.id]);
+  });
 });

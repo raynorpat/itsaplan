@@ -244,10 +244,12 @@ export const mutationResolvers = {
         const labelIds = await nextLabelIds(row.id, input);
         // subscriberIds replaces the subscribers before the update, so the update's
         // own triggers (a new assignee) subscribe on top of the new list.
+        // The rest of the input is validated first, so a failing update changes nothing.
         if (input.subscriberIds !== undefined) {
           const subscriberIds = subscriberIdsInput(input.subscriberIds);
           if ((await nonMembers(row.id, subscriberIds)).length)
             throw gqlError('INVALID_INPUT', 'input.subscriberIds must be members of the team');
+          await validateIssuePatch(row.id, toPatch(input), labelIds);
           await replaceSubscribers(row.id, subscriberIds);
         }
         await updateIssue(row.id, toPatch(input), ctx.user.id, { labelIds });

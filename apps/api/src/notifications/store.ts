@@ -330,7 +330,7 @@ export async function setNotificationRead(
 ): Promise<boolean> {
   const rows = await db
     .update(notification)
-    .set({ readAt: read ? sql`now()` : null })
+    .set({ readAt: read ? sql`now()` : null, updatedAt: sql`now()` })
     .where(and(eq(notification.id, id), eq(notification.userId, userId)))
     .returning({ id: notification.id });
   return rows.length > 0;
@@ -343,7 +343,7 @@ export async function markAllRead(userId: string, teamId?: string): Promise<numb
   if (teamId != null) conds.push(eq(notification.teamId, teamId));
   const rows = await db
     .update(notification)
-    .set({ readAt: sql`now()` })
+    .set({ readAt: sql`now()`, updatedAt: sql`now()` })
     .where(and(...conds))
     .returning({ id: notification.id });
   return rows.length;
@@ -358,7 +358,7 @@ export async function snoozeNotification(
 ): Promise<boolean> {
   const rows = await db
     .update(notification)
-    .set({ snoozedUntil: until })
+    .set({ snoozedUntil: until, updatedAt: sql`now()` })
     .where(and(eq(notification.id, id), eq(notification.userId, userId)))
     .returning({ id: notification.id });
   return rows.length > 0;
