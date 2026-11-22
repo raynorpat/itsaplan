@@ -8,6 +8,13 @@
       "when": 1795325247267,
       "tag": "0000_safe_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795356441165,
+      "tag": "0001_drop_telemetry_settings",
+      "breakpoints": true
     }
   ]
 }
