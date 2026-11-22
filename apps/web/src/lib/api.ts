@@ -1193,7 +1193,8 @@ export type WebhookResourceType =
   | 'Cycle'
   | 'Initiative'
   | 'InitiativeUpdate'
-  | 'Document';
+  | 'Document'
+  | 'Attachment';
 
 export const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string }[] = [
   { value: 'Issue', label: 'Issues' },
@@ -1206,6 +1207,7 @@ export const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string
   { value: 'Initiative', label: 'Initiatives' },
   { value: 'InitiativeUpdate', label: 'Initiative updates' },
   { value: 'Document', label: 'Documents' },
+  { value: 'Attachment', label: 'Attachments' },
 ];
 
 export interface Webhook {

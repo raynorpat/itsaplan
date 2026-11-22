@@ -4,7 +4,7 @@ import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { entityGuard } from '../shared/guards';
 import { HttpError } from '../shared/lib';
-import { putObject, getObject, deleteObject } from '../shared/s3';
+import { putObject, getObject } from '../shared/s3';
 import { assertPublicHttpUrl } from '../shared/net';
 import { getIssueTeamId } from '../issues/store';
 import { mcpTool } from '../mcp/generate';
@@ -14,8 +14,7 @@ import {
   createAttachment,
   listAttachments,
   getAttachmentByPublicId,
-  deleteAttachmentByPublicId,
-  removeAttachmentEmbeds,
+  deleteAttachment,
   getTeamAttachmentBytes,
   type AttachmentRow,
 } from './store';
@@ -70,12 +69,12 @@ function attachmentKey(teamId: string, issueId: string, filename: string): strin
 // an issue description and fetched by external services.
 function attachmentDto(a: AttachmentRow) {
   return {
-    id: a.publicId,
-    filename: a.filename,
-    contentType: a.contentType,
-    sizeBytes: a.sizeBytes,
+    id: a.publicId!,
+    filename: a.filename!,
+    contentType: a.contentType!,
+    sizeBytes: a.sizeBytes!,
     createdAt: a.createdAt,
-    url: `/attachments/${a.publicId}/raw`,
+    url: a.url,
   };
 }
 
@@ -125,7 +124,7 @@ export const attachmentRoutes = new Elysia({
   // object store, and records the metadata. Returns the attachment DTO.
   .post(
     '/issues/:issueId/attachments',
-    async ({ params, body, set, teamId }) => {
+    async ({ params, body, set, teamId, user }) => {
       const issueId = params.issueId;
       const file = body.file;
       if (!(file instanceof File)) throw new HttpError(400, 'No file uploaded (form field "file")');
@@ -155,6 +154,7 @@ export const attachmentRoutes = new Elysia({
         filename,
         contentType,
         sizeBytes: file.size,
+        creatorUserId: user?.id ?? null,
       });
       set.status = 201;
       return attachmentDto(row);
@@ -182,7 +182,7 @@ export const attachmentRoutes = new Elysia({
   // private/local hosts, no redirects) and size-capped like a direct upload.
   .post(
     '/issues/:issueId/attachments/import',
-    async ({ params, body, set, teamId }) => {
+    async ({ params, body, set, teamId, user }) => {
       const issueId = params.issueId;
       const { filename, url, contentBase64 } = body;
       if ((url == null) === (contentBase64 == null)) {
@@ -238,6 +238,7 @@ export const attachmentRoutes = new Elysia({
         filename,
         contentType,
         sizeBytes: bytes.length,
+        creatorUserId: user?.id ?? null,
       });
       set.status = 201;
       return attachmentDto(row);
@@ -270,20 +271,11 @@ export const attachmentRoutes = new Elysia({
 
   .delete(
     '/attachments/:publicId',
-    async ({ params }) => {
-      const row = await deleteAttachmentByPublicId(params.publicId);
-      if (!row) throw new HttpError(404, 'Attachment not found');
-      // Strip any embed of this attachment from the issue description and its
-      // markdown field values, so no broken image is left behind.
-      await removeAttachmentEmbeds(row.issueId, row.publicId);
-      // Row is already gone; a failed object delete only orphans bytes, so don't
-      // fail the request over it.
-      await deleteObject(row.s3Key).catch((err) => {
-        console.error(
-          `[planner] failed to delete object ${row.s3Key}:`,
-          err instanceof Error ? err.message : err,
-        );
-      });
+    async ({ params, user }) => {
+      const existing = await getAttachmentByPublicId(params.publicId);
+      if (!existing) throw new HttpError(404, 'Attachment not found');
+      // Removes the row, the file's embeds in the issue and the stored object.
+      await deleteAttachment(existing.id, user?.id ?? null);
       return noContent();
     },
     {
@@ -313,7 +305,7 @@ export const attachmentRoutes = new Elysia({
 
       let obj;
       try {
-        obj = await getObject(row.s3Key);
+        obj = await getObject(row.s3Key!);
       } catch (err) {
         throw new HttpError(404, err instanceof Error ? err.message : 'Object not found');
       }
@@ -324,12 +316,12 @@ export const attachmentRoutes = new Elysia({
       // stops MIME sniffing, and inline rendering is allowed only for a strict
       // media allowlist (raster images, video, audio). Everything else — html,
       // svg, xml, scripts — is forced to download and cannot execute.
-      const ct = row.contentType || obj.contentType;
+      const ct = row.contentType! || obj.contentType;
       const inlineSafe = /^(image\/(png|jpe?g|gif|webp|avif|bmp)|video\/|audio\/)/i.test(ct);
       const inline = inlineSafe && query.download == null;
       const headers: Record<string, string> = {
         'Content-Type': ct,
-        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.filename)}`,
+        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.filename!)}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'public, max-age=31536000, immutable',
       };

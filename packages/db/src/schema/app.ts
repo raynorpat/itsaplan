@@ -1231,24 +1231,42 @@ export const issueFieldOption = pgTable(
   (t) => [primaryKey({ columns: [t.issueId, t.fieldId, t.optionId] })],
 );
 
-// File attachments on issues. Bytes live in the S3-compatible object store;
-// this table holds metadata and the object key. public_id is the unguessable id
-// used in the public download URL.
-export const issueAttachment = pgTable(
-  'issue_attachment',
+// Attachments on issues (Linear's Attachment): a link, or an uploaded file. A link
+// has only the url/title fields; an upload also has the file columns (all set or all
+// null, file_check), its bytes in the S3-compatible object store, url =
+// /attachments/<public_id>/raw and source_type 'upload'. public_id is the unguessable
+// id used in the public download URL. One attachment per URL on an issue.
+export const attachment = pgTable(
+  'attachment',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    publicId: uuid('public_id').notNull().defaultRandom().unique(),
     issueId: uuid('issue_id')
       .notNull()
       .references(() => issue.id, { onDelete: 'cascade' }),
-    s3Key: text('s3_key').notNull(),
-    filename: text('filename').notNull(),
-    contentType: text('content_type').notNull(),
-    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    subtitle: text('subtitle'),
+    iconUrl: text('icon_url'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    sourceType: text('source_type'),
+    groupBySource: boolean('group_by_source').notNull().default(false),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    publicId: uuid('public_id').unique(),
+    s3Key: text('s3_key'),
+    filename: text('filename'),
+    contentType: text('content_type'),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('issue_attachment_issue_idx').on(t.issueId)],
+  (t) => [
+    index('attachment_issue_idx').on(t.issueId),
+    uniqueIndex('attachment_issue_url_idx').on(t.issueId, t.url),
+    check(
+      'attachment_file_check',
+      sql`num_nonnulls(${t.publicId}, ${t.s3Key}, ${t.filename}, ${t.contentType}, ${t.sizeBytes}) in (0, 5)`,
+    ),
+  ],
 );
 
 // Change log of issues and projects. Each row belongs to exactly one owner: an

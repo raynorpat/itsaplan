@@ -8,7 +8,7 @@ import {
   issueType,
   issueFieldValue,
   issueFieldOption,
-  issueAttachment,
+  attachment,
   customField,
   customFieldOption,
   project,
@@ -1001,7 +1001,7 @@ async function enqueueDelegateRun(after: IssueRow, actorUserId?: string | null):
 
 // Deletes an issue and everything attached to it. Field options/values, labels,
 // attachments, and activity all go by their ON DELETE CASCADE on issue_id. Returns
-// the deleted attachment rows so the caller can remove their objects from the store.
+// the deleted file attachment rows (s3Key set) so the caller can remove their objects.
 // Returns null if the issue did not exist.
 export async function deleteIssue(
   issueId: string,
@@ -1017,8 +1017,8 @@ export async function deleteIssue(
     if (rows.length === 0) return null;
     const attachmentRows = await tx
       .select()
-      .from(issueAttachment)
-      .where(eq(issueAttachment.issueId, issueId));
+      .from(attachment)
+      .where(and(eq(attachment.issueId, issueId), isNotNull(attachment.s3Key)));
     await tx.delete(issue).where(eq(issue.id, issueId));
     return {
       attachments: attachmentRows.map(mapAttachment),

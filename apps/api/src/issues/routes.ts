@@ -365,7 +365,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       );
       await Promise.all(
         attachments.map((a) =>
-          deleteObject(a.s3Key).catch((err) => {
+          deleteObject(a.s3Key!).catch((err) => {
             console.error(
               `[planner] failed to delete object ${a.s3Key}:`,
               err instanceof Error ? err.message : err,
@@ -742,7 +742,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       if (!attachments) throw new HttpError(404, 'Issue not found');
       await Promise.all(
         attachments.map((a) =>
-          deleteObject(a.s3Key).catch((err) => {
+          deleteObject(a.s3Key!).catch((err) => {
             console.error(
               `[planner] failed to delete object ${a.s3Key}:`,
               err instanceof Error ? err.message : err,

@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/client-s3';
 
 // S3-compatible object store (MinIO) for issue attachments. Only the file
-// bytes live here; the metadata and object key are rows in issue_attachment
+// bytes live here; the metadata and object key are rows in attachment
 // (see ../attachments/store.ts).
 //
 // Config comes from env. forcePathStyle is required for MinIO (and most

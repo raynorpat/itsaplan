@@ -199,6 +199,28 @@ CREATE TABLE "app_setting" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "attachment" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"issue_id" uuid NOT NULL,
+	"url" text NOT NULL,
+	"title" text NOT NULL,
+	"subtitle" text,
+	"icon_url" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"source_type" text,
+	"group_by_source" boolean DEFAULT false NOT NULL,
+	"creator_user_id" uuid,
+	"public_id" uuid,
+	"s3_key" text,
+	"filename" text,
+	"content_type" text,
+	"size_bytes" bigint,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "attachment_public_id_unique" UNIQUE("public_id"),
+	CONSTRAINT "attachment_file_check" CHECK (num_nonnulls("attachment"."public_id", "attachment"."s3_key", "attachment"."filename", "attachment"."content_type", "attachment"."size_bytes") in (0, 5))
+);
+--> statement-breakpoint
 CREATE TABLE "comment" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"issue_id" uuid,
@@ -404,18 +426,6 @@ CREATE TABLE "issue_activity" (
 	"to_text" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "issue_activity_owner_check" CHECK (("issue_activity"."issue_id" IS NOT NULL) <> ("issue_activity"."project_id" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "issue_attachment" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"public_id" uuid DEFAULT gen_random_uuid() NOT NULL,
-	"issue_id" uuid NOT NULL,
-	"s3_key" text NOT NULL,
-	"filename" text NOT NULL,
-	"content_type" text NOT NULL,
-	"size_bytes" bigint NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "issue_attachment_public_id_unique" UNIQUE("public_id")
 );
 --> statement-breakpoint
 CREATE TABLE "issue_field_option" (
@@ -830,6 +840,8 @@ ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_team_id_team_id_fk" FOREIGN KEY 
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_model_credential_id_integration_credential_id_fk" FOREIGN KEY ("model_credential_id") REFERENCES "public"."integration_credential"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_agent" ADD CONSTRAINT "ai_agent_role_id_team_role_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."team_role"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attachment" ADD CONSTRAINT "attachment_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attachment" ADD CONSTRAINT "attachment_creator_user_id_user_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comment" ADD CONSTRAINT "comment_project_update_id_project_update_id_fk" FOREIGN KEY ("project_update_id") REFERENCES "public"."project_update"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -872,7 +884,6 @@ ALTER TABLE "issue" ADD CONSTRAINT "issue_creator_user_id_user_id_fk" FOREIGN KE
 ALTER TABLE "issue_activity" ADD CONSTRAINT "issue_activity_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_activity" ADD CONSTRAINT "issue_activity_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_activity" ADD CONSTRAINT "issue_activity_actor_user_id_user_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "issue_attachment" ADD CONSTRAINT "issue_attachment_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_field_option" ADD CONSTRAINT "issue_field_option_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_field_option" ADD CONSTRAINT "issue_field_option_field_id_custom_field_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."custom_field"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_field_option" ADD CONSTRAINT "issue_field_option_option_id_custom_field_option_id_fk" FOREIGN KEY ("option_id") REFERENCES "public"."custom_field_option"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -953,6 +964,8 @@ CREATE INDEX "agent_tool_team_idx" ON "agent_tool" USING btree ("team_id");--> s
 CREATE INDEX "agent_tool_credential_idx" ON "agent_tool" USING btree ("credential_id");--> statement-breakpoint
 CREATE INDEX "agent_tool_link_tool_idx" ON "agent_tool_link" USING btree ("agent_tool_id");--> statement-breakpoint
 CREATE INDEX "ai_agent_team_idx" ON "ai_agent" USING btree ("team_id");--> statement-breakpoint
+CREATE INDEX "attachment_issue_idx" ON "attachment" USING btree ("issue_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "attachment_issue_url_idx" ON "attachment" USING btree ("issue_id","url");--> statement-breakpoint
 CREATE INDEX "comment_issue_idx" ON "comment" USING btree ("issue_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint
@@ -972,7 +985,6 @@ CREATE INDEX "issue_team_active_idx" ON "issue" USING btree ("team_id","state_id
 CREATE INDEX "issue_cycle_idx" ON "issue" USING btree ("cycle_id");--> statement-breakpoint
 CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_activity_project_idx" ON "issue_activity" USING btree ("project_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "issue_attachment_issue_idx" ON "issue_attachment" USING btree ("issue_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "issue_relation_pair_idx" ON "issue_relation" USING btree (least("issue_id", "related_issue_id"),greatest("issue_id", "related_issue_id"));--> statement-breakpoint
 CREATE INDEX "issue_relation_issue_idx" ON "issue_relation" USING btree ("issue_id");--> statement-breakpoint
 CREATE INDEX "issue_relation_related_idx" ON "issue_relation" USING btree ("related_issue_id");--> statement-breakpoint
@@ -1014,7 +1026,8 @@ CREATE VIEW "public"."feed_entry" AS (
     'comment' AS kind,
     user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
   FROM comment
-);-- Seed the instance upload limits so every installation has a row to edit in god
+);
+-- Seed the instance upload limits so every installation has a row to edit in god
 -- mode, from the first migration. Keep these values in sync with
 -- defaultStorageSettings() in apps/api/src/settings/storage.ts, which still applies
 -- them in memory if the row is missing.

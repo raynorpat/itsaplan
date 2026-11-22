@@ -23,6 +23,7 @@ import { getProject } from '../projects/store';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
 import { getInitiativeUpdate, latestInitiativeUpdate } from '../initiatives/updates';
 import { documentUrl, getDocument } from '../documents/store';
+import { attachmentUrl, type AttachmentRow } from '../attachments/store';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -209,5 +210,26 @@ export async function documentData(id: string): Promise<WebhookData | null> {
     initiativeId: null,
     subscriberIds: [],
     url: await documentUrl(row),
+  };
+}
+
+// Linear's AttachmentWebhookPayload, with the fields this instance has.
+export function attachmentData(row: AttachmentRow): WebhookData {
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: null,
+    title: row.title,
+    subtitle: row.subtitle,
+    url: attachmentUrl(row),
+    creatorId: row.creatorUserId,
+    externalUserCreatorId: null,
+    issueId: row.issueId,
+    originalIssueId: null,
+    metadata: row.metadata,
+    source: null,
+    sourceType: row.sourceType,
+    groupBySource: row.groupBySource,
   };
 }

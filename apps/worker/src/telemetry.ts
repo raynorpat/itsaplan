@@ -110,7 +110,7 @@ async function readCounts(): Promise<InstanceCounts> {
       EXISTS(SELECT 1 FROM custom_field) AS "hasCustomFields",
       EXISTS(SELECT 1 FROM label WHERE is_group) AS "hasLabelGroups",
       EXISTS(SELECT 1 FROM team_action) AS "hasTeamActions",
-      EXISTS(SELECT 1 FROM issue_attachment) AS "hasAttachments",
+      EXISTS(SELECT 1 FROM attachment WHERE s3_key IS NOT NULL) AS "hasAttachments",
       EXISTS(SELECT 1 FROM agent_schedule) AS "hasAgentSchedules",
       EXISTS(SELECT 1 FROM webhook) AS "hasWebhooks",
       EXISTS(SELECT 1 FROM apikey) AS "hasApiKeys",
