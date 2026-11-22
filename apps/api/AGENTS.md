@@ -62,6 +62,13 @@ Rules and invariants for this package below; read the code for the walkthrough.
   labels with `assertLabelsApplicable` before writing them to an issue.
 - **Reactions** (`reactions/store.ts`): one per user and exact emoji on a comment,
   issue or project update.
+- **Cycles** (`cycles/`): a team with cycles enabled always has a cycle containing
+  now and `upcoming_cycle_count` cycles ahead; cycles never overlap and are on UTC
+  days (`schedule.ts`). The worker calls `POST /internal/cycles/tick` hourly and
+  `runUpkeep(now)` closes ended cycles, moving unfinished issues into the current
+  cycle through `updateIssue`, creates upcoming cycles and appends the history
+  arrays. Every upkeep step works from dates, so a missed run catches up and past
+  cycles are never backfilled. Tests pass a fixed `now`.
 
 ## Auth and access
 
@@ -195,9 +202,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   project is visible through a team that grants `projects.read`; a user is visible
   when they share a team with the viewer. A comment or reaction follows the item it
   is on; workspace labels are visible to anyone in a team.
-- **Coverage:** issues, workflow states, teams, users, projects (statuses,
-  milestones, updates, project labels), comments, reactions, issue labels and
-  webhooks have resolvers; the rest of the schema is neutral or NOT_IMPLEMENTED.
+- **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
+  (statuses, milestones, updates, project labels), comments, reactions, issue
+  labels, cycles and webhooks have resolvers; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.

@@ -23,6 +23,9 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
   (`public-host.ts`); the attempt fails like any other.
 - After the auto-archive sweep, reports the archived issue ids to the API
   (`/internal/webhooks/issues-archived`), which sends their Issue events.
+- Every `CYCLE_UPKEEP_EVERY_TICKS` ticks (about hourly) calls the API's cycle
+  upkeep (`/internal/cycles/tick`); a failed call is logged and the next one
+  catches up.
 
 ## Invariants
 
