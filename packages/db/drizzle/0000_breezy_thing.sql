@@ -965,7 +965,7 @@ CREATE INDEX "agent_tool_credential_idx" ON "agent_tool" USING btree ("credentia
 CREATE INDEX "agent_tool_link_tool_idx" ON "agent_tool_link" USING btree ("agent_tool_id");--> statement-breakpoint
 CREATE INDEX "ai_agent_team_idx" ON "ai_agent" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "attachment_issue_idx" ON "attachment" USING btree ("issue_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "attachment_issue_url_idx" ON "attachment" USING btree ("issue_id","url");--> statement-breakpoint
+CREATE UNIQUE INDEX "attachment_issue_url_idx" ON "attachment" USING btree ("issue_id",md5("url"));--> statement-breakpoint
 CREATE INDEX "comment_issue_idx" ON "comment" USING btree ("issue_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_idx" ON "comment" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "comment_project_update_idx" ON "comment" USING btree ("project_update_id","created_at","id");--> statement-breakpoint

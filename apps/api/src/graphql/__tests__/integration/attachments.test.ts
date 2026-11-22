@@ -217,4 +217,41 @@ describe('graphql attachments', () => {
     const every = await q('{ attachments: { every: { title: { eq: "PR" } } } }');
     expect(every).toContain('Bug');
   });
+
+  it('does not count a null field as matching in every', async () => {
+    const { owner, client, issueId } = await setup();
+    await client.createAttachment({ issueId, title: 'Link', url: 'https://e.com/x' });
+    const res = await gql(
+      { cookie: owner.cookie },
+      '{ issues(filter: { attachments: { every: { sourceType: { eq: "upload" } } } }) { nodes { title } } }',
+    );
+    expect(JSON.stringify(res.body.data)).not.toContain('"Bug"');
+  });
+
+  it('accepts an issue identifier as issueId', async () => {
+    const { client, issueId } = await setup();
+    const identifier = (await client.issue(issueId)).identifier;
+    const created = (await (
+      await client.createAttachment({ issueId: identifier, title: 'PR', url: 'https://e.com/pr' })
+    ).attachment)!;
+    expect((await created.issue)?.id).toBe(issueId);
+    const linked = (await (
+      await client.attachmentLinkURL(identifier, 'https://e.com/l')
+    ).attachment)!;
+    expect((await linked.issue)?.id).toBe(issueId);
+  });
+
+  it('stores a long link url', async () => {
+    const { client, issueId } = await setup();
+    const noise = Array.from({ length: 400 }, () => crypto.randomUUID()).join('');
+    const url = `https://grafana.example.com/d/x?state=${noise}`;
+    const created = (await (
+      await client.createAttachment({ issueId, title: 'Dash', url })
+    ).attachment)!;
+    expect(created.url).toBe(url);
+    const again = (await (
+      await client.createAttachment({ issueId, title: 'Dash 2', url })
+    ).attachment)!;
+    expect(again.id).toBe(created.id);
+  });
 });

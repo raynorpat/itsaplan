@@ -1,5 +1,5 @@
 {
-  "id": "c0398ace-d9cf-4aaa-9879-a94a67083e6c",
+  "id": "816caa72-d556-4c3d-898e-4453e260409e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1920,9 +1920,9 @@
               "nulls": "last"
             },
             {
-              "expression": "url",
-              "isExpression": false,
+              "expression": "md5(\"url\")",
               "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],

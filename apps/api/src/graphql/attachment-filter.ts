@@ -53,7 +53,10 @@ const collectionHandlers: FieldHandlers = {
   some: (v, p) => inArray(issue.id, issuesWith(filterSql(v, handlers, p))),
   every: (v, p) => {
     const match = filterSql(v, handlers, p);
-    return match ? notInArray(issue.id, issuesWith(sql`NOT (${match})`)) : sql`true`;
+    // A NULL comparison is not a match, so it counts as a violation.
+    return match
+      ? notInArray(issue.id, issuesWith(sql`NOT COALESCE((${match}), false)`))
+      : sql`true`;
   },
   length: (v, p) =>
     compare(

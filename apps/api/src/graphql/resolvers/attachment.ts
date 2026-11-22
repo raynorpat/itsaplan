@@ -19,7 +19,7 @@ import type { GraphQLContext } from '../context';
 import { attachmentFilterSql } from '../attachment-filter';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
-import { issueById, userById } from './issue';
+import { findIssue, issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 
 // Linear's Attachment: links and uploaded files on issues. An attachment is visible
@@ -125,9 +125,9 @@ type Input = Record<string, unknown>;
 // attachmentCreate and attachmentLinkURL: check access (and comment access for
 // commentBody) before writing, then upsert by issue and URL.
 async function createLink(input: Input, ctx: GraphQLContext, commentBody?: unknown) {
-  checkId(input.issueId, 'issueId');
   checkId(input.id, 'id');
-  const issueId = String(input.issueId);
+  // Linear accepts the issue's UUID or its identifier (ENG-42).
+  const issueId = (await findIssue(String(input.issueId), ctx.user.id)).id;
   await assertIssueAccess(issueId, ctx.user, 'create');
   if (commentBody) await assertParentAccess({ issueId }, ctx.user, 'create');
   const { row } = await upsertLinkAttachment(
