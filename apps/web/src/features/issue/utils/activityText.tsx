@@ -8,6 +8,7 @@ import {
   CircleDot,
   CirclePlus,
   FileText,
+  Link2,
   Pencil,
   Shapes,
   SignalHigh,
@@ -37,7 +38,16 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   label_remove: Tag,
   field: Pencil,
   archived: Archive,
+  relation: Link2,
   restored: ArchiveRestore,
+};
+
+const RELATION_PHRASE: Record<string, string> = {
+  blocks: 'blocking',
+  blocked_by: 'blocked by',
+  duplicate_of: 'duplicate of',
+  duplicated_by: 'duplicated by',
+  related: 'related to',
 };
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');
@@ -125,6 +135,26 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
       return { line: 'archived the issue' };
     case 'restored':
       return { line: 'restored the issue' };
+    case 'relation': {
+      // subject is the relation as seen from this issue; toText names the other
+      // issue when the relation was added, fromText when it was removed.
+      const phrase = RELATION_PHRASE[a.subject ?? ''] ?? 'related to';
+      return a.toText
+        ? {
+            line: (
+              <>
+                marked as {phrase} {strong(a.toText)}
+              </>
+            ),
+          }
+        : {
+            line: (
+              <>
+                removed {phrase} {strong(a.fromText)}
+              </>
+            ),
+          };
+    }
     default:
       return { line: a.action };
   }

@@ -419,6 +419,17 @@ CREATE TABLE "issue_label" (
 	CONSTRAINT "issue_label_issue_id_label_id_pk" PRIMARY KEY("issue_id","label_id")
 );
 --> statement-breakpoint
+CREATE TABLE "issue_relation" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"issue_id" uuid NOT NULL,
+	"related_issue_id" uuid NOT NULL,
+	"type" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "issue_relation_type_check" CHECK ("issue_relation"."type" IN ('blocks', 'duplicate', 'related')),
+	CONSTRAINT "issue_relation_not_self" CHECK ("issue_relation"."issue_id" <> "issue_relation"."related_issue_id")
+);
+--> statement-breakpoint
 CREATE TABLE "issue_type" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"team_id" uuid NOT NULL,
@@ -840,6 +851,8 @@ ALTER TABLE "issue_field_value" ADD CONSTRAINT "issue_field_value_issue_id_issue
 ALTER TABLE "issue_field_value" ADD CONSTRAINT "issue_field_value_field_id_custom_field_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."custom_field"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_label" ADD CONSTRAINT "issue_label_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_label" ADD CONSTRAINT "issue_label_label_id_label_id_fk" FOREIGN KEY ("label_id") REFERENCES "public"."label"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "issue_relation" ADD CONSTRAINT "issue_relation_issue_id_issue_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "issue_relation" ADD CONSTRAINT "issue_relation_related_issue_id_issue_id_fk" FOREIGN KEY ("related_issue_id") REFERENCES "public"."issue"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issue_type" ADD CONSTRAINT "issue_type_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "label" ADD CONSTRAINT "label_team_id_team_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."team"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "label" ADD CONSTRAINT "label_parent_id_label_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."label"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -928,6 +941,8 @@ CREATE INDEX "issue_cycle_idx" ON "issue" USING btree ("cycle_id");--> statement
 CREATE INDEX "issue_activity_issue_idx" ON "issue_activity" USING btree ("issue_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_activity_project_idx" ON "issue_activity" USING btree ("project_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "issue_attachment_issue_idx" ON "issue_attachment" USING btree ("issue_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "issue_relation_pair_idx" ON "issue_relation" USING btree (least("issue_id", "related_issue_id"),greatest("issue_id", "related_issue_id"));--> statement-breakpoint
+CREATE INDEX "issue_relation_related_idx" ON "issue_relation" USING btree ("related_issue_id");--> statement-breakpoint
 CREATE INDEX "note_board_team_idx" ON "note_board" USING btree ("team_id","updated_at");--> statement-breakpoint
 CREATE INDEX "notification_user_idx" ON "notification" USING btree ("user_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "notification_source_comment_idx" ON "notification" USING btree ("source_comment_id");--> statement-breakpoint

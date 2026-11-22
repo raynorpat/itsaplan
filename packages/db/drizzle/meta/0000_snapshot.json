@@ -1,5 +1,5 @@
 {
-  "id": "b03fdfc6-3550-4561-8537-33054152a390",
+  "id": "851e9820-30fe-4951-b12f-81f60040011d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4036,6 +4036,131 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.issue_relation": {
+      "name": "issue_relation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "related_issue_id": {
+          "name": "related_issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "issue_relation_pair_idx": {
+          "name": "issue_relation_pair_idx",
+          "columns": [
+            {
+              "expression": "least(\"issue_id\", \"related_issue_id\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "greatest(\"issue_id\", \"related_issue_id\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "issue_relation_related_idx": {
+          "name": "issue_relation_related_idx",
+          "columns": [
+            {
+              "expression": "related_issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "issue_relation_issue_id_issue_id_fk": {
+          "name": "issue_relation_issue_id_issue_id_fk",
+          "tableFrom": "issue_relation",
+          "tableTo": "issue",
+          "columnsFrom": [
+            "issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "issue_relation_related_issue_id_issue_id_fk": {
+          "name": "issue_relation_related_issue_id_issue_id_fk",
+          "tableFrom": "issue_relation",
+          "tableTo": "issue",
+          "columnsFrom": [
+            "related_issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "issue_relation_type_check": {
+          "name": "issue_relation_type_check",
+          "value": "\"issue_relation\".\"type\" IN ('blocks', 'duplicate', 'related')"
+        },
+        "issue_relation_not_self": {
+          "name": "issue_relation_not_self",
+          "value": "\"issue_relation\".\"issue_id\" <> \"issue_relation\".\"related_issue_id\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.issue_type": {

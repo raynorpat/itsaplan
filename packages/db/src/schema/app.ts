@@ -1155,6 +1155,34 @@ export const issue = pgTable(
   ],
 );
 
+// A relation between two issues (Linear's IssueRelation). blocks: the issue blocks
+// the related issue; duplicate: the issue is a duplicate of the related issue;
+// related: symmetric. One relation per unordered pair of issues.
+export const issueRelation = pgTable(
+  'issue_relation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    relatedIssueId: uuid('related_issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('issue_relation_type_check', sql`${t.type} IN ('blocks', 'duplicate', 'related')`),
+    check('issue_relation_not_self', sql`${t.issueId} <> ${t.relatedIssueId}`),
+    uniqueIndex('issue_relation_pair_idx').on(
+      sql`least(${t.issueId}, ${t.relatedIssueId})`,
+      sql`greatest(${t.issueId}, ${t.relatedIssueId})`,
+    ),
+    index('issue_relation_related_idx').on(t.relatedIssueId),
+  ],
+);
+
 export const issueLabel = pgTable(
   'issue_label',
   {

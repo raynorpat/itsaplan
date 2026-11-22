@@ -1286,7 +1286,8 @@ export type ActivityAction =
   | 'label_remove'
   | 'field'
   | 'archived'
-  | 'restored';
+  | 'restored'
+  | 'relation';
 
 // One entry in an issue's timeline. kind selects which payload fields are set:
 // a 'comment' carries body; an 'activity' carries action/subject/fromText/toText.
