@@ -900,9 +900,13 @@ export async function setIssueLabels(
   const names = await labelNames(teamId, [...added, ...removed]);
   const events: ActivityInput[] = [];
   for (const labelId of added)
-    events.push({ action: 'label_add', toText: names.get(labelId) ?? null });
+    events.push({ action: 'label_add', toText: names.get(labelId) ?? null, toId: labelId });
   for (const labelId of removed)
-    events.push({ action: 'label_remove', fromText: names.get(labelId) ?? null });
+    events.push({
+      action: 'label_remove',
+      fromText: names.get(labelId) ?? null,
+      fromId: labelId,
+    });
   await recordActivity(issueId, events, actorUserId);
 
   if (sendEvent && (added.length > 0 || removed.length > 0)) {

@@ -441,6 +441,7 @@ function snapshot(row: ProjectRow): ProjectSnapshot {
     name: row.name,
     content: row.content,
     status: row.status,
+    statusId: row.statusId,
     leadUserId: row.leadUserId,
     priority: row.priority,
     startDate: row.startDate,
@@ -658,8 +659,12 @@ async function setProjectLabels(
   );
   const events = [];
   for (const labelId of added)
-    events.push({ action: 'label_add', toText: names.get(labelId) ?? null });
+    events.push({ action: 'label_add', toText: names.get(labelId) ?? null, toId: labelId });
   for (const labelId of removed)
-    events.push({ action: 'label_remove', fromText: names.get(labelId) ?? null });
+    events.push({
+      action: 'label_remove',
+      fromText: names.get(labelId) ?? null,
+      fromId: labelId,
+    });
   await recordActivity(projectId, events, actorUserId);
 }

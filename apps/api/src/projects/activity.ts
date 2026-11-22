@@ -136,6 +136,10 @@ export interface ActivityInput {
   subject?: string | null;
   fromText?: string | null;
   toText?: string | null;
+  // Ids of the referenced rows (project status, user, project label), read by the
+  // GraphQL project history.
+  fromId?: string | null;
+  toId?: string | null;
 }
 
 async function userName(id: string | null): Promise<string | null> {
@@ -163,6 +167,8 @@ export async function recordActivity(
       subject: e.subject ?? null,
       fromText: e.fromText ?? null,
       toText: e.toText ?? null,
+      fromId: e.fromId ?? null,
+      toId: e.toId ?? null,
     })),
   );
 }
@@ -174,6 +180,7 @@ export interface ProjectSnapshot {
   name: string;
   content: string;
   status: string;
+  statusId: string;
   leadUserId: string | null;
   priority: number;
   startDate: string | null;
@@ -192,13 +199,21 @@ export async function logProjectUpdate(
   if (before.name !== after.name)
     events.push({ action: 'name', fromText: before.name, toText: after.name });
   if (before.content !== after.content) events.push({ action: 'content', toText: after.content });
-  if (before.status !== after.status)
-    events.push({ action: 'status', fromText: before.status, toText: after.status });
+  if (before.statusId !== after.statusId)
+    events.push({
+      action: 'status',
+      fromText: before.status,
+      toText: after.status,
+      fromId: before.statusId,
+      toId: after.statusId,
+    });
   if (before.leadUserId !== after.leadUserId)
     events.push({
       action: 'lead',
       fromText: await userName(before.leadUserId),
       toText: await userName(after.leadUserId),
+      fromId: before.leadUserId,
+      toId: after.leadUserId,
     });
   if (before.priority !== after.priority)
     events.push({

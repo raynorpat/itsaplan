@@ -186,6 +186,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     createdAt: (v, p) => compare(issue.createdAt, v, p),
     updatedAt: (v, p) => compare(issue.updatedAt, v, p),
     completedAt: (v, p) => compare(issue.completedAt, v, p),
+    archivedAt: (v, p) => compare(issue.archivedAt, v, p),
     dueDate: (v, p) => compare(issue.dueDate, v, p),
     team: (v, p) =>
       inArray(

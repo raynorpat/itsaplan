@@ -10,7 +10,7 @@ import {
   type WorkspaceRole,
 } from '../../shared/access';
 import { HttpError, UUID_RE, rethrowDuplicate } from '../../shared/lib';
-import { createTeam, getTeamById, getTeamByKey } from '../../teams/store';
+import { createTeam, deleteTeam, getTeamById, getTeamByKey } from '../../teams/store';
 import { changeWorkspaceRole, suspendUser, unsuspendUser } from '../../workspace/store';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -239,6 +239,13 @@ export const workspaceResolvers = {
     organization: () => getOrganization(),
   },
   Mutation: {
+    teamDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const found = await findTeam(id, ctx.user.id);
+        await assertTeamAccess(found.id, ctx.user, 'manage');
+        await deleteTeam(found.id);
+        return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
+      }),
     teamCreate: (
       _: unknown,
       {

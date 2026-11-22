@@ -1,5 +1,16 @@
-import { db, project, projectTeam, team, workflowState, teamMember, teamSetting } from '@repo/db';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import {
+  attachment,
+  db,
+  issue,
+  project,
+  projectTeam,
+  team,
+  workflowState,
+  teamMember,
+  teamSetting,
+} from '@repo/db';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { deleteObjects } from '../shared/s3';
 import { iso } from '../shared/lib';
 import { atLeast, visibleTeamIds, workspaceRole } from '../shared/access';
 import { getTeamSetting, setTeamSetting } from '../settings/store';
@@ -189,7 +200,14 @@ export async function setAutoArchiveSettings(
 // Deletes the team. Projects whose only team it is go with it (their milestones,
 // updates and label links cascade); projects shared with other teams only lose the
 // link (project_team cascades).
+// The stored files of the team's issue attachments are removed afterwards,
+// best-effort, as an issue delete does.
 export async function deleteTeam(teamId: string): Promise<void> {
+  const files = await db
+    .select({ s3Key: attachment.s3Key })
+    .from(attachment)
+    .innerJoin(issue, eq(issue.id, attachment.issueId))
+    .where(and(eq(issue.teamId, teamId), isNotNull(attachment.s3Key)));
   await db.transaction(async (tx) => {
     await tx.execute(sql`
       DELETE FROM ${project} WHERE ${project.id} IN (
@@ -202,4 +220,5 @@ export async function deleteTeam(teamId: string): Promise<void> {
       )`);
     await tx.delete(team).where(eq(team.id, teamId));
   });
+  await deleteObjects(files.map((f) => f.s3Key!));
 }

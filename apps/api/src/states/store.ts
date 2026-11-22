@@ -155,6 +155,20 @@ export async function archiveState(id: string, teamId: string): Promise<Workflow
 // update — first shift every position out of range, then assign 0..n-1 — so the
 // unique (team_id, position) index over active columns never sees a transient
 // duplicate.
+// Moves a state to Linear's float `position`: it goes before the first other state
+// whose position is greater, and the team's states are renumbered 0..n.
+export async function moveStateToPosition(
+  teamId: string,
+  stateId: string,
+  position: number,
+): Promise<void> {
+  const others = (await listStates(teamId)).filter((c) => c.id !== stateId);
+  const index = others.findIndex((c) => c.position > position);
+  const order = others.map((c) => c.id);
+  order.splice(index === -1 ? order.length : index, 0, stateId);
+  await reorderStates(teamId, order);
+}
+
 export async function reorderStates(teamId: string, orderedIds: string[]): Promise<void> {
   const existing = await listStates(teamId);
   const known = new Set(existing.map((c) => c.id));
@@ -237,7 +251,13 @@ export async function deleteState(
   if (target)
     await recordActivityForIssues(
       movedIssueIds,
-      { action: 'status', fromText: column.name, toText: target.name },
+      {
+        action: 'status',
+        fromText: column.name,
+        toText: target.name,
+        fromId: column.id,
+        toId: target.id,
+      },
       actorUserId,
     );
 

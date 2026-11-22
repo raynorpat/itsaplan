@@ -112,6 +112,8 @@ async function logRelation(
           subject: side.subject,
           fromText: change === 'removed' ? other : null,
           toText: change === 'added' ? other : null,
+          fromId: change === 'removed' ? side.other : null,
+          toId: change === 'added' ? side.other : null,
         },
       ],
       actorUserId,

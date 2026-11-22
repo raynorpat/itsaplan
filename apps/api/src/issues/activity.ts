@@ -232,6 +232,10 @@ export interface ActivityInput {
   subject?: string | null;
   fromText?: string | null;
   toText?: string | null;
+  // Ids of the referenced rows (state, user, project, cycle, label, related issue),
+  // read by the GraphQL history; the texts above are their name snapshots.
+  fromId?: string | null;
+  toId?: string | null;
 }
 
 // Records the given events for an issue. actorUserId is the session user behind
@@ -288,6 +292,8 @@ async function insertActivity(
         subject: event.subject ?? null,
         fromText: event.fromText ?? null,
         toText: event.toText ?? null,
+        fromId: event.fromId ?? null,
+        toId: event.toId ?? null,
       })),
     )
     .returning({ id: issueActivity.id, action: issueActivity.action });
@@ -370,30 +376,40 @@ export async function logIssueUpdate(
       action: 'status',
       fromText: await columnName(before.stateId),
       toText: await columnName(after.stateId),
+      fromId: before.stateId,
+      toId: after.stateId,
     });
   if (before.projectId !== after.projectId)
     events.push({
       action: 'project',
       fromText: await projectName(before.projectId),
       toText: await projectName(after.projectId),
+      fromId: before.projectId,
+      toId: after.projectId,
     });
   if (before.cycleId !== after.cycleId)
     events.push({
       action: 'cycle',
       fromText: await cycleName(before.cycleId),
       toText: await cycleName(after.cycleId),
+      fromId: before.cycleId,
+      toId: after.cycleId,
     });
   if (before.assigneeUserId !== after.assigneeUserId)
     events.push({
       action: 'assignee',
       fromText: await userName(before.assigneeUserId),
       toText: await userName(after.assigneeUserId),
+      fromId: before.assigneeUserId,
+      toId: after.assigneeUserId,
     });
   if (before.delegateUserId !== after.delegateUserId)
     events.push({
       action: 'delegate',
       fromText: await userName(before.delegateUserId),
       toText: await userName(after.delegateUserId),
+      fromId: before.delegateUserId,
+      toId: after.delegateUserId,
     });
   if (before.priority !== after.priority)
     events.push({

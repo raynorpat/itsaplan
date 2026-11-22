@@ -9,7 +9,7 @@ import {
   validateIssuePatch,
   type IssuePatch,
 } from '../../issues/store';
-import { archiveState, createState, updateState } from '../../states/store';
+import { archiveState, createState, moveStateToPosition, updateState } from '../../states/store';
 import { getTeamByKey } from '../../teams/store';
 import {
   nonMembers,
@@ -105,6 +105,18 @@ async function nextLabelIds(issueId: string, input: Record<string, unknown>) {
   for (const id of added ?? []) next.add(id);
   for (const id of removed ?? []) next.delete(id);
   return [...next];
+}
+
+// issueAddLabel / issueRemoveLabel: one label added to or removed from an issue.
+function changeOneLabel(id: string, input: Record<string, unknown>, ctx: GraphQLContext) {
+  return guard(async () => {
+    const row = await findIssue(id, ctx.user.id);
+    await assertTeamAccess(row.teamId, ctx.user, 'see');
+    const labelIds = await nextLabelIds(row.id, input);
+    await validateIssuePatch(row.id, {}, labelIds);
+    await updateIssue(row.id, {}, ctx.user.id, { labelIds });
+    return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
+  });
 }
 
 type IssueInput = Record<string, unknown> & {
@@ -266,7 +278,7 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ISSUE_FIELDS, 'input');
+        onlySupported(input, [...ISSUE_FIELDS, ...LABEL_FIELDS], 'input');
         assertIssueInput(input);
         if (ids.length < 1 || ids.length > 50)
           throw gqlError('INVALID_INPUT', 'ids must hold between 1 and 50 issues');
@@ -277,12 +289,31 @@ export const mutationResolvers = {
           rows.push(row);
         }
         const patch = toPatch(input);
-        for (const row of rows) await validateIssuePatch(row.id, patch);
-        for (const row of rows) await updateIssue(row.id, patch, ctx.user.id);
+        // Label inputs apply per issue: addedLabelIds / removedLabelIds change each
+        // issue's own set.
+        const labelIdsByIssue = new Map<string, string[] | undefined>();
+        for (const row of rows) {
+          const labelIds = await nextLabelIds(row.id, input);
+          labelIdsByIssue.set(row.id, labelIds);
+          await validateIssuePatch(row.id, patch, labelIds);
+        }
+        for (const row of rows)
+          await updateIssue(row.id, patch, ctx.user.id, { labelIds: labelIdsByIssue.get(row.id) });
         const issues = [];
         for (const row of rows) issues.push(await issueById(row.id));
         return { success: true, lastSyncId: lastSyncId(), issues };
       }),
+
+    issueAddLabel: (
+      _: unknown,
+      { id, labelId }: { id: string; labelId: string },
+      ctx: GraphQLContext,
+    ) => changeOneLabel(id, { addedLabelIds: [labelId] }, ctx),
+    issueRemoveLabel: (
+      _: unknown,
+      { id, labelId }: { id: string; labelId: string },
+      ctx: GraphQLContext,
+    ) => changeOneLabel(id, { removedLabelIds: [labelId] }, ctx),
 
     issueArchive: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
@@ -355,13 +386,20 @@ export const mutationResolvers = {
         input,
       }: {
         id: string;
-        input: Record<string, unknown> & { name?: string; color?: string; description?: string };
+        input: Record<string, unknown> & {
+          name?: string;
+          color?: string;
+          description?: string;
+          position?: number;
+        };
       },
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['name', 'color', 'description'], 'input');
+        onlySupported(input, ['name', 'color', 'description', 'position'], 'input');
         if (input.name === '') throw gqlError('INVALID_INPUT', 'input.name must not be empty');
+        if (input.position != null && !Number.isFinite(input.position))
+          throw gqlError('INVALID_INPUT', 'input.position must be a number');
         const state = await findState(id, ctx.user.id);
         await assertTeamAccess(state.teamId, ctx.user, 'manage');
         await updateState(state.id, state.teamId, {
@@ -369,6 +407,8 @@ export const mutationResolvers = {
           color: input.color ?? undefined,
           description: input.description ?? undefined,
         });
+        if (input.position != null)
+          await moveStateToPosition(state.teamId, state.id, input.position);
         return {
           success: true,
           lastSyncId: lastSyncId(),

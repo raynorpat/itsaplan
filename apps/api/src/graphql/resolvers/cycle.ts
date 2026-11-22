@@ -29,7 +29,7 @@ import { findTeam, toTeam } from './team';
 type GraphQLCycle = ReturnType<typeof toCycle>;
 type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
-function toCycle(row: CycleRow) {
+export function toCycle(row: CycleRow) {
   return { ...row, autoArchivedAt: null, inheritedFromId: null };
 }
 

@@ -791,6 +791,11 @@ export const issueActivity = pgTable(
     subject: text('subject'),
     fromText: text('from_text'),
     toText: text('to_text'),
+    // Ids of the referenced rows (state, user, project, cycle, label, related
+    // issue, project status), recorded since the GraphQL history; no foreign key,
+    // so a deleted row leaves the id and its name snapshot in from_text / to_text.
+    fromId: uuid('from_id'),
+    toId: uuid('to_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
