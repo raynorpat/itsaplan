@@ -35,8 +35,18 @@ import { guard, lastSyncId, onlySupported } from './mutations';
 // to members of its issue's team; writes need work_items.create / edit / delete
 // there, as the REST attachment routes.
 
+// Linear's Attachment has no file fields, so an upload carries its filename,
+// content type and size in `metadata` (read-only: the stored metadata is unchanged).
 export const toAttachment = (row: AttachmentRow) => ({
   ...row,
+  metadata: row.s3Key
+    ? {
+        ...row.metadata,
+        filename: row.filename,
+        contentType: row.contentType,
+        size: row.sizeBytes,
+      }
+    : row.metadata,
   url: attachmentUrl(row),
   archivedAt: null,
   source: null,

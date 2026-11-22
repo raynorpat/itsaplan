@@ -1,6 +1,8 @@
 import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import { useIssueDetail } from '../../hooks/useIssueDetail';
 import IssueAttachmentsPanel from './IssueAttachmentsPanel';
+import IssueRelations from '../relations/IssueRelations';
+import { usePermissions } from '@/hooks/usePermissions';
 import IssueReactions from '../reactions/IssueReactions';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
@@ -40,6 +42,7 @@ export default function IssueDetailContent({
     imageAttachments,
     setDescEditor,
   } = useIssueDetail(team, issueId, onIssueLoaded);
+  const canEdit = usePermissions(team).can('work_items', 'edit');
 
   if (!issue) {
     return <div className="py-6 text-sm text-muted-foreground">Loading…</div>;
@@ -83,7 +86,9 @@ export default function IssueDetailContent({
 
       <IssueReactions issueId={issue.id} />
 
-      <IssueAttachmentsPanel issueId={issue.id} onInsert={insertAttachment} />
+      <IssueRelations issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
+
+      <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
     </>
   );
 

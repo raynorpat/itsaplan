@@ -49,6 +49,7 @@ export const qk = {
   anyProjectFeed: ['projectFeed'] as const,
   anyProjects: ['projects'] as const,
   attachments: (id: string) => ['attachments', id] as const,
+  issueRelations: (id: string) => ['issueRelations', id] as const,
   // A team's inbox notifications (the list, scoped by the active filters) and the
   // team's unread count (the sidebar badge + live-refresh target).
   notifications: (teamKey: string, filters?: unknown) =>

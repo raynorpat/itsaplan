@@ -5,16 +5,21 @@ import {
   FileIcon,
   GripVertical,
   HelpCircle,
+  Link2,
   Paperclip,
   Plus,
   Trash2,
 } from 'lucide-react';
 import { type Attachment } from '@/lib/api';
 import {
+  useAddLink,
   useAttachmentsQuery,
   useDeleteAttachment,
+  useRenameAttachment,
   useUploadAttachment,
 } from '../../services/attachments.service';
+import AddLinkForm from '../links/AddLinkForm';
+import IssueLinkRow from '../links/IssueLinkRow';
 import { attachmentHtml, isImage, isVideo } from '../../utils/attachmentEmbed';
 import { useStorageSettingsQuery } from '@/services/storage.service';
 import { attachmentAccept, attachmentError, attachmentLimitHint } from '@/utils/uploadLimits';
@@ -65,20 +70,28 @@ function onDragStart(e: DragEvent<HTMLElement>, a: Attachment) {
   if (card) e.dataTransfer.setDragImage(card, 0, 0);
 }
 
-// Attachments for one issue: upload, preview (image/video inline), download,
-// delete, and insert into the description. onInsert hands the attachment back to
-// the parent, which embeds it into the description via the live editor.
+// Attachments for one issue: uploaded files (preview, download, insert into the
+// description, delete) and links (add, rename, delete), as Linear lists both on
+// the issue. onInsert hands a file back to the parent, which embeds it into the
+// description via the live editor. Add, rename and delete are offered only to
+// someone who can edit the issue.
 export default function IssueAttachmentsPanel({
   issueId,
+  canEdit,
   onInsert,
 }: {
   issueId: string;
+  canEdit: boolean;
   onInsert: (attachment: Attachment) => void;
 }) {
   const attachmentsQuery = useAttachmentsQuery(issueId);
-  const items = attachmentsQuery.data ?? [];
+  const items = attachmentsQuery.data?.files ?? [];
+  const links = attachmentsQuery.data?.links ?? [];
   const uploadAttachment = useUploadAttachment();
   const deleteAttachment = useDeleteAttachment(issueId);
+  const addLink = useAddLink(issueId);
+  const renameAttachment = useRenameAttachment(issueId);
+  const [addingLink, setAddingLink] = useState(false);
   const limits = useStorageSettingsQuery().data;
   const [error, setError] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
@@ -90,7 +103,7 @@ export default function IssueAttachmentsPanel({
   const uploading = uploadAttachment.isPending;
 
   async function onFilesPicked(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (!canEdit || !files || files.length === 0) return;
     setError(null);
     try {
       for (const file of Array.from(files)) {
@@ -169,16 +182,29 @@ export default function IssueAttachmentsPanel({
             </Tooltip>
           )}
         </h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5"
-          disabled={uploading}
-          onClick={() => fileInput.current?.click()}
-        >
-          <Plus className="size-4" />
-          {uploading ? 'Uploading…' : 'Add'}
-        </Button>
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => setAddingLink(true)}
+            >
+              <Link2 className="size-4" />
+              Link
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5"
+              disabled={uploading}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Plus className="size-4" />
+              {uploading ? 'Uploading…' : 'File'}
+            </Button>
+          </div>
+        )}
         <input
           ref={fileInput}
           type="file"
@@ -191,9 +217,34 @@ export default function IssueAttachmentsPanel({
 
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
-      {items.length === 0 ? (
+      {addingLink && (
+        <AddLinkForm
+          pending={addLink.isPending}
+          onCancel={() => setAddingLink(false)}
+          onAdd={async (url, title) => {
+            await addLink.mutateAsync({ url, title });
+            setAddingLink(false);
+          }}
+        />
+      )}
+
+      {links.length > 0 && (
+        <div className="mb-2 flex flex-col gap-2">
+          {links.map((l) => (
+            <IssueLinkRow
+              key={l.id}
+              link={l}
+              canEdit={canEdit}
+              onRename={(title) => renameAttachment.mutate({ id: l.id, title })}
+              onDelete={() => deleteAttachment.mutate(l.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {items.length === 0 && links.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No attachments. Drop files here or use Add to upload.
+          No attachments. Drop files here, or add a file or a link.
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -236,14 +287,16 @@ export default function IssueAttachmentsPanel({
                     <Download />
                   </a>
                 </AttachmentAction>
-                <AttachmentAction
-                  className="hover:text-destructive"
-                  onClick={() => deleteAttachment.mutate(a.id)}
-                  aria-label={`Delete ${a.filename}`}
-                  title="Delete"
-                >
-                  <Trash2 />
-                </AttachmentAction>
+                {canEdit && (
+                  <AttachmentAction
+                    className="hover:text-destructive"
+                    onClick={() => deleteAttachment.mutate(a.id)}
+                    aria-label={`Delete ${a.filename}`}
+                    title="Delete"
+                  >
+                    <Trash2 />
+                  </AttachmentAction>
+                )}
               </AttachmentActions>
             </AttachmentCard>
           ))}

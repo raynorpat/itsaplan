@@ -716,12 +716,6 @@ export interface InviteView {
   expiresAt: string;
 }
 
-// The attachment DTO's url is relative to the API origin; make it absolute so it
-// works in <img>/<video> and markdown rendered on the web origin.
-function absolutizeAttachment(a: Attachment): Attachment {
-  return { ...a, url: a.url.startsWith('http') ? a.url : `${API_URL}${a.url}` };
-}
-
 // Inbox notifications. Each row is enriched with the issue and team it points at
 // so the list renders without extra calls.
 export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
@@ -883,29 +877,6 @@ export const api = {
     if (params.limit != null) qs.set('limit', String(params.limit));
     return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
-
-  listAttachments: (issueId: string) =>
-    request<Attachment[]>(`/issues/${issueId}/attachments`).then((rows) =>
-      rows.map(absolutizeAttachment),
-    ),
-  // Multipart upload — cannot use request(), which forces a JSON Content-Type;
-  // the browser must set the multipart boundary itself, so no headers are set.
-  uploadAttachment: async (issueId: string, file: File): Promise<Attachment> => {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch(`${API_URL}/issues/${issueId}/attachments`, {
-      method: 'POST',
-      credentials: 'include',
-      body: form,
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.error ?? `${res.status} ${res.statusText}`);
-    }
-    return absolutizeAttachment(await res.json());
-  },
-  deleteAttachment: (publicId: string) =>
-    request<void>(`/attachments/${publicId}`, { method: 'DELETE' }),
 
   // Projects span teams: the list and counts take an optional team filter, create
   // takes the team ids, and ops on one project take its id.

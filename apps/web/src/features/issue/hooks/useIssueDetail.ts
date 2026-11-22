@@ -30,7 +30,7 @@ export function useIssueDetail(
   useFeedQuery(issueId);
 
   // What the markdown editors' image picker offers.
-  const imageAttachments = (attachmentsQuery.data ?? []).filter(isImage);
+  const imageAttachments = (attachmentsQuery.data?.files ?? []).filter(isImage);
 
   const updateIssue = useUpdateIssueDetail(team.team.key);
   const uploadAttachment = useUploadAttachment();

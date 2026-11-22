@@ -88,6 +88,21 @@ describe('graphql attachments', () => {
     expect((await (await client.issue(issueId)).attachments()).nodes).toHaveLength(2);
   });
 
+  it('describes a file in its metadata', async () => {
+    const { client, issueId } = await setup();
+    const file = await upload(issueId);
+    const seen = await client.attachment(file.id);
+    expect(seen.metadata).toMatchObject({
+      filename: 'shot.png',
+      contentType: 'image/png',
+      size: 10,
+    });
+    const link = (await (
+      await client.createAttachment({ issueId, title: 'L', url: 'https://example.com/l' })
+    ).attachment)!;
+    expect(link.metadata).toEqual({});
+  });
+
   it('upserts onto a file by its absolute url', async () => {
     const { client, issueId } = await setup();
     const file = await upload(issueId);
