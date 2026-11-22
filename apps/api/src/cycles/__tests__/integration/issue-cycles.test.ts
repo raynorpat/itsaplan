@@ -3,6 +3,7 @@ import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { archiveCycle, listCycles, setTeamCycleSettings } from '../../store';
+import { createMilestone } from '../../../projects/milestones';
 
 // Issues in cycles over REST: a cycle of the issue's team only, and auto-assign to
 // the active cycle when an issue is started or completed.
@@ -90,5 +91,17 @@ describe('issues in cycles', () => {
       .issues({ issueId: started.id })
       .patch({ stateId: state('completed') });
     expect(done.data!.cycleId).toBe(cycles[0]!.id);
+  });
+
+  it('keeps a milestone set together with a project in one patch', async () => {
+    const { asOwner, team, state, create } = await setup();
+    const a = (await asOwner.projects.post({ name: 'A', teamIds: [team.team.id] })).data!;
+    const b = (await asOwner.projects.post({ name: 'B', teamIds: [team.team.id] })).data!;
+    const mb = await createMilestone(b.id, { name: 'Beta' });
+    const issue = (await create(state('unstarted'), { projectId: a.id })).data!;
+    const res = await asOwner
+      .issues({ issueId: issue.id })
+      .patch({ projectId: b.id, projectMilestoneId: mb.id });
+    expect(res.data).toMatchObject({ projectMilestoneId: mb.id });
   });
 });

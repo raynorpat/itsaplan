@@ -9,6 +9,7 @@ import {
   mapCycle,
   setTeamCycleSettings,
   updateCycle,
+  validateCycleSettings,
   type CycleRow,
 } from '../../cycles/store';
 import { getMembership } from '../../members/store';
@@ -194,6 +195,8 @@ export const cycleResolvers = {
     ) =>
       guard(async () => {
         onlySupported(input, ['name', 'description', 'startsAt', 'endsAt', 'completedAt'], 'input');
+        if (input.completedAt === null)
+          throw gqlError('INVALID_INPUT', 'input.completedAt cannot be cleared');
         const found = await visibleCycle(id, ctx);
         await assertPermission(found.teamId, ctx.user, 'work_items', 'edit');
         const updated = await updateCycle(
@@ -228,14 +231,19 @@ export const cycleResolvers = {
         const found = await findTeam(id, ctx.user.id);
         if ((await getMembership(found.id, ctx.user.id)) !== 'owner')
           throw new HttpError(403, 'Only a team owner can change team settings');
+        if (input.name !== undefined && (typeof input.name !== 'string' || !input.name))
+          throw gqlError('INVALID_INPUT', 'input.name must be a non-empty string');
+        if (input.description === null)
+          throw gqlError('INVALID_INPUT', 'input.description cannot be null');
+        const settings: Record<string, unknown> = {};
+        for (const [field, key] of Object.entries(TEAM_CYCLE_FIELDS))
+          if (input[field] !== undefined && input[field] !== null) settings[key] = input[field];
+        validateCycleSettings(settings);
         if (input.name !== undefined || input.description !== undefined)
           await updateTeam(found.id, {
             name: input.name as string | undefined,
             description: input.description as string | undefined,
           });
-        const settings: Record<string, unknown> = {};
-        for (const [field, key] of Object.entries(TEAM_CYCLE_FIELDS))
-          if (input[field] !== undefined && input[field] !== null) settings[key] = input[field];
         if (Object.keys(settings).length) await setTeamCycleSettings(found.id, settings);
         const [row] = await db.select().from(team).where(eq(team.id, found.id));
         return { success: true, lastSyncId: lastSyncId(), team: toTeam(row!) };

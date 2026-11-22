@@ -941,9 +941,9 @@ export async function updateIssue(
   // Moving the issue to another project (or out of one) clears its milestone,
   // unless the patch sets a milestone of the new project.
   if (patch.projectMilestoneId !== undefined) set.projectMilestoneId = patch.projectMilestoneId;
-  if (patch.cycleId !== undefined) set.cycleId = patch.cycleId;
   else if (patch.projectId !== undefined && patch.projectId !== before.projectId)
     set.projectMilestoneId = null;
+  if (patch.cycleId !== undefined) set.cycleId = patch.cycleId;
   if (patch.assigneeUserId !== undefined) set.assigneeUserId = patch.assigneeUserId;
   if (patch.delegateUserId !== undefined) set.delegateUserId = patch.delegateUserId;
   if (patch.title !== undefined) set.title = patch.title;

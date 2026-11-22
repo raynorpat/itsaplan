@@ -201,4 +201,50 @@ describe('graphql cycles', () => {
       'Cycle',
     );
   });
+
+  it('rejects a completedAt before the start and a cleared completedAt', async () => {
+    const { owner, teamId } = await setup();
+    const [active] = await listCycles(teamId);
+    const early = new Date(new Date(active!.startsAt).getTime() - DAY).toISOString();
+    for (const value of [`"${early}"`, 'null']) {
+      const res = await gql(
+        { cookie: owner.cookie },
+        `mutation { cycleUpdate(id: "${active!.id}", input: { completedAt: ${value} }) { success } }`,
+      );
+      expect(errorCode(res)).toBe('INVALID_INPUT');
+    }
+  });
+
+  it("names the close snapshot like Linear's Cycle webhook payload", async () => {
+    const { asOwner, teamId, client } = await setup();
+    const hook = (
+      await asOwner
+        .teams({ teamKey: 'MKT' })
+        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Cycle'] })
+    ).data!;
+    const [active] = await listCycles(teamId);
+    await client.updateCycle(active!.id, { completedAt: new Date() });
+    const data = (await asOwner.webhooks({ webhookId: hook.id }).deliveries.get()).data!.items.map(
+      (d) => (d.payload as { data: Record<string, unknown> }).data,
+    );
+    expect(data.some((d) => 'uncompletedIssuesUponCloseIds' in d)).toBe(true);
+    expect(data.some((d) => 'uncompletedIssueIdsUponClose' in d)).toBe(false);
+  });
+
+  it('validates teamUpdate before writing anything', async () => {
+    const { owner, asOwner, teamId } = await setup();
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { teamUpdate(id: "${teamId}", input: { name: "Renamed", cycleDuration: 99 }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    expect((await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.name).toBe('Marketing');
+    for (const name of ['""', 'null']) {
+      const bad = await gql(
+        { cookie: owner.cookie },
+        `mutation { teamUpdate(id: "${teamId}", input: { name: ${name} }) { success } }`,
+      );
+      expect(errorCode(bad)).toBe('INVALID_INPUT');
+    }
+  });
 });

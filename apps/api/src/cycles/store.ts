@@ -51,6 +51,17 @@ export function mapCycle(row: typeof cycle.$inferSelect): CycleRow {
   };
 }
 
+// Linear's Cycle as webhook data (CycleWebhookPayload field names).
+function cycleWebhookData(c: CycleRow): Record<string, unknown> {
+  const { uncompletedIssueIdsUponClose, ...rest } = c;
+  return {
+    ...rest,
+    uncompletedIssuesUponCloseIds: uncompletedIssueIdsUponClose,
+    autoArchivedAt: null,
+    inheritedFromId: null,
+  };
+}
+
 export async function sendCycleEvent(
   action: WebhookAction,
   c: CycleRow,
@@ -62,8 +73,8 @@ export async function sendCycleEvent(
     action,
     teamIds: [c.teamId],
     actorUserId,
-    data: { ...c },
-    before: before ? { ...before } : undefined,
+    data: cycleWebhookData(c),
+    before: before ? cycleWebhookData(before) : undefined,
   });
 }
 
@@ -119,15 +130,20 @@ const RANGES: Record<'duration' | 'startDay' | 'cooldown' | 'upcoming', [number,
 // Updates the given settings (400 for a value out of range). Turning cycles on
 // creates the current and upcoming cycles; turning them off stops upkeep and leaves
 // existing cycles as they are.
-export async function setTeamCycleSettings(
-  teamId: string,
-  patch: Partial<TeamCycleSettings>,
-): Promise<TeamCycleSettings> {
+// 400 for a setting out of its range.
+export function validateCycleSettings(patch: Partial<TeamCycleSettings>): void {
   for (const [key, [min, max]] of Object.entries(RANGES)) {
     const v = patch[key as keyof typeof RANGES];
     if (v !== undefined && !(Number.isInteger(v) && v >= min && v <= max))
       throw new HttpError(400, `cycles.${key} must be an integer from ${min} to ${max}`);
   }
+}
+
+export async function setTeamCycleSettings(
+  teamId: string,
+  patch: Partial<TeamCycleSettings>,
+): Promise<TeamCycleSettings> {
+  validateCycleSettings(patch);
   const before = await teamCycleSettings(teamId);
   const set: Partial<typeof team.$inferInsert> = {};
   if (patch.enabled !== undefined) set.cyclesEnabled = patch.enabled;
@@ -382,6 +398,8 @@ export async function closeCycle(
       ),
     );
   const endsAt = new Date(before.endsAt) < closedAt ? new Date(before.endsAt) : closedAt;
+  // Only an open cycle closes: a second close (a hand close racing upkeep) changes
+  // nothing and keeps the first close's snapshot.
   const [row] = await db
     .update(cycle)
     .set({
@@ -390,8 +408,9 @@ export async function closeCycle(
       uncompletedIssueIdsUponClose: unfinished.map((r) => r.id),
       updatedAt: new Date(),
     })
-    .where(eq(cycle.id, cycleId))
+    .where(and(eq(cycle.id, cycleId), isNull(cycle.completedAt)))
     .returning();
+  if (!row) return before;
   const closed = mapCycle(row!);
   const target =
     (await cycleContaining(closed.teamId, now)) ?? (await nextUpcomingCycle(closed.teamId, now));
@@ -443,16 +462,22 @@ export async function recordHistory(teamId: string, now: Date): Promise<void> {
 }
 
 // The hourly upkeep for every team with cycles enabled, in order: a cycle contains
-// now; ended cycles close with rollover into it; upcoming cycles are created; the
-// active cycle's history is appended. Each step works from dates, so a missed run
+// now; upcoming cycles are created; ended cycles close with rollover into the
+// current cycle (or the next one when none contains now); the active cycle's
+// history is appended. Each step works from dates, so a missed run
 // is caught up by the next one.
 export async function runUpkeep(now: Date): Promise<void> {
   const teams = await db.select({ id: team.id }).from(team).where(eq(team.cyclesEnabled, true));
   for (const { id } of teams) {
-    await ensureCurrentCycle(id, now);
-    await closeEndedCycles(id, now);
-    await ensureUpcomingCycles(id, now);
-    await recordHistory(id, now);
+    // One team's failure must not stop upkeep for the others; the next run retries.
+    try {
+      await ensureCurrentCycle(id, now);
+      await ensureUpcomingCycles(id, now);
+      await closeEndedCycles(id, now);
+      await recordHistory(id, now);
+    } catch (err) {
+      console.error(`[cycles] upkeep failed for team ${id}:`, err);
+    }
   }
 }
 
@@ -531,6 +556,8 @@ export async function updateCycle(
       !before.completedAt && new Date(before.startsAt) <= now && new Date(before.endsAt) > now;
     if (!isActive) throw new HttpError(400, 'Only the active cycle can be completed');
     if (patch.completedAt > now) throw new HttpError(400, 'completedAt cannot be in the future');
+    if (patch.completedAt <= new Date(before.startsAt))
+      throw new HttpError(400, 'completedAt must be after the cycle starts');
   }
   const startsAt = patch.startsAt ?? new Date(before.startsAt);
   const endsAt = patch.endsAt ?? new Date(before.endsAt);

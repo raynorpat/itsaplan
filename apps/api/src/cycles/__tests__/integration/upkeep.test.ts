@@ -3,7 +3,15 @@ import { api, authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { updateIssue } from '../../../issues/store';
-import { getCycle, listCycles, recordHistory, runUpkeep, setTeamCycleSettings } from '../../store';
+import { db, cycle } from '@repo/db';
+import {
+  closeCycle,
+  getCycle,
+  listCycles,
+  recordHistory,
+  runUpkeep,
+  setTeamCycleSettings,
+} from '../../store';
 
 // Cycle upkeep: closing ended cycles with rollover into the current cycle,
 // keeping upcoming cycles ahead, skipping ahead after a gap, and the daily
@@ -142,5 +150,44 @@ describe('cycle upkeep', () => {
       headers: { 'x-worker-token': TOKEN },
     });
     expect(ok.status).toBe(200);
+  });
+
+  it('moves unfinished issues after a gap even when the start day changed', async () => {
+    const { asOwner, teamId, state, cycles } = await setup();
+    const stuck = await issueIn(asOwner, state('started'), cycles[0]!.id);
+    await setTeamCycleSettings(teamId, { startDay: 3 });
+    const now = new Date(new Date(cycles[2]!.endsAt).getTime() + DAY);
+    await runUpkeep(now);
+    const moved = (await asOwner.issues({ issueId: stuck.id }).get()).data!.cycleId;
+    const target = (await getCycle(moved!))!;
+    expect(target.completedAt).toBeNull();
+  });
+
+  it("keeps upkeep going for other teams when one team's upkeep fails", async () => {
+    const { teamId: brokenTeam, cycles: broken } = await setup();
+    // A long cycle that ends after the latest one makes the next cycle overlap it.
+    await db.insert(cycle).values({
+      teamId: brokenTeam,
+      number: 99,
+      startsAt: new Date(new Date(broken[0]!.startsAt).getTime() - DAY),
+      endsAt: new Date(new Date(broken[2]!.endsAt).getTime() + 100 * DAY),
+    });
+    const other = await signUpTestUser({ name: 'Other' });
+    const asOther = authedApi(other.cookie);
+    await asOther.teams.post({ key: 'OPS', name: 'Operations' });
+    const ops = (await asOther.teams({ teamKey: 'OPS' }).get()).data!;
+    await setTeamCycleSettings(ops.team.id, { enabled: true });
+    const opsCycles = await listCycles(ops.team.id);
+    await runUpkeep(new Date(new Date(opsCycles[0]!.endsAt).getTime() + DAY));
+    expect((await getCycle(opsCycles[0]!.id))!.completedAt).toBeTruthy();
+  });
+
+  it('does not close a cycle twice', async () => {
+    const { owner, asOwner, state, cycles } = await setup();
+    const started = await issueIn(asOwner, state('started'), cycles[0]!.id);
+    const now = new Date(new Date(cycles[1]!.startsAt).getTime() + DAY);
+    await closeCycle(cycles[0]!.id, new Date(cycles[0]!.endsAt), now, owner.userId);
+    await closeCycle(cycles[0]!.id, new Date(cycles[0]!.endsAt), now, owner.userId);
+    expect((await getCycle(cycles[0]!.id))!.uncompletedIssueIdsUponClose).toEqual([started.id]);
   });
 });

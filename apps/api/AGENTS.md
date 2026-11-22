@@ -62,8 +62,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   labels with `assertLabelsApplicable` before writing them to an issue.
 - **Reactions** (`reactions/store.ts`): one per user and exact emoji on a comment,
   issue or project update.
-- **Cycles** (`cycles/`): a team with cycles enabled always has a cycle containing
-  now and `upcoming_cycle_count` cycles ahead; cycles never overlap and are on UTC
+- **Cycles** (`cycles/`): a team with cycles enabled has a cycle containing now
+  (except between closing the active cycle by hand and the next cycle's start) and `upcoming_cycle_count` cycles ahead; cycles never overlap and are on UTC
   days (`schedule.ts`). The worker calls `POST /internal/cycles/tick` hourly and
   `runUpkeep(now)` closes ended cycles, moving unfinished issues into the current
   cycle through `updateIssue`, creates upcoming cycles and appends the history
