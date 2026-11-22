@@ -20,6 +20,7 @@ import { toIssueLabel } from '../graphql/resolvers/issue-label';
 import { toProject, toUpdate } from '../graphql/resolvers/project';
 import { getProject } from '../projects/store';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
+import { getInitiativeUpdate, latestInitiativeUpdate } from '../initiatives/updates';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -133,7 +134,11 @@ export async function initiativeData(id: string): Promise<WebhookData | null> {
         ),
       )
       .orderBy(asc(initiative.id));
-  const [parent, children] = await Promise.all([relative('parent'), relative('child')]);
+  const [parent, children, last] = await Promise.all([
+    relative('parent'),
+    relative('child'),
+    latestInitiativeUpdate(row.id),
+  ]);
   return {
     ...rest,
     description: row.description ?? '',
@@ -142,9 +147,9 @@ export async function initiativeData(id: string): Promise<WebhookData | null> {
     url: initiativeUrl(row.id),
     labelIds: [],
     frequencyResolution: 'weekly',
-    health: null,
-    healthUpdatedAt: null,
-    lastUpdateId: null,
+    health: last?.health ?? null,
+    healthUpdatedAt: last?.createdAt ?? null,
+    lastUpdateId: last?.id ?? null,
     projects: projects.map((p) => ({ id: p.id, name: p.name, url: `${origin}/projects/${p.id}` })),
     parentInitiative: parent[0] ? childInitiative(parent[0]) : null,
     subInitiatives: children.map(childInitiative),
@@ -156,3 +161,15 @@ const childInitiative = (i: { id: string; name: string }) => ({
   name: i.name,
   url: initiativeUrl(i.id),
 });
+
+// Linear's InitiativeUpdateWebhookPayload, with the fields this instance has.
+export async function initiativeUpdateData(id: string): Promise<WebhookData | null> {
+  const row = await getInitiativeUpdate(id);
+  if (!row) return null;
+  const parent = await getInitiative(row.initiativeId);
+  return {
+    ...row,
+    url: initiativeUrl(row.initiativeId),
+    initiative: parent ? childInitiative(parent) : null,
+  };
+}

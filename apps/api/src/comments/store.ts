@@ -1,4 +1,15 @@
-import { comment, db, issue, projectTeam, projectUpdate, team, teamMember, user } from '@repo/db';
+import {
+  comment,
+  db,
+  initiative,
+  initiativeUpdate,
+  issue,
+  projectTeam,
+  projectUpdate,
+  team,
+  teamMember,
+  user,
+} from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
 import { eq, inArray, or, type SQL } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
@@ -11,19 +22,26 @@ import { parseMentions } from '../ai-agents/mentions';
 import { getMembership } from '../members/store';
 import { assertPermission, type AuthUser } from '../shared/access';
 import { assertProjectAccess, projectsInTeams, teamsGranting } from '../projects/access';
+import { assertInitiativeAccess, visibleInitiativesSql } from '../initiatives/access';
+import { getInitiative, initiativeUrl } from '../initiatives/store';
 
-// Comments (Linear's Comment) on an issue, a project or a project update. A reply
-// belongs to the thread of a root comment: replying to a reply stores the new
-// comment under that reply's root, so threads are one level deep (Linear).
+// Comments (Linear's Comment) on an issue, a project, a project update or an
+// initiative update. A reply belongs to the thread of a root comment: replying to a
+// reply stores the new comment under that reply's root, so threads are one level
+// deep (Linear).
 
 export type CommentParent =
-  { issueId: string } | { projectId: string } | { projectUpdateId: string };
+  | { issueId: string }
+  | { projectId: string }
+  | { projectUpdateId: string }
+  | { initiativeUpdateId: string };
 
 export interface CommentRow {
   id: string;
   issueId: string | null;
   projectId: string | null;
   projectUpdateId: string | null;
+  initiativeUpdateId: string | null;
   parentId: string | null;
   userId: string | null;
   userName: string | null;
@@ -42,6 +60,7 @@ export function mapComment(row: typeof comment.$inferSelect): CommentRow {
     issueId: row.issueId,
     projectId: row.projectId,
     projectUpdateId: row.projectUpdateId,
+    initiativeUpdateId: row.initiativeUpdateId,
     parentId: row.parentId,
     userId: row.userId,
     userName: row.userName,
@@ -88,8 +107,21 @@ async function updateProjectId(projectUpdateId: string): Promise<string | null> 
   return row?.projectId ?? null;
 }
 
-// The web URL of the issue, project or project update a comment is on.
+// The initiative an initiative update belongs to, or null when the update does not
+// exist.
+async function updateInitiativeId(initiativeUpdateId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ initiativeId: initiativeUpdate.initiativeId })
+    .from(initiativeUpdate)
+    .where(eq(initiativeUpdate.id, initiativeUpdateId));
+  return row?.initiativeId ?? null;
+}
+
+// The web URL of the issue, project, project update or initiative update a
+// comment is on.
 export async function commentParentUrl(c: CommentRow): Promise<string> {
+  if (c.initiativeUpdateId)
+    return initiativeUrl((await updateInitiativeId(c.initiativeUpdateId)) ?? '');
   if (c.issueId) {
     const [row] = await db
       .select({ key: team.key, seq: issue.sequenceNumber })
@@ -108,11 +140,18 @@ export async function commentParentUrl(c: CommentRow): Promise<string> {
 const sameParent = (a: CommentParent, b: CommentRow) =>
   ('issueId' in a && a.issueId === b.issueId) ||
   ('projectId' in a && a.projectId === b.projectId) ||
-  ('projectUpdateId' in a && a.projectUpdateId === b.projectUpdateId);
+  ('projectUpdateId' in a && a.projectUpdateId === b.projectUpdateId) ||
+  ('initiativeUpdateId' in a && a.initiativeUpdateId === b.initiativeUpdateId);
 
-// The teams a comment belongs to: its issue's team, or its project's (or its
-// project update's project's) teams.
+// The teams a comment belongs to: its issue's team, its project's (or its project
+// update's project's) teams, or its initiative update's lead team (none for a
+// workspace initiative).
 export async function commentTeamIds(c: CommentRow): Promise<string[]> {
+  if (c.initiativeUpdateId) {
+    const initiativeId = await updateInitiativeId(c.initiativeUpdateId);
+    const parent = initiativeId ? await getInitiative(initiativeId) : null;
+    return parent?.leadTeamId ? [parent.leadTeamId] : [];
+  }
   if (c.issueId) {
     const [row] = await db
       .select({ teamId: issue.teamId })
@@ -163,6 +202,8 @@ export async function createComment(input: {
       issueId: 'issueId' in input.parent ? input.parent.issueId : null,
       projectId: 'projectId' in input.parent ? input.parent.projectId : null,
       projectUpdateId: 'projectUpdateId' in input.parent ? input.parent.projectUpdateId : null,
+      initiativeUpdateId:
+        'initiativeUpdateId' in input.parent ? input.parent.initiativeUpdateId : null,
       parentId: rootId,
       userId: input.actorUserId,
       userName: await userName(input.actorUserId),
@@ -328,6 +369,12 @@ export async function assertParentAccess(
     if (action === 'create') await assertPermission(row.teamId, user, 'work_items', 'create');
     return;
   }
+  if ('initiativeUpdateId' in parent) {
+    const initiativeId = await updateInitiativeId(parent.initiativeUpdateId);
+    if (!initiativeId) throw new HttpError(404, 'Initiative update not found');
+    await assertInitiativeAccess(initiativeId, user.id, 'read');
+    return;
+  }
   let projectId = 'projectId' in parent ? parent.projectId : null;
   if ('projectUpdateId' in parent) {
     projectId = await updateProjectId(parent.projectUpdateId);
@@ -340,6 +387,7 @@ export async function assertParentAccess(
 export function commentParent(c: CommentRow): CommentParent {
   if (c.issueId) return { issueId: c.issueId };
   if (c.projectId) return { projectId: c.projectId };
+  if (c.initiativeUpdateId) return { initiativeUpdateId: c.initiativeUpdateId };
   return { projectUpdateId: c.projectUpdateId! };
 }
 
@@ -363,6 +411,14 @@ export async function readableCommentsSql(userId: string): Promise<SQL> {
         .select({ id: projectUpdate.id })
         .from(projectUpdate)
         .where(inArray(projectUpdate.projectId, projects)),
+    ),
+    inArray(
+      comment.initiativeUpdateId,
+      db
+        .select({ id: initiativeUpdate.id })
+        .from(initiativeUpdate)
+        .innerJoin(initiative, eq(initiative.id, initiativeUpdate.initiativeId))
+        .where(await visibleInitiativesSql(userId)),
     ),
   )!;
 }

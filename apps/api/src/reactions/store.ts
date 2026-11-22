@@ -1,21 +1,34 @@
-import { db, issue, projectTeam, projectUpdate, reaction } from '@repo/db';
+import {
+  db,
+  initiative,
+  initiativeUpdate,
+  issue,
+  projectTeam,
+  projectUpdate,
+  reaction,
+} from '@repo/db';
 import { asc, eq, type SQL } from 'drizzle-orm';
 import { HttpError, iso, rethrowDuplicate } from '../shared/lib';
 import type { AuthUser } from '../shared/access';
 import { assertParentAccess, commentParent, commentTeamIds, getComment } from '../comments/store';
 import { emitEvent } from '../webhooks/event';
 
-// Emoji reactions (Linear's Reaction) on a comment, an issue or a project update.
+// Emoji reactions (Linear's Reaction) on a comment, an issue, a project update or an
+// initiative update.
 // A user reacts once with each exact emoji on an item; only that user removes it.
 
 export type ReactionParent =
-  { commentId: string } | { issueId: string } | { projectUpdateId: string };
+  | { commentId: string }
+  | { issueId: string }
+  | { projectUpdateId: string }
+  | { initiativeUpdateId: string };
 
 export interface ReactionRow {
   id: string;
   commentId: string | null;
   issueId: string | null;
   projectUpdateId: string | null;
+  initiativeUpdateId: string | null;
   userId: string;
   emoji: string;
   createdAt: string;
@@ -27,6 +40,7 @@ export function mapReaction(row: typeof reaction.$inferSelect): ReactionRow {
     commentId: row.commentId,
     issueId: row.issueId,
     projectUpdateId: row.projectUpdateId,
+    initiativeUpdateId: row.initiativeUpdateId,
     userId: row.userId,
     emoji: row.emoji,
     createdAt: iso(row.createdAt),
@@ -60,6 +74,14 @@ async function reactionTeamIds(r: ReactionRow): Promise<string[]> {
       .from(issue)
       .where(eq(issue.id, r.issueId));
     return row ? [row.teamId] : [];
+  }
+  if (r.initiativeUpdateId) {
+    const [row] = await db
+      .select({ teamId: initiative.leadTeamId })
+      .from(initiativeUpdate)
+      .innerJoin(initiative, eq(initiative.id, initiativeUpdate.initiativeId))
+      .where(eq(initiativeUpdate.id, r.initiativeUpdateId));
+    return row?.teamId ? [row.teamId] : [];
   }
   const rows = await db
     .select({ teamId: projectTeam.teamId })
@@ -98,6 +120,8 @@ export async function createReaction(input: {
         commentId: 'commentId' in input.parent ? input.parent.commentId : null,
         issueId: 'issueId' in input.parent ? input.parent.issueId : null,
         projectUpdateId: 'projectUpdateId' in input.parent ? input.parent.projectUpdateId : null,
+        initiativeUpdateId:
+          'initiativeUpdateId' in input.parent ? input.parent.initiativeUpdateId : null,
         userId: input.userId,
         emoji,
       })
