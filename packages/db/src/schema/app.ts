@@ -163,6 +163,8 @@ export const userPreference = pgTable(
 export const teamMember = pgTable(
   'team_member',
   {
+    // Linear's TeamMembership id; the primary key is (team_id, user_id).
+    id: uuid('id').notNull().defaultRandom().unique(),
     teamId: uuid('team_id')
       .notNull()
       .references(() => team.id, { onDelete: 'cascade' }),

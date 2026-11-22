@@ -3,16 +3,14 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { db, user as userTable } from '@repo/db';
-import { eq } from 'drizzle-orm';
-import { assertTeamAccess, canManageTeam, isTeamMember, requireUser } from '../shared/access';
+import { canManageTeam, isTeamMember, requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
 import {
+  addTeamMember,
+  changeTeamOwner,
   listMembers,
-  getMembership,
-  removeMember,
-  setMembership,
+  removeTeamMember,
   setMemberDescription,
   upsertMember,
 } from './store';
@@ -86,21 +84,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
   .post(
     '/teams/:teamKey/members',
     async ({ team, body, user, set }) => {
-      const current = requireUser(user);
-      const manager = await canManageTeam(team.id, current.id);
-      if (!manager) {
-        if (body.owner || team.visibility === 'private')
-          throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
-        if (!(await isTeamMember(team.id, current.id)))
-          throw new HttpError(403, 'Join the team before adding people to it');
-      }
-      const [target] = await db
-        .select({ id: userTable.id, suspendedAt: userTable.suspendedAt })
-        .from(userTable)
-        .where(eq(userTable.id, body.userId));
-      if (!target) throw new HttpError(404, 'User not found');
-      if (target.suspendedAt) throw new HttpError(400, 'This user is suspended');
-      await upsertMember(team.id, body.userId, body.owner ? 'owner' : 'member');
+      await addTeamMember(team, body.userId, body.owner ?? false, requireUser(user));
       set.status = 201;
       return { teamKey: team.key, userId: body.userId };
     },
@@ -129,11 +113,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
     async ({ team, params, body, user }) => {
       // Leaving owner is done by another manager, so nobody demotes themselves by
       // accident.
-      if (params.userId === requireUser(user).id) {
-        throw new HttpError(400, 'You cannot change your own role');
-      }
-      const ok = await setMembership(team.id, params.userId, body.role);
-      if (!ok) throw new HttpError(404, 'Member not found');
+      await changeTeamOwner(team.id, params.userId, body.role === 'owner', requireUser(user));
       return noContent();
     },
     {
@@ -195,14 +175,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
   .delete(
     '/teams/:teamKey/members/:userId',
     async ({ team, params, user }) => {
-      const current = requireUser(user);
-      const isSelf = params.userId === current.id;
-      if (!isSelf) {
-        await assertTeamAccess(team.id, user, 'manage');
-      }
-      const target = await getMembership(team.id, params.userId);
-      if (!target) throw new HttpError(404, 'Member not found');
-      await removeMember(team.id, params.userId);
+      await removeTeamMember(team.id, params.userId, requireUser(user));
       return noContent();
     },
     {

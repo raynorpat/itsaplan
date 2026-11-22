@@ -7,7 +7,8 @@ export interface UserSource {
   name: string;
   email: string;
   image?: string | null;
-  role?: string | null;
+  workspaceRole?: string | null;
+  suspendedAt?: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -35,10 +36,13 @@ export function toGraphQLUser(user: UserSource, viewerId: string) {
     initials: initials(user.name),
     createdAt: isoOf(user.createdAt),
     updatedAt: isoOf(user.updatedAt),
-    active: true,
+    // Linear's role flags: admin covers owners and admins; active = not suspended.
+    active: !user.suspendedAt,
     isAssignable: true,
     isMentionable: true,
-    admin: user.role === 'god',
+    owner: user.workspaceRole === 'owner',
+    admin: user.workspaceRole === 'owner' || user.workspaceRole === 'admin',
+    guest: user.workspaceRole === 'guest',
     isMe: user.id === viewerId,
   };
 }

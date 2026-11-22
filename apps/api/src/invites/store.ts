@@ -1,5 +1,12 @@
 import { db, team, user, workspaceInvite } from '@repo/db';
 import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import {
+  assertWorkspaceRole,
+  atLeast,
+  canSeeTeam,
+  workspaceRole,
+  type AuthUser,
+} from '../shared/access';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
 
 // Workspace invites (Linear's organization invites). An invite gives an address the
@@ -151,4 +158,32 @@ export async function getInviteByToken(token: string): Promise<InviteView | null
     invitedByName: row.invitedByName,
     expiresAt: iso(row.expiresAt),
   };
+}
+
+// Linear's organizationInviteCreate / POST /invites: owners, admins and members
+// invite, never above their own role, only to teams they can see.
+export async function inviteToWorkspace(
+  input: { email: string; role: InviteRole; teamIds?: string[] },
+  actor: AuthUser,
+): Promise<InviteRow> {
+  const inviter = await assertWorkspaceRole(actor, 'member');
+  if (!atLeast(await workspaceRole(inviter.id), input.role))
+    throw new HttpError(403, 'You cannot invite someone above your own role');
+  const teamIds = input.teamIds ?? [];
+  for (const teamId of teamIds)
+    if (!(await canSeeTeam(teamId, inviter.id))) throw new HttpError(404, 'Team not found');
+  return createInvite({
+    email: input.email,
+    role: input.role,
+    teamIds,
+    invitedByUserId: inviter.id,
+  });
+}
+
+// Revokes an invite: its sender, or an admin or owner.
+export async function revokeInvite(id: string, actor: AuthUser): Promise<void> {
+  const invite = await getInvite(id);
+  if (!invite) throw new HttpError(404, 'Invite not found');
+  if (invite.invitedByUserId !== actor.id) await assertWorkspaceRole(actor, 'admin');
+  await deleteInvite(invite.id);
 }

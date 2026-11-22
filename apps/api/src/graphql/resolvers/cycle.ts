@@ -216,14 +216,19 @@ export const cycleResolvers = {
         const archived = await archiveCycle(id, ctx.user.id, new Date());
         return { success: true, lastSyncId: lastSyncId(), entity: toCycle(archived) };
       }),
-    // Name, description and the cycle settings; team owner only (the REST rule).
+    // Name, description, visibility (Linear's `private`) and the cycle settings; team
+    // managers only (the REST rule).
     teamUpdate: (
       _: unknown,
       { id, input }: { id: string; input: Record<string, unknown> },
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['name', 'description', ...Object.keys(TEAM_CYCLE_FIELDS)], 'input');
+        onlySupported(
+          input,
+          ['name', 'description', 'private', ...Object.keys(TEAM_CYCLE_FIELDS)],
+          'input',
+        );
         const found = await findTeam(id, ctx.user.id);
         if (!(await canManageTeam(found.id, ctx.user.id)))
           throw new HttpError(403, 'Only a team owner can change team settings');
@@ -235,10 +240,15 @@ export const cycleResolvers = {
         for (const [field, key] of Object.entries(TEAM_CYCLE_FIELDS))
           if (input[field] !== undefined && input[field] !== null) settings[key] = input[field];
         validateCycleSettings(settings);
-        if (input.name !== undefined || input.description !== undefined)
+        if (input.private != null && typeof input.private !== 'boolean')
+          throw gqlError('INVALID_INPUT', 'input.private must be a boolean');
+        if (input.name !== undefined || input.description !== undefined || input.private != null)
           await updateTeam(found.id, {
             name: input.name as string | undefined,
             description: input.description as string | undefined,
+            ...(input.private != null
+              ? { visibility: input.private ? ('private' as const) : ('public' as const) }
+              : {}),
           });
         if (Object.keys(settings).length) await setTeamCycleSettings(found.id, settings);
         const [row] = await db.select().from(team).where(eq(team.id, found.id));

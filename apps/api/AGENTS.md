@@ -266,7 +266,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   visible.
 - **Coverage:** issues, workflow states, teams (with `teamUpdate`), users, projects
   (statuses, milestones, updates, project labels), comments, reactions, issue
-  labels, issue relations, documents, attachments, notifications and issue subscriptions, cycles, initiatives (project links, sub-initiatives,
+  labels, issue relations, documents, attachments, notifications and issue subscriptions,
+  workspace roles (`userChangeRole`, `userSuspend` / `userUnsuspend`, the role flags on
+  `User`), team visibility, team memberships, organization invites, `teamCreate`, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks
   have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

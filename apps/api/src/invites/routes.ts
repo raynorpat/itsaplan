@@ -2,16 +2,10 @@ import { Elysia, t } from 'elysia';
 import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
-import {
-  assertWorkspaceRole,
-  atLeast,
-  canSeeTeam,
-  requireUser,
-  workspaceRole,
-} from '../shared/access';
+import { assertWorkspaceRole, requireUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { createInvite, deleteInvite, getInvite, getInviteByToken, listInvites } from './store';
+import { getInviteByToken, inviteToWorkspace, listInvites, revokeInvite } from './store';
 
 // Workspace invites (Linear's organization invites): an address is invited with a
 // role and teams, both applied when it signs up. Owners, admins and members invite;
@@ -50,18 +44,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
   .post(
     '/invites',
     async ({ body, user, set }) => {
-      const inviter = await assertWorkspaceRole(user, 'member');
-      if (!atLeast(await workspaceRole(inviter.id), body.role))
-        throw new HttpError(403, 'You cannot invite someone above your own role');
-      const teamIds = body.teamIds ?? [];
-      for (const teamId of teamIds)
-        if (!(await canSeeTeam(teamId, inviter.id))) throw new HttpError(404, 'Team not found');
-      const created = await createInvite({
-        email: body.email,
-        role: body.role,
-        teamIds,
-        invitedByUserId: inviter.id,
-      });
+      const created = await inviteToWorkspace(body, requireUser(user));
       set.status = 201;
       return created;
     },
@@ -104,11 +87,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
   .delete(
     '/invites/:id',
     async ({ params, user }) => {
-      const current = requireUser(user);
-      const invite = await getInvite(params.id);
-      if (!invite) throw new HttpError(404, 'Invite not found');
-      if (invite.invitedByUserId !== current.id) await assertWorkspaceRole(user, 'admin');
-      await deleteInvite(invite.id);
+      await revokeInvite(params.id, requireUser(user));
       return noContent();
     },
     {

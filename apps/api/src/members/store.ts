@@ -1,6 +1,7 @@
 import { db, teamMember, user } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
-import { iso } from '../shared/lib';
+import { assertTeamAccess, canManageTeam, isTeamMember, type AuthUser } from '../shared/access';
+import { HttpError, iso } from '../shared/lib';
 
 // Data access for team membership. A member is a team owner or a plain member
 // (`team_member.owner`); the DTO's `role` reports which. Access itself is decided in
@@ -135,4 +136,52 @@ export async function removeMember(teamId: string, userId: string): Promise<void
   await db
     .delete(teamMember)
     .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)));
+}
+
+// Adds someone to a team (REST and Linear's teamMembershipCreate). Any team member
+// may add people to a public team; a private team, and making someone a team
+// owner, need a team manager. Suspended users cannot be added.
+export async function addTeamMember(
+  teamRow: { id: string; visibility: string },
+  targetUserId: string,
+  owner: boolean,
+  actor: AuthUser,
+): Promise<void> {
+  if (!(await canManageTeam(teamRow.id, actor.id))) {
+    if (owner || teamRow.visibility === 'private')
+      throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
+    if (!(await isTeamMember(teamRow.id, actor.id)))
+      throw new HttpError(403, 'Join the team before adding people to it');
+  }
+  const [target] = await db
+    .select({ id: user.id, suspendedAt: user.suspendedAt })
+    .from(user)
+    .where(eq(user.id, targetUserId));
+  if (!target) throw new HttpError(404, 'User not found');
+  if (target.suspendedAt) throw new HttpError(400, 'This user is suspended');
+  await upsertMember(teamRow.id, targetUserId, owner ? 'owner' : 'member');
+}
+
+// Makes a member a team owner or a plain member: a team manager, never on oneself.
+export async function changeTeamOwner(
+  teamId: string,
+  targetUserId: string,
+  owner: boolean,
+  actor: AuthUser,
+): Promise<void> {
+  await assertTeamAccess(teamId, actor, 'manage');
+  if (targetUserId === actor.id) throw new HttpError(400, 'You cannot change your own role');
+  const ok = await setMembership(teamId, targetUserId, owner ? 'owner' : 'member');
+  if (!ok) throw new HttpError(404, 'Member not found');
+}
+
+// Removes a member: anyone may leave; removing someone else needs a team manager.
+export async function removeTeamMember(
+  teamId: string,
+  targetUserId: string,
+  actor: AuthUser,
+): Promise<void> {
+  if (targetUserId !== actor.id) await assertTeamAccess(teamId, actor, 'manage');
+  if (!(await getMembership(teamId, targetUserId))) throw new HttpError(404, 'Member not found');
+  await removeMember(teamId, targetUserId);
 }

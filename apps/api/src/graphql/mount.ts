@@ -26,6 +26,7 @@ import { organizationResolvers } from './resolvers/organization';
 import { teamResolvers } from './resolvers/team';
 import { userResolvers } from './resolvers/user';
 import { workflowStateResolvers } from './resolvers/workflow-state';
+import { workspaceResolvers } from './resolvers/workspace';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
 const resolverModules: Record<string, Record<string, unknown>>[] = [
@@ -49,6 +50,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   issueSubscriptionResolvers,
   initiativeResolvers,
   initiativeMutationResolvers,
+  workspaceResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
