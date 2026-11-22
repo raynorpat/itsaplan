@@ -8,11 +8,11 @@ import { apiKey, defaultKeyHasher } from '@better-auth/api-key';
 import { openAPI, magicLink } from 'better-auth/plugins';
 import * as schema from '@repo/db/schema';
 import {
-  getAuthSettings,
-  inviteForToken,
   getGoogleConfig,
   isGoogleUsable,
   hasConfiguredEmailProvider,
+  mayJoin,
+  pendingInviteFor,
 } from './instance';
 import { sendAuthEmail } from './mail';
 
@@ -95,46 +95,11 @@ async function refreshGoogleOptions(): Promise<boolean> {
   }
 }
 
-// The invite token a sign-up presents in the x-invite-token header (sent by the web
-// invite page). A Google sign-up carries none, so it never applies an invite.
-function inviteTokenOf(
-  ctx: { headers?: Headers; request?: Request } | null | undefined,
-): string | null {
-  return ctx?.headers?.get('x-invite-token') ?? ctx?.request?.headers.get('x-invite-token') ?? null;
-}
-
-// The registration gate: who may create an account. Both sign-up paths run it — the
-// email form checks it up front (below), and the user create hook catches every other
-// path, which is what stops a Google sign-up on a closed or invite-only instance.
-// Each refusal carries a `code`, which is what the social callback turns into the
-// ?error= it redirects with; without one the callback would fail the request instead.
-async function assertRegistrationAllowed(email: string, inviteToken: string | null): Promise<void> {
-  const settings = await getAuthSettings();
-  if (settings.registration === 'closed') {
-    throw new APIError('FORBIDDEN', {
-      code: 'REGISTRATION_CLOSED',
-      message: 'Registration is closed on this instance',
-    });
-  }
-  if (settings.registration === 'invite' && !(await inviteForToken(email, inviteToken))) {
-    throw new APIError('FORBIDDEN', {
-      code: 'INVITE_ONLY',
-      message: 'This instance is invite-only. Ask a team owner to invite this address.',
-    });
-  }
-}
-
-// True when an account with this address exists and has not confirmed it. Used to
-// hold back sign-in while the instance requires verification. An unknown address is
-// not "unverified" — it falls through to better-auth's own invalid-credentials
-// answer, so this never reveals whether an account exists.
-async function isUnverified(email: string): Promise<boolean> {
-  if (!email) return false;
-  const rows = await db
-    .select({ emailVerified: schema.user.emailVerified })
-    .from(schema.user)
-    .where(eq(schema.user.email, email.trim().toLowerCase()));
-  return rows[0] ? !rows[0].emailVerified : false;
+// Whether an account exists for an address.
+async function hasAccount(email: string): Promise<boolean> {
+  const address = email.trim().toLowerCase();
+  if (!address) return false;
+  return (await db.$count(schema.user, eq(schema.user.email, address))) > 0;
 }
 
 // Demotes `userId` to member when another, older owner exists. Serialised with an
@@ -192,39 +157,9 @@ export const auth = betterAuth({
     },
   }),
 
-  emailAndPassword: {
-    enabled: true,
-    // Whether a new account must confirm its address is an instance setting, read
-    // per request in the hooks below, so it stays false here (a static true would
-    // lock out every account the moment the setting is flipped off).
-    requireEmailVerification: false,
-    autoSignIn: true,
-    sendResetPassword: async ({ user, url }) => {
-      await sendAuthEmail({
-        to: user.email,
-        subject: 'Reset your password',
-        text: 'Use the link below to set a new password. Ignore this email if you did not ask for it.',
-        url,
-      });
-    },
-  },
-
-  emailVerification: {
-    // The mail goes out on every sign-up; sendVerificationEmail below drops it when
-    // the instance does not require verification.
-    sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      const settings = await getAuthSettings();
-      if (!settings.requireEmailVerification) return;
-      await sendAuthEmail({
-        to: user.email,
-        subject: 'Confirm your email address',
-        text: 'Use the link below to confirm this address and finish signing up.',
-        url,
-      });
-    },
-  },
+  // No passwords (Linear has none): an email account is created and signed in to
+  // with a magic link, or through Google or a passkey.
+  emailAndPassword: { enabled: false },
 
   // Google sign-in. The provider is always mounted; whether it may run is decided per
   // request in the hook below, the same way the magic link is handled. The factory
@@ -262,15 +197,15 @@ export const auth = betterAuth({
     },
   },
 
-  // The registration gate and the verification check. Both read instance settings
-  // per request, so god mode can change them without a restart.
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path === '/sign-up/email') {
-        await assertRegistrationAllowed(
-          (ctx.body as { email?: string } | undefined)?.email ?? '',
-          inviteTokenOf(ctx),
-        );
+      // A magic link for an address with no account is sent only when the address
+      // may join (./instance.ts mayJoin). Otherwise nothing is stored or sent, and the
+      // request answers exactly as a sent one does, so it reveals nothing.
+      if (ctx.path === '/sign-in/magic-link') {
+        const email = (ctx.body as { email?: string } | undefined)?.email ?? '';
+        if (!(await hasAccount(email)) && !(await mayJoin(email)))
+          return ctx.json({ status: true });
         return;
       }
 
@@ -281,23 +216,6 @@ export const auth = betterAuth({
         if (!(await refreshGoogleOptions())) {
           throw new APIError('FORBIDDEN', {
             message: 'Google sign-in is disabled on this instance',
-          });
-        }
-        return;
-      }
-
-      if (ctx.path === '/sign-in/email') {
-        const settings = await getAuthSettings();
-        if (!settings.requireEmailVerification) return;
-        // Holding an account back is only fair while a confirmation link can still
-        // be sent: with the mail provider gone, an unconfirmed account has no way
-        // out and the gate would lock it forever. This is the same condition the
-        // public /auth-config reports, so the sign-in screen and the gate agree.
-        if (!(await hasConfiguredEmailProvider())) return;
-        const email = (ctx.body as { email?: string } | undefined)?.email ?? '';
-        if (await isUnverified(email)) {
-          throw new APIError('FORBIDDEN', {
-            message: 'Confirm your email address before signing in',
           });
         }
       }
@@ -320,29 +238,28 @@ export const auth = betterAuth({
     },
     user: {
       create: {
-        // Every account creation passes here, whichever method made it, so this is
-        // where the registration gate applies to Google. Agent bot users are written
-        // with a direct insert and never reach this hook.
-        //
-        // Assign the workspace role before the row is inserted: first user ever →
-        // owner; a sign-up presenting a pending invite's token for its address → the
-        // invite's role; everyone else → member.
-        before: async (user, ctx) => {
-          const token = inviteTokenOf(ctx);
-          await assertRegistrationAllowed(user.email, token);
-          const isFirstUser = (await db.$count(schema.user)) === 0;
-          const invite = isFirstUser ? null : await inviteForToken(user.email, token);
-          const role = isFirstUser ? 'owner' : (invite?.role ?? 'member');
-          return { data: { ...user, workspaceRole: role } };
+        // Every account creation passes here: a used magic link or a Google sign-up,
+        // both with a proven address. The address must be allowed to join
+        // (./instance.ts mayJoin): the first user becomes the owner, an invited
+        // address takes the invite's role, an approved domain joins as a member.
+        before: async (user) => {
+          const join = await mayJoin(user.email);
+          if (!join) {
+            throw new APIError('FORBIDDEN', {
+              code: 'NOT_INVITED',
+              message: 'This address has not been invited to the workspace',
+            });
+          }
+          return { data: { ...user, workspaceRole: join.role } };
         },
         // Linear accepts an invite at sign-up: the new account joins the invite's
-        // teams that still exist, and the invite is consumed. Only with its token.
-        after: async (user, ctx) => {
+        // teams that still exist, and the invite is consumed.
+        after: async (user) => {
           // Two first sign-ups at once both count zero users in `before`. Keep only
           // the oldest owner made that way: a later one becomes a member.
           if ((user as { workspaceRole?: string }).workspaceRole === 'owner')
             await keepFirstOwner(user.id);
-          const invite = await inviteForToken(user.email, inviteTokenOf(ctx));
+          const invite = await pendingInviteFor(user.email);
           if (!invite) return;
           if (invite.teamIds.length) {
             const teams = await db
@@ -362,7 +279,7 @@ export const auth = betterAuth({
   },
 
   plugins: [
-    // WebAuthn passkeys, a second sign-in method alongside email + password. A
+    // WebAuthn passkeys, a sign-in method alongside the magic link and Google. A
     // passkey is added to an already signed-in account (passkey.addPasskey) and
     // then used to sign in (signIn.passkey). Adds the `passkey` table.
     passkey({
@@ -394,15 +311,14 @@ export const auth = betterAuth({
         maxRequests: 100,
       },
     }),
-    // Sign-in by emailed link, offered alongside the password. Whether it is
-    // available is an instance setting, so the plugin is always mounted and the
-    // sender refuses when it is off. It reuses the `verification` table — no new
-    // table, so `auth:generate` output is unchanged.
+    // Sign-in and sign-up by emailed link: the email route of the instance. With no
+    // mail provider configured the link is written to the API log instead, so an
+    // operator can still sign in. It reuses the `verification` table.
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        const settings = await getAuthSettings();
-        if (!settings.magicLink) {
-          throw new APIError('FORBIDDEN', { message: 'Magic links are disabled on this instance' });
+        if (!(await hasConfiguredEmailProvider())) {
+          console.info(`[auth] magic link for ${email}: ${url}`);
+          return;
         }
         await sendAuthEmail({
           to: email,
@@ -471,15 +387,10 @@ export async function getActiveSession(headers: Headers) {
 }
 export type Session = Auth['$Infer']['Session'];
 
-// Instance-wide authentication settings (registration mode, mail provider, invite
-// links). Read here by the sign-up gate and the mail senders; managed over HTTP by
-// god mode in apps/api.
+// Instance authentication configuration (mail provider from the environment, Google
+// credentials, who may join). Read here by the sign-up rules and the mail senders.
 export {
-  REGISTRATION_MODES,
-  getAuthSettings,
-  setAuthSettings,
   getEmailSettings,
-  setEmailSettings,
   getEmailConfig,
   getNotificationEmailConfig,
   hasConfiguredEmailProvider,
@@ -487,12 +398,11 @@ export {
   setGoogleSettings,
   getGoogleConfig,
   hasConfiguredGoogle,
+  approvedDomains,
+  mayJoin,
 } from './instance';
 export type {
-  RegistrationMode,
-  AuthSettings,
   InstanceEmailDto,
-  InstanceEmailPatch,
   InstanceEmailConfig,
   InstanceGoogleDto,
   InstanceGooglePatch,

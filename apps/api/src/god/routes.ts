@@ -1,15 +1,5 @@
 import { Elysia, t } from 'elysia';
-import {
-  REGISTRATION_MODES,
-  GOOGLE_REDIRECT_URI,
-  getAuthSettings,
-  setAuthSettings,
-  getEmailSettings,
-  setEmailSettings,
-  hasConfiguredEmailProvider,
-  getGoogleSettings,
-  setGoogleSettings,
-} from '@repo/auth';
+import { GOOGLE_REDIRECT_URI, getGoogleSettings, setGoogleSettings } from '@repo/auth';
 import { authContext } from '../shared/auth-context';
 import { assertWorkspaceRole, requireWorkspaceAdmin } from '../shared/access';
 import { HttpError } from '../shared/lib';
@@ -37,53 +27,6 @@ import { getUpdateStatus, UpdateStatusSchema } from '../settings/updates';
 // The settings themselves are owned by @repo/auth, which reads them at sign-up and
 // when sending mail; these routes only expose them over HTTP. Secrets are never
 // returned — each is replaced by a boolean telling whether a value is stored.
-
-const encryption = t.UnionEnum(['none', 'ssl', 'tls']);
-
-const AuthSettingsResponse = t.Object({
-  registration: t.UnionEnum([...REGISTRATION_MODES]),
-  requireEmailVerification: t.Boolean(),
-  magicLink: t.Boolean(),
-  // Whether a mail provider is configured. The settings that depend on outbound
-  // email cannot be turned on without one, and the UI explains why.
-  hasEmailProvider: t.Boolean(),
-});
-
-const AuthSettingsBody = t.Object({
-  registration: t.Optional(t.UnionEnum([...REGISTRATION_MODES])),
-  requireEmailVerification: t.Optional(t.Boolean()),
-  magicLink: t.Optional(t.Boolean()),
-});
-
-const EmailSettingsResponse = t.Object({
-  smtp: t.Object({
-    enabled: t.Boolean(),
-    host: t.String(),
-    port: t.Nullable(t.Number()),
-    encryption,
-    username: t.String(),
-    hasPassword: t.Boolean(),
-    timeout: t.Nullable(t.Number()),
-  }),
-  resend: t.Object({ enabled: t.Boolean(), hasApiKey: t.Boolean() }),
-  from: t.String(),
-});
-
-const EmailSettingsBody = t.Object({
-  smtp: t.Optional(
-    t.Object({
-      enabled: t.Boolean(),
-      host: t.String(),
-      port: t.Nullable(t.Integer({ minimum: 1, maximum: 65535 })),
-      encryption,
-      username: t.String(),
-      password: t.Optional(t.String()),
-      timeout: t.Nullable(t.Integer({ minimum: 1 })),
-    }),
-  ),
-  resend: t.Optional(t.Object({ enabled: t.Boolean(), apiKey: t.Optional(t.String()) })),
-  from: t.Optional(t.String()),
-});
 
 const GoogleSettingsResponse = t.Object({
   enabled: t.Boolean(),
@@ -179,78 +122,6 @@ export const godRoutes = new Elysia({ name: 'god', detail: { tags: ['God'] } })
   // through a password reset.
   .onBeforeHandle(async ({ user }) => {
     await requireWorkspaceAdmin(user);
-  })
-
-  .get(
-    '/god/auth-settings',
-    async () => ({
-      ...(await getAuthSettings()),
-      hasEmailProvider: await hasConfiguredEmailProvider(),
-    }),
-    {
-      response: { 200: AuthSettingsResponse, 401: ErrorResponse, 403: ErrorResponse },
-      detail: {
-        summary: 'Get authentication settings',
-        description: 'Get the instance registration mode and email-dependent auth options.',
-      },
-    },
-  )
-
-  .put(
-    '/god/auth-settings',
-    async ({ body }) => {
-      const ready = await hasConfiguredEmailProvider();
-      // Verification mail and magic links have no way to reach the user without a
-      // provider, so they cannot be turned on before one is configured.
-      if (!ready && (body.requireEmailVerification || body.magicLink)) {
-        throw new HttpError(400, 'Configure an email provider first');
-      }
-      const next = await setAuthSettings(body);
-      return { ...next, hasEmailProvider: ready };
-    },
-    {
-      body: AuthSettingsBody,
-      // Instance secrets are the owner's (see the plugin's role check).
-      beforeHandle: async ({ user }) => {
-        await assertWorkspaceRole(user, 'owner');
-      },
-      response: {
-        200: AuthSettingsResponse,
-        400: ErrorResponse,
-        401: ErrorResponse,
-        403: ErrorResponse,
-      },
-      detail: {
-        summary: 'Update authentication settings',
-        description: 'Update the instance registration mode and email-dependent auth options.',
-      },
-    },
-  )
-
-  .get('/god/email-settings', () => getEmailSettings(), {
-    response: { 200: EmailSettingsResponse, 401: ErrorResponse, 403: ErrorResponse },
-    detail: {
-      summary: 'Get instance email settings',
-      description: 'Get the mail provider used for authentication email (secrets redacted).',
-    },
-  })
-
-  .put('/god/email-settings', ({ body }) => setEmailSettings(body), {
-    body: EmailSettingsBody,
-    // Instance secrets are the owner's (see the plugin's role check).
-    beforeHandle: async ({ user }) => {
-      await assertWorkspaceRole(user, 'owner');
-    },
-    response: {
-      200: EmailSettingsResponse,
-      400: ErrorResponse,
-      401: ErrorResponse,
-      403: ErrorResponse,
-    },
-    detail: {
-      summary: 'Update instance email settings',
-      description: 'Update the mail provider used for authentication email.',
-    },
   })
 
   .get(

@@ -2,7 +2,6 @@ import {
   auth,
   getActiveSession,
   trustedOrigins,
-  getAuthSettings,
   hasConfiguredEmailProvider,
   hasConfiguredGoogle,
 } from '@repo/auth';
@@ -98,18 +97,16 @@ export const app = new Elysia()
   // registration is open, invite-only, or closed, and which sign-in methods are
   // offered. Public on purpose — the screens are reached logged out. It carries no
   // credentials, only the instance's own policy.
-  .get('/auth-config', async () => {
-    const settings = await getAuthSettings();
-    const emailEnabled = await hasConfiguredEmailProvider();
-    return {
-      registration: settings.registration,
-      // Both are only usable when the instance can actually send mail.
-      magicLink: settings.magicLink && emailEnabled,
-      requireEmailVerification: settings.requireEmailVerification && emailEnabled,
-      emailEnabled,
-      google: await hasConfiguredGoogle(),
-    };
-  })
+  .get('/auth-config', async () => ({
+    // People join by invite or an approved email domain; there is no open sign-up.
+    registration: 'invite' as const,
+    // Sign-in by emailed link is always offered: without a mail provider the link
+    // is written to the API log.
+    magicLink: true,
+    requireEmailVerification: false,
+    emailEnabled: await hasConfiguredEmailProvider(),
+    google: await hasConfiguredGoogle(),
+  }))
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
   .use(internalNotificationRoutes)

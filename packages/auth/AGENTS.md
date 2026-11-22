@@ -3,56 +3,45 @@
 The **server-side** better-auth instance. Consumed by `apps/api`. See root `AGENTS.md`.
 
 - `src/index.ts` — `export const auth = betterAuth({...})` with the Drizzle adapter
-  (`provider: "pg"`) over `@repo/db`. Email+password enabled (no email confirmation:
-  `requireEmailVerification: false`, `autoSignIn: true`), plus the WebAuthn passkey
-  plugin (`@better-auth/passkey`).
+  (`provider: "pg"`) over `@repo/db`. No passwords (`emailAndPassword` off, as in
+  Linear): people sign in with a magic link, Google, or a WebAuthn passkey
+  (`@better-auth/passkey`).
 - Exports `auth`, `getActiveSession`, `WORKSPACE_ROLES` / `WorkspaceRole`, plus `Auth` / `Session` types.
 
 ## Workspace role and suspension
 
 The user table has `workspace_role` (`owner` | `admin` | `member` | `guest`, Linear's
 roles) and `suspended_at`, both better-auth `additionalFields` with `input: false`
-(not client-settable). `databaseHooks.user.create.before` sets the role: the first
-user to register is the owner; an address with a pending workspace invite gets the
-invite's role; everyone else is a member. `create.after` joins the invite's teams and
-deletes the invite. `databaseHooks.session.create.before` refuses a session to a
+(not client-settable). `databaseHooks.user.create.before` decides whether an address
+may join and with which role (`mayJoin` in `src/instance.ts`): the first user of a
+fresh instance is the owner; an address with a pending, unexpired workspace invite
+gets the invite's role; an address on an `APPROVED_EMAIL_DOMAINS` domain is a member;
+anything else is refused. Every account is created from a proven address (a used
+magic link or Google), so the address is what claims the invite. `create.after`
+joins the invite's teams and deletes the invite. `databaseHooks.session.create.before` refuses a session to a
 suspended user, whatever the sign-in method. `getActiveSession(headers)` wraps
 `getSession` and returns null for a suspended user, so their API keys stop working;
 every API entry point resolves sessions through it.
 
-## Instance settings (`src/instance.ts`)
+## Joining and the magic link (`src/instance.ts`)
 
-Registration mode, the email-dependent auth options, and the mail provider are stored
-in the database, not in env, so god mode can change them without a restart. Read them
-through this module — never inline a query on `app_setting` / `app_secret` elsewhere.
-
-- `app_setting` key `auth` → `{ registration, requireEmailVerification, magicLink }`.
-- `app_secret` key `auth.email` → the mail provider, encrypted with `@repo/crypto`,
-  with a `redacted` mirror for the settings UI. Secrets never leave the server.
-
-"Invite only" means the address has a pending, unexpired `workspace_invite`
-(`pendingInvite` / `hasPendingInvite`). Invites are managed through the API's
-`invites/` routes, not god mode.
-
-`hooks.before` gates `/sign-up/email` (closed → 403, invite → no pending invite for
-that address → 403) and holds back `/sign-in/email` for an unconfirmed address while
-verification is required **and** a mail provider is configured — without one the
-address can never be confirmed, so the gate lifts instead of locking the account out.
-That is the same condition the public `/auth-config` reports, so the sign-in screen
-and the gate never disagree. Because both read the settings per request,
-`emailAndPassword.requireEmailVerification` stays `false` in the static config — do
-not flip it to `true`.
+- The magic link is the email route for sign-in and sign-up. `hooks.before` answers a
+  `/sign-in/magic-link` request for an address with no account that may not join
+  exactly as a sent one (`{ status: true }`) without storing or sending a link, so the
+  request never reveals whether an address may join or has an account.
+- The mail provider comes from environment variables (`SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE` tls / starttls / none, or
+  `RESEND_API_KEY`; `EMAIL_FROM`). With none configured, `sendMagicLink` writes the
+  link to the log (`[auth] magic link for <email>: <url>`) so an operator can still
+  sign in; nothing else is emailed.
+- `approvedDomains()` reads `APPROVED_EMAIL_DOMAINS` per call (comma-separated, case
+  and spaces ignored).
 
 Authentication email (`src/mail.ts`) goes out through `@repo/mailer` and is best
-effort: with no provider configured it logs and returns false rather than failing the
-request. Three kinds are sent: password reset, address confirmation, and the magic
-link. Every link must carry a `callbackURL`/`redirectTo` on the **web** origin — the
-handler runs on the API origin, so a link built without one lands the reader on the
-API, which renders nothing. The web app passes them in `features/auth/services`.
-
-`autoSignIn` opens a session even when confirmation is required (the static config
-cannot depend on the setting), so the web sign-up drops that session and shows a
-"confirm your email" screen instead.
+effort: a failed send logs and returns false rather than failing the request. Every
+link must carry a `callbackURL` on the **web** origin — the handler runs on the API
+origin, so a link built without one lands the reader on the API, which renders
+nothing. The web app passes it in `features/auth/services`.
 
 ## Passkey
 
@@ -79,17 +68,14 @@ provider keeps reading the old one.
 
 Account linking is left at better-auth's defaults, which means
 `accountLinking.requireLocalEmailVerified` is `true`: a Google address that already has an
-account signs into it only when that account's email is confirmed, and gets
-`unable_to_link_account` otherwise. Do not add `trustedProviders: ['google']` — with
-instance email confirmation optional, it would let whoever registered an address first
-receive its real owner.
+account signs into it only when that account's email is confirmed. Every account is
+created from a proven address (magic link or Google), so this holds for all of them.
 
-The registration gate (`assertRegistrationAllowed`) runs in
-`databaseHooks.user.create.before`, which every account creation passes, and that is what
-applies closed/invite-only to a Google sign-up. Its `APIError`s carry a `code` because the
-social callback turns that into the `?error=` it redirects with; without one the callback
-fails the request instead. Agent bot users are written with a direct insert and never
-reach the hook.
+The joining rules (`mayJoin`) run in `databaseHooks.user.create.before`, which every
+account creation passes, and that is what applies them to a Google sign-up: an address
+that may not join is refused. The `APIError` carries a `code` (`NOT_INVITED`) because
+the social callback turns that into the `?error=` it redirects with; without one the
+callback fails the request instead.
 
 ## OpenAPI reference
 

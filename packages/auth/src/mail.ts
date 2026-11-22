@@ -1,13 +1,12 @@
 import { sendEmail, emailBody } from '@repo/mailer';
 import { getEmailConfig } from './instance';
 
-// Authentication email: password reset, address verification, magic link. It uses
-// the instance mail provider configured in god mode, which is separate from the
-// per-team notification providers.
+// Authentication email: the magic link. It uses the instance mail provider from the
+// environment (./instance.ts).
 //
 // Delivery is best effort and never blocks the request that triggered it: when no
 // provider is configured, or the provider rejects the message, this logs and
-// returns false. The caller keeps working — a reset link that cannot be delivered
+// returns false. The caller keeps working — a link that cannot be delivered
 // must not turn into a failed sign-in flow that leaks whether an account exists.
 export async function sendAuthEmail(input: {
   to: string;

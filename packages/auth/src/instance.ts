@@ -1,4 +1,4 @@
-import { db, appSecret, workspaceInvite, getSetting, setSetting } from '@repo/db';
+import { db, appSecret, user, workspaceInvite } from '@repo/db';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { encryptSecret, decryptSecret } from '@repo/crypto';
 import {
@@ -8,51 +8,15 @@ import {
   type EmailConfig,
 } from '@repo/mailer';
 
-// Instance-wide authentication settings: who may register, whether email has to be
-// confirmed, the mail provider used for authentication email, and the Google OAuth
-// credentials. Read by the better-auth instance in ./index.ts (the registration gate,
-// the mail senders, the Google provider) and written by god mode in the api, so it
-// lives here rather than in the api.
+// Instance-wide authentication configuration: the mail provider used for
+// authentication and notification email (from environment variables), the Google
+// OAuth credentials, the approved email domains and the rules for who may join the
+// workspace. Read by the better-auth instance in ./index.ts and by the api.
 //
-// Non-secret settings are one jsonb blob in app_setting under the 'auth' key; the
-// credentials are encrypted in app_secret under 'auth.email' and 'auth.google', each
-// with a `redacted` mirror the settings UI can read without decrypting.
+// The Google credentials are encrypted in app_secret under 'auth.google', with a
+// `redacted` mirror the settings UI can read without decrypting.
 
-const AUTH_SETTING_KEY = 'auth';
-const EMAIL_SECRET_KEY = 'auth.email';
 const GOOGLE_SECRET_KEY = 'auth.google';
-
-// Who may create an account.
-//   open   — anyone can sign up
-//   invite — only with the token of an unused, unexpired invite link
-//   closed — nobody; existing accounts still sign in
-export const REGISTRATION_MODES = ['open', 'invite', 'closed'] as const;
-export type RegistrationMode = (typeof REGISTRATION_MODES)[number];
-
-export interface AuthSettings {
-  registration: RegistrationMode;
-  // Require a confirmed email address before the account can sign in. Needs a mail
-  // provider, so the api rejects turning it on while none is configured.
-  requireEmailVerification: boolean;
-  // Offer sign-in by emailed link alongside the password.
-  magicLink: boolean;
-}
-
-function defaultAuthSettings(): AuthSettings {
-  return { registration: 'open', requireEmailVerification: false, magicLink: false };
-}
-
-export async function getAuthSettings(): Promise<AuthSettings> {
-  const stored = await getSetting<Partial<AuthSettings>>(AUTH_SETTING_KEY);
-  // Merge over the default so a value written before a field was added stays valid.
-  return { ...defaultAuthSettings(), ...(stored ?? {}) };
-}
-
-export async function setAuthSettings(patch: Partial<AuthSettings>): Promise<AuthSettings> {
-  const next = { ...(await getAuthSettings()), ...patch };
-  await setSetting(AUTH_SETTING_KEY, next);
-  return next;
-}
 
 // ── Encrypted config storage ──────────────────────────────────────────────────
 
@@ -98,123 +62,75 @@ function mergeSecret(current: string, next: string | undefined): string {
 
 // ── Mail provider ─────────────────────────────────────────────────────────────
 
-// The stored, decrypted config. Secret fields carry the plaintext value; read only
-// by the sender, never returned over HTTP.
+// The mail provider, from environment variables: SMTP (`SMTP_HOST`, `SMTP_PORT`,
+// `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`) or Resend (`RESEND_API_KEY`), and the
+// From address (`EMAIL_FROM`). SMTP wins when both are set.
 export interface InstanceEmailConfig extends EmailConfig {
   smtp: SmtpConfig;
   resend: ResendConfig;
   from: string;
 }
 
-// The config as returned to the client: every secret replaced by a boolean telling
-// whether a value is stored.
+// The provider as shown to admins: which one is in use, never a secret.
 export interface InstanceEmailDto {
-  smtp: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: SmtpConfig['encryption'];
-    username: string;
-    hasPassword: boolean;
-    timeout: number | null;
-  };
-  resend: { enabled: boolean; hasApiKey: boolean };
+  provider: 'smtp' | 'resend' | null;
   from: string;
 }
 
-// A partial write. Each section, when present, replaces that section's non-secret
-// fields; a secret keeps its stored value when omitted or sent empty (a masked
-// field the user did not edit).
-export interface InstanceEmailPatch {
-  smtp?: {
-    enabled: boolean;
-    host: string;
-    port: number | null;
-    encryption: SmtpConfig['encryption'];
-    username: string;
-    password?: string;
-    timeout: number | null;
-  };
-  resend?: { enabled: boolean; apiKey?: string };
-  from?: string;
+// SMTP_SECURE: `tls` = implicit TLS (port 465), `starttls` = upgrade after connecting,
+// `none` = plain. Mapped onto the mailer's names (ssl / tls / none).
+function smtpEncryption(value: string | undefined): SmtpConfig['encryption'] {
+  switch ((value ?? '').trim().toLowerCase()) {
+    case 'tls':
+      return 'ssl';
+    case 'starttls':
+      return 'tls';
+    default:
+      return 'none';
+  }
 }
 
-function defaultEmailConfig(): InstanceEmailConfig {
+function envEmailConfig(): InstanceEmailConfig {
+  const env = process.env;
+  const host = (env.SMTP_HOST ?? '').trim();
+  const port = Number(env.SMTP_PORT);
+  const apiKey = (env.RESEND_API_KEY ?? '').trim();
   return {
     smtp: {
-      enabled: false,
-      host: '',
-      port: null,
-      encryption: 'none',
-      username: '',
-      password: '',
+      enabled: host.length > 0,
+      host,
+      port: Number.isInteger(port) && port > 0 ? port : null,
+      encryption: smtpEncryption(env.SMTP_SECURE),
+      username: env.SMTP_USER ?? '',
+      password: env.SMTP_PASSWORD ?? '',
       timeout: null,
     },
-    resend: { enabled: false, apiKey: '' },
-    from: '',
+    resend: { enabled: host.length === 0 && apiKey.length > 0, apiKey },
+    from: env.EMAIL_FROM ?? '',
   };
 }
 
-function toEmailDto(config: InstanceEmailConfig): InstanceEmailDto {
-  return {
-    smtp: {
-      enabled: config.smtp.enabled,
-      host: config.smtp.host,
-      port: config.smtp.port,
-      encryption: config.smtp.encryption,
-      username: config.smtp.username,
-      hasPassword: config.smtp.password.length > 0,
-      timeout: config.smtp.timeout,
-    },
-    resend: { enabled: config.resend.enabled, hasApiKey: config.resend.apiKey.length > 0 },
-    from: config.from,
-  };
-}
-
-// Reads and decrypts the stored mail config, or null when nothing has been saved.
+// The configured provider, or null when none is set.
 export async function getEmailConfig(): Promise<InstanceEmailConfig | null> {
-  const stored = await readSecret<InstanceEmailConfig>(EMAIL_SECRET_KEY);
-  if (!stored) return null;
-  // Merge over the default so a config written before a field was added stays valid.
-  return { ...defaultEmailConfig(), ...stored };
+  const config = envEmailConfig();
+  return hasEmailProvider(config) ? config : null;
 }
 
 export async function getEmailSettings(): Promise<InstanceEmailDto> {
-  return toEmailDto((await getEmailConfig()) ?? defaultEmailConfig());
+  const config = envEmailConfig();
+  const provider = config.smtp.enabled ? 'smtp' : config.resend.enabled ? 'resend' : null;
+  return { provider, from: config.from };
 }
 
-// Whether outbound mail can be sent right now. Everything that mails the user
-// (password reset, address confirmation, sign-in links) is unavailable without it,
-// so both the god settings and the public sign-in screens ask this first.
+// Whether outbound mail can be sent. Without a provider, magic links are written to
+// the API log instead (./index.ts) and nothing else is emailed.
 export async function hasConfiguredEmailProvider(): Promise<boolean> {
-  const config = await getEmailConfig();
-  return config ? hasEmailProvider(config) : false;
+  return (await getEmailConfig()) !== null;
 }
 
-// The instance provider notification email is sent through, or null when none is
-// configured. Read by the api when it queues and sends notification email.
+// The provider notification email is sent through, or null when none is configured.
 export async function getNotificationEmailConfig(): Promise<InstanceEmailConfig | null> {
-  const config = await getEmailConfig();
-  return config && hasEmailProvider(config) ? config : null;
-}
-
-export async function setEmailSettings(patch: InstanceEmailPatch): Promise<InstanceEmailDto> {
-  const current = (await getEmailConfig()) ?? defaultEmailConfig();
-  const next: InstanceEmailConfig = {
-    smtp: patch.smtp
-      ? { ...patch.smtp, password: mergeSecret(current.smtp.password, patch.smtp.password) }
-      : current.smtp,
-    resend: patch.resend
-      ? {
-          enabled: patch.resend.enabled,
-          apiKey: mergeSecret(current.resend.apiKey, patch.resend.apiKey),
-        }
-      : current.resend,
-    from: patch.from ?? current.from,
-  };
-  const redacted = toEmailDto(next);
-  await writeSecret(EMAIL_SECRET_KEY, next, redacted);
-  return redacted;
+  return getEmailConfig();
 }
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
@@ -287,20 +203,29 @@ export async function setGoogleSettings(patch: InstanceGooglePatch): Promise<Ins
   return redacted;
 }
 
-// ── Invites ───────────────────────────────────────────────────────────────────
+// ── Joining the workspace ───────────────────────────────────────────────────────
 
-// "Invite only" registration admits a sign-up that presents a pending workspace
-// invite's token for its address (see ./index.ts).
-//
-// The pending, unexpired workspace invite for an address that carries this token, or
-// null. An invite applies only to a sign-up that presents its token (from the invite
-// link), so knowing an invited address is not enough to claim the invite's role.
-export async function inviteForToken(
-  email: string,
-  token: string | null | undefined,
-): Promise<{ id: string; role: string; teamIds: string[] } | null> {
+// The approved email domains from `APPROVED_EMAIL_DOMAINS` (comma-separated; case and
+// surrounding spaces ignored). Read per call, so a test or a reload sees changes.
+export function approvedDomains(): string[] {
+  return (process.env.APPROVED_EMAIL_DOMAINS ?? '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export interface PendingInvite {
+  id: string;
+  role: string;
+  teamIds: string[];
+}
+
+// The pending, unexpired workspace invite for an address, or null. An invite applies
+// to the account created for its address: that account exists only once the address
+// is proven (a used magic link or Google), so the address is the proof.
+export async function pendingInviteFor(email: string): Promise<PendingInvite | null> {
   const address = email.trim().toLowerCase();
-  if (!address || !token || !UUID_RE.test(token)) return null;
+  if (!address) return null;
   const [row] = await db
     .select({
       id: workspaceInvite.id,
@@ -308,14 +233,20 @@ export async function inviteForToken(
       teamIds: workspaceInvite.teamIds,
     })
     .from(workspaceInvite)
-    .where(
-      and(
-        eq(workspaceInvite.email, address),
-        eq(workspaceInvite.token, token),
-        gt(workspaceInvite.expiresAt, sql`now()`),
-      ),
-    );
+    .where(and(eq(workspaceInvite.email, address), gt(workspaceInvite.expiresAt, sql`now()`)));
   return row ?? null;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Whether an address without an account may join the workspace, and as what: the
+// first user of a fresh instance as owner; a pending invite with its role and teams;
+// an approved domain as member. Null means it may not.
+export async function mayJoin(
+  email: string,
+): Promise<{ role: string; teamIds: string[]; inviteId?: string } | null> {
+  if ((await db.$count(user)) === 0) return { role: 'owner', teamIds: [] };
+  const invite = await pendingInviteFor(email);
+  if (invite) return { role: invite.role, teamIds: invite.teamIds, inviteId: invite.id };
+  const domain = email.trim().toLowerCase().split('@')[1] ?? '';
+  if (domain && approvedDomains().includes(domain)) return { role: 'member', teamIds: [] };
+  return null;
+}

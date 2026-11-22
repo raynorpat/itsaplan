@@ -1,4 +1,6 @@
 import { auth } from '@repo/auth';
+import { db, verification } from '@repo/db';
+import { desc, like } from 'drizzle-orm';
 
 export interface TestUser {
   // The session cookie header to pass to authenticated requests, e.g.
@@ -8,33 +10,41 @@ export interface TestUser {
   email: string;
 }
 
+// Test users sign up on example.com, which the tests treat as an approved email
+// domain unless the environment names others.
+process.env.APPROVED_EMAIL_DOMAINS ??= 'example.com';
+
 let counter = 0;
 
-// Registers a new user through better-auth and returns their session cookie.
-// autoSignIn is on in the auth config, so sign-up already establishes a session;
-// we read the Set-Cookie off the response. Each call uses a unique email so
-// tests do not collide. Pass this cookie to authenticated requests.
+// Registers a new user the way a person does — by magic link — and returns their
+// session cookie. The link is requested through better-auth, its token read from the
+// `verification` row better-auth stores it in, and the link used, which creates the
+// account (through the user-create hook, so the joining rules apply) and the session.
 //
-// Note: the very first user created in a fresh database becomes the workspace owner
-// (better-auth create hook). resetDb() clears users between tests, so whichever
-// user a test creates first is the owner — keep that in mind for role-sensitive tests.
+// The address must be allowed to join: the first user of a fresh database, an
+// address with a pending invite, or an approved domain (example.com by default).
+// The first user created after resetDb() is the workspace owner.
 export async function signUpTestUser(
-  overrides: { email?: string; password?: string; name?: string; inviteToken?: string } = {},
+  overrides: { email?: string; name?: string } = {},
 ): Promise<TestUser> {
   counter += 1;
-  const email = overrides.email ?? `test-user-${counter}@example.com`;
-  const password = overrides.password ?? 'test-password-123';
+  const email = (overrides.email ?? `test-user-${counter}@example.com`).toLowerCase();
   const name = overrides.name ?? `Test User ${counter}`;
 
-  // An invite applies only when its token comes with the sign-up (x-invite-token).
-  const response = await auth.api.signUpEmail({
-    body: { email, password, name },
-    headers: overrides.inviteToken
-      ? new Headers({ 'x-invite-token': overrides.inviteToken })
-      : undefined,
+  await auth.api.signInMagicLink({ body: { email, name }, headers: new Headers() });
+  const [row] = await db
+    .select({ token: verification.identifier })
+    .from(verification)
+    .where(like(verification.value, `%"email":"${email}"%`))
+    .orderBy(desc(verification.createdAt))
+    .limit(1);
+  if (!row) throw new Error(`signUpTestUser: ${email} may not join, no magic link was stored`);
+
+  const response = await auth.api.magicLinkVerify({
+    query: { token: row.token },
+    headers: new Headers(),
     asResponse: true,
   });
-
   const setCookies = response.headers.getSetCookie();
   if (setCookies.length === 0) {
     throw new Error(

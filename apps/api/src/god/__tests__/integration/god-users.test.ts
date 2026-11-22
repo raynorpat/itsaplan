@@ -43,9 +43,9 @@ describe('god users', () => {
         email: 'root@example.com',
         name: 'Root',
         role: 'owner',
-        emailVerified: false,
-        // Signing up links the password provider and opens a session.
-        providers: ['credential'],
+        // A magic link proves the address; there is no password provider.
+        emailVerified: true,
+        providers: [],
         teamCount: 1,
       });
       expect(res.data?.items[0].lastSeenAt).not.toBeNull();
@@ -54,7 +54,9 @@ describe('god users', () => {
     it('matches the search term against the name or the email', async () => {
       const { god } = await setup();
       await addUser({ name: 'Alice Smith', email: 'alice@example.com' });
+      process.env.APPROVED_EMAIL_DOMAINS = 'example.com,corp.test';
       await addUser({ name: 'Bob Jones', email: 'bob@corp.test' });
+      process.env.APPROVED_EMAIL_DOMAINS = 'example.com';
 
       const byName = await god.api.god.users.get({ query: { ...ALL, search: 'alice' } });
       const byEmail = await god.api.god.users.get({ query: { ...ALL, search: 'corp.test' } });
@@ -162,22 +164,6 @@ describe('god users', () => {
   });
 
   describe('verify email — POST /god/users/:userId/verify-email', () => {
-    it('marks the address confirmed and reports it on the list too', async () => {
-      const { god } = await setup();
-      const alice = await addUser({ email: 'alice@example.com' });
-
-      const before = await god.api.god.users({ userId: alice.id }).get();
-      expect(before.data?.emailVerified).toBe(false);
-
-      const res = await god.api.god.users({ userId: alice.id })['verify-email'].post();
-
-      expect(res.status).toBe(200);
-      expect(res.data?.emailVerified).toBe(true);
-
-      const listed = await god.api.god.users.get({ query: { ...ALL, search: 'alice@' } });
-      expect(listed.data?.items[0]?.emailVerified).toBe(true);
-    });
-
     it('404s for an unknown id', async () => {
       const { god } = await setup();
 

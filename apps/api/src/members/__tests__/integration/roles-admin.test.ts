@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { auth } from '@repo/auth';
 import { api, authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -11,7 +10,7 @@ import { workspaceRole } from '../../../shared/access';
 // skip private teams.
 
 async function setup() {
-  const owner = await signUpTestUser({ name: 'Owner', password: 'test-password-123' });
+  const owner = await signUpTestUser({ name: 'Owner' });
   const asOwner = authedApi(owner.cookie);
   await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
   await asOwner.teams.post({ key: 'SEC', name: 'Secret' });
@@ -57,11 +56,13 @@ describe('roles administration', () => {
     expect((await asOwner.workspace.users({ userId: member.userId }).suspend.post()).status).toBe(
       204,
     );
-    const signIn = await auth.api.signInEmail({
-      body: { email: 'sus@example.com', password: 'test-password-123' },
-      asResponse: true,
-    });
-    expect(signIn.status).not.toBe(200);
+    // Signing in again (by magic link) is refused while suspended.
+    expect(
+      await signUpTestUser({ email: 'sus@example.com' }).then(
+        () => 'signed in',
+        () => 'refused',
+      ),
+    ).toBe('refused');
     expect((await api.teams.get({ headers: { 'x-api-key': key } })).status).toBe(401);
     expect((await authedApi(member.cookie).teams.get()).status).toBe(401);
     expect((await asOwner.workspace.users({ userId: member.userId }).unsuspend.post()).status).toBe(
@@ -94,14 +95,7 @@ describe('roles administration', () => {
       .teams({ teamKey: 'MKT' })
       .issues.post({ stateId, title: 'T', assigneeUserId: member.userId });
     await asOwner.workspace.users({ userId: member.userId }).unsuspend.post();
-    const relogin = await auth.api.signInEmail({
-      body: { email: member.email, password: 'test-password-123' },
-      asResponse: true,
-    });
-    const cookie = relogin.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    const { cookie } = await signUpTestUser({ email: member.email });
     const inbox = (await authedApi(cookie).notifications.get({ query: {} })).data!;
     expect(inbox.items).toHaveLength(0);
   });
