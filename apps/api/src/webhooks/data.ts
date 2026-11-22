@@ -1,4 +1,17 @@
-import { db, issueLabel, label, projectUpdate, team, user, workflowState } from '@repo/db';
+import {
+  db,
+  initiative,
+  initiativeRelation,
+  initiativeToProject,
+  issueLabel,
+  label,
+  project,
+  projectUpdate,
+  team,
+  user,
+  workflowState,
+} from '@repo/db';
+import { trustedOrigins } from '@repo/auth';
 import { asc, eq } from 'drizzle-orm';
 import { toComment } from '../graphql/resolvers/comment';
 import { commentParentUrl, getComment } from '../comments/store';
@@ -91,6 +104,36 @@ export async function initiativeData(id: string): Promise<WebhookData | null> {
   const row = await getInitiative(id);
   if (!row) return null;
   const { ownerUserId, creatorUserId, content: _content, ...rest } = row;
+  const origin = trustedOrigins[0];
+  const projects = await db
+    .select({ id: project.id, name: project.name })
+    .from(initiativeToProject)
+    .innerJoin(project, eq(project.id, initiativeToProject.projectId))
+    .where(eq(initiativeToProject.initiativeId, id))
+    .orderBy(asc(project.id));
+  const relative = (on: 'parent' | 'child') =>
+    db
+      .select({ id: initiative.id, name: initiative.name })
+      .from(initiativeRelation)
+      .innerJoin(
+        initiative,
+        eq(
+          initiative.id,
+          on === 'parent'
+            ? initiativeRelation.initiativeId
+            : initiativeRelation.relatedInitiativeId,
+        ),
+      )
+      .where(
+        eq(
+          on === 'parent'
+            ? initiativeRelation.relatedInitiativeId
+            : initiativeRelation.initiativeId,
+          row.id,
+        ),
+      )
+      .orderBy(asc(initiative.id));
+  const [parent, children] = await Promise.all([relative('parent'), relative('child')]);
   return {
     ...rest,
     description: row.description ?? '',
@@ -102,8 +145,14 @@ export async function initiativeData(id: string): Promise<WebhookData | null> {
     health: null,
     healthUpdatedAt: null,
     lastUpdateId: null,
-    projects: [],
-    parentInitiative: null,
-    subInitiatives: [],
+    projects: projects.map((p) => ({ id: p.id, name: p.name, url: `${origin}/projects/${p.id}` })),
+    parentInitiative: parent[0] ? childInitiative(parent[0]) : null,
+    subInitiatives: children.map(childInitiative),
   };
 }
+
+const childInitiative = (i: { id: string; name: string }) => ({
+  id: i.id,
+  name: i.name,
+  url: initiativeUrl(i.id),
+});
