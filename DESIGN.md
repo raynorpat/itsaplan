@@ -67,12 +67,3 @@ around a group and no card per row. A row puts its name and explanation on the l
 control in a fixed-width column on the right, so every control on the page lines up; below
 `sm` the control drops under the text. A page whose changes save on the spot reports that in
 the header (saving, then saved) rather than freezing its controls.
-
-## Dashboards section (full-width, borderless)
-
-The analytics dashboards render edge-to-edge inside the app shell: a full-width content
-column (comfortable side padding, no narrow centered measure), widgets laid out on a
-12-column grid, each widget a borderless section — a quiet header (title + its own
-controls) over the body, separated from neighbors by space and a hairline divider under
-the header, not by a card. Full-bleed widgets (stat strip, pulse) break the two-column
-rhythm so the page is not one repeated shape.

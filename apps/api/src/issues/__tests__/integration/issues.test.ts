@@ -6,7 +6,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 // Issues live under a team. Create is /teams/:teamKey/issues (permission
 // guard on :teamKey); the other routes address the issue by its own id
 // (/issues/:issueId) and resolve access through the workItem guard. An issue is
-// read back through GET /issues/:issueId (with its custom field values) or through
+// read back through GET /issues/:issueId or through
 // the team view (GET /teams/:teamKey → `issues`, which carries labelIds
 // and set field values). createTeam seeds five default columns.
 
@@ -541,8 +541,6 @@ describe('issues', () => {
     });
   });
 
-  // PUT /issues/:issueId/fields/:fieldId sets one custom field's value. Read back
-  // through GET /issues/:issueId (the `fields` array).
   describe('board', () => {
     it('returns the active issues and a string change marker for a member', async () => {
       const { asOwner, stateId } = await setupTeam();

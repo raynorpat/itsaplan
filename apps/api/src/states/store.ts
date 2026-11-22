@@ -178,7 +178,7 @@ export async function reorderStates(teamId: string, orderedIds: string[]): Promi
 
 // Deletes a column. `move` reassigns the column's issues to targetStateId before
 // dropping the column; `delete` removes the issues and their dependent rows
-// (labels, custom field values/options) first. Backlog columns cannot be deleted,
+// (labels and the like) first. Backlog columns cannot be deleted,
 // which keeps at least one column on every team. Runs in one transaction so the
 // column and its issues are never left half-deleted.
 export type DeleteStateOptions = { mode: 'move'; targetStateId: string } | { mode: 'delete' };

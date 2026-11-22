@@ -1,5 +1,5 @@
-// Task planner tables: teams, workflow columns, issue types, labels, custom
-// fields, issues, and their dependent rows. Exposed to the web app over HTTP by
+// Task planner tables: teams, workflow columns, labels, issues, and their
+// dependent rows. Exposed to the web app over HTTP by
 // the API.
 import { sql } from 'drizzle-orm';
 import {
@@ -48,7 +48,7 @@ export const appSecret = pgTable('app_secret', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-// A team groups its own columns, issue types, labels, custom fields, and
+// A team groups its own columns, labels and
 // issues. next_sequence is the atomic counter behind each issue's human
 // identifier (e.g. "MKT-42"): incrementing it under a row lock keeps concurrent
 // creates from colliding.
@@ -147,7 +147,7 @@ export const userPreference = pgTable(
 );
 
 // Custom roles per team. A role carries a permission matrix: for each
-// resource (work_items, dashboards, ...) the create/edit/read/delete flags. The
+// resource (work_items, projects, ...) the create/edit/read/delete flags. The
 // matrix is a jsonb blob owned and enforced by the API (see
 // apps/api/src/shared/permissions.ts). Exactly one role per team is the
 // default ("Member"): it is assigned to members that join through an invite and
@@ -714,10 +714,9 @@ export const issue = pgTable(
     assigneeUserId: uuid('assignee_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
-    // The AI agent an issue is delegated to. Like assignee this points at a bot
-    // user (ai_agent.user_id); assignee holds a team member, delegate holds an
-    // agent. Setting a delegate on an internal agent with trigger_on_assign enqueues
-    // an agent run.
+    // Linear's issue delegate: the agent (app user) an issue is delegated to. No
+    // user can be a delegate until Linear's agent API exists; only null is
+    // accepted.
     delegateUserId: uuid('delegate_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
@@ -849,7 +848,7 @@ export const attachment = pgTable(
 // Change log of issues and projects. Each row belongs to exactly one owner: an
 // issue (issue_id) or a project (project_id) — enforced by owner_check. A row
 // records one change: action/subject/from_text/to_text. actor_user_id is the
-// author, taken from the session user (a member or an agent's bot user). actor_name
+// author, taken from the session user (a member). actor_name
 // is a snapshot so an entry still reads correctly after that user is renamed or
 // deleted. Comments are stored in `comment`; feed_entry merges the two.
 export const issueActivity = pgTable(

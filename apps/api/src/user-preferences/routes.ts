@@ -38,8 +38,7 @@ const PreferencePatch = t.Object({
 });
 
 // The session user's own interface preferences: timezone, theme, how a clicked issue
-// opens, which section the app root lands on, whether the floating AI chat starts
-// visible, how an issue's status stats section starts out, and the team they were
+// opens, which section the app root lands on, how an issue's status stats section starts out, and the team they were
 // in last. Every route is self-scoped to the session user, so no team guard applies
 // — a user only ever reads or writes their own row. Not MCP tools: an agent has no
 // business changing a person's UI settings.

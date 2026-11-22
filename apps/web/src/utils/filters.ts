@@ -50,10 +50,17 @@ export function isActiveFilterSet(filters: FilterSet | null | undefined): boolea
   return !!filters && filters.conditions.some(isEffectiveCondition);
 }
 
-// Whether a condition actually constrains the result. Presence operators
-// (is_set/is_not_set) need no value; every other operator needs at least one.
+// Whether a condition actually constrains the result. A condition on a field or
+// operator that is no longer offered (left in a saved view) constrains nothing.
+// Presence operators (is_set/is_not_set) need no value; every other operator needs
+// at least one.
 function isEffectiveCondition(cond: FilterCondition): boolean {
+  const field = cond.field as BuiltinFilterField;
+  const isDate = DATE_FIELDS.includes(field);
+  if (!isDate && !SET_FIELDS.includes(field)) return false;
   if (cond.op === 'is_set' || cond.op === 'is_not_set') return true;
+  const ops: string[] = isDate ? ['before', 'after'] : ['is', 'is_not'];
+  if (!ops.includes(cond.op)) return false;
   return cond.values.length > 0;
 }
 

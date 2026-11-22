@@ -27,7 +27,7 @@ Please give a reasonable amount of time for a fix before disclosing publicly.
 
 ## Scope
 
-In scope: the API, the web app, the worker, the Telegram bot, the shared packages, and
+In scope: the API, the web app, the worker, the shared packages, and
 the deployment files in this repository.
 
 Out of scope: vulnerabilities in third-party dependencies that have no exploitable path

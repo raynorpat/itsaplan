@@ -964,7 +964,7 @@ export async function setIssueLabels(
 // --- Bulk actions ----------------------------------------------------------------
 // Board multi-select applies one change to many issues at once. Each of these runs
 // the single-issue operation per id in the request, so the per-issue side effects
-// (activity feed, webhooks, delegate runs) still fire, but the client makes one
+// (activity feed, webhooks) still fire, but the client makes one
 // request and refetches the board once instead of N times.
 
 // The subset of `ids` that belong to this team (active or archived). The bulk

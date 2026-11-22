@@ -20,8 +20,7 @@ export async function postInternal(
 }
 
 // Reports issues the auto-archive sweep archived, so the api sends their webhook
-// events. Batched like deleteIssueAgentThreads: the first sweep of an instance can
-// archive thousands of issues.
+// events. Batched: the first sweep of an instance can archive thousands of issues.
 export async function notifyIssuesArchived(
   issues: { id: string; previousUpdatedAt: string }[],
 ): Promise<void> {
