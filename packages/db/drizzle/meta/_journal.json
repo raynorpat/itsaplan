@@ -176,6 +176,13 @@
       "when": 1795385912046,
       "tag": "0024_naive_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795387373515,
+      "tag": "0025_fix_view_date_filters",
+      "breakpoints": true
     }
   ]
 }

@@ -888,8 +888,8 @@ export async function setIssueLabels(
   const added = next.filter((x) => !before.includes(x));
   const removed = before.filter((x) => !next.includes(x));
 
-  // Labels show on the board card, so a label change must bump the issue's
-  // updated_at: the board's change marker (teamBoardRev) is derived from it.
+  // Labels show on the board card, so a label change bumps the issue's updated_at,
+  // which clients that sync by it read.
   if (added.length > 0 || removed.length > 0) {
     await db
       .update(issue)

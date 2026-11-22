@@ -41,7 +41,6 @@ export function useIssueDetail(
   // without a manual reload.
   useLiveRefresh({
     targets: [qk.issue(issueId), qk.feed(issueId)],
-    intervalMs: 15000,
   });
 
   // Upload a file dropped onto a markdown editor. Returns the attachment so the

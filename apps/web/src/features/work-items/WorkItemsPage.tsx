@@ -40,7 +40,6 @@ export default function WorkItemsPage() {
   const teamKey = team?.team.key ?? '';
   useLiveRefresh({
     targets: [qk.boardIssues(teamKey)],
-    intervalMs: 20000,
     enabled: !!teamKey,
   });
 

@@ -46,8 +46,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Saved views** (`views/`, Linear's `CustomView`): a team's named view. `filter_data`
   is Linear's `IssueFilter` and the only stored filter (the web converts its filter
   bar's set with `apps/web/src/utils/viewFilters.ts`); the layout and display are the
-  view's `view_preferences` (`organization` defaults, `user` overrides). A view is
-  visible, and changeable, by anyone who can see its team.
+  view's `view_preferences` (`organization` defaults, `user` overrides). A shared view
+  is visible, and changeable, by anyone who can see its team; a non-shared view only by
+  its owner, who is always its creator.
 - **Sequence numbers** ("MKT-42") are issued under a row lock on `team` inside
   `createIssue`'s transaction — keep the lock so concurrent creates don't collide.
 - **`position` is a sparse float** (`MAX(position) + 1000`); do not assume contiguous
@@ -104,12 +105,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   only. Access follows the issue's team.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
-  plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, by the same user,
-  once, within 10 minutes. A request is accepted when either use allows it; the use
+  plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
+  minutes, and the token is the PUT's only credential (as in Linear). The URL is claimed
+  before the bytes are stored and the upload counts as stored only after the write. A
+  user's unused uploads may total at most 10 × `MAX_ATTACHMENT_MB`. A request is accepted when either use allows it; the use
   checks its own limits: `attachmentCreate` with the asset URL (`/uploads/<id>/raw`)
   turns it into an upload attachment after the attachment size, the allowed types and
   the team quota; `userUpdate({ avatarUrl })` takes only the user's own raster image
-  within the avatar limit. Uploads nothing used within a day are deleted
+  within the avatar limit. Each use claims the upload, so one upload backs one
+  attachment or one avatar; a replaced avatar is released (`avatars/release.ts`) by
+  either avatar path. Uploads nothing used within a day are deleted
   (`/internal/uploads/cleanup`, called by the worker).
 - **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
   Linear's issue subscribers. Creating an issue subscribes its creator and assignee;

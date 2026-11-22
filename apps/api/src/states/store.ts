@@ -150,11 +150,6 @@ export async function archiveState(id: string, teamId: string): Promise<Workflow
   return mapColumn(row);
 }
 
-// Renumbers the team's active columns to match orderedIds (the desired left-to-right
-// order). Any column not listed is appended in its current order. Runs a two-pass
-// update — first shift every position out of range, then assign 0..n-1 — so the
-// unique (team_id, position) index over active columns never sees a transient
-// duplicate.
 // Moves a state to Linear's float `position`: it goes before the first other state
 // whose position is greater, and the team's states are renumbered 0..n.
 export async function moveStateToPosition(
@@ -169,6 +164,11 @@ export async function moveStateToPosition(
   await reorderStates(teamId, order);
 }
 
+// Renumbers the team's active columns to match orderedIds (the desired left-to-right
+// order). Any column not listed is appended in its current order. Runs a two-pass
+// update — first shift every position out of range, then assign 0..n-1 — so the
+// unique (team_id, position) index over active columns never sees a transient
+// duplicate.
 export async function reorderStates(teamId: string, orderedIds: string[]): Promise<void> {
   const existing = await listStates(teamId);
   const known = new Set(existing.map((c) => c.id));

@@ -362,8 +362,7 @@ export async function removeAttachmentEmbeds(issueId: string, publicId: string):
     }
   }
 
-  // issueRev is derived from issue.updatedAt; bump it so an open detail view
-  // refetches the cleaned description.
+  // Bump updated_at so clients that sync by it pick up the cleaned description.
   if (changed) {
     await db
       .update(issue)

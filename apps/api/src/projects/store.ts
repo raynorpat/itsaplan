@@ -619,7 +619,8 @@ async function emitProject(
 }
 
 // Replaces the project's full label set (not an add/remove diff) and logs the
-// added/removed labels to the activity feed. Bumps updated_at so projectRev moves.
+// added/removed labels to the activity feed. Bumps updated_at so clients that sync by
+// it see the change.
 async function setProjectLabels(
   projectId: string,
   labelIds: string[],

@@ -34,7 +34,7 @@ CREATE FUNCTION pg_temp.view_condition(c jsonb) RETURNS jsonb LANGUAGE plpgsql A
 DECLARE
   f text := c->>'field';
   op text := c->>'op';
-  vals jsonb := COALESCE(c->'values', '[]'::jsonb);
+  vals jsonb := CASE WHEN jsonb_typeof(c->'values') = 'array' THEN c->'values' ELSE '[]'::jsonb END;
   ids jsonb := COALESCE((SELECT jsonb_agg(v) FROM jsonb_array_elements(vals) v WHERE v <> 'null'::jsonb AND v <> '""'::jsonb), '[]'::jsonb);
   has_null boolean := EXISTS (SELECT 1 FROM jsonb_array_elements(vals) v WHERE v = 'null'::jsonb);
   has_ids boolean;
@@ -111,8 +111,12 @@ BEGIN
     df := CASE f WHEN 'dueDate' THEN 'dueDate' WHEN 'created' THEN 'createdAt' ELSE 'updatedAt' END;
     IF op = 'is_set' THEN RETURN jsonb_build_object(df, '{"null": false}'::jsonb); END IF;
     IF op = 'is_not_set' THEN RETURN jsonb_build_object(df, '{"null": true}'::jsonb); END IF;
-    IF jsonb_typeof(vals->0) <> 'string' THEN RETURN NULL; END IF;
+    IF jsonb_typeof(vals->0) IS DISTINCT FROM 'string' OR (vals->>0) !~ '^\d{4}-\d{2}-\d{2}$' THEN RETURN NULL; END IF;
     IF op = 'before' THEN RETURN jsonb_build_object(df, jsonb_build_object('lt', vals->0)); END IF;
+    -- createdAt / updatedAt are timestamps: "after D" excludes D, so gte the next day.
+    IF op = 'after' AND df IN ('createdAt', 'updatedAt') THEN
+      RETURN jsonb_build_object(df, jsonb_build_object('gte', to_char((vals->>0)::date + 1, 'YYYY-MM-DD')));
+    END IF;
     IF op = 'after' THEN RETURN jsonb_build_object(df, jsonb_build_object('gt', vals->0)); END IF;
     RETURN NULL;
   END IF;

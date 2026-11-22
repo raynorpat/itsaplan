@@ -36,7 +36,6 @@ export default function InboxView({ team }: { team: TeamDetail }) {
 
   useLiveRefresh({
     targets: [['notifications', teamKey], qk.notificationsUnread(teamKey)],
-    intervalMs: 15000,
   });
 
   const onSelect = (n: Notification) => {

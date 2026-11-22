@@ -25,15 +25,9 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
   const query = useProjectQuery(projectId);
   const teamKey = team?.team.key ?? '';
 
-  // Poll the project's change marker: refetch the project (progress/health),
-  // its feed, and the board issues when its linked issues or its own fields change.
+  // Refresh the project (progress, health) and its feed so others' changes show.
   useLiveRefresh({
-    targets: [
-      qk.project(projectId ?? ''),
-      qk.projectFeed(projectId ?? ''),
-      qk.boardIssues(teamKey),
-    ],
-    intervalMs: 20000,
+    targets: [qk.project(projectId ?? ''), qk.projectFeed(projectId ?? '')],
     enabled: projectId != null && !!teamKey,
   });
 

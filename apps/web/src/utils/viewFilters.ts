@@ -19,6 +19,19 @@ const DATE_KEYS: Record<string, string> = {
   updated: 'updatedAt',
 };
 
+// createdAt and updatedAt are timestamps, compared from midnight UTC of the given day.
+// "After D" means from the next day on (the filter bar excludes D itself), so it is
+// stored as `gte` the next day; dueDate is a date, so `gt D` already excludes D.
+// "Before D" is `lt D` for both.
+const TIMESTAMP_KEYS = new Set(['createdAt', 'updatedAt']);
+
+function shiftDay(day: string, by: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return day;
+  d.setUTCDate(d.getUTCDate() + by);
+  return d.toISOString().slice(0, 10);
+}
+
 function split(values: FilterValue[]): { ids: FilterValue[]; hasNull: boolean } {
   return {
     ids: values.filter((v) => v !== null && v !== ''),
@@ -97,7 +110,10 @@ function conditionToElement(c: FilterCondition): Element | null {
     const value = values[0];
     if (typeof value !== 'string') return null;
     if (op === 'before') return { [dateKey]: { lt: value } };
-    if (op === 'after') return { [dateKey]: { gt: value } };
+    if (op === 'after')
+      return TIMESTAMP_KEYS.has(dateKey)
+        ? { [dateKey]: { gte: shiftDay(value, 1) } }
+        : { [dateKey]: { gt: value } };
     return null;
   }
 
@@ -220,8 +236,14 @@ function elementToCondition(element: unknown): Partial | null {
     if (isNullCheck(value, false)) return { field: dateField, op: 'is_set', values: [] };
     if (isNullCheck(value, true)) return { field: dateField, op: 'is_not_set', values: [] };
     const inner = only(value);
-    if (inner && (inner[0] === 'lt' || inner[0] === 'gt') && typeof inner[1] === 'string')
-      return { field: dateField, op: inner[0] === 'lt' ? 'before' : 'after', values: [inner[1]] };
+    if (inner && typeof inner[1] === 'string') {
+      const day = inner[1];
+      const timestamp = TIMESTAMP_KEYS.has(key);
+      if (inner[0] === 'lt') return { field: dateField, op: 'before', values: [day] };
+      if (inner[0] === 'gt' && !timestamp) return { field: dateField, op: 'after', values: [day] };
+      if (inner[0] === 'gte' && timestamp)
+        return { field: dateField, op: 'after', values: [shiftDay(day, -1)] };
+    }
     return null;
   }
 

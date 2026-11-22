@@ -36,7 +36,7 @@ describe('view filters', () => {
         {
           and: [{ labels: { every: { id: { nin: ['l1'] } } } }, { labels: { length: { gt: 0 } } }],
         },
-        { createdAt: { gt: '2026-11-01' } },
+        { createdAt: { gte: '2026-11-02' } },
         { dueDate: { null: false } },
       ],
     });
@@ -56,9 +56,26 @@ describe('view filters', () => {
       { field: 'labels', op: 'is_not', values: ['l2'] },
       { field: 'labels', op: 'is_set', values: [] },
       { field: 'dueDate', op: 'before', values: ['2026-12-01'] },
+      { field: 'dueDate', op: 'after', values: ['2026-12-01'] },
+      { field: 'updated', op: 'after', values: ['2026-11-30'] },
       { field: 'updated', op: 'is_not_set', values: [] },
     ]);
     assert.deepEqual(issueFilterToFilterSet(filterSetToIssueFilter(original)), original);
+  });
+
+  it('excludes the given day from "after" for every date field', () => {
+    assert.deepEqual(
+      filterSetToIssueFilter(set([{ field: 'updated', op: 'after', values: ['2026-11-30'] }])),
+      { and: [{ updatedAt: { gte: '2026-12-01' } }] },
+    );
+    assert.deepEqual(
+      filterSetToIssueFilter(set([{ field: 'dueDate', op: 'after', values: ['2026-11-30'] }])),
+      { and: [{ dueDate: { gt: '2026-11-30' } }] },
+    );
+    assert.deepEqual(
+      filterSetToIssueFilter(set([{ field: 'created', op: 'before', values: [] }])),
+      {},
+    );
   });
 
   it('writes an empty filter for an empty or ineffective set', () => {
