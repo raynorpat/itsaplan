@@ -1,11 +1,11 @@
-import { type FeedItem } from '@/lib/api';
 import { useFeedQuery } from '../../services/comments.service';
-import { Button } from '@/components/ui/button';
-import ActivityItemList from './ActivityItemList';
+import ActivityLine from './ActivityLine';
+import CommentThread from './CommentThread';
 
-// The flat activity list, newest first, paged 25 at a time by "Show more". The feed
-// query refetches on its own when an issue edit invalidates it (see useUpdateIssue /
-// useSetFieldValue), so it reflects edits without the parent signaling it.
+// The issue's feed, newest first: comment threads and change entries. The feed
+// query refetches when an issue edit or a new comment invalidates it (see
+// useUpdateIssueDetail / useCreateComment), so it reflects edits without the
+// parent signaling it.
 
 export default function IssueFeedList({
   issueId,
@@ -15,18 +15,9 @@ export default function IssueFeedList({
   imageByUserId: Map<string, string | null>;
 }) {
   const feedQuery = useFeedQuery(issueId);
+  const entries = feedQuery.data ?? [];
 
-  // The pages come back newest first. Dedupe by id so a boundary item that shifts
-  // between pages after a refetch (an edit adds new entries at the top) never
-  // renders with a duplicate key. The first copy wins: it comes from the newer
-  // page, so an edited comment keeps its latest body.
-  const byId = new Map<string, FeedItem>();
-  for (const item of (feedQuery.data?.pages ?? []).flatMap((p) => p.items)) {
-    if (!byId.has(item.id)) byId.set(item.id, item);
-  }
-  const items = [...byId.values()];
-
-  if (items.length === 0) {
+  if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         {feedQuery.isLoading ? 'Loading…' : 'No activity yet.'}
@@ -35,20 +26,14 @@ export default function IssueFeedList({
   }
 
   return (
-    <>
-      <ActivityItemList items={items} imageByUserId={imageByUserId} />
-      {feedQuery.hasNextPage && (
-        <div className="mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={feedQuery.isFetchingNextPage}
-            onClick={() => void feedQuery.fetchNextPage()}
-          >
-            {feedQuery.isFetchingNextPage ? 'Loading…' : 'Show more'}
-          </Button>
-        </div>
+    <ul className="flex flex-col gap-2.5">
+      {entries.map((entry) =>
+        entry.item.kind === 'comment' ? (
+          <CommentThread key={entry.item.id} entry={entry} imageByUserId={imageByUserId} />
+        ) : (
+          <ActivityLine key={entry.item.id} item={entry.item} />
+        ),
       )}
-    </>
+    </ul>
   );
 }

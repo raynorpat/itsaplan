@@ -21,7 +21,7 @@ import {
   useArchiveIssue,
   useIssueQuery,
   useRestoreIssue,
-  useUpdateIssue,
+  useUpdateIssueDetail,
 } from '@/services/issues.service';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSession } from '@/lib/auth-client';
@@ -50,7 +50,7 @@ export function useIssueCommands(
   const teamKey = team?.team.key ?? null;
   const issueQuery = useIssueQuery(issueId);
   const issue = issueQuery.data ?? null;
-  const updateIssue = useUpdateIssue(teamKey);
+  const updateIssue = useUpdateIssueDetail(teamKey);
   const archiveIssue = useArchiveIssue(teamKey);
   const restoreIssue = useRestoreIssue(teamKey);
   const [confirmingDelete, setConfirmingDelete] = useState(false);

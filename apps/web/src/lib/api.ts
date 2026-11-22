@@ -414,7 +414,9 @@ export type ActivityAction =
   | 'label_remove'
   | 'archived'
   | 'restored'
-  | 'relation';
+  | 'relation'
+  | 'project'
+  | 'cycle';
 
 // One entry in an issue's timeline. kind selects which payload fields are set:
 // a 'comment' carries body; an 'activity' carries action/subject/fromText/toText.
@@ -436,23 +438,16 @@ export interface FeedItem {
   createdAt: string;
 }
 
-// Opaque keyset cursor returned by the feed endpoint; pass it back to load the
-// next (older) page.
+// Opaque keyset cursor returned by the project feed endpoint; pass it back to load
+// the next (older) page.
 export interface FeedCursor {
   ts: string;
   id: string;
 }
 
-export interface FeedPage {
-  items: FeedItem[];
-  nextCursor: FeedCursor | null;
-}
-
-// One stretch the issue spent in a single column. `status` is the column-name
-// snapshot taken at the time (null only when the issue has no status history and its
-// column was deleted); `to` is null for the stretch the issue is in now. The entries
-// written inside a stretch are a separate read (listTimelineItems), made when one is
-// opened.
+// One stretch the issue spent in a single state, from Linear's Issue.stateHistory.
+// `status` is the state's name (null when the state was deleted since); `to` is null
+// for the stretch the issue is in now.
 export interface TimelineSegment {
   status: string | null;
   from: string;
@@ -853,15 +848,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  getIssue: (id: string) => request<IssueDetail>(`/issues/${id}`),
-
-  // Resolve an issue by its team-scoped number (the human "42" in the URL).
-  getIssueBySeq: (teamKey: string, seq: number) =>
-    request<IssueDetail>(`/teams/${teamKey}/issues/${seq}`),
-  // Cheap change marker for an issue's detail + feed — polled for live refresh.
   updateIssue: (id: string, patch: IssuePatch) =>
     request<Issue>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteIssue: (id: string) => request<void>(`/issues/${id}`, { method: 'DELETE' }),
   // Board multi-select: apply one change to many issues in a single request. The
   // server filters the ids to the team and refetching happens once.
   bulkUpdateIssues: (teamKey: string, ids: string[], patch: BulkIssuePatch) =>
@@ -884,10 +872,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
-  // Archive/restore: hide an issue from the board (kept, restorable) or bring it
-  // back. The board excludes archived issues; the archive settings section lists them.
-  archiveIssue: (id: string) => request<Issue>(`/issues/${id}/archive`, { method: 'POST' }),
-  restoreIssue: (id: string) => request<Issue>(`/issues/${id}/restore`, { method: 'POST' }),
   listArchivedIssues: (teamKey: string) => request<Issue[]>(`/teams/${teamKey}/issues/archived`),
   // Server-side text search for the command palette. Always returns all matches,
   // archived included (each hit carries an `archived` flag).
@@ -920,26 +904,6 @@ export const api = {
   },
   deleteAttachment: (publicId: string) =>
     request<void>(`/attachments/${publicId}`, { method: 'DELETE' }),
-
-  listFeed: (issueId: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
-    const q = new URLSearchParams();
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
-    const qs = q.toString();
-    return request<FeedPage>(`/issues/${issueId}/feed${qs ? `?${qs}` : ''}`);
-  },
-  listTimeline: (issueId: string) => request<TimelineSegment[]>(`/issues/${issueId}/timeline`),
-  // The entries of one stretch of the timeline: [from, to), open-ended without `to`.
-  listTimelineItems: (issueId: string, from: string, to: string | null) => {
-    const q = new URLSearchParams({ from });
-    if (to) q.set('to', to);
-    return request<FeedItem[]>(`/issues/${issueId}/timeline/items?${q.toString()}`);
-  },
-  createComment: (issueId: string, input: { body: string }) =>
-    request<FeedItem>(`/issues/${issueId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
 
   // Projects span teams: the list and counts take an optional team filter, create
   // takes the team ids, and ops on one project take its id.

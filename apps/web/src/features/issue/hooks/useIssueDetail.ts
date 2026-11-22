@@ -6,7 +6,7 @@ import {
   type IssueDetail as IssueDetailRow,
   type IssuePatch,
 } from '@/lib/api';
-import { useIssueQuery, useUpdateIssue } from '@/services/issues.service';
+import { useIssueQuery, useUpdateIssueDetail } from '@/services/issues.service';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { qk } from '@/services/queryKeys';
 import { useAttachmentsQuery, useUploadAttachment } from '../services/attachments.service';
@@ -32,7 +32,7 @@ export function useIssueDetail(
   // What the markdown editors' image picker offers.
   const imageAttachments = (attachmentsQuery.data ?? []).filter(isImage);
 
-  const updateIssue = useUpdateIssue(team.team.key);
+  const updateIssue = useUpdateIssueDetail(team.team.key);
   const uploadAttachment = useUploadAttachment();
   const [descEditor, setDescEditor] = useState<Editor | null>(null);
 

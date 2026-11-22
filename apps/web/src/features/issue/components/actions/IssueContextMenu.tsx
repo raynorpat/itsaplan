@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import type { TeamDetail, Issue, IssuePatch } from '@/lib/api';
-import { useArchiveIssue, useRestoreIssue, useUpdateIssue } from '@/services/issues.service';
+import { useArchiveIssue, useRestoreIssue, useUpdateIssueDetail } from '@/services/issues.service';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -71,7 +71,7 @@ export default function IssueContextMenu({
   const { data: session } = useSession();
   const canEdit = can('work_items', 'edit');
   const canDelete = can('work_items', 'delete');
-  const updateIssue = useUpdateIssue(team.team.key);
+  const updateIssue = useUpdateIssueDetail(team.team.key);
   const archiveIssue = useArchiveIssue(team.team.key);
   const restoreIssue = useRestoreIssue(team.team.key);
   const [open, setOpen] = useState(false);

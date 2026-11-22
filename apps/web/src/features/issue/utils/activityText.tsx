@@ -8,7 +8,9 @@ import {
   CircleDot,
   CirclePlus,
   FileText,
+  FolderKanban,
   Link2,
+  RefreshCcw,
   Pencil,
   SignalHigh,
   Bot,
@@ -37,6 +39,8 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   archived: Archive,
   relation: Link2,
   restored: ArchiveRestore,
+  project: FolderKanban,
+  cycle: RefreshCcw,
 };
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');
@@ -60,10 +64,13 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
         ? { line: 'changed the title', popover: a.toText }
         : { line: <>renamed to {strong(`“${a.toText}”`)}</> };
     case 'description':
+      // Linear's history records that the description changed, not the text.
       return a.toText
         ? { line: 'updated the description', popover: a.toText }
-        : { line: 'cleared the description' };
+        : { line: 'updated the description' };
     case 'status':
+      // A change logged before ids were recorded may carry no names.
+      if (!a.fromText && !a.toText) return { line: 'changed the status' };
       return a.fromText
         ? {
             line: (
@@ -74,6 +81,7 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
           }
         : { line: <>set status to {strong(a.toText)}</> };
     case 'assignee':
+      if (!a.fromText && !a.toText) return { line: 'changed the assignee' };
       if (!a.toText) return { line: <>removed assignee {strong(a.fromText)}</> };
       return {
         line: a.fromText ? (
@@ -103,6 +111,18 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
       return { line: <>added label {strong(a.toText)}</> };
     case 'label_remove':
       return { line: <>removed label {strong(a.fromText)}</> };
+    case 'project':
+      if (!a.toText)
+        return a.fromText
+          ? { line: <>removed from {strong(a.fromText)}</> }
+          : { line: 'changed the project' };
+      return { line: <>moved to {strong(a.toText)}</> };
+    case 'cycle':
+      if (!a.toText)
+        return a.fromText
+          ? { line: <>removed from {strong(a.fromText)}</> }
+          : { line: 'changed the cycle' };
+      return { line: <>added to {strong(a.toText)}</> };
     case 'archived':
       return { line: 'archived the issue' };
     case 'restored':
