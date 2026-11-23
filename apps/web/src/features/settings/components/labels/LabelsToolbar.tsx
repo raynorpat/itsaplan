@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardPaste, Copy, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Label, LabelGroup } from '@/lib/api';
+import type { Label, LabelGroup } from '@/types/team';
 import type { AccessArea } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import {

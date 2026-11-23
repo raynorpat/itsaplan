@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { useShell } from '@/context/shellContext';
 import { StateIcon } from '@/components/common/issue/IssueIcons';
 import Avatar from '@/components/common/Avatar';

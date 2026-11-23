@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react';
 import { type Editor } from '@tiptap/react';
-import {
-  type Attachment,
-  type TeamDetail,
-  type IssueDetail as IssueDetailRow,
-  type IssuePatch,
-} from '@/lib/api';
+import type { Attachment, IssueDetail as IssueDetailRow, IssuePatch } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import { useIssueQuery, useUpdateIssueDetail } from '@/services/issues.service';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { qk } from '@/services/queryKeys';

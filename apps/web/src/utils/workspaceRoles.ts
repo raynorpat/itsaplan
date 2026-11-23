@@ -1,4 +1,4 @@
-import type { InviteRole, WorkspaceRole } from '@/lib/api';
+import type { InviteRole, WorkspaceRole } from '@/types/workspace';
 
 // Linear's workspace roles, lowest first. Used to gate UI; the API enforces the
 // same rules on every request.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
-import type { IssuePatch } from '@/lib/api';
+import type { IssuePatch } from '@/types/issue';
 import { useUpdateIssue } from '@/services/issues.service';
 import { useDndSensors } from '@/lib/dnd';
 import { type DropData } from '@/utils/dnd';

@@ -3,7 +3,7 @@
 // "Show older" loads the next page of every connection that has more.
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { type ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { buildProjectFeed, type ProjectFeedEntry } from '../utils/projectFeed';

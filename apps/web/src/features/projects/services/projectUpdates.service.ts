@@ -4,7 +4,7 @@
 // refreshes the lists that show health.
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { invalidateProject, type ProjectDetail } from '@/services/projects.service';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { issuePath, teamPath } from '@/utils/paths';
 import type { useOverlays } from '@/hooks/useOverlays';
 import NewTeamModal from '@/components/layout/NewTeamModal';

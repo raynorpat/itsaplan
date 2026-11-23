@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { X } from 'lucide-react';
-import { type ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { colorDot } from '@/components/common/fields/colorDot';
 import HealthBadge from '@/components/common/updates/HealthBadge';
 

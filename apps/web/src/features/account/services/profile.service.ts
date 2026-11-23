@@ -1,28 +1,23 @@
-import { API_URL } from '@/lib/api';
+import { gqlRequest, graphql } from '@/lib/graphql';
+import { uploadToStorage } from '@/services/uploads.service';
 
-async function errorMessage(res: Response): Promise<string> {
-  const body = await res.json().catch(() => null);
-  return body?.error ?? `${res.status} ${res.statusText}`;
+// The avatar the Linear way: the image is stored through fileUpload, then userUpdate
+// sets avatarUrl to it. The API checks the type and the avatar limit and releases the
+// previous image; the caller reads the session again to render the new one.
+
+const AvatarUpdate = graphql(`
+  mutation AvatarUpdate($id: String!, $input: UserUpdateInput!) {
+    userUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`);
+
+export async function uploadAvatar(file: File): Promise<void> {
+  const avatarUrl = await uploadToStorage(file, file.type || 'application/octet-stream');
+  await gqlRequest(AvatarUpdate, { id: 'me', input: { avatarUrl } });
 }
 
-// Uploads an avatar image to the API (stored in RustFS). The API writes the new URL
-// to the user's image column itself and returns it, so the caller only has to read
-// the session again. Multipart, so the browser sets the boundary itself — no
-// Content-Type header.
-export async function uploadAvatar(file: File): Promise<{ image: string }> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch(`${API_URL}/me/avatar`, {
-    method: 'POST',
-    credentials: 'include',
-    body: form,
-  });
-  if (!res.ok) throw new Error(await errorMessage(res));
-  return res.json();
-}
-
-// Removes the stored avatar object and clears the user's image column.
 export async function removeAvatar(): Promise<void> {
-  const res = await fetch(`${API_URL}/me/avatar`, { method: 'DELETE', credentials: 'include' });
-  if (!res.ok) throw new Error(await errorMessage(res));
+  await gqlRequest(AvatarUpdate, { id: 'me', input: { avatarUrl: null } });
 }

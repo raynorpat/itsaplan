@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 import Avatar from '@/components/common/Avatar';
 import { mentionsToChips } from '@/utils/mentions';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';

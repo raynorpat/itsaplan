@@ -1,9 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { type PublicAuthConfig } from '@/lib/api';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
+
+// The sign-in methods the sign-in screen offers, readable without a session. The
+// email (magic link) field is always offered.
+export interface PublicAuthConfig {
+  emailEnabled: boolean;
+  google: boolean;
+  passkey: boolean;
+}
 
 // Which sign-in methods the instance offers: the emailed link, Google and passkeys.
 // Shared rather than feature-local: the sign-in and invite pages read it before there

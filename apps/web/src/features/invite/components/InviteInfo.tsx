@@ -1,4 +1,4 @@
-import { type InviteView } from '@/lib/api';
+import type { InviteView } from '@/features/invite/services/invite.service';
 import { ROLE_LABELS } from '@/utils/workspaceRoles';
 import { Badge } from '@/components/ui/badge';
 

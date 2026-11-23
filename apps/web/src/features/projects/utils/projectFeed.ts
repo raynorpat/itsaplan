@@ -1,4 +1,4 @@
-import { type ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import {
   buildThreads,
   REMOVED_USER,

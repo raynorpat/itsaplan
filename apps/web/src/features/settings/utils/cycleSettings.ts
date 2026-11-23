@@ -1,4 +1,4 @@
-import type { TeamCycleSettings } from '@/lib/api';
+import type { TeamCycleSettings } from '@/types/team';
 
 export type CycleSettingsForm = TeamCycleSettings;
 

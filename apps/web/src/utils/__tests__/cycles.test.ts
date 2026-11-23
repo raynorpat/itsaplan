@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Cycle } from '@/lib/api';
+import type { Cycle } from '@/types/team';
 import {
   assignableCycles,
   cycleLabel,

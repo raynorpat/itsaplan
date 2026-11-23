@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIssueBySeqQuery } from '@/services/issues.service';
 import { useAccountPreferences } from '@/services/preferences.service';
-import type { IssueOpenMode } from '@/lib/api';
+import type { IssueOpenMode } from '@/types/account';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useOverlays } from '@/hooks/useOverlays';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';

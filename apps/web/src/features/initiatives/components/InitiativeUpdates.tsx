@@ -1,6 +1,6 @@
 'use client';
 
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import UpdateForm from '@/components/common/updates/UpdateForm';
 import { type InitiativeDetail } from '../services/initiatives.service';

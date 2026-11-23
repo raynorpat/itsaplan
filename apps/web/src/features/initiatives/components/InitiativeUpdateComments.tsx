@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { useCommentContext } from '@/hooks/useCommentContext';
 import { Button } from '@/components/ui/button';
 import CommentComposer from '@/components/common/comments/CommentComposer';

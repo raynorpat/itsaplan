@@ -1,11 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  api,
-  type BulkIssuePatch,
-  type Issue,
-  type IssuePatch,
-  type NewIssueInput,
-} from '@/lib/api';
+import type { BulkIssuePatch, Issue, IssuePatch, NewIssueInput } from '@/types/issue';
 import { qk } from '@/services/queryKeys';
 import { toast } from 'sonner';
 import { refetchInFull } from '@/hooks/useChangedSince';
@@ -13,6 +7,7 @@ import { patchIssueInList, rollbackRow } from '@/utils/boardCache';
 import { runBulk, type BulkResult } from '@/utils/bulk';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { invalidateSubscribedIssueIds } from '@/services/subscribedIssueIds';
+import { toSearchHit } from '@/utils/issueSearch';
 
 // --- The issue over GraphQL (the issue page and every surface reading qk.issue) ---
 // The issue's own fields as Linear's Issue, mapped onto the web's Issue type so the
@@ -206,6 +201,20 @@ export function useIssueBySeqQuery(teamKey: string | null, seq: number | null) {
   });
 }
 
+const IssueSearch = graphql(`
+  query IssueSearch($term: String!, $teamId: String!, $first: Int!) {
+    searchIssues(term: $term, teamId: $teamId, first: $first, includeArchived: true) {
+      nodes {
+        id
+        number
+        identifier
+        title
+        archivedAt
+      }
+    }
+  }
+`);
+
 // Server-side issue search behind the command palette. Runs only when the palette
 // is open and the term is non-empty; includes archived issues (the board payload
 // never carries them). keepPreviousData holds the last list while the next query
@@ -214,7 +223,10 @@ export function useIssueSearchQuery(teamKey: string | null, q: string, opts: { e
   const term = q.trim();
   return useQuery({
     queryKey: qk.issueSearch(teamKey ?? '', term),
-    queryFn: () => api.searchIssues(teamKey!, { q: term, limit: 50 }),
+    queryFn: async () =>
+      (await gqlRequest(IssueSearch, { term, teamId: teamKey!, first: 50 })).searchIssues.nodes.map(
+        toSearchHit,
+      ),
     enabled: opts.enabled && teamKey != null && term.length > 0,
     placeholderData: keepPreviousData,
   });

@@ -7,7 +7,7 @@ import type {
   IssueStatsView,
   StartPage,
   ThemePreference,
-} from '@/lib/api';
+} from '@/types/account';
 import {
   useAccountPreferencesQuery,
   useUpdateAccountPreferences,

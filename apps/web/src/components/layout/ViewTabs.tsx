@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Filter, Plus } from 'lucide-react';
-import type { View } from '@/lib/api';
+import type { View } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import AllViewTab from '@/components/layout/AllViewTab';
 import MobileViewSwitcher from '@/components/layout/MobileViewSwitcher';

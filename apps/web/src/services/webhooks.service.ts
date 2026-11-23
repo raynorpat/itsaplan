@@ -1,8 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { NewWebhookInput, Webhook, WebhookPatch, WebhookResourceType } from '@/lib/api';
+import type { Webhook, WebhookResourceType } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
+
+export interface NewWebhookInput {
+  url: string;
+  resourceTypes: WebhookResourceType[];
+  label?: string | null;
+  enabled?: boolean;
+}
+
+export interface WebhookPatch {
+  url?: string;
+  resourceTypes?: WebhookResourceType[];
+  label?: string | null;
+  enabled?: boolean;
+}
 
 const TeamWebhooksPage = graphql(`
   query TeamWebhooks($teamKey: String!, $after: String, $first: Int) {

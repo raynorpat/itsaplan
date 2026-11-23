@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import type { FilterCondition, FilterSet } from '@/utils/filters';
 import { buildFieldSpecs, newCondition, type FieldSpec } from '@/utils/filterFields';
 import { Button } from '@/components/ui/button';

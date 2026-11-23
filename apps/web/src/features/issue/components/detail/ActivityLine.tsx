@@ -1,6 +1,6 @@
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { CircleDot } from 'lucide-react';
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ACTION_ICON, describeActivity } from '../../utils/activityText';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';

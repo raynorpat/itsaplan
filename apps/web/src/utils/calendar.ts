@@ -1,5 +1,5 @@
 import { addDays, startOfMonth, startOfWeek } from 'date-fns';
-import { type Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import type { ViewSettings } from '@/utils/viewSettings';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

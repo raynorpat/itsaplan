@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import type { Notification, NotificationType, StateType } from '@/lib/api';
+import type { Notification, NotificationType } from '@/types/notification';
+import type { StateType } from '@/types/team';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { useChangedSince } from '@/hooks/useChangedSince';
 import { useSnoozeClock } from '@/hooks/useSnoozeClock';

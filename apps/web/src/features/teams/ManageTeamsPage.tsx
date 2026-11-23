@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { useJoinTeam, useTeamsQuery } from '@/services/teams.service';
 import { toWorkspaceRole } from '@/utils/workspaceRoles';

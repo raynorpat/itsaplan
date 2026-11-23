@@ -1,7 +1,7 @@
 'use client';
 
 import { toast } from 'sonner';
-import type { TeamDetail, TeamVisibility } from '@/lib/api';
+import type { TeamDetail, TeamVisibility } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUpdateTeam } from '@/services/teams.service';
 

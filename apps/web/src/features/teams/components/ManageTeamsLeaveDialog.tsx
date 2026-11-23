@@ -1,6 +1,6 @@
 'use client';
 
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { useLeaveTeam } from '@/services/teams.service';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 

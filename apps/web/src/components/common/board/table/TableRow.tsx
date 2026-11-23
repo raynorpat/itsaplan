@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import { type TeamDetail, type Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { type Maps } from '@/utils/team';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';

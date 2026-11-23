@@ -1,7 +1,7 @@
 'use client';
 
 import { Lock, LogIn, LogOut, Trash2 } from 'lucide-react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {

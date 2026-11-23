@@ -1,4 +1,4 @@
-import type { EmailCategories } from '@/lib/api';
+import type { EmailCategories } from '@/features/settings/utils/notificationPreferences';
 
 // The Linear notification categories this instance sends by email, with a display
 // label.

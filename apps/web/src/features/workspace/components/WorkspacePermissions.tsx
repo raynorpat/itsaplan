@@ -2,7 +2,7 @@
 
 import SettingsCard from '@/components/common/page/SettingsCard';
 import SettingsRow from '@/components/common/page/SettingsRow';
-import type { MinimumRole, OrganizationSettings } from '@/lib/api';
+import type { MinimumRole, OrganizationSettings } from '@/types/workspace';
 import { useUpdateOrganization } from '../services/organization.service';
 import WorkspaceRoleSelect from './WorkspaceRoleSelect';
 

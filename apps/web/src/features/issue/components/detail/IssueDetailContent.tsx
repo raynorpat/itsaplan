@@ -1,4 +1,5 @@
-import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { IssueDetail as IssueDetailRow } from '@/types/issue';
 import { useIssueDetail } from '../../hooks/useIssueDetail';
 import IssueAttachmentsPanel from './IssueAttachmentsPanel';
 import IssueRelations from '../relations/IssueRelations';

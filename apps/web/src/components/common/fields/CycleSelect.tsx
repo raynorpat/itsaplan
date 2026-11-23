@@ -1,5 +1,5 @@
 import { RefreshCcw } from 'lucide-react';
-import type { Cycle } from '@/lib/api';
+import type { Cycle } from '@/types/team';
 import { cycleLabel, cycleOptions } from '@/utils/cycles';
 import { Pill } from './Pill';
 import PopoverPick, { type PickItem } from './PopoverPick';

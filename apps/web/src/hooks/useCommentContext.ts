@@ -1,4 +1,4 @@
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { usePermissions } from './usePermissions';
 import { type CommentTarget } from '@/utils/commentTarget';

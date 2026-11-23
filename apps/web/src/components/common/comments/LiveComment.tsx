@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { canDeleteComment, canEditComment, canResolveThread } from '@/utils/commentPermissions';
 import { useDeleteComment, useSetThreadResolved } from '@/services/comments.service';

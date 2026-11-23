@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { type Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 import { useNotificationsList } from '@/services/notifications.service';
 import { useSnoozeClock } from '@/hooks/useSnoozeClock';
 import { unreadCount } from '@/utils/notifications';

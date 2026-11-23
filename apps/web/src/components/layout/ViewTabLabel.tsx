@@ -1,4 +1,4 @@
-import type { View } from '@/lib/api';
+import type { View } from '@/types/team';
 import { ViewIcon } from '@/utils/viewIcons';
 
 // The saved-view label (icon + name), shown in the tab and in the drag overlay.

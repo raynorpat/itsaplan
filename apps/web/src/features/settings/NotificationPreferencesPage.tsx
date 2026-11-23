@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { NotificationPreferences as Prefs } from '@/lib/api';
+import type { NotificationPreferences as Prefs } from '@/features/settings/utils/notificationPreferences';
 import { Button } from '@/components/ui/button';
 import SectionPageView from '@/components/common/page/SectionPageView';
 import NotificationPreferences from './components/notifications/NotificationPreferences';

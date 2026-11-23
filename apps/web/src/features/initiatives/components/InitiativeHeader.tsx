@@ -1,6 +1,6 @@
 'use client';
 
-import { type ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { shownHealth } from '@/utils/health';
 import HealthBadge from '@/components/common/updates/HealthBadge';
 import { type InitiativeDetail } from '../services/initiatives.service';

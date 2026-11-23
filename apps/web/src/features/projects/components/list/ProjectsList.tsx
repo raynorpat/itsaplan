@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
-import type { Project, ProjectSort, TeamDetail } from '@/lib/api';
+import type { Project, ProjectSort } from '@/types/project';
+import type { TeamDetail } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/page/EmptyState';

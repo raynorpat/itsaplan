@@ -1,4 +1,4 @@
-import type { ProjectCounts, ProjectStatus } from '@/lib/api';
+import type { ProjectCounts, ProjectStatus } from '@/types/project';
 
 const STATUSES: ProjectStatus[] = [
   'backlog',

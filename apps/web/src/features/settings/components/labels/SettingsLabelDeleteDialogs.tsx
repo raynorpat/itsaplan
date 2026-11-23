@@ -1,4 +1,4 @@
-import { type Label as LabelRow, type LabelGroup } from '@/lib/api';
+import type { Label as LabelRow, LabelGroup } from '@/types/team';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
 
 export function SettingsLabelDeleteDialog({

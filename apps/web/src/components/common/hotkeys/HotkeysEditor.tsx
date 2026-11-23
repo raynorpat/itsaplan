@@ -1,4 +1,4 @@
-import type { HotkeyOverrides } from '@/lib/api';
+import type { HotkeyOverrides } from '@/types/account';
 import { HOTKEYS, type HotkeyCombos, type HotkeyDef, type HotkeyId } from '@/utils/hotkeys';
 import HotkeysEditorRow from './HotkeysEditorRow';
 

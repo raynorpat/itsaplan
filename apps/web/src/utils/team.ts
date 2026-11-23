@@ -2,17 +2,8 @@
 // Table, Timeline, Calendar) so they bucket and order issues the same way. Date
 // and avatar helpers live in lib/dates and lib/avatar.
 
-import type {
-  Assignee,
-  TeamDetail,
-  Column,
-  Cycle,
-  Label,
-  StateType,
-  Issue,
-  IssuePatch,
-  NewIssueInput,
-} from '@/lib/api';
+import type { Assignee, TeamDetail, Column, Cycle, Label, StateType } from '@/types/team';
+import type { Issue, IssuePatch, NewIssueInput } from '@/types/issue';
 import { PRIORITIES } from '@/utils/fieldOptions';
 import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';

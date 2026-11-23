@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { type Editor } from '@tiptap/react';
-import { type TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { type NewIssueDefaults } from '@/utils/team';
 import { useSession } from '@/lib/auth-client';
 import { useCreateIssue, useUpdateIssue } from '@/services/issues.service';

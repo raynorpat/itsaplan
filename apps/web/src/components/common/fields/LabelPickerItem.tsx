@@ -1,4 +1,4 @@
-import type { Label } from '@/lib/api';
+import type { Label } from '@/types/team';
 import { DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { colorDot } from './colorDot';
 

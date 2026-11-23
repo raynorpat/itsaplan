@@ -1,4 +1,5 @@
-import { type BulkIssuePatch, type TeamDetail } from '@/lib/api';
+import type { BulkIssuePatch } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import {
   useBulkAddLabels,
   useBulkArchiveIssues,

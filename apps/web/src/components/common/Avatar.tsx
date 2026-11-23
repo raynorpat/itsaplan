@@ -3,7 +3,7 @@
 import { forwardRef, useState, type ComponentProps } from 'react';
 import Image from 'next/image';
 import { avatarColor, initials } from '@/utils/avatar';
-import { resolveApiUrl } from '@/lib/api';
+import { resolveApiUrl } from '@/lib/graphql';
 import { cn } from '@/lib/utils';
 
 // A person's avatar. With an uploaded `image` it shows that picture; otherwise

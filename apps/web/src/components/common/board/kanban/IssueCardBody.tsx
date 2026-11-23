@@ -1,5 +1,5 @@
 import { CalendarClock, RefreshCcw, Target } from 'lucide-react';
-import { type Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import { type Maps } from '@/utils/team';
 import { cycleLabel } from '@/utils/cycles';
 import { formatShortDate, isDueOverdue } from '@/utils/dates';

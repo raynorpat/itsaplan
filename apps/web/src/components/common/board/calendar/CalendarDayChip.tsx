@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
-import { type TeamDetail, type Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';

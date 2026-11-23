@@ -3,7 +3,7 @@
 // content type and size come in `metadata`.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type Attachment } from '@/lib/api';
+import type { Attachment } from '@/types/issue';
 import { gqlRequest, graphql, type ResultOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { uploadFile, type UploadedAttachment } from '../utils/upload';

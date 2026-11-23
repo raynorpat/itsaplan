@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Flag, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import type { ProjectMilestone } from '@/lib/api';
+import type { ProjectMilestone } from '@/types/project';
 import { formatDate } from '@/utils/dates';
 import {
   DropdownMenu,

@@ -1,5 +1,5 @@
 import { LayoutGrid, ListChecks, Plus, SquarePlus } from 'lucide-react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { VIEWS, type WorkItemsView } from '@/utils/viewTypes';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useHotkeyFormatter } from '@/context/useHotkeys';

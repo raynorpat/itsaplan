@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ChevronsUpDown, Plus, Settings2, SquareKanban, Users } from 'lucide-react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { manageTeamsPath, workspaceMembersPath } from '@/utils/paths';
 import { Badge } from '@/components/ui/badge';
 import {

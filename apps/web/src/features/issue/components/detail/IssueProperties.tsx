@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Target } from 'lucide-react';
-import { type TeamDetail, type IssueDetail as IssueDetailRow, type IssuePatch } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { IssueDetail as IssueDetailRow, IssuePatch } from '@/types/issue';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import { Pill } from '@/components/common/fields/Pill';

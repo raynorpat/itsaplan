@@ -1,4 +1,4 @@
-import { type Issue, type IssuePatch } from '@/lib/api';
+import type { Issue, IssuePatch } from '@/types/issue';
 import { groupIssues, mergeAssign, nestIssues, type IssueGroup } from '@/utils/team';
 import { type ViewSettings, type DisplayProperty, type PropertyKey } from '@/utils/viewSettings';
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type TeamDetail, type Column } from '@/lib/api';
+import type { TeamDetail, Column } from '@/types/team';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import {
   Select,

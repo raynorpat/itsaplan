@@ -1,7 +1,7 @@
 'use client';
 
 import { Ban, RotateCcw } from 'lucide-react';
-import type { WorkspaceRole, WorkspaceUser } from '@/lib/api';
+import type { WorkspaceRole, WorkspaceUser } from '@/types/workspace';
 import { formatShortDate } from '@/utils/dates';
 import { assignableRoles, atLeast, ROLE_LABELS } from '@/utils/workspaceRoles';
 import Avatar from '@/components/common/Avatar';

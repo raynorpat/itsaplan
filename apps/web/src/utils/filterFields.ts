@@ -1,4 +1,4 @@
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
 import { cycleLabel, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import {

@@ -7,13 +7,12 @@ import { afterEach, before, describe, it } from 'node:test';
 process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
 
 type GraphqlModule = typeof import('../graphql');
-type ApiModule = typeof import('../api');
 let mod: GraphqlModule;
-let ApiError: ApiModule['ApiError'];
+let ApiError: GraphqlModule['ApiError'];
 
 before(async () => {
   mod = await import('../graphql');
-  ({ ApiError } = await import('../api'));
+  ({ ApiError } = mod);
 });
 
 const realFetch = globalThis.fetch;

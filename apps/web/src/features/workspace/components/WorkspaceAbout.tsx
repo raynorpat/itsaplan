@@ -1,6 +1,6 @@
 import SettingsCard from '@/components/common/page/SettingsCard';
 import SettingsRow from '@/components/common/page/SettingsRow';
-import type { OrganizationSettings } from '@/lib/api';
+import type { OrganizationSettings } from '@/types/workspace';
 import { useAppVersionQuery } from '@/services/version.service';
 
 // Read-only facts set by the server's environment: the approved email domains and the

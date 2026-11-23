@@ -1,6 +1,6 @@
 'use client';
 
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // A checkbox per team, for choosing the teams a project belongs to. Every team the

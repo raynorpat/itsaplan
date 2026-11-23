@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { IssueFields, toIssue } from '@/services/issues.service';
 import { qk } from '@/services/queryKeys';

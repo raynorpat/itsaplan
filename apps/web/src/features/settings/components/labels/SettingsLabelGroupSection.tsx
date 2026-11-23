@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import { type LabelGroup } from '@/lib/api';
+import type { LabelGroup } from '@/types/team';
 import { cn } from '@/lib/utils';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { Button } from '@/components/ui/button';

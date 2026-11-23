@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { type DocumentParent } from '@/utils/documentParent';
 import { useCreateDocument, useDocumentsQuery } from '@/services/documents.service';

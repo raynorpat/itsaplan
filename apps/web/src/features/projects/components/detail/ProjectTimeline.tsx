@@ -1,7 +1,7 @@
 'use client';
 
 import { parseISO, differenceInCalendarDays } from 'date-fns';
-import type { Project } from '@/lib/api';
+import type { Project } from '@/types/project';
 import { formatDate } from '@/utils/dates';
 import HealthBadge from '@/components/common/updates/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';

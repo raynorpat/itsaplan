@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { EmailCategories, NotificationPreferences } from '@/lib/api';
+import type {
+  EmailCategories,
+  NotificationPreferences,
+} from '@/features/settings/utils/notificationPreferences';
 import { useUpdateNotificationPreferences } from '../services/settings.service';
 import { categoriesEqual } from '../utils/notificationEvents';
 

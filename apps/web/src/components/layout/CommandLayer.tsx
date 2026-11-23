@@ -1,4 +1,4 @@
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import type { CommandSection } from '@/utils/commands';
 import { useShell } from '@/context/shellContext';

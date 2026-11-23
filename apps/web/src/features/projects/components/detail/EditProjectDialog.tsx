@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Project } from '@/lib/api';
+import type { Project } from '@/types/project';
 import { useUpdateProject } from '@/services/projects.service';
 import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';

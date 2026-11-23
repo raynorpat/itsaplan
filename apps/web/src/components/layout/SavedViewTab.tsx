@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { type View } from '@/lib/api';
+import type { View } from '@/types/team';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import ViewTabChrome from '@/components/layout/ViewTabChrome';
 import ViewTabLabel from '@/components/layout/ViewTabLabel';

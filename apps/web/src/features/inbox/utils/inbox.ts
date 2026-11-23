@@ -1,4 +1,4 @@
-import type { Notification, NotificationType } from '@/lib/api';
+import type { Notification, NotificationType } from '@/types/notification';
 import { isSnoozed } from '@/utils/notifications';
 
 // What the inbox list shows, chosen in the browser from every unarchived

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 import { useToggleReaction } from '@/services/reactions.service';

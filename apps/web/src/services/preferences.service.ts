@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type AccountPreferences, type AccountPreferencesPatch } from '@/lib/api';
+import type { AccountPreferences, AccountPreferencesPatch } from '@/types/account';
+import { gqlRequest, graphql } from '@/lib/graphql';
 import { useSession } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 
@@ -21,6 +22,23 @@ export const PREFERENCE_DEFAULTS: AccountPreferences = {
 };
 
 const STORAGE_KEY = 'itsaplan.preferences';
+
+const ViewerTimezone = graphql(`
+  query ViewerTimezone {
+    viewer {
+      id
+      timezone
+    }
+  }
+`);
+
+const TimezoneUpdate = graphql(`
+  mutation TimezoneUpdate($id: String!, $input: UserUpdateInput!) {
+    userUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`);
 
 type LocalPreferences = Omit<AccountPreferences, 'timezone'>;
 
@@ -52,7 +70,8 @@ export function useAccountPreferencesQuery() {
     queryFn: async (): Promise<AccountPreferences> => ({
       ...PREFERENCE_DEFAULTS,
       ...readLocal(),
-      timezone: (await api.getAccountTimezone()).timezone,
+      timezone:
+        (await gqlRequest(ViewerTimezone, {})).viewer.timezone ?? PREFERENCE_DEFAULTS.timezone,
     }),
     // The route needs a session; the login and invite screens have none.
     enabled: Boolean(session),
@@ -73,7 +92,8 @@ export function useUpdateAccountPreferences() {
     mutationFn: async (input: AccountPreferencesPatch): Promise<AccountPreferences> => {
       const { timezone, ...local } = input;
       if (Object.keys(local).length > 0) writeLocal(local);
-      if (timezone !== undefined) await api.updateAccountTimezone(timezone);
+      if (timezone !== undefined)
+        await gqlRequest(TimezoneUpdate, { id: 'me', input: { timezone } });
       return {
         ...(qc.getQueryData<AccountPreferences>(qk.accountPreferences) ?? PREFERENCE_DEFAULTS),
         ...input,

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { documentTitle, syncDraft } from '@/utils/documents';

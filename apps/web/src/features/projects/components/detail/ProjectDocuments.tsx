@@ -1,6 +1,6 @@
 'use client';
 
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { ProjectDetail } from '@/services/projects.service';
 import DocumentList from '@/components/common/documents/DocumentList';

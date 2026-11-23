@@ -1,4 +1,5 @@
-import type { Issue, StateType } from '@/lib/api';
+import type { Issue } from '@/types/issue';
+import type { StateType } from '@/types/team';
 import { appendPage } from '@/utils/appendPage';
 
 // The fields of a cycle the progress numbers and the chart read. The histories hold

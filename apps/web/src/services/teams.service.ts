@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Team, TeamVisibility } from '@/lib/api';
+import type { Team, TeamVisibility } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';

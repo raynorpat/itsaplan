@@ -6,7 +6,7 @@ import { useTeamsQuery } from '@/services/teams.service';
 import { fetchSubscribedIssueIds, useBoardIssues, useTeamScaffold } from '@/services/board.service';
 import { useViewsQuery } from '@/services/views.service';
 import { qk } from '@/services/queryKeys';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/graphql';
 import { useSession } from '@/lib/auth-client';
 import {
   applyFilters,

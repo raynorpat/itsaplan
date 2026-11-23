@@ -15,7 +15,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { IssuePatch, TeamDetail } from '@/lib/api';
+import type { IssuePatch } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import { toDateStr } from '@/utils/dates';
 import {
   useArchiveIssue,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { TeamDetail, StateType } from '@/lib/api';
+import type { TeamDetail, StateType } from '@/types/team';
 
 // The project's linked issues counted per state group. Complements the header
 // progress pill with the full distribution (backlog through canceled).

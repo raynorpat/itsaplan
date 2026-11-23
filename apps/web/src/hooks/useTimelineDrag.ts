@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { type Issue, type IssuePatch, type TeamDetail } from '@/lib/api';
+import type { Issue, IssuePatch } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import { addDays, toDateStr } from '@/utils/dates';
 import { buildGroups, groupKeyOf } from '@/utils/team';
 import { useUpdateIssue } from '@/services/issues.service';

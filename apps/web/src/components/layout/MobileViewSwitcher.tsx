@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, ChevronDown, Layers, Plus } from 'lucide-react';
-import type { View } from '@/lib/api';
+import type { View } from '@/types/team';
 import { cn } from '@/lib/utils';
 import { ViewIcon } from '@/utils/viewIcons';
 import {

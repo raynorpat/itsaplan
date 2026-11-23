@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // The "+N more" control for a day cell: a popover listing every issue on that day

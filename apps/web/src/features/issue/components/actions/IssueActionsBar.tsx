@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Archive, ArchiveRestore, Check, ClipboardCopy, Share2, Trash2 } from 'lucide-react';
-import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { IssueDetail as IssueDetailRow } from '@/types/issue';
 import { useArchiveIssue, useRestoreIssue } from '@/services/issues.service';
 import { usePermissions } from '@/hooks/usePermissions';
 import { DeleteIssueDialog } from '@/components/common/issue/IssueActions';

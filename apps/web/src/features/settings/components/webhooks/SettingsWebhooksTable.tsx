@@ -1,4 +1,4 @@
-import type { Webhook } from '@/lib/api';
+import type { Webhook } from '@/types/workspace';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SettingsWebhookRow } from './SettingsWebhookRow';
 

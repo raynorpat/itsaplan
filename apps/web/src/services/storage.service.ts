@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { type StorageSettings } from '@/lib/api';
+import type { StorageSettings } from '@/types/workspace';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 

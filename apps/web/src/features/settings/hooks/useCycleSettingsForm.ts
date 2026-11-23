@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import type { TeamCycleSettings, TeamDetail } from '@/lib/api';
+import type { TeamCycleSettings, TeamDetail } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUpdateTeamCycles } from '../services/settings.service';
 import { cycleSettingsInput } from '../utils/cycleSettings';

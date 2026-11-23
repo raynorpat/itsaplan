@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, CircleDashed, Target } from 'lucide-react';
 import { useProjectQuery, useProjectsQuery } from '@/services/projects.service';
-import type { Project } from '@/lib/api';
+import type { Project } from '@/types/project';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import {

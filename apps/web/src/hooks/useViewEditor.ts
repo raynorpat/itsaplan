@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { View } from '@/lib/api';
+import type { View } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import { useCreateView, useDeleteView, useUpdateView } from '@/services/views.service';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';

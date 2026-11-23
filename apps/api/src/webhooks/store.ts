@@ -9,7 +9,7 @@ import { iso } from '../shared/lib';
 // handled separately; this layer only stores and returns the subscription.
 
 // The Linear resource types a webhook can receive. Keep in sync with the events
-// emitted through webhooks/event.ts and the web list (apps/web src/lib/api.ts).
+// emitted through webhooks/event.ts and the web list (apps/web src/types/workspace.ts).
 export const WEBHOOK_RESOURCE_TYPES = [
   'Issue',
   'Comment',

@@ -1,4 +1,4 @@
-import type { ProjectProgress } from '@/lib/api';
+import type { ProjectProgress } from '@/types/project';
 
 // Issue progress as a thin bar plus a "completed/total" count. Canceled issues are
 // excluded from the denominator so the bar reflects deliverable work.

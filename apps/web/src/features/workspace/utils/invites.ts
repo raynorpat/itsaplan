@@ -1,4 +1,4 @@
-import type { InviteRow } from '@/lib/api';
+import type { InviteRow } from '@/types/workspace';
 import { inviteRoleFromLinear } from '@/utils/workspaceRoles';
 
 type InviteNode = {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 import { unreadCount } from '../notifications';
 
 // The inbox badge: unread notifications that are neither archived nor snoozed.

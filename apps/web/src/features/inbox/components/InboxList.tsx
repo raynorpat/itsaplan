@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { type Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 import InboxListItem from './InboxListItem';
 
 // The scrollable notification list. Empty and loading states render in place. The

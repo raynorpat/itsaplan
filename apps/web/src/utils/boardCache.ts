@@ -1,4 +1,4 @@
-import type { Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 
 // Puts the issue a mutation returned into the board's cached list, in place of the
 // row with the same id. Grouping and ordering are derived from the list on render, so

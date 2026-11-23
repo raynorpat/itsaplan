@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { MemberRole, MemberRow } from '@/lib/api';
+import type { MemberRole, MemberRow } from '@/types/team';
 import { instanceFetch } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';

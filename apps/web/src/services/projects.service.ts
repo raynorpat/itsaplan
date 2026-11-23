@@ -5,12 +5,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import {
-  type Project,
-  type ProjectHealth,
-  type ProjectMilestone,
-  type ProjectStatus,
-} from '@/lib/api';
+import type { Project, ProjectHealth, ProjectMilestone, ProjectStatus } from '@/types/project';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { toProjectInput, type ProjectChange } from '@/utils/projectInput';

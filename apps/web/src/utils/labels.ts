@@ -1,4 +1,4 @@
-import type { Label, LabelGroup } from '@/lib/api';
+import type { Label, LabelGroup } from '@/types/team';
 
 // A group of labels for the pickers: either a real LabelGroup with its labels,
 // or the ungrouped bucket (group === null). Empty groups are omitted so a group

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { HEALTH_META } from '@/utils/projectMeta';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { Pill } from '@/components/common/fields/Pill';

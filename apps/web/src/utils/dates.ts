@@ -1,4 +1,4 @@
-import type { StateType } from '@/lib/api';
+import type { StateType } from '@/types/team';
 
 // Date helpers shared by the team views. Kept separate from team grouping so
 // components that only need date math (Calendar, Timeline, cards) do not pull in

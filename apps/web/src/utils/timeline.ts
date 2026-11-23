@@ -1,5 +1,6 @@
 import { format, startOfDay } from 'date-fns';
-import { type Issue, type TeamDetail } from '@/lib/api';
+import type { Issue } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import { addDays, daysBetween, parseDate } from '@/utils/dates';
 import { buildGroups, groupIssues, type IssueGroup } from '@/utils/team';
 import type { GroupField, TimelineScale } from '@/utils/viewSettings';

@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkspaceRole } from '@/lib/api';
+import type { WorkspaceRole } from '@/types/workspace';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useWorkspaceUsersQuery } from '@/services/members.service';
 import WorkspaceUserRow from './WorkspaceUserRow';

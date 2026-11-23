@@ -1,5 +1,5 @@
 import { Hash } from 'lucide-react';
-import type { IssueSearchHit } from '@/lib/api';
+import type { IssueSearchHit } from '@/utils/issueSearch';
 import { ISSUE_PREFIX } from '@/utils/commandFilter';
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command';
 

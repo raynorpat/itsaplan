@@ -17,7 +17,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { TeamDetail, Issue, IssuePatch } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue, IssuePatch } from '@/types/issue';
 import { useArchiveIssue, useRestoreIssue, useUpdateIssueDetail } from '@/services/issues.service';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';

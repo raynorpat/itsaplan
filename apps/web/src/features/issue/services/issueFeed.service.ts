@@ -3,7 +3,7 @@
 // threads by buildFeed; the timeline is the issue's state spans.
 
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { type FeedItem, type TimelineSegment } from '@/lib/api';
+import type { FeedItem, TimelineSegment } from '@/types/issue';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { type FeedComment, type FeedEntry } from '@/utils/commentThreads';

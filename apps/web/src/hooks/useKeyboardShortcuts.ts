@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import { isTypingTarget, type HotkeyId } from '@/utils/hotkeys';
 import { useHotkeyMatch } from '@/context/useHotkeys';

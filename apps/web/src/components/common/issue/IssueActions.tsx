@@ -1,4 +1,5 @@
-import type { TeamDetail, Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { useDeleteIssue } from '@/services/issues.service';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 

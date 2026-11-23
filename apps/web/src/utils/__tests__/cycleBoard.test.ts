@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Cycle, Issue, TeamDetail } from '@/lib/api';
+import type { Cycle, TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { buildGroups, groupIssues, groupKeyOf, buildMaps } from '../team';
 import { cycleSafeSettings, defaultViewSettings } from '../viewSettings';
 import { applyFilters } from '../filters';

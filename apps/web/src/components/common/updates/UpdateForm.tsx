@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { Button } from '@/components/ui/button';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import HealthSelect from './HealthSelect';

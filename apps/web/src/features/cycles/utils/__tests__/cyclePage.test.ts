@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import { patchIssueInList } from '@/utils/boardCache';
 import {
   chartPoints,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { teamPath } from '@/utils/paths';
 import {
   useAccountPreferencesQuery,

@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { DRAG_ACTIVATION_DISTANCE } from '@/lib/dnd';
-import { type TeamDetail, type Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { type Maps } from '@/utils/team';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';

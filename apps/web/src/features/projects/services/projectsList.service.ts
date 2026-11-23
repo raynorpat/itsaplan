@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import type { Project, ProjectCounts, ProjectStatus } from '@/lib/api';
+import type { Project, ProjectCounts, ProjectStatus } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { fetchProjectsPage } from '@/services/projects.service';
 import { qk } from '@/services/queryKeys';

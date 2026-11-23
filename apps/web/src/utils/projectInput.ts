@@ -1,4 +1,4 @@
-import type { ProjectStatus } from '@/lib/api';
+import type { ProjectStatus } from '@/types/project';
 
 // A change to a project as the web's forms express it: its fields, its teams (the
 // ones the viewer can see) and its members (the whole list).

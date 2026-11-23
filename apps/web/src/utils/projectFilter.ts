@@ -1,4 +1,4 @@
-import type { ProjectStatus } from '@/lib/api';
+import type { ProjectStatus } from '@/types/project';
 
 export interface ProjectListFilters {
   // A team key; projects with no team the viewer can see are never listed.

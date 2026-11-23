@@ -1,5 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
-import { type TeamDetail, type Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { cn } from '@/lib/utils';
 import { type DateField } from '@/utils/viewSettings';
 import { CalendarUnscheduledCard } from './CalendarUnscheduledCard';

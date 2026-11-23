@@ -5,9 +5,16 @@
 // teams.
 
 import { useQuery } from '@tanstack/react-query';
-import type { InviteView } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { inviteRoleFromLinear } from '@/utils/workspaceRoles';
+import type { InviteRole } from '@/types/workspace';
+
+// An invite as shown to the invitee opening the link (no sign-in needed).
+export interface InviteView {
+  email: string;
+  role: InviteRole;
+  invitedByName: string | null;
+}
 
 const InviteDetails = graphql(`
   query InviteDetails($id: String!) {

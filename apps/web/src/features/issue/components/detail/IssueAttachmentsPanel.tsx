@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { type Attachment } from '@/lib/api';
+import type { Attachment } from '@/types/issue';
 import {
   useAddLink,
   useAttachmentsQuery,

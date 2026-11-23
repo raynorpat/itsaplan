@@ -1,4 +1,5 @@
-import type { Cycle, Issue, TeamCycleSettings } from '@/lib/api';
+import type { Cycle, TeamCycleSettings } from '@/types/team';
+import type { Issue } from '@/types/issue';
 
 // Whether cycle controls are shown for a team: only when its cycles are on, and
 // never while the team scaffold is still loading.

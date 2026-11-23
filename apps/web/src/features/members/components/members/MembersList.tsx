@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, UserMinus } from 'lucide-react';
-import { type MemberRow } from '@/lib/api';
+import type { MemberRow } from '@/types/team';
 import { formatShortDate } from '@/utils/dates';
 import Avatar from '@/components/common/Avatar';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';

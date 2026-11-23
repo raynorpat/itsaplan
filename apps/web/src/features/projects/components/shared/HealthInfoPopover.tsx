@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { ChevronRight, HelpCircle } from 'lucide-react';
-import type { ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { healthMeta } from '@/utils/projectMeta';

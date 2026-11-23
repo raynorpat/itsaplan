@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { OrganizationSettingsPatch } from '@/lib/api';
+import type { OrganizationSettingsPatch } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { toOrganizationInput, toOrganizationSettings } from '../utils/organization';

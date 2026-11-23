@@ -18,7 +18,7 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { type ActivityAction, type FeedItem } from '@/lib/api';
+import type { ActivityAction, FeedItem } from '@/types/issue';
 import { priorityLabel } from '@/utils/fieldOptions';
 import { RELATION_PHRASE } from '@/utils/issueRelations';
 

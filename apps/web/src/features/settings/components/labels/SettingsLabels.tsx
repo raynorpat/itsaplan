@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { teamOwnGroups, teamOwnLabels } from '@/utils/labels';
 import { DndContext, DragOverlay, type DragEndEvent } from '@dnd-kit/core';
-import { type Label as LabelRow, type LabelGroup, type TeamDetail } from '@/lib/api';
+import type { Label as LabelRow, LabelGroup, TeamDetail } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { colorDot } from '@/components/common/fields/colorDot';

@@ -3,7 +3,7 @@
 // instead of keeping its own copy. Adding or renaming a priority/state is a
 // single edit in this file (plus its icon in the two icon renderers).
 
-import type { StateType } from '@/lib/api';
+import type { StateType } from '@/types/team';
 
 // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
 export type Priority = 1 | 2 | 3 | 4;

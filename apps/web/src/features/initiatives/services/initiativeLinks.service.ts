@@ -3,7 +3,7 @@
 // pickers offer (projects by name search, every relation, the possible owners).
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';

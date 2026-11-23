@@ -3,7 +3,7 @@
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/graphql';
 import { HotkeysProvider } from '@/context/useHotkeys';
 import { Toaster } from '@/components/ui/sonner';
 import PreferencesSync from '@/components/preferences-sync';

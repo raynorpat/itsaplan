@@ -1,4 +1,4 @@
-import type { ProjectHealth } from '@/lib/api';
+import type { ProjectHealth } from '@/types/project';
 import { healthMeta } from '@/utils/projectMeta';
 
 // A small health signal: a colored dot plus its label. null renders a muted

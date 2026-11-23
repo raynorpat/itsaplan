@@ -1,4 +1,4 @@
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { useCommentContext } from '@/hooks/useCommentContext';
 import CommentComposer from '@/components/common/comments/CommentComposer';
 import IssueFeedList from './IssueFeedList';

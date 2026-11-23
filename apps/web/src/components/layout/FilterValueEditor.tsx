@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import type { FilterCondition, FilterValue } from '@/utils/filters';
 import { valuesLabel, type FieldSpec } from '@/utils/filterFields';
 import { cn } from '@/lib/utils';

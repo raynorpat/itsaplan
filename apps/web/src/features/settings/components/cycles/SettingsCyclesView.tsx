@@ -1,6 +1,6 @@
 'use client';
 
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { settingsSection } from '@/utils/settingsSections';
 import { Button } from '@/components/ui/button';
 import SectionPageView from '@/components/common/page/SectionPageView';

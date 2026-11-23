@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { LabelGroup } from '@/lib/api';
+import type { LabelGroup } from '@/types/team';
 import { colorDot } from '@/components/common/fields/colorDot';
 import Modal from '@/components/common/overlay/Modal';
 import { Badge } from '@/components/ui/badge';

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { useUpdateTeam } from '@/services/teams.service';
 import { usePermissions } from '@/hooks/usePermissions';
 

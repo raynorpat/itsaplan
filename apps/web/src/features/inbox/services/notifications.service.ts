@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { mergeChanged } from '@/utils/mergeChanged';
 import { runBulk } from '@/utils/bulk';

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { UserPlus } from 'lucide-react';
-import type { InviteRole, WorkspaceRole } from '@/lib/api';
+import type { InviteRole, WorkspaceRole } from '@/types/workspace';
 import { invitableRoles, ROLE_LABELS } from '@/utils/workspaceRoles';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';

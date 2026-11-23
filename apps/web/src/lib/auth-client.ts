@@ -3,7 +3,7 @@ import { inferAdditionalFields } from 'better-auth/client/plugins';
 import { magicLinkClient } from 'better-auth/client/plugins';
 import { passkeyClient } from '@better-auth/passkey/client';
 import { apiKeyClient } from '@better-auth/api-key/client';
-import { API_URL, ApiError } from '@/lib/api';
+import { API_URL, ApiError } from '@/lib/graphql';
 
 // The better-auth handler lives on the backend (Elysia), so baseURL is the API origin.
 // inferAdditionalFields declares the custom `workspaceRole` column added in

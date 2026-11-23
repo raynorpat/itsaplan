@@ -1,4 +1,4 @@
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 import {
   buildThreads,
   REMOVED_USER,

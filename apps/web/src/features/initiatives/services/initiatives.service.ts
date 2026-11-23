@@ -3,7 +3,7 @@
 // archiving, unarchiving and deleting one.
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { type ProjectHealth, type ProjectStatus } from '@/lib/api';
+import type { ProjectHealth, ProjectStatus } from '@/types/project';
 import { type TadaDocumentNode } from 'gql.tada';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';

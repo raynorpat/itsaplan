@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { toast } from 'sonner';
-import { type Issue, type IssuePatch } from '@/lib/api';
+import type { Issue, IssuePatch } from '@/types/issue';
 import {
   buildGroups,
   buildMaps,

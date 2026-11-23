@@ -8,7 +8,7 @@ import {
   type SettingsSection,
 } from '@/utils/settingsSections';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 
 // The team settings sidebar (the "Team settings" mode) lists the
 // Configuration sections flat under group labels. This hook builds those groups

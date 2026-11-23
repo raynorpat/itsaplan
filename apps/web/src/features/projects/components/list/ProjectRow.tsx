@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Minus } from 'lucide-react';
-import type { Project, Assignee } from '@/lib/api';
+import type { Project } from '@/types/project';
+import type { Assignee } from '@/types/team';
 import { projectPath } from '@/utils/paths';
 import { formatShortDate } from '@/utils/dates';
 import { AssigneeAvatar } from '@/components/common/issue/IssueBadges';

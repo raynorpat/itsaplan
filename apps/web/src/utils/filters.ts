@@ -3,7 +3,8 @@
 // ./viewFilters.ts; the set is applied to every layout (Team, Table, Timeline,
 // Calendar) before the issues are handed to the view.
 
-import type { TeamDetail, StateType, Issue } from '@/lib/api';
+import type { TeamDetail, StateType } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { cyclesVisible } from '@/utils/cycles';
 
 // The fields a condition can target. A stored condition on any other field (one

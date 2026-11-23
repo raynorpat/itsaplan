@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Braces, Server, Settings2 } from 'lucide-react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { apiDocsPath, mcpServerPath, workspaceSettingsPath } from '@/utils/paths';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';

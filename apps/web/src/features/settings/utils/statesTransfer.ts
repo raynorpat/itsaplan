@@ -2,7 +2,7 @@
 // between teams. The clipboard payload is a small JSON envelope; parsing validates
 // it and drops states with an unknown state type.
 
-import type { Column, StateType } from '@/lib/api';
+import type { Column, StateType } from '@/types/team';
 import { STATE_TYPES } from '@/utils/fieldOptions';
 import { DEFAULT_COLOR } from '@/utils/team';
 

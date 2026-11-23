@@ -3,7 +3,7 @@ import { applicableLabels } from '@/utils/labels';
 
 import { useState } from 'react';
 import { Archive, CircleDashed, RefreshCcw, Tag, Target, Trash2, User, X } from 'lucide-react';
-import { type TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES } from '@/utils/projectMeta';

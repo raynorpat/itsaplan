@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
-import type { ProjectStatus } from '@/lib/api';
+import type { ProjectStatus } from '@/types/project';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { colorDot } from '@/components/common/fields/colorDot';

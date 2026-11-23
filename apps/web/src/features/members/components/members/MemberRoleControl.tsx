@@ -1,6 +1,6 @@
 'use client';
 
-import type { MemberRole, MemberRow } from '@/lib/api';
+import type { MemberRole, MemberRow } from '@/types/team';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,

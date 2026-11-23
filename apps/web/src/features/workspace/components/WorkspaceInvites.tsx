@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkspaceRole } from '@/lib/api';
+import type { WorkspaceRole } from '@/types/workspace';
 import { isWorkspaceAdmin } from '@/utils/workspaceRoles';
 import { useTeamsQuery } from '@/services/teams.service';
 import { useDeleteInvite, useInvitesQuery } from '../services/workspace.service';

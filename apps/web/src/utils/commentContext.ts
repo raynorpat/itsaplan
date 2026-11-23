@@ -1,4 +1,4 @@
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { type CommentTarget } from './commentTarget';
 
 // What every comment in a live comment list needs to show the viewer's controls

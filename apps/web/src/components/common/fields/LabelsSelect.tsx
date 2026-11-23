@@ -1,5 +1,5 @@
 import { Tag } from 'lucide-react';
-import type { Label, LabelGroup } from '@/lib/api';
+import type { Label, LabelGroup } from '@/types/team';
 import { Pill } from './Pill';
 import ReadOnlyPill from './ReadOnlyPill';
 import { applicableLabels, teamOwnGroups } from '@/utils/labels';

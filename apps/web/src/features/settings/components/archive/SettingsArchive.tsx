@@ -5,8 +5,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AUTO_ARCHIVE_PERIODS } from '@/lib/api';
 import type { AutoArchiveForm } from '../../hooks/useAutoArchiveForm';
+
+// The auto-archive periods a team may pick (Linear's Team.autoArchivePeriod): months
+// a completed or canceled issue stays before the worker archives it; 0 = off.
+const AUTO_ARCHIVE_PERIODS = [0, 1, 3, 6, 9, 12] as const;
 
 const periodLabel = (months: number) =>
   months === 0 ? 'Never' : months === 1 ? 'After 1 month' : `After ${months} months`;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Team } from '@/lib/api';
+import type { Team } from '@/types/team';
 import { useDeleteTeam } from '@/services/teams.service';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { Input } from '@/components/ui/input';

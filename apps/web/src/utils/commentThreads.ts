@@ -1,4 +1,4 @@
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 
 // Comment threads built from Linear's GraphQL comments, for every comment list (an
 // issue's feed, a document's, a project's, a project update's): a root comment with

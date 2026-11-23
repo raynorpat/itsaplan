@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { closestCenter, DndContext, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { type Column, type TeamDetail, type StateType } from '@/lib/api';
+import type { Column, TeamDetail, StateType } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
 import { STATE_TYPES } from '@/utils/fieldOptions';
 import { positionForMove } from '../../utils/statePosition';

@@ -1,6 +1,6 @@
 'use client';
 
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import {
   useUpdateProject,
   type ProjectChange,

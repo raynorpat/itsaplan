@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { GripVertical } from 'lucide-react';
-import { type Label as LabelRow } from '@/lib/api';
+import type { Label as LabelRow } from '@/types/team';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { SettingsRow } from '../crud/SettingsRow';
 import { useSettingsCan } from '../../context/settingsPermission';

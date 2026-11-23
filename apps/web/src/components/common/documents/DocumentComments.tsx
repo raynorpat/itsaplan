@@ -1,6 +1,6 @@
 'use client';
 
-import { type Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import { useDocumentCommentsQuery } from '@/services/documents.service';
 import { useCommentContext } from '@/hooks/useCommentContext';
 import CommentComposer from '../comments/CommentComposer';

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type InviteView } from '@/lib/api';
+import type { InviteView } from '@/features/invite/services/invite.service';
 import { useSession } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import InviteAuthForm from './InviteAuthForm';

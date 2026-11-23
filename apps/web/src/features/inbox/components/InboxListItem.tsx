@@ -8,7 +8,7 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { type Notification, type NotificationType } from '@/lib/api';
+import type { Notification, NotificationType } from '@/types/notification';
 import { formatDurationShort } from '@/utils/dates';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';

@@ -1,4 +1,4 @@
-import { type FeedItem } from '@/lib/api';
+import type { FeedItem } from '@/types/issue';
 import ActivityLine from './ActivityLine';
 import CommentItem from '@/components/common/comments/CommentItem';
 

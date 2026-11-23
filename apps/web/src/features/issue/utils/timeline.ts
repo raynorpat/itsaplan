@@ -1,4 +1,5 @@
-import { type Column, type StateType, type TimelineSegment } from '@/lib/api';
+import type { Column, StateType } from '@/types/team';
+import type { TimelineSegment } from '@/types/issue';
 import { formatDuration, formatShortDate } from '@/utils/dates';
 
 // Turns the API's status segments into the geometry the timeline renders: one lane

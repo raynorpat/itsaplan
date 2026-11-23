@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import type { Webhook } from '@/lib/api';
+import type { Webhook } from '@/types/workspace';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {

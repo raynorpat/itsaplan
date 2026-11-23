@@ -39,7 +39,7 @@ Next.js App Router, SSR (not SPA). Tailwind v4 + shadcn/ui. See root `AGENTS.md`
   `components/{common,ui}`); a part used by one feature stays in it. Promote only when a second
   feature needs it (YAGNI) — don't pre-share.
 - The shared layer splits by what a module depends on: `src/lib` holds wrappers over external
-  packages (`api.ts`, `auth-client.ts`, `markdown.ts`, `dnd.ts`) plus shadcn's `utils.ts` (`cn`,
+  packages (`graphql.ts`, `auth-client.ts`, `markdown.ts`, `dnd.ts`) plus shadcn's `utils.ts` (`cn`,
   fixed by `components.json`); `src/utils` holds own helpers and constants with no external
   package behind them. `src/context` holds shared React contexts and their `use*` readers.
 - `components/common` groups by purpose: `fields/`, `inputs/`, `page/`, `overlay/`,
@@ -53,7 +53,8 @@ Next.js App Router, SSR (not SPA). Tailwind v4 + shadcn/ui. See root `AGENTS.md`
 
 - Prefer Server Components and server-side data fetching; reach for client components only for
   interactivity/hooks.
-- Call the backend over HTTP at the API origin. `lib/api.ts` reads `NEXT_PUBLIC_API_URL`
+- Call the backend over HTTP at the API origin: `/graphql` through `lib/graphql.ts`, auth
+  and instance information through `lib/auth-client.ts`. `lib/graphql.ts` reads `NEXT_PUBLIC_API_URL`
   from `apps/web/.env` (same value as the root `API_URL`), inlined at build time.
 - Add shadcn components with `bunx shadcn@latest add <name>` (config in `components.json`).
 - Tailwind v4: no `tailwind.config`; tokens live in `src/app/globals.css` (`@theme`, CSS vars).

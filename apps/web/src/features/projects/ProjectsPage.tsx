@@ -6,7 +6,12 @@ import { Plus, Search } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePermissions } from '@/hooks/usePermissions';
-import { PROJECT_SORTS, type ProjectCounts, type ProjectSort, type ProjectStatus } from '@/lib/api';
+import {
+  PROJECT_SORTS,
+  type ProjectCounts,
+  type ProjectSort,
+  type ProjectStatus,
+} from '@/types/project';
 import { projectsTabPath, type ProjectsTab } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

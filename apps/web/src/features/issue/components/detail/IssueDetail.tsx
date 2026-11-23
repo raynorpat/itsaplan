@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
-import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { IssueDetail as IssueDetailRow } from '@/types/issue';
 import IssueDetailContent from './IssueDetailContent';
 import IssueActionsBar from '../actions/IssueActionsBar';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';

@@ -1,7 +1,7 @@
 'use client';
 
 import { Users } from 'lucide-react';
-import type { Project } from '@/lib/api';
+import type { Project } from '@/types/project';
 import { useUpdateProject } from '@/services/projects.service';
 import { useTeamsQuery } from '@/services/teams.service';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

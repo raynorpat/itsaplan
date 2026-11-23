@@ -3,15 +3,15 @@ import type {
   Assignee,
   Column,
   Cycle,
-  Issue,
   Label,
   LabelGroup,
   MemberRole,
   Team,
   TeamCycleSettings,
   TeamScaffold,
-  WorkspaceRole,
-} from '@/lib/api';
+} from '@/types/team';
+import type { Issue } from '@/types/issue';
+import type { WorkspaceRole } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { IssueFields, toIssue } from '@/services/issues.service';

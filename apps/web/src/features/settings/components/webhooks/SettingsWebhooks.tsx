@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { TeamDetail, Webhook } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Webhook } from '@/types/workspace';
 import {
   useWebhooksQuery,
   useAllTeamsWebhooksQuery,

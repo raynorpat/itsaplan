@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import type { Project } from '@/lib/api';
+import type { Project } from '@/types/project';
 import { projectsPath } from '@/utils/paths';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useDeleteProject } from '@/services/projects.service';

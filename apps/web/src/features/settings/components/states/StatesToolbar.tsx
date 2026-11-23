@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardPaste, Copy, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Column } from '@/lib/api';
+import type { Column } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

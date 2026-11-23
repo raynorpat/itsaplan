@@ -1,4 +1,4 @@
-import type { Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 
 // Whether a notification is snoozed at `now`: a snooze time in the past no longer
 // hides it.

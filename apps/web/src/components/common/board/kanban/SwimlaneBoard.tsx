@@ -3,7 +3,7 @@ import { DndContext } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { type Issue } from '@/lib/api';
+import type { Issue } from '@/types/issue';
 import {
   buildGroups,
   buildMaps,

@@ -1,4 +1,5 @@
-import type { MemberRow, WorkspaceRole, WorkspaceUser } from '@/lib/api';
+import type { MemberRow } from '@/types/team';
+import type { WorkspaceRole, WorkspaceUser } from '@/types/workspace';
 
 // Linear's role flags on a user: owner and admin both set for an owner, neither nor
 // guest for a member.

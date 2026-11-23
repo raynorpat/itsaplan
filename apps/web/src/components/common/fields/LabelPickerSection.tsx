@@ -1,4 +1,4 @@
-import type { Label, LabelGroup } from '@/lib/api';
+import type { Label, LabelGroup } from '@/types/team';
 import {
   DropdownMenuSub,
   DropdownMenuSubContent,

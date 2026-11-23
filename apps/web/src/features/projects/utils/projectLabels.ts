@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from '@/lib/api';
+import type { WorkspaceRole } from '@/types/workspace';
 import { atLeast } from '@/utils/workspaceRoles';
 
 // Whether the viewer may create, rename, recolor and delete project labels: the

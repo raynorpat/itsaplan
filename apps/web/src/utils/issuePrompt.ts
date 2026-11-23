@@ -1,4 +1,5 @@
-import type { Issue, TeamDetail } from '@/lib/api';
+import type { Issue } from '@/types/issue';
+import type { TeamDetail } from '@/types/team';
 import { priorityLabel } from '@/utils/fieldOptions';
 import { issuePath } from '@/utils/paths';
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { useBoardIssues, useTeamScaffold } from '@/services/board.service';
 
 // The team of the open notification's issue, composed the way the Shell composes

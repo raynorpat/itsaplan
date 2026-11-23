@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
-import type { IssueOpenMode, TeamDetail, View } from '@/lib/api';
+import type { IssueOpenMode } from '@/types/account';
+import type { TeamDetail, View } from '@/types/team';
 import type { NewIssueDefaults } from '@/utils/team';
 import type { useViewEditor } from '@/hooks/useViewEditor';
 

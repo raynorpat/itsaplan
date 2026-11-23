@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import type { FilterCondition, FilterOperator, FilterValue } from '@/utils/filters';
 import { OPERATOR_LABELS, OPERATORS_BY_KIND, type FieldSpec } from '@/utils/filterFields';
 import {

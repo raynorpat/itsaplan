@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { type Column } from '@/lib/api';
+import type { Column } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { useAccountPreferencesQuery } from '@/services/preferences.service';
 import { useTimelineQuery } from '../../services/issueFeed.service';

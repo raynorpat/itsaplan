@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Pencil, Trash2 } from 'lucide-react';
-import { type Column } from '@/lib/api';
+import type { Column } from '@/types/team';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { colorDot } from '@/components/common/fields/colorDot';

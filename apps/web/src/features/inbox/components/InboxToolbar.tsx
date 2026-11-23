@@ -1,5 +1,5 @@
 import { Archive, CheckCheck, ListFilter, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
-import { type NotificationType } from '@/lib/api';
+import type { NotificationType } from '@/types/notification';
 import { type InboxFilters } from '../utils/inbox';
 import { Button } from '@/components/ui/button';
 import {

@@ -1,4 +1,5 @@
-import { type TeamDetail, type Issue } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
+import type { Issue } from '@/types/issue';
 import { cn } from '@/lib/utils';
 import IssueContextMenu from '@/components/common/issue/IssueContextMenu';
 import { type TimelineDragMode } from '@/hooks/useTimelineDrag';

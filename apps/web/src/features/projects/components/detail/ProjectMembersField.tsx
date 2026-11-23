@@ -1,7 +1,7 @@
 'use client';
 
 import { UsersRound } from 'lucide-react';
-import type { Assignee } from '@/lib/api';
+import type { Assignee } from '@/types/team';
 import type { ProjectDetail, ProjectMember } from '@/services/projects.service';
 import Avatar from '@/components/common/Avatar';
 import { Pill } from '@/components/common/fields/Pill';

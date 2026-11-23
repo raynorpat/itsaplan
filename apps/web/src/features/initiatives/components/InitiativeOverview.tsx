@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { initiativePath } from '@/utils/paths';
 import { type InitiativeDetail } from '../services/initiatives.service';
 import { type InitiativeUpdatesResult } from '../services/initiativeUpdates.service';

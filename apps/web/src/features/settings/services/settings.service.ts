@@ -6,14 +6,9 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  api,
-  type Issue,
-  type LabelGroup,
-  type NotificationPreferences,
-  type StateType,
-  type TeamScaffold,
-} from '@/lib/api';
+import type { Issue } from '@/types/issue';
+import type { LabelGroup, StateType, TeamScaffold } from '@/types/team';
+import type { NotificationPreferences } from '@/features/settings/utils/notificationPreferences';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { DEFAULT_COLOR } from '@/utils/team';
 import type { CycleSettingsInput } from '../utils/cycleSettings';
@@ -24,6 +19,10 @@ import {
   type LabelFields,
 } from '../utils/labelInput';
 import { removeState } from '../utils/removeState';
+import {
+  toCategoryPreferencesInput,
+  toNotificationPreferences,
+} from '../utils/notificationPreferences';
 import { fetchTeamScaffold } from '@/services/board.service';
 import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
@@ -322,18 +321,74 @@ export function useUpdateTeamCycles(teamKey: string, teamId: string) {
 }
 
 // The signed-in user's own email notification preferences, for the whole workspace.
+const UserSettingsQuery = graphql(`
+  query NotificationSettings {
+    userSettings {
+      id
+      notificationCategoryPreferences {
+        assignments {
+          email
+        }
+        mentions {
+          email
+        }
+        commentsAndReplies {
+          email
+        }
+        statusChanges {
+          email
+        }
+      }
+    }
+  }
+`);
+
+const UserSettingsUpdate = graphql(`
+  mutation NotificationSettingsUpdate($id: String!, $input: UserSettingsUpdateInput!) {
+    userSettingsUpdate(id: $id, input: $input) {
+      userSettings {
+        id
+        notificationCategoryPreferences {
+          assignments {
+            email
+          }
+          mentions {
+            email
+          }
+          commentsAndReplies {
+            email
+          }
+          statusChanges {
+            email
+          }
+        }
+      }
+    }
+  }
+`);
 // A write returns the full result, which replaces the cache directly.
 export function useNotificationPreferencesQuery() {
   return useQuery({
     queryKey: qk.notificationPreferences(),
-    queryFn: () => api.getNotificationPreferences(),
+    queryFn: async () =>
+      toNotificationPreferences(
+        (await gqlRequest(UserSettingsQuery, {})).userSettings.notificationCategoryPreferences,
+      ),
   });
 }
 
 export function useUpdateNotificationPreferences() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: NotificationPreferences) => api.setNotificationPreferences(input),
+    mutationFn: async (input: NotificationPreferences) => {
+      const { userSettingsUpdate } = await gqlRequest(UserSettingsUpdate, {
+        id: (await gqlRequest(UserSettingsQuery, {})).userSettings.id,
+        input: { notificationCategoryPreferences: toCategoryPreferencesInput(input) },
+      });
+      return toNotificationPreferences(
+        userSettingsUpdate.userSettings.notificationCategoryPreferences,
+      );
+    },
     onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(), data),
   });
 }

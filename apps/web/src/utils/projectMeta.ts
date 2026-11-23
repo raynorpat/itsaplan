@@ -1,4 +1,4 @@
-import type { ProjectStatus, ProjectHealth } from '@/lib/api';
+import type { ProjectStatus, ProjectHealth } from '@/types/project';
 
 // Display metadata for the project status lifecycle and the derived health
 // signal. Colors are raw hex so they can drive both a dot and a text color.

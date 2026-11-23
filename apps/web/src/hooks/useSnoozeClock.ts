@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Notification } from '@/lib/api';
+import type { Notification } from '@/types/notification';
 import { nextWakeUp } from '@/utils/notifications';
 
 // The current time for snooze checks. It moves forward when the earliest snooze in

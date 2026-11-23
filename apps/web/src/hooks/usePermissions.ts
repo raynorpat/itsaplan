@@ -1,6 +1,6 @@
 import { useCallback, useContext } from 'react';
 import { ShellCtx } from '@/context/shellContext';
-import type { TeamDetail } from '@/lib/api';
+import type { TeamDetail } from '@/types/team';
 import { isWorkspaceAdmin } from '@/utils/workspaceRoles';
 
 // The areas of a team the UI gates, and the actions on them.
