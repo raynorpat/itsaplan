@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import AppBadge from '@/components/common/AppBadge';
 import { User } from 'lucide-react';
 import type { Assignee } from '@/types/team';
 import Avatar from '@/components/common/Avatar';
@@ -206,6 +207,7 @@ export default function CommentComposer({
                   >
                     <User className="size-4 shrink-0" />
                     <span className="flex-1 truncate">{a.name}</span>
+                    {a.app && <AppBadge />}
                   </button>
                 </li>
               ))}

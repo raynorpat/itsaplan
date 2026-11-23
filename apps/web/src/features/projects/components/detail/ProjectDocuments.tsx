@@ -23,7 +23,7 @@ export default function ProjectDocuments({
         parent={{ projectId: project.id }}
         heading={false}
         canEdit={canEdit}
-        assignees={team.assignees}
+        assignees={team.mentionCandidates}
         imageByUserId={imageByUserId}
       />
     </div>

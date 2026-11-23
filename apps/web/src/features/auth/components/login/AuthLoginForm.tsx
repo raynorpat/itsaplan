@@ -18,6 +18,7 @@ import AuthMessagePanel from '../AuthMessagePanel';
 import { sendMagicLink, signInWithGoogle, signInWithPasskey } from '@/services/signIn.service';
 import { useAuthAction } from '../../hooks/useAuthAction';
 import { redirectErrorMessage } from '../../utils/redirectErrors';
+import { oauthResumePath } from '@/utils/oauthResume';
 
 // Sign-in and sign-up in one: the visitor enters an email and gets a link. The link
 // signs in an existing account, or creates one when the address may join (an invite
@@ -27,8 +28,10 @@ export default function AuthLoginForm() {
   // The address a link went to. Set on success, and it replaces the form: there is
   // nothing left to do on this screen until the inbox is opened.
   const [linkSentTo, setLinkSentTo] = useState<string | null>(null);
-  const { error, pending, run } = useAuthAction();
   const params = useSearchParams();
+  // A sign-in that an OAuth authorization started returns to it afterwards.
+  const next = oauthResumePath(params.toString()) ?? '/';
+  const { error, pending, run } = useAuthAction(next);
   // A Google sign-in or a link that could not complete comes back here as a redirect
   // rather than as a rejected promise, so its reason arrives in the query string.
   const redirectError = redirectErrorMessage(params.get('error'), params.get('error_description'));
@@ -37,7 +40,7 @@ export default function AuthLoginForm() {
     event.preventDefault();
     run(
       async () => {
-        await sendMagicLink(email);
+        await sendMagicLink(email, next);
         setLinkSentTo(email);
       },
       { redirect: false },
@@ -97,7 +100,7 @@ export default function AuthLoginForm() {
 
         <AuthLoginAlternatives
           pending={pending}
-          onGoogle={() => run(signInWithGoogle, { redirect: false })}
+          onGoogle={() => run(() => signInWithGoogle(next), { redirect: false })}
           onPasskey={() => run(signInWithPasskey)}
         />
       </FieldGroup>

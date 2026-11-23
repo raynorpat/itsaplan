@@ -14,11 +14,13 @@ const GENERIC_ERROR = 'Something went wrong. Please try again.';
 // is used, when the address may join (an invite or an approved domain). The API
 // answers the same whether or not a link was sent, so this never reveals who may
 // sign in.
-export async function sendMagicLink(email: string): Promise<void> {
+// `next` is where the link lands after signing in: the app's home, or the page that
+// resumes an OAuth authorization the sign-in started from.
+export async function sendMagicLink(email: string, next = '/'): Promise<void> {
   const result = await signIn.magicLink({
     email,
-    callbackURL: appUrl('/'),
-    newUserCallbackURL: appUrl('/'),
+    callbackURL: appUrl(next),
+    newUserCallbackURL: appUrl(next),
     errorCallbackURL: appUrl('/login'),
   });
   if (result.error) throw new Error(result.error.message ?? GENERIC_ERROR);
@@ -28,10 +30,10 @@ export async function sendMagicLink(email: string): Promise<void> {
 // better-auth redirects to Google, and Google comes back to the API callback, which
 // sends the browser to one of these two URLs (both on the web origin). A new address
 // gets an account when it may join.
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(next = '/'): Promise<void> {
   const result = await signIn.social({
     provider: 'google',
-    callbackURL: appUrl('/'),
+    callbackURL: appUrl(next),
     errorCallbackURL: appUrl('/login'),
   });
   if (result.error) throw new Error(result.error.message ?? GENERIC_ERROR);

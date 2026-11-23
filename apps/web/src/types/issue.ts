@@ -86,6 +86,8 @@ export interface FeedItem {
   kind: 'comment' | 'activity';
   actorUserId: string | null;
   actorName: string | null;
+  // The actor is an app user (an OAuth application installed with actor=app).
+  actorIsApp?: boolean;
   body: string | null;
   action: ActivityAction | null;
   subject: string | null;

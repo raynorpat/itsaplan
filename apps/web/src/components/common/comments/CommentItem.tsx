@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import AppBadge from '@/components/common/AppBadge';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import type { FeedItem } from '@/types/issue';
 import Avatar from '@/components/common/Avatar';
@@ -31,6 +32,7 @@ export default function CommentItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium">{author}</span>
+          {item.actorIsApp && <AppBadge />}
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
             {item.editedAt && ' (edited)'}

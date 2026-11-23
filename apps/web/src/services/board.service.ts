@@ -16,6 +16,7 @@ import { IssueFields, toIssue } from '@/services/issues.service';
 import { useChangedSince } from '@/hooks/useChangedSince';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { teamAccess } from '@/utils/members';
+import { mentionCandidates } from '@/utils/mentionCandidates';
 
 // The board over GraphQL: the team scaffold (states, labels, members, the viewer's
 // access) and every active issue of the team. The board, table, calendar and
@@ -116,6 +117,27 @@ const TeamMembershipsPage = graphql(`
   }
 `);
 
+// The team's app users (OAuth applications installed with actor=app) that the API
+// offers in its pickers, for @-mention suggestions.
+const TeamAppUsersPage = graphql(`
+  query BoardAppUsers($id: String!, $after: String, $first: Int) {
+    team(id: $id) {
+      members(first: $first, after: $after, filter: { app: { eq: true } }) {
+        nodes {
+          id
+          name
+          avatarUrl
+          isMentionable
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);
+
 const BoardIssuesPage = graphql(
   `
     query BoardIssues($filter: IssueFilter, $after: String, $first: Int) {
@@ -134,7 +156,7 @@ const BoardIssuesPage = graphql(
 );
 
 export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> {
-  const [{ viewer, team }, labelNodes, memberNodes] = await Promise.all([
+  const [{ viewer, team }, labelNodes, memberNodes, appUserNodes] = await Promise.all([
     gqlRequest(ScaffoldQuery, { id: teamKey }),
     fetchAllPages(async (after, first) => {
       const data = await gqlRequest(TeamLabelsPage, { id: teamKey, after, first });
@@ -143,6 +165,10 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     fetchAllPages(async (after, first) => {
       const data = await gqlRequest(TeamMembershipsPage, { id: teamKey, after, first });
       return data.team.memberships;
+    }),
+    fetchAllPages(async (after, first) => {
+      const data = await gqlRequest(TeamAppUsersPage, { id: teamKey, after, first });
+      return data.team.members;
     }),
   ]);
   const teamRow: Team = {
@@ -222,6 +248,15 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     labels,
     labelGroups,
     assignees,
+    mentionCandidates: mentionCandidates(
+      assignees,
+      appUserNodes.map((u) => ({
+        id: u.id,
+        name: u.name,
+        avatarUrl: u.avatarUrl ?? null,
+        isMentionable: u.isMentionable,
+      })),
+    ),
     viewer: viewerAccess,
   };
 }

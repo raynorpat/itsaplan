@@ -124,6 +124,14 @@ export function seesPublicTeams(userId: string) {
     );
 }
 
+// SQL subquery of the ids of the app users whose install includes every public team.
+export function publicTeamAppUserIds() {
+  return db
+    .select({ id: oauthInstallation.appUserId })
+    .from(oauthInstallation)
+    .where(and(eq(oauthInstallation.publicTeams, true), isNull(oauthInstallation.uninstalledAt)));
+}
+
 // SQL subquery of the ids of every app user, for keeping them out of member lists.
 export function appUserIds() {
   return db

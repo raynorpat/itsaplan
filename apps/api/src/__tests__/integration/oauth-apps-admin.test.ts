@@ -399,3 +399,44 @@ describe('an installed application when its installer changes', () => {
     expect((await gql(bearer(adminToken.access_token), VIEWER)).status).toBe(401);
   });
 });
+
+describe('the application shown on the consent page', () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it('shows a signed-in person the application, and nothing to anyone else', async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const member = await signUpWithRole('member', { name: 'Member' });
+    const client = await createClient(owner.cookie, {
+      name: 'Robot',
+      description: 'Ships things',
+      developer: 'Acme',
+      developerUrl: 'https://acme.example',
+      iconUrl: 'https://acme.example/icon.png',
+    });
+
+    const res = await authGet(`/instance/oauth-client?clientId=${client.clientId}`, member.cookie);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      clientId: client.clientId,
+      name: 'Robot',
+      description: 'Ships things',
+      developer: 'Acme',
+      developerUrl: 'https://acme.example',
+      iconUrl: 'https://acme.example/icon.png',
+      application: true,
+    });
+
+    expect((await authGet(`/instance/oauth-client?clientId=${client.clientId}`, null)).status).toBe(
+      401,
+    );
+    expect((await authGet('/instance/oauth-client?clientId=missing', member.cookie)).status).toBe(
+      404,
+    );
+    await authPost('/instance/oauth-apps/archive', owner.cookie, { clientId: client.clientId });
+    expect(
+      (await authGet(`/instance/oauth-client?clientId=${client.clientId}`, member.cookie)).status,
+    ).toBe(404);
+  });
+});

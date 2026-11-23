@@ -20,6 +20,46 @@ export interface AuthorizedApplication {
   authorizedAt: string;
 }
 
+// The application a consent page shows: its name, description, developer and icon.
+// `application` is false for a client an MCP client registered itself. Null for an
+// unknown or archived client.
+export interface ConsentClient {
+  clientId: string;
+  name: string;
+  description: string | null;
+  developer: string | null;
+  developerUrl: string | null;
+  iconUrl: string | null;
+  application: boolean;
+}
+
+export async function consentClient(clientId: string): Promise<ConsentClient | null> {
+  const [row] = await db
+    .select({
+      clientId: schema.oauthClient.clientId,
+      name: schema.oauthClient.name,
+      uri: schema.oauthClient.uri,
+      icon: schema.oauthClient.icon,
+      metadata: schema.oauthClient.metadata,
+      disabled: schema.oauthClient.disabled,
+    })
+    .from(schema.oauthClient)
+    .where(eq(schema.oauthClient.clientId, clientId))
+    .limit(1);
+  if (!row || row.disabled) return null;
+  const metadata = clientMetadata(row.metadata);
+  const text = (value: unknown) => (typeof value === 'string' && value ? value : null);
+  return {
+    clientId: row.clientId,
+    name: row.name?.trim() || 'Application',
+    description: text(metadata.description),
+    developer: text(metadata.developer),
+    developerUrl: row.uri ?? null,
+    iconUrl: row.icon ?? null,
+    application: metadata.application === true,
+  };
+}
+
 export async function authorizedApplications(userId: string): Promise<AuthorizedApplication[]> {
   const rows = await db
     .select({

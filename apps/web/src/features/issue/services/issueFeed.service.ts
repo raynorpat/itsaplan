@@ -33,6 +33,7 @@ const FeedCommentsQuery = graphql(`
           user {
             id
             name
+            app
           }
           reactions {
             id
@@ -65,6 +66,7 @@ const FeedHistoryQuery = graphql(`
           actor {
             id
             name
+            app
           }
           fromStateId
           toStateId

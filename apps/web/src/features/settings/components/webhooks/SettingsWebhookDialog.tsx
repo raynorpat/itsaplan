@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { SettingsWebhookResourceTypes } from './SettingsWebhookResourceTypes';
+import { WebhookResourceTypes } from '@/components/common/WebhookResourceTypes';
 
 export interface WebhookFormValue {
   url: string;
@@ -96,7 +96,7 @@ export function SettingsWebhookDialog({
           />
         </div>
 
-        <SettingsWebhookResourceTypes value={types} onChange={setTypes} />
+        <WebhookResourceTypes value={types} onChange={setTypes} />
 
         <div className="space-y-3 border-t border-border/50 pt-4">
           {canAllTeams && !initial && (

@@ -146,6 +146,41 @@ describe('oauth actor=app installs', () => {
     expect(code(await gql(bearer(token), TEAM, { id: 'MKT' }))).toBeUndefined();
   });
 
+  it('offers an app with every public team in the members of a public team only', async () => {
+    const { owner, client } = await setup();
+    const installed = await install(owner.cookie, client, {
+      scope: 'read,write,app:mentionable',
+      publicTeams: true,
+    });
+    const appUserId = (await viewer(installed.access_token)).id;
+    const memberIds = async (key: string) => {
+      const res = await gql({ cookie: owner.cookie }, TEAM_PEOPLE, { id: key });
+      const team = res.body.data?.team as { members: { nodes: { id: string }[] } };
+      return team.members.nodes.map((n) => n.id);
+    };
+    expect(await memberIds('ENG')).toContain(appUserId);
+    expect(await memberIds('SEC')).not.toContain(appUserId);
+
+    // Linear's UserFilter.app picks the app users (or the people) out.
+    const apps = await gql(
+      { cookie: owner.cookie },
+      `query { team(id: "ENG") { members(filter: { app: { eq: true } }) { nodes { id } } } }`,
+    );
+    const appIds = (
+      apps.body.data?.team as { members: { nodes: { id: string }[] } }
+    ).members.nodes.map((n) => n.id);
+    expect(appIds).toEqual([appUserId]);
+    const people = await gql(
+      { cookie: owner.cookie },
+      `query { team(id: "ENG") { members(filter: { app: { eq: false } }) { nodes { id } } } }`,
+    );
+    const peopleIds = (
+      people.body.data?.team as { members: { nodes: { id: string }[] } }
+    ).members.nodes.map((n) => n.id);
+    expect(peopleIds).not.toContain(appUserId);
+    expect(peopleIds).toContain(owner.userId);
+  });
+
   it('keeps the app user out of member lists and offers it only with app scopes', async () => {
     const { owner, client } = await setup();
     const mkt = await teamId(owner, 'MKT');

@@ -79,7 +79,7 @@ export function useProjectPickerQuery(search: string, enabled: boolean) {
 
 const UsersQuery = graphql(`
   query InitiativeOwners($first: Int!, $after: String) {
-    users(first: $first, after: $after) {
+    users(first: $first, after: $after, filter: { app: { eq: false } }) {
       nodes {
         id
         name
@@ -100,7 +100,7 @@ const LeadTeamMembersQuery = graphql(`
   query InitiativeLeadTeamMembers($id: String!, $first: Int!, $after: String) {
     team(id: $id) {
       visibility
-      members(first: $first, after: $after) {
+      members(first: $first, after: $after, filter: { app: { eq: false } }) {
         nodes {
           id
         }

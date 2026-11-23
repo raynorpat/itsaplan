@@ -96,3 +96,7 @@ export const inviteLink = (origin: string, token: string) => `${origin}/invite/$
 
 // Workspace settings (Linear's Organization), for owners and admins.
 export const workspaceSettingsPath = () => '/workspace/settings';
+
+// The workspace's OAuth applications (Linear's Settings → API → OAuth applications),
+// for owners and admins.
+export const workspaceApplicationsPath = () => '/workspace/applications';

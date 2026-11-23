@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthEndpoint, getSessionFromCtx } from 'better-auth/api';
 import { signInOptions } from './instance';
-import { authorizedApplications, revokeAuthorization } from './oauth-authorized';
+import { authorizedApplications, consentClient, revokeAuthorization } from './oauth-authorized';
 import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 
 // Instance information that Linear's GraphQL schema has no place for, served by
@@ -20,6 +20,8 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   rotate-secret, rotate-webhook-secret, archive}  workspace admins and owners: the
 //   workspace's OAuth applications (apps/api src/oauth/apps.ts). Secrets are in the
 //   answers of create and the rotations only. Same Origin rule for the POSTs.
+// - GET  /instance/oauth-client?clientId=  signed in: the application a consent page
+//   shows (name, description, developer, icon); 404 for an unknown or archived one.
 // - GET  /instance/oauth-authorized and POST /instance/oauth-authorized/revoke
 //   { clientId }  signed in: the applications the person has authorized to act as
 //   themselves, and revoking one (oauth-authorized.ts). Same Origin rule.
@@ -177,6 +179,18 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/oauth-apps/archive',
         options.trustedOrigins,
         (h, headers, body) => h.archive(headers, body),
+      ),
+      instanceOAuthClient: createAuthEndpoint(
+        '/instance/oauth-client',
+        { method: 'GET' },
+        async (ctx) => {
+          const session = await getSessionFromCtx(ctx);
+          if (!session) throw new APIError('UNAUTHORIZED', { message: 'Authentication required' });
+          const clientId = ctx.query?.clientId;
+          const client = typeof clientId === 'string' ? await consentClient(clientId) : null;
+          if (!client) throw new APIError('NOT_FOUND', { message: 'Application not found' });
+          return ctx.json(client);
+        },
       ),
       instanceOAuthAuthorized: createAuthEndpoint(
         '/instance/oauth-authorized',

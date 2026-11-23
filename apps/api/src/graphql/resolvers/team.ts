@@ -1,7 +1,9 @@
+import { APP_ROLE } from '@repo/auth';
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, inArray, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import {
   memberTeamIds,
+  publicTeamAppUserIds,
   seesPublicTeams,
   unofferedAppUserIds,
   visibleTeamIds,
@@ -86,6 +88,21 @@ export const userFilter: FieldHandlers = {
   name: (v, p) => compare(user.name, v, p),
   displayName: (v, p) => compare(user.name, v, p),
   email: (v, p) => compare(user.email, v, p),
+  // Linear's `app`: whether the user is an app user (an installed OAuth application).
+  app: (v, p) => {
+    const parts: SQL[] = [];
+    for (const [op, value] of Object.entries((v ?? {}) as Record<string, unknown>)) {
+      if (value === undefined || value === null) continue;
+      if ((op !== 'eq' && op !== 'neq') || typeof value !== 'boolean')
+        throw gqlError('INVALID_INPUT', `Filter ${p}.${op} is not supported`);
+      parts.push(
+        (op === 'eq') === value
+          ? eq(user.workspaceRole, APP_ROLE)
+          : ne(user.workspaceRole, APP_ROLE),
+      );
+    }
+    return and(...parts) ?? sql`true`;
+  },
 };
 
 type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
@@ -141,22 +158,28 @@ export const teamResolvers = {
   Team: {
     organization: () => getOrganization(),
     // The people of the team, as the pickers offer them: an app user only when its
-    // install granted `app:assignable` or `app:mentionable`.
-    members: (team: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listUsers(
+    // install granted `app:assignable` or `app:mentionable`. An app user installed
+    // with every public team is a member of each public team.
+    members: (
+      team: { id: string; visibility?: string },
+      args: ConnectionArgs,
+      ctx: GraphQLContext,
+    ) => {
+      const memberIds = inArray(
+        user.id,
+        db.select({ id: teamMember.userId }).from(teamMember).where(eq(teamMember.teamId, team.id)),
+      );
+      return listUsers(
         and(
-          inArray(
-            user.id,
-            db
-              .select({ id: teamMember.userId })
-              .from(teamMember)
-              .where(eq(teamMember.teamId, team.id)),
-          ),
+          team.visibility === 'public'
+            ? or(memberIds, inArray(user.id, publicTeamAppUserIds()))
+            : memberIds,
           notInArray(user.id, unofferedAppUserIds()),
         ),
         args,
         ctx.user.id,
-      ),
+      );
+    },
   },
   User: {
     organization: () => getOrganization(),

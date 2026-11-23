@@ -60,6 +60,9 @@ export interface Assignee {
   name: string;
   email: string;
   image: string | null;
+  // An app user (an OAuth application installed with actor=app), offered for
+  // @-mentions when its install allows it.
+  app?: boolean;
 }
 
 // A saved view (a tab above the work items view): a named filter set plus a display
@@ -120,6 +123,8 @@ export interface TeamScaffold {
   labels: Label[];
   labelGroups: LabelGroup[];
   assignees: Assignee[];
+  // The people and the mentionable app users, for @-mention suggestions.
+  mentionCandidates: Assignee[];
   viewer: TeamViewer;
 }
 

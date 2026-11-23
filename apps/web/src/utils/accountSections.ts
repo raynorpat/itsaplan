@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   KeyRound,
   Link2,
   ShieldCheck,
@@ -18,6 +19,7 @@ export const ACCOUNT_SECTIONS: AccountSection[] = [
   { slug: 'accounts', label: 'Accounts', icon: Link2 },
   { slug: 'security', label: 'Security', icon: ShieldCheck },
   { slug: 'api-keys', label: 'API keys', icon: KeyRound },
+  { slug: 'authorized-apps', label: 'Authorized apps', icon: AppWindow },
 ];
 
 export const accountPath = (slug: string) => `/account/${slug}`;

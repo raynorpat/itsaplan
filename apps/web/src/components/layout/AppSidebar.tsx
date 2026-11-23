@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Braces, Server, Settings2 } from 'lucide-react';
+import { AppWindow, Braces, Server, Settings2 } from 'lucide-react';
 import type { Team } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
-import { apiDocsPath, mcpServerPath, workspaceSettingsPath } from '@/utils/paths';
+import {
+  apiDocsPath,
+  mcpServerPath,
+  workspaceApplicationsPath,
+  workspaceSettingsPath,
+} from '@/utils/paths';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import {
   Sidebar,
@@ -103,6 +108,15 @@ export default function AppSidebar({
                   icon={Settings2}
                   label="Workspace settings"
                   active={pathname.startsWith(workspaceSettingsPath())}
+                  disabled={false}
+                />
+              )}
+              {isAdmin && (
+                <SidebarNavItem
+                  href={workspaceApplicationsPath()}
+                  icon={AppWindow}
+                  label="OAuth applications"
+                  active={pathname.startsWith(workspaceApplicationsPath())}
                   disabled={false}
                 />
               )}

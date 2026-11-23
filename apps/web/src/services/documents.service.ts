@@ -77,6 +77,7 @@ const DocumentCommentsQuery = graphql(`
           user {
             id
             name
+            app
           }
           reactions {
             id
@@ -84,6 +85,7 @@ const DocumentCommentsQuery = graphql(`
             user {
               id
               name
+              app
             }
           }
         }

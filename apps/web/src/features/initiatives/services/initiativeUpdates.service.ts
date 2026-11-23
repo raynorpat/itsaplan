@@ -38,6 +38,7 @@ const InitiativeUpdatesQuery = graphql(`
             user {
               id
               name
+              app
             }
           }
           comments(first: $comments) {
@@ -51,6 +52,7 @@ const InitiativeUpdatesQuery = graphql(`
               user {
                 id
                 name
+                app
               }
               reactions {
                 id
@@ -58,6 +60,7 @@ const InitiativeUpdatesQuery = graphql(`
                 user {
                   id
                   name
+                  app
                 }
               }
             }

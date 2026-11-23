@@ -22,7 +22,7 @@ const WEBHOOK_RESOURCE_TYPES = (Object.keys(RESOURCE_LABELS) as WebhookResourceT
 );
 
 // Checkboxes for the Linear resource types a webhook receives.
-export function SettingsWebhookResourceTypes({
+export function WebhookResourceTypes({
   value,
   onChange,
 }: {

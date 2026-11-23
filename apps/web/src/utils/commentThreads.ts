@@ -8,6 +8,8 @@ import type { FeedItem } from '@/types/issue';
 export interface FeedUser {
   id: string;
   name: string;
+  // An app user (an OAuth application installed with actor=app).
+  app?: boolean;
 }
 
 export interface FeedComment {
@@ -41,6 +43,7 @@ export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
     actorUserId: c.user?.id ?? null,
     // Every comment has an author; a missing one was removed or is hidden.
     actorName: c.user?.name ?? REMOVED_USER,
+    actorIsApp: c.user?.app ?? false,
     body: c.body,
     action: null,
     subject: null,

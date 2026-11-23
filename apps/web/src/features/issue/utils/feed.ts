@@ -90,6 +90,7 @@ function base(h: FeedHistory, issueId: string, suffix = ''): FeedItem {
     kind: 'activity',
     actorUserId: h.actor?.id ?? null,
     actorName: h.actor?.name ?? (h.actorId ? REMOVED_USER : null),
+    actorIsApp: h.actor?.app ?? false,
     body: null,
     action: null,
     subject: null,

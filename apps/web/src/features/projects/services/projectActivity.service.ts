@@ -42,6 +42,7 @@ const CommentsQuery = graphql(`
           user {
             id
             name
+            app
           }
           reactions {
             id
@@ -49,6 +50,7 @@ const CommentsQuery = graphql(`
             user {
               id
               name
+              app
             }
           }
         }
@@ -73,6 +75,7 @@ const UpdatesQuery = graphql(`
           user {
             id
             name
+            app
           }
         }
         pageInfo {

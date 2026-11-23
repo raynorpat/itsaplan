@@ -103,7 +103,7 @@ export default function IssueDetailContent({
       <DocumentList
         parent={{ issueId: issue.id }}
         canEdit={canEdit}
-        assignees={team.assignees}
+        assignees={team.mentionCandidates}
         imageByUserId={imageByUserId}
       />
     </>
@@ -128,7 +128,7 @@ export default function IssueDetailContent({
       <IssueStatusTimeline issueId={issue.id} columns={team.states} imageByUserId={imageByUserId} />
       <IssueActivityFeed
         issueId={issue.id}
-        assignees={team.assignees}
+        assignees={team.mentionCandidates}
         imageByUserId={imageByUserId}
       />
     </>

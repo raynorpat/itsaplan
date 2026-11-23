@@ -34,7 +34,9 @@ const TeamMembersPage = graphql(`
 
 const WorkspaceUsersPage = graphql(`
   query WorkspaceUsers($after: String, $first: Int) {
-    users(first: $first, after: $after, includeDisabled: true) {
+    # App users (installed OAuth applications) are managed on the OAuth applications
+    # page, not as workspace members.
+    users(first: $first, after: $after, includeDisabled: true, filter: { app: { eq: false } }) {
       nodes {
         id
         name

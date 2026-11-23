@@ -21,7 +21,7 @@ export default function InitiativeUpdateComments({
 }) {
   const [composing, setComposing] = useState(false);
   const target = { initiativeUpdateId: update.id, initiativeId };
-  const ctx = useCommentContext(target, team.assignees);
+  const ctx = useCommentContext(target, team.mentionCandidates);
   const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
 
   return (
@@ -41,7 +41,7 @@ export default function InitiativeUpdateComments({
       {composing ? (
         <CommentComposer
           target={target}
-          assignees={team.assignees}
+          assignees={team.mentionCandidates}
           authorName={ctx.authorName}
           authorImage={ctx.authorImage}
           onDone={() => setComposing(false)}

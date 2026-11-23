@@ -20,7 +20,7 @@ export default function ProjectUpdateComments({
 }) {
   const [composing, setComposing] = useState(false);
   const target = { projectUpdateId: update.id, projectId };
-  const ctx = useCommentContext(target, team.assignees);
+  const ctx = useCommentContext(target, team.mentionCandidates);
   const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
 
   return (
@@ -40,7 +40,7 @@ export default function ProjectUpdateComments({
       {composing ? (
         <CommentComposer
           target={target}
-          assignees={team.assignees}
+          assignees={team.mentionCandidates}
           authorName={ctx.authorName}
           authorImage={ctx.authorImage}
           onDone={() => setComposing(false)}

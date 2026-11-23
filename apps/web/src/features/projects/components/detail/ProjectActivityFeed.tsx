@@ -19,7 +19,7 @@ export default function ProjectActivityFeed({
   team: TeamDetail;
 }) {
   const target = { projectId };
-  const ctx = useCommentContext(target, team.assignees);
+  const ctx = useCommentContext(target, team.mentionCandidates);
   const activity = useProjectActivityQuery(projectId);
   const entries = activity.data ?? [];
   const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
@@ -28,7 +28,7 @@ export default function ProjectActivityFeed({
     <div className="flex flex-col gap-4">
       <CommentComposer
         target={target}
-        assignees={team.assignees}
+        assignees={team.mentionCandidates}
         authorName={ctx.authorName}
         authorImage={ctx.authorImage}
       />
