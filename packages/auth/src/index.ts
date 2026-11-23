@@ -18,6 +18,7 @@ import {
   pendingInviteFor,
 } from './instance';
 import { sendAuthEmail } from './mail';
+import { instancePlugin } from './instance-plugin';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -369,6 +370,8 @@ export const auth = betterAuth({
   },
 
   plugins: [
+    // Instance information and the team owner change (src/instance-plugin.ts).
+    instancePlugin(),
     // WebAuthn passkeys, a sign-in method alongside the magic link and Google. A
     // passkey is added to an already signed-in account (passkey.addPasskey) and
     // then used to sign in (signIn.passkey). Adds the `passkey` table.
@@ -503,5 +506,8 @@ export {
   approvedDomains,
   mayJoin,
   emailConfigWarnings,
+  signInOptions,
 } from './instance';
+export { provideInstanceHandlers } from './instance-plugin';
+export type { InstanceHandlers, TeamOwnerChange } from './instance-plugin';
 export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';

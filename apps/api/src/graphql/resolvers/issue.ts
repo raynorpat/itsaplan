@@ -160,6 +160,26 @@ const issueRelations = {
   creator: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) => userFor(ctx, i.creatorUserId),
 };
 
+// The issue number in a search term, as Linear's search reads it: a bare number
+// ("42") matches that number in every team, an identifier ("KEY-42") only in the team
+// with that key (any case). Anything else matches no number.
+function numberMatch(term: string): SQL | undefined {
+  const raw = term.trim();
+  if (/^\d+$/.test(raw)) return eq(issue.sequenceNumber, Number(raw));
+  const m = raw.match(/^([A-Za-z][A-Za-z0-9]*)-(\d+)$/);
+  if (!m) return undefined;
+  return and(
+    eq(issue.sequenceNumber, Number(m[2])),
+    inArray(
+      issue.teamId,
+      db
+        .select({ id: team.id })
+        .from(team)
+        .where(sql`lower(${team.key}) = ${m[1]!.toLowerCase()}`),
+    ),
+  );
+}
+
 export const issueResolvers = {
   Query: {
     issue: async (_: unknown, args: { id: string }, ctx: GraphQLContext) =>
@@ -179,7 +199,10 @@ export const issueResolvers = {
         const found = await findTeam(args.teamId, ctx.user.id).catch(() => null);
         team = found ? eq(issue.teamId, found.id) : sql`false`;
       }
-      const where = and(or(ilike(issue.title, pattern), ilike(issue.description, pattern)), team);
+      const where = and(
+        or(ilike(issue.title, pattern), ilike(issue.description, pattern), numberMatch(args.term)),
+        team,
+      );
       const page = await listIssues(where, args, ctx.user.id);
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })

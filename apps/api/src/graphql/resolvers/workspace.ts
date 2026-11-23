@@ -6,7 +6,9 @@ import { assertAllowedTo } from '../../organization/store';
 import {
   assertTeamAccess,
   assertWorkspaceRole,
+  atLeast,
   visibleTeamIds,
+  workspaceRole,
   type WorkspaceRole,
 } from '../../shared/access';
 import { HttpError, UUID_RE, rethrowDuplicate } from '../../shared/lib';
@@ -90,14 +92,22 @@ async function findMembership(id: string, viewerId: string): Promise<MembershipR
   return row;
 }
 
-const toInvite = (row: {
-  id: string;
-  email: string;
-  role: string;
-  invitedByUserId: string | null;
-  createdAt: Date | string;
-  expiresAt: Date | string;
-}) => ({
+// `metadata` carries the invite's teams for anyone who may list invites, and the
+// invite link's token (the id organizationInviteDetails looks up) only when
+// `showToken`: for the invite's sender and for admins and owners, as the REST list.
+const toInvite = (
+  row: {
+    id: string;
+    token: string;
+    email: string;
+    role: string;
+    teamIds: string[];
+    invitedByUserId: string | null;
+    createdAt: Date | string;
+    expiresAt: Date | string;
+  },
+  showToken: boolean,
+) => ({
   id: row.id,
   email: row.email,
   role: linearRole(row.role),
@@ -108,8 +118,14 @@ const toInvite = (row: {
   acceptedAt: null,
   archivedAt: null,
   external: false,
-  metadata: null,
+  metadata: showToken ? { token: row.token, teamIds: row.teamIds } : { teamIds: row.teamIds },
 });
+
+// Whether the viewer sees every invite's token (admins and owners); a sender always
+// sees their own.
+const seesAllTokens = async (viewerId: string) => atLeast(await workspaceRole(viewerId), 'admin');
+const showsToken = (row: { invitedByUserId: string | null }, viewerId: string, all: boolean) =>
+  all || row.invitedByUserId === viewerId;
 type GraphQLInvite = ReturnType<typeof toInvite>;
 
 // A team key from its name when the client leaves it out (Linear generates one):
@@ -147,6 +163,7 @@ export const workspaceResolvers = {
     organizationInvites: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       guard(async () => {
         await assertWorkspaceRole(ctx.user, 'member');
+        const all = await seesAllTokens(ctx.user.id);
         return paginate(
           args,
           {
@@ -165,7 +182,7 @@ export const workspaceResolvers = {
               .then((rows: InviteTableRow[]) =>
                 rows.map((r) => ({ ...r, updatedAt: r.createdAt })),
               ),
-          (row) => toInvite(row),
+          (row) => toInvite(row, showsToken(row, ctx.user.id, all)),
         );
       }),
     organizationInvite: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
@@ -173,7 +190,7 @@ export const workspaceResolvers = {
         await assertWorkspaceRole(ctx.user, 'member');
         const found = UUID_RE.test(id) ? await getInvite(id) : null;
         if (!found) throw gqlError('ENTITY_NOT_FOUND', `Organization invite ${id} not found`);
-        return toInvite(found);
+        return toInvite(found, showsToken(found, ctx.user.id, await seesAllTokens(ctx.user.id)));
       }),
   },
   Team: {
@@ -358,7 +375,11 @@ export const workspaceResolvers = {
         if (typeof input.email !== 'string' || !input.email.includes('@'))
           throw gqlError('INVALID_INPUT', 'input.email must be an email address');
         const created = await inviteToWorkspace({ email: input.email, role, teamIds }, ctx.user);
-        return { success: true, lastSyncId: lastSyncId(), organizationInvite: toInvite(created) };
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          organizationInvite: toInvite(created, true),
+        };
       }),
     organizationInviteDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {

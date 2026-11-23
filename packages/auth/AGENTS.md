@@ -8,6 +8,18 @@ The **server-side** better-auth instance. Consumed by `apps/api`. See root `AGEN
   (`@better-auth/passkey`).
 - Exports `auth`, `getActiveSession`, `WORKSPACE_ROLES` / `WorkspaceRole`, plus `Auth` / `Session` types.
 
+## Instance endpoints (`src/instance-plugin.ts`)
+
+A better-auth plugin serves what Linear's GraphQL schema has no place for, under
+`/api/auth/instance/*`: `GET sign-in-options` (public, `signInOptions()` in
+`src/instance.ts`, also behind REST `/auth-config`), `GET version` and
+`GET upload-limits` (signed in), and `POST team-owner` `{ teamId, userId, owner }`
+(team managers; Linear's schema exposes `TeamMembership.owner` but no input that sets
+it). The last three need the API's session and access rules, which this package cannot
+import, so `apps/api` registers them at startup with `provideInstanceHandlers`
+(`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
+HTTP `status`, which the plugin turns into better-auth's error of that status.
+
 ## Workspace role and suspension
 
 The user table has `workspace_role` (`owner` | `admin` | `member` | `guest`, Linear's

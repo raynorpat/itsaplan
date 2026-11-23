@@ -131,6 +131,22 @@ export async function isAuthServiceAllowed(
   return allowed.length === 0 || allowed.includes(service);
 }
 
+// What the sign-in screen needs before there is a session: which sign-in methods are
+// offered. Public on purpose (the screen is reached logged out); it carries only the
+// instance's own policy. The email field is always offered: an owner may always use a
+// magic link, and without a mail provider the link is written to the API log.
+export async function signInOptions(): Promise<{
+  emailEnabled: boolean;
+  google: boolean;
+  passkey: boolean;
+}> {
+  return {
+    emailEnabled: await hasConfiguredEmailProvider(),
+    google: (await hasConfiguredGoogle()) && (await isAuthServiceAllowed('google')),
+    passkey: await isAuthServiceAllowed('passkey'),
+  };
+}
+
 // ── Joining the workspace ───────────────────────────────────────────────────────
 
 // The approved email domains from `APPROVED_EMAIL_DOMAINS` (comma-separated; case and

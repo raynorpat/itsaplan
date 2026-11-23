@@ -1,11 +1,4 @@
-import {
-  auth,
-  getActiveSession,
-  trustedOrigins,
-  hasConfiguredEmailProvider,
-  hasConfiguredGoogle,
-  isAuthServiceAllowed,
-} from '@repo/auth';
+import { auth, getActiveSession, trustedOrigins, signInOptions } from '@repo/auth';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { Elysia } from 'elysia';
@@ -16,10 +9,15 @@ import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
 import { internalUploadRoutes } from './uploads/routes';
+import { registerInstanceHandlers } from './instance/handlers';
 
 // The assembled Elysia app, without `.listen()`. `index.ts` imports this and
 // binds the port; tests import it and pass it to Eden Treaty to drive routes in
 // memory (no network). Keep the chain unbroken so `type App` stays accurate.
+// The better-auth instance endpoints (/api/auth/instance/*) run the API's session and
+// access rules through these handlers.
+registerInstanceHandlers();
+
 export const app = new Elysia()
   .use(
     cors({
@@ -92,16 +90,9 @@ export const app = new Elysia()
     if (!session) return { authenticated: false };
     return { authenticated: true, user: session.user };
   })
-  // What the sign-in screen needs before there is a session: which sign-in methods
-  // are offered. Public on purpose — the screen is reached logged out. It carries no
-  // credentials, only the instance's own policy. The email field is always offered:
-  // an owner may always use a magic link, and without a mail provider the link is
-  // written to the API log.
-  .get('/auth-config', async () => ({
-    emailEnabled: await hasConfiguredEmailProvider(),
-    google: (await hasConfiguredGoogle()) && (await isAuthServiceAllowed('google')),
-    passkey: await isAuthServiceAllowed('passkey'),
-  }))
+  // What the sign-in screen needs before there is a session (public; see
+  // signInOptions in @repo/auth). Also served at /api/auth/instance/sign-in-options.
+  .get('/auth-config', () => signInOptions())
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
   .use(internalNotificationRoutes)
