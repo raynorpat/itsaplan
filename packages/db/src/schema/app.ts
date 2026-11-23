@@ -1247,3 +1247,87 @@ export const oauthInstallation = pgTable('oauth_installation', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   uninstalledAt: timestamp('uninstalled_at', { withTimezone: true }),
 });
+
+// Linear's agent session: an app user's work on an issue, started by delegating the
+// issue to it, by mentioning it in a comment, or by the application itself. Its thread
+// is a root comment on the issue (`comment_id`); `source_comment_id` is the comment in
+// that thread that started it, when that is not the root. `status` is one of Linear's
+// AgentSessionStatus values. `plan` is Linear's plan object ({ entries, updatedAt });
+// `external_urls` an array of { url, label }.
+export const agentSession = pgTable(
+  'agent_session',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id').notNull().unique(),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    commentId: uuid('comment_id').references(() => comment.id, { onDelete: 'set null' }),
+    sourceCommentId: uuid('source_comment_id').references(() => comment.id, {
+      onDelete: 'set null',
+    }),
+    appUserId: uuid('app_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('pending'),
+    summary: text('summary'),
+    plan: jsonb('plan'),
+    externalLink: text('external_link'),
+    externalUrls: jsonb('external_urls').notNull().default([]),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    dismissedByUserId: uuid('dismissed_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('agent_session_issue_idx').on(t.issueId),
+    index('agent_session_app_user_idx').on(t.appUserId),
+    index('agent_session_comment_idx').on(t.commentId),
+    check(
+      'agent_session_status_check',
+      sql`${t.status} IN ('pending', 'active', 'stopping', 'awaitingInput', 'complete', 'error', 'stale')`,
+    ),
+  ],
+);
+
+// Linear's agent activity: one entry of a session. `type` is Linear's
+// AgentActivityType; `content` holds the type's fields (body; or action, parameter
+// and result). Agent output is written by the app user, prompts by people.
+export const agentActivity = pgTable(
+  'agent_activity',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => agentSession.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    content: jsonb('content').notNull(),
+    signal: text('signal'),
+    signalMetadata: jsonb('signal_metadata'),
+    ephemeral: boolean('ephemeral').notNull().default(false),
+    sourceCommentId: uuid('source_comment_id').references(() => comment.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('agent_activity_session_idx').on(t.sessionId),
+    check(
+      'agent_activity_type_check',
+      sql`${t.type} IN ('thought', 'action', 'elicitation', 'response', 'error', 'prompt')`,
+    ),
+    check(
+      'agent_activity_signal_check',
+      sql`${t.signal} IS NULL OR ${t.signal} IN ('auth', 'continue', 'select', 'stop')`,
+    ),
+  ],
+);

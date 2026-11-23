@@ -18,6 +18,7 @@ import { emitEvent } from '../webhooks/event';
 import { commentData } from '../webhooks/data';
 import { notifyComment } from '../notifications/store';
 import { parseMentions } from '../shared/mentions';
+import { commentPosted } from '../agents/store';
 import {
   assertTeamAccess,
   type AuthUser,
@@ -197,14 +198,16 @@ async function userName(id: string | null): Promise<string | null> {
 
 // Creates a comment. parentId names the comment being replied to; it must be on the
 // same parent entity (400 otherwise), and a reply to a reply is stored under the
-// root. Sends the Comment webhook; an issue comment also starts agent mention runs
-// and notifies participants.
+// root. Sends the Comment webhook; an issue comment also notifies participants
+// (unless `notify` is false) and starts or prompts the agent sessions of the apps it
+// mentions.
 export async function createComment(input: {
   parent: CommentParent;
   parentId?: string | null;
   body: string;
   actorUserId: string | null;
   id?: string;
+  notify?: boolean;
 }): Promise<CommentRow> {
   let rootId: string | null = null;
   if (input.parentId) {
@@ -242,7 +245,8 @@ export async function createComment(input: {
       data,
     });
   if (created.issueId && teamIds[0]) {
-    await notifyComment(teamIds[0], created);
+    if (input.notify !== false) await notifyComment(teamIds[0], created);
+    await commentPosted(created, teamIds[0]);
   }
   return created;
 }

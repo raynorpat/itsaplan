@@ -35,6 +35,7 @@ import {
 } from './activity';
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
+import { assertDelegate, issueDelegated } from '../agents/store';
 import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
@@ -500,10 +501,9 @@ export interface NewIssueInput {
   subscriberIds?: string[];
 }
 
-// Enforces that assignee holds a team member. A delegate (Linear's agent app user)
-// cannot be set: no user is an agent. Only checks the fields present in the patch,
-// and only when set to a non-null value (clearing a field is always allowed).
-// Throws 400 otherwise.
+// Enforces that the assignee is a team member and the delegate an installed agent
+// (assertDelegate). Only checks the fields present in the patch, and only when set
+// to a non-null value (clearing a field is always allowed). Throws 400 otherwise.
 async function assertAssignments(
   teamId: string,
   patch: { assigneeUserId?: string | null; delegateUserId?: string | null },
@@ -515,7 +515,7 @@ async function assertAssignments(
     if (await isAppUser(patch.assigneeUserId))
       throw new HttpError(400, 'An application cannot be the assignee; delegate the issue to it');
   }
-  if (patch.delegateUserId) throw new HttpError(400, 'Delegate must be an agent app user');
+  if (patch.delegateUserId) await assertDelegate(teamId, patch.delegateUserId);
 }
 
 // Enforces that a milestone belongs to the issue's (resulting) project. Only
@@ -696,6 +696,8 @@ export async function createIssue(
     await setIssueLabels(team.id, issueId, input.labelIds, actorUserId, false);
   const created = (await getIssue(issueId))!;
   await emitIssue('create', issueId, team.id, actorUserId);
+  if (created.delegateUserId)
+    await issueDelegated(issueId, created.delegateUserId, actorUserId ?? null);
   // An issue created already assigned to a member notifies them, the same as
   // assigning one later does.
   if (created.assigneeUserId) {
@@ -823,6 +825,8 @@ export async function updateIssue(
     await logIssueUpdate(before, snapshot(after), actorUserId);
     if (changed || opts.labelIds || opts.before)
       await emitIssue('update', id, after.teamId, actorUserId, beforeData);
+    if (after.delegateUserId && after.delegateUserId !== before.delegateUserId)
+      await issueDelegated(id, after.delegateUserId, actorUserId ?? null);
   }
   return after;
 }
