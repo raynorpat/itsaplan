@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { type Notification, type NotificationType } from '@/lib/api';
 import { formatDurationShort } from '@/utils/dates';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,24 +74,31 @@ const contextMenu = {
   SubContent: ContextMenuSubContent,
 };
 
-// One inbox row: the issue identifier and title, the event line, elapsed time, an
-// unread dot, and the actions menu (opened from the "…" button or a right-click).
-// Read rows are dimmed. Clicking the row selects it; the menu handles its own
-// clicks without selecting.
+// One inbox row: a checkbox for bulk actions, the issue identifier and title, the
+// event line, elapsed time, an unread dot, and the actions menu (opened from the "…"
+// button or a right-click). Read rows are dimmed. Clicking the row opens it; the
+// checkbox and the menu handle their own clicks without opening it.
 export default function InboxListItem({
   notification: n,
   selected,
+  checked,
+  selecting,
   onSelect,
+  onCheckedChange,
   onToggleRead,
   onSnooze,
-  onDelete,
+  onArchive,
 }: {
   notification: Notification;
   selected: boolean;
+  checked: boolean;
+  // Some row is checked, so every row shows its checkbox.
+  selecting: boolean;
   onSelect: () => void;
+  onCheckedChange: (checked: boolean) => void;
   onToggleRead: (read: boolean) => void;
   onSnooze: (until: string | null) => void;
-  onDelete: () => void;
+  onArchive: () => void;
 }) {
   const [pickOpen, setPickOpen] = useState(false);
   const Icon = TYPE_ICON[n.type];
@@ -102,7 +110,7 @@ export default function InboxListItem({
     snoozed,
     onToggleRead,
     onSnooze,
-    onDelete,
+    onArchive,
     // Opening the calendar as the menu closes fights for focus; defer a frame.
     onPickDate: () => requestAnimationFrame(() => setPickOpen(true)),
   };
@@ -120,9 +128,23 @@ export default function InboxListItem({
             selected ? 'bg-accent' : 'hover:bg-accent/50',
           )}
         >
+          <span
+            className={cn(
+              'mt-0.5 shrink-0',
+              checked || selecting ? 'flex' : 'hidden group-hover:flex',
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={checked}
+              onCheckedChange={(v) => onCheckedChange(v === true)}
+              aria-label="Select notification"
+            />
+          </span>
           <Icon
             className={cn(
               'mt-0.5 size-4 shrink-0',
+              checked || selecting ? 'hidden' : 'group-hover:hidden',
               unread ? 'text-foreground' : 'text-muted-foreground',
             )}
           />

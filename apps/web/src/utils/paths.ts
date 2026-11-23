@@ -11,7 +11,8 @@ export const viewPath = (key: string, viewId: string | null) =>
 export const settingsPath = (key: string, section: string) =>
   `${teamPath(key)}/settings/${section}`;
 
-export const inboxPath = (key: string) => `${teamPath(key)}/inbox`;
+// The workspace inbox: one for every team, as in Linear.
+export const inboxPath = () => '/inbox';
 
 // The member's own notification preferences (which events are sent by email). A
 // main-nav Configuration destination, open to any member.
@@ -65,7 +66,7 @@ export const projectLabelsSettingsPath = () => '/projects/settings/labels';
 export const startPagePath = (key: string, startPage: StartPage) => {
   switch (startPage) {
     case 'inbox':
-      return inboxPath(key);
+      return inboxPath();
     case 'projects':
       return projectsPath(key);
     default:

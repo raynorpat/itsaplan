@@ -1,80 +1,122 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { type Notification, type NotificationFilters, type TeamDetail } from '@/lib/api';
-import { qk } from '@/services/queryKeys';
-import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { useInboxUnread } from '@/hooks/useInboxUnread';
+import { toast } from 'sonner';
+import { type Notification } from '@/lib/api';
+import { useNotificationsList } from '@/services/notifications.service';
+import { unreadCount } from '@/utils/notifications';
 import IssueDetailContent from '@/features/issue/components/detail/IssueDetailContent';
 import InboxToolbar from './InboxToolbar';
+import InboxSelectionBar from './InboxSelectionBar';
 import InboxList from './InboxList';
+import { useInboxTeam } from '../hooks/useInboxTeam';
 import {
-  useNotificationsQuery,
-  useSetNotificationRead,
-  useSnoozeNotification,
-  useDeleteNotification,
-  useMarkAllRead,
-  useDeleteNotifications,
+  DEFAULT_INBOX_FILTERS,
+  issuesWithUnread,
+  readForCompletedIssues,
+  visibleNotifications,
+  type InboxFilters,
+} from '../utils/inbox';
+import {
+  useChangeNotifications,
+  useMarkIssuesRead,
+  type InboxChange,
 } from '../services/notifications.service';
 
-export default function InboxView({ team }: { team: TeamDetail }) {
-  const teamKey = team.team.key;
-  const teamId = team.team.id;
-
-  const [filters, setFilters] = useState<NotificationFilters>({});
+// The workspace inbox: the viewer's notifications from every team on the left, the
+// open notification's issue on the right.
+export default function InboxView() {
+  const [filters, setFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [selected, setSelected] = useState<Notification | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
 
-  const query = useNotificationsQuery(teamKey, teamId, filters);
-  const unreadQuery = useInboxUnread(teamKey, teamId);
-  const setRead = useSetNotificationRead(teamKey);
-  const snooze = useSnoozeNotification(teamKey);
-  const deleteOne = useDeleteNotification(teamKey);
-  const markAllRead = useMarkAllRead(teamKey, teamId);
-  const deleteNotifications = useDeleteNotifications(teamKey, teamId);
+  const query = useNotificationsList();
+  const change = useChangeNotifications();
+  const markIssuesRead = useMarkIssuesRead();
+  const team = useInboxTeam(selected?.teamKey ?? null);
 
-  const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
+  const list = useMemo(() => query.data ?? [], [query.data]);
+  const now = new Date();
+  const items = visibleNotifications(list, filters, now);
+  const unread = unreadCount(list, now);
 
-  useLiveRefresh({
-    targets: [['notifications', teamKey], qk.notificationsUnread(teamKey)],
-  });
+  const run = (ids: string[], next: InboxChange) => {
+    if (ids.length > 0) change.mutate({ ids, change: next });
+  };
+
+  const archive = (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (selected && ids.includes(selected.id)) setSelected(null);
+    run(ids, { kind: 'archive' });
+    const what = ids.length === 1 ? 'Notification' : `${ids.length} notifications`;
+    toast.success(`${what} archived.`, {
+      action: { label: 'Undo', onClick: () => run(ids, { kind: 'unarchive' }) },
+    });
+  };
 
   const onSelect = (n: Notification) => {
     setSelected(n);
-    if (n.readAt == null) setRead.mutate({ id: n.id, read: true });
+    if (n.readAt == null) run([n.id], { kind: 'read', read: true });
   };
 
-  const onDelete = (n: Notification) => {
-    if (selected?.id === n.id) setSelected(null);
-    deleteOne.mutate(n.id);
-  };
+  const onChecked = (n: Notification, isChecked: boolean) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (isChecked) next.add(n.id);
+      else next.delete(n.id);
+      return next;
+    });
+
+  const checkedIds = [...checked];
+  const clearChecked = () => setChecked(new Set());
 
   return (
     <div className="flex h-full min-h-0">
       <div className="flex w-full max-w-sm min-w-0 flex-col border-r">
-        <InboxToolbar
-          unread={unreadQuery.data ?? 0}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onMarkAllRead={() => markAllRead.mutate()}
-          onDeleteRead={() => deleteNotifications.mutate('read')}
-          onDeleteReadCompleted={() => deleteNotifications.mutate('read-completed')}
-        />
+        {checked.size > 0 ? (
+          <InboxSelectionBar
+            count={checked.size}
+            onRead={(read) => {
+              run(checkedIds, { kind: 'read', read });
+              clearChecked();
+            }}
+            onSnooze={(until) => {
+              run(checkedIds, { kind: 'snooze', until });
+              clearChecked();
+            }}
+            onArchive={() => {
+              archive(checkedIds);
+              clearChecked();
+            }}
+            onClear={clearChecked}
+          />
+        ) : (
+          <InboxToolbar
+            unread={unread}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onMarkAllRead={() => markIssuesRead.mutate(issuesWithUnread(list))}
+            onArchiveRead={() =>
+              archive(list.filter((n) => n.archivedAt == null && n.readAt != null).map((n) => n.id))
+            }
+            onArchiveReadCompleted={() => archive(readForCompletedIssues(list).map((n) => n.id))}
+          />
+        )}
         <InboxList
           items={items}
           isLoading={query.isLoading}
           selectedId={selected?.id ?? null}
+          checkedIds={checked}
           onSelect={onSelect}
-          onToggleRead={(n, read) => setRead.mutate({ id: n.id, read })}
-          onSnooze={(n, until) => snooze.mutate({ id: n.id, until })}
-          onDelete={onDelete}
-          hasNextPage={query.hasNextPage}
-          isFetchingNextPage={query.isFetchingNextPage}
-          onLoadMore={() => query.fetchNextPage()}
+          onCheckedChange={onChecked}
+          onToggleRead={(n, read) => run([n.id], { kind: 'read', read })}
+          onSnooze={(n, until) => run([n.id], { kind: 'snooze', until })}
+          onArchive={(n) => archive([n.id])}
         />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {selected ? (
+        {selected && team ? (
           <div className="px-6 py-6 xl:px-10">
             <IssueDetailContent
               key={selected.issueId}
@@ -86,7 +128,7 @@ export default function InboxView({ team }: { team: TeamDetail }) {
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Select a notification
+            {selected ? 'Loading…' : 'Select a notification'}
           </div>
         )}
       </div>

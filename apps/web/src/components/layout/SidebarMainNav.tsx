@@ -4,17 +4,11 @@ import SidebarWorkspaceNav from '@/components/layout/SidebarWorkspaceNav';
 
 // The main sidebar body: the workspace group (Projects, above the teams), the
 // team's work navigation, then the Configuration group.
-export default function SidebarMainNav({
-  teamKey,
-  teamId,
-}: {
-  teamKey: string | null;
-  teamId: string | null;
-}) {
+export default function SidebarMainNav({ teamKey }: { teamKey: string | null }) {
   return (
     <>
       <SidebarWorkspaceNav />
-      <SidebarWorkNav teamKey={teamKey} teamId={teamId} />
+      <SidebarWorkNav teamKey={teamKey} />
       <SidebarConfigNav teamKey={teamKey} />
     </>
   );

@@ -1,5 +1,6 @@
 import { type ElementType } from 'react';
-import { CalendarClock, Clock, MailOpen, Trash2 } from 'lucide-react';
+import { Archive, CalendarClock, Clock, MailOpen } from 'lucide-react';
+import { snoozePreset } from '../utils/snooze';
 
 // The menu primitives to render with. DropdownMenu and ContextMenu expose the same
 // component API, so the same item list backs both the "…" button and the row's
@@ -13,7 +14,7 @@ interface MenuComponents {
 }
 
 // The shared inbox-row actions: read/unread, a Snooze submenu (presets + pick a
-// date, or unsnooze when already snoozed), and delete.
+// date, or unsnooze when already snoozed), and archive.
 export default function InboxItemActions({
   menu,
   unread,
@@ -21,7 +22,7 @@ export default function InboxItemActions({
   onToggleRead,
   onSnooze,
   onPickDate,
-  onDelete,
+  onArchive,
 }: {
   menu: MenuComponents;
   unread: boolean;
@@ -29,7 +30,7 @@ export default function InboxItemActions({
   onToggleRead: (read: boolean) => void;
   onSnooze: (until: string | null) => void;
   onPickDate: () => void;
-  onDelete: () => void;
+  onArchive: () => void;
 }) {
   const { Item, Separator, Sub, SubTrigger, SubContent } = menu;
   return (
@@ -51,8 +52,8 @@ export default function InboxItemActions({
             Snooze
           </SubTrigger>
           <SubContent>
-            <Item onSelect={() => onSnooze(daysFromNow(1))}>Tomorrow</Item>
-            <Item onSelect={() => onSnooze(daysFromNow(7))}>In a week</Item>
+            <Item onSelect={() => onSnooze(snoozePreset('tomorrow'))}>Tomorrow</Item>
+            <Item onSelect={() => onSnooze(snoozePreset('week'))}>In a week</Item>
             <Separator />
             <Item onSelect={onPickDate}>
               <CalendarClock />
@@ -62,18 +63,10 @@ export default function InboxItemActions({
         </Sub>
       )}
       <Separator />
-      <Item variant="destructive" onSelect={onDelete}>
-        <Trash2 />
-        Delete
+      <Item onSelect={onArchive}>
+        <Archive />
+        Archive
       </Item>
     </>
   );
-}
-
-// An ISO time n days from now at 09:00 local, for the snooze presets.
-function daysFromNow(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  d.setHours(9, 0, 0, 0);
-  return d.toISOString();
 }

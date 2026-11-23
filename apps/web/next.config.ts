@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [new URL('/**', process.env.NEXT_PUBLIC_API_URL)],
   },
+  // The inbox is workspace-wide (/inbox); the old per-team address leads there.
+  async redirects() {
+    return [{ source: '/team/:teamKey/inbox', destination: '/inbox', permanent: false }];
+  },
 };
 
 export default nextConfig;

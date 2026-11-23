@@ -41,7 +41,6 @@ export default function AppSidebar({
 }) {
   const pathname = usePathname();
   const disabled = !currentTeamKey;
-  const teamId = teams.find((p) => p.key === currentTeamKey)?.id ?? null;
 
   const { data: session } = useSession();
   // The session store can already be filled by the time React hydrates, while the
@@ -74,7 +73,7 @@ export default function AppSidebar({
         {settingsMode ? (
           <SidebarSettingsNav teamKey={currentTeamKey} />
         ) : (
-          <SidebarMainNav teamKey={currentTeamKey} teamId={teamId} />
+          <SidebarMainNav teamKey={currentTeamKey} />
         )}
       </SidebarContent>
 

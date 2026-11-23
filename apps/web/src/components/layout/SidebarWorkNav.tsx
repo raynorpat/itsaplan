@@ -1,21 +1,15 @@
 import { usePathname } from 'next/navigation';
 import { Inbox, SquareKanban } from 'lucide-react';
 import { inboxPath, teamPath } from '@/utils/paths';
-import { useInboxUnread } from '@/hooks/useInboxUnread';
+import { useInboxUnread } from '@/services/notifications.service';
 import { SidebarGroup, SidebarGroupContent, SidebarMenu } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 
-// The team's sidebar group: Inbox and Work items.
-export default function SidebarWorkNav({
-  teamKey,
-  teamId,
-}: {
-  teamKey: string | null;
-  teamId: string | null;
-}) {
+// The main sidebar group: the workspace Inbox and the team's Work items.
+export default function SidebarWorkNav({ teamKey }: { teamKey: string | null }) {
   const pathname = usePathname();
   const disabled = !teamKey;
-  const { data: inboxUnread } = useInboxUnread(teamKey, teamId);
+  const inboxUnread = useInboxUnread();
 
   // "Work items" is the default view: active on the team root and any segment
   // that is not one of the other top-level destinations.
@@ -30,11 +24,11 @@ export default function SidebarWorkNav({
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarNavItem
-            href={teamKey ? inboxPath(teamKey) : '#'}
+            href={inboxPath()}
             icon={Inbox}
             label="Inbox"
-            active={pathname.endsWith('/inbox')}
-            disabled={disabled}
+            active={pathname === inboxPath()}
+            disabled={false}
             badge={inboxUnread}
           />
           <SidebarNavItem

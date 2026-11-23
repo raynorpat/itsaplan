@@ -49,7 +49,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
 
   if (teamKey) {
     const key = teamKey;
-    add('nav.inbox', 'Inbox', <Inbox />, inboxPath(key), 'notifications unread');
+    add('nav.inbox', 'Inbox', <Inbox />, inboxPath(), 'notifications unread');
     add('nav.work-items', 'Work items', <SquareKanban />, teamPath(key), 'board issues kanban');
     add('nav.projects', 'Projects', <Target />, projectsPath(), 'epics roadmap');
     add('nav.members', 'Members', <Users />, membersPath(key), 'team people invite');

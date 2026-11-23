@@ -54,11 +54,8 @@ export const qk = {
   anyProjects: ['projects'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,
-  // A team's inbox notifications (the list, scoped by the active filters) and the
-  // team's unread count (the sidebar badge + live-refresh target).
-  notifications: (teamKey: string, filters?: unknown) =>
-    ['notifications', teamKey, filters ?? {}] as const,
-  notificationsUnread: (teamKey: string) => ['notificationsUnread', teamKey] as const,
+  // The viewer's notifications for the whole workspace (the inbox and its badge).
+  notifications: () => ['notifications'] as const,
   // The signed-in user's WebAuthn passkeys (account security page).
   passkeys: ['passkeys'] as const,
   // The signed-in user's connected external accounts (accounts page): the auth

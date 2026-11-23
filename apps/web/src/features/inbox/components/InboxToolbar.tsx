@@ -1,5 +1,6 @@
-import { CheckCheck, ListFilter, MoreHorizontal, SlidersHorizontal, Trash2 } from 'lucide-react';
-import { type NotificationFilters, type NotificationType } from '@/lib/api';
+import { Archive, CheckCheck, ListFilter, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
+import { type NotificationType } from '@/lib/api';
+import { type InboxFilters } from '../utils/inbox';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,29 +20,30 @@ const TYPE_LABELS: { value: NotificationType; label: string }[] = [
 ];
 
 // The inbox list header: title with unread count, a type filter, display toggles
-// (show read / snoozed), and the bulk-action menu.
+// (show read / snoozed), and the actions on the whole inbox. Linear archives
+// notifications rather than deleting them, so the clean-up actions archive.
 export default function InboxToolbar({
   unread,
   filters,
   onFiltersChange,
   onMarkAllRead,
-  onDeleteRead,
-  onDeleteReadCompleted,
+  onArchiveRead,
+  onArchiveReadCompleted,
 }: {
   unread: number;
-  filters: NotificationFilters;
-  onFiltersChange: (next: NotificationFilters) => void;
+  filters: InboxFilters;
+  onFiltersChange: (next: InboxFilters) => void;
   onMarkAllRead: () => void;
-  onDeleteRead: () => void;
-  onDeleteReadCompleted: () => void;
+  onArchiveRead: () => void;
+  onArchiveReadCompleted: () => void;
 }) {
-  const selectedTypes = filters.types ?? [];
+  const selectedTypes = filters.types;
 
   const toggleType = (type: NotificationType) => {
     const next = selectedTypes.includes(type)
       ? selectedTypes.filter((t) => t !== type)
       : [...selectedTypes, type];
-    onFiltersChange({ ...filters, types: next.length ? next : undefined });
+    onFiltersChange({ ...filters, types: next });
   };
 
   return (
@@ -80,15 +82,15 @@ export default function InboxToolbar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuCheckboxItem
-              checked={filters.includeRead !== false}
-              onCheckedChange={(v) => onFiltersChange({ ...filters, includeRead: v })}
+              checked={filters.showRead}
+              onCheckedChange={(v) => onFiltersChange({ ...filters, showRead: v === true })}
               onSelect={(e) => e.preventDefault()}
             >
               Show read
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={filters.includeSnoozed === true}
-              onCheckedChange={(v) => onFiltersChange({ ...filters, includeSnoozed: v })}
+              checked={filters.showSnoozed}
+              onCheckedChange={(v) => onFiltersChange({ ...filters, showSnoozed: v === true })}
               onSelect={(e) => e.preventDefault()}
             >
               Show snoozed
@@ -108,13 +110,13 @@ export default function InboxToolbar({
               Mark all as read
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onDeleteRead}>
-              <Trash2 />
-              Delete all read
+            <DropdownMenuItem onSelect={onArchiveRead}>
+              <Archive />
+              Archive all read
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onDeleteReadCompleted}>
-              <Trash2 />
-              Delete all read for completed issues
+            <DropdownMenuItem onSelect={onArchiveReadCompleted}>
+              <Archive />
+              Archive read for completed issues
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

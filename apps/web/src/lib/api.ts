@@ -698,7 +698,9 @@ export interface Notification {
   actorName: string | null;
   readAt: string | null;
   snoozedUntil: string | null;
+  archivedAt: string | null;
   createdAt: string;
+  updatedAt: string;
   issueId: string;
   issueSeq: number;
   issueTitle: string;
@@ -707,27 +709,6 @@ export interface Notification {
   teamKey: string;
   teamName: string;
 }
-
-export interface NotificationCursor {
-  ts: string;
-  id: string;
-}
-
-export interface NotificationPage {
-  items: Notification[];
-  nextCursor: NotificationCursor | null;
-  // Unread, not-snoozed notifications in the inbox (or the team), for the badge.
-  unread: number;
-}
-
-export interface NotificationFilters {
-  types?: NotificationType[];
-  from?: string;
-  includeRead?: boolean;
-  includeSnoozed?: boolean;
-}
-
-export type NotificationDeleteScope = 'all' | 'read' | 'read-completed';
 
 export const api = {
   // The teams the caller can see: joined teams plus public teams not joined
@@ -960,46 +941,6 @@ export const api = {
     request<{ timezone: string }>('/account/preferences', {
       method: 'PATCH',
       body: JSON.stringify({ timezone }),
-    }),
-
-  // Inbox notifications. The list is the session user's own; teamId scopes it to
-  // one team (the per-team inbox). cursor is the JSON-encoded keyset from the
-  // previous page.
-  listNotifications: (
-    teamId: string,
-    params: {
-      cursor?: NotificationCursor | null;
-      limit?: number;
-      filters?: NotificationFilters;
-    } = {},
-  ) => {
-    const q = new URLSearchParams();
-    q.set('teamId', String(teamId));
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
-    const f = params.filters ?? {};
-    if (f.types?.length) q.set('types', f.types.join(','));
-    if (f.from) q.set('from', f.from);
-    if (f.includeRead === false) q.set('includeRead', 'false');
-    if (f.includeSnoozed) q.set('includeSnoozed', 'true');
-    return request<NotificationPage>(`/notifications?${q.toString()}`);
-  },
-  setNotificationRead: (id: string, read: boolean) =>
-    request<void>(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({ read }) }),
-  snoozeNotification: (id: string, until: string | null) =>
-    request<void>(`/notifications/${id}/snooze`, {
-      method: 'POST',
-      body: JSON.stringify({ until }),
-    }),
-  markAllNotificationsRead: (teamId: string) =>
-    request<{ count: number }>(`/notifications/read-all`, {
-      method: 'POST',
-      body: JSON.stringify({ teamId }),
-    }),
-  deleteNotification: (id: string) => request<void>(`/notifications/${id}`, { method: 'DELETE' }),
-  deleteNotifications: (scope: NotificationDeleteScope, teamId: string) =>
-    request<{ count: number }>(`/notifications?scope=${scope}&teamId=${teamId}`, {
-      method: 'DELETE',
     }),
 
   // The upload limits, read by the upload UI before a file is picked.
