@@ -161,4 +161,17 @@ describe('oauth install grants', () => {
     if (own.status === 200)
       expect(((await own.json()) as { issuer: string }).issuer).toBe(meta.issuer);
   });
+  it("treats prompt values other than Linear's consent as absent", async () => {
+    const { owner, client } = await setup();
+    // Signed in: the request goes on to consent or a code, not back to the sign-in page.
+    const res = await authorizeRequest(owner.cookie, {
+      client_id: client.clientId,
+      redirect_uri: REDIRECT_URI,
+      response_type: 'code',
+      scope: 'read',
+      prompt: 'login',
+    });
+    const target = new URL(await redirectTarget(res));
+    expect(target.pathname).not.toBe('/login');
+  });
 });

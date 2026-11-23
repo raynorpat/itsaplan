@@ -146,6 +146,35 @@ describe('oauth actor=app installs', () => {
     expect(code(await gql(bearer(token), TEAM, { id: 'MKT' }))).toBeUndefined();
   });
 
+  it("changes an app user's teams only through its install", async () => {
+    const { owner, client } = await setup();
+    const mkt = await teamId(owner, 'MKT');
+    const eng = await teamId(owner, 'ENG');
+    const tokens = await install(owner.cookie, client, { teamIds: [mkt], publicTeams: false });
+    const appUser = (await viewer(tokens.access_token)).id;
+    const MEMBERSHIP_CREATE = `mutation($input: TeamMembershipCreateInput!) {
+      teamMembershipCreate(input: $input) { success }
+    }`;
+    // A person cannot add the app user to another team, or remove it from its team.
+    const added = await gql({ cookie: owner.cookie }, MEMBERSHIP_CREATE, {
+      input: { teamId: eng, userId: appUser },
+    });
+    expect(code(added)).toBe('INVALID_INPUT');
+    const api = authedApi(owner.cookie);
+    const restAdd = await api.teams({ teamKey: 'ENG' }).members.post({ userId: appUser });
+    expect(restAdd.status).toBe(400);
+    const restRemove = await api.teams({ teamKey: 'MKT' }).members({ userId: appUser }).delete();
+    expect(restRemove.status).toBe(400);
+    // The app user cannot join a team itself.
+    const joined = await gql(bearer(tokens.access_token), MEMBERSHIP_CREATE, {
+      input: { teamId: mkt, userId: appUser },
+    });
+    expect(code(joined)).toBe('INVALID_INPUT');
+    expect(code(await gql(bearer(tokens.access_token), TEAM, { id: 'ENG' }))).toBe(
+      'ENTITY_NOT_FOUND',
+    );
+  });
+
   it('offers an app with every public team in the members of a public team only', async () => {
     const { owner, client } = await setup();
     const installed = await install(owner.cookie, client, {

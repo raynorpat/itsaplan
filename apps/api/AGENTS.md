@@ -159,7 +159,8 @@ Enforced declaratively through macros, never imperative calls in handlers.
   `team_member` teams, plus every public team when its install includes them
   (`seesPublicTeams`); it reaches initiatives through those teams. It is left out of
   member lists (REST members and workspace users, `Team.memberships`,
-  `teamMemberships`), offered in `Team.members` only when its install granted
+  `teamMemberships`), gets its teams only from its install (no membership change is
+  made by it or to it: `assertNotAppUser` in `members/store.ts`), offered in `Team.members` only when its install granted
   `app:assignable` or `app:mentionable` (`User.isAssignable` / `isMentionable`), and
   never set as an assignee. GraphQL `users` lists it with `app: true`.
 - **`:teamKey` routes:** `.use(guards)` and set `teamAccess: "see" | "manage"` or
@@ -346,7 +347,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   routes in process: an API key is forwarded as `x-api-key`; an OAuth caller's user
   is passed to `authContext` through `runAsMcpCaller` (an in-process store no request
   can set) with the token's scopes (`runWithAuth`), so REST itself takes no OAuth
-  token. A tool needs `read` (GET), `issues:create` or `write` (create an issue),
+  token. A tool needs `read` or `write` (GET), `issues:create` or `write` (create an issue),
   `comments:create` or `write` (add a comment), else `write` (`toolScopes`); admin
   tools also need `admin` through the role checks.
 - **Tests:** `src/__tests__/helpers/linear.ts` serves the app on a local port and

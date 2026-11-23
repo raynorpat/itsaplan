@@ -57,8 +57,12 @@ plugin's `issuer`); the plugin's own discovery endpoints are disabled.
   `issues:create` and `comments:create` (`MCP_CLIENT_SCOPES`; default `read write`).
   An authorize request without a scope gets `read` for an application and the
   registered scopes for a self-registered client.
-- Cookie-authenticated writes to the consent endpoints must send an `Origin` from
-  `trustedOrigins`, as the instance plugin's do.
+- Cookie-authenticated writes to the consent endpoints and to `/oauth2/register` must
+  send an `Origin` from `trustedOrigins`, as the instance plugin's do. Registration
+  needs no session, so it has its own rate limit (10 a minute per address; better-auth
+  enables its limiter in production).
+- The authorize step keeps Linear's `prompt=consent` (and `none`) and drops the other
+  OpenID prompt values (`login`, `select_account`, `create`).
 - The consent page is the web's `/oauth/consent`, the sign-in page `/login`.
 
 ### `actor=app` installs (`src/oauth-install.ts`)

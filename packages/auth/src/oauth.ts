@@ -127,7 +127,7 @@ export const oauthPlugins = (appUrl: string, apiUrl: string) => [
 // ambient credential. The plugin's client and consent management endpoints are
 // disabled (OAUTH_DISABLED_PATHS); applications are managed through the instance
 // plugin, which applies the same rule.
-const COOKIE_WRITES = new Set(['/oauth2/consent', '/oauth2/continue']);
+const COOKIE_WRITES = new Set(['/oauth2/consent', '/oauth2/continue', '/oauth2/register']);
 
 // The plugin's own client and consent management. Its rules (a client belongs to the
 // user who created it) are not the workspace's (any admin manages every application),
@@ -173,6 +173,15 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     const withoutActor = scopes.filter((s) => s !== APP_ACTOR_SCOPE);
     if (isAppActor(query.actor)) withoutActor.push(APP_ACTOR_SCOPE);
     query.scope = withoutActor.join(' ');
+    // Linear's authorize takes `prompt=consent` only. The other OpenID values
+    // (`login`, `select_account`, `create`) would send the browser to pages the web
+    // does not have, so they are dropped; `none` is kept (it fails rather than show a
+    // page).
+    if (typeof query.prompt === 'string') {
+      const kept = query.prompt.split(' ').filter((p) => p === 'consent' || p === 'none');
+      if (kept.length > 0) query.prompt = kept.join(' ');
+      else delete query.prompt;
+    }
     return;
   }
 

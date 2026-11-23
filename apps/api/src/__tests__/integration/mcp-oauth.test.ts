@@ -218,6 +218,10 @@ describe('MCP sign-in with OAuth', () => {
     expect((await callTool(issuesOnly, 'add_comment', { issueId, body: 'Hi' })).isError).toBe(true);
     expect((await callTool(issuesOnly, 'list_teams')).isError).toBe(true);
 
+    // `write` includes reading, as on GraphQL.
+    const writeOnly = await mcpClientToken(owner, 'write');
+    expect((await callTool(writeOnly, 'list_teams')).isError).toBeFalsy();
+
     const commentsOnly = await mcpClientToken(owner, 'comments:create');
     expect((await callTool(commentsOnly, 'add_comment', { issueId, body: 'Hi' })).isError).toBe(
       false,

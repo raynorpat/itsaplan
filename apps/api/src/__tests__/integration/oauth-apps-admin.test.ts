@@ -440,3 +440,86 @@ describe('the application shown on the consent page', () => {
     ).toBe(404);
   });
 });
+
+describe('oauth application rules', () => {
+  let owner: TestUser;
+
+  beforeEach(async () => {
+    await resetDb();
+    owner = await signUpTestUser({ name: 'Owner' });
+  });
+
+  it('applies one redirect URI rule on create and update', async () => {
+    const create = (extra: Record<string, unknown>) =>
+      authPost('/instance/oauth-apps/create', owner.cookie, { name: 'Native', ...extra });
+    expect((await create({ redirectUris: ['http://evil.example.com/cb'] })).status).toBe(400);
+    expect((await create({ redirectUris: ['http://localhost:8787/cb'] })).status).toBe(200);
+    // A custom scheme is for a native (public) application only.
+    expect((await create({ redirectUris: ['myapp://callback'] })).status).toBe(400);
+    expect((await create({ redirectUris: ['myapp://callback'], publicClient: true })).status).toBe(
+      200,
+    );
+    expect((await create({ redirectUris: ['javascript://x'], publicClient: true })).status).toBe(
+      400,
+    );
+
+    const client = await createClient(owner.cookie, { name: 'Robot' });
+    const update = (uris: string[]) =>
+      authPost('/instance/oauth-apps/update', owner.cookie, {
+        clientId: client.clientId,
+        redirectUris: uris,
+      });
+    expect((await update(['http://evil.example.com/cb'])).status).toBe(400);
+    expect((await update(['myapp://callback'])).status).toBe(400);
+    expect((await update(['http://127.0.0.1:9000/cb'])).status).toBe(200);
+  });
+
+  it('stops client_credentials tokens when the grant is turned off', async () => {
+    const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
+    await install(owner.cookie, client);
+    const res = await clientCredentials(client);
+    expect(res.status).toBe(200);
+    const token = ((await res.json()) as { access_token: string }).access_token;
+    expect((await gql(bearer(token), VIEWER)).body.data?.viewer).toBeTruthy();
+    const off = await authPost('/instance/oauth-apps/update', owner.cookie, {
+      clientId: client.clientId,
+      clientCredentials: false,
+    });
+    expect(off.status).toBe(200);
+    expect((await gql(bearer(token), VIEWER)).status).toBe(401);
+  });
+
+  it('answers malformed Basic client credentials with invalid_client', async () => {
+    const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
+    for (const basic of [btoa('%zz:secret'), btoa('no-colon')]) {
+      const res = await app.handle(
+        new Request('http://localhost/oauth/token', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            authorization: `Basic ${basic}`,
+          },
+          body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { error?: string }).error).toBe('invalid_client');
+    }
+    expect(client.clientId).toBeTruthy();
+  });
+
+  it('refuses a cookie-authenticated registration from another origin', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/api/auth/oauth2/register', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: owner.cookie,
+          origin: 'https://evil.example.com',
+        },
+        body: JSON.stringify({ redirect_uris: [REDIRECT_URI] }),
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+});

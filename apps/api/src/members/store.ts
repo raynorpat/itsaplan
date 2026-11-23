@@ -1,7 +1,13 @@
 import { db, teamMember, user } from '@repo/db';
 import { and, eq, ne } from 'drizzle-orm';
 import { APP_ROLE } from '@repo/auth';
-import { assertTeamAccess, canManageTeam, isTeamMember, type AuthUser } from '../shared/access';
+import {
+  assertTeamAccess,
+  canManageTeam,
+  isAppUser,
+  isTeamMember,
+  type AuthUser,
+} from '../shared/access';
 import { HttpError, iso } from '../shared/lib';
 
 // Data access for team membership. A member is a team owner or a plain member
@@ -119,6 +125,21 @@ export async function removeMember(teamId: string, userId: string): Promise<void
     .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)));
 }
 
+// An application's app user gets its teams from its install (chosen by the installing
+// admin) and loses them on uninstall; no membership change is made by it or to it.
+export async function assertNotAppUser(...userIds: string[]): Promise<void> {
+  for (const id of new Set(userIds))
+    if (await isAppUser(id))
+      throw new HttpError(400, "An application's teams are set when it is installed");
+}
+
+// Joins a team oneself (REST /teams/:teamKey/join and Linear's teamMembershipCreate
+// for oneself); the caller has checked that the user can see the team.
+export async function joinTeam(teamId: string, userId: string): Promise<void> {
+  await assertNotAppUser(userId);
+  if (!(await isTeamMember(teamId, userId))) await upsertMember(teamId, userId, 'member');
+}
+
 // Adds someone to a team (REST and Linear's teamMembershipCreate). Any team member
 // may add people to a public team; a private team, and making someone a team
 // owner, need a team manager. Suspended users cannot be added.
@@ -128,6 +149,7 @@ export async function addTeamMember(
   owner: boolean,
   actor: AuthUser,
 ): Promise<void> {
+  await assertNotAppUser(actor.id, targetUserId);
   if (!(await canManageTeam(teamRow.id, actor.id))) {
     if (owner || teamRow.visibility === 'private')
       throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
@@ -151,6 +173,7 @@ export async function changeTeamOwner(
   actor: AuthUser,
 ): Promise<void> {
   await assertTeamAccess(teamId, actor, 'manage');
+  await assertNotAppUser(actor.id, targetUserId);
   if (targetUserId === actor.id) throw new HttpError(400, 'You cannot change your own role');
   const ok = await setMembership(teamId, targetUserId, owner ? 'owner' : 'member');
   if (!ok) throw new HttpError(404, 'Member not found');
@@ -163,6 +186,7 @@ export async function removeTeamMember(
   actor: AuthUser,
 ): Promise<void> {
   if (targetUserId !== actor.id) await assertTeamAccess(teamId, actor, 'manage');
+  await assertNotAppUser(actor.id, targetUserId);
   if (!(await getMembership(teamId, targetUserId))) throw new HttpError(404, 'Member not found');
   await removeMember(teamId, targetUserId);
 }

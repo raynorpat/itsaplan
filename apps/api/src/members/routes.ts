@@ -3,15 +3,9 @@ import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
-import { isTeamMember, requireUser } from '../shared/access';
+import { requireUser } from '../shared/access';
 import { ErrorResponse } from '../shared/responses';
-import {
-  addTeamMember,
-  changeTeamOwner,
-  listMembers,
-  removeTeamMember,
-  upsertMember,
-} from './store';
+import { addTeamMember, changeTeamOwner, listMembers, removeTeamMember, joinTeam } from './store';
 
 const memberParams = t.Object({ teamKey: t.String(), userId: t.String({ format: 'uuid' }) });
 const memberRole = t.Union([t.Literal('owner'), t.Literal('member')]);
@@ -60,8 +54,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
     '/teams/:teamKey/join',
     async ({ team, user, set }) => {
       const current = requireUser(user);
-      if (!(await isTeamMember(team.id, current.id)))
-        await upsertMember(team.id, current.id, 'member');
+      await joinTeam(team.id, current.id);
       set.status = 201;
       return { teamKey: team.key, userId: current.id };
     },

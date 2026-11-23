@@ -1,14 +1,13 @@
 import { db, team, teamMember, workspaceInvite } from '@repo/db';
 import { and, eq, gt, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
 import { getInvite, inviteToWorkspace, revokeInvite, type InviteRole } from '../../invites/store';
-import { addTeamMember, removeTeamMember, upsertMember } from '../../members/store';
+import { addTeamMember, joinTeam, removeTeamMember } from '../../members/store';
 import { assertAllowedTo } from '../../organization/store';
 import {
   appUserIds,
   assertTeamAccess,
   assertWorkspaceRole,
   atLeast,
-  isTeamMember,
   visibleTeamIds,
   workspaceRole,
   type WorkspaceRole,
@@ -310,8 +309,7 @@ export const workspaceResolvers = {
         // A membership for oneself is joining: anyone who can see the team may join it
         // (teamToJoin checked that), as REST's /teams/:teamKey/join.
         if (userId === ctx.user.id) {
-          if (!(await isTeamMember(found.id, userId)))
-            await upsertMember(found.id, userId, 'member');
+          await joinTeam(found.id, userId);
         } else {
           await addTeamMember(found, userId, false, ctx.user);
         }

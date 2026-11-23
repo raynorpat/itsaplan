@@ -107,10 +107,35 @@ function requiredName(value: unknown): string {
   return name;
 }
 
-function redirectUris(value: unknown): string[] {
+const LOOPBACK = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|\[::1\])$/i;
+const UNSAFE_SCHEMES = new Set(['javascript:', 'data:', 'vbscript:', 'file:', 'blob:']);
+
+// The OAuth provider's redirect URI rule (better-auth's SafeUrlSchema): https, http on
+// a loopback host only, no fragment, and a custom scheme (`myapp://callback`) only
+// for a native application, which is a public client.
+function redirectUri(value: unknown, publicClient: boolean): string {
+  if (typeof value !== 'string') throw new HttpError(400, 'redirectUris must be URLs');
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new HttpError(400, 'redirectUris must be URLs');
+  }
+  if (value.includes('#')) throw new HttpError(400, 'redirectUris must not have a fragment');
+  if (url.protocol === 'https:') return value;
+  if (url.protocol === 'http:') {
+    if (LOOPBACK.test(url.hostname)) return value;
+    throw new HttpError(400, 'redirectUris must use https (http only on a loopback host)');
+  }
+  if (!publicClient || UNSAFE_SCHEMES.has(url.protocol))
+    throw new HttpError(400, 'A custom redirect scheme is for a native (public) application only');
+  return value;
+}
+
+function redirectUris(value: unknown, publicClient: boolean): string[] {
   if (!Array.isArray(value) || value.length === 0)
     throw new HttpError(400, 'redirectUris needs at least one URL');
-  return [...new Set(value.map((uri) => httpUrl(uri, 'redirectUris')))];
+  return [...new Set(value.map((uri) => redirectUri(uri, publicClient)))];
 }
 
 function resourceTypes(value: unknown): WebhookResourceType[] {
@@ -219,7 +244,7 @@ async function create(headers: Headers, body: unknown) {
   if (publicClient && clientCredentials)
     throw new HttpError(400, 'A public client cannot use client_credentials');
   const name = requiredName(body.name);
-  const uris = redirectUris(body.redirectUris);
+  const uris = redirectUris(body.redirectUris, publicClient);
   const developerUrl = optionalUrl(body.developerUrl ?? null, 'developerUrl');
   const iconUrl = optionalUrl(body.iconUrl ?? null, 'iconUrl');
   const metadata = {
@@ -267,7 +292,7 @@ async function update(headers: Headers, body: unknown) {
   const metadata = clientMetadata(row.metadata);
   const set: Partial<typeof oauthClient.$inferInsert> = {};
   if ('name' in body) set.name = requiredName(body.name);
-  if ('redirectUris' in body) set.redirectUris = redirectUris(body.redirectUris);
+  if ('redirectUris' in body) set.redirectUris = redirectUris(body.redirectUris, !!row.public);
   if ('developerUrl' in body) set.uri = optionalUrl(body.developerUrl, 'developerUrl');
   if ('iconUrl' in body) set.icon = optionalUrl(body.iconUrl, 'iconUrl');
   if ('description' in body)
@@ -278,6 +303,9 @@ async function update(headers: Headers, body: unknown) {
       throw new HttpError(400, 'A public client cannot use client_credentials');
     set.grantTypes = grantTypes(body.clientCredentials === true);
   }
+  // Turning the grant off revokes the tokens it issued (they have no user), as
+  // rotating the secret does.
+  const revokeClientCredentials = 'clientCredentials' in body && body.clientCredentials !== true;
   const current = await getApplicationWebhook(row.clientId);
   const webhook = webhookInput(body, current);
 
@@ -285,6 +313,10 @@ async function update(headers: Headers, body: unknown) {
   set.metadata = JSON.stringify(metadata);
   set.updatedAt = new Date();
   await db.update(oauthClient).set(set).where(eq(oauthClient.clientId, row.clientId));
+  if (revokeClientCredentials)
+    await db
+      .delete(oauthAccessToken)
+      .where(and(eq(oauthAccessToken.clientId, row.clientId), isNull(oauthAccessToken.userId)));
   // The app user carries the application's name and icon.
   if (set.name !== undefined || set.icon !== undefined) {
     const [installed] = await db

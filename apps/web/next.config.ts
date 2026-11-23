@@ -16,6 +16,20 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [new URL('/**', process.env.NEXT_PUBLIC_API_URL)],
   },
+  // No page of the app is shown inside another site's frame, so the OAuth consent
+  // page (and every other page with a cookie-authenticated action) cannot be
+  // clickjacked.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
+  },
   // The inbox is workspace-wide (/inbox); the old per-team address leads there.
   async redirects() {
     return [{ source: '/team/:teamKey/inbox', destination: '/inbox', permanent: false }];

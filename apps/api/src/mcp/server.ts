@@ -6,11 +6,11 @@ import { dispatchTool } from './dispatch';
 import { SERVER_INSTRUCTIONS } from './instructions';
 
 // The scopes that let an OAuth token run a tool (Linear's rules for the operation the
-// tool performs): reading needs `read`; creating an issue `issues:create` or `write`;
+// tool performs): reading needs `read` (or `write`, which includes it, as on GraphQL); creating an issue `issues:create` or `write`;
 // adding a comment `comments:create` or `write`; any other write `write`. Admin tools
 // need `admin` as well, which the routes' role checks apply (shared/access.ts).
 export function toolScopes(tool: Pick<McpRouteTool, 'method' | 'path'>): string[] {
-  if (tool.method === 'GET') return ['read'];
+  if (tool.method === 'GET') return ['read', 'write'];
   if (tool.method === 'POST' && tool.path === '/teams/:teamKey/issues')
     return ['issues:create', 'write'];
   if (tool.method === 'POST' && tool.path === '/issues/:issueId/comments')
