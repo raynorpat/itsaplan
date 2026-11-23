@@ -228,10 +228,48 @@ export function commentToFeedItem(c: FeedComment, issueId: string): FeedItem {
 const newestFirst = (a: { createdAt: string }, b: { createdAt: string }) =>
   b.createdAt.localeCompare(a.createdAt);
 
+// What the caller knows about the loaded pages. `issueCreatedAt` identifies the
+// creation entry; `commentsHasMore` / `historyHasMore` say a connection has older
+// pages that are not loaded.
+export interface FeedOptions {
+  issueCreatedAt?: string;
+  commentsHasMore?: boolean;
+  historyHasMore?: boolean;
+}
+
+// The history entry logged when the issue was created (within a second of it), when
+// all history is loaded. IssueHistory has no action, so the creation entry is the one
+// describing no change at the issue's creation time.
+function isCreation(h: FeedHistory, opts: FeedOptions): boolean {
+  if (opts.historyHasMore || !opts.issueCreatedAt) return false;
+  return Math.abs(Date.parse(h.createdAt) - Date.parse(opts.issueCreatedAt)) < 1000;
+}
+
+// The time before which the merged feed is incomplete: when a connection has older
+// pages, entries older than its oldest loaded entry may be missing from it, so the
+// feed stops there (the later of the two when both have more).
+export function feedCutoff(
+  comments: { createdAt: string }[],
+  history: { createdAt: string }[],
+  opts: FeedOptions,
+): string | null {
+  const oldest = (rows: { createdAt: string }[]) =>
+    rows.reduce<string | null>(
+      (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
+      null,
+    );
+  const cuts = [
+    opts.commentsHasMore ? oldest(comments) : null,
+    opts.historyHasMore ? oldest(history) : null,
+  ].filter((c): c is string => c !== null);
+  return cuts.length ? cuts.sort().at(-1)! : null;
+}
+
 export function buildFeed(
   comments: FeedComment[],
   history: FeedHistory[],
   issueId: string,
+  opts: FeedOptions = {},
 ): FeedEntry[] {
   const entries: FeedEntry[] = [];
 
@@ -252,14 +290,16 @@ export function buildFeed(
     else entries.push({ item: reply, replies: [], resolved: false });
   }
 
-  // History: the entries that describe a change; the oldest entry that describes
-  // none is the issue's creation (IssueHistory has no action of its own).
-  const oldest = [...history].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+  // History: the entries that describe a change, and the creation entry.
   for (const h of history) {
     const rows = historyToFeedItems(h, issueId);
-    if (rows.length === 0 && h === oldest) rows.push({ ...base(h, issueId), action: 'created' });
+    if (rows.length === 0 && isCreation(h, opts))
+      rows.push({ ...base(h, issueId), action: 'created' });
     for (const item of rows) entries.push({ item, replies: [], resolved: false });
   }
 
-  return entries.sort((a, b) => newestFirst(a.item, b.item));
+  const cutoff = feedCutoff(comments, history, opts);
+  return entries
+    .filter((e) => cutoff === null || e.item.createdAt >= cutoff)
+    .sort((a, b) => newestFirst(a.item, b.item));
 }

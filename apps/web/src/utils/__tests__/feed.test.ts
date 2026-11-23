@@ -112,6 +112,7 @@ describe('buildFeed', () => {
         history('created', 3),
       ],
       ISSUE,
+      { issueCreatedAt: at(3) },
     );
     const items = feed.map((e) => e.item);
     const find = (id: string) => items.find((i) => i.id === id)!;
@@ -135,11 +136,44 @@ describe('buildFeed', () => {
     assert.equal(find('gone').fromText, 'a removed state');
     // Linear's IssueHistory carries no action: an entry logged before ids were
     // recorded, whose names could not be matched, describes no change and is left
-    // out; the oldest such entry is the issue's creation.
+    // out; the entry logged when the issue was created is its creation.
     assert.equal(
       items.find((i) => i.id === 'unmatched'),
       undefined,
     );
     assert.equal(find('created').action, 'created');
+  });
+
+  it('labels only the entry logged at the issue creation as created', () => {
+    const rows = [history('unmatched', 4), history('created', 2)];
+    const items = (opts: Parameters<typeof buildFeed>[3]) =>
+      buildFeed([], rows, ISSUE, opts).map((e) => [e.item.id, e.item.action]);
+    // The creation entry, all history loaded.
+    assert.deepEqual(items({ issueCreatedAt: at(2) }), [['created', 'created']]);
+    // Older history not loaded: no entry is the creation.
+    assert.deepEqual(items({ issueCreatedAt: at(2), historyHasMore: true }), []);
+    // A name-only entry is never labelled created, even when it is the oldest loaded.
+    assert.deepEqual(
+      buildFeed([], [history('unmatched', 4)], ISSUE, { issueCreatedAt: at(2) }),
+      [],
+    );
+  });
+
+  it('cuts the feed where a stream has more to load', () => {
+    const comments = [comment('c10', 10), comment('c5', 5)];
+    const entries = [
+      history('h9', 9, { toTitle: 'b', fromTitle: 'a' }),
+      history('h2', 2, { toTitle: 'c', fromTitle: 'b' }),
+    ];
+    const ids = (opts: Parameters<typeof buildFeed>[3]) =>
+      buildFeed(comments, entries, ISSUE, opts).map((e) => e.item.id);
+    // Everything loaded: nothing is cut.
+    assert.deepEqual(ids({}), ['c10', 'h9', 'c5', 'h2']);
+    // Older comments exist: history older than the oldest loaded comment waits.
+    assert.deepEqual(ids({ commentsHasMore: true }), ['c10', 'h9', 'c5']);
+    // Both have more: cut at the newer of the two oldest loaded entries.
+    assert.deepEqual(ids({ commentsHasMore: true, historyHasMore: true }), ['c10', 'h9', 'c5']);
+    // Older history exists: nothing loaded is older than the oldest loaded history.
+    assert.deepEqual(ids({ historyHasMore: true }), ['c10', 'h9', 'c5', 'h2']);
   });
 });

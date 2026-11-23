@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { documentTitle, sortDocuments } from '../documents';
+import { documentTitle, sortDocuments, syncDraft } from '../documents';
 import { isSubscribed, orderSubscribers } from '../subscribers';
 
 describe('documentTitle', () => {
@@ -46,5 +46,34 @@ describe('subscribers', () => {
     assert.equal(isSubscribed(users, 'me'), true);
     assert.equal(isSubscribed(users, 'nobody'), false);
     assert.equal(isSubscribed(users, null), false);
+  });
+});
+
+describe('syncDraft', () => {
+  const base = { server: 'a', draft: 'a', synced: 'a', editing: false };
+
+  it('takes a new server value when the field is idle and unchanged', () => {
+    assert.deepEqual(syncDraft({ ...base, server: 'b' }), { draft: 'b', synced: 'b' });
+  });
+
+  it('keeps the draft while the user is editing', () => {
+    assert.deepEqual(syncDraft({ ...base, server: 'b', draft: 'typing', editing: true }), {
+      draft: 'typing',
+      synced: 'a',
+    });
+  });
+
+  it('keeps an unsaved change even when the field is not focused', () => {
+    assert.deepEqual(syncDraft({ ...base, server: 'b', draft: 'mine' }), {
+      draft: 'mine',
+      synced: 'a',
+    });
+  });
+
+  it('accepts its own save coming back', () => {
+    assert.deepEqual(syncDraft({ ...base, server: 'mine', draft: 'mine', editing: true }), {
+      draft: 'mine',
+      synced: 'mine',
+    });
   });
 });

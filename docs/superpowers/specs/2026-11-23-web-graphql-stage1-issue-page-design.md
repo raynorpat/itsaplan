@@ -63,8 +63,11 @@ with the issue features the API has had since stages 3–8 and the web never sho
   reads "updated the description" without the text; a state, label or user deleted
   later shows as removed, as in Linear. History rows written before ids were
   recorded get a best-effort backfill migration (ids matched by name within the
-  issue's team at migration time); rows that cannot be matched show the change
-  without the item's name.
+  issue's team at migration time). A row that still has no ids is left out of the
+  feed: such rows exist only in pre-release databases, and Linear's `IssueHistory`
+  has no field that could carry their kind. The status timeline keeps their
+  boundaries, matching the stored state name against the team's states and
+  continuing the previous state when none matches.
 - Mutations on the issue page also invalidate the board's REST queries until stage
   5.2 moves the board.
 - The issue's REST methods in `lib/api.ts` that no remaining caller uses are deleted
@@ -102,7 +105,7 @@ with the issue features the API has had since stages 3–8 and the web never sho
   for one cache entry.
 - A regression on the issue page: everything it does today still works, except the
   history detail Linear does not have (description text in the feed; names of items
-  deleted later).
+  deleted later; pre-release rows with no ids).
 - Controls offered to users the API refuses (follow the roles and visibility rules;
   hide what the viewer cannot do).
 

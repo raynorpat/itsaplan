@@ -1,12 +1,13 @@
+import { Button } from '@/components/ui/button';
 import { useFeedQuery } from '../../services/comments.service';
 import { type CommentContext } from '../../utils/commentContext';
 import ActivityLine from './ActivityLine';
 import CommentThread from './CommentThread';
 
-// The issue's feed, newest first: comment threads and change entries. The feed
-// query refetches when an issue edit or a new comment invalidates it (see
-// useUpdateIssueDetail / useCreateComment), so it reflects edits without the
-// parent signaling it.
+// The issue's feed, newest first: comment threads and change entries, a page at a
+// time with "Show older" for the rest. The feed query refetches when an issue edit
+// or a new comment invalidates it (see useUpdateIssueDetail / useCreateComment), so
+// it reflects edits without the parent signaling it.
 
 export default function IssueFeedList({
   issueId,
@@ -41,6 +42,19 @@ export default function IssueFeedList({
         ) : (
           <ActivityLine key={entry.item.id} item={entry.item} />
         ),
+      )}
+      {feedQuery.hasOlder && (
+        <li>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={feedQuery.loadingOlder}
+            onClick={feedQuery.loadOlder}
+          >
+            {feedQuery.loadingOlder ? 'Loading…' : 'Show older'}
+          </Button>
+        </li>
       )}
     </ul>
   );

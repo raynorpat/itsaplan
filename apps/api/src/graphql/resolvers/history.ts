@@ -1,5 +1,5 @@
 import { db, issue, issueActivity, label, team, workflowState } from '@repo/db';
-import { and, asc, eq, getTableColumns, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { getCycle } from '../../cycles/store';
 import { canSeeTeam } from '../../shared/access';
 import type { GraphQLContext } from '../context';
@@ -121,7 +121,7 @@ const projectOrNull = (id: unknown, ctx: GraphQLContext) =>
 // one span per status change, the last one open.
 async function stateSpans(issueId: string) {
   const [found] = await db
-    .select({ createdAt: issue.createdAt, stateId: issue.stateId })
+    .select({ createdAt: issue.createdAt, stateId: issue.stateId, teamId: issue.teamId })
     .from(issue)
     .where(eq(issue.id, issueId));
   if (!found) return [];
@@ -130,30 +130,41 @@ async function stateSpans(issueId: string) {
       id: issueActivity.id,
       fromId: issueActivity.fromId,
       toId: issueActivity.toId,
+      fromText: issueActivity.fromText,
+      toText: issueActivity.toText,
       createdAt: issueActivity.createdAt,
     })
     .from(issueActivity)
-    .where(
-      and(
-        eq(issueActivity.issueId, issueId),
-        eq(issueActivity.action, 'status'),
-        isNotNull(issueActivity.toId),
-      ),
-    )
+    .where(and(eq(issueActivity.issueId, issueId), eq(issueActivity.action, 'status')))
     .orderBy(asc(issueActivity.createdAt), asc(issueActivity.id));
+  // A status row logged before ids were recorded names its states only: match the
+  // name against the team's current states. A name no state has any more keeps the
+  // stretch boundary and continues the previous stretch's state.
+  const byName = new Map<string, string>();
+  if (changes.some((c) => !c.toId || !c.fromId)) {
+    const states = await db
+      .select({ id: workflowState.id, name: workflowState.name })
+      .from(workflowState)
+      .where(eq(workflowState.teamId, found.teamId));
+    for (const st of states) if (!byName.has(st.name)) byName.set(st.name, st.id);
+  }
+  const resolve = (id: string | null, text: string | null) =>
+    id ?? (text ? byName.get(text) : undefined) ?? null;
+  const first = changes[0];
   const spans: { id: string; stateId: string; startedAt: Date; endedAt: Date | null }[] = [
     {
       id: issueId,
-      stateId: changes[0]?.fromId ?? found.stateId,
+      stateId: (first && resolve(first.fromId, first.fromText)) ?? found.stateId,
       startedAt: found.createdAt,
       endedAt: null,
     },
   ];
   for (const change of changes) {
-    spans[spans.length - 1]!.endedAt = change.createdAt;
+    const previous = spans[spans.length - 1]!;
+    previous.endedAt = change.createdAt;
     spans.push({
       id: change.id,
-      stateId: change.toId!,
+      stateId: resolve(change.toId, change.toText) ?? previous.stateId,
       startedAt: change.createdAt,
       endedAt: null,
     });

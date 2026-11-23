@@ -4,6 +4,8 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { gql } from '../../../__tests__/helpers/linear';
+import { db, issueActivity } from '@repo/db';
+import { and, eq } from 'drizzle-orm';
 
 // Issue and project history over the Linear API: typed history fields resolved by
 // id, state spans, project history entries, the archivedAt filter, label batch
@@ -127,6 +129,43 @@ describe('graphql history', () => {
     expect(spans[0]!.endedAt).toBeTruthy();
     expect(spans[2]!.endedAt).toBeNull();
     expect(spans[2]!.state).toEqual({ id: byType('completed').id });
+  });
+
+  it('keeps state spans for status rows logged without ids', async () => {
+    const { owner, byType, createIssue } = await setup();
+    const id = await createIssue();
+    for (const type of ['started', 'completed'])
+      await run(
+        owner.cookie,
+        `mutation { issueUpdate(id: "${id}", input: { stateId: "${byType(type).id}" }) { success } }`,
+      );
+    const rows = await db
+      .select({ id: issueActivity.id, toText: issueActivity.toText })
+      .from(issueActivity)
+      .where(and(eq(issueActivity.issueId, id), eq(issueActivity.action, 'status')))
+      .orderBy(issueActivity.createdAt);
+    // Rows written before ids were recorded: the first keeps a name that matches a
+    // state of the team, the second a name that matches none.
+    await db
+      .update(issueActivity)
+      .set({ fromId: null, toId: null })
+      .where(eq(issueActivity.id, rows[0]!.id));
+    await db
+      .update(issueActivity)
+      .set({ fromId: null, toId: null, toText: 'Gone state' })
+      .where(eq(issueActivity.id, rows[1]!.id));
+    const spans: Data[] = (
+      await run(
+        owner.cookie,
+        `{ issue(id: "${id}") { stateHistory { nodes { stateId startedAt endedAt } } } }`,
+      )
+    ).issue.stateHistory.nodes;
+    expect(spans.map((s) => s.stateId)).toEqual([
+      byType('unstarted').id,
+      byType('started').id,
+      byType('started').id,
+    ]);
+    expect(spans[1]!.endedAt).toBeTruthy();
   });
 
   it('project history', async () => {
