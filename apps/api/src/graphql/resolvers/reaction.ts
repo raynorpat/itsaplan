@@ -13,10 +13,11 @@ import {
 import { getComment } from '../../comments/store';
 import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { gqlError } from '../errors';
 import { toComment } from './comment';
 import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
-import { issueById, userById } from './issue';
+import { issueById, userFor } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 
 // Linear's Reaction, read through the item it is on (Issue, Comment, ProjectUpdate,
@@ -69,8 +70,18 @@ function parentOf(input: CreateInput): ReactionParent {
 }
 
 export const reactionResolvers = {
-  Issue: { reactions: byItem(reaction.issueId), reactionData: dataByItem(reaction.issueId) },
-  Comment: { reactions: byItem(reaction.commentId), reactionData: dataByItem(reaction.commentId) },
+  Issue: {
+    reactions: async (i: { id: string }, _: unknown, ctx: GraphQLContext) =>
+      (await loaders(ctx).reactionsByIssue.load(i.id)).map(toReaction),
+    reactionData: async (i: { id: string }, _: unknown, ctx: GraphQLContext) =>
+      groupReactions(await loaders(ctx).reactionsByIssue.load(i.id)),
+  },
+  Comment: {
+    reactions: async (c: { id: string }, _: unknown, ctx: GraphQLContext) =>
+      (await loaders(ctx).reactionsByComment.load(c.id)).map(toReaction),
+    reactionData: async (c: { id: string }, _: unknown, ctx: GraphQLContext) =>
+      groupReactions(await loaders(ctx).reactionsByComment.load(c.id)),
+  },
   ProjectUpdate: {
     reactions: byItem(reaction.projectUpdateId),
     reactionData: dataByItem(reaction.projectUpdateId),
@@ -80,7 +91,7 @@ export const reactionResolvers = {
     reactionData: dataByItem(reaction.initiativeUpdateId),
   },
   Reaction: {
-    user: (r: ReactionRow, _: unknown, ctx: GraphQLContext) => userById(r.userId, ctx.user.id),
+    user: (r: ReactionRow, _: unknown, ctx: GraphQLContext) => userFor(ctx, r.userId),
     issue: (r: ReactionRow) => (r.issueId ? issueById(r.issueId) : null),
     // Null when the update's initiative is not visible.
     initiativeUpdate: (r: ReactionRow, _: unknown, ctx: GraphQLContext) =>

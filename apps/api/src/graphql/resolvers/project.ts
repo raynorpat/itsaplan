@@ -13,6 +13,7 @@ import {
 import { trustedOrigins } from '@repo/auth';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql } from '../filter';
@@ -404,8 +405,11 @@ export const projectResolvers = {
       listProjects(inArray(project.id, projectsInTeams([t.id])), args, ctx),
   },
   Issue: {
-    project: async (i: { projectId: string | null }, _: unknown, ctx: GraphQLContext) =>
-      i.projectId ? findProject(i.projectId, ctx).catch(() => null) : null,
+    project: async (i: { projectId: string | null }, _: unknown, ctx: GraphQLContext) => {
+      if (!i.projectId) return null;
+      const found = await loaders(ctx).project.load(i.projectId);
+      return found ? toProject(found) : null;
+    },
     // Null, like Issue.project, when the viewer cannot see the milestone's project.
     projectMilestone: async (
       i: { projectMilestoneId: string | null },
@@ -413,13 +417,8 @@ export const projectResolvers = {
       ctx: GraphQLContext,
     ) => {
       if (!i.projectMilestoneId) return null;
-      const rows = await db
-        .select()
-        .from(projectMilestone)
-        .where(eq(projectMilestone.id, i.projectMilestoneId));
-      return visibleItem(rows, ctx, 'Project milestone', i.projectMilestoneId)
-        .then(toMilestone)
-        .catch(() => null);
+      const found = await loaders(ctx).milestone.load(i.projectMilestoneId);
+      return found ? toMilestone(found) : null;
     },
   },
 };

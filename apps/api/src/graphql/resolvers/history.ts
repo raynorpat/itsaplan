@@ -1,13 +1,13 @@
-import { db, issue, issueActivity, label, team, workflowState } from '@repo/db';
-import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
-import { getCycle } from '../../cycles/store';
+import { db, issue, issueActivity, team, workflowState } from '@repo/db';
+import { and, asc, eq, getTableColumns } from 'drizzle-orm';
 import { canSeeTeam } from '../../shared/access';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { toCycle } from './cycle';
-import { issueById, userById } from './issue';
+import { issueById, userFor } from './issue';
 import { toIssueLabel } from './issue-label';
-import { findProject } from './project';
+import { findProject, toProject } from './project';
 import { toWorkflowState } from './workflow-state';
 
 // Linear's IssueHistory, IssueStateSpan and ProjectHistory, read from the change log
@@ -89,32 +89,34 @@ export function toIssueHistory(row: ActivityRow) {
 type GraphQLIssueHistory = ReturnType<typeof toIssueHistory> & Record<string, unknown>;
 type ListArgs = PageArgs;
 
-async function stateOrNull(id: unknown) {
+async function stateOrNull(id: unknown, ctx: GraphQLContext) {
   if (typeof id !== 'string') return null;
-  const [row] = await db.select().from(workflowState).where(eq(workflowState.id, id));
+  const row = await loaders(ctx).state.load(id);
   return row ? toWorkflowState(row) : null;
 }
 
-async function cycleOrNull(id: unknown) {
+async function cycleOrNull(id: unknown, ctx: GraphQLContext) {
   if (typeof id !== 'string') return null;
-  const found = await getCycle(id);
+  const found = await loaders(ctx).cycle.load(id);
   return found ? toCycle(found) : null;
 }
 
-async function labelsByIds(ids: unknown) {
+async function labelsByIds(ids: unknown, ctx: GraphQLContext) {
   if (!Array.isArray(ids) || ids.length === 0) return [];
-  const rows = await db
-    .select()
-    .from(label)
-    .where(inArray(label.id, ids as string[]));
-  return rows.map(toIssueLabel);
+  const rows = await loaders(ctx).label.loadMany(ids as string[]);
+  const found = [];
+  for (const row of rows) if (row && !(row instanceof Error)) found.push(toIssueLabel(row));
+  return found;
 }
 
 const userOrNull = (id: unknown, ctx: GraphQLContext) =>
-  typeof id === 'string' ? userById(id, ctx.user.id) : null;
+  typeof id === 'string' ? userFor(ctx, id) : null;
 
-const projectOrNull = (id: unknown, ctx: GraphQLContext) =>
-  typeof id === 'string' ? findProject(id, ctx).catch(() => null) : null;
+async function projectOrNull(id: unknown, ctx: GraphQLContext) {
+  if (typeof id !== 'string') return null;
+  const found = await loaders(ctx).project.load(id);
+  return found ? toProject(found) : null;
+}
 
 // The state spans of an issue: from its creation in its first recorded state (the
 // first change's from-state, or the current state when no change is recorded), then
@@ -219,13 +221,15 @@ export const historyResolvers = {
     stateHistory: async (i: { id: string }) => asConnection(await stateSpans(i.id)),
   },
   IssueStateSpan: {
-    state: (s: { stateId: string }) => stateOrNull(s.stateId),
+    state: (s: { stateId: string }, _: unknown, ctx: GraphQLContext) => stateOrNull(s.stateId, ctx),
   },
   IssueHistory: {
     issue: (h: GraphQLIssueHistory) => issueById(h.issueId as string),
     actor: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => userOrNull(h.actorId, ctx),
-    fromState: (h: GraphQLIssueHistory) => stateOrNull(h.fromStateId),
-    toState: (h: GraphQLIssueHistory) => stateOrNull(h.toStateId),
+    fromState: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      stateOrNull(h.fromStateId, ctx),
+    toState: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      stateOrNull(h.toStateId, ctx),
     fromAssignee: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       userOrNull(h.fromAssigneeId, ctx),
     toAssignee: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
@@ -238,8 +242,10 @@ export const historyResolvers = {
       projectOrNull(h.fromProjectId, ctx),
     toProject: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       projectOrNull(h.toProjectId, ctx),
-    fromCycle: (h: GraphQLIssueHistory) => cycleOrNull(h.fromCycleId),
-    toCycle: (h: GraphQLIssueHistory) => cycleOrNull(h.toCycleId),
+    fromCycle: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      cycleOrNull(h.fromCycleId, ctx),
+    toCycle: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      cycleOrNull(h.toCycleId, ctx),
     // The related issue is named only when the viewer can see it; a row written
     // before ids were recorded names an issue that cannot be checked, so it is left out.
     relationChanges: async (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => {
@@ -258,8 +264,10 @@ export const historyResolvers = {
         identifier: `${row.key}-${row.seq}`,
       }));
     },
-    addedLabels: (h: GraphQLIssueHistory) => labelsByIds(h.addedLabelIds),
-    removedLabels: (h: GraphQLIssueHistory) => labelsByIds(h.removedLabelIds),
+    addedLabels: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      labelsByIds(h.addedLabelIds, ctx),
+    removedLabels: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      labelsByIds(h.removedLabelIds, ctx),
   },
   Project: {
     history: async (p: { id: string }, args: ListArgs) => {

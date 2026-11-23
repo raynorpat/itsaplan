@@ -16,6 +16,7 @@ import { assertTeamAccess, canSeeTeam, canManageTeam, visibleTeamIds } from '../
 import { HttpError, UUID_RE } from '../../shared/lib';
 import { isAutoArchivePeriod, setAutoArchivePeriod, updateTeam } from '../../teams/store';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { cycleFilterSql } from '../cycle-filter';
 import { gqlError } from '../errors';
@@ -104,9 +105,9 @@ export const cycleResolvers = {
     },
   },
   Issue: {
-    cycle: async (i: { cycleId: string | null }) => {
+    cycle: async (i: { cycleId: string | null }, _: unknown, ctx: GraphQLContext) => {
       if (!i.cycleId) return null;
-      const found = await getCycle(i.cycleId);
+      const found = await loaders(ctx).cycle.load(i.cycleId);
       return found ? toCycle(found) : null;
     },
   },

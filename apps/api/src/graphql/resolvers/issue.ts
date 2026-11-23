@@ -1,9 +1,10 @@
-import { db, issue, team, workflowState, user } from '@repo/db';
+import { db, issue, team, user } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
 import { and, eq, getTableColumns, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
+import { loaders } from '../loaders';
 import { issueFilterSql } from '../issue-filter';
 import { findTeam, toTeam, visibleTeamIds, visibleUsers } from './team';
 import { toGraphQLUser } from './user';
@@ -122,6 +123,13 @@ export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerI
   );
 }
 
+// A user the viewer may see, through the request's user loader, or null.
+export async function userFor(ctx: GraphQLContext, id: string | null) {
+  if (!id) return null;
+  const row = await loaders(ctx).user.load(id);
+  return row ? toGraphQLUser(row, ctx.user.id) : null;
+}
+
 // A user the viewer may see (see visibleUsers), or null. A former member who no
 // longer shares a team with the viewer resolves to null, as user(id:) does.
 export async function userById(id: string | null, viewerId: string) {
@@ -136,27 +144,20 @@ export async function userById(id: string | null, viewerId: string) {
 // Relation fields of an Issue, shared with IssueSearchResult (an issue plus search
 // metadata).
 const issueRelations = {
-  team: async (i: GraphQLIssue) => {
-    const [row] = await db.select().from(team).where(eq(team.id, i.teamId));
-    return toTeam(row!);
-  },
-  state: async (i: GraphQLIssue) => {
-    const [row] = await db.select().from(workflowState).where(eq(workflowState.id, i.stateId));
-    return toWorkflowState(row!);
-  },
-  parent: async (i: GraphQLIssue) => {
+  team: async (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) =>
+    toTeam((await loaders(ctx).team.load(i.teamId))!),
+  state: async (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) =>
+    toWorkflowState((await loaders(ctx).state.load(i.stateId))!),
+  parent: async (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) => {
     if (!i.parentId) return null;
-    const [row] = await issueSelect().where(eq(issue.id, i.parentId));
+    const row = await loaders(ctx).issue.load(i.parentId);
     return row ? toIssue(row) : null;
   },
   children: (i: GraphQLIssue, args: ConnectionArgs, ctx: GraphQLContext) =>
     listIssues(eq(issue.parentId, i.id), args, ctx.user.id),
-  assignee: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) =>
-    userById(i.assigneeUserId, ctx.user.id),
-  delegate: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) =>
-    userById(i.delegateUserId, ctx.user.id),
-  creator: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) =>
-    userById(i.creatorUserId, ctx.user.id),
+  assignee: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) => userFor(ctx, i.assigneeUserId),
+  delegate: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) => userFor(ctx, i.delegateUserId),
+  creator: (i: GraphQLIssue, _: unknown, ctx: GraphQLContext) => userFor(ctx, i.creatorUserId),
 };
 
 export const issueResolvers = {

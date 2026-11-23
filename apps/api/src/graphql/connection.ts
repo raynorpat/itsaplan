@@ -95,3 +95,37 @@ export async function paginate<Row extends Keyed, T>(
     },
   };
 }
+
+// Whether a connection field was asked for its first page with no cursor, filter or
+// backward paging — the case a request-scoped loader can answer from rows it already
+// holds (connectionOf).
+export function isFirstPage(args: PageArgs & { filter?: unknown }): boolean {
+  return args.after == null && args.before == null && args.last == null && args.filter == null;
+}
+
+// A first-page connection built from rows already loaded, ordered and cut exactly as
+// paginate orders and cuts them (newest first by createdAt or updatedAt, then id).
+export function connectionOf<Row extends Keyed, T>(
+  rows: Row[],
+  args: PageArgs,
+  map: (row: Row) => T,
+): Connection<T> {
+  const limit = pageSize(args.first, 'first');
+  const field = args.orderBy === 'updatedAt' ? 'updatedAt' : 'createdAt';
+  const ms = (d: Date) => Math.floor(d.getTime());
+  const sorted = [...rows].sort(
+    (a, b) => ms(b[field]) - ms(a[field]) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+  );
+  const page = sorted.slice(0, limit);
+  const edges = page.map((row) => ({ node: map(row), cursor: encode(row[field], row.id) }));
+  return {
+    nodes: edges.map((e) => e.node),
+    edges,
+    pageInfo: {
+      hasNextPage: sorted.length > limit,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges[edges.length - 1]?.cursor ?? null,
+    },
+  };
+}

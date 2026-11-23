@@ -12,7 +12,8 @@ import { assertLabelManager } from '../../project-labels/store';
 import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { rethrowDuplicate, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
-import { paginate, type PageArgs } from '../connection';
+import { loaders } from '../loaders';
+import { connectionOf, isFirstPage, paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { issueLabelFilterSql } from '../issue-label-filter';
 import { listIssues, userById } from './issue';
@@ -46,7 +47,7 @@ type ConnectionArgs = PageArgs & { filter?: unknown };
 
 // The labels a user can see: the labels of the teams they can see, and workspace
 // labels once they can see any team.
-function visibleLabels(userId: string): SQL {
+export function visibleLabels(userId: string): SQL {
   const teams = visibleTeamIds(userId);
   return or(inArray(label.teamId, teams), and(isNull(label.teamId), sql`EXISTS (${teams})`))!;
 }
@@ -117,25 +118,22 @@ export const issueLabelResolvers = {
       listLabels(or(eq(label.teamId, t.id), isNull(label.teamId)), args, ctx),
   },
   Issue: {
-    labels: (i: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listLabels(
-        inArray(
-          label.id,
-          db
-            .select({ id: issueLabel.labelId })
-            .from(issueLabel)
-            .where(eq(issueLabel.issueId, i.id)),
-        ),
-        args,
-        ctx,
-      ),
-    labelIds: async (i: { id: string }) => {
-      const rows = await db
-        .select({ id: issueLabel.labelId })
-        .from(issueLabel)
-        .where(eq(issueLabel.issueId, i.id));
-      return rows.map((r) => r.id).sort();
-    },
+    labels: async (i: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
+      isFirstPage(args)
+        ? connectionOf(await loaders(ctx).labelsByIssue.load(i.id), args, toIssueLabel)
+        : listLabels(
+            inArray(
+              label.id,
+              db
+                .select({ id: issueLabel.labelId })
+                .from(issueLabel)
+                .where(eq(issueLabel.issueId, i.id)),
+            ),
+            args,
+            ctx,
+          ),
+    labelIds: (i: { id: string }, _: unknown, ctx: GraphQLContext) =>
+      loaders(ctx).labelIdsByIssue.load(i.id),
   },
   IssueLabel: {
     team: async (l: GraphQLIssueLabel) => {

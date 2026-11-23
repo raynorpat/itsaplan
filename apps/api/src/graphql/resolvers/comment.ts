@@ -20,7 +20,7 @@ import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { commentFilterSql } from '../comment-filter';
 import { gqlError } from '../errors';
-import { issueById, userById } from './issue';
+import { issueById, userFor } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toUpdate } from './project';
 import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
@@ -180,9 +180,9 @@ export const commentResolvers = {
       const row = await getComment(c.resolvingCommentId);
       return row ? toComment(row) : null;
     },
-    user: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => userById(c.userId, ctx.user.id),
+    user: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => userFor(ctx, c.userId),
     resolvingUser: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
-      userById(c.resolvingUserId, ctx.user.id),
+      userFor(ctx, c.resolvingUserId),
     issue: (c: GraphQLComment) => (c.issueId ? issueById(c.issueId) : null),
     project: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       c.projectId ? findProject(c.projectId, ctx) : null,
