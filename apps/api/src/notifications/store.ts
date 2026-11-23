@@ -171,6 +171,45 @@ export async function notifyIssueChange(input: {
   await insertNotifications(rows);
 }
 
+// Linear's AgentSessionNotification: the person who started an agent session is told
+// when its agent asks for input (an elicitation) or answers (a response that ends the
+// turn). Only a person who can still see the issue's team and is not suspended is
+// notified. These go to the inbox only, not by email.
+export type AgentNotificationType = 'agent_needs_input' | 'agent_responded';
+
+export async function notifyAgentSession(input: {
+  type: AgentNotificationType;
+  recipientId: string | null;
+  appUserId: string;
+  issueId: string;
+  sessionId: string;
+  activityId: string;
+}): Promise<void> {
+  if (!input.recipientId || input.recipientId === input.appUserId) return;
+  const [row] = await db
+    .select({ teamId: issue.teamId })
+    .from(issue)
+    .where(
+      and(eq(issue.id, input.issueId), inArray(issue.teamId, visibleTeamIds(input.recipientId))),
+    );
+  if (!row) return;
+  const [recipient] = await db
+    .select({ suspendedAt: user.suspendedAt })
+    .from(user)
+    .where(eq(user.id, input.recipientId));
+  if (!recipient || recipient.suspendedAt) return;
+  await db.insert(notification).values({
+    userId: input.recipientId,
+    teamId: row.teamId,
+    issueId: input.issueId,
+    type: input.type,
+    agentSessionId: input.sessionId,
+    agentActivityId: input.activityId,
+    actorUserId: input.appUserId,
+    actorName: await actorName(input.appUserId),
+  });
+}
+
 // --- Inbox read + mutations ------------------------------------------------------
 
 // A notification enriched with the issue and team it points at, so the inbox can

@@ -175,7 +175,8 @@ export async function installApplication(input: {
 
 // Uninstalls the application: every token, refresh token, consent and pending
 // authorization code of it is deleted, and its app user (if it was installed with
-// `actor=app`) is suspended and leaves its teams. Returns false for an unknown client.
+// `actor=app`) is suspended and leaves its teams; its open agent sessions end as
+// `stale`. Returns false for an unknown client.
 export async function uninstallApplication(clientId: string): Promise<boolean> {
   return db.transaction(async (tx) => {
     const [client] = await tx
@@ -201,6 +202,16 @@ export async function uninstallApplication(clientId: string): Promise<boolean> {
       await tx
         .delete(schema.teamMember)
         .where(eq(schema.teamMember.userId, installation.appUserId));
+      // Its open agent sessions end: no agent will answer them. They stay readable.
+      await tx
+        .update(schema.agentSession)
+        .set({ status: 'stale', endedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.agentSession.appUserId, installation.appUserId),
+            inArray(schema.agentSession.status, ['pending', 'active', 'awaitingInput', 'stopping']),
+          ),
+        );
     }
     await tx.delete(schema.oauthAccessToken).where(eq(schema.oauthAccessToken.clientId, clientId));
     await tx

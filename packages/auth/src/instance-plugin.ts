@@ -25,6 +25,9 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - GET  /instance/oauth-authorized and POST /instance/oauth-authorized/revoke
 //   { clientId }  signed in: the applications the person has authorized to act as
 //   themselves, and revoking one (oauth-authorized.ts). Same Origin rule.
+// - POST /instance/agent-session-stop { sessionId }  signed in: stops an agent session
+//   the person can see (Linear's stop signal; the schema lets no API client send it).
+//   Same Origin rule.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -56,6 +59,7 @@ export interface InstanceHandlers {
   uploadLimits(headers: Headers): Promise<object>;
   setTeamOwner(headers: Headers, body: unknown): Promise<TeamOwnerChange>;
   oauthApps: OAuthAppsHandlers;
+  agentSessionStop(headers: Headers, body: unknown): Promise<{ success: boolean }>;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -132,6 +136,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         async (ctx) => {
           assertTrustedOrigin(ctx.headers, options.trustedOrigins);
           return ctx.json(await run((h) => h.setTeamOwner(ctx.headers ?? new Headers(), ctx.body)));
+        },
+      ),
+      instanceAgentSessionStop: createAuthEndpoint(
+        '/instance/agent-session-stop',
+        { method: 'POST' },
+        async (ctx) => {
+          assertTrustedOrigin(ctx.headers, options.trustedOrigins);
+          return ctx.json(
+            await run((h) => h.agentSessionStop(ctx.headers ?? new Headers(), ctx.body)),
+          );
         },
       ),
       instanceOAuthUninstall: createAuthEndpoint(

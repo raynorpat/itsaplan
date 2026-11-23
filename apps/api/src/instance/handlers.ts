@@ -1,4 +1,5 @@
 import { getActiveSession, provideInstanceHandlers } from '@repo/auth';
+import { stopSession } from '../agents/store';
 import { changeTeamOwner } from '../members/store';
 import { oauthAppsHandlers } from '../oauth/apps';
 import { getStorageSettings } from '../settings/storage';
@@ -44,5 +45,13 @@ export function registerInstanceHandlers(): void {
       return change;
     },
     oauthApps: oauthAppsHandlers,
+    agentSessionStop: async (headers, body) => {
+      const user = await signedInUser(headers);
+      const sessionId = (body as { sessionId?: unknown } | undefined)?.sessionId;
+      if (typeof sessionId !== 'string' || !UUID_RE.test(sessionId))
+        throw new HttpError(400, 'sessionId must be an agent session id');
+      await stopSession(sessionId, user.id);
+      return { success: true };
+    },
   });
 }

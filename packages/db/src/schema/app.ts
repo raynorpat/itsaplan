@@ -1193,6 +1193,14 @@ export const notification = pgTable(
       onDelete: 'set null',
     }),
     type: text('type').notNull(),
+    // Linear's AgentSessionNotification: the session and the activity (an elicitation
+    // or a response) it is about. Set only for the agent types.
+    agentSessionId: uuid('agent_session_id').references((): AnyPgColumn => agentSession.id, {
+      onDelete: 'cascade',
+    }),
+    agentActivityId: uuid('agent_activity_id').references((): AnyPgColumn => agentActivity.id, {
+      onDelete: 'set null',
+    }),
     actorUserId: uuid('actor_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
@@ -1207,7 +1215,7 @@ export const notification = pgTable(
   (t) => [
     check(
       'notification_type_check',
-      sql`${t.type} IN ('assigned', 'mentioned', 'commented', 'state_changed')`,
+      sql`${t.type} IN ('assigned', 'mentioned', 'commented', 'state_changed', 'agent_needs_input', 'agent_responded')`,
     ),
     // Backs the inbox list: a user's notifications newest first.
     index('notification_user_idx').on(t.userId, t.createdAt.desc(), t.id.desc()),

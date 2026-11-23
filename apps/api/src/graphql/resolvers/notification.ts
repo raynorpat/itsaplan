@@ -18,8 +18,8 @@ import { loaders } from '../loaders';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { toTeam } from './team';
 
-// Linear's Notification API over the inbox. Every notification is an
-// IssueNotification. A viewer reads and changes only their own notifications on
+// Linear's Notification API over the inbox. A notification is an IssueNotification,
+// or an AgentSessionNotification when it is about an agent session. A viewer reads and changes only their own notifications on
 // issues of teams they are a member of, so the issue and team always resolve.
 
 const TYPES: Record<string, { type: string; category: string }> = {
@@ -27,6 +27,8 @@ const TYPES: Record<string, { type: string; category: string }> = {
   mentioned: { type: 'issueCommentMention', category: 'mentions' },
   commented: { type: 'issueNewComment', category: 'commentsAndReplies' },
   state_changed: { type: 'issueStatusChanged', category: 'statusChanges' },
+  agent_needs_input: { type: 'agentSessionNeedsInput', category: 'appsAndIntegrations' },
+  agent_responded: { type: 'agentSessionResponse', category: 'appsAndIntegrations' },
 };
 
 export const toNotification = (row: NotificationRecord) => ({
@@ -38,6 +40,8 @@ export const toNotification = (row: NotificationRecord) => ({
   issueId: row.issueId,
   teamId: row.teamId,
   commentId: row.sourceCommentId,
+  agentSessionId: row.agentSessionId,
+  agentActivityId: row.agentActivityId,
   readAt: row.readAt,
   snoozedUntilAt: row.snoozedUntil,
   archivedAt: row.archivedAt,
@@ -109,7 +113,10 @@ const commentFor = async (id: string | null) => {
 };
 
 export const notificationResolvers = {
-  Notification: { __resolveType: () => 'IssueNotification' },
+  Notification: {
+    __resolveType: (n: GraphQLNotification) =>
+      n.agentSessionId ? 'AgentSessionNotification' : 'IssueNotification',
+  },
   Query: {
     notification: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => toNotification(await findNotification(id, ctx))),
@@ -154,6 +161,12 @@ export const notificationResolvers = {
       n.commentId ? ((await getComment(n.commentId))?.parentId ?? null) : null,
     parentComment: async (n: GraphQLNotification) =>
       n.commentId ? commentFor((await getComment(n.commentId))?.parentId ?? null) : null,
+    botActor: () => null,
+    externalUserActor: () => null,
+  },
+  AgentSessionNotification: {
+    user: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => userFor(ctx, n.userId),
+    actor: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => userFor(ctx, n.actorUserId),
     botActor: () => null,
     externalUserActor: () => null,
   },

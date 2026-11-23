@@ -10,6 +10,7 @@ import {
 import { APP_ROLE } from '@repo/auth';
 import { and, asc, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { createComment, type CommentRow } from '../comments/store';
+import { notifyAgentSession } from '../notifications/store';
 import { canSeeTeam, visibleTeamIds } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { parseMentions } from '../shared/mentions';
@@ -208,6 +209,15 @@ export async function addActivity(input: {
       .where(eq(agentSession.id, input.session.id));
     return created!;
   });
+  if (input.type === 'elicitation' || status === 'complete')
+    await notifyAgentSession({
+      type: input.type === 'elicitation' ? 'agent_needs_input' : 'agent_responded',
+      recipientId: input.session.creatorUserId,
+      appUserId: input.session.appUserId,
+      issueId: input.session.issueId,
+      sessionId: input.session.id,
+      activityId: row.id,
+    });
   if (input.type === 'prompt')
     await emitAgentSessionEvent({
       action: 'prompted',
@@ -258,10 +268,12 @@ export async function issueDelegated(
   });
 }
 
-// A comment was posted on an issue: each installed app mentioned in it that was
+// A comment was posted on an issue. Each installed app mentioned in it that was
 // granted `app:mentionable` and can see the issue's team gets a session on the
-// comment's thread, or a prompt on the session it already has there. Comments written
-// by app users start nothing.
+// comment's thread, or a prompt on the session it already has there. A reply in a
+// thread that has sessions is a prompt to each of those apps that is still installed
+// (once per app, also when the reply mentions it). Comments written by app users start
+// and prompt nothing.
 export async function commentPosted(c: CommentRow, teamId: string): Promise<void> {
   if (!c.issueId || !c.userId) return;
   const [author] = await db
@@ -270,23 +282,29 @@ export async function commentPosted(c: CommentRow, teamId: string): Promise<void
     .where(eq(userTable.id, c.userId));
   if (!author || author.role === APP_ROLE) return;
   const rootId = c.parentId ?? c.id;
+  const threadSessions = await db
+    .select()
+    .from(agentSession)
+    .where(eq(agentSession.commentId, rootId))
+    .orderBy(asc(agentSession.createdAt));
+  const sessionOf = (appUserId: string) => threadSessions.find((s) => s.appUserId === appUserId);
+  const prompt = (session: SessionRow) =>
+    addActivity({
+      session,
+      userId: c.userId!,
+      type: 'prompt',
+      content: { body: c.body },
+      sourceCommentId: c.id,
+    });
+
+  const handled = new Set<string>();
   for (const appUserId of parseMentions(c.body)) {
+    if (handled.has(appUserId)) continue;
     if (!(await appUserMay(appUserId, 'app:mentionable', teamId))) continue;
-    const [existing] = await db
-      .select()
-      .from(agentSession)
-      .where(and(eq(agentSession.commentId, rootId), eq(agentSession.appUserId, appUserId)))
-      .orderBy(asc(agentSession.createdAt))
-      .limit(1);
-    if (existing) {
-      await addActivity({
-        session: existing,
-        userId: c.userId,
-        type: 'prompt',
-        content: { body: c.body },
-        sourceCommentId: c.id,
-      });
-    } else {
+    handled.add(appUserId);
+    const existing = sessionOf(appUserId);
+    if (existing) await prompt(existing);
+    else
       await startSession({
         issueId: c.issueId,
         appUserId,
@@ -295,8 +313,33 @@ export async function commentPosted(c: CommentRow, teamId: string): Promise<void
         commentId: rootId,
         sourceCommentId: c.id === rootId ? null : c.id,
       });
-    }
   }
+  if (!c.parentId) return;
+  for (const session of threadSessions) {
+    if (handled.has(session.appUserId)) continue;
+    handled.add(session.appUserId);
+    if (await activeInstall(session.appUserId)) await prompt(session);
+  }
+}
+
+// A person stops a session (Linear's stop signal): a `prompt` activity with the `stop`
+// signal, which moves the session to `stopping` and sends the `prompted` event. The
+// person must be able to read the session; an ended session cannot be stopped.
+export async function stopSession(sessionId: string, userId: string): Promise<ActivityRow> {
+  const [session] = await db
+    .select()
+    .from(agentSession)
+    .where(and(eq(agentSession.id, sessionId), await readableSessionsSql(userId)));
+  if (!session) throw new HttpError(404, 'Agent session not found');
+  if (!OPEN_STATUSES.includes(session.status as SessionStatus))
+    throw new HttpError(400, 'The agent session has ended');
+  return addActivity({
+    session,
+    userId,
+    type: 'prompt',
+    content: { body: 'Stop' },
+    signal: 'stop',
+  });
 }
 
 // Whether a comment already has a session (any app).

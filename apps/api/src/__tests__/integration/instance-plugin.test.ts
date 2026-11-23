@@ -151,6 +151,7 @@ describe('instance plugin errors and origin checks', () => {
         throw tooLarge;
       },
       oauthApps: oauthAppsHandlers,
+      agentSessionStop: async () => ({ success: true }),
     });
     try {
       const res = await call('version');

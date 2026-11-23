@@ -123,13 +123,27 @@ Rules and invariants for this package below; read the code for the walkthrough.
   subscribed, listed or notified. Comment and status-change notifications go to the
   subscribers, assignment and mention notifications to the assignee and the
   mentioned members, never to the actor. An archived notification (`archived_at`)
-  is left out of the inbox and the unread count; GraphQL serves every notification
-  as an `IssueNotification` with Linear's type and category names, limited to the
+  is left out of the inbox and the unread count; GraphQL serves a notification as an
+  `IssueNotification` (an `AgentSessionNotification` for an agent session) with
+  Linear's type and category names, limited to the
   viewer's own on teams they are in. `subscriberIds` is accepted on `issueCreate` and
   `issueUpdate`, not on `issueBatchUpdate`. Email notification preferences are per
   Linear category for the whole workspace (`user_preference.notification_categories`,
   `notification-preferences/`; null means email for assignments and mentions only),
   served as `userSettings.notificationCategoryPreferences` (email channel only).
+- **Agent sessions** (`agents/`, Linear's agent API): an `agent_session` belongs to
+  one app user and one issue and has a comment thread (an empty root comment by the
+  app user when it is not started from a comment). Delegating an issue to an app user
+  granted `app:assignable`, or @-mentioning one granted `app:mentionable`, starts a
+  `pending` session or prompts the app's open one; a person's reply in a session's
+  thread is a `prompt` activity; app users' comments prompt nothing. Only the
+  session's app user writes activities (`agentActivityCreate`); the status follows
+  `agents/status.ts`. Stop is `POST /api/auth/instance/agent-session-stop`, a `stop`
+  prompt. `created` and `prompted` send Linear's `AgentSessionEvent` webhook to the
+  application's webhook whatever resource types it lists (`agents/webhook.ts`,
+  registered in `app.ts`, best effort). The creator gets an
+  `AgentSessionNotification` (inbox only) on an elicitation and on a response that
+  ends the turn. Uninstalling the application ends its open sessions as `stale`.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

@@ -11,6 +11,8 @@ import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
 import { internalUploadRoutes } from './uploads/routes';
 import { registerInstanceHandlers } from './instance/handlers';
+// Registers the AgentSessionEvent webhook on the agent session events.
+import './agents/webhook';
 
 // The assembled Elysia app, without `.listen()`. `index.ts` imports this and
 // binds the port; tests import it and pass it to Eden Treaty to drive routes in
