@@ -27,7 +27,8 @@ export async function assertWebhookAccess(
   user: AuthUser | null | undefined,
 ): Promise<WebhookRow> {
   const found = await getWebhook(webhookId);
-  if (!found) throw new HttpError(404, 'Webhook not found');
+  // An OAuth application's webhook is managed with the application, not here.
+  if (!found || found.oauthClientId) throw new HttpError(404, 'Webhook not found');
   if (found.teamId === null) {
     await assertAllTeamsManager(requireUser(user));
   } else {

@@ -1,4 +1,4 @@
-import { auth, OAUTH_SCOPES, revokeOAuthAccessToken } from '@repo/auth';
+import { auth, MCP_CLIENT_SCOPES, OAUTH_SCOPES, revokeOAuthAccessToken } from '@repo/auth';
 
 // Linear's OAuth paths on the API, forwarded to better-auth's OAuth provider plugin
 // (/api/auth/oauth2/*), so an application written for Linear changes only its base
@@ -11,6 +11,8 @@ import { auth, OAUTH_SCOPES, revokeOAuthAccessToken } from '@repo/auth';
 //                           token; otherwise the standard form with client credentials
 // - POST /oauth/register    dynamic client registration (MCP clients)
 // - GET  /.well-known/oauth-authorization-server   the server metadata (RFC 8414)
+// - GET  /.well-known/oauth-protected-resource[/mcp]   the MCP endpoint's resource
+//                           metadata (RFC 9728), where an MCP client starts signing in
 
 const FORWARDED = {
   '/oauth/authorize': '/api/auth/oauth2/authorize',
@@ -42,6 +44,18 @@ export function authorizationServerMetadata(apiUrl: string) {
     token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
     revocation_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
     code_challenge_methods_supported: ['S256'],
+  };
+}
+
+// The MCP endpoint's resource metadata. It lists only the scopes a self-registered
+// MCP client may ask for, since that is what an MCP client registers with.
+export function protectedResourceMetadata(apiUrl: string) {
+  return {
+    resource: `${apiUrl}/mcp`,
+    authorization_servers: [apiUrl],
+    scopes_supported: [...MCP_CLIENT_SCOPES],
+    bearer_methods_supported: ['header'],
+    resource_name: 'Itsaplan MCP',
   };
 }
 
@@ -86,4 +100,11 @@ export function mountOAuth(app: any): void {
   app.get('/.well-known/oauth-authorization-server', () =>
     Response.json(authorizationServerMetadata(apiUrl)),
   );
+  // The MCP endpoint as a protected resource (RFC 9728). MCP clients probe the path
+  // with the resource's path appended, and the bare path.
+  for (const path of [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+  ])
+    app.get(path, () => Response.json(protectedResourceMetadata(apiUrl)));
 }

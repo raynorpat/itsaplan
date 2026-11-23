@@ -4,7 +4,9 @@ import { eq } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
 // Outgoing webhook subscriptions (Linear's Webhook). A subscription targets a
-// `url`, covers one team or all teams, lists the resource types it receives, and
+// `url`, covers one team, all teams or an OAuth application's reach (the application's
+// own webhook, managed with the application in oauth/apps.ts and never listed among
+// the workspace's webhooks), lists the resource types it receives, and
 // carries a per-subscription `secret` that signs delivered payloads. Delivery is
 // handled separately; this layer only stores and returns the subscription.
 
@@ -35,6 +37,7 @@ export interface WebhookRow {
   resourceTypes: WebhookResourceType[];
   enabled: boolean;
   creatorUserId: string | null;
+  oauthClientId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +53,7 @@ export function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
     resourceTypes: (row.resourceTypes as WebhookResourceType[]) ?? [],
     enabled: row.enabled,
     creatorUserId: row.creatorUserId,
+    oauthClientId: row.oauthClientId,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
@@ -57,7 +61,7 @@ export function mapWebhook(row: typeof webhook.$inferSelect): WebhookRow {
 
 // A signing secret for a new subscription. Shown to the client so it can verify
 // delivered payloads; generated server-side and never derived from user input.
-function generateSecret(): string {
+export function generateSecret(): string {
   return `whsec_${randomBytes(24).toString('hex')}`;
 }
 
@@ -103,6 +107,45 @@ export async function createWebhook(input: {
     })
     .returning();
   return mapWebhook(row!);
+}
+
+// The webhook of an OAuth application, if it has one.
+export async function getApplicationWebhook(clientId: string): Promise<WebhookRow | null> {
+  const rows = await db.select().from(webhook).where(eq(webhook.oauthClientId, clientId));
+  return rows[0] ? mapWebhook(rows[0]) : null;
+}
+
+// Sets an OAuth application's webhook: url and resource types. Returns the webhook and,
+// when it was created now, its new secret (shown once).
+export async function setApplicationWebhook(
+  clientId: string,
+  input: { url: string; resourceTypes: WebhookResourceType[]; creatorUserId: string | null },
+): Promise<{ webhook: WebhookRow; createdSecret: string | null }> {
+  const existing = await getApplicationWebhook(clientId);
+  if (existing) {
+    const updated = await updateWebhook(existing.id, {
+      url: input.url,
+      resourceTypes: input.resourceTypes,
+      enabled: true,
+    });
+    return { webhook: updated!, createdSecret: null };
+  }
+  const secret = generateSecret();
+  const [row] = await db
+    .insert(webhook)
+    .values({
+      oauthClientId: clientId,
+      url: input.url,
+      secret,
+      resourceTypes: input.resourceTypes,
+      creatorUserId: input.creatorUserId,
+    })
+    .returning();
+  return { webhook: mapWebhook(row!), createdSecret: secret };
+}
+
+export async function deleteApplicationWebhook(clientId: string): Promise<void> {
+  await db.delete(webhook).where(eq(webhook.oauthClientId, clientId));
 }
 
 export async function getWebhook(id: string): Promise<WebhookRow | null> {

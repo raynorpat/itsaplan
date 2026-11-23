@@ -19,7 +19,7 @@ import {
 } from './instance';
 import { sendAuthEmail } from './mail';
 import { instancePlugin } from './instance-plugin';
-import { oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
+import { OAUTH_DISABLED_PATHS, oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
 import { APP_ROLE, isAppUser } from './oauth-install';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
@@ -484,7 +484,9 @@ export const auth = betterAuth({
 
   // The JWT plugin's session token endpoint: nothing here accepts a JWT, so it is
   // not offered. userinfo and end-session are OpenID Connect, which is not enabled.
-  disabledPaths: ['/token', '/oauth2/userinfo', '/oauth2/end-session'],
+  // The OAuth plugin's client and consent management is replaced by the instance
+  // plugin's (OAUTH_DISABLED_PATHS).
+  disabledPaths: ['/token', '/oauth2/userinfo', '/oauth2/end-session', ...OAUTH_DISABLED_PATHS],
 
   advanced: {
     // Every id is a UUID, as in Linear's API. The columns are uuid in
@@ -556,9 +558,14 @@ export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from
 export {
   OAUTH_SCOPES,
   OAUTH_ACCESS_TOKEN_PREFIX,
+  MCP_CLIENT_SCOPES,
+  clientMetadata,
+  isWorkspaceApplication,
+  newClientSecret,
   normaliseScopes,
   resolveOAuthAccessToken,
   revokeOAuthAccessToken,
 } from './oauth';
 export type { OAuthScope, OAuthGrant } from './oauth';
-export { APP_ROLE, uninstallApplication } from './oauth-install';
+export { APP_ACTOR_SCOPE, APP_ROLE, uninstallApplication } from './oauth-install';
+export type { OAuthAppsHandlers } from './instance-plugin';

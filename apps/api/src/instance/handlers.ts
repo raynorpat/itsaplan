@@ -1,5 +1,6 @@
 import { getActiveSession, provideInstanceHandlers } from '@repo/auth';
 import { changeTeamOwner } from '../members/store';
+import { oauthAppsHandlers } from '../oauth/apps';
 import { getStorageSettings } from '../settings/storage';
 import { getAppVersion } from '../settings/version';
 import { HttpError, UUID_RE } from '../shared/lib';
@@ -7,7 +8,8 @@ import { HttpError, UUID_RE } from '../shared/lib';
 // The API's side of the better-auth instance endpoints (packages/auth
 // src/instance-plugin.ts): the same session and access rules as the REST routes they
 // stand in for (GET /settings/version, GET /settings/storage, PATCH
-// /teams/:teamKey/members/:userId).
+// /teams/:teamKey/members/:userId), and the management of the workspace's OAuth
+// applications (oauth/apps.ts).
 
 async function signedInUser(headers: Headers) {
   const session = await getActiveSession(headers);
@@ -41,5 +43,6 @@ export function registerInstanceHandlers(): void {
       await changeTeamOwner(change.teamId, change.userId, change.owner, user);
       return change;
     },
+    oauthApps: oauthAppsHandlers,
   });
 }

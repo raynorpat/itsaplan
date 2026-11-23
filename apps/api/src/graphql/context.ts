@@ -20,8 +20,8 @@ export interface ResolvedAuth {
 }
 
 // The user an OAuth access token acts for, or null when the token or its user is not
-// valid (unknown, expired, revoked, suspended).
-async function resolveOAuth(token: string): Promise<ResolvedAuth | null> {
+// valid (unknown, expired, revoked, suspended). Also used by the MCP endpoint.
+export async function resolveOAuth(token: string): Promise<ResolvedAuth | null> {
   const grant = await resolveOAuthAccessToken(token);
   if (!grant) return null;
   const [row] = await db.select().from(userTable).where(eq(userTable.id, grant.userId));

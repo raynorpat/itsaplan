@@ -6,6 +6,7 @@ import { authedApi } from '../helpers/app';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { signUpWithRole } from '../helpers/roles';
+import { oauthAppsHandlers } from '../../oauth/apps';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
 // sign-in options (public), the app version and upload limits (signed in), and the
@@ -149,6 +150,7 @@ describe('instance plugin errors and origin checks', () => {
       setTeamOwner: async () => {
         throw tooLarge;
       },
+      oauthApps: oauthAppsHandlers,
     });
     try {
       const res = await call('version');

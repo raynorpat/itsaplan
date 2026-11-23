@@ -1,6 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthEndpoint, getSessionFromCtx } from 'better-auth/api';
 import { signInOptions } from './instance';
+import { authorizedApplications, revokeAuthorization } from './oauth-authorized';
 import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 
 // Instance information that Linear's GraphQL schema has no place for, served by
@@ -15,6 +16,13 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - POST /instance/oauth-uninstall  workspace admins and owners: { clientId }
 //   uninstalls an OAuth application (oauth-install.ts): its tokens, consents and
 //   pending codes are deleted and its app user is suspended. Same Origin rule.
+// - GET  /instance/oauth-apps and POST /instance/oauth-apps/{create, update,
+//   rotate-secret, rotate-webhook-secret, archive}  workspace admins and owners: the
+//   workspace's OAuth applications (apps/api src/oauth/apps.ts). Secrets are in the
+//   answers of create and the rotations only. Same Origin rule for the POSTs.
+// - GET  /instance/oauth-authorized and POST /instance/oauth-authorized/revoke
+//   { clientId }  signed in: the applications the person has authorized to act as
+//   themselves, and revoking one (oauth-authorized.ts). Same Origin rule.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -30,10 +38,22 @@ export interface TeamOwnerChange {
   owner: boolean;
 }
 
+// The workspace's OAuth applications, managed by its admins and owners. Each handler
+// checks the caller itself.
+export interface OAuthAppsHandlers {
+  list(headers: Headers): Promise<object>;
+  create(headers: Headers, body: unknown): Promise<object>;
+  update(headers: Headers, body: unknown): Promise<object>;
+  rotateSecret(headers: Headers, body: unknown): Promise<object>;
+  rotateWebhookSecret(headers: Headers, body: unknown): Promise<object>;
+  archive(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
   setTeamOwner(headers: Headers, body: unknown): Promise<TeamOwnerChange>;
+  oauthApps: OAuthAppsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -68,6 +88,24 @@ function assertTrustedOrigin(headers: Headers | undefined, trusted: string[]): v
   if (!origin || !trusted.includes(origin))
     throw new APIError('FORBIDDEN', { message: 'This request must come from the app' });
 }
+
+// A cookie-checked POST that runs a registered OAuth application handler.
+const oauthAppsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: OAuthAppsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) =>
+  createAuthEndpoint(path, { method: 'POST' }, async (ctx) => {
+    assertTrustedOrigin(ctx.headers, trusted);
+    return ctx.json(await run((h) => call(h.oauthApps, ctx.headers ?? new Headers(), ctx.body)));
+  });
+
+const requiredClientId = (body: unknown): string => {
+  const clientId = (body as { clientId?: unknown } | undefined)?.clientId;
+  if (typeof clientId !== 'string' || !clientId)
+    throw new APIError('BAD_REQUEST', { message: 'clientId is required' });
+  return clientId;
+};
 
 export const instancePlugin = (options: { trustedOrigins: string[] }) =>
   ({
@@ -105,11 +143,58 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
             throw new APIError('FORBIDDEN', {
               message: 'Only a workspace admin or owner can uninstall an application',
             });
-          const clientId = (ctx.body as { clientId?: unknown } | undefined)?.clientId;
-          if (typeof clientId !== 'string' || !clientId)
-            throw new APIError('BAD_REQUEST', { message: 'clientId is required' });
-          if (!(await uninstallApplication(clientId)))
+          if (!(await uninstallApplication(requiredClientId(ctx.body))))
             throw new APIError('NOT_FOUND', { message: 'Application not found' });
+          return ctx.json({ success: true });
+        },
+      ),
+      instanceOAuthApps: createAuthEndpoint(
+        '/instance/oauth-apps',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.oauthApps.list(ctx.headers ?? new Headers()))),
+      ),
+      instanceOAuthAppCreate: oauthAppsWrite(
+        '/instance/oauth-apps/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.create(headers, body),
+      ),
+      instanceOAuthAppUpdate: oauthAppsWrite(
+        '/instance/oauth-apps/update',
+        options.trustedOrigins,
+        (h, headers, body) => h.update(headers, body),
+      ),
+      instanceOAuthAppRotateSecret: oauthAppsWrite(
+        '/instance/oauth-apps/rotate-secret',
+        options.trustedOrigins,
+        (h, headers, body) => h.rotateSecret(headers, body),
+      ),
+      instanceOAuthAppRotateWebhookSecret: oauthAppsWrite(
+        '/instance/oauth-apps/rotate-webhook-secret',
+        options.trustedOrigins,
+        (h, headers, body) => h.rotateWebhookSecret(headers, body),
+      ),
+      instanceOAuthAppArchive: oauthAppsWrite(
+        '/instance/oauth-apps/archive',
+        options.trustedOrigins,
+        (h, headers, body) => h.archive(headers, body),
+      ),
+      instanceOAuthAuthorized: createAuthEndpoint(
+        '/instance/oauth-authorized',
+        { method: 'GET' },
+        async (ctx) => {
+          const session = await getSessionFromCtx(ctx);
+          if (!session) throw new APIError('UNAUTHORIZED', { message: 'Authentication required' });
+          return ctx.json({ applications: await authorizedApplications(session.user.id) });
+        },
+      ),
+      instanceOAuthAuthorizedRevoke: createAuthEndpoint(
+        '/instance/oauth-authorized/revoke',
+        { method: 'POST' },
+        async (ctx) => {
+          assertTrustedOrigin(ctx.headers, options.trustedOrigins);
+          const session = await getSessionFromCtx(ctx);
+          if (!session) throw new APIError('UNAUTHORIZED', { message: 'Authentication required' });
+          await revokeAuthorization(session.user.id, requiredClientId(ctx.body));
           return ctx.json({ success: true });
         },
       ),

@@ -36,6 +36,7 @@ const OFFLINE = 'offline_access';
 
 // What an MCP client may ask for when it registers itself, and what it gets when it
 // asks for nothing. Never `admin` or the app scopes.
+export const MCP_CLIENT_SCOPES = ['read', 'write', 'issues:create', 'comments:create'] as const;
 const REGISTRATION_DEFAULT_SCOPES = ['read', 'write', OFFLINE];
 const REGISTRATION_ALLOWED_SCOPES = ['issues:create', 'comments:create'];
 
@@ -95,17 +96,27 @@ export const oauthPlugins = (appUrl: string) => [
 
 // A cookie-authenticated write must come from the app's own origin (CSRF); better-auth
 // does not check the origin on plugin endpoints. Requests without the cookie carry no
-// ambient credential.
-const COOKIE_WRITES = new Set([
-  '/oauth2/consent',
-  '/oauth2/continue',
+// ambient credential. The plugin's client and consent management endpoints are
+// disabled (OAUTH_DISABLED_PATHS); applications are managed through the instance
+// plugin, which applies the same rule.
+const COOKIE_WRITES = new Set(['/oauth2/consent', '/oauth2/continue']);
+
+// The plugin's own client and consent management. Its rules (a client belongs to the
+// user who created it) are not the workspace's (any admin manages every application),
+// so applications and a user's authorizations are managed through
+// /api/auth/instance/oauth-apps* and /instance/oauth-authorized* instead.
+export const OAUTH_DISABLED_PATHS = [
   '/oauth2/create-client',
+  '/oauth2/get-client',
+  '/oauth2/get-clients',
   '/oauth2/update-client',
   '/oauth2/client/rotate-secret',
   '/oauth2/delete-client',
+  '/oauth2/get-consent',
+  '/oauth2/get-consents',
   '/oauth2/update-consent',
   '/oauth2/delete-consent',
-]);
+];
 
 type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
@@ -123,8 +134,9 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     // left as it is.
     if (ctx.request && !new URL(ctx.request.url).pathname.endsWith('/oauth2/authorize')) return;
     const query = (ctx.query ?? {}) as Record<string, unknown>;
-    // Linear's default scope is `read`; the plugin's would be every scope.
-    const scopes = normaliseScopes(typeof query.scope === 'string' ? query.scope : 'read');
+    const scopes = normaliseScopes(
+      typeof query.scope === 'string' ? query.scope : await defaultScope(query.client_id),
+    );
     // A refresh token is issued with `offline_access`, which the plugin also takes as
     // a demand for PKCE. Add it when the client uses PKCE; a confidential client that
     // does not gets its refresh token from afterToken.
@@ -164,21 +176,44 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
   }
 }
 
-// Linear's OAuth applications may use PKCE but do not have to. A confidential
-// application (it has a client secret) created by an admin therefore does not require
-// it; a public client always does (the plugin enforces that from the client type).
-// The plugin's create-client endpoint takes no `require_pkce`, so it is set on the
-// stored client after creation. Runs in better-auth's `hooks.after`.
+// The scope an authorize request without one gets: Linear's `read` for a workspace
+// application; the registered scopes for a self-registered (MCP) client, which asks
+// for what it registered with (`read write` by default).
+async function defaultScope(clientId: unknown): Promise<string> {
+  if (typeof clientId !== 'string') return 'read';
+  const [client] = await db
+    .select({ scopes: schema.oauthClient.scopes, metadata: schema.oauthClient.metadata })
+    .from(schema.oauthClient)
+    .where(eq(schema.oauthClient.clientId, clientId));
+  if (!client || isWorkspaceApplication(client.metadata)) return 'read';
+  const registered = (client.scopes ?? []).filter((s) => s !== OFFLINE);
+  return registered.length ? registered.join(' ') : 'read';
+}
+
+// The plugin stores a client's metadata as a JSON string inside the jsonb column.
+export function clientMetadata(raw: unknown): Record<string, unknown> {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+// Whether a client is one of the workspace's applications (created by an admin), as
+// opposed to a client an MCP client registered itself.
+export const isWorkspaceApplication = (metadata: unknown) =>
+  clientMetadata(metadata).application === true;
+
+// Runs in better-auth's `hooks.after`.
 export async function oauthAfterHook(ctx: HookContext): Promise<unknown> {
   if (ctx.path === '/oauth2/consent') return afterConsent(ctx);
   if (ctx.path === '/oauth2/token') return afterToken(ctx);
-  if (ctx.path !== '/oauth2/create-client') return;
-  const created = await returnedJson(ctx);
-  if (!created || typeof created.client_id !== 'string' || !created.client_secret) return;
-  await db
-    .update(schema.oauthClient)
-    .set({ requirePKCE: false })
-    .where(eq(schema.oauthClient.clientId, created.client_id));
 }
 
 // The JSON body an endpoint answered with, or null when it failed.
@@ -381,6 +416,13 @@ async function issueRefreshToken(accessToken: string): Promise<string | null> {
 }
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('base64url');
+
+// A new client secret: the value shown once (with its prefix) and the stored hash, in
+// the plugin's format (SHA-256, base64url, of the value without its prefix).
+export function newClientSecret(): { secret: string; stored: string } {
+  const raw = randomBytes(32).toString('base64url');
+  return { secret: CLIENT_SECRET_PREFIX + raw, stored: hashToken(raw) };
+}
 
 export interface OAuthGrant {
   // The user the token acts for: the app user for a token of an `actor=app` install.

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db, team, user, webhook, webhookDelivery } from '@repo/db';
-import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getOrganization } from '../graphql/resolvers/organization';
 import type { WebhookResourceType } from './store';
 
@@ -53,11 +53,56 @@ async function reachesAllTeams(teamIds: string[]): Promise<boolean> {
   return !!row;
 }
 
-// Whether any enabled webhook receives `type` events of these teams. Lets a caller
-// skip building webhook data on an instance or team with no such webhook.
-export async function isWatched(type: WebhookResourceType, teamIds: string[]): Promise<boolean> {
+// The webhooks of OAuth applications that receive an event of these teams. An
+// application installed with `actor=app` receives the events its app user can see:
+// its member teams, plus every public team when the install includes them. One that
+// people have only authorized as themselves (consents, no install) receives the
+// public teams' events, like an all-teams webhook. An archived (disabled) or
+// uninstalled application with no consents receives nothing.
+function applicationReach(teamIds: string[], allTeams: boolean): SQL {
+  const teamList = teamIds.length
+    ? sql`tm.team_id IN (${sql.join(
+        teamIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})`
+    : sql`false`;
+  return sql`(
+    ${webhook.oauthClientId} IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM oauth_client c
+      WHERE c.client_id = ${webhook.oauthClientId} AND c.disabled IS NOT TRUE
+    )
+    AND (
+      EXISTS (
+        SELECT 1 FROM oauth_installation i
+        WHERE i.client_id = ${webhook.oauthClientId} AND i.uninstalled_at IS NULL
+          AND (
+            (i.public_teams AND ${allTeams})
+            OR EXISTS (
+              SELECT 1 FROM team_member tm WHERE tm.user_id = i.app_user_id AND ${teamList}
+            )
+          )
+      )
+      OR (
+        ${allTeams}
+        AND NOT EXISTS (
+          SELECT 1 FROM oauth_installation i
+          WHERE i.client_id = ${webhook.oauthClientId} AND i.uninstalled_at IS NULL
+        )
+        AND EXISTS (SELECT 1 FROM oauth_consent oc WHERE oc.client_id = ${webhook.oauthClientId})
+      )
+    )
+  )`;
+}
+
+// The enabled webhooks that receive `type` events of these teams.
+async function matchingWebhooks(
+  type: WebhookResourceType,
+  teamIds: string[],
+  limit?: number,
+): Promise<{ id: string }[]> {
   const allTeams = await reachesAllTeams(teamIds);
-  const rows = await db
+  const query = db
     .select({ id: webhook.id })
     .from(webhook)
     .where(
@@ -67,11 +112,17 @@ export async function isWatched(type: WebhookResourceType, teamIds: string[]): P
         or(
           allTeams ? eq(webhook.allPublicTeams, true) : undefined,
           teamIds.length ? inArray(webhook.teamId, teamIds) : undefined,
+          applicationReach(teamIds, allTeams),
         ),
       ),
-    )
-    .limit(1);
-  return rows.length > 0;
+    );
+  return limit ? query.limit(limit) : query;
+}
+
+// Whether any enabled webhook receives `type` events of these teams. Lets a caller
+// skip building webhook data on an instance or team with no such webhook.
+export async function isWatched(type: WebhookResourceType, teamIds: string[]): Promise<boolean> {
+  return (await matchingWebhooks(type, teamIds, 1)).length > 0;
 }
 
 export async function emitEvent(input: {
@@ -89,18 +140,7 @@ export async function emitEvent(input: {
     changes = updatedFrom(input.before ?? {}, input.data);
     if (Object.keys(changes).length <= 1) return; // only updatedAt
   }
-  const teamMatch = input.teamIds.length ? inArray(webhook.teamId, input.teamIds) : undefined;
-  const allTeams = await reachesAllTeams(input.teamIds);
-  const matching = await db
-    .select({ id: webhook.id })
-    .from(webhook)
-    .where(
-      and(
-        eq(webhook.enabled, true),
-        sql`${webhook.resourceTypes} @> ${JSON.stringify([input.type])}::jsonb`,
-        or(allTeams ? eq(webhook.allPublicTeams, true) : undefined, teamMatch),
-      ),
-    );
+  const matching = await matchingWebhooks(input.type, input.teamIds);
   if (matching.length === 0) return;
 
   const eventId = randomUUID();

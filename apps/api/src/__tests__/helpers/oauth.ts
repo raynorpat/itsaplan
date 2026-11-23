@@ -26,21 +26,23 @@ export async function authPost(path: string, cookie: string | null, body: unknow
   );
 }
 
-// An application registered by an admin (confidential: it has a client secret).
+// An application registered by an admin through the instance endpoint (confidential
+// unless `publicClient`: it has a client secret). `extra` takes the endpoint's fields.
 export async function createClient(
   adminCookie: string,
   extra: Record<string, unknown> = {},
 ): Promise<OAuthClient> {
-  const res = await authPost('/oauth2/create-client', adminCookie, {
-    redirect_uris: [REDIRECT_URI],
-    client_name: 'Test App',
-    token_endpoint_auth_method: 'client_secret_post',
+  const res = await authPost('/instance/oauth-apps/create', adminCookie, {
+    name: 'Test App',
+    redirectUris: [REDIRECT_URI],
     ...extra,
   });
-  if (res.status !== 200 && res.status !== 201)
-    throw new Error(`create-client ${res.status}: ${await res.text()}`);
-  const json = (await res.json()) as { client_id: string; client_secret: string };
-  return { clientId: json.client_id, clientSecret: json.client_secret };
+  if (res.status !== 200) throw new Error(`create app ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as {
+    application: { clientId: string };
+    clientSecret?: string;
+  };
+  return { clientId: json.application.clientId, clientSecret: json.clientSecret ?? '' };
 }
 
 export function pkce(): { verifier: string; challenge: string } {
@@ -138,4 +140,82 @@ export async function obtainTokens(
   });
   if (res.status !== 200) throw new Error(`token ${res.status}: ${await res.text()}`);
   return (await res.json()) as TokenSet;
+}
+
+export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+export interface InstallOptions {
+  scope?: string;
+  teamIds?: string[];
+  publicTeams?: boolean;
+}
+
+// Authorize with actor=app and post the consent the way the web's consent page does,
+// with the admin's team selection. Returns the consent response.
+export async function consentAsApp(
+  cookie: string,
+  client: OAuthClient,
+  challenge: string,
+  opts: InstallOptions = {},
+): Promise<Response> {
+  const authorize = await authorizeRequest(cookie, {
+    client_id: client.clientId,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: opts.scope ?? 'read,write',
+    actor: 'app',
+    prompt: 'consent',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  const target = new URL(await redirectTarget(authorize));
+  return authPost('/oauth2/consent', cookie, {
+    accept: true,
+    oauth_query: target.search.slice(1),
+    ...(opts.teamIds ? { app_team_ids: opts.teamIds } : {}),
+    ...(opts.publicTeams !== undefined ? { app_public_teams: opts.publicTeams } : {}),
+  });
+}
+
+// The full install: consent as an admin, then the code exchanged for tokens.
+export async function install(
+  cookie: string,
+  client: OAuthClient,
+  opts: InstallOptions = {},
+): Promise<TokenSet> {
+  const { verifier, challenge } = pkce();
+  const consent = await consentAsApp(cookie, client, challenge, opts);
+  if (consent.status !== 200) throw new Error(`consent ${consent.status}: ${await consent.text()}`);
+  const codeValue = new URL(await redirectTarget(consent)).searchParams.get('code');
+  if (!codeValue) throw new Error('no code');
+  const res = await tokenRequest({
+    grant_type: 'authorization_code',
+    code: codeValue,
+    redirect_uri: REDIRECT_URI,
+    client_id: client.clientId,
+    client_secret: client.clientSecret,
+    code_verifier: verifier,
+  });
+  if (res.status !== 200) throw new Error(`token ${res.status}: ${await res.text()}`);
+  return (await res.json()) as TokenSet;
+}
+
+export function clientCredentials(client: OAuthClient, scope?: string): Promise<Response> {
+  return tokenRequest({
+    grant_type: 'client_credentials',
+    client_id: client.clientId,
+    client_secret: client.clientSecret,
+    ...(scope ? { scope } : {}),
+  });
+}
+
+export function uninstall(cookie: string, client: OAuthClient): Promise<Response> {
+  return authPost('/instance/oauth-uninstall', cookie, { clientId: client.clientId });
+}
+
+// A GET to a better-auth endpoint with the session cookie.
+export async function authGet(path: string, cookie: string | null): Promise<Response> {
+  const headers = new Headers();
+  if (cookie) headers.set('cookie', cookie);
+  return app.handle(new Request(`http://localhost/api/auth${path}`, { headers }));
 }

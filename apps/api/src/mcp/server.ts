@@ -1,16 +1,29 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { McpApp } from './types';
-import { routeTools } from './generate';
+import type { McpApp, McpCaller } from './types';
+import { routeTools, type McpRouteTool } from './generate';
 import { dispatchTool } from './dispatch';
 import { SERVER_INSTRUCTIONS } from './instructions';
 
+// The scopes that let an OAuth token run a tool (Linear's rules for the operation the
+// tool performs): reading needs `read`; creating an issue `issues:create` or `write`;
+// adding a comment `comments:create` or `write`; any other write `write`. Admin tools
+// need `admin` as well, which the routes' role checks apply (shared/access.ts).
+export function toolScopes(tool: Pick<McpRouteTool, 'method' | 'path'>): string[] {
+  if (tool.method === 'GET') return ['read'];
+  if (tool.method === 'POST' && tool.path === '/teams/:teamKey/issues')
+    return ['issues:create', 'write'];
+  if (tool.method === 'POST' && tool.path === '/issues/:issueId/comments')
+    return ['comments:create', 'write'];
+  return ['write'];
+}
+
 // A low-level MCP Server for one request. tools/list returns every route tagged
-// with x-mcp; tools/call dispatches to the real route via app.handle with the
-// caller's API key. The low-level Server (not McpServer) is used so the route's
+// with x-mcp; tools/call dispatches to the real route via app.handle as the caller
+// (an API key, or an OAuth token within its scopes). The low-level Server (not McpServer) is used so the route's
 // TypeBox JSON Schema can be served as the tool inputSchema without converting to
 // Zod. Arguments are validated by the route itself, not here.
-export function buildMcpServer(app: McpApp, apiKey: string): Server {
+export function buildMcpServer(app: McpApp, caller: McpCaller): Server {
   const server = new Server(
     // `name` is the stable programmatic identifier; `title` is the human-readable
     // display name a client shows to the user (per the MCP Implementation spec).
@@ -41,7 +54,20 @@ export function buildMcpServer(app: McpApp, apiKey: string): Server {
         isError: true,
       };
     }
-    const { text, isError } = await dispatchTool(app, tool, req.params.arguments ?? {}, apiKey);
+    if (caller.kind === 'oauth') {
+      const allowed = toolScopes(tool);
+      if (!allowed.some((scope) => caller.auth.scopes.includes(scope as never)))
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `This tool needs the ${allowed.map((s) => `\`${s}\``).join(' or ')} scope`,
+            },
+          ],
+          isError: true,
+        };
+    }
+    const { text, isError } = await dispatchTool(app, tool, req.params.arguments ?? {}, caller);
     return { content: [{ type: 'text', text }], isError };
   });
 

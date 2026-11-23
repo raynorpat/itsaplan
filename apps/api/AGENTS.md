@@ -260,8 +260,13 @@ directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authe
 Outgoing webhooks use Linear's format and subscription model, so a Linear webhook
 receiver works against the instance.
 
-- **Subscriptions** (`webhooks/store.ts`): a webhook covers one team or all teams
-  (`all_public_teams`, including teams created later) and lists resource types:
+- **Subscriptions** (`webhooks/store.ts`): a webhook covers one team, all teams
+  (`all_public_teams`, including teams created later), or an OAuth application's
+  reach (`oauth_client_id`, one per application, managed with the application in
+  `oauth/apps.ts` and never listed or addressable as a workspace webhook). An
+  application installed with `actor=app` receives the events of its app user's teams;
+  one people have only authorized as themselves receives public teams' events; an
+  archived or uninstalled one nothing. A webhook lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
   `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Webhooks are
@@ -334,6 +339,16 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.
+- **MCP** (`mcp/`): `/mcp` takes an API key or an OAuth access token as
+  `Authorization: Bearer` (no cookie). A 401 carries `WWW-Authenticate: Bearer
+  resource_metadata=".../.well-known/oauth-protected-resource/mcp"` (served by
+  `oauth/routes.ts`, RFC 9728), where an MCP client starts signing in. Tools run REST
+  routes in process: an API key is forwarded as `x-api-key`; an OAuth caller's user
+  is passed to `authContext` through `runAsMcpCaller` (an in-process store no request
+  can set) with the token's scopes (`runWithAuth`), so REST itself takes no OAuth
+  token. A tool needs `read` (GET), `issues:create` or `write` (create an issue),
+  `comments:create` or `write` (add a comment), else `write` (`toolScopes`); admin
+  tools also need `admin` through the role checks.
 - **Tests:** `src/__tests__/helpers/linear.ts` serves the app on a local port and
   returns a `LinearClient`, so tests drive the endpoint with the real SDK.
 

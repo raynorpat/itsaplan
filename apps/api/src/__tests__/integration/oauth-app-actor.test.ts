@@ -9,12 +9,16 @@ import {
   REDIRECT_URI,
   authPost,
   authorizeRequest,
+  bearer,
+  clientCredentials,
+  consentAsApp,
   createClient,
+  install,
   obtainTokens,
   pkce,
   redirectTarget,
   tokenRequest,
-  type OAuthClient,
+  uninstall,
   type TokenSet,
 } from '../helpers/oauth';
 import { signUpWithRole } from '../helpers/roles';
@@ -25,8 +29,6 @@ import { signUpWithRole } from '../helpers/roles';
 // never has admin rights, cannot sign in, and is kept out of member lists. The
 // `client_credentials` grant gives an installed application an app-user token.
 // Uninstalling revokes every token of the application and deactivates the app user.
-
-const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
 const VIEWER = '{ viewer { id name email app active admin guest } }';
 const TEAM = 'query($id: String!) { team(id: $id) { id key } }';
@@ -69,67 +71,8 @@ async function setup() {
   await api.teams.post({ key: 'ENG', name: 'Engineering' });
   await api.teams.post({ key: 'SEC', name: 'Security' });
   await api.teams({ teamKey: 'SEC' }).patch({ visibility: 'private' });
-  const client = await createClient(owner.cookie, {
-    client_name: 'Robot',
-    grant_types: ['authorization_code', 'client_credentials'],
-  });
+  const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
   return { owner, client };
-}
-
-interface InstallOptions {
-  scope?: string;
-  teamIds?: string[];
-  publicTeams?: boolean;
-}
-
-// Authorize with actor=app and post the consent the way the web's consent page does,
-// with the admin's team selection. Returns the consent response.
-async function consentAsApp(
-  cookie: string,
-  client: OAuthClient,
-  challenge: string,
-  opts: InstallOptions = {},
-): Promise<Response> {
-  const authorize = await authorizeRequest(cookie, {
-    client_id: client.clientId,
-    redirect_uri: REDIRECT_URI,
-    response_type: 'code',
-    scope: opts.scope ?? 'read,write',
-    actor: 'app',
-    prompt: 'consent',
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-  });
-  const target = new URL(await redirectTarget(authorize));
-  return authPost('/oauth2/consent', cookie, {
-    accept: true,
-    oauth_query: target.search.slice(1),
-    ...(opts.teamIds ? { app_team_ids: opts.teamIds } : {}),
-    ...(opts.publicTeams !== undefined ? { app_public_teams: opts.publicTeams } : {}),
-  });
-}
-
-// The full install: consent as an admin, then the code exchanged for tokens.
-async function install(
-  cookie: string,
-  client: OAuthClient,
-  opts: InstallOptions = {},
-): Promise<TokenSet> {
-  const { verifier, challenge } = pkce();
-  const consent = await consentAsApp(cookie, client, challenge, opts);
-  if (consent.status !== 200) throw new Error(`consent ${consent.status}: ${await consent.text()}`);
-  const codeValue = new URL(await redirectTarget(consent)).searchParams.get('code');
-  if (!codeValue) throw new Error('no code');
-  const res = await tokenRequest({
-    grant_type: 'authorization_code',
-    code: codeValue,
-    redirect_uri: REDIRECT_URI,
-    client_id: client.clientId,
-    client_secret: client.clientSecret,
-    code_verifier: verifier,
-  });
-  if (res.status !== 200) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()) as TokenSet;
 }
 
 async function viewer(token: string) {
@@ -142,19 +85,6 @@ async function viewer(token: string) {
     admin: boolean;
     guest: boolean;
   };
-}
-
-function clientCredentials(client: OAuthClient, scope?: string): Promise<Response> {
-  return tokenRequest({
-    grant_type: 'client_credentials',
-    client_id: client.clientId,
-    client_secret: client.clientSecret,
-    ...(scope ? { scope } : {}),
-  });
-}
-
-function uninstall(cookie: string, client: OAuthClient): Promise<Response> {
-  return authPost('/instance/oauth-uninstall', cookie, { clientId: client.clientId });
 }
 
 describe('oauth actor=app installs', () => {

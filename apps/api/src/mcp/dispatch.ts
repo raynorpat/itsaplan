@@ -1,4 +1,6 @@
-import type { McpApp } from './types';
+import { runAsMcpCaller } from '../shared/auth-context';
+import { runWithAuth } from '../shared/request-auth';
+import type { McpApp, McpCaller } from './types';
 import type { McpRouteTool } from './generate';
 
 // Methods that carry a request body; the rest put their arguments in the query.
@@ -13,12 +15,14 @@ const BASE = 'http://localhost';
 // response body as text. Path params fill the URL; the remaining arguments become
 // the JSON body (POST/PUT/PATCH) or the query string (GET/DELETE). The caller's API
 // key is forwarded as x-api-key so the route's session guard and permission checks
-// run exactly as they do over HTTP.
+// run exactly as they do over HTTP. An OAuth caller's user is passed to the route's
+// session guard in process (runAsMcpCaller), with the token's scopes for the role
+// checks (runWithAuth), so the route acts as that user within the token's rights.
 export async function dispatchTool(
   app: McpApp,
   tool: McpRouteTool,
   args: Record<string, unknown>,
-  apiKey: string,
+  caller: McpCaller,
 ): Promise<{ text: string; isError: boolean }> {
   const rest: Record<string, unknown> = { ...args };
 
@@ -42,15 +46,15 @@ export async function dispatchTool(
     if (query) url += `?${query}`;
   }
 
-  const request = new Request(url, {
-    method: tool.method,
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-    },
-    body,
-  });
-  const response = await app.handle(request);
+  const headers = new Headers({ 'content-type': 'application/json' });
+  if (caller.kind === 'apiKey') headers.set('x-api-key', caller.apiKey);
+  const request = new Request(url, { method: tool.method, headers, body });
+  const response =
+    caller.kind === 'apiKey'
+      ? await app.handle(request)
+      : await runAsMcpCaller(caller.user, () =>
+          runWithAuth(caller.auth, () => app.handle(request)),
+        );
   const text = await response.text();
   return { text, isError: response.status >= 400 };
 }

@@ -109,16 +109,11 @@ describe('oauth flow', () => {
 
   it('requires PKCE from a public client', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const res = await authPost('/oauth2/create-client', owner.cookie, {
-      redirect_uris: [REDIRECT_URI],
-      client_name: 'Desktop',
-      token_endpoint_auth_method: 'none',
-      type: 'native',
-    });
-    const publicClient = (await res.json()) as { client_id: string };
+    const publicClient = await createClient(owner.cookie, { name: 'Desktop', publicClient: true });
+    expect(publicClient.clientSecret).toBe('');
     const target = await redirectTarget(
       await authorizeRequest(owner.cookie, {
-        client_id: publicClient.client_id,
+        client_id: publicClient.clientId,
         redirect_uri: REDIRECT_URI,
         response_type: 'code',
         scope: 'read',
@@ -182,11 +177,11 @@ describe('oauth flow', () => {
   it('makes a rotated client secret fail at once', async () => {
     const { owner, client } = await setup();
     const tokens = await obtainTokens(owner.cookie, client, 'read');
-    const rotated = await authPost('/oauth2/client/rotate-secret', owner.cookie, {
-      client_id: client.clientId,
+    const rotated = await authPost('/instance/oauth-apps/rotate-secret', owner.cookie, {
+      clientId: client.clientId,
     });
     expect(rotated.status).toBe(200);
-    const fresh = ((await rotated.json()) as { client_secret: string }).client_secret;
+    const fresh = ((await rotated.json()) as { clientSecret: string }).clientSecret;
     expect(fresh).toBeTruthy();
     const withOld = await tokenRequest({
       grant_type: 'refresh_token',

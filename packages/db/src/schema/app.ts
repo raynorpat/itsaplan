@@ -1059,6 +1059,11 @@ export const webhook = pgTable(
     resourceTypes: jsonb('resource_types').notNull().default([]),
     enabled: boolean('enabled').notNull().default(true),
     creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // The OAuth application whose webhook this is (one per application). Its events
+    // follow the application's reach (webhooks/event.ts), not a team or all teams.
+    oauthClientId: text('oauth_client_id')
+      .unique()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
     // Count of consecutive failed deliveries. Reset to 0 on a successful delivery.
     // When it crosses the worker's threshold the webhook is auto-disabled
     // (enabled set false) so one dead endpoint cannot occupy the worker.
@@ -1068,7 +1073,11 @@ export const webhook = pgTable(
   },
   (t) => [
     index('webhook_team_idx').on(t.teamId),
-    check('webhook_scope_check', sql`(${t.teamId} IS NOT NULL) <> ${t.allPublicTeams}`),
+    // Exactly one of: a team, all public teams, an OAuth application.
+    check(
+      'webhook_scope_check',
+      sql`(${t.teamId} IS NOT NULL)::int + ${t.allPublicTeams}::int + (${t.oauthClientId} IS NOT NULL)::int = 1`,
+    ),
   ],
 );
 

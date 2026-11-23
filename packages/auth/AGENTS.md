@@ -44,13 +44,19 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
   expired, deleted, issued from a revoked refresh token, or of a disabled
   application → null. A refresh revokes the previous refresh token and, through
   that, its access tokens.
-- Applications are created and managed by workspace admins and owners
-  (`clientPrivileges`); `oauthAfterHook` makes an admin-created confidential
-  application not require PKCE, as Linear's do. Dynamic registration (MCP clients)
-  needs no session, always gives a public client (PKCE required), and only `read`,
-  `write`, `issues:create` and `comments:create` (default `read write`).
-- Cookie-authenticated writes to the consent and client endpoints must send an
-  `Origin` from `trustedOrigins`, as the instance plugin's do.
+- Applications are created and managed by workspace admins and owners through the
+  instance plugin (`/instance/oauth-apps*`, below). The plugin's own client and
+  consent endpoints are disabled (`OAUTH_DISABLED_PATHS`): they let only a client's
+  creator change it. An admin-created application is marked `application: true` in
+  its metadata (`isWorkspaceApplication`; the plugin stores metadata as a JSON string
+  in the jsonb column, read with `clientMetadata`); a confidential one does not
+  require PKCE, as Linear's do. Dynamic registration (MCP clients) needs no session,
+  always gives a public client (PKCE required), and only `read`, `write`,
+  `issues:create` and `comments:create` (`MCP_CLIENT_SCOPES`; default `read write`).
+  An authorize request without a scope gets `read` for an application and the
+  registered scopes for a self-registered client.
+- Cookie-authenticated writes to the consent endpoints must send an `Origin` from
+  `trustedOrigins`, as the instance plugin's do.
 - The consent page is the web's `/oauth/consent`, the sign-in page `/login`.
 
 ### `actor=app` installs (`src/oauth-install.ts`)
@@ -77,6 +83,23 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
 - `POST /api/auth/instance/oauth-uninstall { clientId }` (admins and owners, Origin
   rule) deletes every token, refresh token, consent and pending code of the
   application, suspends its app user and removes it from its teams.
+
+### Managing applications and authorizations
+
+- `GET /instance/oauth-apps` and `POST /instance/oauth-apps/{create, update,
+  rotate-secret, rotate-webhook-secret, archive}` (admins and owners, Origin rule) are
+  handled by the API (`apps/api/src/oauth/apps.ts`, registered through
+  `provideInstanceHandlers`), which validates the application's webhook. The client
+  secret and the webhook secret are in the answers of create and the rotations only.
+  Rotating the client secret stops the old one at once and deletes the
+  `client_credentials` tokens; archiving uninstalls the application and disables it.
+- `GET /instance/oauth-authorized` and `POST /instance/oauth-authorized/revoke
+  { clientId }` (signed in, Origin rule; `src/oauth-authorized.ts`) list and revoke
+  the applications the person authorized to act as themselves. An `actor=app`
+  install's consent and tokens are the workspace's: not listed, not revoked here.
+- Token rows of an `actor=app` install carry the installing admin as their user. Users
+  are never deleted (suspension), so the install keeps working when its installer is
+  suspended or demoted; only new install codes need the installer to be an admin.
 
 ## Workspace role and suspension
 
