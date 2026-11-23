@@ -23,7 +23,7 @@ export default function MemberAddForm({ teamKey }: { teamKey: string }) {
 
   const memberIds = new Set((membersQuery.data ?? []).map((m) => m.userId));
   const candidates = (usersQuery.data ?? []).filter(
-    (u) => !memberIds.has(u.userId) && u.suspendedAt == null,
+    (u) => !memberIds.has(u.userId) && !u.suspended,
   );
 
   async function onAdd() {

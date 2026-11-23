@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Team, type TeamVisibility } from '@/lib/api';
+import type { Team, TeamVisibility } from '@/lib/api';
+import { useSession } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { teamAccess } from '@/services/board.service';
+import { joinTeam, removeTeamMember } from '@/services/members.service';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 
 const TeamsPage = graphql(`
@@ -90,8 +92,9 @@ export function useTeamsQuery() {
 // team). Refetches the list so the team moves into the sidebar.
 export function useJoinTeam() {
   const qc = useQueryClient();
+  const { data: session } = useSession();
   return useMutation({
-    mutationFn: (teamKey: string) => api.joinTeam(teamKey),
+    mutationFn: (teamKey: string) => joinTeam(teamKey, session!.user.id),
     onSuccess: (_data, teamKey) => {
       void qc.invalidateQueries({ queryKey: qk.teams });
       void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
@@ -239,7 +242,7 @@ export function useLeaveTeam() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ teamKey, userId }: { teamKey: string; userId: string }) =>
-      api.removeMember(teamKey, userId),
+      removeTeamMember(qc, teamKey, userId),
     onSuccess: (_data, { teamKey }) => {
       const team = qc.getQueryData<Team[]>(qk.teams)?.find((t) => t.key === teamKey);
       if (team?.visibility === 'private') {

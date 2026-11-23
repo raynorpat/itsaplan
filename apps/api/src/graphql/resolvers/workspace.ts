@@ -1,12 +1,13 @@
 import { db, team, teamMember, workspaceInvite } from '@repo/db';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { getInvite, inviteToWorkspace, revokeInvite, type InviteRole } from '../../invites/store';
-import { addTeamMember, removeTeamMember } from '../../members/store';
+import { addTeamMember, removeTeamMember, upsertMember } from '../../members/store';
 import { assertAllowedTo } from '../../organization/store';
 import {
   assertTeamAccess,
   assertWorkspaceRole,
   atLeast,
+  isTeamMember,
   visibleTeamIds,
   workspaceRole,
   type WorkspaceRole,
@@ -304,7 +305,14 @@ export const workspaceResolvers = {
         onlySupported(input, ['teamId', 'userId'], 'input');
         const found = await teamToJoin(String(input.teamId), ctx);
         const userId = uuidArg(String(input.userId), 'input.userId');
-        await addTeamMember(found, userId, false, ctx.user);
+        // A membership for oneself is joining: anyone who can see the team may join it
+        // (teamToJoin checked that), as REST's /teams/:teamKey/join.
+        if (userId === ctx.user.id) {
+          if (!(await isTeamMember(found.id, userId)))
+            await upsertMember(found.id, userId, 'member');
+        } else {
+          await addTeamMember(found, userId, false, ctx.user);
+        }
         const [row] = await db
           .select()
           .from(teamMember)

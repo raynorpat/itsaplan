@@ -2,8 +2,8 @@ import { type InviteView } from '@/lib/api';
 import { ROLE_LABELS } from '@/utils/workspaceRoles';
 import { Badge } from '@/components/ui/badge';
 
-// The invite summary at the top of the invite screen: the role, the teams the
-// account joins, and the invited email.
+// The invite summary at the top of the invite screen: who sent it, the role, and the
+// invited email.
 export default function InviteInfo({ invite }: { invite: InviteView }) {
   return (
     <div className="rounded-md border bg-muted/50 p-4 text-sm">
@@ -16,11 +16,6 @@ export default function InviteInfo({ invite }: { invite: InviteView }) {
           {ROLE_LABELS[invite.role]}
         </Badge>
       </p>
-      {invite.teamNames.length > 0 && (
-        <p className="mt-2 text-muted-foreground">
-          Teams: <span className="text-foreground">{invite.teamNames.join(', ')}</span>
-        </p>
-      )}
       <p className="mt-2 text-muted-foreground">
         Invitation for <span className="font-medium text-foreground">{invite.email}</span>
       </p>

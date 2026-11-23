@@ -206,7 +206,7 @@ export interface StorageSettings {
 export type MinimumRole = 'owner' | 'admin' | 'member';
 
 // The workspace settings. Readable by any signed-in user; changed by owners and
-// admins. approvedDomains (from the environment) and version are read-only.
+// admins. approvedDomains (from the environment) is read-only.
 export interface OrganizationSettings {
   id: string;
   name: string;
@@ -219,7 +219,6 @@ export interface OrganizationSettings {
   labelManagementRole: MinimumRole;
   invitationsRole: MinimumRole;
   approvedDomains: string[];
-  version: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -588,6 +587,9 @@ export type ProjectCounts = Record<ProjectStatus | 'total', number>;
 export type MemberRole = 'owner' | 'member';
 
 export interface MemberRow {
+  // The TeamMembership id, which removing the member addresses.
+  membershipId: string;
+  teamId: string;
   userId: string;
   name: string;
   email: string;
@@ -603,8 +605,8 @@ export interface WorkspaceUser {
   email: string;
   image: string | null;
   role: WorkspaceRole;
-  // Set while the user is suspended (Linear's way to remove someone).
-  suspendedAt: string | null;
+  // Suspension is Linear's way to remove someone.
+  suspended: boolean;
   createdAt: string;
 }
 
@@ -628,12 +630,9 @@ export interface InviteRow {
 
 // An invite as shown to the invitee opening the link (no sign-in needed).
 export interface InviteView {
-  token: string;
   email: string;
   role: InviteRole;
-  teamNames: string[];
   invitedByName: string | null;
-  expiresAt: string;
 }
 
 // Inbox notifications. Each row is enriched with the issue and team it points at
@@ -669,71 +668,6 @@ export const api = {
     return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
 
-  // Team members. Anyone who can see a team may join it (not guests); any member
-  // may add people to a public team, a team manager to a private one; a member
-  // may always leave (remove themselves).
-  listMembers: (teamKey: string) => request<MemberRow[]>(`/teams/${teamKey}/members`),
-  joinTeam: (teamKey: string) =>
-    request<{ teamKey: string; userId: string }>(`/teams/${teamKey}/join`, { method: 'POST' }),
-  addMember: (teamKey: string, input: { userId: string; owner?: boolean }) =>
-    request<{ teamKey: string; userId: string }>(`/teams/${teamKey}/members`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  removeMember: (teamKey: string, userId: string) =>
-    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
-      method: 'DELETE',
-    }),
-  // Make a member a team owner or a plain member (team managers).
-  setMemberRole: (teamKey: string, userId: string, role: MemberRole) =>
-    request<void>(`/teams/${teamKey}/members/${encodeURIComponent(userId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role }),
-    }),
-
-  // Workspace users (owners, admins and members list; owners and admins change).
-  listWorkspaceUsers: () => request<WorkspaceUser[]>('/workspace/users'),
-  setWorkspaceRole: (userId: string, role: WorkspaceRole) =>
-    request<WorkspaceUser>(`/workspace/users/${encodeURIComponent(userId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role }),
-    }),
-  suspendUser: (userId: string) =>
-    request<void>(`/workspace/users/${encodeURIComponent(userId)}/suspend`, {
-      method: 'POST',
-    }),
-  unsuspendUser: (userId: string) =>
-    request<void>(`/workspace/users/${encodeURIComponent(userId)}/unsuspend`, {
-      method: 'POST',
-    }),
-
-  // Workspace invites. Owners, admins and members invite (never above their own
-  // role); the sender or an admin revokes. The invitee reads one by its token
-  // without signing in, then signs up with the invited email.
-  listInvites: () => request<InviteRow[]>('/invites'),
-  createInvite: (input: { email: string; role: InviteRole; teamIds?: string[] }) =>
-    request<InviteRow>('/invites', { method: 'POST', body: JSON.stringify(input) }),
-  deleteInvite: (inviteId: string) =>
-    request<void>(`/invites/${encodeURIComponent(inviteId)}`, { method: 'DELETE' }),
-  getInvite: (token: string) => request<InviteView>(`/invites/${encodeURIComponent(token)}`),
-
-  listWebhooks: (teamKey: string) => request<Webhook[]>(`/teams/${teamKey}/webhooks`),
-  createWebhook: (teamKey: string, input: NewWebhookInput) =>
-    request<Webhook>(`/teams/${teamKey}/webhooks`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateWebhook: (webhookId: string, patch: WebhookPatch) =>
-    request<Webhook>(`/webhooks/${webhookId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteWebhook: (webhookId: string) =>
-    request<void>(`/webhooks/${webhookId}`, { method: 'DELETE' }),
-  rotateWebhookSecret: (webhookId: string) =>
-    request<Webhook>(`/webhooks/${webhookId}/rotate-secret`, { method: 'POST' }),
-  // All-teams webhooks: workspace owners and admins (403 otherwise).
-  listAllTeamsWebhooks: () => request<Webhook[]>('/webhooks'),
-  createAllTeamsWebhook: (input: NewWebhookInput) =>
-    request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
-
   // The signed-in user's own email notification preferences, for the whole workspace.
   getNotificationPreferences: () =>
     request<NotificationPreferences>('/account/notification-preferences'),
@@ -751,14 +685,5 @@ export const api = {
     request<{ timezone: string }>('/account/preferences', {
       method: 'PATCH',
       body: JSON.stringify({ timezone }),
-    }),
-
-  // The workspace settings: any signed-in user reads them, owners and admins change
-  // them.
-  getOrganization: () => request<OrganizationSettings>('/organization'),
-  updateOrganization: (patch: OrganizationSettingsPatch) =>
-    request<OrganizationSettings>('/organization', {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
     }),
 };

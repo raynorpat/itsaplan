@@ -1,29 +1,158 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, ApiError, type NewWebhookInput } from '@/lib/api';
+import type { NewWebhookInput, Webhook, WebhookPatch, WebhookResourceType } from '@/lib/api';
+import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
+import { fetchAllPages } from '@/utils/fetchAllPages';
+
+const TeamWebhooksPage = graphql(`
+  query TeamWebhooks($teamKey: String!, $after: String, $first: Int) {
+    team(id: $teamKey) {
+      webhooks(first: $first, after: $after) {
+        nodes {
+          id
+          url
+          label
+          secret
+          resourceTypes
+          enabled
+          allPublicTeams
+          createdAt
+          updatedAt
+          team {
+            id
+          }
+          creator {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);
+
+const WebhooksPage = graphql(`
+  query AllTeamsWebhooks($after: String, $first: Int) {
+    webhooks(first: $first, after: $after) {
+      nodes {
+        id
+        url
+        label
+        secret
+        resourceTypes
+        enabled
+        allPublicTeams
+        createdAt
+        updatedAt
+        team {
+          id
+        }
+        creator {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+const WebhookCreate = graphql(`
+  mutation WebhookCreate($input: WebhookCreateInput!) {
+    webhookCreate(input: $input) {
+      success
+    }
+  }
+`);
+
+const WebhookUpdate = graphql(`
+  mutation WebhookUpdate($id: String!, $input: WebhookUpdateInput!) {
+    webhookUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`);
+
+const WebhookRotateSecret = graphql(`
+  mutation WebhookRotateSecret($id: String!) {
+    webhookRotateSecret(id: $id) {
+      secret
+    }
+  }
+`);
+
+const WebhookDelete = graphql(`
+  mutation WebhookDelete($id: String!) {
+    webhookDelete(id: $id) {
+      success
+    }
+  }
+`);
+
+type WebhookNode = {
+  id: string;
+  url?: string | null;
+  label?: string | null;
+  secret?: string | null;
+  resourceTypes: string[];
+  enabled: boolean;
+  allPublicTeams: boolean;
+  createdAt: string;
+  updatedAt: string;
+  team?: { id: string } | null;
+  creator?: { id: string } | null;
+};
+
+function toWebhook(node: WebhookNode): Webhook {
+  return {
+    id: node.id,
+    teamId: node.team?.id ?? null,
+    allPublicTeams: node.allPublicTeams,
+    url: node.url ?? '',
+    label: node.label ?? null,
+    secret: node.secret ?? '',
+    resourceTypes: node.resourceTypes as WebhookResourceType[],
+    enabled: node.enabled,
+    creatorUserId: node.creator?.id ?? null,
+    createdAt: node.createdAt,
+    updatedAt: node.updatedAt,
+  };
+}
 
 export function useWebhooksQuery(teamKey: string | null) {
   return useQuery({
     queryKey: qk.webhooks(teamKey ?? ''),
-    queryFn: () => api.listWebhooks(teamKey!),
+    queryFn: async () =>
+      (
+        await fetchAllPages(
+          async (after, first) =>
+            (await gqlRequest(TeamWebhooksPage, { teamKey: teamKey!, after, first })).team.webhooks,
+        )
+      ).map(toWebhook),
     enabled: teamKey != null,
   });
 }
 
-// All-teams webhooks. Resolves to null for a user who may not manage them (403),
-// which also hides the "All teams" option.
-export function useAllTeamsWebhooksQuery() {
+// All-teams webhooks, for workspace admins and owners (the API lists them only to
+// those). `webhooks` also returns the team webhooks the viewer may manage, so the
+// all-teams ones are picked out here.
+export function useAllTeamsWebhooksQuery(enabled: boolean) {
   return useQuery({
     queryKey: qk.allTeamsWebhooks,
-    queryFn: async () => {
-      try {
-        return await api.listAllTeamsWebhooks();
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 403) return null;
-        throw error;
-      }
-    },
-    retry: false,
+    queryFn: async () =>
+      (
+        await fetchAllPages(
+          async (after, first) => (await gqlRequest(WebhooksPage, { after, first })).webhooks,
+        )
+      )
+        .filter((w) => w.allPublicTeams)
+        .map(toWebhook),
+    enabled,
   });
 }
 
@@ -34,11 +163,13 @@ function useInvalidateWebhooks() {
   return () => void qc.invalidateQueries({ queryKey: ['webhooks'] });
 }
 
-export function useCreateWebhook(teamKey: string | null) {
+export function useCreateWebhook(teamId: string) {
   const invalidate = useInvalidateWebhooks();
   return useMutation({
     mutationFn: ({ input, allTeams }: { input: NewWebhookInput; allTeams: boolean }) =>
-      allTeams ? api.createAllTeamsWebhook(input) : api.createWebhook(teamKey!, input),
+      gqlRequest(WebhookCreate, {
+        input: { ...input, ...(allTeams ? { allPublicTeams: true } : { teamId }) },
+      }),
     onSuccess: invalidate,
   });
 }
@@ -46,8 +177,8 @@ export function useCreateWebhook(teamKey: string | null) {
 export function useUpdateWebhook() {
   const invalidate = useInvalidateWebhooks();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof api.updateWebhook>[1] }) =>
-      api.updateWebhook(id, input),
+    mutationFn: ({ id, input }: { id: string; input: WebhookPatch }) =>
+      gqlRequest(WebhookUpdate, { id, input }),
     onSuccess: invalidate,
   });
 }
@@ -55,7 +186,7 @@ export function useUpdateWebhook() {
 export function useRotateWebhookSecret() {
   const invalidate = useInvalidateWebhooks();
   return useMutation({
-    mutationFn: (id: string) => api.rotateWebhookSecret(id),
+    mutationFn: (id: string) => gqlRequest(WebhookRotateSecret, { id }),
     onSuccess: invalidate,
   });
 }
@@ -63,7 +194,7 @@ export function useRotateWebhookSecret() {
 export function useDeleteWebhook() {
   const invalidate = useInvalidateWebhooks();
   return useMutation({
-    mutationFn: (id: string) => api.deleteWebhook(id),
+    mutationFn: (id: string) => gqlRequest(WebhookDelete, { id }),
     onSuccess: invalidate,
   });
 }

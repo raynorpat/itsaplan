@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from '@/lib/api';
+import type { InviteRole, WorkspaceRole } from '@/lib/api';
 
 // Linear's workspace roles, lowest first. Used to gate UI; the API enforces the
 // same rules on every request.
@@ -44,3 +44,7 @@ export function invitableRoles(actor: WorkspaceRole): Array<'admin' | 'member' |
 // role (the team is not loaded yet) shows none.
 export const canSeeInitiatives = (role: WorkspaceRole | null) =>
   role != null && atLeast(role, 'member');
+
+// An invite's role as Linear names it (`user` is a member).
+export const inviteRoleFromLinear = (role: string): InviteRole =>
+  role === 'admin' || role === 'guest' ? role : 'member';

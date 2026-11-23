@@ -34,7 +34,7 @@ export default function WorkspaceUserRow({
   const roles = self ? [] : assignableRoles(viewerRole, user.role);
   const canSuspend =
     !self && (viewerRole === 'owner' || (viewerRole === 'admin' && !atLeast(user.role, 'admin')));
-  const suspended = user.suspendedAt != null;
+  const suspended = user.suspended;
 
   return (
     <TableRow className="group/item">

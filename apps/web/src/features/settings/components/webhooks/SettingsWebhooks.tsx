@@ -8,6 +8,8 @@ import {
   useRotateWebhookSecret,
   useDeleteWebhook,
 } from '@/services/webhooks.service';
+import { usePermissions } from '@/hooks/usePermissions';
+import { isWorkspaceAdmin } from '@/utils/workspaceRoles';
 import { EmptyState } from '@/components/common/page/EmptyState';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
@@ -29,10 +31,12 @@ export default function SettingsWebhooks({
 }) {
   const teamKey = team.team.key;
   const webhooksQuery = useWebhooksQuery(teamKey);
-  const allTeamsQuery = useAllTeamsWebhooksQuery();
-  const canAllTeams = allTeamsQuery.data != null;
+  const { workspaceRole } = usePermissions();
+  // All-teams webhooks are for workspace admins and owners, as the API rules.
+  const canAllTeams = workspaceRole != null && isWorkspaceAdmin(workspaceRole);
+  const allTeamsQuery = useAllTeamsWebhooksQuery(canAllTeams);
   const webhooks = [...(webhooksQuery.data ?? []), ...(allTeamsQuery.data ?? [])];
-  const createWebhook = useCreateWebhook(teamKey);
+  const createWebhook = useCreateWebhook(team.team.id);
   const updateWebhook = useUpdateWebhook();
   const rotateSecret = useRotateWebhookSecret();
   const deleteWebhook = useDeleteWebhook();
