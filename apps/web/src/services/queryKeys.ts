@@ -43,7 +43,6 @@ export const qk = {
   // updates with their comments.
   projects: (teamKey: string, params?: Record<string, unknown>) =>
     ['projects', teamKey, params ?? {}] as const,
-  projectsForTeam: (teamKey: string) => ['projects', teamKey] as const,
   projectCounts: (teamKey: string) => ['projectCounts', teamKey] as const,
   project: (id: string) => ['project', id] as const,
   projectActivity: (id: string) => ['projectActivity', id] as const,

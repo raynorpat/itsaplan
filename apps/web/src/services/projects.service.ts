@@ -146,7 +146,7 @@ const ProjectQuery = graphql(
     query Project($id: String!) {
       project(id: $id) {
         ...ProjectFields
-        members {
+        members(first: 250) {
           nodes {
             id
             name
@@ -369,7 +369,8 @@ export function useUpdateProject(teamKey?: string) {
   });
 }
 
-// Deleting a project unlinks its issues, so the team's board issues change too.
+// Deleting a project unlinks its issues, so the team's board issues change too, and
+// removes it from the initiatives it was linked to.
 export function useDeleteProject(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -377,6 +378,8 @@ export function useDeleteProject(teamKey: string) {
     onSuccess: (_data, id) => {
       invalidateProject(qc, id, teamKey);
       void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.initiatives });
+      void qc.invalidateQueries({ queryKey: ['initiative'] });
     },
   });
 }

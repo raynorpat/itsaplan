@@ -1,10 +1,11 @@
 'use client';
 
 import { useUpdateProject, type ProjectDetail } from '@/services/projects.service';
-import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
+import DraftMarkdownEditor from '@/components/common/editor/DraftMarkdownEditor';
 
 // The project's Markdown description (Linear's Project.content), edited in place and
-// saved through projectUpdate when the editor loses focus.
+// saved through projectUpdate when the editor loses focus; unsaved typing survives a
+// refresh (DraftMarkdownEditor).
 export default function ProjectDescription({
   project,
   canEdit,
@@ -14,15 +15,12 @@ export default function ProjectDescription({
 }) {
   const update = useUpdateProject();
   return (
-    <MarkdownEditor
-      key={`content-${project.updatedAt}`}
+    <DraftMarkdownEditor
       className="mt-4 text-sm"
-      defaultValue={project.content}
+      value={project.content}
       editable={canEdit}
       placeholder="Add a description…"
-      onBlur={(content) => {
-        if (content !== project.content) update.mutate({ id: project.id, patch: { content } });
-      }}
+      onSave={(content) => update.mutate({ id: project.id, patch: { content } })}
     />
   );
 }

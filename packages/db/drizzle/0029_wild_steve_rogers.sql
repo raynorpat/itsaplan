@@ -1,0 +1,1 @@
+ALTER TABLE "project_update" ADD COLUMN "archived_at" timestamp with time zone;

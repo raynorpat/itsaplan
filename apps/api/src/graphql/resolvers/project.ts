@@ -178,6 +178,7 @@ export function toUpdate(row: typeof projectUpdate.$inferSelect) {
     body: row.body,
     health: row.health,
     editedAt: iso(row.editedAt),
+    archivedAt: iso(row.archivedAt),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     url: `${trustedOrigins[0]}/projects/${row.projectId}`,
@@ -226,7 +227,12 @@ async function listMilestones(where: SQL | undefined, args: ConnectionArgs, ctx:
   );
 }
 
-async function listUpdates(where: SQL | undefined, args: ConnectionArgs, ctx: GraphQLContext) {
+// Archived updates are left out unless includeArchived.
+async function listUpdates(
+  where: SQL | undefined,
+  args: ConnectionArgs & { includeArchived?: boolean | null },
+  ctx: GraphQLContext,
+) {
   const teams = await readable(ctx);
   return paginate(
     args,
@@ -235,7 +241,11 @@ async function listUpdates(where: SQL | undefined, args: ConnectionArgs, ctx: Gr
       createdAt: projectUpdate.createdAt,
       updatedAt: projectUpdate.updatedAt,
     },
-    and(inArray(projectUpdate.projectId, projectsInTeams(teams)), where),
+    and(
+      inArray(projectUpdate.projectId, projectsInTeams(teams)),
+      args.includeArchived ? undefined : isNull(projectUpdate.archivedAt),
+      where,
+    ),
     (w, order, limit) =>
       db
         .select()

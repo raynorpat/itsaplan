@@ -542,7 +542,7 @@ export const PROJECT_SORTS = ['name', 'priority', 'targetDate', 'lead'] as const
 
 export type ProjectSort = (typeof PROJECT_SORTS)[number];
 
-// A project milestone (read-only in the web app; edited over GraphQL).
+// A project milestone, read from Project.projectMilestones.
 export interface ProjectMilestone {
   id: string;
   projectId: string;

@@ -1,5 +1,5 @@
 import { db, projectUpdate } from '@repo/db';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
 import { projectUpdateData, type WebhookData } from '../webhooks/data';
@@ -25,7 +25,7 @@ async function emitUpdate(
 }
 
 // Project updates (Linear's ProjectUpdate): status posts with a health reading.
-// The newest update gives the project its health.
+// The newest unarchived update gives the project its health.
 
 export type UpdateHealth = 'onTrack' | 'atRisk' | 'offTrack';
 
@@ -53,12 +53,12 @@ function mapUpdate(row: typeof projectUpdate.$inferSelect): UpdateRow {
   };
 }
 
-// Newest first.
+// Unarchived, newest first.
 export async function listUpdates(projectId: string): Promise<UpdateRow[]> {
   const rows = await db
     .select()
     .from(projectUpdate)
-    .where(eq(projectUpdate.projectId, projectId))
+    .where(and(eq(projectUpdate.projectId, projectId), isNull(projectUpdate.archivedAt)))
     .orderBy(desc(projectUpdate.createdAt), desc(projectUpdate.id));
   return rows.map(mapUpdate);
 }
@@ -107,7 +107,31 @@ export async function deleteUpdate(id: string, actorUserId: string | null): Prom
   return rows.length > 0;
 }
 
-// The latest update's health per project.
+// Sets or clears archived_at (projectUpdateArchive / Unarchive). An archive is sent
+// to webhooks as a remove, an unarchive as an update.
+export async function setUpdateArchived(
+  id: string,
+  archived: boolean,
+  actorUserId: string | null,
+): Promise<typeof projectUpdate.$inferSelect | null> {
+  const before = await projectUpdateData(id);
+  const [row] = await db
+    .update(projectUpdate)
+    .set({ archivedAt: archived ? new Date() : null })
+    .where(eq(projectUpdate.id, id))
+    .returning();
+  if (row)
+    await emitUpdate(
+      archived ? 'remove' : 'update',
+      row.projectId,
+      actorUserId,
+      await projectUpdateData(id),
+      before,
+    );
+  return row ?? null;
+}
+
+// The latest unarchived update's health per project.
 export async function latestHealthFor(projectIds: string[]): Promise<Map<string, UpdateHealth>> {
   const out = new Map<string, UpdateHealth>();
   if (projectIds.length === 0) return out;
@@ -117,7 +141,7 @@ export async function latestHealthFor(projectIds: string[]): Promise<Map<string,
       health: projectUpdate.health,
     })
     .from(projectUpdate)
-    .where(inArray(projectUpdate.projectId, projectIds))
+    .where(and(inArray(projectUpdate.projectId, projectIds), isNull(projectUpdate.archivedAt)))
     .orderBy(projectUpdate.projectId, desc(projectUpdate.createdAt), desc(projectUpdate.id));
   for (const r of rows) out.set(r.projectId, r.health as UpdateHealth);
   return out;

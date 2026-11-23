@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-// Only title and description; the other fields are edited inline from the header pills.
+// The name and the summary (Linear's Project.description). The content is edited on
+// the overview and the other fields from the property pills.
 export default function EditProjectDialog({
   project,
   teamKey,
@@ -20,7 +21,7 @@ export default function EditProjectDialog({
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(project.name);
-  const [description, setDescription] = useState(project.content);
+  const [summary, setSummary] = useState(project.description);
   const update = useUpdateProject(teamKey);
 
   const submit = async () => {
@@ -28,7 +29,7 @@ export default function EditProjectDialog({
     if (!name) return;
     await update.mutateAsync({
       id: project.id,
-      patch: { name, content: description.trim() },
+      patch: { name, description: summary.trim() },
     });
     onClose();
   };
@@ -47,13 +48,12 @@ export default function EditProjectDialog({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="edit-project-description">Description</Label>
+          <Label htmlFor="edit-project-summary">Summary</Label>
           <Textarea
-            id="edit-project-description"
-            value={description}
-            placeholder="What is this project about?"
-            className="min-h-32"
-            onChange={(e) => setDescription(e.target.value)}
+            id="edit-project-summary"
+            value={summary}
+            placeholder="A short summary of the project"
+            onChange={(e) => setSummary(e.target.value)}
           />
         </div>
         <div className="flex justify-end gap-2">

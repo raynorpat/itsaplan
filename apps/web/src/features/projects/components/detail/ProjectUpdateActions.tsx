@@ -1,17 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Archive, MoreHorizontal, Pencil } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
-import { useDeleteProjectUpdate } from '../../services/projectUpdates.service';
+import {
+  useArchiveProjectUpdate,
+  useUnarchiveProjectUpdate,
+} from '../../services/projectUpdates.service';
 
-// The author's menu on an update: edit it, or delete it after a confirmation.
+// The author's menu on an update: edit it, or archive it (Linear's delete) with Undo.
 export default function ProjectUpdateActions({
   projectId,
   updateId,
@@ -21,47 +23,37 @@ export default function ProjectUpdateActions({
   updateId: string;
   onEdit: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const remove = useDeleteProjectUpdate(projectId);
+  const archive = useArchiveProjectUpdate(projectId);
+  const unarchive = useUnarchiveProjectUpdate(projectId);
+
+  const remove = async () => {
+    await archive.mutateAsync(updateId);
+    toast.success('Update archived.', {
+      action: { label: 'Undo', onClick: () => unarchive.mutate(updateId) },
+    });
+  };
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label="Update options"
-            className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
-          >
-            <MoreHorizontal className="size-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onEdit}>
-            <Pencil className="size-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => setConfirming(true)}>
-            <Trash2 className="size-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {confirming && (
-        <ConfirmDialog
-          title="Delete update"
-          confirmLabel="Delete"
-          onConfirm={async () => {
-            await remove.mutateAsync(updateId);
-          }}
-          onClose={() => setConfirming(false)}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Update options"
+          className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
         >
-          <p className="text-sm text-muted-foreground">
-            The update and its comments are deleted. The project&apos;s health becomes the previous
-            update&apos;s.
-          </p>
-        </ConfirmDialog>
-      )}
-    </>
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onEdit}>
+          <Pencil className="size-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={() => void remove()}>
+          <Archive className="size-4" />
+          Archive
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

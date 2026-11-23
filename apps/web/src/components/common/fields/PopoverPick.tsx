@@ -31,7 +31,9 @@ export interface PickGroup {
 // A Pill trigger opening a searchable list of PickItems in a popover. Closes on
 // select unless `closeOnSelect` is false (labels toggle and stay open). `items`
 // renders as one flat group without a heading (the default). `groups` renders one
-// headed group each, after the flat items — pass either or both.
+// headed group each, after the flat items — pass either or both. With
+// `onSearchChange` the caller searches (on the server) and the list is shown as
+// given, unfiltered.
 export default function PopoverPick({
   trigger,
   inputPlaceholder,
@@ -40,6 +42,7 @@ export default function PopoverPick({
   groups,
   closeOnSelect = true,
   readOnly = false,
+  onSearchChange,
 }: {
   trigger: ReactNode;
   inputPlaceholder: string;
@@ -50,6 +53,7 @@ export default function PopoverPick({
   // When true the pill is shown as-is with no popover — a read-only display of the
   // current value (public shared pages).
   readOnly?: boolean;
+  onSearchChange?: (search: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -74,8 +78,8 @@ export default function PopoverPick({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
-        <Command>
-          <CommandInput placeholder={inputPlaceholder} />
+        <Command shouldFilter={!onSearchChange}>
+          <CommandInput placeholder={inputPlaceholder} onValueChange={onSearchChange} />
           <CommandList>
             {emptyText && <CommandEmpty>{emptyText}</CommandEmpty>}
             {items && items.length > 0 && <CommandGroup>{items.map(renderItem)}</CommandGroup>}

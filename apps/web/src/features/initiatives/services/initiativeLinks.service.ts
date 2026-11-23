@@ -1,8 +1,8 @@
 // An initiative's links over GraphQL: projects (initiativeToProjectCreate / Delete)
 // and sub-initiatives (initiativeRelationCreate / Delete), plus the lists the add
-// pickers offer (every visible project, every relation, the workspace's people).
+// pickers offer (projects by name search, every relation, the possible owners).
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Assignee } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
@@ -50,31 +50,30 @@ export function useInitiativeRelationsQuery() {
 }
 
 const ProjectNamesQuery = graphql(`
-  query InitiativeProjectPicker($first: Int!, $after: String) {
-    projects(first: $first, after: $after) {
+  query InitiativeProjectPicker($filter: ProjectFilter, $first: Int!) {
+    projects(filter: $filter, first: $first) {
       nodes {
         id
         name
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
     }
   }
 `);
 
-// Every project the viewer can see, for the "Add project" picker; loaded when the
-// picker opens.
-export function useProjectPickerQuery(enabled: boolean) {
+// The first 50 visible projects whose name contains the search, for the "Add
+// project" picker; loaded when the picker opens.
+export function useProjectPickerQuery(search: string, enabled: boolean) {
   return useQuery({
-    queryKey: [...qk.anyProjects, 'initiativePicker'],
+    queryKey: ['initiativeProjectPicker', search],
     enabled,
-    queryFn: () =>
-      fetchAllPages(async (after, first) => {
-        const { projects } = await gqlRequest(ProjectNamesQuery, { first, after });
-        return projects;
-      }),
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { projects } = await gqlRequest(ProjectNamesQuery, {
+        filter: search ? { name: { containsIgnoreCase: search } } : null,
+        first: 50,
+      });
+      return projects.nodes;
+    },
   });
 }
 
@@ -100,7 +99,7 @@ const UsersQuery = graphql(`
 const LeadTeamMembersQuery = graphql(`
   query InitiativeLeadTeamMembers($id: String!, $first: Int!, $after: String) {
     team(id: $id) {
-      private
+      visibility
       members(first: $first, after: $after) {
         nodes {
           id
@@ -129,7 +128,7 @@ export function useInitiativeOwnersQuery(leadTeamId: string | null) {
         let isPrivate = false;
         const members = await fetchAllPages(async (after, first) => {
           const { team } = await gqlRequest(LeadTeamMembersQuery, { id: leadTeamId, first, after });
-          isPrivate = team.private;
+          isPrivate = team.visibility === 'private';
           return team.members;
         });
         leadTeam = { private: isPrivate, memberIds: members.map((m) => m.id) };

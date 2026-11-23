@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { Plus, Target } from 'lucide-react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pill } from '@/components/common/fields/Pill';
 import PopoverPick from '@/components/common/fields/PopoverPick';
 import { linkableProjects } from '../utils/initiativeLinks';
 import { useLinkProject, useProjectPickerQuery } from '../services/initiativeLinks.service';
 
-// "Add project": a searchable list of the visible projects not linked yet. The
-// projects load when the picker is first opened.
+// "Add project": the visible projects not linked yet, searched by name on the server.
+// The projects load when the picker is first opened.
 export default function InitiativeAddProject({
   initiativeId,
   linked,
@@ -17,7 +18,8 @@ export default function InitiativeAddProject({
   linked: Set<string>;
 }) {
   const [opened, setOpened] = useState(false);
-  const query = useProjectPickerQuery(opened);
+  const [search, setSearch] = useState('');
+  const query = useProjectPickerQuery(useDebouncedValue(search.trim(), 250), opened);
   const projects = query.data ?? [];
   const link = useLinkProject(initiativeId);
   return (
@@ -30,6 +32,7 @@ export default function InitiativeAddProject({
           </Pill>
         }
         inputPlaceholder="Link a project…"
+        onSearchChange={setSearch}
         emptyText={query.isLoading ? 'Loading…' : 'No projects to link.'}
         items={linkableProjects(projects, linked).map((p) => ({
           key: p.id,

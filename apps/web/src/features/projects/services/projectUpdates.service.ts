@@ -1,5 +1,5 @@
 // A project's updates over GraphQL (Linear's ProjectUpdate): the list newest first
-// with each update's reactions and comments, and posting, editing and deleting one.
+// with each update's reactions and comments, and posting, editing and archiving one.
 // Posting sets the project's health, so it patches the project at once and
 // refreshes the lists that show health.
 
@@ -146,9 +146,17 @@ const ProjectUpdateUpdate = graphql(`
   }
 `);
 
-const ProjectUpdateDelete = graphql(`
-  mutation ProjectUpdateDelete($id: String!) {
-    projectUpdateDelete(id: $id) {
+const ProjectUpdateArchive = graphql(`
+  mutation ProjectUpdateArchive($id: String!) {
+    projectUpdateArchive(id: $id) {
+      success
+    }
+  }
+`);
+
+const ProjectUpdateUnarchive = graphql(`
+  mutation ProjectUpdateUnarchive($id: String!) {
+    projectUpdateUnarchive(id: $id) {
       success
     }
   }
@@ -203,8 +211,15 @@ export function useEditProjectUpdate(projectId: string) {
   );
 }
 
-export function useDeleteProjectUpdate(projectId: string) {
+// Linear archives an update rather than deleting it; unarchive restores it (Undo).
+export function useArchiveProjectUpdate(projectId: string) {
   return useProjectUpdateMutation(projectId, (id: string) =>
-    gqlRequest(ProjectUpdateDelete, { id }),
+    gqlRequest(ProjectUpdateArchive, { id }),
+  );
+}
+
+export function useUnarchiveProjectUpdate(projectId: string) {
+  return useProjectUpdateMutation(projectId, (id: string) =>
+    gqlRequest(ProjectUpdateUnarchive, { id }),
   );
 }

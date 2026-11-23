@@ -14,7 +14,7 @@ import {
   useTrashDocument,
   useUpdateDocument,
 } from '@/services/documents.service';
-import MarkdownEditor from '../editor/MarkdownEditor';
+import DraftMarkdownEditor from '../editor/DraftMarkdownEditor';
 import DocumentComments from './DocumentComments';
 
 // One document (of an issue or a project) opened in a side sheet: its title and Markdown body (saved on
@@ -47,21 +47,10 @@ export default function DocumentSheet({
   const serverBody = document.content ?? '';
   const [title, setTitle] = useState({ draft: serverTitle, synced: serverTitle });
   const titleEditing = useRef(false);
-  const body = useRef({ draft: serverBody, synced: serverBody });
-  const bodyEditing = useRef(false);
-  // Remounts the uncontrolled body editor when a server value is taken over.
-  const [bodyVersion, setBodyVersion] = useState(0);
 
   useEffect(() => {
     setTitle((t) => syncDraft({ server: serverTitle, ...t, editing: titleEditing.current }));
   }, [serverTitle]);
-
-  useEffect(() => {
-    const next = syncDraft({ server: serverBody, ...body.current, editing: bodyEditing.current });
-    const replaced = next.draft !== body.current.draft;
-    body.current = next;
-    if (replaced) setBodyVersion((v) => v + 1);
-  }, [serverBody]);
 
   const remove = async () => {
     await trash.mutateAsync(document.id);
@@ -99,21 +88,13 @@ export default function DocumentSheet({
           </div>
         </SheetHeader>
         <div className="flex flex-col gap-6 px-4 pb-6">
-          <div onFocus={() => (bodyEditing.current = true)}>
-            <MarkdownEditor
-              defaultValue={body.current.draft}
-              key={`doc-body-${document.id}-${bodyVersion}`}
-              editable={canEdit}
-              placeholder="Write something…"
-              onChange={(md) => (body.current = { ...body.current, draft: md })}
-              onBlur={(md) => {
-                bodyEditing.current = false;
-                body.current = { ...body.current, draft: md };
-                if (md !== body.current.synced)
-                  update.mutate({ id: document.id, patch: { content: md } });
-              }}
-            />
-          </div>
+          <DraftMarkdownEditor
+            key={document.id}
+            value={serverBody}
+            editable={canEdit}
+            placeholder="Write something…"
+            onSave={(content) => update.mutate({ id: document.id, patch: { content } })}
+          />
           <DocumentComments
             documentId={document.id}
             assignees={assignees}

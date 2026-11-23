@@ -1,21 +1,19 @@
 'use client';
 
-import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
+import DraftMarkdownEditor from '@/components/common/editor/DraftMarkdownEditor';
 import { useUpdateInitiative, type InitiativeDetail } from '../services/initiatives.service';
 
 // The initiative's Markdown overview (Linear's Initiative.content), edited in place
-// and saved through initiativeUpdate when the editor loses focus.
+// and saved through initiativeUpdate when the editor loses focus; unsaved typing
+// survives a refresh (DraftMarkdownEditor).
 export default function InitiativeDescription({ initiative }: { initiative: InitiativeDetail }) {
   const update = useUpdateInitiative(initiative.id);
   return (
-    <MarkdownEditor
-      key={`content-${initiative.updatedAt}`}
+    <DraftMarkdownEditor
       className="text-sm"
-      defaultValue={initiative.content}
+      value={initiative.content}
       placeholder="Add an overview…"
-      onBlur={(content) => {
-        if (content !== initiative.content) update.mutate({ content });
-      }}
+      onSave={(content) => update.mutate({ content })}
     />
   );
 }

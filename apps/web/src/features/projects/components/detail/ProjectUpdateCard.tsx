@@ -19,7 +19,7 @@ import ProjectUpdateComments from './ProjectUpdateComments';
 import UpdateForm from '@/components/common/updates/UpdateForm';
 
 // One project update: author, age, health and Markdown body; its reactions and
-// comments below. The author edits or deletes it from the menu.
+// comments below. The author edits or archives it from the menu.
 export default function ProjectUpdateCard({
   projectId,
   update,

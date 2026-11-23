@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PROJECT_SORTS, type ProjectCounts, type ProjectSort, type ProjectStatus } from '@/lib/api';
 import { projectsTabPath, type ProjectsTab } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProjectsList from './components/list/ProjectsList';
 import CreateProjectDialog from './components/list/CreateProjectDialog';
@@ -49,14 +51,17 @@ function tabCount(counts: ProjectCounts | undefined, tab: ProjectsTab): number |
 // A team's projects, one status tab at a time. The open tab is a route of its own and
 // the sorting is a query parameter, so the list reopens as it was after a reload and
 // can be shared as a link. Each tab loads 25 projects at a time ("Load more"), newest
-// first; a sort applies to the loaded rows. The tab counts are counted separately so
-// they stay correct however much of the list is loaded.
+// first, narrowed by the name search. A sort is applied in the browser, so while one
+// is chosen every page is loaded first. The tab counts are counted separately so they
+// stay correct however much of the list is loaded.
 export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const { team } = useShell();
   const { can } = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [creating, setCreating] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const search = useDebouncedValue(searchText.trim(), 250) || undefined;
 
   // The list's team filter (null lists every team); the Shell's team is what the
   // create dialog preselects.
@@ -69,8 +74,14 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
   const dir = sort ? sortDir : undefined;
 
-  const query = useProjectsList({ teamKey: filterKey, statuses: activeTab.statuses });
+  const query = useProjectsList({ teamKey: filterKey, statuses: activeTab.statuses, search });
   const counts = useProjectStatusCounts(filterKey).data;
+
+  // The browser sorts loaded rows only, so a sort loads the remaining pages.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  useEffect(() => {
+    if (sort && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [sort, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (!team) return null;
 
@@ -109,6 +120,16 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
             value={filterKey}
             onChange={(key) => router.push(projectsTabPath(key, tab))}
           />
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search projects"
+              aria-label="Search projects"
+              className="h-8 w-48 pl-7"
+            />
+          </div>
         </div>
         {can('projects', 'create') && (
           <Button size="sm" className="h-8 gap-1.5" onClick={() => setCreating(true)}>
@@ -143,7 +164,7 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
         onSort={changeSort}
       />
 
-      {query.hasNextPage && (
+      {query.hasNextPage && !sort && (
         <div className="flex justify-center px-4 py-3">
           <Button
             size="sm"

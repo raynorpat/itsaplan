@@ -28,6 +28,7 @@ import {
   createUpdate,
   deleteUpdate,
   getUpdate,
+  setUpdateArchived,
   updateUpdate,
   type UpdateHealth,
 } from '../../projects/updates';
@@ -119,6 +120,16 @@ function toProjectPatch(input: ProjectInput): ProjectPatch {
 // Access to a project through its teams (404 when not visible).
 const projectAccess = (projectId: string, ctx: GraphQLContext) =>
   assertProjectAccess(projectId, ctx.user.id);
+
+function setArchived(id: string, archived: boolean, ctx: GraphQLContext) {
+  return guard(async () => {
+    const u = await getUpdate(id);
+    if (!u) throw gqlError('ENTITY_NOT_FOUND', `Project update ${id} not found`);
+    await projectAccess(u.projectId, ctx);
+    const row = await setUpdateArchived(id, archived, ctx.user.id);
+    return { success: true, lastSyncId: lastSyncId(), entity: toUpdate(row!) };
+  });
+}
 
 export const projectMutationResolvers = {
   Mutation: {
@@ -342,6 +353,13 @@ export const projectMutationResolvers = {
         const [row] = await db.select().from(projectUpdate).where(eq(projectUpdate.id, id));
         return { success: true, lastSyncId: lastSyncId(), projectUpdate: toUpdate(row!) };
       }),
+
+    // Anyone who can see the project archives or unarchives an update; the
+    // project's health follows its latest unarchived update.
+    projectUpdateArchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      setArchived(id, true, ctx),
+    projectUpdateUnarchive: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
+      setArchived(id, false, ctx),
 
     // Anyone who can see the project deletes an update.
     projectUpdateDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>

@@ -403,6 +403,9 @@ export const projectUpdate = pgTable(
     body: text('body').notNull(),
     health: text('health').notNull(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
+    // Set by projectUpdateArchive; an archived update is left out of the project's
+    // updates and health.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
