@@ -39,17 +39,18 @@ export const qk = {
   timeline: (id: string) => ['feed', id, 'timeline'] as const,
   issueReactions: (id: string) => ['feed', id, 'reactions'] as const,
   // Projects: a team's list (params narrow, sort and page it), the per-status
-  // tab counts, one project, and one project's activity feed.
+  // tab counts, one project, its activity (history, comments, updates) and its
+  // updates with their comments.
   projects: (teamKey: string, params?: Record<string, unknown>) =>
     ['projects', teamKey, params ?? {}] as const,
   projectsForTeam: (teamKey: string) => ['projects', teamKey] as const,
   projectCounts: (teamKey: string) => ['projectCounts', teamKey] as const,
   project: (id: string) => ['project', id] as const,
-  projectFeed: (id: string) => ['projectFeed', id] as const,
+  projectActivity: (id: string) => ['projectActivity', id] as const,
+  projectUpdates: (id: string) => ['projectUpdates', id] as const,
   // Prefix keys: issue mutations invalidate every project query without
   // knowing the id (see invalidateProjects in issues.service).
   anyProject: ['project'] as const,
-  anyProjectFeed: ['projectFeed'] as const,
   anyProjects: ['projects'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,

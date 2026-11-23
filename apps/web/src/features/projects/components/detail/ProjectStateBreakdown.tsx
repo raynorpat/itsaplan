@@ -19,9 +19,12 @@ const GROUPS: { type: StateType; label: string; color: string }[] = [
 export default function ProjectStateBreakdown({
   team,
   projectId,
+  scope,
 }: {
   team: TeamDetail;
   projectId: string;
+  // Linear's Project.scope: the project's issues that are not canceled.
+  scope: number;
 }) {
   const counts = useMemo(() => {
     const stateByColumn = new Map(team.states.map((c) => [c.id, c.stateType]));
@@ -45,7 +48,7 @@ export default function ProjectStateBreakdown({
   return (
     <div>
       <h4 className="mb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Progress
+        Progress <span className="tabular-nums">· scope {scope}</span>
       </h4>
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">No issues linked yet.</p>

@@ -4,8 +4,8 @@ import { type Assignee } from '@/lib/api';
 import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateComment, useUpdateComment } from '../../services/comments.service';
-import { type CommentTarget } from '../../utils/commentTarget';
+import { useCreateComment, useUpdateComment } from '@/services/comments.service';
+import { type CommentTarget } from '@/utils/commentTarget';
 
 // The comment box: a plain markdown textarea with an @-mention menu. It posts a new
 // comment, a reply (`parentId`), or saves an edit (`editing`); a reply or an edit

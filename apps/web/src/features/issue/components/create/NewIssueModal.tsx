@@ -5,9 +5,9 @@ import { type NewIssueDefaults } from '@/utils/team';
 import { useSession } from '@/lib/auth-client';
 import { useCreateIssue, useUpdateIssue } from '@/services/issues.service';
 import { useUploadAttachment } from '../../services/attachments.service';
-import { attachmentHtml } from '../../utils/attachmentEmbed';
+import { attachmentHtml } from '@/utils/attachmentEmbed';
 import Modal from '@/components/common/overlay/Modal';
-import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
+import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
@@ -158,7 +158,7 @@ export default function NewIssueModal({
           onChange={(e) => setTitle(e.target.value)}
           autoFocus
         />
-        <IssueMarkdownEditor
+        <MarkdownEditor
           className="mt-3 min-h-24"
           defaultValue={description}
           onChange={setDescription}

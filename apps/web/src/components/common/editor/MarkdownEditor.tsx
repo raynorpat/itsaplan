@@ -6,10 +6,10 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import { common, createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
-import { ResizableImage } from '../../utils/tiptap-image';
-import { SlashCommand } from '../../utils/tiptap-slash-command';
-import { Video } from '../../utils/tiptap-video';
-import { attachmentHtml, type Embeddable } from '../../utils/attachmentEmbed';
+import { ResizableImage } from './tiptap-image';
+import { SlashCommand } from './tiptap-slash-command';
+import { Video } from './tiptap-video';
+import { attachmentHtml, type Embeddable } from '@/utils/attachmentEmbed';
 import EditorImagePicker from './EditorImagePicker';
 import EditorSelectionMenu from './EditorSelectionMenu';
 
@@ -21,7 +21,7 @@ const lowlight = createLowlight(common);
 // bubble menu on selection and a "/" command list (Linear/Notion-style). Content
 // in and out is plain markdown (via tiptap-markdown), matching how descriptions
 // are stored everywhere else in the pipeline.
-export default function IssueMarkdownEditor({
+export default function MarkdownEditor({
   defaultValue,
   onChange,
   onBlur,

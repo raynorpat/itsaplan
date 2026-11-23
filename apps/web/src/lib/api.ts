@@ -411,13 +411,6 @@ export interface FeedItem {
   reactions?: { id: string; emoji: string; user: { id: string; name: string } | null }[];
 }
 
-// Opaque keyset cursor returned by the project feed endpoint; pass it back to load
-// the next (older) page.
-export interface FeedCursor {
-  ts: string;
-  id: string;
-}
-
 // One stretch the issue spent in a single state, from Linear's Issue.stateHistory.
 // `status` is the state's name (null when the state was deleted since); `to` is null
 // for the stretch the issue is in now.
@@ -596,30 +589,6 @@ export interface ProjectPatch {
   labelIds?: string[];
 }
 
-// One entry in an project's feed: an event of the project itself (source
-// 'project') or the activity of a linked issue (source 'issue', carrying the
-// issue's id and identifier so the row can link to it).
-export interface ProjectFeedItem {
-  id: string;
-  source: 'project' | 'issue';
-  kind: 'comment' | 'activity';
-  actorUserId: string | null;
-  actorName: string | null;
-  body: string | null;
-  action: string | null;
-  subject: string | null;
-  fromText: string | null;
-  toText: string | null;
-  createdAt: string;
-  issueId: string | null;
-  issueIdentifier: string | null;
-}
-
-export interface ProjectFeedPage {
-  items: ProjectFeedItem[];
-  nextCursor: FeedCursor | null;
-}
-
 // Team membership: 'owner' marks a team owner, who manages the team's settings
 // with the workspace admins.
 export type MemberRole = 'owner' | 'member';
@@ -780,13 +749,7 @@ export const api = {
     return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
 
-  // Projects span teams: the list and counts take an optional team filter, create
-  // takes the team ids, and ops on one project take its id.
-  setProjectTeams: (id: string, teamIds: string[]) =>
-    request<Project>(`/projects/${id}/teams`, {
-      method: 'PUT',
-      body: JSON.stringify({ teamIds }),
-    }),
+  // Project labels, and creating and deleting a project (create takes the team ids).
   listProjectLabels: () => request<ProjectLabel[]>('/project-labels'),
   createProjectLabel: (input: { name: string; color?: string }) =>
     request<ProjectLabel>('/project-labels', { method: 'POST', body: JSON.stringify(input) }),
@@ -801,18 +764,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateProject: (id: string, patch: ProjectPatch) =>
-    request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
-  // Cheap change marker for an project's detail + feed — polled for live refresh.
-  listProjectFeed: (id: string, params: { cursor?: FeedCursor | null; limit?: number } = {}) => {
-    const q = new URLSearchParams();
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', JSON.stringify(params.cursor));
-    const qs = q.toString();
-    return request<ProjectFeedPage>(`/projects/${id}/feed${qs ? `?${qs}` : ''}`);
-  },
-
   // Team members. Anyone who can see a team may join it (not guests); any member
   // may add people to a public team, a team manager to a private one; a member
   // may always leave (remove themselves).

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildFeed, type FeedComment, type FeedHistory } from '../feed';
+import { type FeedComment } from '@/utils/commentThreads';
+import { buildFeed, type FeedHistory } from '../feed';
 
 // buildFeed: the issue's comments and history (Linear's IssueHistory) as the feed the
 // issue page renders, newest first, with replies under their thread and resolved

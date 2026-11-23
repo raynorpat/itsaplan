@@ -1,4 +1,4 @@
-// Reactions on an issue or a comment, grouped by emoji for the chip row. Groups
+// Reactions on an issue, a comment or a project update, grouped by emoji for the chip row. Groups
 // keep the order in which each emoji first appears; `mineId` is the viewer's own
 // reaction with that emoji, so clicking the chip can remove it.
 

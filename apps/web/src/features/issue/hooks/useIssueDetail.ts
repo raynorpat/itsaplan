@@ -10,8 +10,8 @@ import { useIssueQuery, useUpdateIssueDetail } from '@/services/issues.service';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { qk } from '@/services/queryKeys';
 import { useAttachmentsQuery, useUploadAttachment } from '../services/attachments.service';
-import { useFeedQuery, useTimelineQuery } from '../services/comments.service';
-import { attachmentMarkdown, isImage } from '../utils/attachmentEmbed';
+import { useFeedQuery, useTimelineQuery } from '../services/issueFeed.service';
+import { attachmentMarkdown, isImage } from '@/utils/attachmentEmbed';
 
 // Loads one issue and exposes the edit operations for the detail surfaces.
 // onIssueLoaded surfaces the loaded issue to the surrounding chrome.

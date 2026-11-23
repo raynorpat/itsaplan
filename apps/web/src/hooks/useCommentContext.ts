@@ -1,11 +1,11 @@
 import { type Assignee } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
-import { usePermissions } from '@/hooks/usePermissions';
-import { type CommentTarget } from '../utils/commentTarget';
-import { type CommentContext } from '../utils/commentContext';
+import { usePermissions } from './usePermissions';
+import { type CommentTarget } from '@/utils/commentTarget';
+import { type CommentContext } from '@/utils/commentContext';
 
-// The CommentContext for a live comment list (an issue's feed or a document's
-// comments): the target, the signed-in viewer, whether they manage the team, the
+// The CommentContext for a live comment list (an issue's feed, a document's, a
+// project's or a project update's comments): the target, the signed-in viewer, whether they manage the team, the
 // team's people for mentions, and the viewer's name and picture for the composer.
 export function useCommentContext(target: CommentTarget, assignees: Assignee[]): CommentContext {
   const { data: session } = useSession();

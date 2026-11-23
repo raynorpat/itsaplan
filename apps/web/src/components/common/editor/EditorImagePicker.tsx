@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { type Embeddable } from '../../utils/attachmentEmbed';
+import { type Embeddable } from '@/utils/attachmentEmbed';
 
 // Nothing here may take focus: blurring the editor saves the description, and the
 // refetched updatedAt remounts the editor by its key — mid-pick, throwing away the

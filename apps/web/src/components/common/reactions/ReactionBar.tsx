@@ -2,10 +2,10 @@
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { groupReactions, type ReactionNode } from '../../utils/reactions';
+import { groupReactions, type ReactionNode } from '@/utils/reactions';
 import EmojiPicker from './EmojiPicker';
 
-// The reactions on an issue or a comment: one chip per emoji with its count and,
+// The reactions on an issue, a comment or a project update: one chip per emoji with its count and,
 // on hover, who reacted. Clicking a chip adds or removes the viewer's own reaction
 // with that emoji; the picker adds a new one. While a toggle is in flight (`pending`)
 // the chips are disabled, so a double click cannot add the same reaction twice.

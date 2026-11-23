@@ -11,9 +11,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import ProjectHeader from './components/detail/ProjectHeader';
 import ProjectIssuesBoard from './components/detail/ProjectIssuesBoard';
 import ProjectOverview from './components/detail/ProjectOverview';
+import ProjectUpdates from './components/detail/ProjectUpdates';
 
-// One project: a header of its properties, then an Overview tab and an Issues
-// tab (the work items board over its linked issues). Each tab is its own route, so
+// One project: a header, then Linear's tabs: Overview, Updates and Issues (the work
+// items board over its linked issues). Each tab is its own route, so
 // the open tab survives a reload; the route that mounts this page passes it.
 export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectTab }) {
   const { team } = useShell();
@@ -25,9 +26,11 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
   const query = useProjectQuery(projectId);
   const teamKey = team?.team.key ?? '';
 
-  // Refresh the project (progress, health) and its feed so others' changes show.
+  // Refresh the project (progress, health), its activity and its updates so others'
+  // changes show.
+  const id = projectId ?? '';
   useLiveRefresh({
-    targets: [qk.project(projectId ?? ''), qk.projectFeed(projectId ?? '')],
+    targets: [qk.project(id), qk.projectActivity(id), qk.projectUpdates(id)],
     enabled: projectId != null && !!teamKey,
   });
 
@@ -62,11 +65,15 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
             <div className="px-6 pt-3">
               <TabsList variant="line">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="updates">Updates</TabsTrigger>
                 <TabsTrigger value="issues">Issues</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value="overview" className="mt-0 flex-1 overflow-y-auto">
               <ProjectOverview project={project} team={team} />
+            </TabsContent>
+            <TabsContent value="updates" className="mt-0 flex-1 overflow-y-auto">
+              <ProjectUpdates project={project} team={team} />
             </TabsContent>
             <TabsContent value="issues" className="mt-0 flex min-h-0 flex-1 flex-col">
               <ProjectIssuesBoard projectId={project.id} />

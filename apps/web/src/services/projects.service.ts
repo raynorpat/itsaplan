@@ -1,13 +1,12 @@
 import {
   keepPreviousData,
-  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from '@tanstack/react-query';
 import {
   api,
-  type FeedCursor,
   type Project,
   type ProjectHealth,
   type ProjectMilestone,
@@ -15,7 +14,13 @@ import {
   type ProjectStatus,
   type NewProjectInput,
 } from '@/lib/api';
-import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
+import {
+  graphql,
+  gqlRequest,
+  readFragment,
+  type FragmentOf,
+  type VariablesOf,
+} from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 
@@ -151,6 +156,8 @@ const ProjectQuery = graphql(
         members {
           nodes {
             id
+            name
+            avatarUrl
           }
         }
         projectMilestones {
@@ -189,8 +196,15 @@ export interface ProjectLatestUpdate {
   user: { id: string; name: string } | null;
 }
 
+// A project member: a user who can see the project (Linear's Project.members).
+export interface ProjectMember {
+  id: string;
+  name: string;
+  image: string | null;
+}
+
 export type ProjectDetail = Project & {
-  memberIds: string[];
+  members: ProjectMember[];
   milestones: ProjectMilestone[];
   latestUpdate: ProjectLatestUpdate | null;
 };
@@ -201,7 +215,11 @@ async function fetchProject(id: string): Promise<ProjectDetail> {
   const base = toProject(project);
   return {
     ...base,
-    memberIds: project.members.nodes.map((m) => m.id),
+    members: project.members.nodes.map((m) => ({
+      id: m.id,
+      name: m.name,
+      image: m.avatarUrl ?? null,
+    })),
     milestones: project.projectMilestones.nodes.map((m) => ({
       id: m.id,
       projectId: base.id,
@@ -266,20 +284,6 @@ export function useProjectLabelMutations() {
   };
 }
 
-// Replaces the project's teams (the ones the viewer can see).
-export function useSetProjectTeams() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, teamIds }: { id: string; teamIds: string[] }) =>
-      api.setProjectTeams(id, teamIds),
-    onSuccess: (_project, { id }) => {
-      qc.invalidateQueries({ queryKey: qk.project(id) });
-      qc.invalidateQueries({ queryKey: qk.anyProjects });
-      qc.invalidateQueries({ queryKey: ['projectCounts'] });
-    },
-  });
-}
-
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
@@ -292,18 +296,65 @@ export function useCreateProject() {
   });
 }
 
-export function useUpdateProject(teamKey: string) {
+const ProjectStatusesQuery = graphql(`
+  query ProjectStatuses {
+    projectStatuses {
+      nodes {
+        id
+        type
+      }
+    }
+  }
+`);
+
+// The six fixed project statuses; a status change sends the status's id.
+function fetchStatusIds(qc: QueryClient) {
+  return qc.fetchQuery({
+    queryKey: ['projectStatuses'],
+    queryFn: async () => {
+      const { projectStatuses } = await gqlRequest(ProjectStatusesQuery);
+      return new Map(projectStatuses.nodes.map((s) => [s.type as ProjectStatus, s.id]));
+    },
+    staleTime: Infinity,
+  });
+}
+
+const ProjectUpdateMutation = graphql(`
+  mutation ProjectUpdate($id: String!, $input: ProjectUpdateInput!) {
+    projectUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`);
+
+// A change to a project's fields, teams (the ones the viewer can see) or members
+// (the whole list).
+export type ProjectChange = ProjectPatch & { teamIds?: string[]; memberIds?: string[] };
+
+async function updateProject(qc: QueryClient, id: string, patch: ProjectChange) {
+  const { status, leadUserId, ...rest } = patch;
+  const input: VariablesOf<typeof ProjectUpdateMutation>['input'] = { ...rest };
+  if (leadUserId !== undefined) input.leadId = leadUserId;
+  if (status !== undefined) input.statusId = (await fetchStatusIds(qc)).get(status);
+  await gqlRequest(ProjectUpdateMutation, { id, input });
+}
+
+// Every query that shows a project: the detail, the lists and their counts, and the
+// team scaffold (project names on issues).
+export function invalidateProject(qc: QueryClient, id: string, teamKey?: string) {
+  void qc.invalidateQueries({ queryKey: qk.project(id) });
+  void qc.invalidateQueries({ queryKey: qk.projectActivity(id) });
+  void qc.invalidateQueries({ queryKey: qk.anyProjects });
+  void qc.invalidateQueries({ queryKey: ['projectCounts'] });
+  if (teamKey) void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
+}
+
+export function useUpdateProject(teamKey?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: ProjectPatch }) =>
-      api.updateProject(id, patch),
-    onSuccess: (_data, { id }) => {
-      qc.invalidateQueries({ queryKey: qk.anyProjects });
-      qc.invalidateQueries({ queryKey: ['projectCounts'] });
-      qc.invalidateQueries({ queryKey: qk.team(teamKey) });
-      qc.invalidateQueries({ queryKey: qk.project(id) });
-      qc.invalidateQueries({ queryKey: qk.projectFeed(id) });
-    },
+    mutationFn: ({ id, patch }: { id: string; patch: ProjectChange }) =>
+      updateProject(qc, id, patch),
+    onSuccess: (_data, { id }) => invalidateProject(qc, id, teamKey),
   });
 }
 
@@ -320,18 +371,5 @@ export function useDeleteProject(teamKey: string) {
       qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
       qc.invalidateQueries({ queryKey: qk.project(id) });
     },
-  });
-}
-
-// The project's feed (its own events plus its linked issues' activity), paged
-// newest first. Each page is 25 items; getNextPageParam yields the server's cursor
-// until it returns null.
-export function useProjectFeedQuery(id: string | null) {
-  return useInfiniteQuery({
-    queryKey: qk.projectFeed(id ?? ''),
-    queryFn: ({ pageParam }) => api.listProjectFeed(id!, { cursor: pageParam, limit: 25 }),
-    initialPageParam: null as FeedCursor | null,
-    getNextPageParam: (last) => last.nextCursor,
-    enabled: id != null,
   });
 }

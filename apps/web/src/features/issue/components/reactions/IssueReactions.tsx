@@ -1,8 +1,9 @@
 'use client';
 
 import { useSession } from '@/lib/auth-client';
-import { useIssueReactionsQuery, useToggleReaction } from '../../services/reactions.service';
-import ReactionBar from './ReactionBar';
+import { useToggleReaction } from '@/services/reactions.service';
+import { useIssueReactionsQuery } from '../../services/issueReactions.service';
+import ReactionBar from '@/components/common/reactions/ReactionBar';
 
 // The issue's own reactions, shown under its description.
 

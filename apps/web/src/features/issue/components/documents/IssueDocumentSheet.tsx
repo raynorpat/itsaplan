@@ -13,7 +13,7 @@ import {
   useTrashIssueDocument,
   useUpdateIssueDocument,
 } from '../../services/documents.service';
-import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
+import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import DocumentComments from './DocumentComments';
 
 // One issue document opened in a side sheet: its title and Markdown body (saved on
@@ -99,7 +99,7 @@ export default function IssueDocumentSheet({
         </SheetHeader>
         <div className="flex flex-col gap-6 px-4 pb-6">
           <div onFocus={() => (bodyEditing.current = true)}>
-            <IssueMarkdownEditor
+            <MarkdownEditor
               defaultValue={body.current.draft}
               key={`doc-body-${document.id}-${bodyVersion}`}
               editable={canEdit}

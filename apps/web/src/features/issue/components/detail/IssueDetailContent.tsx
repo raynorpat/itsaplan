@@ -8,7 +8,7 @@ import IssueSubscribers from '../subscribers/IssueSubscribers';
 import IssueDocuments from '../documents/IssueDocuments';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
-import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
+import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import IssueProperties from './IssueProperties';
 import IssueActionsBar from '../actions/IssueActionsBar';
 
@@ -79,7 +79,7 @@ export default function IssueDetailContent({
         />
       </div>
 
-      <IssueMarkdownEditor
+      <MarkdownEditor
         className="mt-2"
         defaultValue={issue.description}
         key={`desc-${issue.updatedAt}`}

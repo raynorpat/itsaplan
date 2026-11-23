@@ -20,7 +20,7 @@ import {
 } from '../../services/attachments.service';
 import AddLinkForm from '../links/AddLinkForm';
 import IssueLinkRow from '../links/IssueLinkRow';
-import { attachmentHtml, isImage, isVideo } from '../../utils/attachmentEmbed';
+import { attachmentHtml, isImage, isVideo } from '@/utils/attachmentEmbed';
 import { useStorageSettingsQuery } from '@/services/storage.service';
 import { attachmentAccept, attachmentError, attachmentLimitHint } from '@/utils/uploadLimits';
 import { Button } from '@/components/ui/button';

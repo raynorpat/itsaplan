@@ -2,8 +2,8 @@ import { type ReactNode } from 'react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { type FeedItem } from '@/lib/api';
 import Avatar from '@/components/common/Avatar';
-import { mentionsToChips } from '../../utils/mentions';
-import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
+import { mentionsToChips } from '@/utils/mentions';
+import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 
 // One comment in an activity list: avatar, author, age, and the rendered markdown
 // body. The live feed adds `actions` (beside the age), a `footer` (reactions,
@@ -38,7 +38,7 @@ export default function CommentItem({
           {actions && <span className="ml-auto">{actions}</span>}
         </div>
         {editor ?? (
-          <IssueMarkdownEditor
+          <MarkdownEditor
             key={item.editedAt ?? item.id}
             className="text-sm text-foreground/85"
             defaultValue={mentionsToChips(item.body ?? '')}

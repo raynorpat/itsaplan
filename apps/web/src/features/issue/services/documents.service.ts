@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { buildFeed, type FeedEntry } from '../utils/feed';
+import { buildThreadsNewestFirst, type FeedEntry } from '@/utils/commentThreads';
 import { sortDocuments } from '../utils/documents';
 
 // Connections cap a page at 250.
@@ -129,7 +129,7 @@ export function useDocumentCommentsQuery(documentId: string) {
         id: documentId,
         first: PAGE,
       });
-      return buildFeed(document.comments.nodes, [], document.id);
+      return buildThreadsNewestFirst(document.comments.nodes, document.id);
     },
   });
 }

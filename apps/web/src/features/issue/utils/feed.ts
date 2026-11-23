@@ -1,26 +1,17 @@
 import { type FeedItem } from '@/lib/api';
+import {
+  buildThreads,
+  REMOVED_USER,
+  type FeedComment,
+  type FeedEntry,
+  type FeedUser,
+} from '@/utils/commentThreads';
 
 // The issue feed built from Linear's GraphQL: the issue's comments and its history
 // (IssueHistory) as feed rows, newest first. A history entry becomes one or more
 // change rows in the same shape the REST feed used (action + from/to text), so the
-// feed's renderers describe both the same way. Comments are grouped into threads:
-// replies sit under their root, oldest first.
-
-export interface FeedUser {
-  id: string;
-  name: string;
-}
-
-export interface FeedComment {
-  id: string;
-  body: string;
-  createdAt: string;
-  editedAt: string | null;
-  resolvedAt: string | null;
-  parentId: string | null;
-  user: FeedUser | null;
-  reactions?: { id: string; emoji: string; user: FeedUser | null }[];
-}
+// feed's renderers describe both the same way. Comments are grouped into threads
+// (see buildThreads).
 
 interface Named {
   name: string;
@@ -67,16 +58,6 @@ export interface FeedHistory {
   archived?: boolean | null;
   relationChanges?: { identifier: string; type: string }[] | null;
 }
-
-// One feed row with its thread: `replies` are the comments under a root comment,
-// oldest first; `resolved` marks a resolved thread, which the feed shows collapsed.
-export interface FeedEntry {
-  item: FeedItem;
-  replies: FeedItem[];
-  resolved: boolean;
-}
-
-const REMOVED_USER = 'a removed user';
 
 // Linear's relation change codes (IssueRelationHistoryPayload.type) as the relation
 // subjects the feed phrases. The first letter is a (added) or r (removed).
@@ -211,26 +192,6 @@ export function historyToFeedItems(h: FeedHistory, issueId: string): FeedItem[] 
   return [];
 }
 
-export function commentToFeedItem(c: FeedComment, issueId: string): FeedItem {
-  return {
-    id: c.id,
-    issueId,
-    kind: 'comment',
-    actorUserId: c.user?.id ?? null,
-    // Every comment has an author; a missing one was removed or is hidden.
-    actorName: c.user?.name ?? REMOVED_USER,
-    body: c.body,
-    action: null,
-    subject: null,
-    fromText: null,
-    toText: null,
-    parentId: c.parentId,
-    editedAt: c.editedAt,
-    createdAt: c.createdAt,
-    reactions: c.reactions ?? [],
-  };
-}
-
 const newestFirst = (a: { createdAt: string }, b: { createdAt: string }) =>
   b.createdAt.localeCompare(a.createdAt);
 
@@ -277,24 +238,7 @@ export function buildFeed(
   issueId: string,
   opts: FeedOptions = {},
 ): FeedEntry[] {
-  const entries: FeedEntry[] = [];
-
-  // Threads: a root comment with its replies. A reply whose root is not loaded is
-  // shown on its own rather than dropped.
-  const roots = new Map<string, FeedEntry>();
-  for (const c of comments) {
-    if (c.parentId) continue;
-    const entry = { item: commentToFeedItem(c, issueId), replies: [], resolved: !!c.resolvedAt };
-    roots.set(c.id, entry);
-    entries.push(entry);
-  }
-  for (const c of [...comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
-    if (!c.parentId) continue;
-    const reply = commentToFeedItem(c, issueId);
-    const root = roots.get(c.parentId);
-    if (root) root.replies.push(reply);
-    else entries.push({ item: reply, replies: [], resolved: false });
-  }
+  const entries = buildThreads(comments, issueId);
 
   // History: the entries that describe a change, and the creation entry.
   for (const h of history) {

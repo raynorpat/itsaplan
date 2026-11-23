@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupReactions } from '../reactions';
+import { groupReactions } from '@/utils/reactions';
 
 // Reactions grouped by emoji for the chip row: in the order each emoji first
 // appears, with the count, the names of who reacted, and the viewer's own reaction

@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { useFeedQuery } from '../../services/comments.service';
-import { type CommentContext } from '../../utils/commentContext';
+import { useFeedQuery } from '../../services/issueFeed.service';
+import { type CommentContext } from '@/utils/commentContext';
 import ActivityLine from './ActivityLine';
-import CommentThread from './CommentThread';
+import CommentThread from '@/components/common/comments/CommentThread';
 
 // The issue's feed, newest first: comment threads and change entries, a page at a
 // time with "Show older" for the rest. The feed query refetches when an issue edit

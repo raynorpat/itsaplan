@@ -1,50 +1,68 @@
 'use client';
 
-import { useProjectFeedQuery } from '@/services/projects.service';
-import { Button } from '@/components/ui/button';
+import type { TeamDetail } from '@/lib/api';
+import { useCommentContext } from '@/hooks/useCommentContext';
+import CommentComposer from '@/components/common/comments/CommentComposer';
+import CommentThread from '@/components/common/comments/CommentThread';
+import { useProjectActivityQuery } from '../../services/projectActivity.service';
 import ProjectFeedRow from './ProjectFeedRow';
+import ProjectFeedUpdateRow from './ProjectFeedUpdateRow';
 
-// The project's activity: its own events plus its linked issues' activity, one
-// feed paged newest first.
+// The project's activity: a comment box, then its changes, comment threads and
+// posted updates, newest first.
 export default function ProjectActivityFeed({
   projectId,
-  teamKey,
+  team,
 }: {
   projectId: string;
-  teamKey: string;
+  team: TeamDetail;
 }) {
-  const feed = useProjectFeedQuery(projectId);
-
-  // Pages can overlap when new activity shifts the offset, so drop repeated ids.
-  const byId = new Map((feed.data?.pages ?? []).flatMap((p) => p.items).map((it) => [it.id, it]));
-  const items = [...byId.values()];
-
-  if (items.length === 0)
-    return (
-      <p className="text-sm text-muted-foreground">
-        {feed.isLoading ? 'Loading…' : 'No activity yet.'}
-      </p>
-    );
+  const target = { projectId };
+  const ctx = useCommentContext(target, team.assignees);
+  const activity = useProjectActivityQuery(projectId);
+  const entries = activity.data ?? [];
+  const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
 
   return (
-    <>
-      <ul className="flex flex-col gap-2.5">
-        {items.map((item) => (
-          <ProjectFeedRow key={item.id} item={item} teamKey={teamKey} />
-        ))}
-      </ul>
-      {feed.hasNextPage && (
-        <div className="mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={feed.isFetchingNextPage}
-            onClick={() => void feed.fetchNextPage()}
-          >
-            {feed.isFetchingNextPage ? 'Loading…' : 'Show more'}
-          </Button>
-        </div>
+    <div className="flex flex-col gap-4">
+      <CommentComposer
+        target={target}
+        assignees={team.assignees}
+        authorName={ctx.authorName}
+        authorImage={ctx.authorImage}
+      />
+      {entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {activity.isLoading ? 'Loading…' : 'No activity yet.'}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2.5">
+          {entries.map((entry) => {
+            switch (entry.kind) {
+              case 'history':
+                return <ProjectFeedRow key={entry.id} entry={entry} />;
+              case 'update':
+                return (
+                  <ProjectFeedUpdateRow
+                    key={entry.id}
+                    update={entry.update}
+                    projectId={projectId}
+                    teamKey={team.team.key}
+                  />
+                );
+              default:
+                return (
+                  <CommentThread
+                    key={entry.id}
+                    entry={entry.thread}
+                    imageByUserId={imageByUserId}
+                    ctx={ctx}
+                  />
+                );
+            }
+          })}
+        </ul>
       )}
-    </>
+    </div>
   );
 }

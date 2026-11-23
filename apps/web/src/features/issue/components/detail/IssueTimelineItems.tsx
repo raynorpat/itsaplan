@@ -1,4 +1,4 @@
-import { useTimelineItemsQuery, type TimelineRange } from '../../services/comments.service';
+import { useTimelineItemsQuery, type TimelineRange } from '../../services/issueFeed.service';
 import ActivityItemList from './ActivityItemList';
 
 // The body of a timeline popover: the feed entries of the stretches behind what was

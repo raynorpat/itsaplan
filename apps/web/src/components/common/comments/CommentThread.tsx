@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { type FeedEntry } from '../../utils/feed';
-import { type CommentContext } from '../../utils/commentContext';
+import { type FeedEntry } from '@/utils/commentThreads';
+import { type CommentContext } from '@/utils/commentContext';
 import CommentComposer from './CommentComposer';
 import LiveComment from './LiveComment';
 

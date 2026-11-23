@@ -1,14 +1,13 @@
-// Issue feed (comments + history), the status timeline and comment writes, over
+// Issue feed (comments + history) and the status timeline, over
 // GraphQL. The feed is the issue's comments and Linear's IssueHistory merged into
 // threads by buildFeed; the timeline is the issue's state spans.
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { type FeedItem, type TimelineSegment } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { buildFeed, type FeedComment, type FeedEntry, type FeedHistory } from '../utils/feed';
-import { commentTargetInput, commentTargetKey, type CommentTarget } from '../utils/commentTarget';
-import { invalidateSubscribedIssueIds } from '@/services/subscribedIssueIds';
+import { type FeedComment, type FeedEntry } from '@/utils/commentThreads';
+import { buildFeed, type FeedHistory } from '../utils/feed';
 
 // Comments and history entries per page. "Show older" loads the next page of each
 // connection that has more.
@@ -151,46 +150,6 @@ const TimelineQuery = graphql(`
   }
 `);
 
-const CommentCreate = graphql(`
-  mutation IssueCommentCreate($input: CommentCreateInput!) {
-    commentCreate(input: $input) {
-      success
-    }
-  }
-`);
-
-const CommentUpdate = graphql(`
-  mutation IssueCommentUpdate($id: String!, $input: CommentUpdateInput!) {
-    commentUpdate(id: $id, input: $input) {
-      success
-    }
-  }
-`);
-
-const CommentDelete = graphql(`
-  mutation IssueCommentDelete($id: String!) {
-    commentDelete(id: $id) {
-      success
-    }
-  }
-`);
-
-const CommentResolve = graphql(`
-  mutation IssueCommentResolve($id: String!) {
-    commentResolve(id: $id) {
-      success
-    }
-  }
-`);
-
-const CommentUnresolve = graphql(`
-  mutation IssueCommentUnresolve($id: String!) {
-    commentUnresolve(id: $id) {
-      success
-    }
-  }
-`);
-
 // Where each connection's next page starts: a cursor, null for the first page, or
 // false when the connection has no more pages.
 interface FeedCursors {
@@ -322,66 +281,4 @@ export function useTimelineItemsQuery(issueId: string, ranges: TimelineRange[]) 
     .filter(inRange)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return { isPending: feed.isPending, isError: feed.isError, items, olderNotLoaded };
-}
-
-// A new comment on an issue or a document, or a reply when parentId is set (the API
-// stores a reply to a reply under the thread's root).
-export function useCreateComment() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      target,
-      input,
-    }: {
-      target: CommentTarget;
-      input: { body: string; parentId?: string | null };
-    }) =>
-      gqlRequest(CommentCreate, {
-        input: {
-          ...commentTargetInput(target),
-          body: input.body,
-          parentId: input.parentId ?? undefined,
-        },
-      }),
-    onSuccess: (_data, { target }) => {
-      void qc.invalidateQueries({ queryKey: commentTargetKey(target) });
-      // Commenting on an issue subscribes the author (server side).
-      if ('issueId' in target)
-        void qc.invalidateQueries({ queryKey: qk.issueSubscribers(target.issueId) });
-      void invalidateSubscribedIssueIds(qc);
-    },
-  });
-}
-
-// Edit, delete, resolve and unresolve a comment of an issue or a document. Each
-// refreshes the target's comments once it lands.
-function useTargetCommentMutation<V extends { target: CommentTarget }>(
-  run: (vars: V) => Promise<unknown>,
-) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: run,
-    onSettled: (_data, _error, { target }) =>
-      void qc.invalidateQueries({ queryKey: commentTargetKey(target) }),
-  });
-}
-
-export function useUpdateComment() {
-  return useTargetCommentMutation(
-    ({ id, body }: { target: CommentTarget; id: string; body: string }) =>
-      gqlRequest(CommentUpdate, { id, input: { body } }),
-  );
-}
-
-export function useDeleteComment() {
-  return useTargetCommentMutation(({ id }: { target: CommentTarget; id: string }) =>
-    gqlRequest(CommentDelete, { id }),
-  );
-}
-
-export function useSetThreadResolved() {
-  return useTargetCommentMutation(
-    ({ id, resolved }: { target: CommentTarget; id: string; resolved: boolean }) =>
-      resolved ? gqlRequest(CommentResolve, { id }) : gqlRequest(CommentUnresolve, { id }),
-  );
 }

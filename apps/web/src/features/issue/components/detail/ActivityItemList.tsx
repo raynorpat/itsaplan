@@ -1,6 +1,6 @@
 import { type FeedItem } from '@/lib/api';
 import ActivityLine from './ActivityLine';
-import CommentItem from './CommentItem';
+import CommentItem from '@/components/common/comments/CommentItem';
 
 // A list of feed entries in the order given: comments render as an authored block,
 // change-log entries as a one-line sentence. Shared by the live feed, the shared

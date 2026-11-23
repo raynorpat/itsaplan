@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type Column } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useAccountPreferencesQuery } from '@/services/preferences.service';
-import { useTimelineQuery } from '../../services/comments.service';
+import { useTimelineQuery } from '../../services/issueFeed.service';
 import { buildLifecycleMetrics, buildTimelineLayout } from '../../utils/timeline';
 import IssueTimelineCompact from './IssueTimelineCompact';
 import IssueTimelineLanes from './IssueTimelineLanes';

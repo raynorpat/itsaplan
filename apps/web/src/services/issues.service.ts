@@ -263,12 +263,11 @@ export function useUpdateIssueDetail(teamKey: string | null) {
   });
 }
 
-// An issue write changes its project's progress/health and activity, and the
-// projects list shows that progress. The mutations do not know the project
+// An issue write changes its project's progress and scope, and the projects list
+// shows that progress. The mutations do not know the project
 // id, so they invalidate by prefix; only active queries refetch.
 function invalidateProjects(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: qk.anyProject });
-  void qc.invalidateQueries({ queryKey: qk.anyProjectFeed });
   void qc.invalidateQueries({ queryKey: qk.anyProjects });
 }
 

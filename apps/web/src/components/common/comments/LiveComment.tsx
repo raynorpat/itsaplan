@@ -3,17 +3,17 @@
 import { useState } from 'react';
 import { type FeedItem } from '@/lib/api';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
-import { canDeleteComment, canEditComment, canResolveThread } from '../../utils/commentPermissions';
-import { useDeleteComment, useSetThreadResolved } from '../../services/comments.service';
-import { useToggleReaction } from '../../services/reactions.service';
-import { type CommentContext } from '../../utils/commentContext';
-import { commentTargetKey } from '../../utils/commentTarget';
-import ReactionBar from '../reactions/ReactionBar';
+import { canDeleteComment, canEditComment, canResolveThread } from '@/utils/commentPermissions';
+import { useDeleteComment, useSetThreadResolved } from '@/services/comments.service';
+import { useToggleReaction } from '@/services/reactions.service';
+import { type CommentContext } from '@/utils/commentContext';
+import { commentTargetKey } from '@/utils/commentTarget';
+import ReactionBar from '@/components/common/reactions/ReactionBar';
 import CommentActionsMenu from './CommentActionsMenu';
 import CommentComposer from './CommentComposer';
 import CommentItem from './CommentItem';
 
-// A comment in a live comment list (an issue's feed or a document's comments): the plain CommentItem plus the viewer's
+// A comment in a live comment list (of any comment target): the plain CommentItem plus the viewer's
 // controls (edit in place, delete after a confirmation, resolve the thread on a
 // root comment), its reactions, and a Reply button that opens the thread's reply
 // box. Controls the API would refuse are not shown.

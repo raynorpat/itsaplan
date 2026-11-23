@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { canDeleteComment, canEditComment, canResolveThread } from '../commentPermissions';
+import { canDeleteComment, canEditComment, canResolveThread } from '@/utils/commentPermissions';
 
 // The comment controls follow the API's rules: only the author edits; the author or
 // a team manager deletes; anyone signed in who sees the thread resolves it, on its

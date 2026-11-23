@@ -1,6 +1,6 @@
 import { type Assignee } from '@/lib/api';
-import { useCommentContext } from '../../hooks/useCommentContext';
-import CommentComposer from './CommentComposer';
+import { useCommentContext } from '@/hooks/useCommentContext';
+import CommentComposer from '@/components/common/comments/CommentComposer';
 import IssueFeedList from './IssueFeedList';
 
 // The issue's activity log: a comment composer over the flat feed of comments and

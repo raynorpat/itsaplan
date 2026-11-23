@@ -1,24 +1,73 @@
 'use client';
 
-import { Flag } from 'lucide-react';
-import { useProjectMilestonesQuery } from '@/services/projects.service';
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
+import type { ProjectDetail } from '@/services/projects.service';
+import { Button } from '@/components/ui/button';
+import { sortOrderForMove } from '../../utils/milestoneOrder';
+import ProjectMilestoneForm from './ProjectMilestoneForm';
+import ProjectMilestoneRow from './ProjectMilestoneRow';
+import { useCreateMilestone, useUpdateMilestone } from '../../services/projectMilestones.service';
 
-// The project's milestones, read-only (they are created and edited over the API).
-export default function ProjectMilestones({ projectId }: { projectId: string }) {
-  const { data: milestones } = useProjectMilestonesQuery(projectId);
-  if (!milestones || milestones.length === 0) return null;
+// The project's milestones in Linear's order: add, rename, set a target date, move
+// up or down, delete. A move writes only the moved milestone's sortOrder.
+export default function ProjectMilestones({
+  project,
+  canEdit,
+}: {
+  project: ProjectDetail;
+  canEdit: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
+  const create = useCreateMilestone(project.id);
+  const update = useUpdateMilestone(project.id);
+  const milestones = [...project.milestones].sort((a, b) => a.sortOrder - b.sortOrder);
+  if (!canEdit && milestones.length === 0) return null;
+
+  const move = (from: number, to: number) =>
+    update.mutate({
+      id: milestones[from]!.id,
+      input: { sortOrder: sortOrderForMove(milestones, from, to) },
+    });
+
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium">Milestones</h2>
-      <ul className="flex flex-col gap-1">
-        {milestones.map((m) => (
-          <li key={m.id} className="flex items-center gap-2 text-sm">
-            <Flag className="size-3.5 text-muted-foreground" />
-            <span className="flex-1 truncate">{m.name}</span>
-            {m.targetDate && <span className="text-xs text-muted-foreground">{m.targetDate}</span>}
-          </li>
-        ))}
-      </ul>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium">Milestones</h2>
+        {canEdit && !adding && (
+          <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
+            <Plus className="size-3.5" />
+            Add milestone
+          </Button>
+        )}
+      </div>
+      {milestones.length > 0 && (
+        <ul className="flex flex-col">
+          {milestones.map((m, i) => (
+            <ProjectMilestoneRow
+              key={m.id}
+              projectId={project.id}
+              milestone={m}
+              canEdit={canEdit}
+              onMoveUp={i > 0 ? () => move(i, i - 1) : undefined}
+              onMoveDown={i < milestones.length - 1 ? () => move(i, i + 1) : undefined}
+            />
+          ))}
+        </ul>
+      )}
+      {adding && (
+        <ProjectMilestoneForm
+          busy={create.isPending}
+          onCancel={() => setAdding(false)}
+          onSave={async (fields) => {
+            await create.mutateAsync({
+              ...fields,
+              sortOrder: sortOrderForMove(milestones, milestones.length, milestones.length),
+            });
+            setAdding(false);
+          }}
+        />
+      )}
     </section>
   );
 }

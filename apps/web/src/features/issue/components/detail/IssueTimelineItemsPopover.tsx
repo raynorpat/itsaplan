@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { type TimelineRange } from '../../services/comments.service';
+import { type TimelineRange } from '../../services/issueFeed.service';
 import IssueTimelineItems from './IssueTimelineItems';
 
 // The popover both timeline shapes open: a heading of what was clicked, and the feed

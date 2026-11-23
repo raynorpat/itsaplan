@@ -2,7 +2,7 @@ import { Extension, type Editor, type Range } from '@tiptap/core';
 import { ReactRenderer } from '@tiptap/react';
 import Suggestion from '@tiptap/suggestion';
 import { Image as ImageIcon, SquareCode, type LucideIcon } from 'lucide-react';
-import EditorSlashMenu, { type SlashMenuRef } from '../components/editor/EditorSlashMenu';
+import EditorSlashMenu, { type SlashMenuRef } from './EditorSlashMenu';
 
 export type SlashItem = {
   title: string;
