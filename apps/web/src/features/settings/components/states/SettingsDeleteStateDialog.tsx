@@ -11,8 +11,8 @@ import {
 import { useRemoveState } from '../../services/settings.service';
 
 // Removes a state the way Linear does: its issues move to another state, then the
-// state is archived. The API refuses to archive the last state of a type; its message
-// is shown.
+// state is archived. When some issues cannot move, the dialog stays open and lists
+// them; confirming again retries the ones still in the state.
 export default function SettingsDeleteStateDialog({
   team,
   column,
@@ -26,10 +26,20 @@ export default function SettingsDeleteStateDialog({
 }) {
   const otherColumns = team.states.filter((c) => c.id !== column.id);
   const [targetStateId, setTargetStateId] = useState<string | undefined>(otherColumns[0]?.id);
+  const [failed, setFailed] = useState<{ identifier: string; message: string }[]>([]);
   const removeState = useRemoveState(team.team.key);
 
   async function confirm() {
-    await removeState.mutateAsync({ stateId: column.id, targetStateId: targetStateId ?? null });
+    const result = await removeState.mutateAsync({
+      stateId: column.id,
+      targetStateId: targetStateId ?? null,
+      states: team.states,
+    });
+    if (result.failed.length > 0) {
+      setFailed(result.failed);
+      // Throwing keeps the dialog open and re-enables its buttons for a retry.
+      throw new Error('Some issues could not be moved');
+    }
     onClose();
   }
 
@@ -63,6 +73,21 @@ export default function SettingsDeleteStateDialog({
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+      {failed.length > 0 && (
+        <div className="space-y-1 text-sm">
+          <p className="text-destructive">
+            The state was kept. {failed.length} issue{failed.length === 1 ? '' : 's'} could not be
+            moved:
+          </p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            {failed.map((f) => (
+              <li key={f.identifier}>
+                {f.identifier}: {f.message}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </ConfirmDialog>

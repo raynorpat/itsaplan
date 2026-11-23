@@ -3,9 +3,9 @@ import type { Team, TeamVisibility } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { teamAccess } from '@/services/board.service';
 import { joinTeam, removeTeamMember } from '@/services/members.service';
 import { fetchAllPages } from '@/utils/fetchAllPages';
+import { needsTeamOwners, teamAccess } from '@/utils/members';
 
 const TeamsPage = graphql(`
   query TeamsList($after: String, $first: Int) {
@@ -23,18 +23,50 @@ const TeamsPage = graphql(`
         description
         visibility
         createdAt
-        memberships(first: 250) {
-          nodes {
-            owner
-            user {
-              id
-            }
-          }
-        }
       }
       pageInfo {
         hasNextPage
         endCursor
+      }
+    }
+  }
+`);
+
+// The viewer's own memberships: their exact role in every team they belong to.
+const ViewerMembershipsPage = graphql(`
+  query ViewerTeamMemberships($after: String, $first: Int) {
+    viewer {
+      teamMemberships(first: $first, after: $after) {
+        nodes {
+          owner
+          team {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);
+
+// A team's memberships, for the teams where the owners decide the manage right.
+const TeamOwnersPage = graphql(`
+  query TeamOwnerMemberships($id: String!, $after: String, $first: Int) {
+    team(id: $id) {
+      memberships(first: $first, after: $after) {
+        nodes {
+          owner
+          user {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
   }
@@ -60,25 +92,50 @@ function toTeam(node: TeamNode): Team {
   };
 }
 
+// The memberships teamAccess needs for one team: all of them when its owners decide
+// the manage right, otherwise only the viewer's own.
+async function membershipsForAccess(
+  viewer: { id: string; admin: boolean; owner: boolean; guest: boolean },
+  teamId: string,
+  own: { owner: boolean } | null,
+): Promise<{ userId: string; owner: boolean }[]> {
+  if (needsTeamOwners(viewer, own)) {
+    const nodes = await fetchAllPages(async (after, first) => {
+      const data = await gqlRequest(TeamOwnersPage, { id: teamId, after, first });
+      return data.team.memberships;
+    });
+    return nodes.map((m) => ({ userId: m.user.id, owner: m.owner }));
+  }
+  if (own) return [{ userId: viewer.id, owner: own.owner }];
+  return [];
+}
+
 // Every team the caller can see: joined teams plus public teams they have not joined
-// (role null), by key. The caller's role and manage right come from each team's
-// memberships, read up to 250 per team. Pickers that add work to a team use this list.
+// (role null), by key. The caller's role comes from their own memberships; a team's
+// owners are read in full only where they decide the manage right (needsTeamOwners).
+// Pickers that add work to a team use this list.
 async function fetchTeams(): Promise<Team[]> {
   let viewer: { id: string; admin: boolean; owner: boolean; guest: boolean } | null = null;
-  const nodes = await fetchAllPages(async (after, first) => {
-    const data = await gqlRequest(TeamsPage, { after, first });
-    viewer = data.viewer;
-    return data.teams;
-  });
-  return nodes
-    .map((node) => {
-      const access = teamAccess(
-        viewer!,
-        node.memberships.nodes.map((m) => ({ userId: m.user.id, owner: m.owner })),
-      );
+  const [nodes, mine] = await Promise.all([
+    fetchAllPages(async (after, first) => {
+      const data = await gqlRequest(TeamsPage, { after, first });
+      viewer = data.viewer;
+      return data.teams;
+    }),
+    fetchAllPages(async (after, first) => {
+      const data = await gqlRequest(ViewerMembershipsPage, { after, first });
+      return data.viewer.teamMemberships;
+    }),
+  ]);
+  const me = viewer!;
+  const myMembership = new Map(mine.map((m) => [m.team.id, { owner: m.owner }]));
+  return Promise.all(
+    nodes.map(async (node) => {
+      const own = myMembership.get(node.id) ?? null;
+      const access = teamAccess(me, await membershipsForAccess(me, node.id, own));
       return { ...toTeam(node), role: access.role, canManage: access.canManage };
-    })
-    .sort((a, b) => a.key.localeCompare(b.key));
+    }),
+  ).then((teams) => teams.sort((a, b) => a.key.localeCompare(b.key)));
 }
 
 export function useTeamsQuery() {

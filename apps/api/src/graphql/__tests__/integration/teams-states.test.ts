@@ -70,6 +70,52 @@ describe('graphql teams, users and workflow states', () => {
   });
 
   describe('workflow states', () => {
+    it('keeps a reorder inside its type group when later states were added to earlier groups', async () => {
+      const { owner, client } = await setup();
+      const team = await client.team('MKT');
+      type StateNode = { id: string; name: string; type: string; position: number };
+      const create = async (name: string, type: string) => {
+        const res = await gql(
+          { cookie: owner.cookie },
+          `mutation($input: WorkflowStateCreateInput!) { workflowStateCreate(input: $input) { workflowState { id } } }`,
+          { input: { teamId: team.id, name, type, color: '#123456' } },
+        );
+        const data = res.body.data as { workflowStateCreate: { workflowState: { id: string } } };
+        return data.workflowStateCreate.workflowState;
+      };
+      // The started group, in position order.
+      const started = async () => {
+        const res = await gql(
+          { cookie: owner.cookie },
+          `{ team(id: "MKT") { states { nodes { id name type position } } } }`,
+        );
+        const data = res.body.data as { team: { states: { nodes: StateNode[] } } };
+        return data.team.states.nodes
+          .filter((n) => n.type === 'started')
+          .sort((a, b) => a.position - b.position);
+      };
+      const names = async () => (await started()).map((n) => n.name);
+      const move = (id: string, position: number) =>
+        gql(
+          { cookie: owner.cookie },
+          `mutation($id: String!, $input: WorkflowStateUpdateInput!) { workflowStateUpdate(id: $id, input: $input) { success } }`,
+          { id, input: { position } },
+        );
+      await create('Icebox', 'backlog');
+      await create('Review', 'started');
+      const qa = await create('QA', 'started');
+      expect(await names()).toEqual(['In Progress', 'Review', 'QA']);
+      // Between In Progress and Review, as the web computes it.
+      const [inProgress, review] = await started();
+      await move(qa.id, (inProgress.position + review.position) / 2);
+      expect(await names()).toEqual(['In Progress', 'QA', 'Review']);
+      // To last in the group, after a new backlog state took the highest position.
+      await create('Later', 'backlog');
+      const group = await started();
+      await move(qa.id, group[group.length - 1].position + 1);
+      expect(await names()).toEqual(['In Progress', 'Review', 'QA']);
+    });
+
     it("lists a team's states with their types", async () => {
       const { client } = await setup();
       const team = await client.team('MKT');

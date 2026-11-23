@@ -20,6 +20,7 @@ import {
 } from '../../services/settings.service';
 import { SettingsStateRow } from './SettingsStateRow';
 import SettingsDeleteStateDialog from './SettingsDeleteStateDialog';
+import { stateRemovalBlock } from '../../utils/removeState';
 
 // The workflow states, grouped by state type. Each group has its own inline add;
 // states are reordered within their group by drag, edited inline, and removed.
@@ -144,6 +145,7 @@ export default function SettingsStates({ team }: { team: TeamDetail }) {
                           column={c}
                           onEdit={() => startEdit(c)}
                           onDelete={() => setDeleting(c)}
+                          deleteBlocked={stateRemovalBlock(c, team.states)}
                         />
                       ),
                     )}

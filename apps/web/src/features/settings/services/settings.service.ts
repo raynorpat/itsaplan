@@ -5,7 +5,6 @@
 // writes put the stored result straight into the cache.
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import type { Issue } from '@/types/issue';
 import type { LabelGroup, StateType, TeamScaffold } from '@/types/team';
 import type { NotificationPreferences } from '@/features/settings/utils/notificationPreferences';
@@ -18,7 +17,7 @@ import {
   labelUpdateInput,
   type LabelFields,
 } from '../utils/labelInput';
-import { removeState } from '../utils/removeState';
+import { removeState, stateRemovalBlock } from '../utils/removeState';
 import {
   toCategoryPreferencesInput,
   toNotificationPreferences,
@@ -34,7 +33,9 @@ function useTeamMutation<TArgs, TResult>(
   mutationFn: (args: TArgs) => Promise<TResult>,
 ) {
   const invalidate = useInvalidateTeam(teamKey);
-  return useMutation({ mutationFn, onSuccess: () => invalidate() });
+  // onSettled, not onSuccess: a write that fails partway (a state removal that moved
+  // some issues) still changed data the team and board caches hold.
+  return useMutation({ mutationFn, onSettled: () => invalidate() });
 }
 
 // The team's id, which label inputs require (the team key is accepted elsewhere). It
@@ -119,13 +120,23 @@ export function useReorderColumns(teamKey: string) {
 }
 
 // Removes a state as Linear does: its active issues move to the target state, then the
-// state is archived. Issues that could not move are named in a toast and the state
-// stays.
+// state is archived. Issues that could not move are returned with their identifiers
+// and the state stays; a state the API would refuse to archive moves nothing.
 export function useRemoveState(teamKey: string) {
   const qc = useQueryClient();
   return useTeamMutation(
     teamKey,
-    async ({ stateId, targetStateId }: { stateId: string; targetStateId: string | null }) => {
+    async ({
+      stateId,
+      targetStateId,
+      states,
+    }: {
+      stateId: string;
+      targetStateId: string | null;
+      states: { id: string; stateType: string }[];
+    }) => {
+      const state = states.find((s) => s.id === stateId);
+      const blocked = state ? stateRemovalBlock(state, states) : null;
       const issues = qc.getQueryData<Issue[]>(qk.boardIssues(teamKey)) ?? [];
       const inState = issues.filter((i) => i.stateId === stateId);
       const input = { stateId: targetStateId };
@@ -136,17 +147,13 @@ export function useRemoveState(teamKey: string) {
           moveOne: (id) => gqlRequest(MoveIssue, { id, input }),
           archive: () => gqlRequest(StateArchive, { id: stateId }),
         },
+        blocked,
       );
-      if (result.failed.length > 0) {
-        const name = new Map(inState.map((i) => [i.id, i.identifier]));
-        const list = result.failed.map((f) => `${name.get(f.id) ?? f.id} (${f.message})`);
-        toast.error(
-          `The state was kept: ${result.failed.length} issue${
-            result.failed.length === 1 ? '' : 's'
-          } could not be moved: ${list.join(', ')}`,
-        );
-      }
-      return result;
+      const name = new Map(inState.map((i) => [i.id, i.identifier]));
+      return {
+        ...result,
+        failed: result.failed.map((f) => ({ ...f, identifier: name.get(f.id) ?? f.id })),
+      };
     },
   );
 }

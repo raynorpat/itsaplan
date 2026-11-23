@@ -150,17 +150,30 @@ export async function archiveState(id: string, teamId: string): Promise<Workflow
   return mapColumn(row);
 }
 
-// Moves a state to Linear's float `position`: it goes before the first other state
-// whose position is greater, and the team's states are renumbered 0..n.
+// Moves a state to Linear's float `position` within its own type group: it goes
+// before the first state of the same type whose position is greater, or after the
+// last state of that type. Only same-type states are compared, because a state
+// created later gets the team's highest position whatever its type, so positions
+// are not ordered across groups. The team's states are then renumbered 0..n.
 export async function moveStateToPosition(
   teamId: string,
   stateId: string,
   position: number,
 ): Promise<void> {
-  const others = (await listStates(teamId)).filter((c) => c.id !== stateId);
-  const index = others.findIndex((c) => c.position > position);
+  const states = await listStates(teamId);
+  const moved = states.find((c) => c.id === stateId);
+  if (!moved) return;
+  // listStates orders by type then position, so a type's states are contiguous.
+  const others = states.filter((c) => c.id !== stateId);
+  const sameType = others.filter((c) => c.stateType === moved.stateType);
+  const before = sameType.find((c) => c.position > position);
+  const last = sameType[sameType.length - 1];
+  let index: number;
+  if (before) index = others.indexOf(before);
+  else if (last) index = others.indexOf(last) + 1;
+  else index = others.length;
   const order = others.map((c) => c.id);
-  order.splice(index === -1 ? order.length : index, 0, stateId);
+  order.splice(index, 0, stateId);
   await reorderStates(teamId, order);
 }
 

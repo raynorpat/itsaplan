@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { removeState } from '../removeState';
+import { removeState, stateRemovalBlock } from '../removeState';
 
 // Removing a state moves its issues to the chosen state (issueBatchUpdate in groups of
 // 50, a refused group retried one issue at a time), then archives the state. When any
@@ -52,5 +52,34 @@ describe('removeState', () => {
     assert.equal(r.calls.archived, 0);
     assert.deepEqual(result.failed, [{ id: 'i77', message: 'cannot move i77' }]);
     assert.equal(result.moved.length, 119);
+  });
+});
+
+describe('removeState when the API would refuse the archive', () => {
+  it('moves nothing and throws the refusal', async () => {
+    const { calls, run: r } = run();
+    await assert.rejects(
+      removeState(ids(3), r, 'The last started state cannot be deleted'),
+      /last started state/,
+    );
+    assert.equal(calls.chunks, 0);
+    assert.equal(calls.archived, 0);
+  });
+});
+
+describe('stateRemovalBlock', () => {
+  const states = [
+    { id: 'a', name: 'Todo', stateType: 'unstarted' },
+    { id: 'b', name: 'In Progress', stateType: 'started' },
+    { id: 'c', name: 'Done', stateType: 'completed' },
+    { id: 'd', name: 'Shipped', stateType: 'completed' },
+  ];
+
+  it('blocks the only state of its type with the reason', () => {
+    assert.equal(stateRemovalBlock(states[1], states), 'The last started state cannot be deleted');
+  });
+
+  it('allows a state when another of its type remains', () => {
+    assert.equal(stateRemovalBlock(states[2], states), null);
   });
 });

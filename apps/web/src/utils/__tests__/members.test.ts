@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { membershipOf, roleFromFlags, toMemberRows, toWorkspaceUser } from '@/utils/members';
+import {
+  membershipOf,
+  needsTeamOwners,
+  roleFromFlags,
+  teamAccess,
+  toMemberRows,
+  toWorkspaceUser,
+} from '@/utils/members';
 
 // Team members and workspace users as GraphQL returns them (Linear's role flags and
 // TeamMembership nodes), mapped to the rows the Members pages show.
@@ -64,5 +71,33 @@ describe('membershipOf', () => {
     ]);
     assert.equal(membershipOf(rows, 'a')?.membershipId, 'm1');
     assert.equal(membershipOf(rows, 'z'), null);
+  });
+});
+
+describe('team access for the teams list', () => {
+  const member = { id: 'me', admin: false, owner: false, guest: false };
+  const admin = { id: 'me', admin: true, owner: false, guest: false };
+
+  it("takes the viewer's role from their own membership, wherever it is in the team", () => {
+    assert.equal(teamAccess(member, [{ userId: 'me', owner: true }]).role, 'owner');
+    assert.equal(teamAccess(member, []).role, null);
+  });
+
+  it('asks for the team owners only when they decide the manage right', () => {
+    // A plain member of the team: canManage depends on whether the team has owners.
+    assert.equal(needsTeamOwners(member, { owner: false }), true);
+    // A team owner, a workspace admin, or a non-member: it does not.
+    assert.equal(needsTeamOwners(member, { owner: true }), false);
+    assert.equal(needsTeamOwners(admin, { owner: false }), false);
+    assert.equal(needsTeamOwners(member, null), false);
+  });
+
+  it('refuses manage to a plain member when an owner exists past the first page', () => {
+    const all = [
+      ...Array.from({ length: 300 }, (_, i) => ({ userId: `u${i}`, owner: false })),
+      { userId: 'boss', owner: true },
+      { userId: 'me', owner: false },
+    ];
+    assert.equal(teamAccess(member, all).canManage, false);
   });
 });

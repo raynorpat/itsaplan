@@ -10,15 +10,18 @@ import { useSettingsCan } from '../../context/settingsPermission';
 
 // One sortable state row. The whole row is the sortable node; the grip is the
 // drag handle so the Edit/Delete buttons stay clickable. A backlog state cannot
-// be deleted, so its delete action is hidden.
+// be deleted, so its delete action is hidden; the last state of a type keeps a
+// disabled delete action with the API's reason as its title.
 export function SettingsStateRow({
   column,
   onEdit,
   onDelete,
+  deleteBlocked,
 }: {
   column: Column;
   onEdit: () => void;
   onDelete: () => void;
+  deleteBlocked: string | null;
 }) {
   const can = useSettingsCan();
   // Reordering is a states edit; disable dragging and hide the grip without it.
@@ -68,15 +71,19 @@ export function SettingsStateRow({
           </Button>
         )}
         {can('delete') && column.stateType !== 'backlog' && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground hover:text-destructive"
-            title="Delete state"
-            onClick={onDelete}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          // The span carries the title: a disabled button ignores the pointer.
+          <span title={deleteBlocked ?? undefined}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-muted-foreground hover:text-destructive"
+              title={deleteBlocked ? undefined : 'Delete state'}
+              disabled={deleteBlocked != null}
+              onClick={onDelete}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </span>
         )}
       </ItemActions>
     </Item>

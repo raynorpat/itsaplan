@@ -80,15 +80,20 @@ async function fetchMembers(teamKey: string): Promise<MemberRow[]> {
   return toMemberRows(teamId, nodes);
 }
 
-// The team's members from the cache, loading them when the Members page has not.
-const membersOf = (qc: QueryClient, teamKey: string) =>
-  qc.ensureQueryData({ queryKey: qk.members(teamKey), queryFn: () => fetchMembers(teamKey) });
+// The team's members read fresh (staleTime 0): a cached list can predate the viewer
+// joining, and a removal needs the current membership id.
+const freshMembersOf = (qc: QueryClient, teamKey: string) =>
+  qc.fetchQuery({
+    queryKey: qk.members(teamKey),
+    queryFn: () => fetchMembers(teamKey),
+    staleTime: 0,
+  });
 
 // Removing a member addresses their TeamMembership. Used by the Members page and by
 // leaving a team (services/teams.service.ts).
 export async function removeTeamMember(qc: QueryClient, teamKey: string, userId: string) {
-  const member = membershipOf(await membersOf(qc, teamKey), userId);
-  if (!member) return;
+  const member = membershipOf(await freshMembersOf(qc, teamKey), userId);
+  if (!member) throw new Error('This user is not a member of the team');
   await gqlRequest(MembershipDelete, { id: member.membershipId });
 }
 
@@ -133,8 +138,8 @@ export function useSetMemberRole(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: MemberRole }) => {
-      const member = membershipOf(await membersOf(qc, teamKey), userId);
-      if (!member) throw new Error('This person is not a member of the team');
+      const member = membershipOf(await freshMembersOf(qc, teamKey), userId);
+      if (!member) throw new Error('This user is not a member of the team');
       return instanceFetch('/instance/team-owner', {
         method: 'POST',
         body: { teamId: member.teamId, userId, owner: role === 'owner' },

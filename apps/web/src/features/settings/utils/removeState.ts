@@ -21,10 +21,23 @@ export interface RemoveStateResult {
 
 const BATCH_SIZE = 50;
 
+// Why the API would refuse to archive this state, or null when it would not. The API
+// keeps at least one active state of every type, so the last one cannot go.
+export function stateRemovalBlock(
+  state: { id: string; stateType: string },
+  states: { id: string; stateType: string }[],
+): string | null {
+  const others = states.some((s) => s.id !== state.id && s.stateType === state.stateType);
+  return others ? null : `The last ${state.stateType} state cannot be deleted`;
+}
+
+// `blocked` is the refusal from stateRemovalBlock: when set, nothing is moved.
 export async function removeState(
   issueIds: string[],
   run: RemoveStateRun,
+  blocked: string | null = null,
 ): Promise<RemoveStateResult> {
+  if (blocked) throw new Error(blocked);
   const { done, failed } = await runBulk(issueIds, {
     size: BATCH_SIZE,
     runChunk: run.moveChunk,

@@ -1,4 +1,4 @@
-import type { MemberRow } from '@/types/team';
+import type { MemberRole, MemberRow } from '@/types/team';
 import type { WorkspaceRole, WorkspaceUser } from '@/types/workspace';
 
 // Linear's role flags on a user: owner and admin both set for an owner, neither nor
@@ -60,3 +60,30 @@ export function toMemberRows(teamId: string, nodes: MembershipNode[]): MemberRow
 
 export const membershipOf = (rows: MemberRow[], userId: string) =>
   rows.find((r) => r.userId === userId) ?? null;
+
+type Viewer = { id: string; admin: boolean; owner: boolean; guest: boolean };
+
+// The viewer's access to a team as project 2 defines it: workspace admins and owners
+// manage every team they can see; otherwise a member manages a team they own, or any
+// team without owners. `memberships` must contain the viewer's own membership when
+// there is one, and every owner when the result depends on them (needsTeamOwners).
+export function teamAccess(
+  viewer: Viewer,
+  memberships: { userId: string; owner: boolean }[],
+): { role: MemberRole | null; workspaceRole: WorkspaceRole; canManage: boolean } {
+  const workspaceRole = roleFromFlags(viewer);
+  const mine = memberships.find((m) => m.userId === viewer.id);
+  const role: MemberRole | null = mine ? (mine.owner ? 'owner' : 'member') : null;
+  const hasOwners = memberships.some((m) => m.owner);
+  const canManage =
+    workspaceRole === 'owner' ||
+    workspaceRole === 'admin' ||
+    (!!mine && (mine.owner || !hasOwners));
+  return { role, workspaceRole, canManage };
+}
+
+// Whether the team's owners decide the viewer's manage right: only for a plain
+// member of the team who is not a workspace admin or owner.
+export function needsTeamOwners(viewer: Viewer, mine: { owner: boolean } | null): boolean {
+  return !!mine && !mine.owner && !viewer.admin && !viewer.owner;
+}

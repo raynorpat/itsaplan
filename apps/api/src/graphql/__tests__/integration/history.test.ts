@@ -251,19 +251,26 @@ describe('graphql history', () => {
     expect(await labelIds(b)).toEqual([]);
   });
 
-  it('reorders states', async () => {
-    const { owner, teamId, states } = await setup();
-    const sorted = [...states].sort((x, y) => x.position - y.position);
-    const last = sorted[sorted.length - 1]!;
+  it('reorders states within their type group', async () => {
+    const { owner, teamId, byType } = await setup();
+    const todo = byType('unstarted');
+    const created = await run(
+      owner.cookie,
+      `mutation { workflowStateCreate(input: { teamId: "${teamId}", name: "Ready", type: "unstarted", color: "#123456" }) { workflowState { id } } }`,
+    );
+    const readyId: string = created.workflowStateCreate.workflowState.id;
     await run(
       owner.cookie,
-      `mutation { workflowStateUpdate(id: "${last.id}", input: { position: ${sorted[0]!.position - 1} }) { success } }`,
+      `mutation { workflowStateUpdate(id: "${readyId}", input: { position: ${todo.position - 1} }) { success } }`,
     );
     const after: Data[] = (
-      await run(owner.cookie, `{ team(id: "${teamId}") { states { nodes { id position } } } }`)
+      await run(owner.cookie, `{ team(id: "${teamId}") { states { nodes { id type position } } } }`)
     ).team.states.nodes;
-    const first = [...after].sort((x, y) => x.position - y.position)[0]!;
-    expect(first.id).toBe(last.id);
+    const unstarted = after
+      .filter((s) => s.type === 'unstarted')
+      .sort((x, y) => x.position - y.position)
+      .map((s) => s.id);
+    expect(unstarted).toEqual([readyId, todo.id]);
   });
 
   it('deletes a team', async () => {

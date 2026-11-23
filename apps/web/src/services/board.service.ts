@@ -5,18 +5,17 @@ import type {
   Cycle,
   Label,
   LabelGroup,
-  MemberRole,
   Team,
   TeamCycleSettings,
   TeamScaffold,
 } from '@/types/team';
 import type { Issue } from '@/types/issue';
-import type { WorkspaceRole } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { IssueFields, toIssue } from '@/services/issues.service';
 import { useChangedSince } from '@/hooks/useChangedSince';
 import { fetchAllPages } from '@/utils/fetchAllPages';
+import { teamAccess } from '@/utils/members';
 
 // The board over GraphQL: the team scaffold (states, labels, members, the viewer's
 // access) and every active issue of the team. The board, table, calendar and
@@ -133,35 +132,6 @@ const BoardIssuesPage = graphql(
   `,
   [IssueFields],
 );
-
-function workspaceRoleOf(viewer: {
-  admin: boolean;
-  owner: boolean;
-  guest: boolean;
-}): WorkspaceRole {
-  if (viewer.owner) return 'owner';
-  if (viewer.admin) return 'admin';
-  if (viewer.guest) return 'guest';
-  return 'member';
-}
-
-// The viewer's access to a team as project 2 defines it: workspace admins and owners
-// manage every team they can see; otherwise a member manages a team they own, or any
-// team without owners.
-export function teamAccess(
-  viewer: { id: string; admin: boolean; owner: boolean; guest: boolean },
-  memberships: { userId: string; owner: boolean }[],
-): { role: MemberRole | null; workspaceRole: WorkspaceRole; canManage: boolean } {
-  const workspaceRole = workspaceRoleOf(viewer);
-  const mine = memberships.find((m) => m.userId === viewer.id);
-  const role: MemberRole | null = mine ? (mine.owner ? 'owner' : 'member') : null;
-  const hasOwners = memberships.some((m) => m.owner);
-  const canManage =
-    workspaceRole === 'owner' ||
-    workspaceRole === 'admin' ||
-    (!!mine && (mine.owner || !hasOwners));
-  return { role, workspaceRole, canManage };
-}
 
 export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> {
   const [{ viewer, team }, labelNodes, memberNodes] = await Promise.all([
