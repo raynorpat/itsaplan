@@ -2,6 +2,7 @@ import { db, team, teamMember, user as userTable } from '@repo/db';
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from './lib';
 import { getTeamByKey, type TeamRow } from '../teams/store';
+import { mayUseAdminRights } from './request-auth';
 
 // Linear's access model, the one place access is decided.
 //
@@ -53,7 +54,11 @@ export async function workspaceRole(userId: string): Promise<WorkspaceRole> {
     .where(eq(userTable.id, userId));
   // A missing user or a value that is not a workspace role gets the least access.
   const role = row?.role as WorkspaceRole | undefined;
-  return role && (WORKSPACE_ROLES as readonly string[]).includes(role) ? role : 'guest';
+  if (!role || !(WORKSPACE_ROLES as readonly string[]).includes(role)) return 'guest';
+  // An OAuth token without the `admin` scope acts as a member, so every admin check
+  // (they all read the role here) refuses it.
+  if (atLeast(role, 'admin') && !mayUseAdminRights(userId)) return 'member';
+  return role;
 }
 
 // The roles that see every public team.

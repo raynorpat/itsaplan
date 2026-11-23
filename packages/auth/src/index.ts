@@ -19,6 +19,7 @@ import {
 } from './instance';
 import { sendAuthEmail } from './mail';
 import { instancePlugin } from './instance-plugin';
+import { oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -193,6 +194,11 @@ export const auth = betterAuth({
       verification: schema.verification,
       passkey: schema.passkey,
       apikey: schema.apikey,
+      jwks: schema.jwks,
+      oauthClient: schema.oauthClient,
+      oauthAccessToken: schema.oauthAccessToken,
+      oauthRefreshToken: schema.oauthRefreshToken,
+      oauthConsent: schema.oauthConsent,
     },
   }),
 
@@ -238,6 +244,10 @@ export const auth = betterAuth({
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      // OAuth requests: the Origin check on cookie writes and Linear's scopes
+      // (src/oauth.ts).
+      await oauthBeforeHook(ctx, trustedOrigins);
+
       // A magic link for an address with no account is sent only when the address
       // may join (./instance.ts mayJoin). Otherwise nothing is stored or sent, and the
       // request answers exactly as a sent one does, so it reveals nothing.
@@ -302,6 +312,10 @@ export const auth = betterAuth({
           });
         }
       }
+    }),
+    // OAuth applications created by an admin (src/oauth.ts).
+    after: createAuthMiddleware(async (ctx) => {
+      await oauthAfterHook(ctx);
     }),
   },
 
@@ -433,6 +447,10 @@ export const auth = betterAuth({
         );
       },
     }),
+    // The OAuth server (src/oauth.ts): Linear's OAuth applications and MCP clients.
+    // Adds the oauthClient, oauthAccessToken, oauthRefreshToken, oauthConsent and jwks
+    // tables.
+    ...oauthPlugins(trustedOrigins[0]!),
     // OpenAPI reference for the better-auth handler. Serves a Scalar UI at
     // /api/auth/reference and the raw schema at /api/auth/open-api/generate-schema.
     // The schema is built from every active plugin, so the passkey and apiKey
@@ -443,6 +461,10 @@ export const auth = betterAuth({
 
   // The frontend runs on a different origin (Next :3001) — allow its requests.
   trustedOrigins,
+
+  // The JWT plugin's session token endpoint: nothing here accepts a JWT, so it is
+  // not offered. userinfo and end-session are OpenID Connect, which is not enabled.
+  disabledPaths: ['/token', '/oauth2/userinfo', '/oauth2/end-session'],
 
   advanced: {
     // Every id is a UUID, as in Linear's API. The columns are uuid in
@@ -511,3 +533,11 @@ export {
 export { provideInstanceHandlers } from './instance-plugin';
 export type { InstanceHandlers, TeamOwnerChange } from './instance-plugin';
 export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';
+export {
+  OAUTH_SCOPES,
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  normaliseScopes,
+  resolveOAuthAccessToken,
+  revokeOAuthAccessToken,
+} from './oauth';
+export type { OAuthScope, OAuthGrant } from './oauth';

@@ -284,7 +284,14 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   the same release; `__tests__/unit/sdk-documents.test.ts` validates every SDK
   operation against it.
 - **Auth:** `Authorization: <key>` or `Authorization: Bearer <key>` is resolved as
-  `x-api-key` through better-auth (`context.ts`); a session cookie also works. No
+  `x-api-key` through better-auth (`context.ts`); a session cookie also works. An
+  OAuth access token (`Bearer itpo_…`) is checked with `resolveOAuthAccessToken` and
+  acts within Linear's scopes: `scopes.ts` refuses a query without `read` and a
+  mutation without `write` (except `issueCreate` / `attachmentCreate` with
+  `issues:create` and `commentCreate` with `comments:create`), and
+  `shared/access.ts` `workspaceRole` reads an owner or admin as a member when the
+  token lacks `admin`, so every admin check refuses it. The request's credentials
+  are kept in `shared/request-auth.ts` for the execution. No
   valid credentials → HTTP 401 with `extensions.code: AUTHENTICATION_ERROR`, except a
   query whose root fields are only `organizationInviteDetails` (`anonymous.ts`), so the
   invite page works before the invitee has an account. Its `id` is the invite's secret

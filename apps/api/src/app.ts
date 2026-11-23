@@ -5,6 +5,7 @@ import { Elysia } from 'elysia';
 import { planner } from './planner';
 import { mountGraphql } from './graphql/mount';
 import { mountMcp } from './mcp/mount';
+import { mountOAuth } from './oauth/routes';
 import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
@@ -109,6 +110,10 @@ mountMcp(app);
 
 // Linear-compatible GraphQL endpoint (/graphql), mounted the same way as MCP.
 mountGraphql(app);
+
+// Linear's OAuth paths (/oauth/*) and the server metadata, forwarded to better-auth's
+// OAuth provider plugin.
+mountOAuth(app);
 
 // App type — useful for Eden Treaty (type-safe client) on the frontend and in tests.
 export type App = typeof app;

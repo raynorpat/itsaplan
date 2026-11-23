@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@better-auth/api-key": "1.6.23",
+    "@better-auth/oauth-provider": "1.6.23",
     "@better-auth/passkey": "1.6.23",
     "@repo/db": "workspace:*",
     "@repo/mailer": "workspace:*",

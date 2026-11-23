@@ -22,6 +22,34 @@ HTTP `status`, which the plugin turns into better-auth's error of that status. A
 `POST team-owner` that carries the session cookie must send an `Origin` from
 `trustedOrigins` (CSRF); better-auth does not check the origin on plugin endpoints.
 
+## OAuth server (`src/oauth.ts`)
+
+`@better-auth/oauth-provider` (pinned to the better-auth version) is the OAuth server,
+with the JWT plugin it needs to store client secrets hashed (its `/token` endpoint is
+in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
+(`/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/register`,
+`/.well-known/oauth-authorization-server`) and forwards them to `/api/auth/oauth2/*`
+(`apps/api/src/oauth/routes.ts`).
+
+- Scopes are Linear's (`OAUTH_SCOPES`). `oauthBeforeHook` accepts them comma-separated,
+  defaults a missing scope to `read`, and adds the plugin's `offline_access` when the
+  request uses PKCE, which is what gets a refresh token; a confidential application
+  that skips PKCE gets a day-long access token only. It drops `resource` at the token
+  endpoint, so every access token is opaque and can be revoked.
+- Access tokens start `itpo_` (refresh `itpr_`, client secrets `itpcs_`); all are
+  stored hashed. `resolveOAuthAccessToken` is how the API checks one: unknown,
+  expired, deleted, issued from a revoked refresh token, or of a disabled
+  application → null. A refresh revokes the previous refresh token and, through
+  that, its access tokens.
+- Applications are created and managed by workspace admins and owners
+  (`clientPrivileges`); `oauthAfterHook` makes an admin-created confidential
+  application not require PKCE, as Linear's do. Dynamic registration (MCP clients)
+  needs no session, always gives a public client (PKCE required), and only `read`,
+  `write`, `issues:create` and `comments:create` (default `read write`).
+- Cookie-authenticated writes to the consent and client endpoints must send an
+  `Origin` from `trustedOrigins`, as the instance plugin's do.
+- The consent page is the web's `/oauth/consent`, the sign-in page `/login`.
+
 ## Workspace role and suspension
 
 The user table has `workspace_role` (`owner` | `admin` | `member` | `guest`, Linear's

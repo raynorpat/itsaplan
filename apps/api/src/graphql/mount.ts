@@ -2,7 +2,9 @@ import { createYoga, maskError, type Plugin } from 'graphql-yoga';
 import { GraphQLError } from 'graphql';
 import { PG_INVALID_INPUT_CODES, pgErrorCode } from '../shared/lib';
 import type { SessionUser } from '../shared/auth-context';
-import { resolveGraphQLUser, type GraphQLContext } from './context';
+import { resolveGraphQLAuth, type GraphQLContext } from './context';
+import { scopeCheck } from './scopes';
+import { runWithAuth, type RequestAuth } from '../shared/request-auth';
 import { isAnonymousRequest } from './anonymous';
 import { buildSchema } from './schema';
 import { maxDepthRule } from './depth';
@@ -86,13 +88,13 @@ const AUTH_MESSAGE = 'Authentication required, not authenticated';
 // Typed as `any` for the same reason as mountMcp: Elysia's generics are invariant.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mountGraphql(app: any): void {
-  const yoga = createYoga<{ user: SessionUser }, GraphQLContext>({
+  const yoga = createYoga<{ user: SessionUser; auth: RequestAuth }, GraphQLContext>({
     schema: buildSchema(mergeResolvers(resolverModules)),
     graphqlEndpoint: '/graphql',
     graphiql: false,
     landingPage: false,
-    context: ({ user }) => ({ user }),
-    plugins: [depthLimit],
+    context: ({ user, auth }) => ({ user, auth }),
+    plugins: [depthLimit, scopeCheck],
     maskedErrors: {
       // A value Postgres cannot store or read (bad uuid/date/number text, a value
       // out of range, a violated check) is the client's error, not an internal one.
@@ -117,12 +119,15 @@ export function mountGraphql(app: any): void {
           { errors: [{ message: 'POST requests must use Content-Type: application/json' }] },
           { status: 415 },
         );
-      const user = await resolveGraphQLUser(request);
+      const resolved = await resolveGraphQLAuth(request);
       // Without credentials only the invite lookup is answered; its resolver does not
       // read the user.
-      if (!user && (await isAnonymousRequest(request)))
-        return yoga.fetch(request, { user: null as unknown as SessionUser });
-      if (!user)
+      if (!resolved && (await isAnonymousRequest(request)))
+        return yoga.fetch(request, {
+          user: null as unknown as SessionUser,
+          auth: null as unknown as RequestAuth,
+        });
+      if (!resolved)
         return Response.json(
           {
             errors: [
@@ -134,7 +139,9 @@ export function mountGraphql(app: any): void {
           },
           { status: 401 },
         );
-      return yoga.fetch(request, { user });
+      // The request's credentials stay readable for the whole execution (the role
+      // checks apply an OAuth token's scopes, shared/request-auth.ts).
+      return runWithAuth(resolved.auth, () => yoga.fetch(request, resolved));
     },
     // Yoga reads the raw request body itself.
     { parse: 'none', detail: { hide: true } },
