@@ -1,4 +1,4 @@
-import type { Cycle, TeamCycleSettings } from '@/lib/api';
+import type { Cycle, Issue, TeamCycleSettings } from '@/lib/api';
 
 // Whether cycle controls are shown for a team: only when its cycles are on, and
 // never while the team scaffold is still loading.
@@ -59,4 +59,14 @@ export function withoutCycleOptions<T extends { value: string }>(
   cyclesOn: boolean,
 ): T[] {
   return cyclesOn ? options : options.filter((o) => o.value !== 'cycle');
+}
+
+// Every cycle the board can show: the team's current and upcoming cycles, plus the
+// cycles its loaded issues are in (past cycles, or one created since the team data
+// was loaded).
+export function knownCycles(team: { teamCycles: Cycle[]; issues: Issue[] }): Cycle[] {
+  const byId = new Map(team.teamCycles.map((c) => [c.id, c]));
+  for (const issue of team.issues)
+    if (issue.cycle && !byId.has(issue.cycle.id)) byId.set(issue.cycle.id, issue.cycle);
+  return [...byId.values()];
 }

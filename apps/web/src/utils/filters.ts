@@ -4,6 +4,7 @@
 // Calendar) before the issues are handed to the view.
 
 import type { TeamDetail, StateType, Issue } from '@/lib/api';
+import { cyclesVisible } from '@/utils/cycles';
 
 // The fields a condition can target. A stored condition on any other field (one
 // that is no longer offered) constrains nothing.
@@ -218,7 +219,12 @@ export function applyFilters(
 ): Issue[] {
   if (!isActiveFilterSet(filters)) return issues;
   const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
-  const active = filters!.conditions.filter(isEffectiveCondition);
+  // A cycle condition stored while the team's cycles were on constrains nothing once
+  // they are off: the filter bar no longer shows it, so it could not be removed.
+  const cyclesOn = cyclesVisible(team);
+  const active = filters!.conditions.filter(
+    (c) => isEffectiveCondition(c) && (cyclesOn || c.field !== 'cycle'),
+  );
   return issues.filter((t) =>
     active.every((cond) => matchCondition(t, cond, columnStateType, context)),
   );

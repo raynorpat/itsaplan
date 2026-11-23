@@ -29,10 +29,10 @@ import { useShell } from '@/context/shellContext';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
 import type { Command, CommandSection } from '@/utils/commands';
-import { DeleteIssueDialog } from '../components/actions/IssueActions';
-import { StateIcon } from '../components/shared/IssueIcons';
-import { dueDatePresets, formatPreset } from '../utils/dueDatePresets';
-import { buildIssuePrompt } from '../utils/issuePrompt';
+import { DeleteIssueDialog } from '@/components/common/issue/IssueActions';
+import { StateIcon } from '@/components/common/issue/IssueIcons';
+import { dueDatePresets, formatPreset } from '@/utils/dueDatePresets';
+import { buildIssuePrompt } from '@/utils/issuePrompt';
 
 // The palette commands for the issue the user is looking at — the issue page or
 // the open detail panel. They are the context menu's actions in command form and

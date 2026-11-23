@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Cycle, Issue, TeamDetail } from '@/lib/api';
-import { buildGroups, groupKeyOf } from '../team';
+import { buildGroups, groupIssues, groupKeyOf, buildMaps } from '../team';
+import { cycleSafeSettings, defaultViewSettings } from '../viewSettings';
 import { applyFilters } from '../filters';
 import { buildFieldSpecs } from '../filterFields';
 
@@ -88,5 +89,63 @@ describe('cycle filter', () => {
       buildFieldSpecs(team(false, issues)).some((s) => s.field === 'cycle'),
       false,
     );
+  });
+});
+
+describe('cycles not in the team list', () => {
+  const ancient = cycle('a', 0, -400, -393, true);
+  const withCycle = (id: string, c: Cycle) => ({ ...issue(id, c.id), cycle: c }) as Issue;
+
+  it('groups an issue whose cycle is not in the team list under that cycle', () => {
+    const t = team(true, [withCycle('1', ancient)]);
+    const groups = buildGroups(t, 'cycle');
+    assert.ok(groups.some((g) => g.key === 'ya' && g.name === 'Cycle 0'));
+    const byGroup = groupIssues(groups, t.issues, 'cycle');
+    assert.deepEqual(
+      byGroup.get('ya')?.map((i) => i.id),
+      ['1'],
+    );
+  });
+
+  it('keeps an issue whose cycle is not known at all, as "Unknown cycle"', () => {
+    const t = team(true, [issue('1', 'zzz')]);
+    const groups = buildGroups(t, 'cycle');
+    assert.ok(groups.some((g) => g.key === 'yzzz' && g.name === 'Unknown cycle'));
+    assert.deepEqual(
+      groupIssues(groups, t.issues, 'cycle')
+        .get('yzzz')
+        ?.map((i) => i.id),
+      ['1'],
+    );
+  });
+
+  it('lists the cycle in the filter and the badge map', () => {
+    const t = team(true, [withCycle('1', ancient)]);
+    const spec = buildFieldSpecs(t).find((s) => s.field === 'cycle');
+    assert.ok(spec?.options?.some((o) => o.value === 'a' && o.label === 'Cycle 0'));
+    assert.equal(buildMaps(t).cycleById.get('a')?.number, 0);
+  });
+});
+
+describe('cycles turned off', () => {
+  it('ignores a stored cycle filter', () => {
+    const issues = [issue('1', 'c'), issue('2', null)];
+    const filters = { conditions: [{ id: 'x', field: 'cycle', op: 'is', values: ['c'] }] };
+    assert.deepEqual(
+      applyFilters(issues, filters as never, team(false, issues)).map((i) => i.id),
+      ['1', '2'],
+    );
+  });
+
+  it('falls back from cycle grouping to the default grouping', () => {
+    const settings = {
+      ...defaultViewSettings('kanban'),
+      group: 'cycle',
+      subgroup: 'cycle',
+    } as const;
+    const off = cycleSafeSettings(settings, 'kanban', false);
+    assert.equal(off.group, 'status');
+    assert.equal(off.subgroup, 'none');
+    assert.equal(cycleSafeSettings(settings, 'kanban', true).group, 'cycle');
   });
 });

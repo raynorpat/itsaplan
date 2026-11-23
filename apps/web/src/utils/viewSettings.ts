@@ -222,6 +222,21 @@ export function normalizeViewSettings(
   };
 }
 
+// The settings a board uses for a team whose cycles may be off: grouping by cycle
+// (kept from when they were on, locally or in a saved view) falls back to the
+// view's default grouping, since the Display popover no longer offers it.
+export function cycleSafeSettings(
+  settings: ViewSettings,
+  view: WorkItemsView,
+  cyclesOn: boolean,
+): ViewSettings {
+  if (cyclesOn || (settings.group !== 'cycle' && settings.subgroup !== 'cycle')) return settings;
+  const group = settings.group === 'cycle' ? defaultViewSettings(view).group : settings.group;
+  const subgroup =
+    settings.subgroup === 'cycle' || settings.subgroup === group ? 'none' : settings.subgroup;
+  return { ...settings, group, subgroup };
+}
+
 // Settings for one team+view, each field validated against the stored partial
 // and falling back to the per-view default.
 export function getViewSettings(teamKey: string, view: WorkItemsView): ViewSettings {

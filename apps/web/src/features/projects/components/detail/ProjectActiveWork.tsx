@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import type { TeamDetail } from '@/lib/api';
 import { useShell } from '@/context/shellContext';
-import { StateIcon } from '@/features/issue/components/shared/IssueIcons';
+import { StateIcon } from '@/components/common/issue/IssueIcons';
 import Avatar from '@/components/common/Avatar';
 
 // The project's issues currently in progress (state group 'started'), listed so

@@ -6,10 +6,10 @@ import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
 import { applyFilters } from '@/utils/filters';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
-import KanbanBoard from '@/features/work-items/components/kanban/KanbanBoard';
-import TableView from '@/features/work-items/components/table/TableView';
-import TimelineView from '@/features/work-items/components/timeline/TimelineView';
-import CalendarView from '@/features/work-items/components/calendar/CalendarView';
+import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
+import TableView from '@/components/common/board/table/TableView';
+import TimelineView from '@/components/common/board/timeline/TimelineView';
+import CalendarView from '@/components/common/board/calendar/CalendarView';
 import { cycleIssues } from '../utils/cyclePage';
 
 // The cycle's active issues as the work items board, with filters and display

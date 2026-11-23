@@ -5,7 +5,7 @@ import { PencilIcon } from 'lucide-react';
 import { cycleLabel } from '@/utils/cycles';
 import { Button } from '@/components/ui/button';
 import type { CycleSummary } from '../services/cycles.service';
-import { chartPoints, cycleProgress } from '../utils/cyclePage';
+import { chartPoints, type CycleProgress } from '../utils/cyclePage';
 import CycleChart from './CycleChart';
 import CycleDates from './CycleDates';
 import CycleEditDialog from './CycleEditDialog';
@@ -16,15 +16,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // A cycle's name, dates, description, progress numbers and chart.
 export default function CycleHeader({
   cycle,
+  progress,
   teamKey,
   teamId,
 }: {
   cycle: CycleSummary;
+  progress: CycleProgress;
   teamKey: string;
   teamId: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const progress = cycleProgress(cycle);
   const days = Math.round(
     (new Date(cycle.endsAt).getTime() - new Date(cycle.startsAt).getTime()) / DAY_MS,
   );

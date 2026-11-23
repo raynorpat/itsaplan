@@ -4,8 +4,8 @@ import { Archive, ArchiveRestore, Check, ClipboardCopy, Share2, Trash2 } from 'l
 import { type TeamDetail, type IssueDetail as IssueDetailRow } from '@/lib/api';
 import { useArchiveIssue, useRestoreIssue } from '@/services/issues.service';
 import { usePermissions } from '@/hooks/usePermissions';
-import { DeleteIssueDialog } from './IssueActions';
-import { buildIssuePrompt } from '../../utils/issuePrompt';
+import { DeleteIssueDialog } from '@/components/common/issue/IssueActions';
+import { buildIssuePrompt } from '@/utils/issuePrompt';
 import { useSession } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';

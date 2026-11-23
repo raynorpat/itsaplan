@@ -2,12 +2,19 @@ import Link from 'next/link';
 import { cycleLabel } from '@/utils/cycles';
 import { cyclePath } from '@/utils/paths';
 import type { CycleSummary } from '../services/cycles.service';
-import { cycleProgress } from '../utils/cyclePage';
 import CycleDates from './CycleDates';
 import CycleProgressBar from './CycleProgressBar';
 
 // One cycle in the cycles page's lists, linking to its page.
-export default function CycleRow({ cycle, teamKey }: { cycle: CycleSummary; teamKey: string }) {
+export default function CycleRow({
+  cycle,
+  percent,
+  teamKey,
+}: {
+  cycle: CycleSummary;
+  percent: number;
+  teamKey: string;
+}) {
   return (
     <Link
       href={cyclePath(teamKey, cycle.number)}
@@ -15,7 +22,7 @@ export default function CycleRow({ cycle, teamKey }: { cycle: CycleSummary; team
     >
       <span className="min-w-0 flex-1 truncate font-medium">{cycleLabel(cycle)}</span>
       <CycleDates startsAt={cycle.startsAt} endsAt={cycle.endsAt} />
-      <CycleProgressBar percent={cycleProgress(cycle).percent} />
+      <CycleProgressBar percent={percent} />
     </Link>
   );
 }

@@ -8,9 +8,10 @@ Next.js App Router, SSR (not SPA). Tailwind v4 + shadcn/ui. See root `AGENTS.md`
   (`./`, `../`); imports of the **shared layer or another feature** use the `@/` alias.
 - A feature imports the shared layer (`@/utils`, `@/lib`, `@/hooks`, `@/context`, `@/services`,
   `@/components/*`), never another feature —
-  one accepted one-way exception: `work-items` may compose `issue` presentational components. Keep it
+  one accepted one-way exception: `inbox` shows the `issue` page (`IssueDetailContent`). Keep it
   one-directional, no cycles; if a second such need appears, move the shared piece to
-  `components/common`.
+  `components/common` (the issue board views are there, in `components/common/board`, for
+  work items, projects and cycles).
 - The shared layer never imports a feature. `app/` routes stay thin: mount the feature page and
   providers only.
 
@@ -42,7 +43,7 @@ Next.js App Router, SSR (not SPA). Tailwind v4 + shadcn/ui. See root `AGENTS.md`
   fixed by `components.json`); `src/utils` holds own helpers and constants with no external
   package behind them. `src/context` holds shared React contexts and their `use*` readers.
 - `components/common` groups by purpose: `fields/`, `inputs/`, `page/`, `overlay/`,
-  `permissions/`, `hotkeys/`. A component that fits none of them stays at the `common/` root.
+  `permissions/`, `hotkeys/`, `board/`, `issue/`. A component that fits none of them stays at the `common/` root.
   Imports of a sibling in the same folder are relative; everything else uses `@/`.
 - Component files use the feature name as a PascalCase prefix, file name = exported name. Service
   files carry a `.service.ts` suffix (`passkeys.service.ts`). Other non-component files use plain

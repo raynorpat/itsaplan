@@ -9,7 +9,7 @@ import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
 import CycleSelect from '@/components/common/fields/CycleSelect';
-import { cyclesVisible } from '@/utils/cycles';
+import { cyclesVisible, knownCycles } from '@/utils/cycles';
 import ProjectSelect from '../fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 
@@ -102,7 +102,7 @@ export default function IssueProperties({
       {cyclesVisible(team) && (
         <PropertyRow label="Cycle">
           <CycleSelect
-            cycles={team.teamCycles}
+            cycles={knownCycles({ teamCycles: team.teamCycles, issues: [issue] })}
             value={issue.cycleId}
             onChange={(id) => onPatch({ cycleId: id })}
             readOnly={readOnly}

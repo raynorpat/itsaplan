@@ -44,7 +44,7 @@ const ScaffoldQuery = graphql(`
       upcomingCycleCount
       cycleIssueAutoAssignStarted
       cycleIssueAutoAssignCompleted
-      cycles(first: 250) {
+      cycles(first: 50, filter: { isPast: { eq: false } }) {
         nodes {
           id
           number

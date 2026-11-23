@@ -9,6 +9,7 @@ import { useCycleByNumber } from './services/cycles.service';
 import CycleArchivedIssues from './components/CycleArchivedIssues';
 import CycleHeader from './components/CycleHeader';
 import CycleIssuesBoard from './components/CycleIssuesBoard';
+import { shownCycleProgress } from './utils/cyclePage';
 
 // One cycle of a team, by its number: the header with progress and chart, then its
 // issues on the board. A past cycle also lists its archived issues.
@@ -34,7 +35,12 @@ export default function CycleDetailPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <CycleHeader cycle={cycle} teamKey={team.team.key} teamId={team.team.id} />
+      <CycleHeader
+        cycle={cycle}
+        progress={shownCycleProgress(cycle, team, new Date())}
+        teamKey={team.team.key}
+        teamId={team.team.id}
+      />
       <CycleIssuesBoard cycleId={cycle.id} />
       {isPast && <CycleArchivedIssues cycleId={cycle.id} />}
     </div>

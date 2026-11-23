@@ -8,7 +8,8 @@ import { qk } from '@/services/queryKeys';
 import { cycleOptions, cyclesVisible } from '@/utils/cycles';
 import { settingsPath } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
-import { useOpenCycles, usePastCycles } from './services/cycles.service';
+import { useOpenCycles, usePastCycles, type CycleSummary } from './services/cycles.service';
+import { shownCycleProgress } from './utils/cyclePage';
 import CycleRow from './components/CycleRow';
 import CycleSection from './components/CycleSection';
 
@@ -38,7 +39,9 @@ export default function CyclesPage() {
       </div>
     );
 
-  const { current, upcoming } = cycleOptions(open.data ?? [], new Date());
+  const now = new Date();
+  const { current, upcoming } = cycleOptions(open.data ?? [], now);
+  const percentOf = (c: CycleSummary) => shownCycleProgress(c, team, now).percent;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -49,7 +52,7 @@ export default function CyclesPage() {
         <div className="flex flex-col gap-6 pb-8">
           <CycleSection title="Current">
             {current ? (
-              <CycleRow cycle={current} teamKey={teamKey} />
+              <CycleRow cycle={current} percent={percentOf(current)} teamKey={teamKey} />
             ) : (
               <p className="px-6 py-2.5 text-sm text-muted-foreground">No cycle is running.</p>
             )}
@@ -57,14 +60,14 @@ export default function CyclesPage() {
           {upcoming.length > 0 && (
             <CycleSection title="Upcoming">
               {upcoming.map((c) => (
-                <CycleRow key={c.id} cycle={c} teamKey={teamKey} />
+                <CycleRow key={c.id} cycle={c} percent={percentOf(c)} teamKey={teamKey} />
               ))}
             </CycleSection>
           )}
           {past.items.length > 0 && (
             <CycleSection title="Past">
               {past.items.map((c) => (
-                <CycleRow key={c.id} cycle={c} teamKey={teamKey} />
+                <CycleRow key={c.id} cycle={c} percent={percentOf(c)} teamKey={teamKey} />
               ))}
               {past.hasNextPage && (
                 <div className="px-6 py-2">

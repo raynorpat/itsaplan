@@ -64,6 +64,11 @@ export const IssueFields = graphql(`
     }
     cycle {
       id
+      number
+      name
+      startsAt
+      endsAt
+      completedAt
     }
   }
 `);
@@ -82,6 +87,16 @@ export function toIssue(data: FragmentOf<typeof IssueFields>): Issue {
     parentId: node.parent?.id ?? null,
     projectMilestoneId: node.projectMilestone?.id ?? null,
     cycleId: node.cycle?.id ?? null,
+    cycle: node.cycle
+      ? {
+          id: node.cycle.id,
+          number: node.cycle.number,
+          name: node.cycle.name ?? null,
+          startsAt: String(node.cycle.startsAt),
+          endsAt: String(node.cycle.endsAt),
+          completedAt: node.cycle.completedAt ? String(node.cycle.completedAt) : null,
+        }
+      : null,
     creatorUserId: node.creator?.id ?? null,
     title: node.title,
     description: node.description ?? '',

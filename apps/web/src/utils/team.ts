@@ -14,7 +14,7 @@ import type {
   NewIssueInput,
 } from '@/lib/api';
 import { PRIORITIES } from '@/utils/fieldOptions';
-import { cycleLabel, cycleOptions, cyclesVisible, sortedCycles } from '@/utils/cycles';
+import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import type { Sort } from '@/utils/viewTypes';
 
@@ -61,7 +61,7 @@ export function buildMaps(team: TeamDetail): Maps {
     labelById: new Map(team.labels.map((l) => [l.id, l])),
     assigneeById: new Map(team.assignees.map((a) => [a.userId, a])),
     columnById: new Map(team.states.map((c) => [c.id, c])),
-    cycleById: new Map(cyclesVisible(team) ? team.teamCycles.map((c) => [c.id, c]) : []),
+    cycleById: new Map(cyclesVisible(team) ? knownCycles(team).map((c) => [c.id, c]) : []),
   };
 }
 
@@ -213,15 +213,28 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
     }
     case 'cycle': {
       // The current and upcoming cycles always get a group; a past cycle only while
-      // a loaded issue is still in it.
+      // a loaded issue is still in it. An issue whose cycle is not known at all
+      // still gets a group, so it is never dropped from the board.
       const now = new Date();
-      const { current, upcoming } = cycleOptions(team.teamCycles, now);
+      const cycles = knownCycles(team);
+      const { current, upcoming } = cycleOptions(cycles, now);
       const shown = new Set([current?.id, ...upcoming.map((c) => c.id)]);
       for (const issue of team.issues) if (issue.cycleId) shown.add(issue.cycleId);
-      const options = sortedCycles(team.teamCycles, now)
-        .filter((c) => shown.has(c.id))
-        .map((c) => ({ key: `y${c.id}`, name: cycleLabel(c), assign: { cycleId: c.id } }));
-      return [...options, { key: 'y-none', name: 'No cycle', assign: { cycleId: null } }];
+      const listed = sortedCycles(cycles, now).filter((c) => shown.has(c.id));
+      const listedIds = new Set(listed.map((c) => c.id));
+      const options = listed.map((c) => ({
+        key: `y${c.id}`,
+        name: cycleLabel(c),
+        assign: { cycleId: c.id },
+      }));
+      const unknown = [...shown]
+        .filter((id): id is string => id != null && !listedIds.has(id))
+        .map((id) => ({ key: `y${id}`, name: 'Unknown cycle', assign: { cycleId: id } }));
+      return [
+        ...options,
+        ...unknown,
+        { key: 'y-none', name: 'No cycle', assign: { cycleId: null } },
+      ];
     }
     case 'none':
       return [{ key: 'all', name: '', assign: null }];

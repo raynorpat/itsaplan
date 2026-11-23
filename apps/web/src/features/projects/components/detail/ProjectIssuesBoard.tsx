@@ -5,12 +5,13 @@ import { useShell } from '@/context/shellContext';
 import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
 import { applyFilters } from '@/utils/filters';
 import { cyclesVisible } from '@/utils/cycles';
+import { cycleSafeSettings } from '@/utils/viewSettings';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
-import KanbanBoard from '@/features/work-items/components/kanban/KanbanBoard';
-import TableView from '@/features/work-items/components/table/TableView';
-import TimelineView from '@/features/work-items/components/timeline/TimelineView';
-import CalendarView from '@/features/work-items/components/calendar/CalendarView';
+import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
+import TableView from '@/components/common/board/table/TableView';
+import TimelineView from '@/components/common/board/timeline/TimelineView';
+import CalendarView from '@/components/common/board/calendar/CalendarView';
 
 // The project's issues rendered as the work items board (kanban/table/timeline/
 // calendar) with filters and display settings, but no saved views. The board is
@@ -27,10 +28,11 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
   }, [team, projectId, board.filters]);
 
   if (!team || !viewTeam) return null;
+  const settings = cycleSafeSettings(board.settings, board.view, cyclesVisible(team));
 
   const viewProps = {
     team: viewTeam,
-    settings: board.settings,
+    settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
     onAddIssue: (defaults: Parameters<typeof onAddIssue>[0]) =>
@@ -59,7 +61,7 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
         <DisplayPopover
           view={board.view}
           onViewChange={board.changeView}
-          settings={board.settings}
+          settings={settings}
           onSettingsChange={board.changeSettings}
           cyclesOn={cyclesVisible(team)}
         />

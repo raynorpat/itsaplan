@@ -131,8 +131,11 @@ export interface Issue {
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
   projectMilestoneId: string | null;
-  // The team cycle the issue belongs to; its details are in TeamScaffold.teamCycles.
+  // The team cycle the issue belongs to. cycleId is what edits change; cycle is the
+  // cycle as the server last returned it, so a past cycle that is not in
+  // TeamScaffold.teamCycles still has a name (see knownCycles).
   cycleId: string | null;
+  cycle?: Cycle | null;
   creatorUserId: string | null;
   title: string;
   description: string;
@@ -463,7 +466,8 @@ export interface Cycle {
 export interface TeamScaffold {
   team: Team;
   cycles: TeamCycleSettings;
-  // The team's cycles (not archived), for the cycle picker, filter and groups.
+  // The team's current and upcoming cycles, for the cycle pickers. Past cycles come
+  // with their issues (Issue.cycle).
   teamCycles: Cycle[];
   states: Column[];
   labels: Label[];

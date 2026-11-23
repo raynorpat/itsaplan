@@ -1,12 +1,13 @@
 import { formatShortDate } from '@/utils/dates';
+import { cycleDays } from '../utils/cyclePage';
 
-// A cycle's first and last day. The API's endsAt is the moment the next cycle
-// starts, so the last day is the day before it.
+// A cycle's first and last day. Cycles run on UTC days, so the dates are shown as
+// those calendar days, not shifted into the viewer's zone.
 export default function CycleDates({ startsAt, endsAt }: { startsAt: string; endsAt: string }) {
-  const lastDay = new Date(new Date(endsAt).getTime() - 1).toISOString();
+  const { first, last } = cycleDays(startsAt, endsAt);
   return (
     <span className="text-xs text-muted-foreground tabular-nums">
-      {formatShortDate(startsAt)} – {formatShortDate(lastDay)}
+      {formatShortDate(first)} – {formatShortDate(last)}
     </span>
   );
 }

@@ -5,7 +5,7 @@ import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
 import { cyclesVisible } from '@/utils/cycles';
-import { type ViewSettings } from '@/utils/viewSettings';
+import { cycleSafeSettings, type ViewSettings } from '@/utils/viewSettings';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +13,10 @@ import ViewTabs from '@/components/layout/ViewTabs';
 import ViewIconPicker from '@/components/layout/ViewIconPicker';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
-import KanbanBoard from './components/kanban/KanbanBoard';
-import TableView from './components/table/TableView';
-import TimelineView from './components/timeline/TimelineView';
-import CalendarView from './components/calendar/CalendarView';
+import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
+import TableView from '@/components/common/board/table/TableView';
+import TimelineView from '@/components/common/board/timeline/TimelineView';
+import CalendarView from '@/components/common/board/calendar/CalendarView';
 
 interface TimelineCollapseState {
   scope: string;
@@ -41,7 +41,7 @@ export default function WorkItemsPage() {
   // client-side); only persisting is gated.
   const canSaveView = can('views', editor.activeView ? 'edit' : 'create');
 
-  const settings = editor.settings;
+  const settings = cycleSafeSettings(editor.settings, editor.view, cyclesVisible(team));
   const changeSettings = (next: ViewSettings) => editor.changeSettings(next);
 
   const timelineGroups = buildGroups(filteredTeam, settings.group);
