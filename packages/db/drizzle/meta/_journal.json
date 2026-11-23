@@ -197,6 +197,13 @@
       "when": 1795396622995,
       "tag": "0027_square_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795403232992,
+      "tag": "0028_silly_corsair",
+      "breakpoints": true
     }
   ]
 }

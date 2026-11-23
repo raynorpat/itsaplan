@@ -353,6 +353,25 @@ export const projectTeam = pgTable(
   ],
 );
 
+// Linear's project members: the people working on a project, set by
+// `memberIds` (the list is replaced). A member can see the project.
+export const projectMember = pgTable(
+  'project_member',
+  {
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    index('project_member_user_idx').on(t.userId),
+  ],
+);
+
 export const projectMilestone = pgTable(
   'project_milestone',
   {

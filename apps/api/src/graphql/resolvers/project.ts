@@ -5,16 +5,18 @@ import {
   issue,
   project,
   projectLabel,
+  projectMember,
   projectMilestone,
   projectStatus,
   projectUpdate,
   team,
+  user,
 } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
-import { paginate, type PageArgs } from '../connection';
+import { connectionOf, isFirstPage, paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql } from '../filter';
 import { projectFilterSql } from '../project-filter';
@@ -22,7 +24,8 @@ import { UUID_RE } from '../../shared/lib';
 import { projectsInTeams } from '../../projects/access';
 import { getProjectsByIds, type ProjectRow } from '../../projects/store';
 import { listIssues, userById } from './issue';
-import { toTeam } from './team';
+import { listUsers, toTeam, visibleUsers } from './team';
+import { toGraphQLUser } from './user';
 import { guard } from './mutations';
 
 // Linear's Project and its items (ProjectStatus, ProjectMilestone, ProjectUpdate,
@@ -380,6 +383,27 @@ export const projectResolvers = {
       listUpdates(eq(projectUpdate.projectId, p.id), args, ctx),
     labels: (p: GraphQLProject, args: ConnectionArgs) =>
       listLabels(inArray(projectLabel.id, p.labelIds.length ? p.labelIds : [UUID_NONE]), args),
+    // Linear's project members, limited to the users the viewer may see.
+    members: async (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) => {
+      if (isFirstPage(args))
+        return connectionOf(await loaders(ctx).projectMembers.load(p.id), args, (row) =>
+          toGraphQLUser(row, ctx.user.id),
+        );
+      return listUsers(
+        and(
+          inArray(
+            user.id,
+            db
+              .select({ id: projectMember.userId })
+              .from(projectMember)
+              .where(eq(projectMember.projectId, p.id)),
+          ),
+          visibleUsers(ctx.user.id),
+        ),
+        args,
+        ctx.user.id,
+      );
+    },
   },
   ProjectMilestone: {
     project: (m: { projectId: string }, _: unknown, ctx: GraphQLContext) =>

@@ -66,6 +66,7 @@ type ProjectInput = Record<string, unknown> & {
   sortOrder?: number;
   labelIds?: string[];
   teamIds?: string[];
+  memberIds?: string[];
 };
 
 const PROJECT_FIELDS = [
@@ -81,6 +82,7 @@ const PROJECT_FIELDS = [
   'statusId',
   'sortOrder',
   'labelIds',
+  'memberIds',
 ];
 
 function toProjectPatch(input: ProjectInput): ProjectPatch {
@@ -109,6 +111,7 @@ function toProjectPatch(input: ProjectInput): ProjectPatch {
   if (status) patch.status = status;
   if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
   if (input.labelIds !== undefined) patch.labelIds = input.labelIds;
+  if (input.memberIds !== undefined) patch.memberUserIds = input.memberIds ?? [];
   return patch;
 }
 

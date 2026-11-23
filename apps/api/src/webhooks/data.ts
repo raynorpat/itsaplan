@@ -19,7 +19,7 @@ import { commentParentUrl, getComment } from '../comments/store';
 import { issueById } from '../graphql/resolvers/issue';
 import { toIssueLabel } from '../graphql/resolvers/issue-label';
 import { toProject, toUpdate } from '../graphql/resolvers/project';
-import { getProject } from '../projects/store';
+import { getProject, projectMemberIds } from '../projects/store';
 import { getInitiative, initiativeUrl } from '../initiatives/store';
 import { getInitiativeUpdate, latestInitiativeUpdate } from '../initiatives/updates';
 import { documentUrl, getDocument } from '../documents/store';
@@ -97,6 +97,7 @@ export async function projectData(projectId: string): Promise<WebhookData | null
     teamIds: [...visibleTeamIds].sort(),
     leadId: leadUserId,
     labelIds: [...labelIds].sort(),
+    memberIds: await projectMemberIds(projectId),
   };
 }
 

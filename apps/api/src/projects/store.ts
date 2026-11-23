@@ -7,6 +7,7 @@ import {
   team,
   teamMember,
   projectLabelLink,
+  projectMember,
   projectStatus,
   projectTeam,
   user,
@@ -17,6 +18,7 @@ import {
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { projectsInTeams, projectTeamIds } from './access';
 import { HttpError, iso, num } from '../shared/lib';
+import { visibleTeamIdList } from '../shared/access';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
@@ -354,6 +356,7 @@ export interface NewProjectInput {
   startDate?: string | null;
   targetDate?: string | null;
   labelIds?: string[];
+  memberUserIds?: string[];
 }
 
 // The lead must be a member of at least one of the project's teams.
@@ -366,6 +369,40 @@ async function assertProjectLead(teamIds: string[], leadUserId?: string | null):
     .limit(1);
   if (rows.length === 0)
     throw new HttpError(400, "Project lead must be a member of one of the project's teams");
+}
+
+// Every member must be able to see the project: through one of its teams.
+async function assertProjectMembers(teamIds: string[], userIds?: string[]): Promise<void> {
+  const ids = [...new Set(userIds ?? [])];
+  const refused: string[] = [];
+  for (const id of ids) {
+    const visible = await visibleTeamIdList(id);
+    if (!teamIds.some((t) => visible.includes(t))) refused.push(id);
+  }
+  if (refused.length)
+    throw new HttpError(
+      400,
+      `Project members must be able to see the project: ${refused.join(', ')}`,
+    );
+}
+
+async function setProjectMembers(projectId: string, userIds: string[]): Promise<void> {
+  const ids = [...new Set(userIds)];
+  await db.transaction(async (tx) => {
+    await tx.delete(projectMember).where(eq(projectMember.projectId, projectId));
+    if (ids.length)
+      await tx.insert(projectMember).values(ids.map((userId) => ({ projectId, userId })));
+  });
+}
+
+// The project's member ids, in the order they were added.
+export async function projectMemberIds(projectId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: projectMember.userId })
+    .from(projectMember)
+    .where(eq(projectMember.projectId, projectId))
+    .orderBy(asc(projectMember.createdAt), asc(projectMember.userId));
+  return rows.map((r) => r.userId);
 }
 
 // Project labels are workspace-level; a group holds labels and cannot be applied.
@@ -390,6 +427,7 @@ export async function createProject(
   if (teams.length === 0) throw new HttpError(400, 'A project needs at least one team');
   await assertProjectLead(teams, input.leadUserId);
   await assertProjectLabels(input.labelIds);
+  await assertProjectMembers(teams, input.memberUserIds);
   const id = await db.transaction(async (tx) => {
     const [posRow] = await tx
       .select({ pos: sql<number>`COALESCE(MAX(${project.sortOrder}), 0) + 1000` })
@@ -416,6 +454,7 @@ export async function createProject(
   });
   await recordActivity(id, [{ action: 'created' }], actorUserId);
   if (input.labelIds?.length) await setProjectLabels(id, input.labelIds, actorUserId);
+  if (input.memberUserIds?.length) await setProjectMembers(id, input.memberUserIds);
   await emitProject('create', await projectData(id), actorUserId);
   return (await getProject(id))!;
 }
@@ -433,6 +472,8 @@ export interface ProjectPatch {
   startDate?: string | null;
   targetDate?: string | null;
   labelIds?: string[];
+  // Linear's memberIds: replaces the project's members.
+  memberUserIds?: string[];
 }
 
 function snapshot(row: ProjectRow): ProjectSnapshot {
@@ -465,6 +506,8 @@ export async function updateProject(
   await assertProjectLead(await projectTeamIds(id), patch.leadUserId);
   const beforeData = beforeOverride ?? (await projectData(id));
   await assertProjectLabels(patch.labelIds);
+  if (patch.memberUserIds !== undefined)
+    await assertProjectMembers(await projectTeamIds(id), patch.memberUserIds);
 
   const set: Partial<typeof project.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;
@@ -485,6 +528,7 @@ export async function updateProject(
     await logProjectUpdate(snapshot(before), snapshot((await getProject(id))!), actorUserId);
   }
   if (patch.labelIds !== undefined) await setProjectLabels(id, patch.labelIds, actorUserId);
+  if (patch.memberUserIds !== undefined) await setProjectMembers(id, patch.memberUserIds);
   await emitProject('update', await projectData(id), actorUserId, beforeData);
   return getProject(id);
 }

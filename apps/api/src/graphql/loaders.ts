@@ -11,6 +11,7 @@ import {
   team,
   user,
   workflowState,
+  projectMember,
 } from '@repo/db';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { mapCycle } from '../cycles/store';
@@ -115,6 +116,16 @@ function createLoaders(ctx: GraphQLContext) {
       ),
     ),
     // Users the viewer may see (visibleUsers); others resolve to null.
+    // A project's members the viewer may see, in the order they were added.
+    projectMembers: new DataLoader(async (keys: readonly string[]) => {
+      const rows = await db
+        .select({ projectId: projectMember.projectId, user: getTableColumns(user) })
+        .from(projectMember)
+        .innerJoin(user, eq(user.id, projectMember.userId))
+        .where(and(inArray(projectMember.projectId, [...keys]), visibleUsers(viewerId)))
+        .orderBy(projectMember.createdAt, projectMember.userId);
+      return grouped(rows, (r) => r.projectId, keys).map((group) => group.map((r) => r.user));
+    }),
     user: new DataLoader(async (keys: readonly string[]) => {
       return byId(
         await db
