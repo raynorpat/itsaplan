@@ -6,7 +6,7 @@ import { Trash2 } from 'lucide-react';
 import { type Assignee } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { documentTitle, syncDraft } from '@/utils/documents';
+import { documentTitle, syncDraft } from '../../utils/documents';
 import {
   type IssueDocument,
   useRestoreIssueDocument,

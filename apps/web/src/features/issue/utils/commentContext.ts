@@ -1,5 +1,5 @@
 import { type Assignee } from '@/lib/api';
-import { type CommentTarget } from '@/utils/commentTarget';
+import { type CommentTarget } from './commentTarget';
 
 // What every comment in a live comment list needs to show the viewer's controls
 // and its reply / edit box: the issue or document it belongs to, the viewer (null when signed out), whether

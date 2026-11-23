@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react';
-import { documentTitle } from '@/utils/documents';
+import { documentTitle } from '../../utils/documents';
 import { type IssueDocument } from '../../services/documents.service';
 
 // One document in the issue's Documents list; clicking opens it.

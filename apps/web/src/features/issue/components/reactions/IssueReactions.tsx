@@ -17,6 +17,7 @@ export default function IssueReactions({ issueId }: { issueId: string }) {
       className="mt-3"
       reactions={reactions.data ?? []}
       viewerId={viewerId}
+      pending={toggle.isPending}
       onToggle={(emoji, mineId) => toggle.mutate({ target: { issueId }, emoji, mineId })}
     />
   );

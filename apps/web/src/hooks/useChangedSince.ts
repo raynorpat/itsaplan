@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { createChangedSinceGuard } from '@/utils/changedSinceGuard';
 import { mergeChanged } from '@/utils/mergeChanged';
 
 // How often a visible list asks for the items changed since its newest one.
@@ -8,6 +9,8 @@ const CHANGED_SINCE_MS = 60_000;
 // returns an item someone else deleted or moved out of the list, so a full reload
 // clears those within this period.
 const FULL_REFETCH_MS = 5 * 60_000;
+
+const guard = createChangedSinceGuard();
 
 interface ChangedSinceOptions<T> {
   queryKey: QueryKey;
@@ -24,17 +27,19 @@ interface ChangedSinceOptions<T> {
 // has and merges them in; every five minutes, and on returning to the tab after five
 // minutes away, it reloads the whole list. Both are skipped while a mutation is in
 // flight, so neither can overwrite an optimistic update. After the viewer's own
-// create, delete or move, call `refetchInFull` for the list's key.
+// create, delete or move, call `refetchInFull` for the list's key. A changed-since
+// response that was in flight during a full reload is discarded.
 export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOptions<T>) {
   const { queryKey, fetchAll, fetchChanged, getUpdatedAt, enabled = true } = opts;
   const qc = useQueryClient();
-  const lastFull = useRef(0);
+  const keyText = JSON.stringify(queryKey);
   const query = useQuery({
     queryKey,
     queryFn: async () => {
-      const nodes = await fetchAll();
-      lastFull.current = Date.now();
-      return nodes;
+      // Bumped before the fetch, so a changed-since response started earlier is
+      // discarded even if it returns after this reload.
+      guard.reloaded(keyText);
+      return fetchAll();
     },
     enabled,
   });
@@ -42,7 +47,6 @@ export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOpti
   // The latest callbacks, so the interval below does not restart on every render.
   const latest = useRef({ fetchChanged, getUpdatedAt });
   latest.current = { fetchChanged, getUpdatedAt };
-  const keyText = JSON.stringify(queryKey);
 
   useEffect(() => {
     if (!enabled) return;
@@ -51,7 +55,7 @@ export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOpti
 
     const tick = async () => {
       if (busy()) return;
-      if (Date.now() - lastFull.current >= FULL_REFETCH_MS) {
+      if (Date.now() - guard.lastReloadAt(keyText) >= FULL_REFETCH_MS) {
         await qc.invalidateQueries({ queryKey: key, exact: true });
         return;
       }
@@ -59,8 +63,9 @@ export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOpti
       if (!current) return;
       const since = newestUpdatedAt(current, latest.current.getUpdatedAt);
       if (!since) return;
+      const token = guard.begin(keyText);
       const changed = await latest.current.fetchChanged(since).catch(() => null);
-      if (!changed || busy()) return;
+      if (!changed || busy() || !guard.isCurrent(keyText, token)) return;
       qc.setQueryData<T[]>(key, (list) => (list ? mergeChanged(list, changed) : list));
     };
 

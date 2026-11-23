@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { type FeedItem } from '@/lib/api';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
-import { canDeleteComment, canEditComment, canResolveThread } from '@/utils/commentPermissions';
+import { canDeleteComment, canEditComment, canResolveThread } from '../../utils/commentPermissions';
 import { useDeleteComment, useSetThreadResolved } from '../../services/comments.service';
 import { useToggleReaction } from '../../services/reactions.service';
 import { type CommentContext } from '../../utils/commentContext';
-import { commentTargetKey } from '@/utils/commentTarget';
+import { commentTargetKey } from '../../utils/commentTarget';
 import ReactionBar from '../reactions/ReactionBar';
 import CommentActionsMenu from './CommentActionsMenu';
 import CommentComposer from './CommentComposer';
@@ -77,6 +77,7 @@ export default function LiveComment({
               <ReactionBar
                 reactions={item.reactions ?? []}
                 viewerId={viewerId}
+                pending={toggle.isPending}
                 onToggle={(emoji, mineId) =>
                   toggle.mutate({
                     target: { commentId: item.id, refresh: commentTargetKey(target) },

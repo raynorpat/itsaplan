@@ -1,7 +1,7 @@
 import { type Assignee } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
 import { usePermissions } from '@/hooks/usePermissions';
-import { type CommentTarget } from '@/utils/commentTarget';
+import { type CommentTarget } from '../utils/commentTarget';
 import { type CommentContext } from '../utils/commentContext';
 
 // The CommentContext for a live comment list (an issue's feed or a document's

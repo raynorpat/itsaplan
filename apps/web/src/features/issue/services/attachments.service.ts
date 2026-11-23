@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Attachment } from '@/lib/api';
 import { gqlRequest, graphql, type ResultOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { uploadFile, type UploadedAttachment } from '@/utils/upload';
+import { uploadFile, type UploadedAttachment } from '../utils/upload';
 
 const IssueAttachmentsQuery = graphql(`
   query IssueAttachments($id: String!) {
@@ -111,9 +111,12 @@ export function useAttachmentsQuery(issueId: string) {
   });
 }
 
-export function useUploadAttachment() {
+// `inlineErrors`: the caller shows the failure next to the control, so the global
+// error toast is not shown as well.
+export function useUploadAttachment({ inlineErrors = false }: { inlineErrors?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation({
+    meta: { suppressErrorToast: inlineErrors },
     mutationFn: ({ issueId, file }: { issueId: string; file: File }): Promise<UploadedAttachment> =>
       uploadFile(issueId, file),
     onSuccess: (_data, { issueId }) =>
@@ -121,9 +124,11 @@ export function useUploadAttachment() {
   });
 }
 
+// The form shows its own error, so the global error toast is off.
 export function useAddLink(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: ({ url, title }: { url: string; title?: string }) =>
       gqlRequest(AttachmentLinkMutation, { issueId, url, title: title || null }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.attachments(issueId) }),

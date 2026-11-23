@@ -87,7 +87,7 @@ export default function IssueAttachmentsPanel({
   const attachmentsQuery = useAttachmentsQuery(issueId);
   const items = attachmentsQuery.data?.files ?? [];
   const links = attachmentsQuery.data?.links ?? [];
-  const uploadAttachment = useUploadAttachment();
+  const uploadAttachment = useUploadAttachment({ inlineErrors: true });
   const deleteAttachment = useDeleteAttachment(issueId);
   const addLink = useAddLink(issueId);
   const renameAttachment = useRenameAttachment(issueId);

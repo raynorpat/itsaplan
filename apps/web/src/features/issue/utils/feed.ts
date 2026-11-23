@@ -31,6 +31,9 @@ interface Named {
 export interface FeedHistory {
   id: string;
   createdAt: string;
+  // The acting user's id: set with a null `actor` when that user is no longer
+  // visible or was removed; null for a change the system made.
+  actorId?: string | null;
   actor: FeedUser | null;
   fromStateId?: string | null;
   toStateId?: string | null;
@@ -73,6 +76,8 @@ export interface FeedEntry {
   resolved: boolean;
 }
 
+const REMOVED_USER = 'a removed user';
+
 // Linear's relation change codes (IssueRelationHistoryPayload.type) as the relation
 // subjects the feed phrases. The first letter is a (added) or r (removed).
 const RELATION_SUBJECT: Record<string, string> = {
@@ -102,7 +107,7 @@ function base(h: FeedHistory, issueId: string, suffix = ''): FeedItem {
     issueId,
     kind: 'activity',
     actorUserId: h.actor?.id ?? null,
-    actorName: h.actor?.name ?? null,
+    actorName: h.actor?.name ?? (h.actorId ? REMOVED_USER : null),
     body: null,
     action: null,
     subject: null,
@@ -212,7 +217,8 @@ export function commentToFeedItem(c: FeedComment, issueId: string): FeedItem {
     issueId,
     kind: 'comment',
     actorUserId: c.user?.id ?? null,
-    actorName: c.user?.name ?? null,
+    // Every comment has an author; a missing one was removed or is hidden.
+    actorName: c.user?.name ?? REMOVED_USER,
     body: c.body,
     action: null,
     subject: null,

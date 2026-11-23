@@ -56,12 +56,18 @@ export async function requestUpload(input: {
   if (!Number.isInteger(input.size) || input.size <= 0)
     throw new HttpError(400, 'size must be a positive number of bytes');
   const limits = await getStorageSettings();
-  const asAvatar = AVATAR_IMAGE_TYPES.test(contentType) && input.size <= limits.maxAvatarMb * MB;
-  const asAttachment =
-    mimeAllowed(contentType, limits.attachmentMimeTypes) &&
-    input.size <= limits.maxAttachmentMb * MB;
-  if (!asAvatar && !asAttachment)
-    throw new HttpError(400, `A ${contentType} file of ${input.size} bytes is not accepted`);
+  // A file either use accepts: the workspace's attachment types up to the attachment
+  // limit, or a raster image up to the avatar limit. Refusals read like the REST
+  // upload's.
+  const avatarType = AVATAR_IMAGE_TYPES.test(contentType);
+  const attachmentType = mimeAllowed(contentType, limits.attachmentMimeTypes);
+  if (!avatarType && !attachmentType)
+    throw new HttpError(400, `Files of type ${contentType} are not allowed`);
+  const limitMb = Math.max(
+    avatarType ? limits.maxAvatarMb : 0,
+    attachmentType ? limits.maxAttachmentMb : 0,
+  );
+  if (input.size > limitMb * MB) throw new HttpError(400, `File exceeds the ${limitMb} MB limit`);
   const [unused] = await db
     .select({ total: sql<string>`coalesce(sum(${fileUpload.size}), 0)` })
     .from(fileUpload)

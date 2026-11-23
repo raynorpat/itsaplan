@@ -5,7 +5,7 @@ import { useSession } from '@/lib/auth-client';
 import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { isSubscribed, orderSubscribers } from '@/utils/subscribers';
+import { isSubscribed, orderSubscribers } from '../../utils/subscribers';
 import {
   useIssueSubscribersQuery,
   useToggleSubscription,

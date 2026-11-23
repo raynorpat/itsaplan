@@ -155,6 +155,28 @@ describe('file uploads', () => {
     delete process.env.MAX_ATTACHMENT_MB;
   });
 
+  it('words a refusal like the REST upload', async () => {
+    const { owner } = await setup();
+    process.env.MAX_ATTACHMENT_MB = '1';
+    process.env.MAX_AVATAR_MB = '1';
+    const message = async (ct: string, size: number) =>
+      (
+        await gql(
+          { cookie: owner.cookie },
+          `mutation($ct: String!, $size: Int!) {
+             fileUpload(contentType: $ct, filename: "f", size: $size) { success }
+           }`,
+          { ct, size },
+        )
+      ).body.errors?.[0]?.message;
+    expect(await message('text/plain', 2 * 1024 * 1024)).toBe('File exceeds the 1 MB limit');
+    expect(await message('application/x-msdownload', 10)).toBe(
+      'Files of type application/x-msdownload are not allowed',
+    );
+    delete process.env.MAX_ATTACHMENT_MB;
+    delete process.env.MAX_AVATAR_MB;
+  });
+
   it('checks the purpose at use', async () => {
     const { owner, issueId } = await setup();
     const other = await signUpTestUser();

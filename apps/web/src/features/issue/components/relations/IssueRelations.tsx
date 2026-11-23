@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Link2, X } from 'lucide-react';
-import { RELATION_KIND_LABEL } from '@/utils/relations';
+import { RELATION_KIND_LABEL } from '../../utils/relations';
 import { issuePath } from '@/utils/paths';
 import {
   useCreateRelation,

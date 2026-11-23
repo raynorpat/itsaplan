@@ -45,6 +45,10 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # Unit tests of the web app (pure helpers; no database or browser).
+      - name: Web unit tests
+        run: bun --filter='web' run test
+
   build:
     name: Build apps
     runs-on: ubuntu-latest

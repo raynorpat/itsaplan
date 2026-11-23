@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gqlRequest, graphql } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { groupRelations, type RelationGroup, type RelatedIssue } from '@/utils/relations';
+import { groupRelations, type RelationGroup, type RelatedIssue } from '../utils/relations';
 
 const IssueRelationsQuery = graphql(`
   query IssueRelations($id: String!) {
@@ -112,9 +112,11 @@ function useRefreshAfterRelation(issueId: string, teamKey: string | null) {
   };
 }
 
+// The relations section shows its own error, so the global error toast is off.
 export function useCreateRelation(issueId: string, teamKey: string | null) {
   const refresh = useRefreshAfterRelation(issueId, teamKey);
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: ({ kind, otherId }: { kind: NewRelationKind; otherId: string }) =>
       gqlRequest(RelationCreateMutation, { input: relationInput(kind, issueId, otherId) }),
     onSuccess: refresh,

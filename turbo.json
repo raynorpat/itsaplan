@@ -25,6 +25,10 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "web#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/api/src/graphql/schema.graphql"]
+    },
     "test": {
       "cache": false
     },

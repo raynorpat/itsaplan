@@ -176,4 +176,17 @@ describe('buildFeed', () => {
     // Older history exists: nothing loaded is older than the oldest loaded history.
     assert.deepEqual(ids({ historyHasMore: true }), ['c10', 'h9', 'c5', 'h2']);
   });
+
+  it('names a removed actor instead of the system', () => {
+    const feed = buildFeed(
+      [comment('c1', 9, { user: null })],
+      [
+        history('gone', 8, { actorId: 'u9', actor: null, toTitle: 'b', fromTitle: 'a' }),
+        history('system', 7, { actorId: null, actor: null, archived: true }),
+      ],
+      ISSUE,
+    );
+    const names = Object.fromEntries(feed.map((e) => [e.item.id, e.item.actorName]));
+    assert.deepEqual(names, { c1: 'a removed user', gone: 'a removed user', system: null });
+  });
 });

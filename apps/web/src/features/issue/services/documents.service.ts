@@ -6,8 +6,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { buildFeed, type FeedEntry } from '@/utils/feed';
-import { sortDocuments } from '@/utils/documents';
+import { buildFeed, type FeedEntry } from '../utils/feed';
+import { sortDocuments } from '../utils/documents';
 
 // Connections cap a page at 250.
 const PAGE = 250;

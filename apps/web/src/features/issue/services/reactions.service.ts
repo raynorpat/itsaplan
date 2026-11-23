@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { type ReactionNode } from '@/utils/reactions';
+import { type ReactionNode } from '../utils/reactions';
 
 const IssueReactionsQuery = graphql(`
   query IssueReactions($id: String!) {
@@ -80,7 +80,8 @@ export function useToggleReaction() {
     },
     onSettled: (_data, _error, { target }) =>
       void qc.invalidateQueries({
-        queryKey: 'commentId' in target ? target.refresh : qk.feed(target.issueId),
+        // An issue reaction refreshes only the issue's reactions, not the whole feed.
+        queryKey: 'commentId' in target ? target.refresh : qk.issueReactions(target.issueId),
       }),
   });
 }

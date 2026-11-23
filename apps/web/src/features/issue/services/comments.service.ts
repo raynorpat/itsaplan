@@ -6,8 +6,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { type FeedItem, type TimelineSegment } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { buildFeed, type FeedComment, type FeedEntry, type FeedHistory } from '@/utils/feed';
-import { commentTargetInput, commentTargetKey, type CommentTarget } from '@/utils/commentTarget';
+import { buildFeed, type FeedComment, type FeedEntry, type FeedHistory } from '../utils/feed';
+import { commentTargetInput, commentTargetKey, type CommentTarget } from '../utils/commentTarget';
 
 // Comments and history entries per page. "Show older" loads the next page of each
 // connection that has more.
@@ -61,6 +61,7 @@ const FeedHistoryQuery = graphql(`
         nodes {
           id
           createdAt
+          actorId
           actor {
             id
             name
@@ -341,8 +342,12 @@ export function useCreateComment() {
           parentId: input.parentId ?? undefined,
         },
       }),
-    onSuccess: (_data, { target }) =>
-      void qc.invalidateQueries({ queryKey: commentTargetKey(target) }),
+    onSuccess: (_data, { target }) => {
+      void qc.invalidateQueries({ queryKey: commentTargetKey(target) });
+      // Commenting on an issue subscribes the author (server side).
+      if ('issueId' in target)
+        void qc.invalidateQueries({ queryKey: qk.issueSubscribers(target.issueId) });
+    },
   });
 }
 

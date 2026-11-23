@@ -32,13 +32,10 @@ export const qk = {
   documentComments: (id: string) => ['documentComments', id] as const,
   issueDocuments: (id: string) => ['issueDocuments', id] as const,
   issueSubscribers: (id: string) => ['issueSubscribers', id] as const,
-  // The status stretches of the timeline view, and the entries of one stretch read
-  // when it is opened. Both keyed under the feed, so every existing feed
-  // invalidation refreshes them too.
+  // The status stretches of the timeline view and the issue's own reactions. Both
+  // keyed under the feed, so every existing feed invalidation refreshes them too.
   timeline: (id: string) => ['feed', id, 'timeline'] as const,
   issueReactions: (id: string) => ['feed', id, 'reactions'] as const,
-  timelineItems: (id: string, from: string, to: string | null) =>
-    ['feed', id, 'timelineItems', from, to] as const,
   // Projects: a team's list (params narrow, sort and page it), the per-status
   // tab counts, one project, and one project's activity feed.
   projects: (teamKey: string, params?: Record<string, unknown>) =>
