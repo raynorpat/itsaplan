@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { clearLoaders } from './loaders';
 import { makeExecutableSchema, type IExecutableSchemaDefinition } from '@graphql-tools/schema';
 import {
   isEnumType,
@@ -63,9 +64,19 @@ function defaultField(field: GraphQLField<unknown, unknown>) {
 export function buildSchema(resolvers: Resolvers): GraphQLSchema {
   const schema = makeExecutableSchema({ typeDefs, resolvers });
   const roots = new Set([schema.getQueryType()?.name, schema.getMutationType()?.name]);
+  const mutationType = schema.getMutationType()?.name;
   for (const type of Object.values(schema.getTypeMap())) {
     if (!isObjectType(type) || type.name.startsWith('__')) continue;
     for (const field of Object.values(type.getFields())) {
+      if (field.resolve && type.name === mutationType) {
+        // Each mutation field starts with fresh loaders (see clearLoaders).
+        const resolve = field.resolve;
+        field.resolve = (source, args, ctx, info) => {
+          clearLoaders(ctx);
+          return resolve(source, args, ctx, info);
+        };
+        continue;
+      }
       if (field.resolve) continue;
       field.resolve = roots.has(type.name)
         ? () => {

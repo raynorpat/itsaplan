@@ -12,6 +12,7 @@ import { refetchInFull } from '@/hooks/useChangedSince';
 import { patchIssueInList, rollbackRow } from '@/utils/boardCache';
 import { runBulk, type BulkResult } from '@/utils/bulk';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
+import { invalidateSubscribedIssueIds } from '@/services/subscribedIssueIds';
 
 // --- The issue over GraphQL (the issue page and every surface reading qk.issue) ---
 // The issue's own fields as Linear's Issue, mapped onto the web's Issue type so the
@@ -531,6 +532,7 @@ export function useCreateIssue() {
       ),
     onSuccess: (_issue, { teamKey }) => {
       void refetchInFull(qc, qk.boardIssues(teamKey));
+      void invalidateSubscribedIssueIds(qc);
       invalidateProjects(qc);
     },
   });

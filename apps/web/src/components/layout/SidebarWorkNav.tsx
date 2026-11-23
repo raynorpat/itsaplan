@@ -28,7 +28,6 @@ export default function SidebarWorkNav({ teamKey }: { teamKey: string | null }) 
             icon={Inbox}
             label="Inbox"
             active={pathname === inboxPath()}
-            disabled={false}
             badge={inboxUnread}
           />
           <SidebarNavItem

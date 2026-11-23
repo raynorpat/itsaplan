@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/context-menu';
 import InboxItemActions from './InboxItemActions';
 import InboxSnoozeCalendar from './InboxSnoozeCalendar';
+import { isSnoozed } from '@/utils/notifications';
 
 const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   assigned: UserRound,
@@ -103,7 +104,7 @@ export default function InboxListItem({
   const [pickOpen, setPickOpen] = useState(false);
   const Icon = TYPE_ICON[n.type];
   const unread = n.readAt == null;
-  const snoozed = n.snoozedUntil != null && new Date(n.snoozedUntil).getTime() > Date.now();
+  const snoozed = isSnoozed(n, new Date());
 
   const actionsProps = {
     unread,

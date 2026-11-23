@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useQueries } from '@tanstack/react-query';
 import { useTeamsQuery } from '@/services/teams.service';
@@ -80,16 +81,27 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
       enabled: teamKey != null && viewerId !== '',
     })),
   });
+  // Changes when a lookup's data or failure changes; the query results themselves
+  // change identity on every render.
+  const subscriberState = subscriberQueries.map((q) => `${q.dataUpdatedAt}:${q.isError}`).join('|');
   const subscriberSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
     subscriberKeys.forEach((key, i) => {
-      const data = subscriberQueries[i]?.data;
-      if (data) sets.set(key, data);
+      const q = subscriberQueries[i];
+      // A lookup that failed matches no issue (and is reported below) rather than
+      // letting the condition match every issue.
+      if (q?.data) sets.set(key, q.data);
+      else if (q?.isError) sets.set(key, new Set());
     });
     return sets;
-    // The query results change identity on every render; their data does not.
+    // subscriberState stands for the query results (see above).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subscriberKeys, ...subscriberQueries.map((q) => q.data)]);
+  }, [subscriberKeys, subscriberState]);
+  const subscribersFailed = subscriberQueries.some((q) => q.isError);
+  useEffect(() => {
+    if (subscribersFailed)
+      toast.error('Could not load subscribers for the filter. It matches no issues for now.');
+  }, [subscribersFailed]);
 
   // The team with the active filters applied to its issues: the active view's
   // own conditions plus any ad-hoc ones.

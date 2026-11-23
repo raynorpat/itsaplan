@@ -33,6 +33,22 @@ describe('graphql custom views', () => {
     await resetDb();
   });
 
+  it('accepts a null team condition', async () => {
+    const { owner, mktId, run } = await setup();
+    await run(owner.cookie, CREATE, { input: { name: 'Mkt', teamId: mktId } });
+    const none = await run(
+      owner.cookie,
+      '{ customViews(filter: { team: { null: true } }) { nodes { name } } }',
+    );
+    expect(none.body.errors).toBeUndefined();
+    expect((none.body.data as Data).customViews.nodes).toEqual([]);
+    const some = await run(
+      owner.cookie,
+      '{ customViews(filter: { team: { null: false } }) { nodes { name } } }',
+    );
+    expect((some.body.data as Data).customViews.nodes).toEqual([{ name: 'Mkt' }]);
+  });
+
   it("filters views by their team's key", async () => {
     const { owner, mktId, run } = await setup();
     await run(owner.cookie, CREATE, { input: { name: 'Mkt', teamId: mktId } });

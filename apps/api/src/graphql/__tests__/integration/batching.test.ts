@@ -172,6 +172,44 @@ describe('graphql batching', () => {
     expect(large).toEqual(small);
   }, 120_000);
 
+  it('gives each mutation field in one document fresh data', async () => {
+    await resetDb();
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const h = { cookie: owner.cookie };
+    const one = async (query: string, variables?: Record<string, unknown>) => {
+      const res = await gql(h, query, variables);
+      if (res.body.errors) throw new Error(JSON.stringify(res.body.errors));
+      return res.body.data as Record<string, Record<string, Record<string, unknown>>>;
+    };
+    const team = (
+      await one('mutation { teamCreate(input: { name: "Marketing", key: "MKT" }) { team { id } } }')
+    ).teamCreate!.team!.id as string;
+    const label = async (name: string) =>
+      (
+        await one(
+          'mutation($n: String!, $t: String!) { issueLabelCreate(input: { name: $n, teamId: $t }) { issueLabel { id } } }',
+          { n: name, t: team },
+        )
+      ).issueLabelCreate!.issueLabel!.id as string;
+    const x = await label('X');
+    const y = await label('Y');
+    const id = (
+      await one(
+        'mutation($t: String!) { issueCreate(input: { teamId: $t, title: "I" }) { issue { id } } }',
+        { t: team },
+      )
+    ).issueCreate!.issue!.id as string;
+    const data = await one(
+      `mutation($id: String!, $x: String!, $y: String!) {
+        a: issueUpdate(id: $id, input: { labelIds: [$x] }) { issue { labelIds } }
+        b: issueUpdate(id: $id, input: { labelIds: [$y] }) { issue { labelIds } }
+      }`,
+      { id, x, y },
+    );
+    expect(data.a!.issue!.labelIds).toEqual([x]);
+    expect(data.b!.issue!.labelIds).toEqual([y]);
+  });
+
   it('makes a bounded number of statements for the notification list', async () => {
     expect(await measureNotifications(50)).toBe(await measureNotifications(5));
   }, 120_000);

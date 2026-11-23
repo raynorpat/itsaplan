@@ -41,6 +41,14 @@ export default function InboxView() {
   const items = visibleNotifications(list, filters, now);
   const unread = unreadCount(list, now);
 
+  // An issue's state on its notifications only refreshes with a full reload (the
+  // notification's updatedAt does not move when the issue does), so reload before
+  // picking the notifications of completed issues.
+  const archiveReadCompleted = async () => {
+    const fresh = (await query.refetch()).data ?? list;
+    archive(readForCompletedIssues(fresh).map((n) => n.id));
+  };
+
   const run = (ids: string[], next: InboxChange) => {
     if (ids.length > 0) change.mutate({ ids, change: next });
   };
@@ -68,15 +76,17 @@ export default function InboxView() {
       return next;
     });
 
-  const checkedIds = [...checked];
+  // Bulk actions apply only to checked notifications the current filter shows.
+  const shownIds = new Set(items.map((n) => n.id));
+  const checkedIds = [...checked].filter((id) => shownIds.has(id));
   const clearChecked = () => setChecked(new Set());
 
   return (
     <div className="flex h-full min-h-0">
       <div className="flex w-full max-w-sm min-w-0 flex-col border-r">
-        {checked.size > 0 ? (
+        {checkedIds.length > 0 ? (
           <InboxSelectionBar
-            count={checked.size}
+            count={checkedIds.length}
             onRead={(read) => {
               run(checkedIds, { kind: 'read', read });
               clearChecked();
@@ -100,7 +110,7 @@ export default function InboxView() {
             onArchiveRead={() =>
               archive(list.filter((n) => n.archivedAt == null && n.readAt != null).map((n) => n.id))
             }
-            onArchiveReadCompleted={() => archive(readForCompletedIssues(list).map((n) => n.id))}
+            onArchiveReadCompleted={() => void archiveReadCompleted()}
           />
         )}
         <InboxList

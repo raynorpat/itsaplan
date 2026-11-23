@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
+import { invalidateSubscribedIssueIds } from '@/services/subscribedIssueIds';
 
 const IssueSubscribersQuery = graphql(`
   query IssueSubscribers($id: String!) {
@@ -60,6 +61,9 @@ export function useToggleSubscription(issueId: string) {
       if (subscribe) await gqlRequest(IssueSubscribe, { id: issueId });
       else await gqlRequest(IssueUnsubscribe, { id: issueId });
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: qk.issueSubscribers(issueId) }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: qk.issueSubscribers(issueId) });
+      void invalidateSubscribedIssueIds(qc);
+    },
   });
 }

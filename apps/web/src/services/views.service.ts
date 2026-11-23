@@ -175,7 +175,14 @@ export function useCreateView(teamKey: string | null) {
         },
       });
       const id = data.customViewCreate.customView.id;
-      await saveDisplay(id, input.display);
+      try {
+        await saveDisplay(id, input.display);
+      } catch (err) {
+        // Creating a view is one action for the user: a view whose display could not
+        // be saved is removed again, so retrying does not leave a duplicate.
+        await gqlRequest(DeleteView, { id }).catch(() => undefined);
+        throw err;
+      }
       return id;
     },
     onSuccess: () => {

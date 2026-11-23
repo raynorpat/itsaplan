@@ -5,14 +5,13 @@ export const qk = {
   teams: ['teams'] as const,
   // The board scaffold (columns/types/labels/fields/viewer) for a team.
   team: (teamKey: string) => ['workItems', teamKey] as const,
-  // The board's issues + change marker for a team. Split from the scaffold so
-  // issue writes and live-refresh touch only the issues, not the scaffold.
+  // The board's issues for a team (every active issue). Split from the scaffold so
+  // issue writes and the changed-since refresh touch only the issues.
   boardIssues: (teamKey: string) => ['boardIssues', teamKey] as const,
   // The ids of a team's issues having one of a set of subscribers (the subscribers
   // filter), keyed by the sorted user ids.
   subscribedIssueIds: (teamKey: string, users: string) =>
     ['team', teamKey, 'subscribed-issue-ids', users] as const,
-  // A team's archived issues and its auto-archive settings (the Archive section).
   // Command-palette issue search, scoped to a team and the search term.
   issueSearch: (teamKey: string, q: string) => ['issueSearch', teamKey, q] as const,
   teamSettings: (teamKey: string) => ['teamSettings', teamKey] as const,

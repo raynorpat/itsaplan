@@ -1,5 +1,5 @@
 import { db, issue, team, teamView } from '@repo/db';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { HttpError } from '../../shared/lib';
 import {
@@ -57,14 +57,18 @@ const customViewFilter: FieldHandlers = {
   updatedAt: (v, p) => compare(teamView.updatedAt, v, p),
   shared: (v, p) => compare(teamView.shared, v, p),
   creator: (v, p) => refFilter(teamView.creatorUserId, v, p),
-  team: (v, p) =>
-    inArray(
-      teamView.teamId,
-      db
-        .select({ id: team.id })
-        .from(team)
-        .where(filterSql(v, teamFilter, p)),
-    ),
+  // NullableTeamFilter: `null` tests for a view without a team (none exist here);
+  // the other fields match the team.
+  team: (v, p) => {
+    const { null: isNullFilter, ...rest } = v as Record<string, unknown>;
+    const parts: SQL[] = [];
+    if (isNullFilter !== undefined && isNullFilter !== null)
+      parts.push(isNullFilter ? isNull(teamView.teamId) : isNotNull(teamView.teamId));
+    const match = filterSql(rest, teamFilter, p);
+    if (match)
+      parts.push(inArray(teamView.teamId, db.select({ id: team.id }).from(team).where(match)));
+    return and(...parts) ?? sql`true`;
+  },
 };
 
 // A view the viewer can see, by id or slug, or ENTITY_NOT_FOUND: its team is visible,

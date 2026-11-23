@@ -206,7 +206,9 @@ export function normalizeViewSettings(
     timelineCollapseAll:
       typeof s.timelineCollapseAll === 'boolean' ? s.timelineCollapseAll : d.timelineCollapseAll,
     calendarDateField: d.calendarDateField,
-    weekStart: s.weekStart === 0 || s.weekStart === 1 ? s.weekStart : d.weekStart,
+    // A saved view does not carry the week start (Linear keeps the first day of the
+    // week as a personal preference), so the viewer's last choice applies.
+    weekStart: s.weekStart === 0 || s.weekStart === 1 ? s.weekStart : preferredWeekStart(),
     hiddenGroups: Array.isArray(s.hiddenGroups)
       ? (s.hiddenGroups as unknown[]).filter((x): x is string => typeof x === 'string')
       : d.hiddenGroups,
@@ -246,4 +248,25 @@ export function setViewSettings(teamKey: string, view: WorkItemsView, settings: 
   const team = store[teamKey] ?? (store[teamKey] = {});
   team[view] = settings;
   writeStore(store);
+}
+
+// The viewer's first day of the week, kept in this browser (0 Sunday, 1 Monday).
+const WEEK_START_KEY = 'itsaplan.weekStart';
+
+export function preferredWeekStart(): WeekStart {
+  if (typeof window === 'undefined') return 0;
+  try {
+    return window.localStorage.getItem(WEEK_START_KEY) === '1' ? 1 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function rememberWeekStart(weekStart: WeekStart): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(WEEK_START_KEY, String(weekStart));
+  } catch {
+    // Storage may be unavailable (private mode); the choice then lasts for the view.
+  }
 }

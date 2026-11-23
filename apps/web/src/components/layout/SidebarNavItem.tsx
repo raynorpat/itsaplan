@@ -15,7 +15,7 @@ export default function SidebarNavItem({
   icon: LucideIcon;
   label: string;
   active: boolean;
-  disabled: boolean;
+  disabled?: boolean;
   badge?: number;
 }) {
   return (

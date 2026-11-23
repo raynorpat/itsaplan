@@ -195,3 +195,10 @@ export function loaders(ctx: GraphQLContext): Loaders {
   }
   return found;
 }
+
+// Drops this request's loaders, so the next field starts with empty caches. Run before
+// each mutation field: GraphQL runs a document's mutation fields one after another,
+// and a later field must not read rows cached before an earlier one changed them.
+export function clearLoaders(ctx: GraphQLContext): void {
+  perRequest.delete(ctx);
+}

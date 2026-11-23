@@ -224,13 +224,36 @@ export function useMarkIssuesRead() {
       });
       return { result, returned };
     },
-    onSuccess: ({ result, returned }) => {
-      qc.setQueryData<Notification[]>(key, (list) =>
-        list ? mergeChanged(list, returned, (n) => n.updatedAt) : list,
-      );
+    // Shown read at once (the badge drops straight away); an issue the server refused
+    // gets its notifications back as they were.
+    onMutate: async (issueIds) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Notification[]>(key);
+      const ids = new Set(issueIds);
+      const readAt = new Date().toISOString();
+      if (prev)
+        qc.setQueryData<Notification[]>(
+          key,
+          prev.map((n) => (ids.has(n.issueId) && n.readAt == null ? { ...n, readAt } : n)),
+        );
+      return { prev };
+    },
+    onSuccess: ({ result, returned }, _issueIds, ctx) => {
+      const failed = new Set(result.failed.map((f) => f.id));
+      const before = new Map((ctx?.prev ?? []).map((n) => [n.id, n]));
+      qc.setQueryData<Notification[]>(key, (list) => {
+        if (!list) return list;
+        const merged = mergeChanged(list, returned, (n) => n.updatedAt);
+        return failed.size === 0
+          ? merged
+          : merged.map((n) => (failed.has(n.issueId) ? (before.get(n.id) ?? n) : n));
+      });
       if (result.failed.length > 0)
         toast.error(`Could not mark the notifications of ${result.failed.length} issues as read.`);
     },
-    onError: () => toast.error('Could not mark the notifications as read.'),
+    onError: (_err, _issueIds, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+      toast.error('Could not mark the notifications as read.');
+    },
   });
 }

@@ -1,4 +1,4 @@
-import type { ViewSettings, WeekStart } from '@/utils/viewSettings';
+import { rememberWeekStart, type ViewSettings, type WeekStart } from '@/utils/viewSettings';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
 import DisplaySettingsSelect from '@/components/layout/DisplaySettingsSelect';
 
@@ -20,7 +20,11 @@ export default function DisplayCalendarRows({
       <DisplaySettingsRow label="Start week on">
         <DisplaySettingsSelect
           value={String(settings.weekStart)}
-          onChange={(v) => onChange({ weekStart: Number(v) as WeekStart })}
+          onChange={(v) => {
+            const weekStart = Number(v) as WeekStart;
+            rememberWeekStart(weekStart);
+            onChange({ weekStart });
+          }}
           options={WEEK_START_OPTIONS}
         />
       </DisplaySettingsRow>
