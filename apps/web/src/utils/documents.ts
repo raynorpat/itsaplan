@@ -4,8 +4,10 @@ export function documentTitle(title: string | null | undefined): string {
   return trimmed || 'Untitled';
 }
 
-// An issue's documents, most recently updated first, then by title.
-export function sortDocuments<T extends { title: string; updatedAt: string }>(docs: T[]): T[] {
+// Documents, most recently updated first, then by title.
+export function sortDocuments<T extends { title: string; updatedAt: string }>(
+  docs: readonly T[],
+): T[] {
   return [...docs].sort(
     (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title),
   );

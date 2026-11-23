@@ -2,11 +2,11 @@
 
 import type { TeamDetail } from '@/lib/api';
 import {
-  useProjectLabelsQuery,
   useUpdateProject,
   type ProjectChange,
   type ProjectDetail,
 } from '@/services/projects.service';
+import { useProjectLabelsQuery } from '../../services/projectLabels.service';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';

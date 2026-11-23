@@ -48,6 +48,8 @@ export const qk = {
   project: (id: string) => ['project', id] as const,
   projectActivity: (id: string) => ['projectActivity', id] as const,
   projectUpdates: (id: string) => ['projectUpdates', id] as const,
+  projectDocuments: (id: string) => ['projectDocuments', id] as const,
+  projectLabels: ['projectLabels'] as const,
   // Prefix keys: issue mutations invalidate every project query without
   // knowing the id (see invalidateProjects in issues.service).
   anyProject: ['project'] as const,

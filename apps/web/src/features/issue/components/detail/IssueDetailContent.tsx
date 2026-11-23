@@ -5,7 +5,7 @@ import IssueRelations from '../relations/IssueRelations';
 import { usePermissions } from '@/hooks/usePermissions';
 import IssueReactions from '../reactions/IssueReactions';
 import IssueSubscribers from '../subscribers/IssueSubscribers';
-import IssueDocuments from '../documents/IssueDocuments';
+import DocumentList from '@/components/common/documents/DocumentList';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
@@ -99,8 +99,8 @@ export default function IssueDetailContent({
 
       <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
 
-      <IssueDocuments
-        issueId={issue.id}
+      <DocumentList
+        parent={{ issueId: issue.id }}
         canEdit={canEdit}
         assignees={team.assignees}
         imageByUserId={imageByUserId}

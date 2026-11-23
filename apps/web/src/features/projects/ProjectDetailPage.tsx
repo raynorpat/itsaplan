@@ -10,11 +10,12 @@ import { useProjectQuery } from '@/services/projects.service';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import ProjectHeader from './components/detail/ProjectHeader';
 import ProjectIssuesBoard from './components/detail/ProjectIssuesBoard';
+import ProjectDocuments from './components/detail/ProjectDocuments';
 import ProjectOverview from './components/detail/ProjectOverview';
 import ProjectUpdates from './components/detail/ProjectUpdates';
 
-// One project: a header, then Linear's tabs: Overview, Updates and Issues (the work
-// items board over its linked issues). Each tab is its own route, so
+// One project: a header, then Linear's tabs: Overview, Updates, Issues (the work
+// items board over its linked issues) and Documents. Each tab is its own route, so
 // the open tab survives a reload; the route that mounts this page passes it.
 export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectTab }) {
   const { team } = useShell();
@@ -67,6 +68,7 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="updates">Updates</TabsTrigger>
                 <TabsTrigger value="issues">Issues</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value="overview" className="mt-0 flex-1 overflow-y-auto">
@@ -77,6 +79,9 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
             </TabsContent>
             <TabsContent value="issues" className="mt-0 flex min-h-0 flex-1 flex-col">
               <ProjectIssuesBoard projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="documents" className="mt-0 flex-1 overflow-y-auto">
+              <ProjectDocuments project={project} team={team} />
             </TabsContent>
           </Tabs>
         </>

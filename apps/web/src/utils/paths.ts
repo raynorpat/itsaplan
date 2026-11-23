@@ -51,7 +51,7 @@ export const projectsTabPath = (key: string | null | undefined, tab: ProjectsTab
   tab === 'all' ? projectsPath(key) : withTeam(`/projects/tab/${tab}`, key);
 
 // The project detail tabs are routes of their own too.
-export type ProjectTab = 'overview' | 'updates' | 'issues';
+export type ProjectTab = 'overview' | 'updates' | 'issues' | 'documents';
 
 export const projectPath = (
   key: string | null | undefined,

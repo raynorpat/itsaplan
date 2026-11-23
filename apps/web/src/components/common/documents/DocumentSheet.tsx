@@ -6,41 +6,42 @@ import { Trash2 } from 'lucide-react';
 import { type Assignee } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { documentTitle, syncDraft } from '../../utils/documents';
+import { documentTitle, syncDraft } from '@/utils/documents';
+import { type DocumentParent } from '@/utils/documentParent';
 import {
-  type IssueDocument,
-  useRestoreIssueDocument,
-  useTrashIssueDocument,
-  useUpdateIssueDocument,
-} from '../../services/documents.service';
-import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
+  type DocumentItem,
+  useRestoreDocument,
+  useTrashDocument,
+  useUpdateDocument,
+} from '@/services/documents.service';
+import MarkdownEditor from '../editor/MarkdownEditor';
 import DocumentComments from './DocumentComments';
 
-// One issue document opened in a side sheet: its title and Markdown body (saved on
+// One document (of an issue or a project) opened in a side sheet: its title and Markdown body (saved on
 // blur), its comments, and Delete (moves it to the trash, with Undo). Without edit
 // rights the title and body are read-only and Delete is hidden. Each field keeps a
 // local draft: a refetched document only replaces it when the field is not being
 // edited and holds no unsaved change (syncDraft), so a save landing while the user
 // types in the other field never discards their input.
 
-export default function IssueDocumentSheet({
-  issueId,
+export default function DocumentSheet({
+  parent,
   document,
   canEdit,
   assignees,
   imageByUserId,
   onClose,
 }: {
-  issueId: string;
-  document: IssueDocument;
+  parent: DocumentParent;
+  document: DocumentItem;
   canEdit: boolean;
   assignees: Assignee[];
   imageByUserId: Map<string, string | null>;
   onClose: () => void;
 }) {
-  const update = useUpdateIssueDocument(issueId);
-  const trash = useTrashIssueDocument(issueId);
-  const restore = useRestoreIssueDocument(issueId);
+  const update = useUpdateDocument(parent);
+  const trash = useTrashDocument(parent);
+  const restore = useRestoreDocument(parent);
 
   const serverTitle = document.title;
   const serverBody = document.content ?? '';

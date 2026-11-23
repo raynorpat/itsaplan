@@ -1,13 +1,13 @@
 'use client';
 
 import { type Assignee } from '@/lib/api';
-import { useDocumentCommentsQuery } from '../../services/documents.service';
+import { useDocumentCommentsQuery } from '@/services/documents.service';
 import { useCommentContext } from '@/hooks/useCommentContext';
-import CommentComposer from '@/components/common/comments/CommentComposer';
-import CommentThread from '@/components/common/comments/CommentThread';
+import CommentComposer from '../comments/CommentComposer';
+import CommentThread from '../comments/CommentThread';
 
 // A document's comment threads under its body, with a composer on top. The same
-// thread, reply, edit, resolve and reaction controls as the issue's feed.
+// thread, reply, edit, resolve and reaction controls as an issue's feed.
 
 export default function DocumentComments({
   documentId,

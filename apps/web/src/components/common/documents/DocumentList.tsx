@@ -4,26 +4,30 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { type Assignee } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { useCreateIssueDocument, useIssueDocumentsQuery } from '../../services/documents.service';
-import IssueDocumentRow from './IssueDocumentRow';
-import IssueDocumentSheet from './IssueDocumentSheet';
+import { type DocumentParent } from '@/utils/documentParent';
+import { useCreateDocument, useDocumentsQuery } from '@/services/documents.service';
+import DocumentRow from './DocumentRow';
+import DocumentSheet from './DocumentSheet';
 
-// The issue's documents (Linear's issue documents): a list that opens each one in a
-// side sheet, and "New document" for someone who can edit the issue's team.
+// The documents of an issue or a project (Linear's issue and project documents): a
+// list that opens each one in a side sheet, and "New document" for someone who may
+// edit the parent. `heading` hides the section title where a page tab names it.
 
-export default function IssueDocuments({
-  issueId,
+export default function DocumentList({
+  parent,
+  heading = true,
   canEdit,
   assignees,
   imageByUserId,
 }: {
-  issueId: string;
+  parent: DocumentParent;
+  heading?: boolean;
   canEdit: boolean;
   assignees: Assignee[];
   imageByUserId: Map<string, string | null>;
 }) {
-  const documents = useIssueDocumentsQuery(issueId);
-  const create = useCreateIssueDocument(issueId);
+  const documents = useDocumentsQuery(parent);
+  const create = useCreateDocument(parent);
   const [openId, setOpenId] = useState<string | null>(null);
   const list = documents.data ?? [];
   const open = list.find((d) => d.id === openId) ?? null;
@@ -31,11 +35,15 @@ export default function IssueDocuments({
   if (list.length === 0 && !canEdit) return null;
 
   return (
-    <section className="mt-6">
+    <section className={heading ? 'mt-6' : undefined}>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Documents
-        </h3>
+        {heading ? (
+          <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Documents
+          </h3>
+        ) : (
+          <span />
+        )}
         {canEdit && (
           <Button
             variant="ghost"
@@ -58,13 +66,13 @@ export default function IssueDocuments({
       ) : (
         <ul className="flex flex-col">
           {list.map((doc) => (
-            <IssueDocumentRow key={doc.id} document={doc} onOpen={() => setOpenId(doc.id)} />
+            <DocumentRow key={doc.id} document={doc} onOpen={() => setOpenId(doc.id)} />
           ))}
         </ul>
       )}
       {open && (
-        <IssueDocumentSheet
-          issueId={issueId}
+        <DocumentSheet
+          parent={parent}
           document={open}
           canEdit={canEdit}
           assignees={assignees}

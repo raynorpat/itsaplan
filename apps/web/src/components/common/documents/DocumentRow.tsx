@@ -1,14 +1,14 @@
 import { FileText } from 'lucide-react';
-import { documentTitle } from '../../utils/documents';
-import { type IssueDocument } from '../../services/documents.service';
+import { documentTitle } from '@/utils/documents';
+import { type DocumentItem } from '@/services/documents.service';
 
-// One document in the issue's Documents list; clicking opens it.
+// One document in a Documents list; clicking opens it.
 
-export default function IssueDocumentRow({
+export default function DocumentRow({
   document,
   onOpen,
 }: {
-  document: IssueDocument;
+  document: DocumentItem;
   onOpen: () => void;
 }) {
   const by = document.updatedBy?.name ?? document.creator?.name;

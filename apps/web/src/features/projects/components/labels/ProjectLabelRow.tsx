@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import type { ProjectLabel } from '@/lib/api';
-import { useProjectLabelMutations } from '@/services/projects.service';
+import { type ProjectLabel, useProjectLabelMutations } from '../../services/projectLabels.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-// One project label: rename on blur or Enter, recolor, delete.
-export default function ProjectLabelRow({ label }: { label: ProjectLabel }) {
+// One project label: rename on blur or Enter, recolor, delete. Without the right to
+// manage labels the row is read-only.
+export default function ProjectLabelRow({
+  label,
+  canManage,
+}: {
+  label: ProjectLabel;
+  canManage: boolean;
+}) {
   const [name, setName] = useState(label.name);
   const { update, remove } = useProjectLabelMutations();
 
@@ -25,24 +31,28 @@ export default function ProjectLabelRow({ label }: { label: ProjectLabel }) {
         type="color"
         aria-label={`Color of ${label.name}`}
         value={label.color.toLowerCase()}
+        disabled={!canManage}
         onChange={(e) => update.mutate({ id: label.id, patch: { color: e.target.value } })}
         className="size-6 cursor-pointer rounded border bg-transparent"
       />
       <Input
         value={name}
+        readOnly={!canManage}
         className="h-7 flex-1"
         onChange={(e) => setName(e.target.value)}
         onBlur={saveName}
         onKeyDown={(e) => e.key === 'Enter' && saveName()}
       />
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`Delete ${label.name}`}
-        onClick={() => remove.mutate(label.id)}
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      {canManage && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Delete ${label.name}`}
+          onClick={() => remove.mutate(label.id)}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      )}
     </li>
   );
 }

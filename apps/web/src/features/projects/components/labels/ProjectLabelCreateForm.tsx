@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useProjectLabelMutations } from '@/services/projects.service';
+import { useProjectLabelMutations } from '../../services/projectLabels.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

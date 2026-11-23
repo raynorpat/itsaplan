@@ -6,22 +6,14 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import {
-  api,
   type Project,
   type ProjectHealth,
   type ProjectMilestone,
-  type ProjectPatch,
   type ProjectStatus,
-  type NewProjectInput,
 } from '@/lib/api';
-import {
-  graphql,
-  gqlRequest,
-  readFragment,
-  type FragmentOf,
-  type VariablesOf,
-} from '@/lib/graphql';
+import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
+import { toProjectInput, type ProjectChange } from '@/utils/projectInput';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 
 // The project fields the list, the pickers and the detail page read, mapped onto the
@@ -259,43 +251,6 @@ export function useProjectMilestonesQuery(projectId: string | null) {
   };
 }
 
-export function useProjectLabelsQuery() {
-  return useQuery({ queryKey: ['project-labels'], queryFn: () => api.listProjectLabels() });
-}
-
-// Creates, updates or deletes a project label, then refreshes the label list.
-export function useProjectLabelMutations() {
-  const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: ['project-labels'] });
-  return {
-    create: useMutation({
-      mutationFn: (input: { name: string; color?: string }) => api.createProjectLabel(input),
-      onSuccess: refresh,
-    }),
-    update: useMutation({
-      mutationFn: ({ id, patch }: { id: string; patch: { name?: string; color?: string } }) =>
-        api.updateProjectLabel(id, patch),
-      onSuccess: refresh,
-    }),
-    remove: useMutation({
-      mutationFn: (id: string) => api.deleteProjectLabel(id),
-      onSuccess: refresh,
-    }),
-  };
-}
-
-export function useCreateProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: NewProjectInput & { teamIds: string[] }) => api.createProject(input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects'] });
-      qc.invalidateQueries({ queryKey: ['projectCounts'] });
-      qc.invalidateQueries({ queryKey: ['workItems'] });
-    },
-  });
-}
-
 const ProjectStatusesQuery = graphql(`
   query ProjectStatuses {
     projectStatuses {
@@ -319,6 +274,17 @@ function fetchStatusIds(qc: QueryClient) {
   });
 }
 
+const ProjectCreateMutation = graphql(`
+  mutation ProjectCreate($input: ProjectCreateInput!) {
+    projectCreate(input: $input) {
+      success
+      project {
+        id
+      }
+    }
+  }
+`);
+
 const ProjectUpdateMutation = graphql(`
   mutation ProjectUpdate($id: String!, $input: ProjectUpdateInput!) {
     projectUpdate(id: $id, input: $input) {
@@ -327,16 +293,20 @@ const ProjectUpdateMutation = graphql(`
   }
 `);
 
-// A change to a project's fields, teams (the ones the viewer can see) or members
-// (the whole list).
-export type ProjectChange = ProjectPatch & { teamIds?: string[]; memberIds?: string[] };
+const ProjectDeleteMutation = graphql(`
+  mutation ProjectDelete($id: String!) {
+    projectDelete(id: $id) {
+      success
+    }
+  }
+`);
 
-async function updateProject(qc: QueryClient, id: string, patch: ProjectChange) {
-  const { status, leadUserId, ...rest } = patch;
-  const input: VariablesOf<typeof ProjectUpdateMutation>['input'] = { ...rest };
-  if (leadUserId !== undefined) input.leadId = leadUserId;
-  if (status !== undefined) input.statusId = (await fetchStatusIds(qc)).get(status);
-  await gqlRequest(ProjectUpdateMutation, { id, input });
+export type { ProjectChange };
+
+// The Linear input for a change, with the status's id looked up when it changes.
+async function projectInput(qc: QueryClient, change: ProjectChange) {
+  const statusIds = change.status !== undefined ? await fetchStatusIds(qc) : new Map();
+  return toProjectInput(change, statusIds);
 }
 
 // Every query that shows a project: the detail, the lists and their counts, and the
@@ -349,27 +319,40 @@ export function invalidateProject(qc: QueryClient, id: string, teamKey?: string)
   if (teamKey) void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
 }
 
+// Creates a project on its teams and returns its id.
+export function useCreateProject(teamKey?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (change: ProjectChange & { name: string; teamIds: string[] }) => {
+      const input = await projectInput(qc, change);
+      const { projectCreate } = await gqlRequest(ProjectCreateMutation, {
+        input: { ...input, name: change.name, teamIds: change.teamIds },
+      });
+      if (!projectCreate.project) throw new Error('The project was not created.');
+      return { id: projectCreate.project.id };
+    },
+    onSuccess: ({ id }) => invalidateProject(qc, id, teamKey),
+  });
+}
+
 export function useUpdateProject(teamKey?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: ProjectChange }) =>
-      updateProject(qc, id, patch),
+    mutationFn: async ({ id, patch }: { id: string; patch: ProjectChange }) => {
+      await gqlRequest(ProjectUpdateMutation, { id, input: await projectInput(qc, patch) });
+    },
     onSuccess: (_data, { id }) => invalidateProject(qc, id, teamKey),
   });
 }
 
+// Deleting a project unlinks its issues, so the team's board issues change too.
 export function useDeleteProject(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteProject(id),
+    mutationFn: (id: string) => gqlRequest(ProjectDeleteMutation, { id }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: qk.anyProjects });
-      qc.invalidateQueries({ queryKey: ['projectCounts'] });
-      qc.invalidateQueries({ queryKey: qk.team(teamKey) });
-      // Deleting an project unlinks its issues (projectId -> null), so the
-      // board issues change too.
-      qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      qc.invalidateQueries({ queryKey: qk.project(id) });
+      invalidateProject(qc, id, teamKey);
+      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
     },
   });
 }

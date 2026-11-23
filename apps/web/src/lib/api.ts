@@ -552,42 +552,8 @@ export interface ProjectMilestone {
   sortOrder: number;
 }
 
-// A workspace-level project label; a group holds labels and cannot be applied.
-export interface ProjectLabel {
-  id: string;
-  name: string;
-  color: string;
-  description: string | null;
-  parentId: string | null;
-  isGroup: boolean;
-}
-
 // Per-status project counts for the list's status tabs.
 export type ProjectCounts = Record<ProjectStatus | 'total', number>;
-
-export interface NewProjectInput {
-  name: string;
-  description?: string;
-  content?: string;
-  status?: ProjectStatus;
-  leadUserId?: string | null;
-  priority?: number;
-  startDate?: string | null;
-  targetDate?: string | null;
-  labelIds?: string[];
-}
-
-export interface ProjectPatch {
-  name?: string;
-  description?: string;
-  content?: string;
-  status?: ProjectStatus;
-  leadUserId?: string | null;
-  priority?: number;
-  startDate?: string | null;
-  targetDate?: string | null;
-  labelIds?: string[];
-}
 
 // Team membership: 'owner' marks a team owner, who manages the team's settings
 // with the workspace admins.
@@ -749,22 +715,6 @@ export const api = {
     return request<IssueSearchHit[]>(`/teams/${teamKey}/issues/search?${qs.toString()}`);
   },
 
-  // Project labels, and creating and deleting a project (create takes the team ids).
-  listProjectLabels: () => request<ProjectLabel[]>('/project-labels'),
-  createProjectLabel: (input: { name: string; color?: string }) =>
-    request<ProjectLabel>('/project-labels', { method: 'POST', body: JSON.stringify(input) }),
-  updateProjectLabel: (id: string, patch: { name?: string; color?: string }) =>
-    request<ProjectLabel>(`/project-labels/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteProjectLabel: (id: string) => request<void>(`/project-labels/${id}`, { method: 'DELETE' }),
-  createProject: (input: NewProjectInput & { teamIds: string[] }) =>
-    request<Project>('/projects', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   // Team members. Anyone who can see a team may join it (not guests); any member
   // may add people to a public team, a team manager to a private one; a member
   // may always leave (remove themselves).
