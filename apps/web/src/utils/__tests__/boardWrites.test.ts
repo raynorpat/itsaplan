@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { patchIssueInList } from '../boardCache';
+import { patchIssueInList, rollbackRow } from '../boardCache';
 import { chunk, runBulk } from '../bulk';
 
 // Board writes: patching the cached issue list from a mutation's returned issue, and
@@ -75,5 +75,28 @@ describe('runBulk', () => {
     });
     assert.deepEqual(result.done, ['a', 'c']);
     assert.deepEqual(result.failed, [{ id: 'b', message: 'gone' }]);
+  });
+});
+
+describe('rollbackRow', () => {
+  it('restores only the failed edit, keeping a later edit that succeeded', () => {
+    const a0 = issue('a', 'todo');
+    const b0 = issue('b', 'todo');
+    // Edit A (optimistic, slow), then edit B (optimistic, succeeds).
+    let list = [{ ...a0, stateId: 'doing' }, b0];
+    list = [list[0]!, { ...b0, stateId: 'done' }];
+    // A fails: only A goes back.
+    list = rollbackRow(list, a0);
+    assert.deepEqual(
+      list.map((i) => [i.id, i.stateId]),
+      [
+        ['a', 'todo'],
+        ['b', 'done'],
+      ],
+    );
+  });
+  it('leaves the list alone when there was no previous row', () => {
+    const list = [issue('a')];
+    assert.equal(rollbackRow(list, undefined), list);
   });
 });

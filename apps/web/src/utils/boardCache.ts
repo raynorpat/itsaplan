@@ -11,3 +11,9 @@ export function patchIssueInList(list: Issue[], issue: Issue): Issue[] {
   next[index] = issue;
   return next;
 }
+
+// Undoes one failed optimistic edit: puts back the row as it was before that edit and
+// leaves every other row alone, so a later edit that succeeded meanwhile stays.
+export function rollbackRow(list: Issue[], prevRow: Issue | undefined): Issue[] {
+  return prevRow ? patchIssueInList(list, prevRow) : list;
+}

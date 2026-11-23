@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Notification, NotificationType, StateType } from '@/lib/api';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { useChangedSince } from '@/hooks/useChangedSince';
+import { useSnoozeClock } from '@/hooks/useSnoozeClock';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { unreadCount } from '@/utils/notifications';
 import { qk } from '@/services/queryKeys';
@@ -132,5 +133,6 @@ export function useNotificationsList() {
 // The inbox badge: unread, unsnoozed, unarchived notifications in the loaded list.
 export function useInboxUnread(): number {
   const { data } = useNotificationsList();
-  return useMemo(() => (data ? unreadCount(data, new Date()) : 0), [data]);
+  const now = useSnoozeClock(data);
+  return useMemo(() => (data ? unreadCount(data, now) : 0), [data, now]);
 }

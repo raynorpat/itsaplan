@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { type Notification } from '@/lib/api';
 import { useNotificationsList } from '@/services/notifications.service';
+import { useSnoozeClock } from '@/hooks/useSnoozeClock';
 import { unreadCount } from '@/utils/notifications';
 import IssueDetailContent from '@/features/issue/components/detail/IssueDetailContent';
 import InboxToolbar from './InboxToolbar';
@@ -36,7 +37,7 @@ export default function InboxView() {
   const team = useInboxTeam(selected?.teamKey ?? null);
 
   const list = useMemo(() => query.data ?? [], [query.data]);
-  const now = new Date();
+  const now = useSnoozeClock(query.data);
   const items = visibleNotifications(list, filters, now);
   const unread = unreadCount(list, now);
 

@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import { addToTeam, signUpWithRole } from '../../../__tests__/helpers/roles';
+import { db, user } from '@repo/db';
+import { eq } from 'drizzle-orm';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
@@ -149,5 +151,42 @@ describe('graphql labels', () => {
     const id = '11111111-2222-4333-8444-555555555555';
     const created = (await (await client.createIssueLabel({ id, name: 'Pre-made' })).issueLabel)!;
     expect(created.id).toBe(id);
+  });
+
+  it('leaves retired labels out of label lists whoever retired them', async () => {
+    const { owner, asOwner, teamId, client } = await setup();
+    const ws = (await (await client.createIssueLabel({ name: 'Old' })).issueLabel)!;
+    const issue = (await (
+      await client.createIssue({ teamId, title: 'x', labelIds: [ws.id] })
+    ).issue)!;
+    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const adminClient = linearClient(await createApiKey(admin.cookie));
+    await adminClient.issueLabelRetire(ws.id);
+    const guest = await signUpWithRole('guest');
+    await addToTeam(asOwner, 'MKT', guest);
+    const names = async (cookie: string, includeArchived: boolean) =>
+      (
+        (
+          await gql(
+            { cookie },
+            `{ team(id: "${teamId}") { labels(includeArchived: ${includeArchived}) { nodes { name archivedAt } } } }`,
+          )
+        ).body.data as {
+          team: { labels: { nodes: { name: string; archivedAt: string | null }[] } };
+        }
+      ).team.labels.nodes;
+    // The guest shares no team with the admin who retired the label.
+    expect((await names(guest.cookie, false)).map((l) => l.name)).not.toContain('Old');
+    const all = await names(guest.cookie, true);
+    expect(all.find((l) => l.name === 'Old')?.archivedAt).toBeTruthy();
+    // The retirer's account is deleted: the label stays retired.
+    await db.delete(user).where(eq(user.id, admin.userId));
+    expect((await names(owner.cookie, false)).map((l) => l.name)).not.toContain('Old');
+    // An issue carrying the label still lists it.
+    const onIssue = await gql(
+      { cookie: owner.cookie },
+      `{ issue(id: "${issue.id}") { labels { nodes { name archivedAt } } } }`,
+    );
+    expect(JSON.stringify(onIssue.body.data)).toContain('Old');
   });
 });

@@ -13,9 +13,10 @@ import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { notificationFilterSql } from '../notification-filter';
 import { toComment } from './comment';
-import { issueById, userById } from './issue';
+import { toIssue, userFor } from './issue';
+import { loaders } from '../loaders';
 import { guard, lastSyncId, onlySupported } from './mutations';
-import { findTeam } from './team';
+import { toTeam } from './team';
 
 // Linear's Notification API over the inbox. Every notification is an
 // IssueNotification. A viewer reads and changes only their own notifications on
@@ -136,13 +137,18 @@ export const notificationResolvers = {
       ),
   },
   IssueNotification: {
-    user: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) =>
-      userById(n.userId, ctx.user.id),
-    actor: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) =>
-      userById(n.actorUserId, ctx.user.id),
-    issue: (n: GraphQLNotification) => issueById(n.issueId),
-    team: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) =>
-      findTeam(n.teamId, ctx.user.id),
+    // Batched per request; the list is already limited to the viewer's own
+    // notifications on teams they can see, so the issue and team are visible.
+    user: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => userFor(ctx, n.userId),
+    actor: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => userFor(ctx, n.actorUserId),
+    issue: async (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => {
+      const row = await loaders(ctx).issue.load(n.issueId);
+      return row ? toIssue(row) : null;
+    },
+    team: async (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) => {
+      const row = await loaders(ctx).team.load(n.teamId);
+      return row ? toTeam(row) : null;
+    },
     comment: (n: GraphQLNotification) => commentFor(n.commentId),
     parentCommentId: async (n: GraphQLNotification) =>
       n.commentId ? ((await getComment(n.commentId))?.parentId ?? null) : null,

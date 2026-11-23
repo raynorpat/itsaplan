@@ -33,7 +33,10 @@ export function toIssueLabel(row: typeof label.$inferSelect) {
     teamId: row.teamId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    archivedAt: null,
+    // A retired label reads as archived: it stays on its issues but is left out of
+    // label lists unless includeArchived is set. The time does not depend on who
+    // may see the retirer, unlike retiredBy.
+    archivedAt: row.retiredAt?.toISOString() ?? null,
     retiredAt: row.retiredAt?.toISOString() ?? null,
     // Read by the relation resolvers; not schema fields.
     creatorUserId: row.creatorUserId,
@@ -44,7 +47,7 @@ export function toIssueLabel(row: typeof label.$inferSelect) {
 // --- Queries, relations and mutations -------------------------------------------
 
 type GraphQLIssueLabel = ReturnType<typeof toIssueLabel>;
-type ConnectionArgs = PageArgs & { filter?: unknown };
+type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
 // The labels a user can see: the labels of the teams they can see, and workspace
 // labels once they can see any team.
@@ -57,7 +60,12 @@ function listLabels(where: SQL | undefined, args: ConnectionArgs, ctx: GraphQLCo
   return paginate(
     args,
     { id: label.id, createdAt: label.createdAt, updatedAt: label.updatedAt },
-    and(visibleLabels(ctx.user.id), where, issueLabelFilterSql(args.filter)),
+    and(
+      visibleLabels(ctx.user.id),
+      where,
+      args.includeArchived ? undefined : isNull(label.retiredAt),
+      issueLabelFilterSql(args.filter),
+    ),
     (w, order, limit) =>
       db
         .select()
@@ -130,7 +138,7 @@ export const issueLabelResolvers = {
                 .from(issueLabel)
                 .where(eq(issueLabel.issueId, i.id)),
             ),
-            args,
+            { ...args, includeArchived: true },
             ctx,
           ),
     labelIds: (i: { id: string }, _: unknown, ctx: GraphQLContext) =>

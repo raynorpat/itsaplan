@@ -9,7 +9,7 @@ import {
 import { qk } from '@/services/queryKeys';
 import { toast } from 'sonner';
 import { refetchInFull } from '@/hooks/useChangedSince';
-import { patchIssueInList } from '@/utils/boardCache';
+import { patchIssueInList, rollbackRow } from '@/utils/boardCache';
 import { runBulk, type BulkResult } from '@/utils/bulk';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 
@@ -227,21 +227,26 @@ export function useUpdateIssueDetail(teamKey: string | null) {
       const prevIssue = qc.getQueryData<Issue>(qk.issue(id));
       if (prevIssue) qc.setQueryData<Issue>(qk.issue(id), { ...prevIssue, ...patch } as Issue);
       const boardKey = teamKey ? qk.boardIssues(teamKey) : null;
-      let prevBoard: Issue[] | undefined;
+      let prevRow: Issue | undefined;
       if (boardKey) {
         await qc.cancelQueries({ queryKey: boardKey });
-        prevBoard = qc.getQueryData<Issue[]>(boardKey);
-        if (prevBoard)
+        const board = qc.getQueryData<Issue[]>(boardKey);
+        prevRow = board?.find((t) => t.id === id);
+        if (board && prevRow)
           qc.setQueryData<Issue[]>(
             boardKey,
-            prevBoard.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
+            patchIssueInList(board, { ...prevRow, ...patch } as Issue),
           );
       }
-      return { prevIssue, prevBoard, boardKey };
+      return { prevIssue, prevRow, boardKey };
     },
     onError: (_err, { id }, ctx) => {
       if (ctx?.prevIssue) qc.setQueryData(qk.issue(id), ctx.prevIssue);
-      if (ctx?.prevBoard && ctx.boardKey) qc.setQueryData(ctx.boardKey, ctx.prevBoard);
+      // Only this edit's row goes back; another edit that succeeded meanwhile stays.
+      if (ctx?.boardKey)
+        qc.setQueryData<Issue[]>(ctx.boardKey, (list) =>
+          list ? rollbackRow(list, ctx.prevRow) : list,
+        );
     },
     onSuccess: (issue) => {
       qc.setQueryData(qk.issue(issue.id), issue);
@@ -415,6 +420,9 @@ function useBulkEdit<V>(
         }
         return next;
       });
+      // An open issue page or pane shows the edited issue too.
+      for (const issue of returned)
+        if (qc.getQueryData(qk.issue(issue.id))) qc.setQueryData(qk.issue(issue.id), issue);
       reportFailures('update', result.failed, ctx?.prev);
     },
     onSettled: () => invalidateProjects(qc),

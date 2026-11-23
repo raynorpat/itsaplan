@@ -42,6 +42,13 @@ export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOpti
       return fetchAll();
     },
     enabled,
+    // This hook decides when the list reloads (above). Window focus, reconnects and
+    // a new component mounting the same key must not trigger extra full reloads:
+    // the sidebar badge mounts on every page, and a reload landing during a drag
+    // could put the card back.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // The latest callbacks, so the interval below does not restart on every render.

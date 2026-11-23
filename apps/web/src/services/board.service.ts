@@ -53,16 +53,13 @@ const ScaffoldQuery = graphql(`
 const TeamLabelsPage = graphql(`
   query BoardLabels($id: String!, $after: String, $first: Int) {
     team(id: $id) {
-      labels(first: $first, after: $after) {
+      labels(first: $first, after: $after, includeArchived: true) {
         nodes {
           id
           name
           color
           isGroup
-          updatedAt
-          retiredBy {
-            id
-          }
+          archivedAt
           team {
             id
           }
@@ -191,9 +188,9 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
         groupId: l.parent?.id ?? null,
         name: l.name,
         color: l.color,
-        // Linear marks a retired label by who retired it; the web only needs to know
-        // that it is retired, so the label's last change stands in for the time.
-        retiredAt: l.retiredBy ? l.updatedAt : null,
+        // The API serves a retired label as archived (with includeArchived); pickers
+        // leave it out, settings list it as retired.
+        retiredAt: l.archivedAt ?? null,
       });
   }
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);

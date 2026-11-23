@@ -3,6 +3,8 @@ import { db } from '@repo/db';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
+import { authedApi } from '../../../__tests__/helpers/app';
+import { addToTeam } from '../../../__tests__/helpers/roles';
 
 // Per-row fields of a list resolve through request-scoped loaders, so a list query
 // makes the same number of SQL statements for 5 rows as for 50.
@@ -127,6 +129,35 @@ async function measure(count: number) {
   return counts;
 }
 
+const NOTIFICATIONS = `{ notifications(first: 100) { nodes { id actor { id }
+  ... on IssueNotification { issue { id state { type } } team { id key } } } } }`;
+
+// Notifications for a member: one per issue assigned to them by the owner.
+async function measureNotifications(count: number) {
+  await resetDb();
+  const owner = await signUpTestUser({ name: 'Owner' });
+  const member = await signUpTestUser({ name: 'Member' });
+  const asOwner = authedApi(owner.cookie);
+  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  await addToTeam(asOwner, 'MKT', member);
+  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  for (let i = 0; i < count; i++) {
+    const res = await gql(
+      { cookie: owner.cookie },
+      'mutation($t: String!, $u: String!) { issueCreate(input: { teamId: $t, title: "x", assigneeId: $u }) { success } }',
+      { t: teamId, u: member.userId },
+    );
+    expect(res.body.errors).toBeUndefined();
+  }
+  startCounting();
+  const res = await gql({ cookie: member.cookie }, NOTIFICATIONS);
+  const n = stopCounting();
+  expect(res.body.errors).toBeUndefined();
+  const nodes = (res.body.data as { notifications: { nodes: unknown[] } }).notifications.nodes;
+  expect(nodes).toHaveLength(count);
+  return n;
+}
+
 describe('graphql batching', () => {
   beforeEach(() => {
     client.unsafe = original;
@@ -139,5 +170,9 @@ describe('graphql batching', () => {
     const small = await measure(5);
     const large = await measure(50);
     expect(large).toEqual(small);
+  }, 120_000);
+
+  it('makes a bounded number of statements for the notification list', async () => {
+    expect(await measureNotifications(50)).toBe(await measureNotifications(5));
   }, 120_000);
 });
