@@ -3,7 +3,7 @@
 // Posting sets the project's health, so it patches the project at once and
 // refreshes the lists that show health.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ProjectHealth } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
@@ -11,13 +11,16 @@ import { invalidateProject, type ProjectDetail } from '@/services/projects.servi
 import { buildThreadsNewestFirst, type FeedEntry } from '@/utils/commentThreads';
 import { type ReactionNode } from '@/utils/reactions';
 
-const PAGE = 50;
+// Updates per page; each update's comments are read in one page of up to the API's
+// maximum.
+const PAGE = 20;
+const COMMENTS = 250;
 
 const ProjectUpdatesQuery = graphql(`
-  query ProjectUpdates($id: String!, $first: Int!) {
+  query ProjectUpdates($id: String!, $first: Int!, $after: String, $comments: Int!) {
     project(id: $id) {
       id
-      projectUpdates(first: $first) {
+      projectUpdates(first: $first, after: $after) {
         nodes {
           id
           body
@@ -36,7 +39,7 @@ const ProjectUpdatesQuery = graphql(`
               name
             }
           }
-          comments(first: $first) {
+          comments(first: $comments) {
             nodes {
               id
               body
@@ -59,6 +62,10 @@ const ProjectUpdatesQuery = graphql(`
             }
           }
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
   }
@@ -75,23 +82,42 @@ export interface ProjectUpdateItem {
   threads: FeedEntry[];
 }
 
+// The project's updates newest first, a page at a time ("Show older").
 export function useProjectUpdatesQuery(projectId: string) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: qk.projectUpdates(projectId),
-    queryFn: async (): Promise<ProjectUpdateItem[]> => {
-      const { project } = await gqlRequest(ProjectUpdatesQuery, { id: projectId, first: PAGE });
-      return project.projectUpdates.nodes.map((u) => ({
-        id: u.id,
-        body: u.body,
-        health: u.health as ProjectHealth,
-        createdAt: u.createdAt,
-        editedAt: u.editedAt ?? null,
-        user: u.user,
-        reactions: u.reactions,
-        threads: buildThreadsNewestFirst(u.comments.nodes, u.id),
-      }));
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const { project } = await gqlRequest(ProjectUpdatesQuery, {
+        id: projectId,
+        first: PAGE,
+        after: pageParam,
+        comments: COMMENTS,
+      });
+      const { nodes, pageInfo } = project.projectUpdates;
+      return {
+        items: nodes.map((u): ProjectUpdateItem => ({
+          id: u.id,
+          body: u.body,
+          health: u.health as ProjectHealth,
+          createdAt: u.createdAt,
+          editedAt: u.editedAt ?? null,
+          user: u.user,
+          reactions: u.reactions,
+          threads: buildThreadsNewestFirst(u.comments.nodes, u.id),
+        })),
+        next: pageInfo.hasNextPage ? (pageInfo.endCursor ?? null) : null,
+      };
     },
+    getNextPageParam: (last) => last.next ?? undefined,
   });
+  return {
+    data: query.data?.pages.flatMap((p) => p.items),
+    isLoading: query.isLoading,
+    hasOlder: query.hasNextPage,
+    loadingOlder: query.isFetchingNextPage,
+    loadOlder: () => void query.fetchNextPage(),
+  };
 }
 
 const ProjectUpdateCreate = graphql(`

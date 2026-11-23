@@ -14,6 +14,7 @@ import {
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { toProjectInput, type ProjectChange } from '@/utils/projectInput';
+import { patchProject } from '@/utils/projectPatch';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 
 // The project fields the list, the pickers and the detail page read, mapped onto the
@@ -335,13 +336,36 @@ export function useCreateProject(teamKey?: string) {
   });
 }
 
+// Patches the project's cached detail at once (so a picker that stays open builds
+// each pick on the last), rolls back on error and refetches when the last pending
+// update settles. `members` carries the people behind added memberIds.
 export function useUpdateProject(teamKey?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: ProjectChange }) => {
+    mutationKey: ['updateProject'],
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: ProjectChange;
+      members?: ProjectMember[];
+    }) => {
       await gqlRequest(ProjectUpdateMutation, { id, input: await projectInput(qc, patch) });
     },
-    onSuccess: (_data, { id }) => invalidateProject(qc, id, teamKey),
+    onMutate: async ({ id, patch, members }) => {
+      await qc.cancelQueries({ queryKey: qk.project(id) });
+      const previous = qc.getQueryData<ProjectDetail>(qk.project(id));
+      if (previous) qc.setQueryData(qk.project(id), patchProject(previous, patch, members));
+      return { previous };
+    },
+    onError: (_err, { id }, context) => {
+      if (context?.previous) qc.setQueryData(qk.project(id), context.previous);
+    },
+    onSettled: (_data, _err, { id }) => {
+      if (qc.isMutating({ mutationKey: ['updateProject'] }) <= 1)
+        invalidateProject(qc, id, teamKey);
+    },
   });
 }
 

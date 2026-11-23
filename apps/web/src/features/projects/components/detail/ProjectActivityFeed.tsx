@@ -2,6 +2,7 @@
 
 import type { TeamDetail } from '@/lib/api';
 import { useCommentContext } from '@/hooks/useCommentContext';
+import { Button } from '@/components/ui/button';
 import CommentComposer from '@/components/common/comments/CommentComposer';
 import CommentThread from '@/components/common/comments/CommentThread';
 import { useProjectActivityQuery } from '../../services/projectActivity.service';
@@ -61,6 +62,19 @@ export default function ProjectActivityFeed({
                 );
             }
           })}
+          {activity.hasOlder && (
+            <li>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={activity.loadingOlder}
+                onClick={activity.loadOlder}
+              >
+                {activity.loadingOlder ? 'Loading…' : 'Show older'}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
     </div>

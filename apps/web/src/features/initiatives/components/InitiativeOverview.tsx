@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import type { UseQueryResult } from '@tanstack/react-query';
 import type { TeamDetail } from '@/lib/api';
 import { initiativePath } from '@/utils/paths';
 import { type InitiativeDetail } from '../services/initiatives.service';
-import { type InitiativeUpdateItem } from '../services/initiativeUpdates.service';
+import { type InitiativeUpdatesResult } from '../services/initiativeUpdates.service';
 import InitiativeDescription from './InitiativeDescription';
 import InitiativeProjects from './InitiativeProjects';
 import InitiativeProperties from './InitiativeProperties';
@@ -20,7 +19,7 @@ export default function InitiativeOverview({
   team,
 }: {
   initiative: InitiativeDetail;
-  updates: UseQueryResult<InitiativeUpdateItem[]>;
+  updates: InitiativeUpdatesResult;
   team: TeamDetail;
 }) {
   return (

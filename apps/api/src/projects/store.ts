@@ -15,10 +15,22 @@ import {
   PROJECT_STATUS_IDS,
   type ProjectStatusType,
 } from '@repo/db';
-import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { projectsInTeams, projectTeamIds } from './access';
-import { HttpError, iso, num } from '../shared/lib';
-import { visibleTeamIdList } from '../shared/access';
+import { HttpError, iso, num, UUID_RE } from '../shared/lib';
+import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
@@ -371,28 +383,94 @@ async function assertProjectLead(teamIds: string[], leadUserId?: string | null):
     throw new HttpError(400, "Project lead must be a member of one of the project's teams");
 }
 
-// Every member must be able to see the project: through one of its teams.
-async function assertProjectMembers(teamIds: string[], userIds?: string[]): Promise<void> {
-  const ids = [...new Set(userIds ?? [])];
-  const refused: string[] = [];
-  for (const id of ids) {
-    const visible = await visibleTeamIdList(id);
-    if (!teamIds.some((t) => visible.includes(t))) refused.push(id);
-  }
-  if (refused.length)
-    throw new HttpError(
-      400,
-      `Project members must be able to see the project: ${refused.join(', ')}`,
-    );
+// Every added member must be able to see the project through one of its teams: a
+// member of one of them, or a non-guest when one is public. Members who were
+// already on the project are not checked again, so one who lost access does not
+// block other edits. Refused users are named for a non-guest actor.
+async function assertProjectMembers(
+  teamIds: string[],
+  userIds: string[],
+  currentIds: string[],
+  actorUserId?: string | null,
+): Promise<void> {
+  const ids = [...new Set(userIds)].filter((id) => !currentIds.includes(id));
+  if (ids.length === 0) return;
+  const malformed = ids.filter((id) => !UUID_RE.test(id));
+  if (malformed.length) throw new HttpError(400, `Unknown user: ${malformed.join(', ')}`);
+  const canSee = or(
+    inArray(
+      user.id,
+      db
+        .select({ id: teamMember.userId })
+        .from(teamMember)
+        .where(inArray(teamMember.teamId, teamIds)),
+    ),
+    and(
+      inArray(user.workspaceRole, NON_GUEST_ROLES),
+      exists(
+        db
+          .select({ id: team.id })
+          .from(team)
+          .where(and(inArray(team.id, teamIds), eq(team.visibility, 'public'))),
+      ),
+    ),
+  );
+  const rows = await db
+    .select({ id: user.id, name: user.name, ok: sql<boolean>`${canSee}` })
+    .from(user)
+    .where(inArray(user.id, ids));
+  const allowed = new Set(rows.filter((r) => r.ok).map((r) => r.id));
+  const refused = ids.filter((id) => !allowed.has(id));
+  if (refused.length === 0) return;
+  const actor = actorUserId
+    ? (await db.select({ role: user.workspaceRole }).from(user).where(eq(user.id, actorUserId)))[0]
+    : undefined;
+  const names = new Map(rows.map((r) => [r.id, r.name]));
+  const shown =
+    actor && NON_GUEST_ROLES.includes(actor.role as WorkspaceRole)
+      ? refused.map((id) => names.get(id) ?? id)
+      : refused;
+  throw new HttpError(400, `Project members must be able to see the project: ${shown.join(', ')}`);
 }
 
+// Adds and removes members so the list matches; members who stay keep their
+// position.
 async function setProjectMembers(projectId: string, userIds: string[]): Promise<void> {
   const ids = [...new Set(userIds)];
   await db.transaction(async (tx) => {
-    await tx.delete(projectMember).where(eq(projectMember.projectId, projectId));
+    await tx
+      .delete(projectMember)
+      .where(
+        and(
+          eq(projectMember.projectId, projectId),
+          ids.length ? notInArray(projectMember.userId, ids) : undefined,
+        ),
+      );
     if (ids.length)
-      await tx.insert(projectMember).values(ids.map((userId) => ({ projectId, userId })));
+      await tx
+        .insert(projectMember)
+        .values(ids.map((userId) => ({ projectId, userId })))
+        .onConflictDoNothing();
   });
+}
+
+// Checks the lead, labels and members of a create or patch against the teams the
+// project has (or will have, when the same change sets its teams).
+export async function assertProjectPatch(
+  projectId: string | null,
+  teamIds: string[],
+  patch: Pick<ProjectPatch, 'leadUserId' | 'labelIds' | 'memberUserIds'>,
+  actorUserId?: string | null,
+): Promise<void> {
+  await assertProjectLead(teamIds, patch.leadUserId);
+  await assertProjectLabels(patch.labelIds);
+  if (patch.memberUserIds !== undefined)
+    await assertProjectMembers(
+      teamIds,
+      patch.memberUserIds,
+      projectId ? await projectMemberIds(projectId) : [],
+      actorUserId,
+    );
 }
 
 // The project's member ids, in the order they were added.
@@ -425,9 +503,7 @@ export async function createProject(
 ): Promise<ProjectRow> {
   const teams = [...new Set(teamIds)];
   if (teams.length === 0) throw new HttpError(400, 'A project needs at least one team');
-  await assertProjectLead(teams, input.leadUserId);
-  await assertProjectLabels(input.labelIds);
-  await assertProjectMembers(teams, input.memberUserIds);
+  await assertProjectPatch(null, teams, input, actorUserId);
   const id = await db.transaction(async (tx) => {
     const [posRow] = await tx
       .select({ pos: sql<number>`COALESCE(MAX(${project.sortOrder}), 0) + 1000` })
@@ -503,11 +579,8 @@ export async function updateProject(
 ): Promise<ProjectRow | null> {
   const before = await getProject(id);
   if (!before) return null;
-  await assertProjectLead(await projectTeamIds(id), patch.leadUserId);
+  await assertProjectPatch(id, await projectTeamIds(id), patch, actorUserId);
   const beforeData = beforeOverride ?? (await projectData(id));
-  await assertProjectLabels(patch.labelIds);
-  if (patch.memberUserIds !== undefined)
-    await assertProjectMembers(await projectTeamIds(id), patch.memberUserIds);
 
   const set: Partial<typeof project.$inferInsert> = {};
   if (patch.name !== undefined) set.name = patch.name;

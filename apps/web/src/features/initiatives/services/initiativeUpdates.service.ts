@@ -3,7 +3,7 @@
 // archiving one (Linear has no delete for initiative updates). Each write refreshes
 // the initiative, whose health is its latest update's.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ProjectHealth } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
@@ -11,13 +11,16 @@ import { buildThreadsNewestFirst, type FeedEntry } from '@/utils/commentThreads'
 import { type ReactionNode } from '@/utils/reactions';
 import { invalidateInitiatives } from './initiatives.service';
 
-const PAGE = 50;
+// Updates per page; each update's comments are read in one page of up to the API's
+// maximum.
+const PAGE = 20;
+const COMMENTS = 250;
 
 const InitiativeUpdatesQuery = graphql(`
-  query InitiativeUpdates($id: String!, $first: Int!) {
+  query InitiativeUpdates($id: String!, $first: Int!, $after: String, $comments: Int!) {
     initiative(id: $id) {
       id
-      initiativeUpdates(first: $first) {
+      initiativeUpdates(first: $first, after: $after) {
         nodes {
           id
           body
@@ -37,7 +40,7 @@ const InitiativeUpdatesQuery = graphql(`
               name
             }
           }
-          comments(first: $first) {
+          comments(first: $comments) {
             nodes {
               id
               body
@@ -60,6 +63,10 @@ const InitiativeUpdatesQuery = graphql(`
             }
           }
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
   }
@@ -76,29 +83,48 @@ export interface InitiativeUpdateItem {
   threads: FeedEntry[];
 }
 
-// The latest 50 updates, each with its latest 50 comments.
+// The initiative's updates newest first, a page at a time ("Show older").
 export function useInitiativeUpdatesQuery(initiativeId: string, enabled = true) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: qk.initiativeUpdates(initiativeId),
     enabled,
-    queryFn: async (): Promise<InitiativeUpdateItem[]> => {
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
       const { initiative } = await gqlRequest(InitiativeUpdatesQuery, {
         id: initiativeId,
         first: PAGE,
+        after: pageParam,
+        comments: COMMENTS,
       });
-      return initiative.initiativeUpdates.nodes.map((u) => ({
-        id: u.id,
-        body: u.body,
-        health: u.health as ProjectHealth,
-        createdAt: u.createdAt,
-        editedAt: u.editedAt ?? null,
-        user: u.user ? { id: u.user.id, name: u.user.name, image: u.user.avatarUrl ?? null } : null,
-        reactions: u.reactions,
-        threads: buildThreadsNewestFirst(u.comments.nodes, u.id),
-      }));
+      const { nodes, pageInfo } = initiative.initiativeUpdates;
+      return {
+        items: nodes.map((u): InitiativeUpdateItem => ({
+          id: u.id,
+          body: u.body,
+          health: u.health as ProjectHealth,
+          createdAt: u.createdAt,
+          editedAt: u.editedAt ?? null,
+          user: u.user
+            ? { id: u.user.id, name: u.user.name, image: u.user.avatarUrl ?? null }
+            : null,
+          reactions: u.reactions,
+          threads: buildThreadsNewestFirst(u.comments.nodes, u.id),
+        })),
+        next: pageInfo.hasNextPage ? (pageInfo.endCursor ?? null) : null,
+      };
     },
+    getNextPageParam: (last) => last.next ?? undefined,
   });
+  return {
+    data: query.data?.pages.flatMap((p) => p.items),
+    isLoading: query.isLoading,
+    hasOlder: query.hasNextPage,
+    loadingOlder: query.isFetchingNextPage,
+    loadOlder: () => void query.fetchNextPage(),
+  };
 }
+
+export type InitiativeUpdatesResult = ReturnType<typeof useInitiativeUpdatesQuery>;
 
 const UpdateCreate = graphql(`
   mutation InitiativeUpdateCreate($input: InitiativeUpdateCreateInput!) {

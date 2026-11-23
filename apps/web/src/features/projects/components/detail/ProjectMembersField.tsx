@@ -2,14 +2,16 @@
 
 import { UsersRound } from 'lucide-react';
 import type { Assignee } from '@/lib/api';
-import type { ProjectDetail } from '@/services/projects.service';
+import type { ProjectDetail, ProjectMember } from '@/services/projects.service';
 import Avatar from '@/components/common/Avatar';
 import { Pill } from '@/components/common/fields/Pill';
 import PopoverPick, { type PickItem } from '@/components/common/fields/PopoverPick';
 
 // Linear's project members as a pill: the first members' avatars and a count. The
 // picker offers the team's people (who can see the project) and the current
-// members; a pick adds or removes one and saves the whole list.
+// members; a pick adds or removes one and saves the whole list. The list is read
+// from the optimistically patched project, so picks made while the picker is open
+// build on each other.
 export default function ProjectMembersField({
   project,
   assignees,
@@ -18,20 +20,21 @@ export default function ProjectMembersField({
 }: {
   project: ProjectDetail;
   assignees: Assignee[];
-  onChange: (memberIds: string[]) => void;
+  onChange: (memberIds: string[], people: ProjectMember[]) => void;
   readOnly?: boolean;
 }) {
   const ids = project.members.map((m) => m.id);
   const people = new Map(project.members.map((m) => [m.id, { name: m.name, image: m.image }]));
   for (const a of assignees) people.set(a.userId, { name: a.name, image: a.image });
 
+  const known = [...people].map(([id, p]) => ({ id, ...p }));
   const items: PickItem[] = [...people].map(([id, p]) => ({
     key: id,
     search: p.name,
     icon: <Avatar name={p.name} image={p.image} className="size-4 text-[8px]" />,
     label: p.name,
     selected: ids.includes(id),
-    onSelect: () => onChange(ids.includes(id) ? ids.filter((m) => m !== id) : [...ids, id]),
+    onSelect: () => onChange(ids.includes(id) ? ids.filter((m) => m !== id) : [...ids, id], known),
   }));
 
   return (

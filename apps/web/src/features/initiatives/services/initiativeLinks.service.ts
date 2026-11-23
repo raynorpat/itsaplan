@@ -7,6 +7,7 @@ import { type Assignee } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
+import { ownerCandidates } from '../utils/initiativeOwners';
 import { invalidateInitiatives } from './initiatives.service';
 
 const RelationsQuery = graphql(`
@@ -96,19 +97,49 @@ const UsersQuery = graphql(`
   }
 `);
 
-// The people who may own an initiative: active users who are not guests (the owner
-// must be able to see it), shaped for the shared AssigneeSelect.
-export function useInitiativeOwnersQuery() {
+const LeadTeamMembersQuery = graphql(`
+  query InitiativeLeadTeamMembers($id: String!, $first: Int!, $after: String) {
+    team(id: $id) {
+      private
+      members(first: $first, after: $after) {
+        nodes {
+          id
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);
+
+// The people who may own the initiative (ownerCandidates), shaped for the shared
+// AssigneeSelect.
+export function useInitiativeOwnersQuery(leadTeamId: string | null) {
   return useQuery({
-    queryKey: ['initiativeOwners'],
+    queryKey: ['initiativeOwners', leadTeamId],
     queryFn: async (): Promise<Assignee[]> => {
-      const nodes = await fetchAllPages(async (after, first) => {
+      const users = await fetchAllPages(async (after, first) => {
         const { users } = await gqlRequest(UsersQuery, { first, after });
         return users;
       });
-      return nodes
-        .filter((u) => u.active && !u.guest)
-        .map((u) => ({ userId: u.id, name: u.name, email: u.email, image: u.avatarUrl ?? null }));
+      let leadTeam: { private: boolean; memberIds: string[] } | null = null;
+      if (leadTeamId) {
+        let isPrivate = false;
+        const members = await fetchAllPages(async (after, first) => {
+          const { team } = await gqlRequest(LeadTeamMembersQuery, { id: leadTeamId, first, after });
+          isPrivate = team.private;
+          return team.members;
+        });
+        leadTeam = { private: isPrivate, memberIds: members.map((m) => m.id) };
+      }
+      return ownerCandidates(users, leadTeam).map((u) => ({
+        userId: u.id,
+        name: u.name,
+        email: u.email,
+        image: u.avatarUrl ?? null,
+      }));
     },
   });
 }

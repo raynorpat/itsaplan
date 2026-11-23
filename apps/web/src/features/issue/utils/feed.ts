@@ -6,6 +6,7 @@ import {
   type FeedEntry,
   type FeedUser,
 } from '@/utils/commentThreads';
+import { pagedCutoff } from '@/utils/pagedCutoff';
 
 // The issue feed built from Linear's GraphQL: the issue's comments and its history
 // (IssueHistory) as feed rows, newest first. A history entry becomes one or more
@@ -212,24 +213,16 @@ function isCreation(h: FeedHistory, opts: FeedOptions): boolean {
   return Math.abs(Date.parse(h.createdAt) - Date.parse(opts.issueCreatedAt)) < 1000;
 }
 
-// The time before which the merged feed is incomplete: when a connection has older
-// pages, entries older than its oldest loaded entry may be missing from it, so the
-// feed stops there (the later of the two when both have more).
+// The time before which the merged feed is incomplete (see pagedCutoff).
 export function feedCutoff(
   comments: { createdAt: string }[],
   history: { createdAt: string }[],
   opts: FeedOptions,
 ): string | null {
-  const oldest = (rows: { createdAt: string }[]) =>
-    rows.reduce<string | null>(
-      (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
-      null,
-    );
-  const cuts = [
-    opts.commentsHasMore ? oldest(comments) : null,
-    opts.historyHasMore ? oldest(history) : null,
-  ].filter((c): c is string => c !== null);
-  return cuts.length ? cuts.sort().at(-1)! : null;
+  return pagedCutoff([
+    { rows: comments, hasMore: !!opts.commentsHasMore },
+    { rows: history, hasMore: !!opts.historyHasMore },
+  ]);
 }
 
 export function buildFeed(

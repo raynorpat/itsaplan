@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Users } from 'lucide-react';
 import type { Project } from '@/lib/api';
 import { useUpdateProject } from '@/services/projects.service';
@@ -12,8 +11,8 @@ import ProjectTeamsChecklist from '../shared/ProjectTeamsChecklist';
 
 // The project's teams as a pill; the popover adds or removes teams through
 // projectUpdate's teamIds. Teams the user cannot see stay on the project (server
-// rule), and a team with issues in the project cannot be removed (the error is
-// shown).
+// rule), and a team with issues in the project cannot be removed (the API's error
+// is shown as a toast).
 export default function ProjectTeamsField({
   project,
   readOnly = false,
@@ -23,16 +22,9 @@ export default function ProjectTeamsField({
 }) {
   const teams = useTeamsQuery().data ?? [];
   const update = useUpdateProject();
-  const [error, setError] = useState<string | null>(null);
   const current = project.teams.map((t) => t.id);
 
-  const change = (teamIds: string[]) => {
-    setError(null);
-    update.mutate(
-      { id: project.id, patch: { teamIds } },
-      { onError: (err) => setError(err instanceof Error ? err.message : 'Could not change teams') },
-    );
-  };
+  const change = (teamIds: string[]) => update.mutate({ id: project.id, patch: { teamIds } });
 
   const pill = (
     <Pill active>
@@ -47,7 +39,6 @@ export default function ProjectTeamsField({
       <PopoverTrigger asChild>{pill}</PopoverTrigger>
       <PopoverContent align="start" className="w-64">
         <ProjectTeamsChecklist teams={teams} value={current} onChange={change} />
-        {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </PopoverContent>
     </Popover>
   );

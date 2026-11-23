@@ -4,6 +4,7 @@ import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
+import { setWorkspaceRole } from '../../../shared/access';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Project members over the Linear API: set on create, replaced on update, limited to
@@ -113,5 +114,66 @@ describe('graphql project members', () => {
     );
     const update = payloads.find((p) => p.action === 'update')!;
     expect(update.data.memberIds).toEqual([a.userId]);
+  });
+  it('checks only the added members, naming the refused ones', async () => {
+    const { owner, teamId, a, b } = await setup();
+    const created = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"], memberIds: ["${a.userId}"] }) { project { id } } }`,
+    );
+    const id = (created.body.data as { projectCreate: { project: { id: string } } }).projectCreate
+      .project.id;
+    // Ann loses sight of the project; she stays a member and does not block edits.
+    await setWorkspaceRole(a.userId, 'guest');
+    const kept = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectUpdate(id: "${id}", input: { memberIds: ["${a.userId}", "${b.userId}"] }) { project { members { nodes { id } } } } }`,
+    );
+    expect(kept.body.errors).toBeUndefined();
+    const outsider = await signUpWithRole('guest', { name: 'Olga Out' });
+    const refused = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectUpdate(id: "${id}", input: { memberIds: ["${a.userId}", "${outsider.userId}"] }) { success } }`,
+    );
+    expect(errorCode(refused)).toBe('INVALID_INPUT');
+    expect(refused.body.errors?.[0]?.message).toContain('Olga Out');
+  });
+
+  it('refuses a malformed member id as invalid input', async () => {
+    const { owner, teamId } = await setup();
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"], memberIds: ["not-a-uuid"] }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+  });
+
+  it('checks the members against the new teams before changing any', async () => {
+    const { owner, asOwner, teamId, a } = await setup();
+    await makePrivate(asOwner, 'MKT');
+    await asOwner.teams.post({ key: 'ENG', name: 'Engineering' });
+    const engId = (await asOwner.teams({ teamKey: 'ENG' }).get()).data!.team.id;
+    await makePrivate(asOwner, 'ENG');
+    const created = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"] }) { project { id } } }`,
+    );
+    const id = (created.body.data as { projectCreate: { project: { id: string } } }).projectCreate
+      .project.id;
+    // Ann is in neither team: moving the project to ENG with her as a member is refused.
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { projectUpdate(id: "${id}", input: { teamIds: ["${engId}"], memberIds: ["${a.userId}"] }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    const read = await gql(
+      { cookie: owner.cookie },
+      `{ project(id: "${id}") { teams { nodes { id } } } }`,
+    );
+    expect(
+      (
+        read.body.data as { project: { teams: { nodes: { id: string }[] } } }
+      ).project.teams.nodes.map((n) => n.id),
+    ).toEqual([teamId]);
   });
 });

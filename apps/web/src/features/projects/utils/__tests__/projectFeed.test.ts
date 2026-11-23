@@ -97,4 +97,40 @@ describe('buildProjectFeed', () => {
     assert.equal(removed.actorName, 'a removed user');
     assert.equal(system.actorName, null);
   });
+  it('stops where a connection still has older entries, at the newer such cut', () => {
+    const at = (d: number) => `2026-01-${String(d).padStart(2, '0')}T00:00:00Z`;
+    const history = [5, 7].map((d) => ({
+      id: `h${d}`,
+      createdAt: at(d),
+      entries: { action: 'name' },
+    }));
+    const comments = [2, 6, 9].map((d) => ({
+      id: `c${d}`,
+      body: '',
+      createdAt: at(d),
+      editedAt: null,
+      resolvedAt: null,
+      parentId: null,
+      user: null,
+      reactions: [],
+    }));
+    const updates = [1, 3].map((d) => ({
+      id: `u${d}`,
+      createdAt: at(d),
+      health: 'onTrack' as const,
+      body: '',
+      user: null,
+    }));
+    // History has older pages from day 5, updates from day 1: day 5 is the cut.
+    const cut = buildProjectFeed(history, comments, updates, 'p1', {
+      historyHasMore: true,
+      updatesHasMore: true,
+    });
+    assert.deepEqual(
+      cut.map((e) => e.id),
+      ['c9', 'h7', 'c6', 'h5'],
+    );
+    const all = buildProjectFeed(history, comments, updates, 'p1');
+    assert.equal(all.length, 7);
+  });
 });

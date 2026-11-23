@@ -5,6 +5,7 @@ import {
   useUpdateProject,
   type ProjectChange,
   type ProjectDetail,
+  type ProjectMember,
 } from '@/services/projects.service';
 import { useProjectLabelsQuery } from '../../services/projectLabels.service';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
@@ -27,7 +28,8 @@ export default function ProjectProperties({
   canEdit: boolean;
 }) {
   const update = useUpdateProject(team.team.key);
-  const patch = (p: ProjectChange) => update.mutate({ id: project.id, patch: p });
+  const patch = (p: ProjectChange, members?: ProjectMember[]) =>
+    update.mutate({ id: project.id, patch: p, members });
   const readOnly = !canEdit;
 
   // Project labels are workspace-level; shaped as team labels (no groups) so the
@@ -72,7 +74,7 @@ export default function ProjectProperties({
       <ProjectMembersField
         project={project}
         assignees={team.assignees}
-        onChange={(memberIds) => patch({ memberIds })}
+        onChange={(memberIds, people) => patch({ memberIds }, people)}
         readOnly={readOnly}
       />
       <DatePill

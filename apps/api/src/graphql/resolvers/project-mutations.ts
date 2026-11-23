@@ -8,8 +8,9 @@ import {
   type ProjectStatusType,
 } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { assertProjectAccess } from '../../projects/access';
+import { assertProjectAccess, projectTeamIds } from '../../projects/access';
 import {
+  assertProjectPatch,
   createProject,
   deleteProject,
   setProjectArchived,
@@ -164,6 +165,17 @@ export const projectMutationResolvers = {
           // One webhook update covers the team change and the field changes.
           const before = await projectData(found.id);
           const editable = await visibleTeamIdList(ctx.user.id);
+          // Checked against the resulting teams before any write, so a refused
+          // field leaves the teams unchanged.
+          const hidden = (await projectTeamIds(found.id)).filter(
+            (t) => !access.readableTeamIds.includes(t),
+          );
+          await assertProjectPatch(
+            found.id,
+            [...new Set([...hidden, ...input.teamIds])],
+            patch,
+            ctx.user.id,
+          );
           await setProjectTeams(
             found.id,
             access.readableTeamIds,

@@ -1,25 +1,25 @@
 'use client';
 
-import type { UseQueryResult } from '@tanstack/react-query';
 import type { TeamDetail } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import UpdateForm from '@/components/common/updates/UpdateForm';
 import { type InitiativeDetail } from '../services/initiatives.service';
 import {
   useCreateInitiativeUpdate,
-  type InitiativeUpdateItem,
+  type InitiativeUpdatesResult,
 } from '../services/initiativeUpdates.service';
 import InitiativeSection from './InitiativeSection';
 import InitiativeUpdateCard from './InitiativeUpdateCard';
 
-// The initiative's updates: a box to post one with a health, then the latest 50
-// newest first, each with its reactions and comments.
+// The initiative's updates: a box to post one with a health, then the updates
+// newest first (a page at a time), each with its reactions and comments.
 export default function InitiativeUpdates({
   initiative,
   updates,
   team,
 }: {
   initiative: InitiativeDetail;
-  updates: UseQueryResult<InitiativeUpdateItem[]>;
+  updates: InitiativeUpdatesResult;
   team: TeamDetail;
 }) {
   const create = useCreateInitiativeUpdate(initiative.id);
@@ -43,6 +43,19 @@ export default function InitiativeUpdates({
           {list.map((u) => (
             <InitiativeUpdateCard key={u.id} initiativeId={initiative.id} update={u} team={team} />
           ))}
+          {updates.hasOlder && (
+            <li>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={updates.loadingOlder}
+                onClick={updates.loadOlder}
+              >
+                {updates.loadingOlder ? 'Loading…' : 'Show older'}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
     </InitiativeSection>

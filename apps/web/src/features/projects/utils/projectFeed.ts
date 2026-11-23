@@ -6,6 +6,7 @@ import {
   type FeedEntry,
   type FeedUser,
 } from '@/utils/commentThreads';
+import { pagedCutoff } from '@/utils/pagedCutoff';
 
 // The project's activity on the overview: its history (Project.history), its comment
 // threads and its updates, newest first. Linked issues' activity stays on each issue.
@@ -47,11 +48,20 @@ export type ProjectFeedEntry =
   | { kind: 'comment'; id: string; createdAt: string; thread: FeedEntry }
   | { kind: 'update'; id: string; createdAt: string; update: ProjectUpdateNode };
 
+// Which connections still have older pages; the feed stops at their cut
+// (pagedCutoff) so it never shows a stretch missing one kind of entry.
+export interface ProjectFeedOptions {
+  historyHasMore?: boolean;
+  commentsHasMore?: boolean;
+  updatesHasMore?: boolean;
+}
+
 export function buildProjectFeed(
   history: ProjectHistoryNode[],
   comments: FeedComment[],
   updates: ProjectUpdateNode[],
   projectId = '',
+  opts: ProjectFeedOptions = {},
 ): ProjectFeedEntry[] {
   const entries: ProjectFeedEntry[] = [];
   for (const h of history) {
@@ -77,5 +87,12 @@ export function buildProjectFeed(
     });
   for (const update of updates)
     entries.push({ kind: 'update', id: update.id, createdAt: update.createdAt, update });
-  return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const cutoff = pagedCutoff([
+    { rows: history, hasMore: !!opts.historyHasMore },
+    { rows: comments, hasMore: !!opts.commentsHasMore },
+    { rows: updates, hasMore: !!opts.updatesHasMore },
+  ]);
+  return entries
+    .filter((e) => cutoff === null || e.createdAt >= cutoff)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

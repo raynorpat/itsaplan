@@ -116,7 +116,8 @@ function createLoaders(ctx: GraphQLContext) {
       ),
     ),
     // Users the viewer may see (visibleUsers); others resolve to null.
-    // A project's members the viewer may see, in the order they were added.
+    // A project's members the viewer may see, in the order they were added (members
+    // who stay through a memberIds change keep their place).
     projectMembers: new DataLoader(async (keys: readonly string[]) => {
       const rows = await db
         .select({ projectId: projectMember.projectId, user: getTableColumns(user) })

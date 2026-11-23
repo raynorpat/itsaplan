@@ -15,7 +15,7 @@ import InitiativeStatusSelect from './InitiativeStatusSelect';
 // picked. Anyone who sees an initiative may change it.
 export default function InitiativeProperties({ initiative }: { initiative: InitiativeDetail }) {
   const update = useUpdateInitiative(initiative.id);
-  const owners = useInitiativeOwnersQuery().data ?? [];
+  const owners = useInitiativeOwnersQuery(initiative.leadTeam?.id ?? null).data ?? [];
   const patch = (change: InitiativeChange) => update.mutate(change);
 
   return (
