@@ -1,4 +1,4 @@
-import { Archive, Columns3, Info, type LucideIcon, Tags, Webhook } from 'lucide-react';
+import { Archive, Columns3, Info, type LucideIcon, RefreshCcw, Tags, Webhook } from 'lucide-react';
 import type { AccessArea } from '@/hooks/usePermissions';
 
 // The sidebar group a section is listed under: the team-level general settings,
@@ -43,6 +43,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: 'Tags for organizing and filtering issues across the team.',
     icon: Tags,
     resource: 'labels',
+    group: 'configuration',
+  },
+  {
+    slug: 'cycles',
+    label: 'Cycles',
+    description: "Repeating, time-boxed cycles to plan the team's work in.",
+    icon: RefreshCcw,
+    resource: 'work_items',
     group: 'configuration',
   },
   {

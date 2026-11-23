@@ -1,12 +1,14 @@
 // React Query hooks for everything the settings feature reads and writes: the
-// team's structural entities (columns, labels and label groups), the auto-archive thresholds, the team notification delivery
+// team's structural entities (columns, labels and label groups), the auto-archive thresholds, the team cycle settings, the team notification delivery
 // settings, and the session member's own notification preferences. Structural
 // writes go through useTeamMutation and invalidate the team detail; the
 // settings and notification writes return the stored result and put it straight
 // into the cache. This module wraps the low-level fetch client (api.ts).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type NotificationPreferences } from '@/lib/api';
+import { api, type NotificationPreferences, type TeamScaffold } from '@/lib/api';
+import { graphql, gqlRequest } from '@/lib/graphql';
+import type { CycleSettingsInput } from '../utils/cycleSettings';
 import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
 
@@ -95,6 +97,52 @@ export function useUpdateAutoArchive(teamKey: string) {
     mutationFn: (autoArchivePeriod: number) =>
       api.updateTeamSettings(teamKey, { autoArchivePeriod }),
     onSuccess: (data) => qc.setQueryData(qk.teamSettings(teamKey), data),
+  });
+}
+
+const TeamCyclesUpdate = graphql(`
+  mutation TeamCyclesUpdate($id: String!, $input: TeamUpdateInput!) {
+    teamUpdate(id: $id, input: $input) {
+      team {
+        cyclesEnabled
+        cycleDuration
+        cycleStartDay
+        cycleCooldownTime
+        upcomingCycleCount
+        cycleIssueAutoAssignStarted
+        cycleIssueAutoAssignCompleted
+      }
+    }
+  }
+`);
+
+// Cycles section: writes the team's cycle settings through teamUpdate and puts the
+// stored values into the team scaffold, which the settings form and the sidebar read.
+// Turning cycles on makes the API create the current and upcoming cycles, so the
+// team's cycle queries refresh too.
+export function useUpdateTeamCycles(teamKey: string, teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CycleSettingsInput) => gqlRequest(TeamCyclesUpdate, { id: teamId, input }),
+    onSuccess: ({ teamUpdate: { team } }) => {
+      if (!team) return;
+      qc.setQueryData<TeamScaffold>(qk.team(teamKey), (old) =>
+        old
+          ? {
+              ...old,
+              cycles: {
+                enabled: team.cyclesEnabled,
+                duration: team.cycleDuration,
+                startDay: team.cycleStartDay,
+                cooldown: team.cycleCooldownTime,
+                upcomingCount: team.upcomingCycleCount,
+                autoAssignStarted: team.cycleIssueAutoAssignStarted,
+                autoAssignCompleted: team.cycleIssueAutoAssignCompleted,
+              },
+            }
+          : old,
+      );
+    },
   });
 }
 

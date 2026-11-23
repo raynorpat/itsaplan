@@ -437,8 +437,21 @@ export interface ProjectOption {
 
 // The board scaffold, returned by getTeam: everything the work-items UI needs
 // except the issues themselves (those come from getBoardIssues).
+// Linear's team cycle settings (Team.cyclesEnabled, cycleDuration, …). Duration and
+// cooldown are in weeks; startDay is 0 (Sunday) to 6 (Saturday), in UTC.
+export interface TeamCycleSettings {
+  enabled: boolean;
+  duration: number;
+  startDay: number;
+  cooldown: number;
+  upcomingCount: number;
+  autoAssignStarted: boolean;
+  autoAssignCompleted: boolean;
+}
+
 export interface TeamScaffold {
   team: Team;
+  cycles: TeamCycleSettings;
   states: Column[];
   labels: Label[];
   labelGroups: LabelGroup[];

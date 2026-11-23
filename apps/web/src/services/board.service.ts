@@ -7,6 +7,7 @@ import type {
   LabelGroup,
   MemberRole,
   Team,
+  TeamCycleSettings,
   TeamScaffold,
   WorkspaceRole,
 } from '@/lib/api';
@@ -35,6 +36,13 @@ const ScaffoldQuery = graphql(`
       description
       visibility
       createdAt
+      cyclesEnabled
+      cycleDuration
+      cycleStartDay
+      cycleCooldownTime
+      upcomingCycleCount
+      cycleIssueAutoAssignStarted
+      cycleIssueAutoAssignCompleted
       states(first: 250) {
         nodes {
           id
@@ -208,7 +216,16 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     viewer,
     memberNodes.map((m) => ({ userId: m.user.id, owner: m.owner })),
   );
-  return { team: teamRow, states, labels, labelGroups, assignees, viewer: viewerAccess };
+  const cycles: TeamCycleSettings = {
+    enabled: team.cyclesEnabled,
+    duration: team.cycleDuration,
+    startDay: team.cycleStartDay,
+    cooldown: team.cycleCooldownTime,
+    upcomingCount: team.upcomingCycleCount,
+    autoAssignStarted: team.cycleIssueAutoAssignStarted,
+    autoAssignCompleted: team.cycleIssueAutoAssignCompleted,
+  };
+  return { team: teamRow, cycles, states, labels, labelGroups, assignees, viewer: viewerAccess };
 }
 
 // The board scaffold (states, labels, members, the viewer's access) for a team.

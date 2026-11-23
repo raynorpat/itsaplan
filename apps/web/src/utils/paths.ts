@@ -24,6 +24,8 @@ export const apiDocsPath = (key: string) => `${teamPath(key)}/api`;
 
 export const membersPath = (key: string) => `${teamPath(key)}/members`;
 
+export const cyclesPath = (key: string) => `${teamPath(key)}/cycles`;
+
 // Issues are addressed in the URL by their team-scoped number (the "42" in
 // "MKT-42"), not the internal database id: /team/MKT/issue/42.
 export const issuePath = (key: string, sequenceNumber: number) =>
