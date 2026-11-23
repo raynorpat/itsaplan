@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { type StorageSettings } from '@/lib/api';
+import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 
 // The instance upload limits, read wherever a file can be picked (issue
@@ -11,7 +12,7 @@ import { qk } from '@/services/queryKeys';
 export function useStorageSettingsQuery() {
   return useQuery({
     queryKey: qk.storageSettings,
-    queryFn: () => api.getStorageSettings(),
+    queryFn: () => instanceFetch<StorageSettings>('/instance/upload-limits'),
     staleTime: 5 * 60_000,
   });
 }

@@ -1,13 +1,88 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Team, type TeamVisibility } from '@/lib/api';
+import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
+import { teamAccess } from '@/services/board.service';
+import { fetchAllPages } from '@/utils/fetchAllPages';
 
-// Every team the caller can see: joined teams plus public teams they have not
-// joined (role null). Pickers that add work to a team use this list.
+const TeamsPage = graphql(`
+  query TeamsList($after: String, $first: Int) {
+    viewer {
+      id
+      admin
+      owner
+      guest
+    }
+    teams(first: $first, after: $after) {
+      nodes {
+        id
+        key
+        name
+        description
+        visibility
+        createdAt
+        memberships(first: 250) {
+          nodes {
+            owner
+            user {
+              id
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+type TeamNode = {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  visibility: string;
+  createdAt: string;
+};
+
+function toTeam(node: TeamNode): Team {
+  return {
+    id: node.id,
+    key: node.key,
+    name: node.name,
+    description: node.description ?? '',
+    visibility: node.visibility === 'private' ? 'private' : 'public',
+    createdAt: node.createdAt,
+  };
+}
+
+// Every team the caller can see: joined teams plus public teams they have not joined
+// (role null), by key. The caller's role and manage right come from each team's
+// memberships, read up to 250 per team. Pickers that add work to a team use this list.
+async function fetchTeams(): Promise<Team[]> {
+  let viewer: { id: string; admin: boolean; owner: boolean; guest: boolean } | null = null;
+  const nodes = await fetchAllPages(async (after, first) => {
+    const data = await gqlRequest(TeamsPage, { after, first });
+    viewer = data.viewer;
+    return data.teams;
+  });
+  return nodes
+    .map((node) => {
+      const access = teamAccess(
+        viewer!,
+        node.memberships.nodes.map((m) => ({ userId: m.user.id, owner: m.owner })),
+      );
+      return { ...toTeam(node), role: access.role, canManage: access.canManage };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export function useTeamsQuery() {
   return useQuery({
     queryKey: qk.teams,
-    queryFn: () => api.listTeams(),
+    queryFn: fetchTeams,
   });
 }
 
@@ -44,14 +119,56 @@ export function useInvalidateTeam(teamKey: string | null) {
   };
 }
 
+const TeamCreate = graphql(`
+  mutation TeamCreate($input: TeamCreateInput!) {
+    teamCreate(input: $input) {
+      team {
+        id
+        key
+        name
+        description
+        visibility
+        createdAt
+      }
+    }
+  }
+`);
+
+const TeamUpdate = graphql(`
+  mutation TeamUpdate($id: String!, $input: TeamUpdateInput!) {
+    teamUpdate(id: $id, input: $input) {
+      team {
+        id
+        key
+        name
+        description
+        visibility
+        createdAt
+      }
+    }
+  }
+`);
+
+const TeamDelete = graphql(`
+  mutation TeamDelete($id: String!) {
+    teamDelete(id: $id) {
+      success
+    }
+  }
+`);
+
 export function useCreateTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       input,
     }: {
-      input: { key: string; name: string; description?: string; preset?: string };
-    }) => api.createTeam(input),
+      input: { key: string; name: string; description?: string };
+    }): Promise<Team> => {
+      const data = await gqlRequest(TeamCreate, { input });
+      // The creator becomes the team's first member and owner (the API's rule).
+      return { ...toTeam(data.teamCreate.team!), role: 'owner', canManage: true };
+    },
     onSuccess: (team) => {
       // Add the new team to the cached list immediately so navigating to it
       // (onCreated → setTeamKey) sticks. Otherwise the list has not refetched
@@ -65,13 +182,22 @@ export function useCreateTeam() {
 export function useUpdateTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       teamKey,
       patch,
     }: {
       teamKey: string;
       patch: { name?: string; description?: string; visibility?: TeamVisibility };
-    }) => api.updateTeam(teamKey, patch),
+    }): Promise<Team> => {
+      const { visibility, ...rest } = patch;
+      const input = {
+        ...rest,
+        ...(visibility !== undefined ? { private: visibility === 'private' } : {}),
+      };
+      // teamUpdate takes the team key as its id, as team(id:) does.
+      const data = await gqlRequest(TeamUpdate, { id: teamKey, input });
+      return toTeam(data.teamUpdate.team!);
+    },
     onSuccess: (updated, { teamKey }) => {
       // Reflect the new name/description in the cached list immediately, then
       // refetch the list and the team detail (its header and switcher read
@@ -130,7 +256,7 @@ export function useLeaveTeam() {
 export function useDeleteTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (teamKey: string) => api.deleteTeam(teamKey),
+    mutationFn: (teamKey: string) => gqlRequest(TeamDelete, { id: teamKey }),
     onSuccess: (_data, teamKey) => forgetTeam(qc, teamKey),
   });
 }

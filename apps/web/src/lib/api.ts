@@ -177,11 +177,6 @@ export interface IssueSearchHit {
 // a completed or canceled issue stays before the worker archives it; 0 = off.
 export const AUTO_ARCHIVE_PERIODS = [0, 1, 3, 6, 9, 12] as const;
 
-// A team's settings: the auto-archive period in months.
-export interface TeamSettings {
-  autoArchivePeriod: number;
-}
-
 // Email on or off per Linear notification category.
 export interface EmailCategories {
   assignments: boolean;
@@ -665,80 +660,6 @@ export interface Notification {
 }
 
 export const api = {
-  // The teams the caller can see: joined teams plus public teams not joined
-  // (role null).
-  listTeams: () => request<Team[]>('/teams'),
-  createTeam: (input: {
-    key: string;
-    name: string;
-    description?: string;
-    visibility?: TeamVisibility;
-  }) => request<Team>('/teams', { method: 'POST', body: JSON.stringify(input) }),
-  // Update a team's name, description or visibility. The key is immutable.
-  updateTeam: (
-    teamKey: string,
-    patch: { name?: string; description?: string; visibility?: TeamVisibility },
-  ) => request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  deleteTeam: (teamKey: string) => request<void>(`/teams/${teamKey}`, { method: 'DELETE' }),
-
-  createState: (teamKey: string, input: { name: string; stateType: StateType; color?: string }) =>
-    request<Column>(`/teams/${teamKey}/columns`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateState: (teamKey: string, stateId: string, patch: { name?: string; color?: string }) =>
-    request<Column>(`/teams/${teamKey}/columns/${stateId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  reorderStates: (teamKey: string, orderedIds: string[]) =>
-    request<Column[]>(`/teams/${teamKey}/columns/reorder`, {
-      method: 'PUT',
-      body: JSON.stringify({ orderedIds }),
-    }),
-  deleteState: (
-    teamKey: string,
-    stateId: string,
-    body: { mode: 'move'; targetStateId: string } | { mode: 'delete' },
-  ) =>
-    request<void>(`/teams/${teamKey}/columns/${stateId}`, {
-      method: 'DELETE',
-      body: JSON.stringify(body),
-    }),
-
-  createLabel: (
-    teamKey: string,
-    input: { name: string; color?: string; groupId?: string | null },
-  ) =>
-    request<Label>(`/teams/${teamKey}/labels`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateLabel: (
-    teamKey: string,
-    labelId: string,
-    patch: { name?: string; color?: string; groupId?: string | null },
-  ) =>
-    request<Label>(`/teams/${teamKey}/labels/${labelId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteLabel: (teamKey: string, labelId: string) =>
-    request<void>(`/teams/${teamKey}/labels/${labelId}`, { method: 'DELETE' }),
-
-  createLabelGroup: (teamKey: string, input: { name: string; color?: string }) =>
-    request<LabelGroup>(`/teams/${teamKey}/label-groups`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateLabelGroup: (teamKey: string, groupId: string, patch: { name?: string; color?: string }) =>
-    request<LabelGroup>(`/teams/${teamKey}/label-groups/${groupId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteLabelGroup: (teamKey: string, groupId: string) =>
-    request<void>(`/teams/${teamKey}/label-groups/${groupId}`, { method: 'DELETE' }),
-
   // Server-side text search for the command palette. Always returns all matches,
   // archived included (each hit carries an `archived` flag).
   searchIssues: (teamKey: string, params: { q?: string; limit?: number }) => {
@@ -813,20 +734,6 @@ export const api = {
   createAllTeamsWebhook: (input: NewWebhookInput) =>
     request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(input) }),
 
-  // Team settings: the auto-archive period. Anyone who can see the team reads; team
-  // managers write. The PATCH takes only the fields being changed.
-  getTeamSettings: (teamKey: string) => request<TeamSettings>(`/teams/${teamKey}/settings`),
-  updateTeamSettings: (
-    teamKey: string,
-    patch: {
-      autoArchivePeriod?: number;
-    },
-  ) =>
-    request<TeamSettings>(`/teams/${teamKey}/settings`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-
   // The signed-in user's own email notification preferences, for the whole workspace.
   getNotificationPreferences: () =>
     request<NotificationPreferences>('/account/notification-preferences'),
@@ -846,12 +753,6 @@ export const api = {
       body: JSON.stringify({ timezone }),
     }),
 
-  // The upload limits, read by the upload UI before a file is picked.
-  getStorageSettings: () => request<StorageSettings>('/settings/storage'),
-
-  // The running version, shown in the sidebar and in workspace settings.
-  getAppVersion: () => request<{ version: string }>('/settings/version'),
-
   // The workspace settings: any signed-in user reads them, owners and admins change
   // them.
   getOrganization: () => request<OrganizationSettings>('/organization'),
@@ -860,8 +761,4 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-
-  // The sign-in methods offered, readable without a session: the sign-in screen
-  // needs them before an account exists.
-  getAuthConfig: () => request<PublicAuthConfig>('/auth-config'),
 };

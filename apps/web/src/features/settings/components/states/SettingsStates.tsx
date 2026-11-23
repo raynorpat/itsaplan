@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { type Column, type TeamDetail, type StateType } from '@/lib/api';
 import { useDndSensors } from '@/lib/dnd';
 import { STATE_TYPES } from '@/utils/fieldOptions';
+import { positionForMove } from '../../utils/statePosition';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { Button } from '@/components/ui/button';
 import { ItemGroup } from '@/components/ui/item';
@@ -21,7 +22,7 @@ import { SettingsStateRow } from './SettingsStateRow';
 import SettingsDeleteStateDialog from './SettingsDeleteStateDialog';
 
 // The workflow states, grouped by state type. Each group has its own inline add;
-// states are reordered within their group by drag, edited inline, and deleted.
+// states are reordered within their group by drag, edited inline, and removed.
 export default function SettingsStates({ team }: { team: TeamDetail }) {
   const [addingType, setAddingType] = useState<StateType | null>(null);
   const [name, setName] = useState('');
@@ -49,21 +50,14 @@ export default function SettingsStates({ team }: { team: TeamDetail }) {
     void reorderWithinGroup(dragged.id, target.id, dragged.stateType);
   }
 
-  // Moves the dragged column before the drop target within the same state type,
-  // then sends the full team column order so the backend renumbers positions.
+  // Moves the dragged state to the drop target's place within its state type. Only the
+  // moved state is written; its position lies between its new neighbours.
   async function reorderWithinGroup(draggedId: string, targetId: string, stateType: StateType) {
     const group = team.states.filter((c) => c.stateType === stateType);
     const from = group.findIndex((c) => c.id === draggedId);
     const to = group.findIndex((c) => c.id === targetId);
     if (from < 0 || to < 0) return;
-    const next = [...group];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-
-    const orderedIds = STATE_TYPES.flatMap((s) =>
-      (s === stateType ? next : team.states.filter((c) => c.stateType === s)).map((c) => c.id),
-    );
-    await reorderStates.mutateAsync(orderedIds);
+    await reorderStates.mutateAsync({ id: draggedId, position: positionForMove(group, from, to) });
   }
 
   function startAdd(s: StateType) {
