@@ -4,8 +4,11 @@ import type { FeedItem } from '@/types/issue';
 import {
   canStopSession,
   isSessionLive,
+  issueSessionStatus,
+  pollDelay,
   sessionStatus,
   sessionTimeline,
+  threadSessionIds,
   type SessionActivity,
 } from '../agentSession';
 
@@ -136,5 +139,55 @@ describe('session status', () => {
     assert.equal(isSessionLive('stopping'), true);
     assert.equal(isSessionLive('awaitingInput'), false);
     assert.equal(isSessionLive('complete'), false);
+  });
+});
+
+describe('sessions of a thread', () => {
+  const entry = (rootSession: string | null, replies: (string | null)[]) => ({
+    item: { ...reply('root', 0), agentSessionId: rootSession },
+    replies: replies.map((s, i) => ({ ...reply(`r${i}`, i + 1), agentSessionId: s })),
+    resolved: false,
+  });
+
+  it("lists the root's session, then each other session a reply started, once", () => {
+    assert.deepEqual(threadSessionIds(entry('s1', [null, 's2', 's1', 's2', 's3'])), [
+      's1',
+      's2',
+      's3',
+    ]);
+  });
+
+  it('finds the sessions of a thread whose root has none', () => {
+    assert.deepEqual(threadSessionIds(entry(null, [null, 's2'])), ['s2']);
+    assert.deepEqual(threadSessionIds(entry(null, [null])), []);
+  });
+
+  it("hides another session's reply prompts without merging the replies again", () => {
+    const rows = sessionTimeline(
+      [act('p1', 2, 'prompt', { sourceCommentId: 'r0' }), act('t1', 3, 'thought')],
+      [reply('r0', 1)],
+      false,
+    );
+    assert.deepEqual(
+      rows.map((r) => r.kind),
+      ['steps'],
+    );
+  });
+});
+
+describe('polling', () => {
+  const minute = 60_000;
+  it('polls a live session until it has not changed for ten minutes', () => {
+    assert.equal(pollDelay('active', 0, 9 * minute), 4000);
+    assert.equal(pollDelay('active', 0, 11 * minute), false);
+    assert.equal(pollDelay('complete', 0, 0), false);
+  });
+});
+
+describe('issue session status', () => {
+  it('shows the first open session, else none', () => {
+    assert.equal(issueSessionStatus(['complete', 'awaitingInput', 'active']), 'awaitingInput');
+    assert.equal(issueSessionStatus(['complete', 'stale']), null);
+    assert.equal(issueSessionStatus([]), null);
   });
 });

@@ -4,6 +4,7 @@ import { type CommentContext } from '@/utils/commentContext';
 import ActivityLine from './ActivityLine';
 import CommentThread from '@/components/common/comments/CommentThread';
 import AgentSessionThread from '../agent/AgentSessionThread';
+import { threadSessionIds } from '../../utils/agentSession';
 
 // The issue's feed, newest first: comment threads and change entries, a page at a
 // time with "Show older" for the rest. The feed query refetches when an issue edit
@@ -32,12 +33,13 @@ export default function IssueFeedList({
 
   return (
     <ul className="flex flex-col gap-2.5">
-      {entries.map((entry) =>
-        entry.item.kind === 'comment' && entry.item.agentSessionId ? (
+      {entries.map((entry) => {
+        const sessionIds = entry.item.kind === 'comment' ? threadSessionIds(entry) : [];
+        return sessionIds.length > 0 ? (
           <AgentSessionThread
             key={entry.item.id}
             entry={entry}
-            sessionId={entry.item.agentSessionId}
+            sessionIds={sessionIds}
             imageByUserId={imageByUserId}
             ctx={ctx}
           />
@@ -50,8 +52,8 @@ export default function IssueFeedList({
           />
         ) : (
           <ActivityLine key={entry.item.id} item={entry.item} />
-        ),
-      )}
+        );
+      })}
       {feedQuery.hasOlder && (
         <li>
           <Button

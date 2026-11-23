@@ -14,6 +14,7 @@ import {
   projectMember,
 } from '@repo/db';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
+import { sessionsOfComments } from '../agents/store';
 import { mapCycle } from '../cycles/store';
 import { projectsInTeams } from '../projects/access';
 import { getProjectsByIds } from '../projects/store';
@@ -136,6 +137,21 @@ function createLoaders(ctx: GraphQLContext) {
         keys,
       );
     }),
+    // Users by id without the visibility check (the agent API's app users and authors
+    // of what the viewer already reads).
+    anyUser: new DataLoader(async (keys: readonly string[]) =>
+      byId(
+        await db
+          .select()
+          .from(user)
+          .where(inArray(user.id, [...keys])),
+        keys,
+      ),
+    ),
+    // Linear's Comment.agentSession for each comment (agents/store.ts).
+    sessionOfComment: new DataLoader((keys: readonly string[]) =>
+      sessionsOfComments(keys, viewerId),
+    ),
     project: project_,
     // A milestone is visible when its project is.
     milestone: new DataLoader(async (keys: readonly string[]) => {

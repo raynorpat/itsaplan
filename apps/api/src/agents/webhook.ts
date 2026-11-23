@@ -15,7 +15,7 @@ import { getComment, type CommentRow } from '../comments/store';
 import { getOrganization } from '../graphql/resolvers/organization';
 import { issueData } from '../webhooks/data';
 import { onAgentSessionEvent, type AgentSessionEvent } from './events';
-import { getSession, type SessionRow } from './store';
+import { appSeesSessionIssue, endUnreachableSession, getSession, type SessionRow } from './store';
 
 // Linear's AgentSessionEvent webhook (the SDL's AgentSessionEventWebhookPayload): sent
 // to the webhook of the application whose app user owns the session, whatever resource
@@ -155,15 +155,24 @@ async function previousComments(s: SessionRow): Promise<CommentRow[]> {
   return out;
 }
 
+// Text inside promptContext's tags: `&`, `<`, `>` and `"` are escaped as in XML, so
+// a title or comment cannot close a tag or add one.
+const esc = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
 // Linear's promptContext: the issue and the session's thread as a formatted prompt.
 async function promptContext(s: SessionRow, issue: Data | null): Promise<string> {
   const parts: string[] = [];
   if (issue)
     parts.push(
-      `<issue identifier="${issue.identifier}">`,
-      `<title>${issue.title}</title>`,
-      ...(issue.description ? [`<description>${issue.description}</description>`] : []),
-      `<team name="${(issue.team as { name?: string } | null)?.name ?? ''}"/>`,
+      `<issue identifier="${esc(issue.identifier)}">`,
+      `<title>${esc(issue.title)}</title>`,
+      ...(issue.description ? [`<description>${esc(issue.description)}</description>`] : []),
+      `<team name="${esc((issue.team as { name?: string } | null)?.name)}"/>`,
       '</issue>',
     );
   if (s.commentId) {
@@ -175,7 +184,8 @@ async function promptContext(s: SessionRow, issue: Data | null): Promise<string>
     const bodies: string[] = [];
     for (const r of rows) {
       const c = await getComment(r.id);
-      if (c?.body.trim()) bodies.push(`<comment author="${c.userName ?? ''}">${c.body}</comment>`);
+      if (c?.body.trim())
+        bodies.push(`<comment author="${esc(c.userName)}">${esc(c.body)}</comment>`);
     }
     if (bodies.length) parts.push('<thread>', ...bodies, '</thread>');
   }
@@ -185,6 +195,12 @@ async function promptContext(s: SessionRow, issue: Data | null): Promise<string>
 export async function sendAgentSessionEvent(event: AgentSessionEvent): Promise<void> {
   const session = await getSession(event.sessionId);
   if (!session) return;
+  // An app that can no longer see the issue's team (its install was narrowed, the team
+  // became private) gets nothing about it; the session ends.
+  if (!(await appSeesSessionIssue(session))) {
+    await endUnreachableSession(session.id);
+    return;
+  }
   const target = await appWebhook(session.appUserId);
   if (!target) return;
   const organizationId = (await getOrganization()).id;

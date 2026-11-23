@@ -8,7 +8,7 @@ import {
   user as userTable,
 } from '@repo/db';
 import { APP_ROLE } from '@repo/auth';
-import { and, asc, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import { createComment, type CommentRow } from '../comments/store';
 import { notifyAgentSession } from '../notifications/store';
 import { canSeeTeam, visibleTeamIds } from '../shared/access';
@@ -96,23 +96,57 @@ export async function readableSessionsSql(viewerId: string): Promise<SQL> {
     : onVisibleIssue;
 }
 
+// Whether the session's app user can still see the team of the session's issue.
+export async function appSeesSessionIssue(session: SessionRow): Promise<boolean> {
+  const [row] = await db
+    .select({ teamId: issue.teamId })
+    .from(issue)
+    .where(eq(issue.id, session.issueId));
+  return !!row && (await canSeeTeam(row.teamId, session.appUserId));
+}
+
+// Ends a session whose app can no longer see its issue (as uninstall does: `stale`).
+export async function endUnreachableSession(sessionId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .update(agentSession)
+    .set({ ...statusChange('stale', now), endedAt: now })
+    .where(and(eq(agentSession.id, sessionId), inArray(agentSession.status, OPEN_STATUSES)));
+}
+
 export async function getSession(id: string): Promise<SessionRow | null> {
   const [row] = await db.select().from(agentSession).where(eq(agentSession.id, id));
   return row ?? null;
 }
 
-// The earliest session whose thread is the comment, among those the viewer may read.
-export async function sessionOfComment(
-  commentId: string,
+// Linear's Comment.agentSession for each comment: the earliest session the viewer may
+// read that is associated with it, as its thread's root or as the reply that started
+// it (an app mentioned in another app's thread). Null where there is none.
+export async function sessionsOfComments(
+  commentIds: readonly string[],
   viewerId: string,
-): Promise<SessionRow | null> {
-  const [row] = await db
+): Promise<(SessionRow | null)[]> {
+  if (commentIds.length === 0) return [];
+  const ids = [...commentIds];
+  const rows = await db
     .select()
     .from(agentSession)
-    .where(and(eq(agentSession.commentId, commentId), await readableSessionsSql(viewerId)))
-    .orderBy(asc(agentSession.createdAt))
-    .limit(1);
-  return row ?? null;
+    .where(
+      and(
+        or(inArray(agentSession.commentId, ids), inArray(agentSession.sourceCommentId, ids)),
+        await readableSessionsSql(viewerId),
+      ),
+    )
+    .orderBy(asc(agentSession.createdAt));
+  // A reply that started a session is associated with that session; a root with the
+  // earliest session of its thread that no reply of it started.
+  return ids.map(
+    (id) =>
+      rows.find((r) => r.sourceCommentId === id) ??
+      rows.find((r) => r.commentId === id && !r.sourceCommentId) ??
+      rows.find((r) => r.commentId === id) ??
+      null,
+  );
 }
 
 // --- Writes ---------------------------------------------------------------------
@@ -120,43 +154,54 @@ export async function sessionOfComment(
 const slug = () => randomBytes(6).toString('hex');
 
 // Starts a session. Without `commentId` it opens a thread on the issue: an empty root
-// comment by the app user, which the session's activities are shown in.
+// comment by the app user, which the session's activities are shown in. Returns null
+// when the app already has a session in the thread, or an open delegation session on
+// the issue (the unique indexes; the caller prompts that one instead). The row is
+// written before the thread's comment, so a refused session leaves no comment.
 export async function startSession(input: {
   issueId: string;
   appUserId: string;
   creatorUserId: string | null;
   status: SessionStatus;
+  delegated?: boolean;
   commentId?: string | null;
   sourceCommentId?: string | null;
   externalLink?: string | null;
   externalUrls?: ExternalUrl[];
-}): Promise<SessionRow> {
-  let commentId = input.commentId ?? null;
-  if (!commentId) {
-    const thread = await createComment({
-      parent: { issueId: input.issueId },
-      body: '',
-      actorUserId: input.appUserId,
-      notify: false,
-    });
-    commentId = thread.id;
-  }
+}): Promise<SessionRow | null> {
   const now = new Date();
-  const [row] = await db
+  const [inserted] = await db
     .insert(agentSession)
     .values({
       slugId: slug(),
       issueId: input.issueId,
       appUserId: input.appUserId,
       creatorUserId: input.creatorUserId,
-      commentId,
+      commentId: input.commentId ?? null,
       sourceCommentId: input.sourceCommentId ?? null,
       status: input.status,
+      delegated: input.delegated ?? false,
       startedAt: input.status === 'active' ? now : null,
       externalLink: input.externalLink ?? null,
       externalUrls: input.externalUrls ?? [],
     })
+    .onConflictDoNothing()
     .returning();
+  if (!inserted) return null;
+  let row = inserted;
+  if (!row.commentId) {
+    const thread = await createComment({
+      parent: { issueId: input.issueId },
+      body: '',
+      actorUserId: input.appUserId,
+      notify: false,
+    });
+    [row] = await db
+      .update(agentSession)
+      .set({ commentId: thread.id })
+      .where(eq(agentSession.id, row.id))
+      .returning();
+  }
   await emitAgentSessionEvent({ action: 'created', sessionId: row!.id });
   return row!;
 }
@@ -173,8 +218,11 @@ function statusChange(status: SessionStatus, now: Date): Partial<typeof agentSes
   return set;
 }
 
-// Records an activity and moves the session's status. A prompt also sends the
-// `prompted` event.
+// Records an activity and moves the session's status. The session row is locked while
+// its status is computed and written, so concurrent activities apply in order. An
+// `id` that the same author already wrote to the session returns that activity
+// unchanged (a retried request). A prompt also sends the `prompted` event; the
+// creator's notification is best effort.
 export async function addActivity(input: {
   session: SessionRow;
   userId: string;
@@ -187,8 +235,25 @@ export async function addActivity(input: {
   id?: string;
 }): Promise<ActivityRow> {
   const now = new Date();
-  const status = sessionStatusAfter(input.session.status as SessionStatus, input);
-  const row = await db.transaction(async (tx) => {
+  let status: SessionStatus = input.session.status as SessionStatus;
+  const result = await db.transaction(async (tx) => {
+    if (input.id) {
+      const [existing] = await tx
+        .select()
+        .from(agentActivity)
+        .where(eq(agentActivity.id, input.id));
+      if (existing) {
+        if (existing.sessionId !== input.session.id || existing.userId !== input.userId)
+          throw new HttpError(409, 'An activity with this id already exists');
+        return { row: existing, repeated: true };
+      }
+    }
+    const [locked] = await tx
+      .select({ status: agentSession.status })
+      .from(agentSession)
+      .where(eq(agentSession.id, input.session.id))
+      .for('update');
+    status = sessionStatusAfter((locked?.status ?? input.session.status) as SessionStatus, input);
     const [created] = await tx
       .insert(agentActivity)
       .values({
@@ -207,17 +272,21 @@ export async function addActivity(input: {
       .update(agentSession)
       .set(statusChange(status, now))
       .where(eq(agentSession.id, input.session.id));
-    return created!;
+    return { row: created!, repeated: false };
   });
+  const row = result.row;
+  if (result.repeated) return row;
   if (input.type === 'elicitation' || status === 'complete')
-    await notifyAgentSession({
-      type: input.type === 'elicitation' ? 'agent_needs_input' : 'agent_responded',
-      recipientId: input.session.creatorUserId,
-      appUserId: input.session.appUserId,
-      issueId: input.session.issueId,
-      sessionId: input.session.id,
-      activityId: row.id,
-    });
+    await bestEffort('notification', () =>
+      notifyAgentSession({
+        type: input.type === 'elicitation' ? 'agent_needs_input' : 'agent_responded',
+        recipientId: input.session.creatorUserId,
+        appUserId: input.session.appUserId,
+        issueId: input.session.issueId,
+        sessionId: input.session.id,
+        activityId: row.id,
+      }),
+    );
   if (input.type === 'prompt')
     await emitAgentSessionEvent({
       action: 'prompted',
@@ -227,7 +296,8 @@ export async function addActivity(input: {
   return row;
 }
 
-// The app user's open session on the issue, if any (the newest).
+// The app user's open session on the issue, if any: its delegation session first, else
+// the newest.
 async function openSession(issueId: string, appUserId: string): Promise<SessionRow | null> {
   const [row] = await db
     .select()
@@ -240,9 +310,19 @@ async function openSession(issueId: string, appUserId: string): Promise<SessionR
         inArray(agentSession.status, OPEN_STATUSES),
       ),
     )
-    .orderBy(desc(agentSession.createdAt))
+    .orderBy(desc(agentSession.delegated), desc(agentSession.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+// Runs a side effect of a write that has already happened: a failure is logged and
+// never fails the request (a retry would repeat the write).
+export async function bestEffort(what: string, run: () => Promise<unknown>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    console.error(`[agents] ${what} failed:`, err);
+  }
 }
 
 // An issue was delegated to an app user (the delegate changed to it): starts a
@@ -254,17 +334,34 @@ export async function issueDelegated(
 ): Promise<void> {
   // An app delegating an issue to itself starts nothing.
   if (actorUserId === appUserId) return;
+  const started =
+    !(await openSession(issueId, appUserId)) &&
+    (await startSession({
+      issueId,
+      appUserId,
+      creatorUserId: actorUserId,
+      status: 'pending',
+      delegated: true,
+    }));
+  if (started) return;
+  // A session is open (or a concurrent delegation just opened one): prompt it.
   const open = await openSession(issueId, appUserId);
-  if (!open) {
-    await startSession({ issueId, appUserId, creatorUserId: actorUserId, status: 'pending' });
-    return;
-  }
-  if (!actorUserId) return;
+  if (!open || !actorUserId) return;
+  if (!open.delegated)
+    await db
+      .update(agentSession)
+      .set({ delegated: true })
+      .where(eq(agentSession.id, open.id))
+      .catch(() => undefined);
   await addActivity({
     session: open,
     userId: actorUserId,
     type: 'prompt',
-    content: { body: 'The issue was delegated to you again.' },
+    content: {
+      body: open.delegated
+        ? 'The issue was delegated to you again.'
+        : 'The issue was delegated to you.',
+    },
   });
 }
 
@@ -303,22 +400,33 @@ export async function commentPosted(c: CommentRow, teamId: string): Promise<void
     if (!(await appUserMay(appUserId, 'app:mentionable', teamId))) continue;
     handled.add(appUserId);
     const existing = sessionOf(appUserId);
-    if (existing) await prompt(existing);
-    else
-      await startSession({
-        issueId: c.issueId,
-        appUserId,
-        creatorUserId: c.userId,
-        status: 'pending',
-        commentId: rootId,
-        sourceCommentId: c.id === rootId ? null : c.id,
-      });
+    if (existing) {
+      await prompt(existing);
+      continue;
+    }
+    const started = await startSession({
+      issueId: c.issueId,
+      appUserId,
+      creatorUserId: c.userId,
+      status: 'pending',
+      commentId: rootId,
+      sourceCommentId: c.id === rootId ? null : c.id,
+    });
+    if (started) continue;
+    // A concurrent comment started the app's session in this thread: prompt it.
+    const [raced] = await db
+      .select()
+      .from(agentSession)
+      .where(and(eq(agentSession.commentId, rootId), eq(agentSession.appUserId, appUserId)));
+    if (raced) await prompt(raced);
   }
   if (!c.parentId) return;
   for (const session of threadSessions) {
     if (handled.has(session.appUserId)) continue;
     handled.add(session.appUserId);
-    if (await activeInstall(session.appUserId)) await prompt(session);
+    if (!(await activeInstall(session.appUserId))) continue;
+    if (await canSeeTeam(teamId, session.appUserId)) await prompt(session);
+    else await endUnreachableSession(session.id);
   }
 }
 
@@ -333,6 +441,8 @@ export async function stopSession(sessionId: string, userId: string): Promise<Ac
   if (!session) throw new HttpError(404, 'Agent session not found');
   if (!OPEN_STATUSES.includes(session.status as SessionStatus))
     throw new HttpError(400, 'The agent session has ended');
+  if (session.status === 'stopping')
+    throw new HttpError(400, 'The agent session is already stopping');
   return addActivity({
     session,
     userId,
@@ -340,6 +450,17 @@ export async function stopSession(sessionId: string, userId: string): Promise<Ac
     content: { body: 'Stop' },
     signal: 'stop',
   });
+}
+
+// A session's thread root may be deleted only by the session's app: deleting it would
+// leave the session without its thread. 400 otherwise.
+export async function assertThreadDeletable(commentId: string, actorUserId: string): Promise<void> {
+  const rows = await db
+    .select({ appUserId: agentSession.appUserId })
+    .from(agentSession)
+    .where(eq(agentSession.commentId, commentId));
+  if (rows.some((r) => r.appUserId !== actorUserId))
+    throw new HttpError(400, "This comment holds an agent session's thread and cannot be deleted");
 }
 
 // Whether a comment already has a session (any app).

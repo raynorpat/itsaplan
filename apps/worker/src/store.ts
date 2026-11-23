@@ -18,7 +18,9 @@ export interface ClaimedDelivery {
 // multiple worker replicas run without ever grabbing the same row. Claiming
 // pushes next_attempt_at forward by the lease and bumps attempts, so a row whose
 // worker crashes mid-delivery becomes claimable again after the lease — no
-// separate recovery pass. The webhook's url/secret/enabled are read inline.
+// separate recovery pass. The webhook's url/secret/enabled are read inline. An
+// application's webhook is active only while the application is not archived and is
+// installed or authorized by someone (the same reach as the API's).
 export async function claimDueDeliveries(): Promise<ClaimedDelivery[]> {
   const { batchSize, leaseSeconds } = workerConfig();
   const rows = await db.execute(sql`
@@ -41,7 +43,22 @@ export async function claimDueDeliveries(): Promise<ClaimedDelivery[]> {
       d.attempts,
       (SELECT url FROM webhook w WHERE w.id = d.webhook_id) AS url,
       (SELECT secret FROM webhook w WHERE w.id = d.webhook_id) AS secret,
-      (SELECT enabled FROM webhook w WHERE w.id = d.webhook_id) AS "isActive"
+      (SELECT w.enabled AND (
+        w.oauth_client_id IS NULL
+        OR (
+          EXISTS (
+            SELECT 1 FROM oauth_client c
+            WHERE c.client_id = w.oauth_client_id AND c.disabled IS NOT TRUE
+          )
+          AND (
+            EXISTS (
+              SELECT 1 FROM oauth_installation i
+              WHERE i.client_id = w.oauth_client_id AND i.uninstalled_at IS NULL
+            )
+            OR EXISTS (SELECT 1 FROM oauth_consent oc WHERE oc.client_id = w.oauth_client_id)
+          )
+        )
+      ) FROM webhook w WHERE w.id = d.webhook_id) AS "isActive"
   `);
   return rows as unknown as ClaimedDelivery[];
 }

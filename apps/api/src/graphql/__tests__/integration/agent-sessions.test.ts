@@ -4,6 +4,7 @@ import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { bearer, createClient, install, uninstall } from '../../../__tests__/helpers/oauth';
+import { issueDelegated } from '../../../agents/store';
 
 // Linear's agent API: an issue delegated to an app user, or an app user @-mentioned
 // in a comment, starts an agent session; the app publishes activities to its own
@@ -494,5 +495,103 @@ describe('agent sessions', () => {
         }),
       ),
     ).toBe('INVALID_INPUT');
+  });
+
+  it('ties the reply that brings a second agent into a thread to its session', async () => {
+    const { owner, robot } = await setup();
+    const second = await installApp(owner, 'Second', 'read,write,app:mentionable');
+    const issueId = await createIssue(owner, 'ENG');
+    await delegate(owner, issueId, robot.userId);
+    const [first] = await sessionsOf(robot.headers);
+    const rootId = first!.comment!.id;
+
+    const reply = await gql({ cookie: owner.cookie }, COMMENT_CREATE, {
+      input: { issueId, parentId: rootId, body: mention(second.userId, 'can you help?') },
+    });
+    const replyId = (reply.body.data?.commentCreate as { comment: { id: string } }).comment.id;
+    const [other] = await sessionsOf(second.headers);
+    expect(other!.comment!.id).toBe(rootId);
+
+    const read = await gql(
+      { cookie: owner.cookie },
+      `query($id: String!) { issue(id: $id) { comments { nodes { id agentSession { id } } } } }`,
+      { id: issueId },
+    );
+    const nodes = (
+      read.body.data?.issue as {
+        comments: { nodes: { id: string; agentSession: { id: string } | null }[] };
+      }
+    ).comments.nodes;
+    expect(nodes.find((n) => n.id === rootId)?.agentSession?.id).toBe(first!.id);
+    expect(nodes.find((n) => n.id === replyId)?.agentSession?.id).toBe(other!.id);
+  });
+
+  it('opens one session when the same app is delegated twice at once', async () => {
+    const { owner, robot } = await setup();
+    const issueId = await createIssue(owner, 'ENG');
+    await Promise.all([
+      issueDelegated(issueId, robot.userId, owner.userId),
+      issueDelegated(issueId, robot.userId, owner.userId),
+    ]);
+    const sessions = await sessionsOf(robot.headers);
+    expect(sessions).toHaveLength(1);
+  });
+
+  it('opens one session when two replies mention the same app at once', async () => {
+    const { owner, member, robot } = await setup();
+    const issueId = await createIssue(owner, 'ENG');
+    const root = await gql({ cookie: owner.cookie }, COMMENT_CREATE, {
+      input: { issueId, body: 'Login fails' },
+    });
+    const rootId = (root.body.data?.commentCreate as { comment: { id: string } }).comment.id;
+    await Promise.all(
+      [owner, member].map((who) =>
+        gql({ cookie: who.cookie }, COMMENT_CREATE, {
+          input: { issueId, parentId: rootId, body: mention(robot.userId, 'look') },
+        }),
+      ),
+    );
+    expect(await sessionsOf(robot.headers)).toHaveLength(1);
+  });
+
+  it('words the first delegation as a delegation when a mention session is open', async () => {
+    const { owner, robot } = await setup();
+    const issueId = await createIssue(owner, 'ENG');
+    await gql({ cookie: owner.cookie }, COMMENT_CREATE, {
+      input: { issueId, body: mention(robot.userId, 'please look') },
+    });
+    await delegate(owner, issueId, robot.userId);
+    const [session] = await sessionsOf(robot.headers);
+    const prompt = session!.activities.nodes.find(
+      (a) => a.content.__typename === 'AgentActivityPromptContent',
+    );
+    expect(prompt!.content.body).toBe('The issue was delegated to you.');
+  });
+
+  it('answers a repeated agentActivityCreate with the same id without a second activity', async () => {
+    const { owner, robot } = await setup();
+    const issueId = await createIssue(owner, 'ENG');
+    await delegate(owner, issueId, robot.userId);
+    const [session] = await sessionsOf(robot.headers);
+    const id = crypto.randomUUID();
+    const first = await activity(robot, session!.id, { type: 'thought', body: 'Looking' }, { id });
+    const again = await activity(robot, session!.id, { type: 'thought', body: 'Looking' }, { id });
+    expect(first.body.errors).toBeUndefined();
+    expect(again.body.errors).toBeUndefined();
+    expect(again.body.data?.agentActivityCreate).toMatchObject({ agentActivity: { id } });
+    const [after] = await sessionsOf(robot.headers);
+    expect(after!.activities.nodes.filter((a) => a.id === id)).toHaveLength(1);
+  });
+
+  it("keeps a session's thread unless the agent deletes it", async () => {
+    const { owner, robot } = await setup();
+    const issueId = await createIssue(owner, 'ENG');
+    await delegate(owner, issueId, robot.userId);
+    const [session] = await sessionsOf(robot.headers);
+    const del = `mutation($id: String!) { commentDelete(id: $id) { success } }`;
+    const res = await gql({ cookie: owner.cookie }, del, { id: session!.comment!.id });
+    expect(code(res)).toBe('INVALID_INPUT');
+    const [still] = await sessionsOf(robot.headers);
+    expect(still!.comment).not.toBeNull();
   });
 });

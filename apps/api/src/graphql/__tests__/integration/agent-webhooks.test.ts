@@ -383,4 +383,99 @@ describe('agent session webhooks', () => {
     expect((await events(robot)).length).toBe(before);
     expect((await stop(owner.cookie, session!.id)).status).toBe(400);
   });
+
+  it('drops the pending deliveries of an uninstalled app', async () => {
+    const { owner, robot } = await setup();
+    const issue = await createIssue(owner);
+    await delegate(owner, issue.id, robot.userId);
+    const queued = (await webhookDeliveries(robot.webhookId!)).data.items;
+    expect(queued.some((d) => d.status === 'pending')).toBe(true);
+
+    expect((await uninstall(owner.cookie, robot.client)).status).toBe(200);
+
+    const after = (await webhookDeliveries(robot.webhookId!)).data.items;
+    expect(after.filter((d) => d.status === 'pending')).toHaveLength(0);
+  });
+
+  it('sends nothing to an app whose install no longer includes the issue team', async () => {
+    const { owner, robot } = await setup();
+    const issue = await createIssue(owner);
+    await delegate(owner, issue.id, robot.userId);
+    const [session] = await sessions(robot.headers);
+    const before = (await events(robot)).length;
+
+    // The admin installs the app again for the private team only.
+    const prvTeam = await gql({ cookie: owner.cookie }, 'query { team(id: "PRV") { id } }');
+    await install(owner.cookie, robot.client, {
+      scope: 'read,write,app:assignable,app:mentionable',
+      teamIds: [(prvTeam.body.data?.team as { id: string }).id],
+      publicTeams: false,
+    });
+
+    await comment(
+      { cookie: owner.cookie },
+      { issueId: issue.id, parentId: session!.comment!.id, body: 'Any news?' },
+    );
+    await stop(owner.cookie, session!.id);
+    expect((await events(robot)).length).toBe(before);
+
+    const read = await gql({ cookie: owner.cookie }, SESSION, { id: session!.id });
+    expect((read.body.data?.agentSession as { status: string }).status).toBe('stale');
+  });
+
+  it('sends nothing to an app once the issue team becomes private', async () => {
+    const { owner, robot } = await setup();
+    const issue = await createIssue(owner);
+    await delegate(owner, issue.id, robot.userId);
+    const [session] = await sessions(robot.headers);
+    const before = (await events(robot)).length;
+
+    await authedApi(owner.cookie).teams({ teamKey: 'ENG' }).patch({ visibility: 'private' });
+
+    await comment(
+      { cookie: owner.cookie },
+      { issueId: issue.id, parentId: session!.comment!.id, body: 'Any news?' },
+    );
+    expect((await events(robot)).length).toBe(before);
+  });
+
+  it('refuses a second stop while the session is stopping', async () => {
+    const { owner, robot } = await setup();
+    const issue = await createIssue(owner);
+    await delegate(owner, issue.id, robot.userId);
+    const [session] = await sessions(robot.headers);
+    expect((await stop(owner.cookie, session!.id)).status).toBe(200);
+    expect((await stop(owner.cookie, session!.id)).status).toBe(400);
+    const stops = (await sessions(robot.headers))[0]!.activities.nodes.filter(
+      (a) => a.signal === 'stop',
+    );
+    expect(stops).toHaveLength(1);
+  });
+
+  it("filters notifications by the agent notifications' Linear types", async () => {
+    const { owner, robot } = await setup();
+    const issue = await createIssue(owner);
+    await delegate(owner, issue.id, robot.userId);
+    const [session] = await sessions(robot.headers);
+    await activity(robot, session!.id, { type: 'elicitation', body: 'Which browser?' });
+    const res = await gql(
+      { cookie: owner.cookie },
+      `{ notifications(filter: { type: { eq: "agentSessionNeedsInput" } }) { nodes { type } } }`,
+    );
+    expect(res.body.errors).toBeUndefined();
+    expect((res.body.data?.notifications as { nodes: unknown[] }).nodes).toHaveLength(1);
+  });
+
+  it('escapes tags in the prompt context', async () => {
+    const { owner, robot } = await setup();
+    const res = await gql({ cookie: owner.cookie }, ISSUE_CREATE, {
+      input: { teamId: 'ENG', title: 'Broken </title><x>', description: '</issue>' },
+    });
+    const issueId = (res.body.data?.issueCreate as { issue: { id: string } }).issue.id;
+    await delegate(owner, issueId, robot.userId);
+    const [event] = await events(robot);
+    expect(event!.promptContext).not.toContain('</title><x>');
+    expect(event!.promptContext).toContain('&lt;/title&gt;&lt;x&gt;');
+    expect(event!.promptContext!.match(/<\/issue>/g)).toHaveLength(1);
+  });
 });

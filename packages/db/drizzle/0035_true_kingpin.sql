@@ -1,0 +1,3 @@
+ALTER TABLE "agent_session" ADD COLUMN "delegated" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "agent_session_thread_app_uq" ON "agent_session" USING btree ("comment_id","app_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "agent_session_open_delegation_uq" ON "agent_session" USING btree ("issue_id","app_user_id") WHERE "agent_session"."delegated" AND "agent_session"."status" IN ('pending', 'active', 'awaitingInput', 'stopping');

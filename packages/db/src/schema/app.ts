@@ -1279,6 +1279,8 @@ export const agentSession = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
     status: text('status').notNull().default('pending'),
+    // Started by delegating the issue to the app user (or prompted by a delegation).
+    delegated: boolean('delegated').notNull().default(false),
     summary: text('summary'),
     plan: jsonb('plan'),
     externalLink: text('external_link'),
@@ -1296,6 +1298,14 @@ export const agentSession = pgTable(
     index('agent_session_issue_idx').on(t.issueId),
     index('agent_session_app_user_idx').on(t.appUserId),
     index('agent_session_comment_idx').on(t.commentId),
+    // One session per app in a comment thread, and one open delegation session per
+    // app on an issue; a second trigger prompts the existing one.
+    uniqueIndex('agent_session_thread_app_uq').on(t.commentId, t.appUserId),
+    uniqueIndex('agent_session_open_delegation_uq')
+      .on(t.issueId, t.appUserId)
+      .where(
+        sql`${t.delegated} AND ${t.status} IN ('pending', 'active', 'awaitingInput', 'stopping')`,
+      ),
     check(
       'agent_session_status_check',
       sql`${t.status} IN ('pending', 'active', 'stopping', 'awaitingInput', 'complete', 'error', 'stale')`,

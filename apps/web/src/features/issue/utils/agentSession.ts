@@ -1,4 +1,5 @@
 import type { FeedItem } from '@/types/issue';
+import type { FeedEntry } from '@/utils/commentThreads';
 
 // An agent session as the issue page shows it, from Linear's AgentSession and
 // AgentActivity. The session's thread holds the people's replies as comments; the
@@ -38,7 +39,14 @@ export type TimelineRow =
 const byTime = (a: { createdAt: string }, b: { createdAt: string }) =>
   a.createdAt.localeCompare(b.createdAt);
 
-export function sessionTimeline(activities: SessionActivity[], replies: FeedItem[]): TimelineRow[] {
+// The session view's rows. `mergeReplies` false is for a thread's later sessions: the
+// first session's view shows the thread's replies, so the others only hide the
+// prompts those replies became.
+export function sessionTimeline(
+  activities: SessionActivity[],
+  replies: FeedItem[],
+  mergeReplies = true,
+): TimelineRow[] {
   const sorted = [...activities].sort(byTime);
   const latestId = sorted.at(-1)?.id;
   const replyIds = new Set(replies.map((r) => r.id));
@@ -52,7 +60,7 @@ export function sessionTimeline(activities: SessionActivity[], replies: FeedItem
 
   const merged: ({ at: string } & ({ activity: SessionActivity } | { reply: FeedItem }))[] = [
     ...shown.map((activity) => ({ at: activity.createdAt, activity })),
-    ...replies.map((reply) => ({ at: reply.createdAt, reply })),
+    ...(mergeReplies ? replies : []).map((reply) => ({ at: reply.createdAt, reply })),
   ].sort((a, b) => a.at.localeCompare(b.at));
 
   const rows: TimelineRow[] = [];
@@ -96,3 +104,38 @@ export const canStopSession = (status: AgentSessionStatus) =>
 // While the agent is expected to write, the session view refreshes every few seconds.
 export const isSessionLive = (status: AgentSessionStatus) =>
   status === 'pending' || status === 'active' || status === 'stopping';
+
+// The agent sessions of a comment thread, in order: the root's session, then each
+// other session a reply started (an app mentioned in the thread). Linear's
+// Comment.agentSession associates a reply with the session it started.
+export function threadSessionIds(entry: FeedEntry): string[] {
+  const ids: string[] = [];
+  for (const item of [entry.item, ...entry.replies])
+    if (item.agentSessionId && !ids.includes(item.agentSessionId)) ids.push(item.agentSessionId);
+  return ids;
+}
+
+const LIVE_REFRESH_MS = 4000;
+// A live session that has not changed for this long stops refreshing until the
+// window is focused again.
+const LIVE_REFRESH_LIMIT_MS = 10 * 60_000;
+
+// How often the session view refreshes: every few seconds while the agent is expected
+// to write and the session changed recently, else not at all.
+export function pollDelay(
+  status: AgentSessionStatus,
+  lastChangeAt: number,
+  now: number,
+): number | false {
+  return isSessionLive(status) && now - lastChangeAt < LIVE_REFRESH_LIMIT_MS
+    ? LIVE_REFRESH_MS
+    : false;
+}
+
+const OPEN: AgentSessionStatus[] = ['pending', 'active', 'awaitingInput', 'stopping'];
+
+// The status shown on the issue: its first open session's (sessions newest first), or
+// null when none is open.
+export function issueSessionStatus(statuses: AgentSessionStatus[]): AgentSessionStatus | null {
+  return statuses.find((s) => OPEN.includes(s)) ?? null;
+}

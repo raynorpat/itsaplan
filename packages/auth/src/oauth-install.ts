@@ -213,6 +213,22 @@ export async function uninstallApplication(clientId: string): Promise<boolean> {
           ),
         );
     }
+    // Deliveries already queued for its webhook are not sent: the app is gone.
+    await tx
+      .update(schema.webhookDelivery)
+      .set({ status: 'failed', lastError: 'application uninstalled' })
+      .where(
+        and(
+          eq(schema.webhookDelivery.status, 'pending'),
+          inArray(
+            schema.webhookDelivery.webhookId,
+            tx
+              .select({ id: schema.webhook.id })
+              .from(schema.webhook)
+              .where(eq(schema.webhook.oauthClientId, clientId)),
+          ),
+        ),
+      );
     await tx.delete(schema.oauthAccessToken).where(eq(schema.oauthAccessToken.clientId, clientId));
     await tx
       .delete(schema.oauthRefreshToken)

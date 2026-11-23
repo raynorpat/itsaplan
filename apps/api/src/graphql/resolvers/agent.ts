@@ -9,7 +9,6 @@ import {
   nextExternalUrls,
   planInput,
   readableSessionsSql,
-  sessionOfComment,
   startSession,
   updateSession,
   type ActivityRow,
@@ -23,6 +22,7 @@ import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql, refFilter, type FieldHandlers } from '../filter';
+import { loaders } from '../loaders';
 import { toComment } from './comment';
 import { findIssue, issueById, userFor } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
@@ -97,10 +97,11 @@ type GraphQLActivity = ReturnType<typeof toActivity>;
 type ConnectionArgs = PageArgs & { filter?: unknown };
 
 // A user by id without the visibility check: the app user or author of something the
-// viewer may already read.
-async function userRow(id: string, viewerId: string) {
-  const [row] = await db.select().from(userTable).where(eq(userTable.id, id));
-  return row ? toGraphQLUser(row, viewerId) : null;
+// viewer may already read. Through the request's loader, so a list of activities makes
+// one query for its users.
+async function userRow(id: string, ctx: GraphQLContext) {
+  const row = await loaders(ctx).anyUser.load(id);
+  return row ? toGraphQLUser(row, ctx.user.id) : null;
 }
 
 // A comment by id when the viewer can read it, else null.
@@ -248,8 +249,7 @@ export const agentResolvers = {
   },
 
   AgentSession: {
-    appUser: (s: GraphQLSession, _: unknown, ctx: GraphQLContext) =>
-      userRow(s.appUserId, ctx.user.id),
+    appUser: (s: GraphQLSession, _: unknown, ctx: GraphQLContext) => userRow(s.appUserId, ctx),
     creator: (s: GraphQLSession, _: unknown, ctx: GraphQLContext) => userFor(ctx, s.creatorUserId),
     dismissedBy: (s: GraphQLSession, _: unknown, ctx: GraphQLContext) =>
       userFor(ctx, s.dismissedByUserId),
@@ -265,7 +265,7 @@ export const agentResolvers = {
 
   AgentActivity: {
     agentSession: async (a: GraphQLActivity) => toSession((await getSession(a.sessionId))!),
-    user: (a: GraphQLActivity, _: unknown, ctx: GraphQLContext) => userRow(a.userId, ctx.user.id),
+    user: (a: GraphQLActivity, _: unknown, ctx: GraphQLContext) => userRow(a.userId, ctx),
     promptAuthor: (a: GraphQLActivity, _: unknown, ctx: GraphQLContext) =>
       a.type === 'prompt' ? userFor(ctx, a.userId) : null,
     sourceComment: (a: GraphQLActivity, _: unknown, ctx: GraphQLContext) =>
@@ -278,7 +278,7 @@ export const agentResolvers = {
 
   Comment: {
     agentSession: async (c: { id: string }, _: unknown, ctx: GraphQLContext) => {
-      const row = await sessionOfComment(c.id, ctx.user.id);
+      const row = await loaders(ctx).sessionOfComment.load(c.id);
       return row ? toSession(row) : null;
     },
   },
@@ -310,6 +310,7 @@ export const agentResolvers = {
           externalLink: links.externalLink ?? null,
           externalUrls: links.urls,
         });
+        if (!created) throw gqlError('CONFLICT', 'The comment already has an agent session');
         return sessionPayload(created.id);
       }),
 
@@ -342,6 +343,7 @@ export const agentResolvers = {
           externalLink: links.externalLink ?? null,
           externalUrls: links.urls,
         });
+        if (!created) throw gqlError('CONFLICT', 'The comment already has an agent session');
         return sessionPayload(created.id);
       }),
 

@@ -2,19 +2,18 @@
 // and its activities. Stop goes through the instance plugin (Linear's schema does
 // not let an API client publish the stop signal).
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 import {
-  isSessionLive,
+  issueSessionStatus,
+  pollDelay,
   type ActivityType,
   type AgentSessionStatus,
   type SessionActivity,
 } from '../utils/agentSession';
-
-// How often an open session view refreshes while the agent is expected to write.
-const LIVE_REFRESH_MS = 4000;
 
 const AgentSessionQuery = graphql(`
   query IssueAgentSession($id: String!) {
@@ -120,13 +119,49 @@ async function fetchSession(id: string): Promise<AgentSessionView> {
   };
 }
 
+// What makes a refresh count as a change: the status and the newest activity.
+const signature = (s: AgentSessionView) => `${s.status}:${s.activities.at(-1)?.id ?? ''}`;
+
+// A session view, refreshed every few seconds while the agent is expected to write.
+// After ten minutes without a change it stops refreshing until the window is focused.
 export function useAgentSession(issueId: string, sessionId: string) {
+  const qc = useQueryClient();
+  const last = useRef({ signature: '', at: Date.now() });
+  useEffect(() => {
+    const onFocus = () => {
+      last.current.at = Date.now();
+      void qc.invalidateQueries({ queryKey: qk.agentSession(issueId, sessionId) });
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [qc, issueId, sessionId]);
   return useQuery({
     queryKey: qk.agentSession(issueId, sessionId),
     queryFn: () => fetchSession(sessionId),
-    refetchInterval: (query) =>
-      query.state.data && isSessionLive(query.state.data.status) ? LIVE_REFRESH_MS : false,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const now = Date.now();
+      if (signature(data) !== last.current.signature)
+        last.current = { signature: signature(data), at: now };
+      return pollDelay(data.status, last.current.at, now);
+    },
   });
+}
+
+// The status shown on the issue: its first open session's, from the session views the
+// feed already loads (sessionIds newest first).
+export function useIssueSessionStatus(
+  issueId: string,
+  sessionIds: string[],
+): AgentSessionStatus | null {
+  const results = useQueries({
+    queries: sessionIds.map((id) => ({
+      queryKey: qk.agentSession(issueId, id),
+      queryFn: () => fetchSession(id),
+    })),
+  });
+  return issueSessionStatus(results.flatMap((r) => (r.data ? [r.data.status] : [])));
 }
 
 export function useStopAgentSession(issueId: string, sessionId: string) {
