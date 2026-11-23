@@ -7,6 +7,10 @@ import {
   type NewIssueInput,
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
+import { toast } from 'sonner';
+import { refetchInFull } from '@/hooks/useChangedSince';
+import { patchIssueInList } from '@/utils/boardCache';
+import { runBulk, type BulkResult } from '@/utils/bulk';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 
 // --- The issue over GraphQL (the issue page and every surface reading qk.issue) ---
@@ -199,42 +203,18 @@ export function useIssueSearchQuery(teamKey: string | null, q: string, opts: { e
   });
 }
 
-// Updating an issue (drag/drop move, or an inline field edit). When `teamKey` is
-// given the team detail is patched optimistically so the change shows before the
-// request resolves, then reconciled on settle. Issue detail, comments and
-// activity are invalidated too, since an edit produces new activity events.
+// Updating an issue from the board, table, calendar or timeline (a drag or an inline
+// field edit) over GraphQL. The board's row is patched before the request resolves,
+// replaced by the issue the server returns, and restored on error; the board is not
+// reloaded (an edit or a drag is reflected by the returned issue). The issue's own
+// caches and its project are reconciled.
 export function useUpdateIssue(teamKey: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: IssuePatch }) => api.updateIssue(id, patch),
-    onMutate: async ({ id, patch }) => {
-      if (!teamKey) return {};
-      const key = qk.boardIssues(teamKey);
-      await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<Issue[]>(key);
-      if (prev) {
-        qc.setQueryData<Issue[]>(
-          key,
-          prev.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
-        );
-      }
-      return { prev, key };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
-    },
-    onSettled: (_data, _err, { id }) => {
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      void qc.invalidateQueries({ queryKey: qk.issue(id) });
-      void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateProjects(qc);
-    },
-  });
+  return useUpdateIssueDetail(teamKey);
 }
 
-// Updating an issue from the issue page, the context menu or the commands: over
-// GraphQL. The issue entry and, when `teamKey` is given, the board's row are patched
-// optimistically, then reconciled; the board is still a REST cache until it moves.
+// Updating an issue from the issue page, the context menu or the commands. The issue
+// entry and, when `teamKey` is given, the board's row are patched optimistically, then
+// replaced by the returned issue (restored on error).
 export function useUpdateIssueDetail(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -263,10 +243,14 @@ export function useUpdateIssueDetail(teamKey: string | null) {
       if (ctx?.prevIssue) qc.setQueryData(qk.issue(id), ctx.prevIssue);
       if (ctx?.prevBoard && ctx.boardKey) qc.setQueryData(ctx.boardKey, ctx.prevBoard);
     },
-    onSuccess: (issue) => qc.setQueryData(qk.issue(issue.id), issue),
+    onSuccess: (issue) => {
+      qc.setQueryData(qk.issue(issue.id), issue);
+      if (teamKey)
+        qc.setQueryData<Issue[]>(qk.boardIssues(teamKey), (list) =>
+          list ? patchIssueInList(list, issue) : list,
+        );
+    },
     onSettled: (_data, _err, { id }) => {
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
       invalidateProjects(qc);
     },
@@ -349,107 +333,196 @@ export function useRestoreIssue(teamKey: string | null) {
 }
 
 // --- Bulk actions (board multi-select) -------------------------------------------
-// One request changes many issues. Each optimistically patches the team cache
-// the same way its single-issue counterpart does, then invalidates the board and
-// projects on settle. The team detail is patched by id set so the board
-// reflects the change before the request resolves.
+// Edits run through issueBatchUpdate in groups of 50; archive and delete run per issue.
+// The board is patched before the requests resolve; issues the server refused are
+// restored and named in a toast, the rest stay applied (see runBulk).
 
-export function useBulkUpdateIssues(teamKey: string) {
+const IssueBatchUpdate = graphql(
+  `
+    mutation BoardBatchUpdate($ids: [UUID!]!, $input: IssueUpdateInput!) {
+      issueBatchUpdate(ids: $ids, input: $input) {
+        issues {
+          ...IssueFields
+        }
+      }
+    }
+  `,
+  [IssueFields],
+);
+
+const BATCH_SIZE = 50;
+
+// The issues the server refused, by identifier, in one toast.
+function reportFailures(action: string, failed: BulkResult['failed'], rows: Issue[] | undefined) {
+  if (failed.length === 0) return;
+  const name = new Map((rows ?? []).map((r) => [r.id, r.identifier]));
+  const list = failed.map((f) => `${name.get(f.id) ?? f.id} (${f.message})`).join(', ');
+  toast.error(
+    `Could not ${action} ${failed.length} issue${failed.length === 1 ? '' : 's'}: ${list}`,
+  );
+}
+
+// One batch edit over many issues: the board rows change at once, the server's issues
+// replace them, refused ones are restored.
+function useBulkEdit<V>(
+  teamKey: string,
+  toInput: (vars: V) => Record<string, unknown>,
+  apply: (issue: Issue, vars: V) => Issue,
+) {
   const qc = useQueryClient();
+  const key = qk.boardIssues(teamKey);
   return useMutation({
-    mutationFn: ({ ids, patch }: { ids: string[]; patch: BulkIssuePatch }) =>
-      api.bulkUpdateIssues(teamKey, ids, patch),
-    onMutate: async ({ ids, patch }) => {
-      const key = qk.boardIssues(teamKey);
+    mutationFn: async (vars: V & { ids: string[] }) => {
+      const input = toInput(vars);
+      const returned: Issue[] = [];
+      const result = await runBulk(vars.ids, {
+        size: BATCH_SIZE,
+        runChunk: async (ids) => {
+          const data = await gqlRequest(IssueBatchUpdate, { ids, input });
+          returned.push(...data.issueBatchUpdate.issues.map(toIssue));
+        },
+        runOne: async (id) => {
+          const data = await gqlRequest(IssueUpdate, { id, input });
+          returned.push(toIssue(data.issueUpdate.issue!));
+        },
+      });
+      return { result, returned };
+    },
+    onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<Issue[]>(key);
       if (prev) {
-        const idSet = new Set(ids);
+        const idSet = new Set(vars.ids);
         qc.setQueryData<Issue[]>(
           key,
-          prev.map((t) => (idSet.has(t.id) ? ({ ...t, ...patch } as Issue) : t)),
+          prev.map((t) => (idSet.has(t.id) ? apply(t, vars) : t)),
         );
       }
-      return { prev, key };
+      return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
     },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      invalidateProjects(qc);
+    onSuccess: ({ result, returned }, _vars, ctx) => {
+      const before = new Map((ctx?.prev ?? []).map((r) => [r.id, r]));
+      qc.setQueryData<Issue[]>(key, (list) => {
+        if (!list) return list;
+        let next = list;
+        for (const issue of returned) next = patchIssueInList(next, issue);
+        for (const { id } of result.failed) {
+          const original = before.get(id);
+          if (original) next = patchIssueInList(next, original);
+        }
+        return next;
+      });
+      reportFailures('update', result.failed, ctx?.prev);
     },
+    onSettled: () => invalidateProjects(qc),
   });
+}
+
+export function useBulkUpdateIssues(teamKey: string) {
+  return useBulkEdit<{ patch: BulkIssuePatch }>(
+    teamKey,
+    ({ patch }) => toUpdateInput(patch),
+    (issue, { patch }) => ({ ...issue, ...patch }) as Issue,
+  );
 }
 
 export function useBulkAddLabels(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ ids, add }: { ids: string[]; add: string[] }) =>
-      api.bulkAddLabels(teamKey, ids, add),
-    onMutate: async ({ ids, add }) => {
-      const key = qk.boardIssues(teamKey);
-      await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<Issue[]>(key);
-      if (prev) {
-        const idSet = new Set(ids);
-        qc.setQueryData<Issue[]>(
-          key,
-          prev.map((t) =>
-            idSet.has(t.id) ? { ...t, labelIds: [...new Set([...t.labelIds, ...add])] } : t,
-          ),
-        );
-      }
-      return { prev, key };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev && ctx.key) qc.setQueryData(ctx.key, ctx.prev);
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      invalidateProjects(qc);
-    },
-  });
+  return useBulkEdit<{ add: string[] }>(
+    teamKey,
+    ({ add }) => ({ addedLabelIds: add }),
+    (issue, { add }) => ({ ...issue, labelIds: [...new Set([...issue.labelIds, ...add])] }),
+  );
 }
 
-// Archive and delete both drop the issues from the board immediately, then
-// reconcile. A team fetch already in flight is cancelled first so it cannot
-// re-add the removed issues (see the single-issue delete for the same reasoning).
-function useBulkRemoval(teamKey: string, run: (ids: string[]) => Promise<unknown>) {
+// Archive and delete drop the issues from the board at once, put back any the server
+// refused, then reload the board in full (a changed-since query would not drop them
+// elsewhere).
+function useBulkRemoval(teamKey: string, action: string, runOne: (id: string) => Promise<unknown>) {
   const qc = useQueryClient();
+  const key = qk.boardIssues(teamKey);
   return useMutation({
-    mutationFn: (ids: string[]) => run(ids),
-    onSuccess: async (_data, ids) => {
+    mutationFn: (ids: string[]) => runBulk(ids, { size: 1, runOne }),
+    onMutate: async (ids) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Issue[]>(key);
       const idSet = new Set(ids);
-      await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
-      qc.setQueryData<Issue[]>(qk.boardIssues(teamKey), (prev) =>
-        prev ? prev.filter((t) => !idSet.has(t.id)) : prev,
-      );
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      for (const id of ids) {
+      if (prev)
+        qc.setQueryData<Issue[]>(
+          key,
+          prev.filter((t) => !idSet.has(t.id)),
+        );
+      return { prev };
+    },
+    onError: (_err, _ids, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSuccess: (result, _ids, ctx) => {
+      for (const id of result.done) {
         qc.removeQueries({ queryKey: qk.issue(id) });
         qc.removeQueries({ queryKey: qk.feed(id) });
       }
+      reportFailures(action, result.failed, ctx?.prev);
+    },
+    onSettled: () => {
+      void refetchInFull(qc, key);
       invalidateProjects(qc);
     },
   });
 }
 
 export function useBulkArchiveIssues(teamKey: string) {
-  return useBulkRemoval(teamKey, (ids) => api.bulkArchiveIssues(teamKey, ids));
+  return useBulkRemoval(teamKey, 'archive', (id) => gqlRequest(IssueArchive, { id }));
 }
 
 export function useBulkDeleteIssues(teamKey: string) {
-  return useBulkRemoval(teamKey, (ids) => api.bulkDeleteIssues(teamKey, ids));
+  return useBulkRemoval(teamKey, 'delete', (id) => gqlRequest(IssueDelete, { id }));
 }
 
+const IssueCreate = graphql(
+  `
+    mutation BoardIssueCreate($input: IssueCreateInput!) {
+      issueCreate(input: $input) {
+        issue {
+          ...IssueFields
+        }
+      }
+    }
+  `,
+  [IssueFields],
+);
+
+// The web's NewIssueInput as Linear's IssueCreateInput (teamId takes the team key).
+function toCreateInput(teamKey: string, input: NewIssueInput) {
+  const out: Record<string, unknown> & { teamId: string } = {
+    teamId: teamKey,
+    title: input.title,
+    stateId: input.stateId,
+  };
+  if (input.description !== undefined) out.description = input.description;
+  if (input.priority !== undefined) out.priority = input.priority;
+  if (input.dueDate !== undefined) out.dueDate = input.dueDate;
+  if (input.labelIds !== undefined) out.labelIds = input.labelIds;
+  if (input.projectId !== undefined) out.projectId = input.projectId;
+  if (input.assigneeUserId !== undefined) out.assigneeId = input.assigneeUserId;
+  if (input.delegateUserId) out.delegateId = input.delegateUserId;
+  return out;
+}
+
+// Creates an issue, then reloads the board in full (a new issue is not in the
+// changed-since window of every open board).
 export function useCreateIssue() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ teamKey, input }: { teamKey: string; input: NewIssueInput }) =>
-      api.createIssue(teamKey, input),
-    onSuccess: (_data, { teamKey }) => {
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+    mutationFn: async ({ teamKey, input }: { teamKey: string; input: NewIssueInput }) =>
+      toIssue(
+        (await gqlRequest(IssueCreate, { input: toCreateInput(teamKey, input) })).issueCreate
+          .issue!,
+      ),
+    onSuccess: (_issue, { teamKey }) => {
+      void refetchInFull(qc, qk.boardIssues(teamKey));
       invalidateProjects(qc);
     },
   });

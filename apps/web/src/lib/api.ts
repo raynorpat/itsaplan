@@ -804,35 +804,6 @@ export const api = {
   deleteLabelGroup: (teamKey: string, groupId: string) =>
     request<void>(`/teams/${teamKey}/label-groups/${groupId}`, { method: 'DELETE' }),
 
-  createIssue: (teamKey: string, input: NewIssueInput) =>
-    request<Issue>(`/teams/${teamKey}/issues`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  updateIssue: (id: string, patch: IssuePatch) =>
-    request<Issue>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  // Board multi-select: apply one change to many issues in a single request. The
-  // server filters the ids to the team and refetching happens once.
-  bulkUpdateIssues: (teamKey: string, ids: string[], patch: BulkIssuePatch) =>
-    request<{ updated: number }>(`/teams/${teamKey}/issues/bulk`, {
-      method: 'PATCH',
-      body: JSON.stringify({ ids, patch }),
-    }),
-  bulkAddLabels: (teamKey: string, ids: string[], add: string[]) =>
-    request<{ updated: number }>(`/teams/${teamKey}/issues/bulk/labels`, {
-      method: 'POST',
-      body: JSON.stringify({ ids, add }),
-    }),
-  bulkArchiveIssues: (teamKey: string, ids: string[]) =>
-    request<{ archived: number }>(`/teams/${teamKey}/issues/bulk/archive`, {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    }),
-  bulkDeleteIssues: (teamKey: string, ids: string[]) =>
-    request<{ deleted: number }>(`/teams/${teamKey}/issues/bulk/delete`, {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    }),
   // Server-side text search for the command palette. Always returns all matches,
   // archived included (each hit carries an `archived` flag).
   searchIssues: (teamKey: string, params: { q?: string; limit?: number }) => {

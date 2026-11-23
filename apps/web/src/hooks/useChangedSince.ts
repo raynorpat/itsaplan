@@ -66,7 +66,9 @@ export function useChangedSince<T extends { id: string }>(opts: ChangedSinceOpti
       const token = guard.begin(keyText);
       const changed = await latest.current.fetchChanged(since).catch(() => null);
       if (!changed || busy() || !guard.isCurrent(keyText, token)) return;
-      qc.setQueryData<T[]>(key, (list) => (list ? mergeChanged(list, changed) : list));
+      qc.setQueryData<T[]>(key, (list) =>
+        list ? mergeChanged(list, changed, latest.current.getUpdatedAt) : list,
+      );
     };
 
     const id = window.setInterval(() => void tick(), CHANGED_SINCE_MS);
