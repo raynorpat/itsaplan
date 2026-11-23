@@ -4,12 +4,13 @@ import { toast } from 'sonner';
 import {
   Archive,
   ArchiveRestore,
+  Bot,
   CalendarClock,
   Check,
   CircleDashed,
-  RefreshCcw,
   ClipboardCopy,
   PanelRight,
+  RefreshCcw,
   SquareArrowOutUpRight,
   Tag,
   Target,
@@ -196,6 +197,32 @@ export default function IssueContextMenu({
                         <User />
                         <span className="flex-1 truncate">{a.name}</span>
                         <SelectedCheck selected={a.userId === issue.assigneeUserId} />
+                      </ContextMenuItem>
+                    ))}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+              )}
+
+              {team.delegates.length > 0 && (
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger>
+                    <Bot />
+                    Delegate
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-56">
+                    <ContextMenuItem onSelect={() => patch({ delegateUserId: null })}>
+                      <CircleDashed />
+                      <span className="flex-1">No delegate</span>
+                      <SelectedCheck selected={issue.delegateUserId == null} />
+                    </ContextMenuItem>
+                    {team.delegates.map((a) => (
+                      <ContextMenuItem
+                        key={a.userId}
+                        onSelect={() => patch({ delegateUserId: a.userId })}
+                      >
+                        <Bot />
+                        <span className="flex-1 truncate">{a.name}</span>
+                        <SelectedCheck selected={a.userId === issue.delegateUserId} />
                       </ContextMenuItem>
                     ))}
                   </ContextMenuSubContent>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   AtSign,
+  Bot,
   CircleDot,
   Clock,
   MessageSquare,
@@ -42,6 +43,8 @@ const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   mentioned: AtSign,
   commented: MessageSquare,
   state_changed: CircleDot,
+  agent_needs_input: Bot,
+  agent_response: Bot,
 };
 
 // The verb phrase for a notification, addressed to the reader ("you").
@@ -56,6 +59,10 @@ function notificationText(n: Notification): string {
       return `${who} commented`;
     case 'state_changed':
       return `${who} changed the status`;
+    case 'agent_needs_input':
+      return `${who} needs your input`;
+    case 'agent_response':
+      return `${who} responded`;
   }
 }
 

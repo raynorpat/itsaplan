@@ -38,6 +38,9 @@ export const qk = {
   // keyed under the feed, so every existing feed invalidation refreshes them too.
   timeline: (id: string) => ['feed', id, 'timeline'] as const,
   issueReactions: (id: string) => ['feed', id, 'reactions'] as const,
+  // An agent session on the issue, keyed under the feed so feed invalidations refresh it.
+  agentSession: (issueId: string, sessionId: string) =>
+    ['feed', issueId, 'agentSession', sessionId] as const,
   // Projects: a team's list (params narrow, sort and page it), the per-status
   // tab counts, one project, its activity (history, comments, updates) and its
   // updates with their comments.

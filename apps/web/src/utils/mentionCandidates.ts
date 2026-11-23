@@ -1,12 +1,14 @@
 import type { Assignee } from '@/types/team';
 
 // An app user of the team (an OAuth application installed with actor=app), as the
-// scaffold loads it. isMentionable is true when the install granted app:mentionable.
+// scaffold loads it. isMentionable / isAssignable are true when the install granted
+// app:mentionable / app:assignable.
 export interface TeamAppUser {
   id: string;
   name: string;
   avatarUrl: string | null;
   isMentionable: boolean;
+  isAssignable: boolean;
 }
 
 // The people and apps the comment composer offers for @-mentions: the team's people,

@@ -30,6 +30,9 @@ const FeedCommentsQuery = graphql(`
           editedAt
           resolvedAt
           parentId
+          agentSession {
+            id
+          }
           user {
             id
             name

@@ -2,7 +2,7 @@
 import { applicableLabels } from '@/utils/labels';
 
 import { useState } from 'react';
-import { Archive, CircleDashed, RefreshCcw, Tag, Target, Trash2, User, X } from 'lucide-react';
+import { Archive, Bot, CircleDashed, RefreshCcw, Tag, Target, Trash2, User, X } from 'lucide-react';
 import type { TeamDetail } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProjectsQuery } from '@/services/projects.service';
@@ -103,6 +103,24 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
                       onSelect={() => void bulk.patch(ids, { assigneeUserId: a.userId })}
                     >
                       <User />
+                      <span className="flex-1 truncate">{a.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </BarMenu>
+              )}
+
+              {team.delegates.length > 0 && (
+                <BarMenu icon={<Bot className="size-4" />} label="Delegate" disabled={disabled}>
+                  <DropdownMenuItem onSelect={() => void bulk.patch(ids, { delegateUserId: null })}>
+                    <CircleDashed />
+                    <span className="flex-1">No delegate</span>
+                  </DropdownMenuItem>
+                  {team.delegates.map((a) => (
+                    <DropdownMenuItem
+                      key={a.userId}
+                      onSelect={() => void bulk.patch(ids, { delegateUserId: a.userId })}
+                    >
+                      <Bot />
                       <span className="flex-1 truncate">{a.name}</span>
                     </DropdownMenuItem>
                   ))}

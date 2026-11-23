@@ -19,6 +19,8 @@ export interface FeedComment {
   editedAt: string | null;
   resolvedAt: string | null;
   parentId: string | null;
+  // The agent session a thread belongs to (Linear's Comment.agentSession).
+  agentSession?: { id: string } | null;
   user: FeedUser | null;
   reactions?: { id: string; emoji: string; user: FeedUser | null }[];
 }
@@ -50,6 +52,7 @@ export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
     fromText: null,
     toText: null,
     parentId: c.parentId,
+    agentSessionId: c.agentSession?.id ?? null,
     editedAt: c.editedAt,
     createdAt: c.createdAt,
     reactions: c.reactions ?? [],

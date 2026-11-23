@@ -125,6 +125,8 @@ export interface TeamScaffold {
   assignees: Assignee[];
   // The people and the mentionable app users, for @-mention suggestions.
   mentionCandidates: Assignee[];
+  // The agents (app users with app:assignable) issues can be delegated to.
+  delegates: Assignee[];
   viewer: TeamViewer;
 }
 

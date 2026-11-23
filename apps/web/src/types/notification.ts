@@ -2,7 +2,8 @@ import type { StateType } from '@/types/team';
 
 // Inbox notifications. Each row is enriched with the issue and team it points at
 // so the list renders without extra calls.
-export type NotificationType = 'assigned' | 'mentioned' | 'commented' | 'state_changed';
+export type NotificationType =
+  'assigned' | 'mentioned' | 'commented' | 'state_changed' | 'agent_needs_input' | 'agent_response';
 
 export interface Notification {
   id: string;

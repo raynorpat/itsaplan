@@ -51,7 +51,8 @@ export interface Maps {
 export function buildMaps(team: TeamDetail): Maps {
   return {
     labelById: new Map(team.labels.map((l) => [l.id, l])),
-    assigneeById: new Map(team.assignees.map((a) => [a.userId, a])),
+    // Delegates (agent app users) share the lookup so cards and cells name them.
+    assigneeById: new Map([...team.assignees, ...team.delegates].map((a) => [a.userId, a])),
     columnById: new Map(team.states.map((c) => [c.id, c])),
     cycleById: new Map(cyclesVisible(team) ? knownCycles(team).map((c) => [c.id, c]) : []),
   };
@@ -180,8 +181,14 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
         { key: 'a-none', name: 'No assignee', assign: { assigneeUserId: null } },
       ];
     case 'delegate':
-      // Delegates are Linear agent app users; none exist yet, so only "No delegate".
-      return [{ key: 'd-none', name: 'No delegate', assign: { delegateUserId: null } }];
+      return [
+        ...team.delegates.map((a) => ({
+          key: `d${a.userId}`,
+          name: a.name,
+          assign: { delegateUserId: a.userId },
+        })),
+        { key: 'd-none', name: 'No delegate', assign: { delegateUserId: null } },
+      ];
     case 'priority':
       return [
         ...PRIORITIES.map((p) => ({

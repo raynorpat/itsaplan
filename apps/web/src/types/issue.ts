@@ -97,6 +97,8 @@ export interface FeedItem {
   parentId: string | null;
   editedAt: string | null;
   createdAt: string;
+  // Comments only: the agent session whose thread this root comment starts.
+  agentSessionId?: string | null;
   // Comments only: their reactions.
   reactions?: { id: string; emoji: string; user: { id: string; name: string } | null }[];
 }

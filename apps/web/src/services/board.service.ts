@@ -17,6 +17,7 @@ import { useChangedSince } from '@/hooks/useChangedSince';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { teamAccess } from '@/utils/members';
 import { mentionCandidates } from '@/utils/mentionCandidates';
+import { delegateCandidates } from '@/utils/delegates';
 
 // The board over GraphQL: the team scaffold (states, labels, members, the viewer's
 // access) and every active issue of the team. The board, table, calendar and
@@ -128,6 +129,7 @@ const TeamAppUsersPage = graphql(`
           name
           avatarUrl
           isMentionable
+          isAssignable
         }
         pageInfo {
           hasNextPage
@@ -240,6 +242,13 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     endsAt: c.endsAt,
     completedAt: c.completedAt ?? null,
   }));
+  const appUsers = appUserNodes.map((u) => ({
+    id: u.id,
+    name: u.name,
+    avatarUrl: u.avatarUrl ?? null,
+    isMentionable: u.isMentionable,
+    isAssignable: u.isAssignable,
+  }));
   return {
     team: teamRow,
     cycles,
@@ -248,15 +257,8 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     labels,
     labelGroups,
     assignees,
-    mentionCandidates: mentionCandidates(
-      assignees,
-      appUserNodes.map((u) => ({
-        id: u.id,
-        name: u.name,
-        avatarUrl: u.avatarUrl ?? null,
-        isMentionable: u.isMentionable,
-      })),
-    ),
+    mentionCandidates: mentionCandidates(assignees, appUsers),
+    delegates: delegateCandidates(appUsers),
     viewer: viewerAccess,
   };
 }

@@ -3,6 +3,7 @@ import { Target } from 'lucide-react';
 import type { TeamDetail } from '@/types/team';
 import type { IssueDetail as IssueDetailRow, IssuePatch } from '@/types/issue';
 import AssigneeSelect from '@/components/common/fields/AssigneeSelect';
+import DelegateSelect from '@/components/common/fields/DelegateSelect';
 import DatePill from '@/components/common/fields/DatePill';
 import { Pill } from '@/components/common/fields/Pill';
 import ReadOnlyPill from '@/components/common/fields/ReadOnlyPill';
@@ -61,6 +62,17 @@ export default function IssueProperties({
             assignees={team.assignees}
             value={issue.assigneeUserId}
             onChange={(userId) => onPatch({ assigneeUserId: userId })}
+            readOnly={readOnly}
+          />
+        </PropertyRow>
+      )}
+
+      {(team.delegates.length > 0 || issue.delegateUserId) && (
+        <PropertyRow label="Delegate">
+          <DelegateSelect
+            delegates={team.delegates}
+            value={issue.delegateUserId}
+            onChange={(userId) => onPatch({ delegateUserId: userId })}
             readOnly={readOnly}
           />
         </PropertyRow>

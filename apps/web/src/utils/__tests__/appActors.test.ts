@@ -31,8 +31,8 @@ describe('mentionCandidates', () => {
 
   it('adds only mentionable app users, marked as apps, after the people', () => {
     const result = mentionCandidates(people, [
-      { id: 'a1', name: 'Deploy bot', avatarUrl: null, isMentionable: true },
-      { id: 'a2', name: 'Silent bot', avatarUrl: null, isMentionable: false },
+      { id: 'a1', name: 'Deploy bot', avatarUrl: null, isMentionable: true, isAssignable: false },
+      { id: 'a2', name: 'Silent bot', avatarUrl: null, isMentionable: false, isAssignable: false },
     ]);
     assert.deepEqual(
       result.map((c) => [c.userId, c.app ?? false]),

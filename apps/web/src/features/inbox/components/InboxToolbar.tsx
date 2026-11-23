@@ -17,6 +17,8 @@ const TYPE_LABELS: { value: NotificationType; label: string }[] = [
   { value: 'mentioned', label: 'Mentioned' },
   { value: 'commented', label: 'Commented' },
   { value: 'state_changed', label: 'Status changed' },
+  { value: 'agent_needs_input', label: 'Agent needs input' },
+  { value: 'agent_response', label: 'Agent responded' },
 ];
 
 // The inbox list header: title with unread count, a type filter, display toggles

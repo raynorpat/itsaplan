@@ -6,6 +6,7 @@ import { useChangedSince } from '@/hooks/useChangedSince';
 import { useSnoozeClock } from '@/hooks/useSnoozeClock';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { unreadCount } from '@/utils/notifications';
+import { agentNotificationType } from '@/utils/agentNotifications';
 import { qk } from '@/services/queryKeys';
 
 // The viewer's notifications for the whole workspace (Linear has one inbox, not one
@@ -42,8 +43,42 @@ export const NotificationFields = graphql(`
         name
       }
     }
+    ... on AgentSessionNotification {
+      agentSessionId
+    }
   }
 `);
+
+// The issue an agent session notification is about: AgentSessionNotification has no
+// issue field, so the inbox reads it from the session.
+const AgentSessionIssueQuery = graphql(`
+  query InboxAgentSessionIssue($id: String!) {
+    agentSession(id: $id) {
+      id
+      issue {
+        id
+        number
+        title
+        state {
+          type
+        }
+        team {
+          id
+          key
+          name
+        }
+      }
+    }
+  }
+`);
+
+interface NotificationIssue {
+  id: string;
+  number: number;
+  title: string;
+  state: { type: string };
+  team: { id: string; key: string; name: string };
+}
 
 // Linear's notification type names, as the API serves the four kinds it records.
 const TYPES: Record<string, NotificationType> = {
@@ -53,9 +88,36 @@ const TYPES: Record<string, NotificationType> = {
   issueStatusChanged: 'state_changed',
 };
 
-// The web's notification row, or null for a kind the inbox does not show.
-export function toNotification(data: FragmentOf<typeof NotificationFields>): Notification | null {
+// The web's notification row, or null for a kind the inbox does not show. An agent
+// session notification takes its issue from `sessionIssues` (by session id).
+export function toNotification(
+  data: FragmentOf<typeof NotificationFields>,
+  sessionIssues: Map<string, NotificationIssue | null> = new Map(),
+): Notification | null {
   const node = readFragment(NotificationFields, data);
+  const agentType = agentNotificationType(node.type);
+  if (agentType && 'agentSessionId' in node) {
+    const issue = sessionIssues.get(node.agentSessionId);
+    if (!issue) return null;
+    return {
+      id: node.id,
+      type: agentType,
+      actorUserId: node.actor?.id ?? null,
+      actorName: node.actor?.name ?? null,
+      readAt: node.readAt ?? null,
+      snoozedUntil: node.snoozedUntilAt ?? null,
+      archivedAt: node.archivedAt ?? null,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+      issueId: issue.id,
+      issueSeq: issue.number,
+      issueTitle: issue.title,
+      issueStateType: issue.state.type as StateType,
+      teamId: issue.team.id,
+      teamKey: issue.team.key,
+      teamName: issue.team.name,
+    };
+  }
   const type = TYPES[node.type];
   if (!type || !('issue' in node) || !node.issue || !node.team) return null;
   return {
@@ -78,8 +140,33 @@ export function toNotification(data: FragmentOf<typeof NotificationFields>): Not
   };
 }
 
-export const toNotifications = (nodes: FragmentOf<typeof NotificationFields>[]) =>
-  nodes.map(toNotification).filter((n): n is Notification => n != null);
+export const toNotifications = (
+  nodes: FragmentOf<typeof NotificationFields>[],
+  sessionIssues?: Map<string, NotificationIssue | null>,
+) => nodes.map((n) => toNotification(n, sessionIssues)).filter((n): n is Notification => n != null);
+
+// The issues of the agent sessions the notifications refer to, one request per
+// session. A session the viewer can no longer read maps to null (not shown).
+async function fetchSessionIssues(
+  nodes: FragmentOf<typeof NotificationFields>[],
+): Promise<Map<string, NotificationIssue | null>> {
+  const ids = new Set<string>();
+  for (const data of nodes) {
+    const node = readFragment(NotificationFields, data);
+    if ('agentSessionId' in node && node.agentSessionId) ids.add(node.agentSessionId);
+  }
+  const entries = await Promise.all(
+    [...ids].map(async (id) => {
+      try {
+        const { agentSession } = await gqlRequest(AgentSessionIssueQuery, { id });
+        return [id, agentSession.issue ?? null] as const;
+      } catch {
+        return [id, null] as const;
+      }
+    }),
+  );
+  return new Map(entries);
+}
 
 const NotificationsPage = graphql(
   `
@@ -116,7 +203,7 @@ async function fetchNotifications(
     const data = await gqlRequest(NotificationsPage, { filter, includeArchived, after, first });
     return data.notifications;
   });
-  return toNotifications(nodes);
+  return toNotifications(nodes, await fetchSessionIssues(nodes));
 }
 
 // Every unarchived notification of the viewer, kept fresh by changed-since polling.

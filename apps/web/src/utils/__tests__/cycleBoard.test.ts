@@ -36,6 +36,7 @@ const team = (enabled: boolean, issues: Issue[]): TeamDetail =>
     labels: [],
     labelGroups: [],
     assignees: [],
+    delegates: [],
     viewer: { role: 'member', workspaceRole: 'member', canManage: false },
     issues,
   }) as unknown as TeamDetail;
