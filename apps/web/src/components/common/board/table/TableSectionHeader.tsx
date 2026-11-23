@@ -25,12 +25,12 @@ export function TableSectionHeader({
   dropId: string;
   onDrop: (issueId: string) => void;
   onToggle: () => void;
-  onAddIssue: () => void;
+  onAddIssue?: () => void;
   // In a read-only share the add affordance is hidden.
   readOnly?: boolean;
 }) {
   const { can } = usePermissions();
-  const canCreateIssue = can('work_items', 'create') && !readOnly;
+  const canCreateIssue = can('work_items', 'create') && !readOnly && onAddIssue != null;
   return (
     <TableDropZone
       id={dropId}

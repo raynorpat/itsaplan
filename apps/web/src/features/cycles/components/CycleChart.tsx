@@ -18,6 +18,7 @@ export default function CycleChart({ points, days }: { points: ChartPoint[]; day
   if (points.length === 0)
     return <p className="text-xs text-muted-foreground">No progress recorded yet.</p>;
 
+  const last = points[points.length - 1]!;
   const max = Math.max(1, ...points.map((p) => p.scope));
   const x = (i: number) => PAD + (i / Math.max(1, days - 1)) * (WIDTH - 2 * PAD);
   const y = (v: number) => HEIGHT - PAD - (v / max) * (HEIGHT - 2 * PAD);
@@ -32,7 +33,7 @@ export default function CycleChart({ points, days }: { points: ChartPoint[]; day
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-24 w-full max-w-sm"
         role="img"
-        aria-label="Cycle progress over time"
+        aria-label={`Cycle progress over ${points.length} recorded days. Last day: scope ${last.scope}, started ${last.started}, completed ${last.completed}.`}
       >
         <line
           x1={PAD}
@@ -41,9 +42,21 @@ export default function CycleChart({ points, days }: { points: ChartPoint[]; day
           y2={HEIGHT - PAD}
           className="stroke-border"
         />
-        {SERIES.map((s) => (
-          <path key={s.key} d={line(s.key)} fill="none" strokeWidth={2} className={s.className} />
-        ))}
+        {SERIES.map((s) =>
+          // One recorded day has no line to draw yet, so it is shown as a point.
+          points.length === 1 ? (
+            <circle
+              key={s.key}
+              cx={x(0)}
+              cy={y(last[s.key])}
+              r={3}
+              strokeWidth={2}
+              className={`fill-background ${s.className}`}
+            />
+          ) : (
+            <path key={s.key} d={line(s.key)} fill="none" strokeWidth={2} className={s.className} />
+          ),
+        )}
       </svg>
       <figcaption className="flex gap-4 text-xs text-muted-foreground">
         {SERIES.map((s) => (

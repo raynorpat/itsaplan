@@ -27,6 +27,8 @@ export default function CycleEditDialog({
   const update = useUpdateCycle(teamKey, teamId);
 
   const submit = async () => {
+    // Enter in the name field submits too, so a save in flight is not sent twice.
+    if (update.isPending) return;
     await update.mutateAsync({
       id: cycle.id,
       name: name.trim() || null,

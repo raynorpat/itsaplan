@@ -108,8 +108,9 @@ export default function TableView({
             dropId={`sec:${item.dropKey}`}
             onDrop={(id) => moveIssue(id, item.assign, item.bucket, item.bucket.length)}
             onToggle={() => collapsed.toggle(item.group.key)}
-            onAddIssue={() =>
-              onAddIssue({ stateId: team.states[0]?.id ?? '', ...item.group.assign })
+            onAddIssue={
+              onAddIssue &&
+              (() => onAddIssue({ stateId: team.states[0]?.id ?? '', ...item.group.assign }))
             }
             readOnly={readOnly}
           />

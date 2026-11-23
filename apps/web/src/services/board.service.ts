@@ -265,13 +265,6 @@ export function useTeamScaffold(teamKey: string | null) {
   });
 }
 
-const NO_CYCLES: Cycle[] = [];
-
-// The team's cycles, from the scaffold. Empty while it loads.
-export function useTeamCycles(teamKey: string | null): Cycle[] {
-  return useTeamScaffold(teamKey).data?.teamCycles ?? NO_CYCLES;
-}
-
 const teamFilter = (teamKey: string) => ({ team: { key: { eq: teamKey } } });
 
 async function fetchIssues(filter: Record<string, unknown>): Promise<Issue[]> {

@@ -17,12 +17,12 @@ export function CollapsedColumn({
   group: IssueGroup;
   count: number;
   onExpand: () => void;
-  onAddIssue: () => void;
+  onAddIssue?: () => void;
   // In a read-only share the add affordance is hidden.
   readOnly?: boolean;
 }) {
   const { can } = usePermissions();
-  const canCreateIssue = can('work_items', 'create') && !readOnly;
+  const canCreateIssue = can('work_items', 'create') && !readOnly && onAddIssue != null;
   return (
     <div className="flex h-full w-10 shrink-0 flex-col items-center gap-2 rounded-md border py-2">
       <Button

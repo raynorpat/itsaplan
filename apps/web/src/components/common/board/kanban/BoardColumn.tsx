@@ -44,14 +44,14 @@ export function BoardColumn({
   manualOrder: boolean;
   onMoveIssue: (issueId: string, group: IssueGroup, position: number) => void;
   onOpenIssue: (id: string) => void;
-  onAddIssue: () => void;
+  onAddIssue?: () => void;
   onHide: () => void;
   onCollapse: () => void;
   // In a read-only share the add affordance and select-all toggle are hidden.
   readOnly?: boolean;
 }) {
   const { can } = usePermissions();
-  const canCreateIssue = can('work_items', 'create') && !readOnly;
+  const canCreateIssue = can('work_items', 'create') && !readOnly && onAddIssue != null;
   const scrollRef = useRef<HTMLDivElement>(null);
   // The scroll area is the append drop target; merge its ref with the virtualizer
   // scroll element ref.

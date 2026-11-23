@@ -63,9 +63,9 @@ describe('chartPoints', () => {
       }),
     );
     assert.deepEqual(points, [
-      { day: '2026-11-02', scope: 4, started: 0, completed: 0 },
-      { day: '2026-11-03', scope: 5, started: 1, completed: 0 },
-      { day: '2026-11-04', scope: 5, started: 2, completed: 1 },
+      { scope: 4, started: 0, completed: 0 },
+      { scope: 5, started: 1, completed: 0 },
+      { scope: 5, started: 2, completed: 1 },
     ]);
   });
 

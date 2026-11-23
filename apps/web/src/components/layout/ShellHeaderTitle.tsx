@@ -10,6 +10,7 @@ function pageLabel(route: ShellRoute, teamName: string): string {
   if (sub === 'members') return 'Members';
   if (sub === 'projects') return 'Projects';
   if (sub === 'initiatives') return 'Initiatives';
+  if (sub === 'cycles') return 'Cycles';
   if (sub === 'api') return 'API';
   return teamName;
 }

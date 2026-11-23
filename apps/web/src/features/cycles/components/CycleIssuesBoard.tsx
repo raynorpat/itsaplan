@@ -16,7 +16,13 @@ import { cycleIssues } from '../utils/cyclePage';
 // settings but no saved views. The board is fed the team's board issues narrowed to
 // this cycle, so drags and edits patch the real issues and an issue moved to another
 // cycle leaves this board at once.
-export default function CycleIssuesBoard({ cycleId }: { cycleId: string }) {
+export default function CycleIssuesBoard({
+  cycleId,
+  canAdd,
+}: {
+  cycleId: string;
+  canAdd: boolean;
+}) {
   const { team, onOpenIssue, onAddIssue } = useShell();
   const board = useLocalBoardSettings('planner_cycle_board_settings', cycleId);
 
@@ -35,8 +41,10 @@ export default function CycleIssuesBoard({ cycleId }: { cycleId: string }) {
     settings: board.settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
-    onAddIssue: (defaults: Parameters<typeof onAddIssue>[0]) =>
-      onAddIssue({ cycleId, ...defaults }),
+    // Like Linear, issues are added only to the current and upcoming cycles.
+    onAddIssue: canAdd
+      ? (defaults: Parameters<typeof onAddIssue>[0]) => onAddIssue({ cycleId, ...defaults })
+      : undefined,
   };
 
   let view;

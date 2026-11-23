@@ -6,37 +6,54 @@ import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { mergeCyclePages, type CycleHistories } from '../utils/cyclePage';
 
-// A cycle as the cycles page and a cycle's page show it.
-export interface CycleSummary extends CycleHistories {
+// A cycle as the cycles page lists it.
+export interface CycleListItem {
   id: string;
   number: number;
   name: string | null;
-  description: string | null;
+  startsAt: string;
+  endsAt: string;
   completedAt: string | null;
+  progress: number;
 }
 
-const CycleFields = graphql(`
-  fragment CycleFields on Cycle {
+// A cycle as its own page shows it: the list fields, its description and the daily
+// histories the chart draws.
+export interface CycleSummary extends CycleListItem, CycleHistories {
+  description: string | null;
+}
+
+const CycleListFields = graphql(`
+  fragment CycleListFields on Cycle {
     id
     number
     name
-    description
     startsAt
     endsAt
     completedAt
     progress
-    scopeHistory
-    inProgressScopeHistory
-    completedScopeHistory
   }
 `);
+
+const CycleFields = graphql(
+  `
+    fragment CycleFields on Cycle {
+      ...CycleListFields
+      description
+      scopeHistory
+      inProgressScopeHistory
+      completedScopeHistory
+    }
+  `,
+  [CycleListFields],
+);
 
 const CyclesQuery = graphql(
   `
     query TeamCycles($filter: CycleFilter, $first: Int!, $after: String) {
       cycles(filter: $filter, first: $first, after: $after) {
         nodes {
-          ...CycleFields
+          ...CycleListFields
         }
         pageInfo {
           hasNextPage
@@ -45,20 +62,40 @@ const CyclesQuery = graphql(
       }
     }
   `,
+  [CycleListFields],
+);
+
+const CycleByNumberQuery = graphql(
+  `
+    query TeamCycleByNumber($filter: CycleFilter) {
+      cycles(filter: $filter, first: 1) {
+        nodes {
+          ...CycleFields
+        }
+      }
+    }
+  `,
   [CycleFields],
 );
 
-function toCycleSummary(data: FragmentOf<typeof CycleFields>): CycleSummary {
-  const node = readFragment(CycleFields, data);
+function toCycleListItem(data: FragmentOf<typeof CycleListFields>): CycleListItem {
+  const node = readFragment(CycleListFields, data);
   return {
     id: node.id,
     number: node.number,
     name: node.name ?? null,
-    description: node.description ?? null,
     startsAt: String(node.startsAt),
     endsAt: String(node.endsAt),
     completedAt: node.completedAt ? String(node.completedAt) : null,
     progress: node.progress,
+  };
+}
+
+function toCycleSummary(data: FragmentOf<typeof CycleFields>): CycleSummary {
+  const node = readFragment(CycleFields, data);
+  return {
+    ...toCycleListItem(node),
+    description: node.description ?? null,
     scopeHistory: node.scopeHistory,
     inProgressScopeHistory: node.inProgressScopeHistory,
     completedScopeHistory: node.completedScopeHistory,
@@ -70,7 +107,7 @@ const teamFilter = (teamId: string) => ({ team: { id: { eq: teamId } } });
 async function fetchCycles(filter: Record<string, unknown>, first: number, after: string | null) {
   const data = await gqlRequest(CyclesQuery, { filter, first, after });
   return {
-    items: data.cycles.nodes.map(toCycleSummary),
+    items: data.cycles.nodes.map(toCycleListItem),
     endCursor: data.cycles.pageInfo.hasNextPage ? (data.cycles.pageInfo.endCursor ?? null) : null,
   };
 }
@@ -105,9 +142,11 @@ export function usePastCycles(teamId: string | null) {
 export function useCycleByNumber(teamId: string | null, number: number) {
   return useQuery({
     queryKey: qk.cycle(teamId ?? '', number),
-    queryFn: async () =>
-      (await fetchCycles({ ...teamFilter(teamId!), number: { eq: number } }, 1, null)).items[0] ??
-      null,
+    queryFn: async () => {
+      const filter = { ...teamFilter(teamId!), number: { eq: number } };
+      const node = (await gqlRequest(CycleByNumberQuery, { filter })).cycles.nodes[0];
+      return node ? toCycleSummary(node) : null;
+    },
     enabled: teamId != null && Number.isInteger(number),
   });
 }

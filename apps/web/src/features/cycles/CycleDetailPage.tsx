@@ -9,6 +9,7 @@ import { useCycleByNumber } from './services/cycles.service';
 import CycleArchivedIssues from './components/CycleArchivedIssues';
 import CycleHeader from './components/CycleHeader';
 import CycleIssuesBoard from './components/CycleIssuesBoard';
+import CyclesOffNotice from './components/CyclesOffNotice';
 import { shownCycleProgress } from './utils/cyclePage';
 
 // One cycle of a team, by its number: the header with progress and chart, then its
@@ -23,6 +24,7 @@ export default function CycleDetailPage() {
   useLiveRefresh({ targets: [qk.cycle(teamId ?? '', number)], enabled: teamId != null });
 
   if (!team) return null;
+  if (!cyclesVisible(team)) return <CyclesOffNotice teamKey={team.team.key} />;
   const cycle = query.data;
   if (!cycle)
     return (
@@ -41,7 +43,7 @@ export default function CycleDetailPage() {
         teamKey={team.team.key}
         teamId={team.team.id}
       />
-      <CycleIssuesBoard cycleId={cycle.id} />
+      <CycleIssuesBoard cycleId={cycle.id} canAdd={!isPast} />
       {isPast && <CycleArchivedIssues cycleId={cycle.id} />}
     </div>
   );

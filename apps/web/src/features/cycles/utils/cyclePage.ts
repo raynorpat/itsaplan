@@ -20,7 +20,6 @@ export interface CycleProgress {
 }
 
 export interface ChartPoint {
-  day: string;
   scope: number;
   started: number;
   completed: number;
@@ -79,14 +78,13 @@ export function cycleDays(startsAt: string, endsAt: string): { first: string; la
   };
 }
 
-// One point per recorded day (UTC dates from the cycle's start), never more than the
-// cycle has days.
+// One point per recorded day from the cycle's start, never more than the cycle has
+// days.
 export function chartPoints(cycle: CycleHistories): ChartPoint[] {
   const start = new Date(cycle.startsAt).getTime();
   const days = Math.round((new Date(cycle.endsAt).getTime() - start) / DAY_MS);
   const recorded = Math.min(cycle.scopeHistory.length, days);
   return Array.from({ length: recorded }, (_, i) => ({
-    day: new Date(start + i * DAY_MS).toISOString().slice(0, 10),
     scope: cycle.scopeHistory[i] ?? 0,
     started: cycle.inProgressScopeHistory[i] ?? 0,
     completed: cycle.completedScopeHistory[i] ?? 0,
@@ -102,14 +100,33 @@ export function mergeCyclePages<T extends { id: string; number: number }>(pages:
     .sort((a, b) => b.number - a.number);
 }
 
-// The numbers a cycle shows: live from the board's issues while it is current or
-// upcoming, the API's for a past cycle.
+type BoardTeam = { issues: Issue[]; states: { id: string; stateType: StateType }[] };
+
+const isPastCycle = (cycle: { endsAt: string }, now: Date) =>
+  new Date(cycle.endsAt).getTime() <= now.getTime();
+
+function boardProgress(cycleId: string, team: BoardTeam): CycleProgress {
+  const stateTypes = new Map(team.states.map((s) => [s.id, s.stateType]));
+  return liveCycleProgress(cycleIssues(team.issues, cycleId), stateTypes);
+}
+
+// The numbers a cycle's page shows: live from the board's issues while it is current
+// or upcoming, the API's for a past cycle.
 export function shownCycleProgress(
   cycle: CycleHistories & { id: string },
-  team: { issues: Issue[]; states: { id: string; stateType: StateType }[] },
+  team: BoardTeam,
   now: Date,
 ): CycleProgress {
-  if (new Date(cycle.endsAt).getTime() <= now.getTime()) return cycleProgress(cycle);
-  const stateTypes = new Map(team.states.map((s) => [s.id, s.stateType]));
-  return liveCycleProgress(cycleIssues(team.issues, cycle.id), stateTypes);
+  return isPastCycle(cycle, now) ? cycleProgress(cycle) : boardProgress(cycle.id, team);
+}
+
+// The percent done a cycle's row on the cycles page shows, by the same rule.
+export function shownCyclePercent(
+  cycle: { id: string; endsAt: string; progress: number },
+  team: BoardTeam,
+  now: Date,
+): number {
+  return isPastCycle(cycle, now)
+    ? toPercent(cycle.progress)
+    : boardProgress(cycle.id, team).percent;
 }

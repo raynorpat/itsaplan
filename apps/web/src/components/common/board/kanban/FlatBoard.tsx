@@ -89,7 +89,7 @@ export default function FlatBoard({
   }
 
   function addIssueTo(group: IssueGroup) {
-    onAddIssue({ stateId: team.states[0]?.id ?? '', ...group.assign });
+    onAddIssue?.({ stateId: team.states[0]?.id ?? '', ...group.assign });
   }
 
   return (
@@ -113,7 +113,7 @@ export default function FlatBoard({
               group={group}
               count={issuesByGroup.get(group.key)?.length ?? 0}
               onExpand={() => setCollapsed(group.key, false)}
-              onAddIssue={() => addIssueTo(group)}
+              onAddIssue={onAddIssue && (() => addIssueTo(group))}
               readOnly={readOnly}
             />
           ) : (
@@ -127,7 +127,7 @@ export default function FlatBoard({
               manualOrder={manualOrder}
               onMoveIssue={moveIssue}
               onOpenIssue={onOpenIssue}
-              onAddIssue={() => addIssueTo(group)}
+              onAddIssue={onAddIssue && (() => addIssueTo(group))}
               onHide={() => setHidden(group.key, true)}
               onCollapse={() => setCollapsed(group.key, true)}
               readOnly={readOnly}

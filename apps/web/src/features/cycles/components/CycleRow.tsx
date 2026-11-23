@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cycleLabel } from '@/utils/cycles';
 import { cyclePath } from '@/utils/paths';
-import type { CycleSummary } from '../services/cycles.service';
+import type { CycleListItem } from '../services/cycles.service';
 import CycleDates from './CycleDates';
 import CycleProgressBar from './CycleProgressBar';
 
@@ -11,7 +11,7 @@ export default function CycleRow({
   percent,
   teamKey,
 }: {
-  cycle: CycleSummary;
+  cycle: CycleListItem;
   percent: number;
   teamKey: string;
 }) {

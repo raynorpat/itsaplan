@@ -39,7 +39,8 @@ export interface WorkItemsViewProps {
   // starts an edit (saved on Save), on the All tab it writes localStorage.
   onSettingsChange: (settings: ViewSettings) => void;
   onOpenIssue: (id: string) => void;
-  onAddIssue: (defaults: NewIssueDefaults) => void;
+  // Absent where the board offers no new issue (a past cycle's page).
+  onAddIssue?: (defaults: NewIssueDefaults) => void;
   // When true the view is a public read-only share: dragging, adding issues and
   // multi-select are disabled, but opening an issue (onOpenIssue) still works.
   // Defaults to false (the normal authenticated board).

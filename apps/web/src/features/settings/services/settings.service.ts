@@ -142,8 +142,8 @@ export function useUpdateTeamCycles(teamKey: string, teamId: string) {
             }
           : old,
       );
-      // Turning cycles on, or changing their length, makes the API create and move
-      // cycles; the scaffold and the cycles pages list them.
+      // Turning cycles on makes the API create the current and upcoming cycles; the
+      // scaffold and the cycles pages list them.
       void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
       void qc.invalidateQueries({ queryKey: qk.anyCycles });
       void qc.invalidateQueries({ queryKey: qk.anyCycle });
