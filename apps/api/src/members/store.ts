@@ -1,5 +1,6 @@
 import { db, teamMember, user } from '@repo/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
+import { APP_ROLE } from '@repo/auth';
 import { assertTeamAccess, canManageTeam, isTeamMember, type AuthUser } from '../shared/access';
 import { HttpError, iso } from '../shared/lib';
 
@@ -49,7 +50,8 @@ export async function listAssigneeCandidates(teamId: string): Promise<AssigneeCa
     })
     .from(teamMember)
     .innerJoin(user, eq(user.id, teamMember.userId))
-    .where(eq(teamMember.teamId, teamId));
+    // An app user is never the assignee (Linear makes it the delegate).
+    .where(and(eq(teamMember.teamId, teamId), ne(user.workspaceRole, APP_ROLE)));
   return rows
     .map(({ owner, ...r }) => ({ ...r, role: roleOf(owner) }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -67,7 +69,8 @@ export async function listMembers(teamId: string): Promise<MemberRow[]> {
     })
     .from(teamMember)
     .innerJoin(user, eq(user.id, teamMember.userId))
-    .where(eq(teamMember.teamId, teamId))
+    // App users are left out of member lists (Linear lists apps separately).
+    .where(and(eq(teamMember.teamId, teamId), ne(user.workspaceRole, APP_ROLE)))
     .orderBy(teamMember.createdAt);
   return rows.map((r) => ({
     userId: r.userId,

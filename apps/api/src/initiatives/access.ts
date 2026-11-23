@@ -1,7 +1,7 @@
 import { initiative } from '@repo/db';
 import { inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
-import { canSeeTeam, visibleTeamIdList, workspaceRole } from '../shared/access';
+import { canSeeTeam, isAppUser, visibleTeamIdList, workspaceRole } from '../shared/access';
 
 import { getInitiative, type InitiativeRow } from './store';
 
@@ -19,9 +19,10 @@ export function initiativesVisibleThrough(readableTeamIds: string[]): SQL {
 }
 
 // Teams through the user reaches initiatives: none for a guest (Linear's
-// guests have no initiatives), else the teams they can see.
+// guests have no initiatives), else the teams they can see. An app user, which has
+// a guest's workspace rights, reaches them through its teams.
 async function initiativeTeams(userId: string): Promise<string[]> {
-  if ((await workspaceRole(userId)) === 'guest') return [];
+  if ((await workspaceRole(userId)) === 'guest' && !(await isAppUser(userId))) return [];
   return visibleTeamIdList(userId);
 }
 

@@ -33,9 +33,12 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
 
 - Scopes are Linear's (`OAUTH_SCOPES`). `oauthBeforeHook` accepts them comma-separated,
   defaults a missing scope to `read`, and adds the plugin's `offline_access` when the
-  request uses PKCE, which is what gets a refresh token; a confidential application
-  that skips PKCE gets a day-long access token only. It drops `resource` at the token
-  endpoint, so every access token is opaque and can be revoked.
+  request uses PKCE, which is what gets the plugin to issue a refresh token. A
+  confidential application that skips PKCE (the plugin would demand PKCE with
+  `offline_access`) gets its refresh token from `oauthAfterHook`, in the plugin's format,
+  so every application has one, as in Linear. The token response lists Linear's
+  scopes only. It drops `resource` at the token endpoint, so every access token is
+  opaque and can be revoked.
 - Access tokens start `itpo_` (refresh `itpr_`, client secrets `itpcs_`); all are
   stored hashed. `resolveOAuthAccessToken` is how the API checks one: unknown,
   expired, deleted, issued from a revoked refresh token, or of a disabled
@@ -50,10 +53,35 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
   `Origin` from `trustedOrigins`, as the instance plugin's do.
 - The consent page is the web's `/oauth/consent`, the sign-in page `/login`.
 
+### `actor=app` installs (`src/oauth-install.ts`)
+
+- Linear's `actor=app` (or `application`) on the authorize request adds the internal
+  scope `actor:app` (`APP_ACTOR_SCOPE`, never advertised; a client sending it as a scope
+  has it stripped). A self-registered client's scopes do not include it, so an MCP
+  client cannot install. The plugin re-runs the authorize step internally when it
+  resumes a signed request; the hook leaves those alone.
+- The consent POST that grants it must come from a workspace admin or owner and may
+  carry the team selection: `app_team_ids` (teams added by id, public or private) and
+  `app_public_teams` (default true: every public team, including later ones). Once the
+  plugin accepts the consent, `installApplication` creates the application's app user
+  (`workspace_role` = `app`, an `@apps.invalid` address, the application's name and
+  icon) and the `oauth_installation` row (scopes granted, `public_teams`), and makes it
+  a member of the chosen teams. Installing again reuses both.
+- A code of the install is exchanged only while the application is installed and its
+  installer is still an admin or owner. `resolveOAuthAccessToken` maps a token with
+  `actor:app` to the install's app user (`actor: 'app'`).
+- `client_credentials` needs the grant on the application and an install; it gives an
+  app-user token within the install's scopes.
+- An app user never signs in: `databaseHooks.session.create.before` refuses it and no
+  magic link is issued for its address.
+- `POST /api/auth/instance/oauth-uninstall { clientId }` (admins and owners, Origin
+  rule) deletes every token, refresh token, consent and pending code of the
+  application, suspends its app user and removes it from its teams.
+
 ## Workspace role and suspension
 
 The user table has `workspace_role` (`owner` | `admin` | `member` | `guest`, Linear's
-roles) and `suspended_at`, both better-auth `additionalFields` with `input: false`
+roles; `app` for an application's app user) and `suspended_at`, both better-auth `additionalFields` with `input: false`
 (not client-settable). `databaseHooks.user.create.before` decides whether an address
 may join and with which role (`mayJoin` in `src/instance.ts`): the first user of a
 fresh instance is the owner; an address with a pending, unexpired workspace invite

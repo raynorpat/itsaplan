@@ -42,6 +42,7 @@ import { assertLabelsApplicable } from '../labels/store';
 import { assertCycleOfTeam, autoAssignCycleId } from '../cycles/store';
 
 import { getMembership } from '../members/store';
+import { isAppUser } from '../shared/access';
 
 // Data access for issues and their per-issue data (labels). The human identifier (e.g. "MKT-42") is the team key
 // plus the issue's team-scoped sequence number.
@@ -510,6 +511,9 @@ async function assertAssignments(
   if (patch.assigneeUserId) {
     const role = await getMembership(teamId, patch.assigneeUserId);
     if (!role) throw new HttpError(400, 'Assignee must be a team member');
+    // Linear keeps a person as the assignee and makes an app user the delegate.
+    if (await isAppUser(patch.assigneeUserId))
+      throw new HttpError(400, 'An application cannot be the assignee; delegate the issue to it');
   }
   if (patch.delegateUserId) throw new HttpError(400, 'Delegate must be an agent app user');
 }

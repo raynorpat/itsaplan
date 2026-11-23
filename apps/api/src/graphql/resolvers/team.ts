@@ -1,6 +1,11 @@
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
-import { memberTeamIds, NON_GUEST_ROLES, visibleTeamIds } from '../../shared/access';
+import { and, eq, inArray, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import {
+  memberTeamIds,
+  seesPublicTeams,
+  unofferedAppUserIds,
+  visibleTeamIds,
+} from '../../shared/access';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
@@ -60,15 +65,12 @@ export const teamFilter: FieldHandlers = {
 };
 
 // Users visible to the viewer: every workspace user for owners, admins and
-// members; for a guest, themselves and the members of their teams.
+// members (and app users with every public team); for a guest, themselves and the
+// members of their teams.
 export function visibleUsers(viewerId: string): SQL {
-  const notGuest = db
-    .select({ id: user.id })
-    .from(user)
-    .where(and(eq(user.id, viewerId), inArray(user.workspaceRole, NON_GUEST_ROLES)));
   return or(
     eq(user.id, viewerId),
-    sql`EXISTS (${notGuest})`,
+    sql`EXISTS (${seesPublicTeams(viewerId)})`,
     inArray(
       user.id,
       db
@@ -138,14 +140,19 @@ export const teamResolvers = {
   },
   Team: {
     organization: () => getOrganization(),
+    // The people of the team, as the pickers offer them: an app user only when its
+    // install granted `app:assignable` or `app:mentionable`.
     members: (team: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUsers(
-        inArray(
-          user.id,
-          db
-            .select({ id: teamMember.userId })
-            .from(teamMember)
-            .where(eq(teamMember.teamId, team.id)),
+        and(
+          inArray(
+            user.id,
+            db
+              .select({ id: teamMember.userId })
+              .from(teamMember)
+              .where(eq(teamMember.teamId, team.id)),
+          ),
+          notInArray(user.id, unofferedAppUserIds()),
         ),
         args,
         ctx.user.id,

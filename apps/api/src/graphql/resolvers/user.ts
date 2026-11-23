@@ -1,3 +1,6 @@
+import { APP_ROLE } from '@repo/auth';
+import { db, oauthInstallation } from '@repo/db';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { SessionUser } from '../../shared/auth-context';
 import type { GraphQLContext } from '../context';
 
@@ -37,9 +40,10 @@ export function toGraphQLUser(user: UserSource, viewerId: string) {
     createdAt: isoOf(user.createdAt),
     updatedAt: isoOf(user.updatedAt),
     // Linear's role flags: admin covers owners and admins; active = not suspended.
+    // An app user (an application installed with actor=app) is `app`; whether it is
+    // assignable and mentionable comes from its install (User resolvers below).
     active: !user.suspendedAt,
-    isAssignable: true,
-    isMentionable: true,
+    app: user.workspaceRole === APP_ROLE,
     owner: user.workspaceRole === 'owner',
     admin: user.workspaceRole === 'owner' || user.workspaceRole === 'admin',
     guest: user.workspaceRole === 'guest',
@@ -47,9 +51,28 @@ export function toGraphQLUser(user: UserSource, viewerId: string) {
   };
 }
 
+// The scopes an app user's install granted (none when uninstalled).
+async function installScopes(appUserId: string): Promise<string[]> {
+  const [row] = await db
+    .select({ scopes: oauthInstallation.scopes })
+    .from(oauthInstallation)
+    .where(
+      and(eq(oauthInstallation.appUserId, appUserId), isNull(oauthInstallation.uninstalledAt)),
+    );
+  return row?.scopes ?? [];
+}
+
 export const userResolvers = {
   Query: {
     viewer: (_: unknown, __: unknown, ctx: GraphQLContext) =>
       toGraphQLUser(ctx.user as SessionUser & UserSource, ctx.user.id),
+  },
+  User: {
+    // People are always assignable and mentionable; an app user when its install
+    // granted `app:assignable` / `app:mentionable` (Linear's app scopes).
+    isAssignable: async (u: { id: string; app?: boolean }) =>
+      !u.app || (await installScopes(u.id)).includes('app:assignable'),
+    isMentionable: async (u: { id: string; app?: boolean }) =>
+      !u.app || (await installScopes(u.id)).includes('app:mentionable'),
   },
 };

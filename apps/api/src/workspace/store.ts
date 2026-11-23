@@ -1,5 +1,6 @@
 import { db, session, user } from '@repo/db';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { APP_ROLE } from '@repo/auth';
 import { atLeast, workspaceRole, type WorkspaceRole } from '../shared/access';
 import { HttpError, iso } from '../shared/lib';
 
@@ -29,6 +30,8 @@ export async function listWorkspaceUsers(): Promise<WorkspaceUserRow[]> {
       createdAt: user.createdAt,
     })
     .from(user)
+    // App users are not workspace members (Linear lists apps separately).
+    .where(ne(user.workspaceRole, APP_ROLE))
     .orderBy(asc(user.name));
   return rows.map((r) => ({
     ...r,
@@ -65,7 +68,9 @@ async function assertMayAdminister(actorId: string, targetId: string): Promise<W
     .select({ role: user.workspaceRole })
     .from(user)
     .where(eq(user.id, targetId));
-  if (!target) throw new HttpError(404, 'User not found');
+  // App users are not workspace members (listWorkspaceUsers); their install
+  // decides whether they are active.
+  if (!target || target.role === APP_ROLE) throw new HttpError(404, 'User not found');
   const current = target.role as WorkspaceRole;
   if (actor === 'admin' && atLeast(current, 'admin'))
     throw new HttpError(403, 'An admin can only change members and guests');

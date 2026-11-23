@@ -90,7 +90,7 @@ describe('oauth flow', () => {
     expect(target).toContain('invalid_redirect');
   });
 
-  it('lets a confidential application skip PKCE, as Linear does, without a refresh token', async () => {
+  it('lets a confidential application skip PKCE, as Linear does', async () => {
     const { owner, client } = await setup();
     const code = await authorizeCode(owner.cookie, client, { scope: 'read' });
     const res = await tokenRequest({
@@ -102,7 +102,8 @@ describe('oauth flow', () => {
     });
     expect(res.status).toBe(200);
     const tokens = (await res.json()) as { access_token: string; refresh_token?: string };
-    expect(tokens.refresh_token).toBeUndefined();
+    // Linear gives it a refresh token too (oauth-app-actor.test.ts covers refreshing).
+    expect(tokens.refresh_token).toBeTruthy();
     expect((await gql(bearer(tokens.access_token), VIEWER)).status).toBe(200);
   });
 

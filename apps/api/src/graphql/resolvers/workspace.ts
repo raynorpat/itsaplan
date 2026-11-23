@@ -1,9 +1,10 @@
 import { db, team, teamMember, workspaceInvite } from '@repo/db';
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
 import { getInvite, inviteToWorkspace, revokeInvite, type InviteRole } from '../../invites/store';
 import { addTeamMember, removeTeamMember, upsertMember } from '../../members/store';
 import { assertAllowedTo } from '../../organization/store';
 import {
+  appUserIds,
   assertTeamAccess,
   assertWorkspaceRole,
   atLeast,
@@ -61,11 +62,7 @@ const toMembership = (row: MembershipRow) => ({
 type GraphQLMembership = ReturnType<typeof toMembership>;
 
 // Memberships in teams the viewer can see, newest first.
-function listMemberships(
-  where: ReturnType<typeof eq> | undefined,
-  args: ConnectionArgs,
-  viewerId: string,
-) {
+function listMemberships(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
   return paginate(
     args,
     { id: teamMember.id, createdAt: teamMember.createdAt, updatedAt: teamMember.createdAt },
@@ -160,7 +157,7 @@ export const workspaceResolvers = {
     teamMembership: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       toMembership(await findMembership(id, ctx.user.id)),
     teamMemberships: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listMemberships(undefined, args, ctx.user.id),
+      listMemberships(notInArray(teamMember.userId, appUserIds()), args, ctx.user.id),
     organizationInvites: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       guard(async () => {
         await assertWorkspaceRole(ctx.user, 'member');
@@ -195,8 +192,13 @@ export const workspaceResolvers = {
       }),
   },
   Team: {
+    // The team's member list leaves out app users (Linear lists apps separately).
     memberships: (t: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listMemberships(eq(teamMember.teamId, t.id), args, ctx.user.id),
+      listMemberships(
+        and(eq(teamMember.teamId, t.id), notInArray(teamMember.userId, appUserIds())),
+        args,
+        ctx.user.id,
+      ),
   },
   User: {
     teamMemberships: (u: { id: string }, args: ConnectionArgs, ctx: GraphQLContext) =>

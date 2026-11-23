@@ -20,6 +20,7 @@ import {
 import { sendAuthEmail } from './mail';
 import { instancePlugin } from './instance-plugin';
 import { oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
+import { APP_ROLE, isAppUser } from './oauth-install';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -178,6 +179,18 @@ async function isSuspended(userId: string): Promise<boolean> {
   return !!row?.suspendedAt;
 }
 
+// Whether an address is an application's app user (oauth-install.ts), which never
+// signs in.
+async function isAppUserAddress(email: string): Promise<boolean> {
+  const address = email.trim().toLowerCase();
+  return (
+    (await db.$count(
+      schema.user,
+      sql`${schema.user.email} = ${address} AND ${schema.user.workspaceRole} = ${APP_ROLE}`,
+    )) > 0
+  );
+}
+
 // Report mail misconfiguration once, at startup.
 for (const warning of emailConfigWarnings(process.env)) console.warn(warning);
 
@@ -261,6 +274,8 @@ export const auth = betterAuth({
           return ctx.json({ status: true });
         if (!(await hasAccount(email)) && !(await mayJoin(email)))
           return ctx.json({ status: true });
+        // An application's app user never signs in.
+        if (await isAppUserAddress(email)) return ctx.json({ status: true });
         return;
       }
 
@@ -314,16 +329,21 @@ export const auth = betterAuth({
       }
     }),
     // OAuth applications created by an admin (src/oauth.ts).
-    after: createAuthMiddleware(async (ctx) => {
-      await oauthAfterHook(ctx);
-    }),
+    after: createAuthMiddleware(async (ctx) => oauthAfterHook(ctx)),
   },
 
   databaseHooks: {
-    // A suspended user gets no new session, whichever sign-in method they use.
+    // A suspended user gets no new session, whichever sign-in method they use, and
+    // neither does an application's app user (oauth-install.ts).
     session: {
       create: {
         before: async (session) => {
+          if (await isAppUser(session.userId)) {
+            throw new APIError('FORBIDDEN', {
+              code: 'APP_USER',
+              message: 'An application cannot sign in',
+            });
+          }
           if (await isSuspended(session.userId)) {
             throw new APIError('FORBIDDEN', {
               code: 'ACCOUNT_SUSPENDED',
@@ -541,3 +561,4 @@ export {
   revokeOAuthAccessToken,
 } from './oauth';
 export type { OAuthScope, OAuthGrant } from './oauth';
+export { APP_ROLE, uninstallApplication } from './oauth-install';

@@ -153,6 +153,15 @@ Enforced declaratively through macros, never imperative calls in handlers.
   Workspace actions follow the role table in
   `docs/superpowers/specs/2026-11-22-linear-roles-design.md` (`assertWorkspaceRole`).
   A team the user cannot see is 404; a visible team without the right is 403.
+- **App users** (an OAuth application installed with `actor=app`, `@repo/auth`
+  `oauth-install.ts`): `workspace_role` = `app`, which `workspaceRole` reads as a
+  guest, so an app user is never an admin and never manages a team. It sees its
+  `team_member` teams, plus every public team when its install includes them
+  (`seesPublicTeams`); it reaches initiatives through those teams. It is left out of
+  member lists (REST members and workspace users, `Team.memberships`,
+  `teamMemberships`), offered in `Team.members` only when its install granted
+  `app:assignable` or `app:mentionable` (`User.isAssignable` / `isMentionable`), and
+  never set as an assignee. GraphQL `users` lists it with `app: true`.
 - **`:teamKey` routes:** `.use(guards)` and set `teamAccess: "see" | "manage"` or
   `teamWebhooks: true`; read the resolved `team` from context.
 - **Entity-by-id routes** (`/issues/:issueId`, `/views/:viewId`, …): define a local

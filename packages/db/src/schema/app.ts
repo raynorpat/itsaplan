@@ -22,7 +22,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { user } from './auth';
+import { oauthClient, user } from './auth';
 
 // The workspace (Linear's Organization). One row per instance: `singleton` is always
 // true and unique, so a second row cannot be inserted. The three *_role columns are
@@ -1210,3 +1210,31 @@ export const notification = pgTable(
       .where(sql`${t.readAt} IS NULL`),
   ],
 );
+
+// An OAuth application installed in the workspace with `actor=app` (Linear's app
+// actor): an admin or owner installs it, and it gets one app user
+// (`user.workspace_role` = 'app') that its install tokens act as. The app user sees
+// every public team when `public_teams` is set, and the teams it is a member of
+// (`team_member` rows added at install). `scopes` are the scopes granted at install;
+// `app:assignable` and `app:mentionable` decide whether it is offered in pickers.
+// Uninstalling sets `uninstalled_at` and suspends the app user; installing again
+// reuses the row and the app user.
+export const oauthInstallation = pgTable('oauth_installation', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: text('client_id')
+    .notNull()
+    .unique()
+    .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+  appUserId: uuid('app_user_id')
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  publicTeams: boolean('public_teams').notNull().default(true),
+  scopes: text('scopes').array().notNull(),
+  installedByUserId: uuid('installed_by_user_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  uninstalledAt: timestamp('uninstalled_at', { withTimezone: true }),
+});

@@ -1,10 +1,19 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { db } from '@repo/db';
 import * as schema from '@repo/db/schema';
 import { eq } from 'drizzle-orm';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
+import {
+  APP_ACTOR_SCOPE,
+  activeInstallation,
+  installApplication,
+  isAppActor,
+  isWorkspaceAdmin,
+  parseTeamSelection,
+  type TeamSelection,
+} from './oauth-install';
 
 // The OAuth server: better-auth's OAuth provider plugin, with Linear's scopes. The API
 // serves Linear's paths (/oauth/authorize, /oauth/token, /oauth/revoke, /oauth/register)
@@ -57,7 +66,9 @@ export const oauthPlugins = (appUrl: string) => [
   jwt({ disableSettingJwtHeader: true }),
   oauthProvider({
     ...oauthPages(appUrl),
-    scopes: [...OAUTH_SCOPES, OFFLINE],
+    // APP_ACTOR_SCOPE marks the tokens of an `actor=app` install (oauth-install.ts);
+    // it is never advertised and never accepted from a client.
+    scopes: [...OAUTH_SCOPES, OFFLINE, APP_ACTOR_SCOPE],
     advertisedMetadata: { scopes_supported: [...OAUTH_SCOPES] },
     // Linear's access tokens last a day, refreshed with the refresh token.
     accessTokenExpiresIn: 24 * 3600,
@@ -107,14 +118,26 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
   }
 
   if (ctx.path === '/oauth2/authorize') {
+    // The plugin also runs the authorize step internally when it resumes a signed
+    // request (after consent or sign-in); that query was adapted on its way in and is
+    // left as it is.
+    if (ctx.request && !new URL(ctx.request.url).pathname.endsWith('/oauth2/authorize')) return;
     const query = (ctx.query ?? {}) as Record<string, unknown>;
     // Linear's default scope is `read`; the plugin's would be every scope.
     const scopes = normaliseScopes(typeof query.scope === 'string' ? query.scope : 'read');
     // A refresh token is issued with `offline_access`, which the plugin also takes as
-    // a demand for PKCE. Add it when the client uses PKCE, so a confidential client
-    // that does not gets a day-long access token and no refresh token.
+    // a demand for PKCE. Add it when the client uses PKCE; a confidential client that
+    // does not gets its refresh token from afterToken.
     if (typeof query.code_challenge === 'string' && !scopes.includes(OFFLINE)) scopes.push(OFFLINE);
-    query.scope = scopes.join(' ');
+    // The app actor is asked for with Linear's `actor` parameter, never as a scope.
+    const withoutActor = scopes.filter((s) => s !== APP_ACTOR_SCOPE);
+    if (isAppActor(query.actor)) withoutActor.push(APP_ACTOR_SCOPE);
+    query.scope = withoutActor.join(' ');
+    return;
+  }
+
+  if (ctx.path === '/oauth2/consent') {
+    await beforeConsent(ctx);
     return;
   }
 
@@ -124,6 +147,8 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     // before it expires. Every token here is opaque, so it is dropped.
     delete body.resource;
     if (typeof body.scope === 'string') body.scope = normaliseScopes(body.scope).join(' ');
+    if (body.grant_type === 'authorization_code') await beforeCodeExchange(body);
+    if (body.grant_type === 'client_credentials') await beforeClientCredentials(ctx, body);
     return;
   }
 
@@ -144,16 +169,11 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
 // it; a public client always does (the plugin enforces that from the client type).
 // The plugin's create-client endpoint takes no `require_pkce`, so it is set on the
 // stored client after creation. Runs in better-auth's `hooks.after`.
-export async function oauthAfterHook(ctx: HookContext): Promise<void> {
+export async function oauthAfterHook(ctx: HookContext): Promise<unknown> {
+  if (ctx.path === '/oauth2/consent') return afterConsent(ctx);
+  if (ctx.path === '/oauth2/token') return afterToken(ctx);
   if (ctx.path !== '/oauth2/create-client') return;
-  const returned = ctx.context.returned as unknown;
-  const created =
-    returned instanceof Response
-      ? ((await returned
-          .clone()
-          .json()
-          .catch(() => null)) as Record<string, unknown> | null)
-      : (returned as Record<string, unknown> | null);
+  const created = await returnedJson(ctx);
   if (!created || typeof created.client_id !== 'string' || !created.client_secret) return;
   await db
     .update(schema.oauthClient)
@@ -161,18 +181,219 @@ export async function oauthAfterHook(ctx: HookContext): Promise<void> {
     .where(eq(schema.oauthClient.clientId, created.client_id));
 }
 
+// The JSON body an endpoint answered with, or null when it failed.
+async function returnedJson(ctx: HookContext): Promise<Record<string, unknown> | null> {
+  const returned = ctx.context.returned as unknown;
+  if (returned instanceof APIError || returned instanceof Error) return null;
+  if (returned instanceof Response) {
+    if (!returned.ok) return null;
+    return (await returned
+      .clone()
+      .json()
+      .catch(() => null)) as Record<string, unknown> | null;
+  }
+  return returned && typeof returned === 'object' ? (returned as Record<string, unknown>) : null;
+}
+
+const tokenError = (error: string, description: string) =>
+  new APIError('BAD_REQUEST', { error, error_description: description });
+
+// --- actor=app installs (oauth-install.ts) ----------------------------------------
+
+// The scopes a consent request grants: the ones it names, else every requested one.
+function consentedScopes(ctx: HookContext): string[] {
+  const body = (ctx.body ?? {}) as { scope?: unknown; oauth_query?: unknown };
+  if (typeof body.scope === 'string') return body.scope.split(' ').filter(Boolean);
+  const query = new URLSearchParams(typeof body.oauth_query === 'string' ? body.oauth_query : '');
+  return (query.get('scope') ?? '').split(' ').filter(Boolean);
+}
+
+// The install a consent request makes, kept from the before hook (which checks it)
+// for the after hook (which applies it once the plugin has accepted the consent).
+const pendingInstalls = new WeakMap<object, { userId: string; selection: TeamSelection }>();
+const requestKey = (ctx: HookContext): object | null => ctx.request ?? null;
+
+// An accepted consent that grants the app actor: only a workspace admin or owner may
+// install, with a valid team selection. The plugin checks the signed query after this
+// hook, so nothing is written here.
+async function beforeConsent(ctx: HookContext): Promise<void> {
+  const body = (ctx.body ?? {}) as { accept?: unknown };
+  if (body.accept !== true || !consentedScopes(ctx).includes(APP_ACTOR_SCOPE)) return;
+  const session = await getSessionFromCtx(ctx);
+  if (!(await isWorkspaceAdmin(session?.user.id)))
+    throw new APIError('FORBIDDEN', {
+      message: 'Only a workspace admin or owner can install an application',
+    });
+  const selection = await parseTeamSelection(ctx.body);
+  if (typeof selection === 'string') throw new APIError('BAD_REQUEST', { message: selection });
+  const key = requestKey(ctx);
+  if (key) pendingInstalls.set(key, { userId: session!.user.id, selection });
+}
+
+// Installs the application once the plugin has accepted an app-actor consent.
+async function afterConsent(ctx: HookContext): Promise<void> {
+  const key = requestKey(ctx);
+  const pending = key ? pendingInstalls.get(key) : undefined;
+  if (!pending) return;
+  pendingInstalls.delete(key!);
+  if (!(await returnedJson(ctx))) return;
+  const scopes = consentedScopes(ctx);
+  const query = new URLSearchParams(
+    String((ctx.body as { oauth_query?: unknown }).oauth_query ?? ''),
+  );
+  const clientId = query.get('client_id');
+  if (!clientId) return;
+  await installApplication({
+    clientId,
+    installedByUserId: pending.userId,
+    scopes: scopes.filter((s) => s !== APP_ACTOR_SCOPE && s !== OFFLINE),
+    selection: pending.selection,
+  });
+}
+
+// The pending authorization behind a code, read without using it up. The plugin
+// stores the code hashed like every token.
+async function pendingAuthorization(
+  code: string,
+): Promise<{ userId?: string; query?: { scope?: string; client_id?: string } } | null> {
+  const [row] = await db
+    .select({ value: schema.verification.value })
+    .from(schema.verification)
+    .where(eq(schema.verification.identifier, hashToken(code)));
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as { userId?: string; query?: { scope?: string } };
+  } catch {
+    return null;
+  }
+}
+
+// An app-actor code is exchanged only while the application is installed and its
+// installer is still a workspace admin or owner.
+async function beforeCodeExchange(body: Record<string, unknown>): Promise<void> {
+  if (typeof body.code !== 'string') return;
+  const pending = await pendingAuthorization(body.code);
+  const scopes = (pending?.query?.scope ?? '').split(' ');
+  if (!pending || !scopes.includes(APP_ACTOR_SCOPE)) return;
+  const clientId = pending.query?.client_id;
+  if (!clientId || !(await activeInstallation(clientId)))
+    throw tokenError('invalid_grant', 'The application is not installed');
+  if (!(await isWorkspaceAdmin(pending.userId)))
+    throw tokenError('invalid_grant', 'Only a workspace admin or owner can install an application');
+}
+
+// The client id of a token request: Basic credentials or the body.
+function requestClientId(ctx: HookContext, body: Record<string, unknown>): string | null {
+  const basic = ctx.headers?.get('authorization')?.match(/^Basic\s+(.+)$/i)?.[1];
+  if (basic) {
+    const decoded = Buffer.from(basic, 'base64').toString('utf8');
+    const id = decoded.slice(0, decoded.indexOf(':'));
+    if (id) return decodeURIComponent(id);
+  }
+  return typeof body.client_id === 'string' ? body.client_id : null;
+}
+
+// Linear's client_credentials grant gives an installed application a token acting as
+// its app user, within the scopes granted at install.
+async function beforeClientCredentials(
+  ctx: HookContext,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const clientId = requestClientId(ctx, body);
+  const installation = clientId ? await activeInstallation(clientId) : null;
+  if (!installation) throw tokenError('invalid_grant', 'The application is not installed');
+  const requested = normaliseScopes(typeof body.scope === 'string' ? body.scope : '');
+  const scopes = requested.length > 0 ? requested : installation.scopes;
+  const beyond = scopes.filter((s) => !installation.scopes.includes(s));
+  if (beyond.length > 0)
+    throw tokenError('invalid_scope', `The installation does not grant ${beyond.join(', ')}`);
+  body.scope = [...scopes, APP_ACTOR_SCOPE].join(' ');
+}
+
+// The token response lists Linear's scopes only. A confidential application that
+// exchanged its code without PKCE gets a refresh token too, as Linear's do: the plugin
+// ties refresh tokens to `offline_access`, which it also takes as a demand for PKCE,
+// so the refresh token is issued here in the plugin's format (hashed, `itpr_` prefix,
+// `offline_access` in its scopes so the plugin rotates it).
+async function afterToken(ctx: HookContext): Promise<unknown> {
+  const response = await returnedJson(ctx);
+  if (!response || typeof response.access_token !== 'string') return;
+  const body = (ctx.body ?? {}) as Record<string, unknown>;
+  const next = { ...response };
+  if (typeof next.scope === 'string')
+    next.scope = next.scope
+      .split(' ')
+      .filter((s) => s && s !== OFFLINE && s !== APP_ACTOR_SCOPE)
+      .join(' ');
+  if (body.grant_type === 'authorization_code' && !next.refresh_token) {
+    const refresh = await issueRefreshToken(response.access_token);
+    if (refresh) next.refresh_token = refresh;
+  }
+  return ctx.json(next, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } });
+}
+
+const REFRESH_TOKEN_LIFETIME_MS = 30 * 24 * 3600 * 1000;
+
+async function issueRefreshToken(accessToken: string): Promise<string | null> {
+  if (!accessToken.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) return null;
+  const hashed = hashToken(accessToken.slice(OAUTH_ACCESS_TOKEN_PREFIX.length));
+  const [row] = await db
+    .select({
+      id: schema.oauthAccessToken.id,
+      clientId: schema.oauthAccessToken.clientId,
+      userId: schema.oauthAccessToken.userId,
+      sessionId: schema.oauthAccessToken.sessionId,
+      scopes: schema.oauthAccessToken.scopes,
+      refreshId: schema.oauthAccessToken.refreshId,
+      clientSecret: schema.oauthClient.clientSecret,
+      grantTypes: schema.oauthClient.grantTypes,
+    })
+    .from(schema.oauthAccessToken)
+    .innerJoin(
+      schema.oauthClient,
+      eq(schema.oauthClient.clientId, schema.oauthAccessToken.clientId),
+    )
+    .where(eq(schema.oauthAccessToken.token, hashed));
+  // Only a confidential application (it has a secret) whose grants include the
+  // authorization code, for a token issued to a user without a refresh token.
+  if (!row || row.refreshId || !row.userId || !row.clientSecret) return null;
+  const grants = row.grantTypes?.length ? row.grantTypes : ['authorization_code'];
+  if (!grants.includes('authorization_code')) return null;
+  const raw = randomBytes(32).toString('base64url');
+  const now = new Date();
+  const [refresh] = await db
+    .insert(schema.oauthRefreshToken)
+    .values({
+      token: hashToken(raw),
+      clientId: row.clientId,
+      sessionId: row.sessionId,
+      userId: row.userId,
+      scopes: [...row.scopes.filter((s) => s !== OFFLINE), OFFLINE],
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + REFRESH_TOKEN_LIFETIME_MS),
+    })
+    .returning({ id: schema.oauthRefreshToken.id });
+  await db
+    .update(schema.oauthAccessToken)
+    .set({ refreshId: refresh!.id })
+    .where(eq(schema.oauthAccessToken.id, row.id));
+  return REFRESH_TOKEN_PREFIX + raw;
+}
+
 const hashToken = (token: string) => createHash('sha256').update(token).digest('base64url');
 
 export interface OAuthGrant {
+  // The user the token acts for: the app user for a token of an `actor=app` install.
   userId: string;
   clientId: string;
   scopes: OAuthScope[];
+  actor: 'user' | 'app';
 }
 
 // The grant behind an OAuth access token, or null when the token is unknown, expired,
-// revoked (directly, or by refreshing or revoking its refresh token), or its
-// application is disabled. The plugin stores a SHA-256 (base64url) hash of the token
-// without its prefix.
+// revoked (directly, or by refreshing or revoking its refresh token), its application
+// is disabled, or it belongs to an `actor=app` install that is no longer installed.
+// The plugin stores a SHA-256 (base64url) hash of the token without its prefix.
 export async function resolveOAuthAccessToken(token: string): Promise<OAuthGrant | null> {
   if (!token.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) return null;
   const [row] = await db
@@ -196,12 +417,18 @@ export async function resolveOAuthAccessToken(token: string): Promise<OAuthGrant
     .where(
       eq(schema.oauthAccessToken.token, hashToken(token.slice(OAUTH_ACCESS_TOKEN_PREFIX.length))),
     );
-  if (!row?.userId || !row.expiresAt || row.expiresAt < new Date()) return null;
+  if (!row || !row.expiresAt || row.expiresAt < new Date()) return null;
   if (row.refreshRevoked || row.clientDisabled) return null;
   const scopes = (row.scopes ?? []).filter((s): s is OAuthScope =>
     (OAUTH_SCOPES as readonly string[]).includes(s),
   );
-  return { userId: row.userId, clientId: row.clientId, scopes };
+  if ((row.scopes ?? []).includes(APP_ACTOR_SCOPE)) {
+    const installation = await activeInstallation(row.clientId);
+    if (!installation) return null;
+    return { userId: installation.appUserId, clientId: row.clientId, scopes, actor: 'app' };
+  }
+  if (!row.userId) return null;
+  return { userId: row.userId, clientId: row.clientId, scopes, actor: 'user' };
 }
 
 // Deletes one access token (Linear's revoke: the token is its own credential).

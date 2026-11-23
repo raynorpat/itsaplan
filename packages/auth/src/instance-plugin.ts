@@ -1,6 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthEndpoint } from 'better-auth/api';
+import { APIError, createAuthEndpoint, getSessionFromCtx } from 'better-auth/api';
 import { signInOptions } from './instance';
+import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 
 // Instance information that Linear's GraphQL schema has no place for, served by
 // better-auth under /api/auth/instance/*:
@@ -11,6 +12,9 @@ import { signInOptions } from './instance';
 // - POST /instance/team-owner       team managers: { teamId, userId, owner } makes a
 //   team member a team owner or a plain member, answering the same body. With a
 //   session cookie the request's Origin must be one of the app's origins.
+// - POST /instance/oauth-uninstall  workspace admins and owners: { clientId }
+//   uninstalls an OAuth application (oauth-install.ts): its tokens, consents and
+//   pending codes are deleted and its app user is suspended. Same Origin rule.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -88,6 +92,25 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         async (ctx) => {
           assertTrustedOrigin(ctx.headers, options.trustedOrigins);
           return ctx.json(await run((h) => h.setTeamOwner(ctx.headers ?? new Headers(), ctx.body)));
+        },
+      ),
+      instanceOAuthUninstall: createAuthEndpoint(
+        '/instance/oauth-uninstall',
+        { method: 'POST' },
+        async (ctx) => {
+          assertTrustedOrigin(ctx.headers, options.trustedOrigins);
+          const session = await getSessionFromCtx(ctx);
+          if (!session) throw new APIError('UNAUTHORIZED', { message: 'Authentication required' });
+          if (!(await isWorkspaceAdmin(session.user.id)))
+            throw new APIError('FORBIDDEN', {
+              message: 'Only a workspace admin or owner can uninstall an application',
+            });
+          const clientId = (ctx.body as { clientId?: unknown } | undefined)?.clientId;
+          if (typeof clientId !== 'string' || !clientId)
+            throw new APIError('BAD_REQUEST', { message: 'clientId is required' });
+          if (!(await uninstallApplication(clientId)))
+            throw new APIError('NOT_FOUND', { message: 'Application not found' });
+          return ctx.json({ success: true });
         },
       ),
     },
