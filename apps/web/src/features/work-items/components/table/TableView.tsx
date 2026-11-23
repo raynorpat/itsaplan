@@ -10,6 +10,7 @@ import {
   sortIssues,
   type WorkItemsViewProps,
 } from '@/utils/team';
+import { cyclesVisible } from '@/utils/cycles';
 import { useDndSensors } from '@/lib/dnd';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
@@ -41,7 +42,10 @@ export default function TableView({
   const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
   const maps = buildMaps(team);
 
-  const { columns, gridTemplate, minWidth } = resolveColumns(settings.properties);
+  // A cycle column left in the settings shows only while the team's cycles are on.
+  const { columns, gridTemplate, minWidth } = resolveColumns(
+    cyclesVisible(team) ? settings.properties : settings.properties.filter((p) => p !== 'cycle'),
+  );
 
   const items = buildTableItems({
     groups,

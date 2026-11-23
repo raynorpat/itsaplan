@@ -13,11 +13,14 @@ export default function DisplayPopover({
   onViewChange,
   settings,
   onSettingsChange,
+  cyclesOn,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
   settings: ViewSettings;
   onSettingsChange: (settings: ViewSettings) => void;
+  // Whether the team's cycles are on; the cycle grouping and property show only then.
+  cyclesOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -40,6 +43,7 @@ export default function DisplayPopover({
           onViewChange={onViewChange}
           settings={settings}
           onSettingsChange={onSettingsChange}
+          cyclesOn={cyclesOn}
         />
       </PopoverContent>
     </Popover>

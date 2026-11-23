@@ -118,3 +118,32 @@ describe('view filters', () => {
     ]);
   });
 });
+
+describe('cycle condition', () => {
+  it('round-trips through Linear IssueFilter', () => {
+    const set = {
+      conditions: [
+        { id: 'a', field: 'cycle', op: 'is' as const, values: ['c1', null] },
+        { id: 'b', field: 'cycle', op: 'is_not_set' as const, values: [] },
+      ],
+    };
+    const filter = filterSetToIssueFilter(set);
+    assert.deepEqual(filter, {
+      and: [
+        { or: [{ cycle: { id: { in: ['c1'] } } }, { cycle: { null: true } }] },
+        { cycle: { null: true } },
+      ],
+    });
+    assert.deepEqual(
+      issueFilterToFilterSet(filter).conditions.map(({ field, op, values }) => ({
+        field,
+        op,
+        values,
+      })),
+      [
+        { field: 'cycle', op: 'is', values: ['c1', null] },
+        { field: 'cycle', op: 'is_not_set', values: [] },
+      ],
+    );
+  });
+});

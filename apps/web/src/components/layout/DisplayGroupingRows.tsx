@@ -1,6 +1,7 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import { SORT_FIELDS, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
+import { withoutCycleOptions } from '@/utils/cycles';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
@@ -18,6 +19,7 @@ const GROUP_OPTIONS: { value: GroupField; label: string }[] = [
   { value: 'delegate', label: 'Delegate' },
   { value: 'priority', label: 'Priority' },
   { value: 'project', label: 'Project' },
+  { value: 'cycle', label: 'Cycle' },
 ];
 
 // The grouping, sub-grouping, ordering and empty-group rows. Which of them show
@@ -27,16 +29,18 @@ export default function DisplayGroupingRows({
   view,
   settings,
   onChange,
+  cyclesOn,
 }: {
   view: WorkItemsView;
   settings: ViewSettings;
   onChange: (patch: Partial<ViewSettings>) => void;
+  cyclesOn: boolean;
 }) {
   // Changing the primary group clears a sub-group that would now duplicate it.
   const setGroup = (group: GroupField) =>
     onChange(group === settings.subgroup ? { group, subgroup: 'none' } : { group });
 
-  const options = GROUP_OPTIONS;
+  const options = withoutCycleOptions(GROUP_OPTIONS, cyclesOn);
 
   const groupOptions =
     view === 'kanban' || view === 'timeline' ? options.filter((o) => o.value !== 'none') : options;

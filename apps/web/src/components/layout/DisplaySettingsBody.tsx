@@ -15,11 +15,13 @@ export default function DisplaySettingsBody({
   onViewChange,
   settings,
   onSettingsChange,
+  cyclesOn,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
   settings: ViewSettings;
   onSettingsChange: (settings: ViewSettings) => void;
+  cyclesOn: boolean;
 }) {
   const set = (patch: Partial<ViewSettings>) => onSettingsChange({ ...settings, ...patch });
 
@@ -27,14 +29,19 @@ export default function DisplaySettingsBody({
     <div className="space-y-2">
       <DisplayLayoutTabs view={view} onViewChange={onViewChange} />
 
-      <DisplayGroupingRows view={view} settings={settings} onChange={set} />
+      <DisplayGroupingRows view={view} settings={settings} onChange={set} cyclesOn={cyclesOn} />
 
       {view === 'timeline' && <DisplayTimelineRows settings={settings} onChange={set} />}
 
       {view === 'calendar' && <DisplayCalendarRows settings={settings} onChange={set} />}
 
       {(view === 'kanban' || view === 'table') && (
-        <DisplayPropertiesSection view={view} settings={settings} onChange={set} />
+        <DisplayPropertiesSection
+          view={view}
+          settings={settings}
+          onChange={set}
+          cyclesOn={cyclesOn}
+        />
       )}
     </div>
   );

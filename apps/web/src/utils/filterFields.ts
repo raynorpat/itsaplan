@@ -1,5 +1,6 @@
 import type { TeamDetail } from '@/lib/api';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
+import { cycleLabel, cyclesVisible, sortedCycles } from '@/utils/cycles';
 import {
   SUBSCRIBER_ME,
   type FilterCondition,
@@ -78,6 +79,22 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       options: [{ value: null, label: 'No delegate' }],
     },
     { field: 'priority', label: 'Priority', kind: 'set', options: PRIORITY_OPTIONS },
+    ...(cyclesVisible(team)
+      ? [
+          {
+            field: 'cycle',
+            label: 'Cycle',
+            kind: 'set' as const,
+            options: [
+              ...sortedCycles(team.teamCycles, new Date()).map((c) => ({
+                value: c.id,
+                label: cycleLabel(c),
+              })),
+              { value: null, label: 'No cycle' },
+            ],
+          },
+        ]
+      : []),
     {
       field: 'labels',
       label: 'Labels',

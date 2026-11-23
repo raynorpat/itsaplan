@@ -142,6 +142,9 @@ export function useUpdateTeamCycles(teamKey: string, teamId: string) {
             }
           : old,
       );
+      // Turning cycles on, or changing their length, makes the API create and move
+      // cycles; the scaffold carries the team's cycle list.
+      void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
     },
   });
 }

@@ -155,6 +155,7 @@ function toUpdateInput(patch: IssuePatch) {
   if (patch.stateId !== undefined) input.stateId = patch.stateId;
   if (patch.position !== undefined) input.sortOrder = patch.position;
   if (patch.projectId !== undefined) input.projectId = patch.projectId;
+  if (patch.cycleId !== undefined) input.cycleId = patch.cycleId;
   if (patch.assigneeUserId !== undefined) input.assigneeId = patch.assigneeUserId;
   if (patch.delegateUserId !== undefined) input.delegateId = patch.delegateUserId;
   if (patch.title !== undefined) input.title = patch.title;
@@ -514,6 +515,7 @@ function toCreateInput(teamKey: string, input: NewIssueInput) {
   if (input.dueDate !== undefined) out.dueDate = input.dueDate;
   if (input.labelIds !== undefined) out.labelIds = input.labelIds;
   if (input.projectId !== undefined) out.projectId = input.projectId;
+  if (input.cycleId !== undefined) out.cycleId = input.cycleId;
   if (input.assigneeUserId !== undefined) out.assigneeId = input.assigneeUserId;
   if (input.delegateUserId) out.delegateId = input.delegateUserId;
   return out;

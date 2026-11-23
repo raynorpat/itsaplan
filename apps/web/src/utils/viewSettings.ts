@@ -9,7 +9,8 @@ import { SORT_FIELDS, type Sort, type WorkItemsView } from '@/utils/viewTypes';
 // Field the Team columns / Table sections group by. 'none' is a single flat
 // list (Table only). Team always groups by something. `subgroup` (below) adds a
 // second level: Team swimlanes / Table sub-sections, and may be 'none'.
-export type GroupField = 'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'project';
+export type GroupField =
+  'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'project' | 'cycle';
 
 // Issue properties that can be shown on a Team card or as a Table column.
 // 'id' is the issue identifier; 'status' the state; the rest map to issue
@@ -21,6 +22,7 @@ export type DisplayProperty =
   | 'assignee'
   | 'delegate'
   | 'project'
+  | 'cycle'
   | 'labels'
   | 'dueDate'
   | 'created'
@@ -38,6 +40,7 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'assignee', label: 'Assignee' },
   { value: 'delegate', label: 'Delegate' },
   { value: 'project', label: 'Project' },
+  { value: 'cycle', label: 'Cycle' },
   { value: 'labels', label: 'Labels' },
   { value: 'dueDate', label: 'Due date' },
   { value: 'created', label: 'Created' },
@@ -124,6 +127,7 @@ const GROUP_FIELDS: GroupField[] = [
   'delegate',
   'priority',
   'project',
+  'cycle',
 ];
 const DISPLAY_VALUES = DISPLAY_PROPERTIES.map((p) => p.value);
 const TIMELINE_SCALES: TimelineScale[] = ['week', 'month', 'quarter'];

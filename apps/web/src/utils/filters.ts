@@ -13,6 +13,7 @@ export type BuiltinFilterField =
   | 'assignee' // assignee id, or null for "no assignee"
   | 'delegate' // delegate agent id, or null for "no delegate"
   | 'priority' // priority string, or null for "no priority"
+  | 'cycle' // cycle id, or null for "no cycle"
   | 'labels' // label ids (a issue has any/none of the chosen ones)
   | 'subscribers' // subscriber user ids, or 'me' for the viewer
   | 'dueDate'
@@ -92,6 +93,8 @@ function builtinSetValues(
     case 'priority':
       // null is "no priority" (0).
       return [issue.priority || null];
+    case 'cycle':
+      return [issue.cycleId];
     case 'labels':
       return issue.labelIds.length ? issue.labelIds : [null];
     default:
@@ -125,6 +128,7 @@ const SET_FIELDS: BuiltinFilterField[] = [
   'assignee',
   'delegate',
   'priority',
+  'cycle',
   'labels',
   'subscribers',
 ];

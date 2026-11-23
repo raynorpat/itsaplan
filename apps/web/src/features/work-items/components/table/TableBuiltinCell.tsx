@@ -1,6 +1,7 @@
 import { CalendarClock } from 'lucide-react';
 import { type Issue } from '@/lib/api';
 import { type Maps } from '@/utils/team';
+import { cycleLabel } from '@/utils/cycles';
 import { formatShortDate, isDueOverdue } from '@/utils/dates';
 import {
   AssigneeAvatar,
@@ -72,6 +73,14 @@ export function TableBuiltinCell({
       return (
         <div className="truncate text-xs text-muted-foreground">{issue.project?.title ?? DASH}</div>
       );
+    case 'cycle': {
+      const cycle = issue.cycleId != null ? maps.cycleById.get(issue.cycleId) : undefined;
+      return (
+        <div className="truncate text-xs text-muted-foreground">
+          {cycle ? cycleLabel(cycle) : DASH}
+        </div>
+      );
+    }
     case 'labels':
       return (
         <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">

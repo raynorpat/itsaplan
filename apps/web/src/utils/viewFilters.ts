@@ -52,7 +52,7 @@ function conditionToElement(c: FilterCondition): Element | null {
     return null;
   }
 
-  if (field === 'assignee' || field === 'delegate') {
+  if (field === 'assignee' || field === 'delegate' || field === 'cycle') {
     if (op === 'is_set') return { [field]: { null: false } };
     if (op === 'is_not_set') return { [field]: { null: true } };
     if (op === 'is') {
@@ -166,7 +166,8 @@ type Partial = Omit<FilterCondition, 'id'>;
 const isNullCheck = (v: unknown, expected: boolean) =>
   isObject(v) && only(v)?.[0] === 'null' && v.null === expected;
 
-function userElement(field: 'assignee' | 'delegate', value: unknown): Partial | null {
+// An optional reference (assignee, delegate, cycle): by id, or set / not set.
+function refElement(field: 'assignee' | 'delegate' | 'cycle', value: unknown): Partial | null {
   if (!isObject(value)) return null;
   if (isNullCheck(value, true)) return { field, op: 'is_not_set', values: [] };
   if (isNullCheck(value, false)) return { field, op: 'is_set', values: [] };
@@ -262,7 +263,7 @@ function elementToCondition(element: unknown): Partial | null {
     return null;
   }
 
-  if (key === 'assignee' || key === 'delegate') return userElement(key, value);
+  if (key === 'assignee' || key === 'delegate' || key === 'cycle') return refElement(key, value);
 
   if (key === 'priority' && isObject(value)) {
     const inner = only(value);

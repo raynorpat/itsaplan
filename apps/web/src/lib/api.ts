@@ -131,7 +131,7 @@ export interface Issue {
   // Parent issue id (sub-issues), or null for a top-level issue.
   parentId: string | null;
   projectMilestoneId: string | null;
-  // The team cycle the issue belongs to (managed over the API for now).
+  // The team cycle the issue belongs to; its details are in TeamScaffold.teamCycles.
   cycleId: string | null;
   creatorUserId: string | null;
   title: string;
@@ -449,9 +449,22 @@ export interface TeamCycleSettings {
   autoAssignCompleted: boolean;
 }
 
+// A team cycle (Linear's Cycle) as the board's pickers, groups and badges use it.
+// name is null for an unnamed cycle (shown as "Cycle N").
+export interface Cycle {
+  id: string;
+  number: number;
+  name: string | null;
+  startsAt: string;
+  endsAt: string;
+  completedAt: string | null;
+}
+
 export interface TeamScaffold {
   team: Team;
   cycles: TeamCycleSettings;
+  // The team's cycles (not archived), for the cycle picker, filter and groups.
+  teamCycles: Cycle[];
   states: Column[];
   labels: Label[];
   labelGroups: LabelGroup[];
@@ -472,6 +485,7 @@ export type IssueDetail = Issue;
 
 export interface NewIssueInput {
   projectId?: string | null;
+  cycleId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   stateId: string;
@@ -487,6 +501,7 @@ export interface NewIssueInput {
 export interface BulkIssuePatch {
   stateId?: string;
   projectId?: string | null;
+  cycleId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   priority?: number;
@@ -497,6 +512,7 @@ export interface IssuePatch {
   stateId?: string;
   position?: number;
   projectId?: string | null;
+  cycleId?: string | null;
   assigneeUserId?: string | null;
   delegateUserId?: string | null;
   title?: string;

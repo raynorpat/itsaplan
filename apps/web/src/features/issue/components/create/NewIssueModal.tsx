@@ -13,6 +13,8 @@ import DatePill from '@/components/common/fields/DatePill';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
+import CycleSelect from '@/components/common/fields/CycleSelect';
+import { cyclesVisible } from '@/utils/cycles';
 import { Button } from '@/components/ui/button';
 import ProjectSelect from '../fields/ProjectSelect';
 
@@ -31,6 +33,9 @@ export default function NewIssueModal({
   const [description, setDescription] = useState('');
   const [stateId, setColumnId] = useState(defaults.stateId);
   const [projectId, setProjectId] = useState<string | null>(defaults.projectId ?? null);
+  // Preset when the issue is created from a cycle's page or a cycle group.
+  const [cycleId, setCycleId] = useState<string | null>(defaults.cycleId ?? null);
+  const showCycle = cyclesVisible(team);
   const { data: session } = useSession();
   // Assignee defaults to the creating user unless the caller set one explicitly
   // (defaults.assigneeUserId is null for the "No assignee" board group).
@@ -115,6 +120,8 @@ export default function NewIssueModal({
           description: description.trim() || undefined,
           stateId,
           projectId,
+          // Left out when unset, so the team's auto-add rules still apply.
+          cycleId: showCycle && cycleId ? cycleId : undefined,
           assigneeUserId,
           priority: priority,
           dueDate: dueDate || null,
@@ -181,6 +188,10 @@ export default function NewIssueModal({
           <PrioritySelect value={priority} onChange={setPriority} />
 
           <ProjectSelect teamKey={team.team.key} value={projectId} onChange={setProjectId} />
+
+          {showCycle && (
+            <CycleSelect cycles={team.teamCycles} value={cycleId} onChange={setCycleId} />
+          )}
 
           {team.labels.length > 0 && (
             <LabelsSelect

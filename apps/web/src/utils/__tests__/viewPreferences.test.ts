@@ -31,6 +31,7 @@ describe('view preferences', () => {
       fieldPriority: false,
       fieldAssignee: false,
       fieldProject: false,
+      fieldCycle: false,
       fieldLabels: true,
       fieldDueDate: false,
       fieldDateCreated: false,
@@ -54,5 +55,13 @@ describe('view preferences', () => {
 
   it('gives defaults for missing preferences', () => {
     assert.deepEqual(preferencesToDisplay(null), normalizeSavedDisplay({}));
+  });
+
+  it('saves grouping by cycle and the cycle property', () => {
+    const byCycle = { ...display, group: 'cycle' as const, properties: ['cycle' as const] };
+    const prefs = displayToPreferences(byCycle);
+    assert.equal(prefs.issueGrouping, 'cycle');
+    assert.equal(prefs.fieldCycle, true);
+    assert.deepEqual(preferencesToDisplay(prefs), byCycle);
   });
 });

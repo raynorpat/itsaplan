@@ -8,6 +8,8 @@ import ReadOnlyPill from '@/components/common/fields/ReadOnlyPill';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
+import CycleSelect from '@/components/common/fields/CycleSelect';
+import { cyclesVisible } from '@/utils/cycles';
 import ProjectSelect from '../fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 
@@ -22,7 +24,7 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
 }
 
 // The Properties grid of the issue detail: status, assignee, priority, project,
-// dates and labels, each editable inline. In the page layout it is a bordered card; in the panel a plain block.
+// cycle, dates and labels, each editable inline. In the page layout it is a bordered card; in the panel a plain block.
 export default function IssueProperties({
   team,
   issue,
@@ -94,6 +96,17 @@ export default function IssueProperties({
       {!readOnly && issue.project && issue.projectMilestoneId && (
         <PropertyRow label="Milestone">
           <IssueMilestoneName projectId={issue.project.id} milestoneId={issue.projectMilestoneId} />
+        </PropertyRow>
+      )}
+
+      {cyclesVisible(team) && (
+        <PropertyRow label="Cycle">
+          <CycleSelect
+            cycles={team.teamCycles}
+            value={issue.cycleId}
+            onChange={(id) => onPatch({ cycleId: id })}
+            readOnly={readOnly}
+          />
         </PropertyRow>
       )}
 

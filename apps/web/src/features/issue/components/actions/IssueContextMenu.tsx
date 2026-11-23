@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Check,
   CircleDashed,
+  RefreshCcw,
   ClipboardCopy,
   PanelRight,
   SquareArrowOutUpRight,
@@ -20,6 +21,7 @@ import type { TeamDetail, Issue, IssuePatch } from '@/lib/api';
 import { useArchiveIssue, useRestoreIssue, useUpdateIssueDetail } from '@/services/issues.service';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
+import { assignableCycles, cycleLabel, cyclesVisible } from '@/utils/cycles';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ShellCtx } from '@/context/shellContext';
 import { DeleteIssueDialog } from './IssueActions';
@@ -108,6 +110,7 @@ export default function IssueContextMenu({
     PRIORITY_FIELDS.find((p) => p.value === issue.priority) ?? PRIORITY_FIELDS[0];
   const members = team.assignees;
   const projects = projectsQuery.data?.items ?? [];
+  const cycleChoices = assignableCycles(team.teamCycles, new Date());
 
   return (
     <>
@@ -218,6 +221,29 @@ export default function IssueContextMenu({
                   ))}
                 </ContextMenuSubContent>
               </ContextMenuSub>
+
+              {cyclesVisible(team) && (
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger>
+                    <RefreshCcw />
+                    Cycle
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-56">
+                    <ContextMenuItem onSelect={() => patch({ cycleId: null })}>
+                      <CircleDashed />
+                      <span className="flex-1">No cycle</span>
+                      <SelectedCheck selected={issue.cycleId == null} />
+                    </ContextMenuItem>
+                    {cycleChoices.map((cycle) => (
+                      <ContextMenuItem key={cycle.id} onSelect={() => patch({ cycleId: cycle.id })}>
+                        <RefreshCcw />
+                        <span className="flex-1 truncate">{cycleLabel(cycle)}</span>
+                        <SelectedCheck selected={cycle.id === issue.cycleId} />
+                      </ContextMenuItem>
+                    ))}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+              )}
 
               <ContextMenuSub>
                 <ContextMenuSubTrigger>

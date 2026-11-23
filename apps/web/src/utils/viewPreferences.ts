@@ -26,6 +26,7 @@ const GROUPING: Record<GroupField, string> = {
   delegate: 'delegate',
   priority: 'priority',
   project: 'project',
+  cycle: 'cycle',
 };
 
 const ORDERING: Record<SortField, string> = {
@@ -48,6 +49,7 @@ const FIELD: Partial<Record<PropertyKey, string>> = {
   priority: 'fieldPriority',
   assignee: 'fieldAssignee',
   project: 'fieldProject',
+  cycle: 'fieldCycle',
   labels: 'fieldLabels',
   dueDate: 'fieldDueDate',
   created: 'fieldDateCreated',
@@ -74,6 +76,7 @@ export interface ViewPreferenceValues {
   fieldPriority?: boolean | null;
   fieldAssignee?: boolean | null;
   fieldProject?: boolean | null;
+  fieldCycle?: boolean | null;
   fieldLabels?: boolean | null;
   fieldDueDate?: boolean | null;
   fieldDateCreated?: boolean | null;

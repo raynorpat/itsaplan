@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type {
   Assignee,
   Column,
+  Cycle,
   Issue,
   Label,
   LabelGroup,
@@ -43,6 +44,16 @@ const ScaffoldQuery = graphql(`
       upcomingCycleCount
       cycleIssueAutoAssignStarted
       cycleIssueAutoAssignCompleted
+      cycles(first: 250) {
+        nodes {
+          id
+          number
+          name
+          startsAt
+          endsAt
+          completedAt
+        }
+      }
       states(first: 250) {
         nodes {
           id
@@ -225,7 +236,24 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     autoAssignStarted: team.cycleIssueAutoAssignStarted,
     autoAssignCompleted: team.cycleIssueAutoAssignCompleted,
   };
-  return { team: teamRow, cycles, states, labels, labelGroups, assignees, viewer: viewerAccess };
+  const teamCycles: Cycle[] = team.cycles.nodes.map((c) => ({
+    id: c.id,
+    number: c.number,
+    name: c.name ?? null,
+    startsAt: c.startsAt,
+    endsAt: c.endsAt,
+    completedAt: c.completedAt ?? null,
+  }));
+  return {
+    team: teamRow,
+    cycles,
+    teamCycles,
+    states,
+    labels,
+    labelGroups,
+    assignees,
+    viewer: viewerAccess,
+  };
 }
 
 // The board scaffold (states, labels, members, the viewer's access) for a team.
@@ -235,6 +263,13 @@ export function useTeamScaffold(teamKey: string | null) {
     queryFn: () => fetchTeamScaffold(teamKey!),
     enabled: teamKey != null,
   });
+}
+
+const NO_CYCLES: Cycle[] = [];
+
+// The team's cycles, from the scaffold. Empty while it loads.
+export function useTeamCycles(teamKey: string | null): Cycle[] {
+  return useTeamScaffold(teamKey).data?.teamCycles ?? NO_CYCLES;
 }
 
 const teamFilter = (teamKey: string) => ({ team: { key: { eq: teamKey } } });

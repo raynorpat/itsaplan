@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
 import { applyFilters } from '@/utils/filters';
+import { cyclesVisible } from '@/utils/cycles';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
 import KanbanBoard from '@/features/work-items/components/kanban/KanbanBoard';
@@ -60,6 +61,7 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
           onViewChange={board.changeView}
           settings={board.settings}
           onSettingsChange={board.changeSettings}
+          cyclesOn={cyclesVisible(team)}
         />
       </div>
       <div className="relative flex-1 overflow-hidden">{view}</div>

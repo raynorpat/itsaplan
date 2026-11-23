@@ -1,6 +1,7 @@
-import { CalendarClock, Target } from 'lucide-react';
+import { CalendarClock, RefreshCcw, Target } from 'lucide-react';
 import { type Issue } from '@/lib/api';
 import { type Maps } from '@/utils/team';
+import { cycleLabel } from '@/utils/cycles';
 import { formatShortDate, isDueOverdue } from '@/utils/dates';
 import type { DisplayProperty, PropertyKey } from '@/utils/viewSettings';
 import {
@@ -30,10 +31,12 @@ export function IssueCardBody({
   const delegate =
     issue.delegateUserId != null ? maps.assigneeById.get(issue.delegateUserId) : undefined;
   const project = issue.project ?? undefined;
+  const cycle = issue.cycleId != null ? maps.cycleById.get(issue.cycleId) : undefined;
   const column = maps.columnById.get(issue.stateId);
   const metaShown =
     (has('dueDate') && issue.dueDate) ||
     (has('project') && project) ||
+    (has('cycle') && cycle) ||
     (has('labels') && issue.labelIds.length > 0);
   const footerShown =
     has('created') ||
@@ -81,6 +84,15 @@ export function IssueCardBody({
             >
               <Target className="size-2.5 shrink-0" />
               <span className="truncate">{project.title}</span>
+            </Badge>
+          )}
+          {has('cycle') && cycle && (
+            <Badge
+              variant="outline"
+              className="max-w-full rounded-full px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            >
+              <RefreshCcw className="size-2.5 shrink-0" />
+              <span className="truncate">{cycleLabel(cycle)}</span>
             </Badge>
           )}
           {has('labels') &&

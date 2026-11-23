@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
+import { cyclesVisible } from '@/utils/cycles';
 import { type ViewSettings } from '@/utils/viewSettings';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,7 @@ export default function WorkItemsPage() {
     onViewChange: editor.changeView,
     settings,
     onSettingsChange: changeSettings,
+    cyclesOn: cyclesVisible(team),
   };
 
   return (

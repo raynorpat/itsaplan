@@ -6,6 +6,7 @@ import type {
   Assignee,
   TeamDetail,
   Column,
+  Cycle,
   Label,
   StateType,
   Issue,
@@ -13,6 +14,7 @@ import type {
   NewIssueInput,
 } from '@/lib/api';
 import { PRIORITIES } from '@/utils/fieldOptions';
+import { cycleLabel, cycleOptions, cyclesVisible, sortedCycles } from '@/utils/cycles';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import type { Sort } from '@/utils/viewTypes';
 
@@ -20,7 +22,7 @@ export type { Sort, SortField } from '@/utils/viewTypes';
 
 export type NewIssueDefaults = Pick<
   NewIssueInput,
-  'stateId' | 'projectId' | 'assigneeUserId' | 'delegateUserId' | 'priority'
+  'stateId' | 'projectId' | 'cycleId' | 'assigneeUserId' | 'delegateUserId' | 'priority'
 >;
 
 // Fallback dot/bar color for a group or issue whose status has no color.
@@ -50,6 +52,8 @@ export interface Maps {
   labelById: Map<string, Label>;
   assigneeById: Map<string, Assignee>;
   columnById: Map<string, Column>;
+  // Empty while the team's cycles are off, so no cycle badge or cell shows.
+  cycleById: Map<string, Cycle>;
 }
 
 export function buildMaps(team: TeamDetail): Maps {
@@ -57,6 +61,7 @@ export function buildMaps(team: TeamDetail): Maps {
     labelById: new Map(team.labels.map((l) => [l.id, l])),
     assigneeById: new Map(team.assignees.map((a) => [a.userId, a])),
     columnById: new Map(team.states.map((c) => [c.id, c])),
+    cycleById: new Map(cyclesVisible(team) ? team.teamCycles.map((c) => [c.id, c]) : []),
   };
 }
 
@@ -206,6 +211,18 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
         .map(([id, title]) => ({ key: `i${id}`, name: title, assign: { projectId: id } }));
       return [...options, { key: 'i-none', name: 'No project', assign: { projectId: null } }];
     }
+    case 'cycle': {
+      // The current and upcoming cycles always get a group; a past cycle only while
+      // a loaded issue is still in it.
+      const now = new Date();
+      const { current, upcoming } = cycleOptions(team.teamCycles, now);
+      const shown = new Set([current?.id, ...upcoming.map((c) => c.id)]);
+      for (const issue of team.issues) if (issue.cycleId) shown.add(issue.cycleId);
+      const options = sortedCycles(team.teamCycles, now)
+        .filter((c) => shown.has(c.id))
+        .map((c) => ({ key: `y${c.id}`, name: cycleLabel(c), assign: { cycleId: c.id } }));
+      return [...options, { key: 'y-none', name: 'No cycle', assign: { cycleId: null } }];
+    }
     case 'none':
       return [{ key: 'all', name: '', assign: null }];
   }
@@ -225,6 +242,8 @@ export function groupKeyOf(issue: Issue, group: GroupField): string {
       return issue.priority ? `p${issue.priority}` : 'p-none';
     case 'project':
       return issue.project != null ? `i${issue.project.id}` : 'i-none';
+    case 'cycle':
+      return issue.cycleId != null ? `y${issue.cycleId}` : 'y-none';
     case 'none':
       return 'all';
   }

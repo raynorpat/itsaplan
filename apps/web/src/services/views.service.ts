@@ -45,6 +45,7 @@ const CustomViewFields = graphql(`
       fieldPriority
       fieldAssignee
       fieldProject
+      fieldCycle
       fieldLabels
       fieldDueDate
       fieldDateCreated

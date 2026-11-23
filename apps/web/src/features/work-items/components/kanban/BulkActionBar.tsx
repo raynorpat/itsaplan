@@ -2,11 +2,12 @@
 import { applicableLabels } from '@/utils/labels';
 
 import { useState } from 'react';
-import { Archive, CircleDashed, Tag, Target, Trash2, User, X } from 'lucide-react';
+import { Archive, CircleDashed, RefreshCcw, Tag, Target, Trash2, User, X } from 'lucide-react';
 import { type TeamDetail } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProjectsQuery } from '@/services/projects.service';
 import { LINKABLE_STATUSES } from '@/utils/projectMeta';
+import { assignableCycles, cycleLabel, cyclesVisible } from '@/utils/cycles';
 import { cn } from '@/lib/utils';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
@@ -121,6 +122,24 @@ export function BulkActionBar({ team }: { team: TeamDetail }) {
                     >
                       <Target />
                       <span className="flex-1 truncate">{project.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </BarMenu>
+              )}
+
+              {cyclesVisible(team) && (
+                <BarMenu icon={<RefreshCcw className="size-4" />} label="Cycle" disabled={disabled}>
+                  <DropdownMenuItem onSelect={() => void bulk.patch(ids, { cycleId: null })}>
+                    <CircleDashed />
+                    <span className="flex-1">No cycle</span>
+                  </DropdownMenuItem>
+                  {assignableCycles(team.teamCycles, new Date()).map((cycle) => (
+                    <DropdownMenuItem
+                      key={cycle.id}
+                      onSelect={() => void bulk.patch(ids, { cycleId: cycle.id })}
+                    >
+                      <RefreshCcw />
+                      <span className="flex-1 truncate">{cycleLabel(cycle)}</span>
                     </DropdownMenuItem>
                   ))}
                 </BarMenu>

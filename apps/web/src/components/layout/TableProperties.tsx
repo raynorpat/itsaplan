@@ -11,20 +11,23 @@ import SortablePropertyChip from '@/components/layout/SortablePropertyChip';
 // Clicking an enabled chip removes it; clicking a disabled one adds it (to the
 // end). onChange receives the new ordered `properties` list.
 export default function TableProperties({
+  available,
   properties,
   onChange,
 }: {
+  // The properties offered (DISPLAY_PROPERTIES, without the cycle while cycles are off).
+  available: typeof DISPLAY_PROPERTIES;
   properties: PropertyKey[];
   onChange: (properties: PropertyKey[]) => void;
 }) {
   const sensors = useStripSortSensors();
-  const builtinLabels = new Map(DISPLAY_PROPERTIES.map((p) => [p.value as PropertyKey, p.label]));
+  const builtinLabels = new Map(available.map((p) => [p.value as PropertyKey, p.label]));
   const labelFor = (key: PropertyKey): string | null => builtinLabels.get(key) ?? null;
 
   // Enabled keys in display order, dropping any unknown key.
   const enabled = properties.filter((k) => labelFor(k) != null);
   const enabledSet = new Set(properties);
-  const disabledBuiltins = DISPLAY_PROPERTIES.filter((p) => !enabledSet.has(p.value));
+  const disabledBuiltins = available.filter((p) => !enabledSet.has(p.value));
 
   const toggle = (key: PropertyKey) =>
     onChange(enabledSet.has(key) ? properties.filter((p) => p !== key) : [...properties, key]);

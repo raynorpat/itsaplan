@@ -11,6 +11,7 @@ export const COLUMN_META: Record<TableColumn, { label: string; width: string }> 
   assignee: { label: '', width: '56px' },
   delegate: { label: '', width: '56px' },
   project: { label: 'Project', width: 'minmax(140px,220px)' },
+  cycle: { label: 'Cycle', width: 'minmax(96px,140px)' },
   labels: { label: 'Labels', width: 'minmax(120px,220px)' },
   dueDate: { label: 'Due', width: '96px' },
   created: { label: 'Created', width: '96px' },
