@@ -4,6 +4,8 @@ import IssueAttachmentsPanel from './IssueAttachmentsPanel';
 import IssueRelations from '../relations/IssueRelations';
 import { usePermissions } from '@/hooks/usePermissions';
 import IssueReactions from '../reactions/IssueReactions';
+import IssueSubscribers from '../subscribers/IssueSubscribers';
+import IssueDocuments from '../documents/IssueDocuments';
 import IssueActivityFeed from './IssueActivityFeed';
 import IssueStatusTimeline from './IssueStatusTimeline';
 import IssueMarkdownEditor from '../editor/IssueMarkdownEditor';
@@ -48,6 +50,11 @@ export default function IssueDetailContent({
     return <div className="py-6 text-sm text-muted-foreground">Loading…</div>;
   }
 
+  // A feed entry stores the author's name, not their picture, so the uploaded avatar
+  // comes from the team's candidate list by actor id. An author who is no longer a
+  // member falls back to the initials circle.
+  const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
+
   const isPage = layout === 'page';
   // Both the full page and the split view show Properties in a right sidebar.
   const hasSidebar = layout !== 'panel';
@@ -86,9 +93,18 @@ export default function IssueDetailContent({
 
       <IssueReactions issueId={issue.id} />
 
+      <IssueSubscribers issueId={issue.id} />
+
       <IssueRelations issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
 
       <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
+
+      <IssueDocuments
+        issueId={issue.id}
+        canEdit={canEdit}
+        assignees={team.assignees}
+        imageByUserId={imageByUserId}
+      />
     </>
   );
 
@@ -105,11 +121,6 @@ export default function IssueDetailContent({
   const actions = (
     <IssueActionsBar team={team} issue={issue} hasSidebar={hasSidebar} onDeleted={onDeleted} />
   );
-
-  // A feed entry stores the author's name, not their picture, so the uploaded avatar
-  // comes from the team's candidate list by actor id. An author who is no longer a
-  // member falls back to the initials circle.
-  const imageByUserId = new Map(team.assignees.map((a) => [a.userId, a.image]));
 
   const activity = (
     <>

@@ -68,7 +68,7 @@ export default function CommentThread({
       {replying && (
         <div className="ml-10">
           <CommentComposer
-            issueId={ctx.issueId}
+            target={ctx.target}
             assignees={ctx.assignees}
             authorName={ctx.authorName}
             authorImage={ctx.authorImage}

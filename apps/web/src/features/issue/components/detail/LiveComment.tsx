@@ -7,12 +7,13 @@ import { canDeleteComment, canEditComment, canResolveThread } from '@/utils/comm
 import { useDeleteComment, useSetThreadResolved } from '../../services/comments.service';
 import { useToggleReaction } from '../../services/reactions.service';
 import { type CommentContext } from '../../utils/commentContext';
+import { commentTargetKey } from '@/utils/commentTarget';
 import ReactionBar from '../reactions/ReactionBar';
 import CommentActionsMenu from './CommentActionsMenu';
 import CommentComposer from './CommentComposer';
 import CommentItem from './CommentItem';
 
-// A comment in the issue's live feed: the plain CommentItem plus the viewer's
+// A comment in a live comment list (an issue's feed or a document's comments): the plain CommentItem plus the viewer's
 // controls (edit in place, delete after a confirmation, resolve the thread on a
 // root comment), its reactions, and a Reply button that opens the thread's reply
 // box. Controls the API would refuse are not shown.
@@ -35,7 +36,7 @@ export default function LiveComment({
   const deleteComment = useDeleteComment();
   const setResolved = useSetThreadResolved();
   const toggle = useToggleReaction();
-  const { issueId, viewerId } = ctx;
+  const { target, viewerId } = ctx;
 
   return (
     <>
@@ -48,7 +49,7 @@ export default function LiveComment({
             onEdit={canEditComment(viewerId, item) ? () => setEditing(true) : undefined}
             onResolve={
               canResolveThread(viewerId, item)
-                ? () => setResolved.mutate({ issueId, id: item.id, resolved: !resolved })
+                ? () => setResolved.mutate({ target, id: item.id, resolved: !resolved })
                 : undefined
             }
             onDelete={
@@ -61,7 +62,7 @@ export default function LiveComment({
         editor={
           editing ? (
             <CommentComposer
-              issueId={issueId}
+              target={target}
               assignees={ctx.assignees}
               authorName={ctx.authorName}
               authorImage={ctx.authorImage}
@@ -77,7 +78,11 @@ export default function LiveComment({
                 reactions={item.reactions ?? []}
                 viewerId={viewerId}
                 onToggle={(emoji, mineId) =>
-                  toggle.mutate({ target: { issueId, commentId: item.id }, emoji, mineId })
+                  toggle.mutate({
+                    target: { commentId: item.id, refresh: commentTargetKey(target) },
+                    emoji,
+                    mineId,
+                  })
                 }
               />
               {viewerId && (
@@ -98,7 +103,7 @@ export default function LiveComment({
           title="Delete comment?"
           confirmLabel="Delete"
           onConfirm={async () => {
-            await deleteComment.mutateAsync({ issueId, id: item.id });
+            await deleteComment.mutateAsync({ target, id: item.id });
           }}
           onClose={() => setConfirmDelete(false)}
         >

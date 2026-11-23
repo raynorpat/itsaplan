@@ -28,6 +28,10 @@ export const qk = {
   // Resolving an issue by its team-scoped number (the identifier-based URL).
   issueBySeq: (teamKey: string, seq: number) => ['issueBySeq', teamKey, seq] as const,
   feed: (id: string) => ['feed', id] as const,
+  // A document's comments, and an issue's documents and subscribers.
+  documentComments: (id: string) => ['documentComments', id] as const,
+  issueDocuments: (id: string) => ['issueDocuments', id] as const,
+  issueSubscribers: (id: string) => ['issueSubscribers', id] as const,
   // The status stretches of the timeline view, and the entries of one stretch read
   // when it is opened. Both keyed under the feed, so every existing feed
   // invalidation refreshes them too.

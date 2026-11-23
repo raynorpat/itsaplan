@@ -7,6 +7,7 @@ import { type FeedItem, type TimelineSegment } from '@/lib/api';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { buildFeed, type FeedEntry } from '@/utils/feed';
+import { commentTargetInput, commentTargetKey, type CommentTarget } from '@/utils/commentTarget';
 
 // The most recent comments and history entries loaded with the issue. Connections
 // cap a page at 250.
@@ -221,51 +222,59 @@ export function useTimelineItemsQuery(issueId: string, ranges: TimelineRange[]) 
   return { isPending: feed.isPending, isError: feed.isError, items };
 }
 
-// A new comment, or a reply when parentId is set (the API stores a reply to a reply
-// under the thread's root).
+// A new comment on an issue or a document, or a reply when parentId is set (the API
+// stores a reply to a reply under the thread's root).
 export function useCreateComment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      issueId,
+      target,
       input,
     }: {
-      issueId: string;
+      target: CommentTarget;
       input: { body: string; parentId?: string | null };
     }) =>
       gqlRequest(CommentCreate, {
-        input: { issueId, body: input.body, parentId: input.parentId ?? undefined },
+        input: {
+          ...commentTargetInput(target),
+          body: input.body,
+          parentId: input.parentId ?? undefined,
+        },
       }),
-    onSuccess: (_data, { issueId }) => void qc.invalidateQueries({ queryKey: qk.feed(issueId) }),
+    onSuccess: (_data, { target }) =>
+      void qc.invalidateQueries({ queryKey: commentTargetKey(target) }),
   });
 }
 
-// Edit, delete, resolve and unresolve a comment of the issue's feed. Each refreshes
-// the feed once it lands.
-function useFeedCommentMutation<V extends { issueId: string }>(run: (vars: V) => Promise<unknown>) {
+// Edit, delete, resolve and unresolve a comment of an issue or a document. Each
+// refreshes the target's comments once it lands.
+function useTargetCommentMutation<V extends { target: CommentTarget }>(
+  run: (vars: V) => Promise<unknown>,
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: run,
-    onSettled: (_data, _error, { issueId }) =>
-      void qc.invalidateQueries({ queryKey: qk.feed(issueId) }),
+    onSettled: (_data, _error, { target }) =>
+      void qc.invalidateQueries({ queryKey: commentTargetKey(target) }),
   });
 }
 
 export function useUpdateComment() {
-  return useFeedCommentMutation(({ id, body }: { issueId: string; id: string; body: string }) =>
-    gqlRequest(CommentUpdate, { id, input: { body } }),
+  return useTargetCommentMutation(
+    ({ id, body }: { target: CommentTarget; id: string; body: string }) =>
+      gqlRequest(CommentUpdate, { id, input: { body } }),
   );
 }
 
 export function useDeleteComment() {
-  return useFeedCommentMutation(({ id }: { issueId: string; id: string }) =>
+  return useTargetCommentMutation(({ id }: { target: CommentTarget; id: string }) =>
     gqlRequest(CommentDelete, { id }),
   );
 }
 
 export function useSetThreadResolved() {
-  return useFeedCommentMutation(
-    ({ id, resolved }: { issueId: string; id: string; resolved: boolean }) =>
+  return useTargetCommentMutation(
+    ({ id, resolved }: { target: CommentTarget; id: string; resolved: boolean }) =>
       resolved ? gqlRequest(CommentResolve, { id }) : gqlRequest(CommentUnresolve, { id }),
   );
 }

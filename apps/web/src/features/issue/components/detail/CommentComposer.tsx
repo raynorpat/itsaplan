@@ -5,6 +5,7 @@ import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateComment, useUpdateComment } from '../../services/comments.service';
+import { type CommentTarget } from '@/utils/commentTarget';
 
 // The comment box: a plain markdown textarea with an @-mention menu. It posts a new
 // comment, a reply (`parentId`), or saves an edit (`editing`); a reply or an edit
@@ -21,7 +22,7 @@ interface MentionQuery {
 }
 
 export default function CommentComposer({
-  issueId,
+  target,
   assignees,
   authorName,
   authorImage,
@@ -29,7 +30,7 @@ export default function CommentComposer({
   editing,
   onDone,
 }: {
-  issueId: string;
+  target: CommentTarget;
   assignees: Assignee[];
   authorName: string;
   authorImage?: string | null;
@@ -93,8 +94,8 @@ export default function CommentComposer({
 
   async function post() {
     if (!body.trim()) return;
-    if (editing) await updateComment.mutateAsync({ issueId, id: editing.id, body: body.trim() });
-    else await createComment.mutateAsync({ issueId, input: { body: body.trim(), parentId } });
+    if (editing) await updateComment.mutateAsync({ target, id: editing.id, body: body.trim() });
+    else await createComment.mutateAsync({ target, input: { body: body.trim(), parentId } });
     setBody('');
     setMenu(null);
     onDone?.();
