@@ -69,6 +69,13 @@ export function protectedResourceMetadata(apiUrl: string) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mountOAuth(app: any): void {
   const apiUrl = process.env.API_URL!;
+  // The issuer follows the OAuth plugin's rule: https unless on a loopback host. An
+  // http API_URL elsewhere gets an https issuer that nothing answers, so OAuth and
+  // MCP sign-in do not work until API_URL is https.
+  if (new URL(apiUrl).protocol !== 'https:' && oauthIssuer(apiUrl).startsWith('https:'))
+    console.warn(
+      `[oauth] API_URL ${apiUrl} is not https: OAuth clients are sent to ${oauthIssuer(apiUrl)}. Serve the API over https for OAuth and MCP sign-in.`,
+    );
   const options = { parse: 'none', detail: { hide: true } } as const;
   app.get(
     '/oauth/authorize',

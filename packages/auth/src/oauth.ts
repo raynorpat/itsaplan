@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
+import { isLoopbackHost } from '@better-auth/core/utils/host';
+import { base64 } from '@better-auth/utils/base64';
 import {
   APP_ACTOR_SCOPE,
   activeInstallation,
@@ -62,12 +64,13 @@ export function oauthPages(appUrl: string) {
 const isAdminRole = (role: unknown) => role === 'owner' || role === 'admin';
 
 // The issuer, as the plugin writes it into authorization responses (`iss`, RFC 9207)
-// and as the API's discovery document states it: the API origin, https unless on a
-// loopback host, without a trailing slash.
+// and as the API's discovery document states it. This is the plugin's own rule
+// (validateIssuerUrl): the API origin, https unless on a loopback host (127/8, ::1,
+// localhost and *.localhost), without a trailing slash. Off loopback, OAuth therefore
+// needs an https API_URL (mountOAuth warns at startup).
 export function oauthIssuer(apiUrl: string): string {
   const url = new URL(apiUrl);
-  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !loopback) url.protocol = 'https:';
+  if (url.protocol !== 'https:' && !isLoopbackHost(url.host)) url.protocol = 'https:';
   url.search = '';
   url.hash = '';
   return url.toString().replace(/\/$/, '');
@@ -129,6 +132,9 @@ export const oauthPlugins = (appUrl: string, apiUrl: string) => [
 // plugin, which applies the same rule.
 const COOKIE_WRITES = new Set(['/oauth2/consent', '/oauth2/continue', '/oauth2/register']);
 
+// The endpoints that authenticate a client, with Basic credentials or in the body.
+const CLIENT_AUTH_PATHS = new Set(['/oauth2/token', '/oauth2/revoke', '/oauth2/introspect']);
+
 // The plugin's own client and consent management. Its rules (a client belongs to the
 // user who created it) are not the workspace's (any admin manages every application),
 // so applications and a user's authorizations are managed through
@@ -189,6 +195,8 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     await beforeConsent(ctx);
     return;
   }
+
+  if (CLIENT_AUTH_PATHS.has(ctx.path)) basicCredentials(ctx);
 
   if (ctx.path === '/oauth2/token') {
     const body = (ctx.body ?? {}) as Record<string, unknown>;
@@ -326,6 +334,8 @@ async function afterConsent(ctx: HookContext): Promise<void> {
 
 interface PendingAuthorization {
   userId?: string;
+  // Set when an install code is rewritten to the app user: who installed it.
+  installerId?: string;
   query?: { scope?: string; client_id?: string };
   [key: string]: unknown;
 }
@@ -367,12 +377,18 @@ async function beforeCodeExchange(body: Record<string, unknown>): Promise<void> 
   const clientId = pending.value.query?.client_id;
   const installation = clientId ? await activeInstallation(clientId) : null;
   if (!installation) throw tokenError('invalid_grant', 'The application is not installed');
-  if (pending.value.userId === installation.appUserId) return;
-  if (!(await isWorkspaceAdmin(pending.value.userId)))
+  // A code rewritten by an earlier attempt (that failed at the plugin before it used
+  // the code) is checked against the installer it recorded, on every attempt.
+  const rewritten = pending.value.userId === installation.appUserId;
+  const installerId = rewritten ? pending.value.installerId : pending.value.userId;
+  if (!(await isWorkspaceAdmin(installerId)))
     throw tokenError('invalid_grant', 'Only a workspace admin or owner can install an application');
+  if (rewritten) return;
   await db
     .update(schema.verification)
-    .set({ value: JSON.stringify({ ...pending.value, userId: installation.appUserId }) })
+    .set({
+      value: JSON.stringify({ ...pending.value, userId: installation.appUserId, installerId }),
+    })
     .where(eq(schema.verification.id, pending.id));
 }
 
@@ -396,20 +412,33 @@ async function beforeRefresh(body: Record<string, unknown>): Promise<void> {
   body.scope = [...new Set([...requested, ...kept])].join(' ');
 }
 
-// The client id of a token request: Basic credentials or the body. Malformed Basic
-// credentials are the client's error (invalid_client), never a server error.
-function requestClientId(ctx: HookContext, body: Record<string, unknown>): string | null {
-  const basic = ctx.headers?.get('authorization')?.match(/^Basic\s+(.+)$/i)?.[1];
-  if (basic) {
-    const decoded = Buffer.from(basic, 'base64').toString('utf8');
-    const colon = decoded.indexOf(':');
-    if (colon <= 0) throw tokenError('invalid_client', 'Malformed client credentials');
-    try {
-      return decodeURIComponent(decoded.slice(0, colon));
-    } catch {
-      throw tokenError('invalid_client', 'Malformed client credentials');
-    }
+// A request's Basic client credentials, read exactly as the plugin reads them
+// (basicToClientCredentials): only an `Authorization` header that starts with
+// `Basic ` (that case), base64-decoded with the same decoder, split at the first
+// colon, nothing URL-decoded. Any other header is not client authentication, and the
+// plugin reads the body instead. So the client the hooks check is always the client
+// the plugin authenticates. Malformed credentials are the client's error
+// (invalid_client), never a server error.
+function basicCredentials(ctx: HookContext): { clientId: string } | null {
+  const authorization = ctx.request?.headers.get('authorization') || null;
+  if (!authorization?.startsWith('Basic ')) return null;
+  let decoded: string;
+  try {
+    decoded = new TextDecoder().decode(base64.decode(authorization.replace('Basic ', '')));
+  } catch {
+    throw tokenError('invalid_client', 'Malformed client credentials');
   }
+  const separator = decoded.indexOf(':');
+  const clientId = separator === -1 ? '' : decoded.slice(0, separator);
+  const secret = separator === -1 ? '' : decoded.slice(separator + 1);
+  if (!clientId || !secret) throw tokenError('invalid_client', 'Malformed client credentials');
+  return { clientId };
+}
+
+// The client id of a token request, as the plugin determines it.
+function requestClientId(ctx: HookContext, body: Record<string, unknown>): string | null {
+  const basic = basicCredentials(ctx);
+  if (basic) return basic.clientId;
   return typeof body.client_id === 'string' ? body.client_id : null;
 }
 
@@ -439,6 +468,8 @@ async function afterToken(ctx: HookContext): Promise<unknown> {
   const response = await returnedJson(ctx);
   if (!response || typeof response.access_token !== 'string') return;
   const body = (ctx.body ?? {}) as Record<string, unknown>;
+  if (body.grant_type === 'client_credentials')
+    await assertIssuedTo(response.access_token, requestClientId(ctx, body));
   const next = { ...response };
   if (typeof next.scope === 'string')
     next.scope = next.scope
@@ -450,6 +481,22 @@ async function afterToken(ctx: HookContext): Promise<unknown> {
     if (refresh) next.refresh_token = refresh;
   }
   return ctx.json(next, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } });
+}
+
+// A client_credentials token must belong to the client whose installation and scopes
+// beforeClientCredentials checked. The two read the client the same way
+// (requestClientId), so this holds; if they ever disagree, the token is deleted and
+// the request refused.
+async function assertIssuedTo(accessToken: string, clientId: string | null): Promise<void> {
+  if (!accessToken.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) return;
+  const hashed = hashToken(accessToken.slice(OAUTH_ACCESS_TOKEN_PREFIX.length));
+  const [row] = await db
+    .select({ clientId: schema.oauthAccessToken.clientId })
+    .from(schema.oauthAccessToken)
+    .where(eq(schema.oauthAccessToken.token, hashed));
+  if (row && row.clientId === clientId) return;
+  await db.delete(schema.oauthAccessToken).where(eq(schema.oauthAccessToken.token, hashed));
+  throw tokenError('invalid_client', 'The client credentials do not match');
 }
 
 const REFRESH_TOKEN_LIFETIME_MS = 30 * 24 * 3600 * 1000;

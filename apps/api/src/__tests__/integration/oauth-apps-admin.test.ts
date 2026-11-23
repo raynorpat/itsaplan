@@ -491,7 +491,7 @@ describe('oauth application rules', () => {
 
   it('answers malformed Basic client credentials with invalid_client', async () => {
     const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
-    for (const basic of [btoa('%zz:secret'), btoa('no-colon')]) {
+    for (const basic of ['!!!!', btoa('no-colon')]) {
       const res = await app.handle(
         new Request('http://localhost/oauth/token', {
           method: 'POST',

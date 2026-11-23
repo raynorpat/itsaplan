@@ -149,13 +149,13 @@ export async function addTeamMember(
   owner: boolean,
   actor: AuthUser,
 ): Promise<void> {
-  await assertNotAppUser(actor.id, targetUserId);
   if (!(await canManageTeam(teamRow.id, actor.id))) {
     if (owner || teamRow.visibility === 'private')
       throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
     if (!(await isTeamMember(teamRow.id, actor.id)))
       throw new HttpError(403, 'Join the team before adding people to it');
   }
+  await assertNotAppUser(actor.id, targetUserId);
   const [target] = await db
     .select({ id: user.id, suspendedAt: user.suspendedAt })
     .from(user)

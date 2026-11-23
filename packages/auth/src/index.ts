@@ -497,9 +497,6 @@ export const auth = betterAuth({
     '/.well-known/openid-configuration',
     ...OAUTH_DISABLED_PATHS,
   ],
-  // Self-registration (MCP clients) needs no session, so it gets a tighter limit per
-  // address than better-auth's default. better-auth enables its limiter in production.
-  rateLimit: { customRules: { '/oauth2/register': { window: 60, max: 10 } } },
 
   advanced: {
     // Every id is a UUID, as in Linear's API. The columns are uuid in

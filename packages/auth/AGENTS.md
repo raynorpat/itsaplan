@@ -31,7 +31,10 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
 `/.well-known/oauth-authorization-server`) and forwards them to `/api/auth/oauth2/*`
 (`apps/api/src/oauth/routes.ts`). One issuer (`oauthIssuer(API_URL)`) is used in the
 API's discovery document and in the `iss` of authorization responses (the JWT
-plugin's `issuer`); the plugin's own discovery endpoints are disabled.
+plugin's `issuer`); the plugin's own discovery endpoints are disabled. The issuer
+follows the plugin's rule: https unless `API_URL` is on a loopback host (127/8, ::1,
+`localhost`, `*.localhost`). Off loopback, OAuth and MCP sign-in need an https
+`API_URL`; the API logs a warning at startup when it is not.
 
 - Scopes are Linear's (`OAUTH_SCOPES`). `oauthBeforeHook` accepts them comma-separated,
   defaults a missing scope to `read`, and adds the plugin's `offline_access` when the
@@ -59,8 +62,16 @@ plugin's `issuer`); the plugin's own discovery endpoints are disabled.
   registered scopes for a self-registered client.
 - Cookie-authenticated writes to the consent endpoints and to `/oauth2/register` must
   send an `Origin` from `trustedOrigins`, as the instance plugin's do. Registration
-  needs no session, so it has its own rate limit (10 a minute per address; better-auth
-  enables its limiter in production).
+  needs no session; the plugin limits it to 5 a minute per address (better-auth
+  enables its limiter in production). Rate limits are per client address, which
+  better-auth reads from the proxy's forwarded-IP header (`x-forwarded-for` by
+  default): behind a reverse proxy it must set that header, and without one every
+  client shares one limit.
+- Client credentials (`client_secret_basic` or in the body) are read exactly as the
+  plugin reads them (`basicCredentials`: a header starting `Basic `, base64, split at
+  the first colon), so the client the hooks check is the client the plugin
+  authenticates. Malformed Basic credentials on the token, revoke and introspect
+  endpoints answer `invalid_client`.
 - The authorize step keeps Linear's `prompt=consent` (and `none`) and drops the other
   OpenID prompt values (`login`, `select_account`, `create`).
 - The consent page is the web's `/oauth/consent`, the sign-in page `/login`.
@@ -92,12 +103,18 @@ plugin's `issuer`); the plugin's own discovery endpoints are disabled.
   rows (`reference_id` `app-install` / `personal`, set through the plugin's
   `postLogin.consentReferenceId`).
 - `client_credentials` needs the grant on the application and an install; it gives an
-  app-user token within the install's scopes.
+  app-user token within the install's scopes. The issued token must belong to the
+  client whose install was checked, or it is deleted and the request refused.
+- A code of the install is checked against its installer on every exchange attempt;
+  a code rewritten by an attempt that failed at the plugin records the installer.
 - An app user never signs in: `databaseHooks.session.create.before` refuses it and no
   magic link is issued for its address.
 - `POST /api/auth/instance/oauth-uninstall { clientId }` (admins and owners, Origin
-  rule) deletes every token, refresh token, consent and pending code of the
-  application, suspends its app user and removes it from its teams.
+  rule) uninstalls the application for the whole workspace, as Linear does: it deletes
+  every token, refresh token, consent and pending code of the application, people's
+  own authorizations included, suspends its app user and removes it from its teams.
+  Installing it again deletes any app-user or `client_credentials` token left from
+  before, so a token written while it was uninstalled does not come back.
 
 ### Managing applications and authorizations
 

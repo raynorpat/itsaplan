@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '@repo/db';
 import * as schema from '@repo/db/schema';
-import { and, eq, inArray, isNull, like } from 'drizzle-orm';
+import { and, eq, inArray, isNull, like, or } from 'drizzle-orm';
 
 // Installing an OAuth application with `actor=app` (Linear's app actor). A workspace
 // admin or owner installs it at the consent step, choosing the teams it may use; the
@@ -100,7 +100,11 @@ export async function installApplication(input: {
     const name = client.name?.trim() || 'Application';
 
     const [existing] = await tx
-      .select({ id: schema.oauthInstallation.id, appUserId: schema.oauthInstallation.appUserId })
+      .select({
+        id: schema.oauthInstallation.id,
+        appUserId: schema.oauthInstallation.appUserId,
+        uninstalledAt: schema.oauthInstallation.uninstalledAt,
+      })
       .from(schema.oauthInstallation)
       .where(eq(schema.oauthInstallation.clientId, input.clientId))
       .for('update');
@@ -108,6 +112,21 @@ export async function installApplication(input: {
     let appUserId: string;
     if (existing) {
       appUserId = existing.appUserId;
+      // Installing again after an uninstall starts with no app tokens. A token the
+      // plugin wrote after the uninstall deleted the others (an exchange whose checks
+      // passed just before it) is refused while uninstalled and must not come back
+      // with the new install. The new install's own tokens are issued after this.
+      if (existing.uninstalledAt) {
+        const appTokens = (
+          table: typeof schema.oauthAccessToken | typeof schema.oauthRefreshToken,
+        ) =>
+          and(
+            eq(table.clientId, input.clientId),
+            or(eq(table.userId, appUserId), isNull(table.userId)),
+          );
+        await tx.delete(schema.oauthAccessToken).where(appTokens(schema.oauthAccessToken));
+        await tx.delete(schema.oauthRefreshToken).where(appTokens(schema.oauthRefreshToken));
+      }
       await tx
         .update(schema.user)
         .set({ name, image: client.icon ?? null, suspendedAt: null })

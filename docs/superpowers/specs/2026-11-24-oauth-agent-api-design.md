@@ -107,8 +107,10 @@ pointed at a self-hosted server; they are out of reach and not a goal.
   icon). Writes made with a user token (`actor=user`) show the user only; recording the
   app on every written entity ("User via App") and the `createAsUser` /
   `displayIconUrl` inputs are not supported in this project (builder's call).
-- Uninstalling revokes the app's tokens and deactivates the app user; its past
-  comments and history stay.
+- Uninstalling removes the application from the workspace, as in Linear: it revokes
+  every token of the application, including the authorizations people gave it to
+  act as themselves, and deactivates the app user; its past comments and history
+  stay.
 - Team access of an app user, as in Linear: the installing admin selects teams at
   install time (default: all public teams). The app user gets its own workspace role,
   `app`, which sees and works only in its selected teams (stored as team membership
