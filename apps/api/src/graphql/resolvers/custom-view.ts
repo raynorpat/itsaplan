@@ -1,4 +1,4 @@
-import { db, issue, teamView } from '@repo/db';
+import { db, issue, team, teamView } from '@repo/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { HttpError } from '../../shared/lib';
@@ -26,7 +26,7 @@ import { issueFilterSql } from '../issue-filter';
 import { getOrganization } from './organization';
 import { listIssues, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
-import { findTeam, toTeam } from './team';
+import { findTeam, teamFilter, toTeam } from './team';
 
 // Linear's CustomView over the saved team views, and ViewPreferences for their
 // layout. A shared view is visible when its team is (project 2 rules), and anyone who
@@ -57,7 +57,14 @@ const customViewFilter: FieldHandlers = {
   updatedAt: (v, p) => compare(teamView.updatedAt, v, p),
   shared: (v, p) => compare(teamView.shared, v, p),
   creator: (v, p) => refFilter(teamView.creatorUserId, v, p),
-  team: (v, p) => refFilter(teamView.teamId, v, p),
+  team: (v, p) =>
+    inArray(
+      teamView.teamId,
+      db
+        .select({ id: team.id })
+        .from(team)
+        .where(filterSql(v, teamFilter, p)),
+    ),
 };
 
 // A view the viewer can see, by id or slug, or ENTITY_NOT_FOUND: its team is visible,

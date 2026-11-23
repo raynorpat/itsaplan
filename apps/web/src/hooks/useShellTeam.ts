@@ -1,9 +1,18 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useBoardIssuesQuery, useTeamQuery, useTeamsQuery } from '@/services/teams.service';
+import { useQueries } from '@tanstack/react-query';
+import { useTeamsQuery } from '@/services/teams.service';
+import { fetchSubscribedIssueIds, useBoardIssues, useTeamScaffold } from '@/services/board.service';
 import { useViewsQuery } from '@/services/views.service';
+import { qk } from '@/services/queryKeys';
 import { ApiError } from '@/lib/api';
-import { applyFilters } from '@/utils/filters';
+import { useSession } from '@/lib/auth-client';
+import {
+  applyFilters,
+  resolveSubscriberValues,
+  subscriberConditions,
+  subscriberSetKey,
+} from '@/utils/filters';
 import { viewPath } from '@/utils/paths';
 import { useViewEditor } from '@/hooks/useViewEditor';
 
@@ -24,15 +33,15 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
   // The board loads as two queries: the scaffold (columns/types/labels/fields/
   // viewer) and the issues. They are composed into one team object here so every
   // child reads team.issues.
-  const teamQuery = useTeamQuery(teamKey);
-  const boardIssuesQuery = useBoardIssuesQuery(teamKey);
+  const teamQuery = useTeamScaffold(teamKey);
+  const boardIssuesQuery = useBoardIssues(teamKey);
   const scaffold = teamQuery.data ?? null;
   const team = useMemo(
     () =>
       scaffold
         ? {
             ...scaffold,
-            issues: boardIssuesQuery.data?.issues ?? [],
+            issues: boardIssuesQuery.data ?? [],
           }
         : null,
     [scaffold, boardIssuesQuery.data],
@@ -50,12 +59,52 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
     (id) => teamKey && router.push(viewPath(teamKey, id)),
   );
 
+  // The subscribers conditions in effect: Linear's Issue carries no subscriber ids,
+  // so the server is asked which of the team's issues match each one.
+  const viewerId = useSession().data?.user.id ?? '';
+  const subscriberKeys = useMemo(
+    () => [
+      ...new Set(
+        subscriberConditions(editor.effectiveFilters).map((c) =>
+          subscriberSetKey(c.values, viewerId),
+        ),
+      ),
+    ],
+    [editor.effectiveFilters, viewerId],
+  );
+  const subscriberQueries = useQueries({
+    queries: subscriberKeys.map((key) => ({
+      queryKey: qk.subscribedIssueIds(teamKey ?? '', key),
+      queryFn: () =>
+        fetchSubscribedIssueIds(teamKey!, resolveSubscriberValues(key.split(','), viewerId)),
+      enabled: teamKey != null && viewerId !== '',
+    })),
+  });
+  const subscriberSets = useMemo(() => {
+    const sets = new Map<string, Set<string>>();
+    subscriberKeys.forEach((key, i) => {
+      const data = subscriberQueries[i]?.data;
+      if (data) sets.set(key, data);
+    });
+    return sets;
+    // The query results change identity on every render; their data does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscriberKeys, ...subscriberQueries.map((q) => q.data)]);
+
   // The team with the active filters applied to its issues: the active view's
   // own conditions plus any ad-hoc ones.
   const filteredTeam = useMemo(
     () =>
-      team ? { ...team, issues: applyFilters(team.issues, editor.effectiveFilters, team) } : null,
-    [team, editor.effectiveFilters],
+      team
+        ? {
+            ...team,
+            issues: applyFilters(team.issues, editor.effectiveFilters, team, {
+              viewerId,
+              subscriberSets,
+            }),
+          }
+        : null,
+    [team, editor.effectiveFilters, viewerId, subscriberSets],
   );
 
   // Anyone who can see the team creates issues in it. Gates the create-issue

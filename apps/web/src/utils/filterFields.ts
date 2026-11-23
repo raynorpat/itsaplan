@@ -1,6 +1,12 @@
 import type { TeamDetail } from '@/lib/api';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
-import type { FilterCondition, FilterOperator, FilterSet, FilterValue } from '@/utils/filters';
+import {
+  SUBSCRIBER_ME,
+  type FilterCondition,
+  type FilterOperator,
+  type FilterSet,
+  type FilterValue,
+} from '@/utils/filters';
 
 // The kind of value a field holds, which decides its operators and value editor.
 export type FieldKind = 'set' | 'date';
@@ -53,6 +59,15 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       options: [
         ...team.assignees.map((a) => ({ value: a.userId, label: a.name })),
         { value: null, label: 'No assignee' },
+      ],
+    },
+    {
+      field: 'subscribers',
+      label: 'Subscribers',
+      kind: 'set',
+      options: [
+        { value: SUBSCRIBER_ME, label: 'Me' },
+        ...team.assignees.map((a) => ({ value: a.userId, label: a.name })),
       ],
     },
     {

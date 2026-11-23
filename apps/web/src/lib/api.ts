@@ -5,7 +5,6 @@
 
 import type { FilterSet } from '@/utils/filters';
 import type { SavedViewDisplay } from '@/utils/viewSettings';
-import { filterSetToIssueFilter, issueFilterToFilterSet } from '@/utils/viewFilters';
 
 // NEXT_PUBLIC_* is inlined at build time, so a build without it ships a client
 // that cannot reach the API. Fail at import instead of pointing at a wrong origin.
@@ -300,34 +299,6 @@ export interface View {
   filters: FilterSet;
   display: SavedViewDisplay;
   createdAt: string;
-}
-
-interface ViewDto extends Omit<View, 'filters'> {
-  filterData: unknown;
-}
-
-const fromViewDto = ({ filterData, ...rest }: ViewDto): View => ({
-  ...rest,
-  filters: issueFilterToFilterSet(filterData),
-});
-
-const toViewBody = ({ filters, ...rest }: NewViewInput | ViewPatch) =>
-  JSON.stringify(
-    filters === undefined ? rest : { ...rest, filterData: filterSetToIssueFilter(filters) },
-  );
-
-export interface NewViewInput {
-  name: string;
-  icon?: string | null;
-  filters?: FilterSet;
-  display?: SavedViewDisplay;
-}
-
-export interface ViewPatch {
-  name?: string;
-  icon?: string | null;
-  filters?: FilterSet;
-  display?: SavedViewDisplay;
 }
 
 // Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The
@@ -774,12 +745,6 @@ export const api = {
     patch: { name?: string; description?: string; visibility?: TeamVisibility },
   ) => request<Team>(`/teams/${teamKey}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTeam: (teamKey: string) => request<void>(`/teams/${teamKey}`, { method: 'DELETE' }),
-  // The board scaffold (no issues). The issues come from getBoardIssues.
-  getTeam: (teamKey: string) => request<TeamScaffold>(`/teams/${teamKey}`),
-  // The board's issues plus its change marker.
-  getBoardIssues: (teamKey: string) => request<BoardIssues>(`/teams/${teamKey}/issues/board`),
-  // Cheap change marker for the board issues — polled for live refresh, refetch
-  // getBoardIssues only when rev changes.
 
   createState: (teamKey: string, input: { name: string; stateType: StateType; color?: string }) =>
     request<Column>(`/teams/${teamKey}/columns`, {
@@ -868,7 +833,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
-  listArchivedIssues: (teamKey: string) => request<Issue[]>(`/teams/${teamKey}/issues/archived`),
   // Server-side text search for the command palette. Always returns all matches,
   // archived included (each hit carries an `archived` flag).
   searchIssues: (teamKey: string, params: { q?: string; limit?: number }) => {
@@ -928,21 +892,6 @@ export const api = {
     const qs = q.toString();
     return request<ProjectFeedPage>(`/projects/${id}/feed${qs ? `?${qs}` : ''}`);
   },
-
-  listViews: async (teamKey: string) =>
-    (await request<ViewDto[]>(`/teams/${teamKey}/views`)).map(fromViewDto),
-  createView: async (teamKey: string, input: NewViewInput) =>
-    fromViewDto(
-      await request<ViewDto>(`/teams/${teamKey}/views`, {
-        method: 'POST',
-        body: toViewBody(input),
-      }),
-    ),
-  updateView: async (viewId: string, patch: ViewPatch) =>
-    fromViewDto(
-      await request<ViewDto>(`/views/${viewId}`, { method: 'PATCH', body: toViewBody(patch) }),
-    ),
-  deleteView: (viewId: string) => request<void>(`/views/${viewId}`, { method: 'DELETE' }),
 
   // Team members. Anyone who can see a team may join it (not guests); any member
   // may add people to a public team, a team manager to a private one; a member

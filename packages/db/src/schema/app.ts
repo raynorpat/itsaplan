@@ -231,6 +231,10 @@ export const label = pgTable(
     color: text('color').notNull().default('#6b7280'),
     // A retired label stays on the issues that have it but cannot be newly applied.
     retiredAt: timestamp('retired_at', { withTimezone: true }),
+    // Who retired it (Linear's IssueLabel.retiredBy); null when not retired.
+    retiredByUserId: uuid('retired_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

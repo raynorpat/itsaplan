@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { View } from '@/lib/api';
 import type { WorkItemsView } from '@/utils/viewTypes';
-import {
-  normalizeView,
-  useCreateView,
-  useDeleteView,
-  useUpdateView,
-} from '@/services/views.service';
+import { useCreateView, useDeleteView, useUpdateView } from '@/services/views.service';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import {
   defaultViewSettings,
@@ -207,12 +202,12 @@ export function useViewEditor(
       setEditing(false);
     } else {
       if (!name) return; // Save is disabled without a name for a new view.
-      const created = normalizeView(
-        await createView.mutateAsync({ input: { name, icon: draftIcon, filters, display } }),
-      );
+      const createdId = await createView.mutateAsync({
+        input: { name, icon: draftIcon, filters, display },
+      });
       setFilters(EMPTY_FILTER_SET);
       setEditing(false);
-      onSelectView(created.id);
+      onSelectView(createdId);
     }
   }
 

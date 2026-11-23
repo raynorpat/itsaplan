@@ -5,7 +5,6 @@ import {
   type Issue,
   type IssuePatch,
   type NewIssueInput,
-  type BoardIssues,
 } from '@/lib/api';
 import { qk } from '@/services/queryKeys';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
@@ -212,12 +211,12 @@ export function useUpdateIssue(teamKey: string | null) {
       if (!teamKey) return {};
       const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<BoardIssues>(key);
+      const prev = qc.getQueryData<Issue[]>(key);
       if (prev) {
-        qc.setQueryData<BoardIssues>(key, {
-          ...prev,
-          issues: prev.issues.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
-        });
+        qc.setQueryData<Issue[]>(
+          key,
+          prev.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
+        );
       }
       return { prev, key };
     },
@@ -248,15 +247,15 @@ export function useUpdateIssueDetail(teamKey: string | null) {
       const prevIssue = qc.getQueryData<Issue>(qk.issue(id));
       if (prevIssue) qc.setQueryData<Issue>(qk.issue(id), { ...prevIssue, ...patch } as Issue);
       const boardKey = teamKey ? qk.boardIssues(teamKey) : null;
-      let prevBoard: BoardIssues | undefined;
+      let prevBoard: Issue[] | undefined;
       if (boardKey) {
         await qc.cancelQueries({ queryKey: boardKey });
-        prevBoard = qc.getQueryData<BoardIssues>(boardKey);
+        prevBoard = qc.getQueryData<Issue[]>(boardKey);
         if (prevBoard)
-          qc.setQueryData<BoardIssues>(boardKey, {
-            ...prevBoard,
-            issues: prevBoard.issues.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
-          });
+          qc.setQueryData<Issue[]>(
+            boardKey,
+            prevBoard.map((t) => (t.id === id ? ({ ...t, ...patch } as Issue) : t)),
+          );
       }
       return { prevIssue, prevBoard, boardKey };
     },
@@ -297,8 +296,8 @@ export function useDeleteIssue(teamKey: string | null) {
         // if it resolved after this removal it would re-add the issue until the
         // next refetch. Cancelling discards it so the optimistic removal sticks.
         await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
-        qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
-          prev ? { ...prev, issues: prev.issues.filter((t) => t.id !== id) } : prev,
+        qc.setQueryData<Issue[]>(qk.boardIssues(teamKey), (prev) =>
+          prev ? prev.filter((t) => t.id !== id) : prev,
         );
         void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
       }
@@ -320,11 +319,10 @@ export function useArchiveIssue(teamKey: string | null) {
     onSuccess: async (_data, id) => {
       if (teamKey) {
         await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
-        qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
-          prev ? { ...prev, issues: prev.issues.filter((t) => t.id !== id) } : prev,
+        qc.setQueryData<Issue[]>(qk.boardIssues(teamKey), (prev) =>
+          prev ? prev.filter((t) => t.id !== id) : prev,
         );
         void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-        void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
@@ -334,7 +332,7 @@ export function useArchiveIssue(teamKey: string | null) {
 }
 
 // Restores an archived issue back onto the board. Invalidates the board (it
-// reappears), the archived list (it leaves), and the issue's caches.
+// reappears) and the issue's caches.
 export function useRestoreIssue(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -342,7 +340,6 @@ export function useRestoreIssue(teamKey: string | null) {
     onSuccess: (_data, id) => {
       if (teamKey) {
         void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-        void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
@@ -365,13 +362,13 @@ export function useBulkUpdateIssues(teamKey: string) {
     onMutate: async ({ ids, patch }) => {
       const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<BoardIssues>(key);
+      const prev = qc.getQueryData<Issue[]>(key);
       if (prev) {
         const idSet = new Set(ids);
-        qc.setQueryData<BoardIssues>(key, {
-          ...prev,
-          issues: prev.issues.map((t) => (idSet.has(t.id) ? ({ ...t, ...patch } as Issue) : t)),
-        });
+        qc.setQueryData<Issue[]>(
+          key,
+          prev.map((t) => (idSet.has(t.id) ? ({ ...t, ...patch } as Issue) : t)),
+        );
       }
       return { prev, key };
     },
@@ -393,15 +390,15 @@ export function useBulkAddLabels(teamKey: string) {
     onMutate: async ({ ids, add }) => {
       const key = qk.boardIssues(teamKey);
       await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<BoardIssues>(key);
+      const prev = qc.getQueryData<Issue[]>(key);
       if (prev) {
         const idSet = new Set(ids);
-        qc.setQueryData<BoardIssues>(key, {
-          ...prev,
-          issues: prev.issues.map((t) =>
+        qc.setQueryData<Issue[]>(
+          key,
+          prev.map((t) =>
             idSet.has(t.id) ? { ...t, labelIds: [...new Set([...t.labelIds, ...add])] } : t,
           ),
-        });
+        );
       }
       return { prev, key };
     },
@@ -425,11 +422,10 @@ function useBulkRemoval(teamKey: string, run: (ids: string[]) => Promise<unknown
     onSuccess: async (_data, ids) => {
       const idSet = new Set(ids);
       await qc.cancelQueries({ queryKey: qk.boardIssues(teamKey) });
-      qc.setQueryData<BoardIssues>(qk.boardIssues(teamKey), (prev) =>
-        prev ? { ...prev, issues: prev.issues.filter((t) => !idSet.has(t.id)) } : prev,
+      qc.setQueryData<Issue[]>(qk.boardIssues(teamKey), (prev) =>
+        prev ? prev.filter((t) => !idSet.has(t.id)) : prev,
       );
       void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      void qc.invalidateQueries({ queryKey: qk.archivedIssues(teamKey) });
       for (const id of ids) {
         qc.removeQueries({ queryKey: qk.issue(id) });
         qc.removeQueries({ queryKey: qk.feed(id) });

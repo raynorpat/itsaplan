@@ -91,6 +91,25 @@ describe('graphql labels', () => {
     );
   });
 
+  it('reports who retired a label', async () => {
+    const { owner, teamId } = await setup();
+    const query = (id: string) =>
+      gql({ cookie: owner.cookie }, `{ issueLabel(id: "${id}") { retiredBy { id } } }`);
+    const created = await gql(
+      { cookie: owner.cookie },
+      `mutation { issueLabelCreate(input: { name: "Old", teamId: "${teamId}" }) { issueLabel { id } } }`,
+    );
+    const id = (created.body.data as { issueLabelCreate: { issueLabel: { id: string } } })
+      .issueLabelCreate.issueLabel.id;
+    expect((await query(id)).body.data).toEqual({ issueLabel: { retiredBy: null } });
+    await gql({ cookie: owner.cookie }, `mutation { issueLabelRetire(id: "${id}") { success } }`);
+    expect((await query(id)).body.data).toEqual({
+      issueLabel: { retiredBy: { id: owner.userId } },
+    });
+    await gql({ cookie: owner.cookie }, `mutation { issueLabelRestore(id: "${id}") { success } }`);
+    expect((await query(id)).body.data).toEqual({ issueLabel: { retiredBy: null } });
+  });
+
   it('updates and deletes a label', async () => {
     const { teamId, client } = await setup();
     const bug = (await (await client.createIssueLabel({ name: 'Bug', teamId })).issueLabel)!;

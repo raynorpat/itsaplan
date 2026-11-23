@@ -7,7 +7,7 @@
 // condition, in order; an empty set becomes {}. Reading back recognises exactly the
 // shapes written here; anything else is dropped.
 
-import type { FilterCondition, FilterSet, FilterValue } from './filters';
+import { SUBSCRIBER_ME, type FilterCondition, type FilterSet, type FilterValue } from './filters';
 
 export type IssueFilter = Record<string, unknown>;
 
@@ -103,6 +103,24 @@ function conditionToElement(c: FilterCondition): Element | null {
     return null;
   }
 
+  if (field === 'subscribers') {
+    const me = values.includes(SUBSCRIBER_ME);
+    const users = ids.filter((v) => v !== SUBSCRIBER_ME);
+    if (op === 'is') {
+      const parts: Element[] = [];
+      if (me) parts.push({ subscribers: { some: { isMe: { eq: true } } } });
+      if (users.length) parts.push({ subscribers: { some: { id: { in: users } } } });
+      return parts.length === 2 ? { or: parts } : (parts[0] ?? null);
+    }
+    if (op === 'is_not') {
+      const parts: Element[] = [];
+      if (me) parts.push({ subscribers: { every: { isMe: { eq: false } } } });
+      if (users.length) parts.push({ subscribers: { every: { id: { nin: users } } } });
+      return parts.length === 2 ? { and: parts } : (parts[0] ?? null);
+    }
+    return null;
+  }
+
   const dateKey = DATE_KEYS[field];
   if (dateKey) {
     if (op === 'is_set') return { [dateKey]: { null: false } };
@@ -181,11 +199,44 @@ function labelsElement(value: unknown): Partial | null {
   return null;
 }
 
+// One subscribers element: some subscriber is the viewer / one of these users ("is"),
+// or every subscriber is not ("is not").
+function subscribersElement(value: unknown): Partial | null {
+  if (!isObject(value)) return null;
+  const entry = only(value);
+  if (!entry || !isObject(entry[1])) return null;
+  const [quantifier, inner] = entry as [string, Record<string, unknown>];
+  if (quantifier !== 'some' && quantifier !== 'every') return null;
+  const op = quantifier === 'some' ? 'is' : 'is_not';
+  const field = only(inner);
+  if (field?.[0] === 'isMe' && isObject(field[1]) && only(field[1])?.[0] === 'eq') {
+    if (field[1].eq === (quantifier === 'some'))
+      return { field: 'subscribers', op, values: [SUBSCRIBER_ME] };
+    return null;
+  }
+  if (field?.[0] === 'id') {
+    const list = ids(field[1], quantifier === 'some' ? 'in' : 'nin');
+    return list ? { field: 'subscribers', op, values: list } : null;
+  }
+  return null;
+}
+
 function elementToCondition(element: unknown): Partial | null {
   if (!isObject(element)) return null;
   const entry = only(element);
   if (!entry) return null;
   const [key, value] = entry;
+
+  // "Me and these users": the two subscribers parts written above, joined.
+  if ((key === 'or' || key === 'and') && Array.isArray(value) && value.length === 2) {
+    const parts = value.map((v) =>
+      isObject(v) && only(v)?.[0] === 'subscribers' ? subscribersElement(v.subscribers) : null,
+    );
+    const [a, b] = parts;
+    const op = key === 'or' ? 'is' : 'is_not';
+    if (a && b && a.op === op && b.op === op)
+      return { field: 'subscribers', op, values: [...a.values, ...b.values] };
+  }
 
   if (key === 'or' || key === 'and') {
     if (!Array.isArray(value) || value.length !== 2) return null;
@@ -230,6 +281,8 @@ function elementToCondition(element: unknown): Partial | null {
   }
 
   if (key === 'labels') return labelsElement(value);
+
+  if (key === 'subscribers') return subscribersElement(value);
 
   const dateField = Object.entries(DATE_KEYS).find(([, k]) => k === key)?.[0];
   if (dateField && isObject(value)) {

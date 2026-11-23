@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { qk } from '@/services/queryKeys';
 import { buildGroups, groupIssues } from '@/utils/team';
 import { type ViewSettings } from '@/utils/viewSettings';
 import { cn } from '@/lib/utils';
@@ -35,14 +33,6 @@ export default function WorkItemsPage() {
     groups: new Set(),
   });
 
-  // Live board: refetch the board issues on an interval, so another user's
-  // create/move/edit shows without a manual reload.
-  const teamKey = team?.team.key ?? '';
-  useLiveRefresh({
-    targets: [qk.boardIssues(teamKey)],
-    enabled: !!teamKey,
-  });
-
   if (!team || !filteredTeam) return null;
 
   // Saving persists the view: editing an existing one is a views edit, a brand-new
@@ -62,7 +52,7 @@ export default function WorkItemsPage() {
     )
     .map((group) => group.key);
   const timelineCollapseScope = [
-    teamKey,
+    team.team.key,
     editor.activeViewId ?? 'all',
     settings.group,
     settings.showEmptyGroups,

@@ -89,4 +89,32 @@ describe('view filters', () => {
       conditions: [],
     });
   });
+
+  it('round-trips a subscribers condition', () => {
+    const conditions = set([
+      { field: 'subscribers', op: 'is', values: ['me', 'u2'] },
+      { field: 'subscribers', op: 'is_not', values: ['u3'] },
+    ]);
+    const filter = filterSetToIssueFilter(conditions);
+    assert.deepEqual(filter, {
+      and: [
+        {
+          or: [
+            { subscribers: { some: { isMe: { eq: true } } } },
+            { subscribers: { some: { id: { in: ['u2'] } } } },
+          ],
+        },
+        { subscribers: { every: { id: { nin: ['u3'] } } } },
+      ],
+    });
+    const back = issueFilterToFilterSet(filter).conditions.map(({ field, op, values }) => ({
+      field,
+      op,
+      values,
+    }));
+    assert.deepEqual(back, [
+      { field: 'subscribers', op: 'is', values: ['me', 'u2'] },
+      { field: 'subscribers', op: 'is_not', values: ['u3'] },
+    ]);
+  });
 });

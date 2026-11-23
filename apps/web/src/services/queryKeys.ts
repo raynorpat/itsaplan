@@ -8,8 +8,11 @@ export const qk = {
   // The board's issues + change marker for a team. Split from the scaffold so
   // issue writes and live-refresh touch only the issues, not the scaffold.
   boardIssues: (teamKey: string) => ['boardIssues', teamKey] as const,
+  // The ids of a team's issues having one of a set of subscribers (the subscribers
+  // filter), keyed by the sorted user ids.
+  subscribedIssueIds: (teamKey: string, users: string) =>
+    ['team', teamKey, 'subscribed-issue-ids', users] as const,
   // A team's archived issues and its auto-archive settings (the Archive section).
-  archivedIssues: (teamKey: string) => ['archivedIssues', teamKey] as const,
   // Command-palette issue search, scoped to a team and the search term.
   issueSearch: (teamKey: string, q: string) => ['issueSearch', teamKey, q] as const,
   teamSettings: (teamKey: string) => ['teamSettings', teamKey] as const,

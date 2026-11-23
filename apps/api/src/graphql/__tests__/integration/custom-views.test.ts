@@ -33,6 +33,18 @@ describe('graphql custom views', () => {
     await resetDb();
   });
 
+  it("filters views by their team's key", async () => {
+    const { owner, mktId, run } = await setup();
+    await run(owner.cookie, CREATE, { input: { name: 'Mkt', teamId: mktId } });
+    await run(owner.cookie, CREATE, { input: { name: 'Ops', teamId: 'OPS' } });
+    const list = await run(
+      owner.cookie,
+      '{ customViews(filter: { team: { key: { eq: "OPS" } } }) { nodes { name } } }',
+    );
+    expect(list.body.errors).toBeUndefined();
+    expect((list.body.data as Data).customViews.nodes).toEqual([{ name: 'Ops' }]);
+  });
+
   it('creates, reads, updates and deletes a team view', async () => {
     const { owner, mktId, run } = await setup();
     const filterData = { and: [{ priority: { in: [1, 2] } }] };

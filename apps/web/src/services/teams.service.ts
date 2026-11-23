@@ -25,25 +25,6 @@ export function useJoinTeam() {
   });
 }
 
-// The board scaffold (columns, labels, viewer). The issues
-// come from useBoardIssuesQuery; the Shell composes the two.
-export function useTeamQuery(teamKey: string | null) {
-  return useQuery({
-    queryKey: qk.team(teamKey ?? ''),
-    queryFn: () => api.getTeam(teamKey!),
-    enabled: teamKey != null,
-  });
-}
-
-// The board's issues plus its change marker, loaded alongside the scaffold.
-export function useBoardIssuesQuery(teamKey: string | null) {
-  return useQuery({
-    queryKey: qk.boardIssues(teamKey ?? ''),
-    queryFn: () => api.getBoardIssues(teamKey!),
-    enabled: teamKey != null,
-  });
-}
-
 // Returns a callback that invalidates a team's detail query. Used by the
 // settings service mutations to refresh the team after a structural write.
 export function useInvalidateTeam(teamKey: string | null) {

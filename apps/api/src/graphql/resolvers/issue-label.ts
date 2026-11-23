@@ -37,6 +37,7 @@ export function toIssueLabel(row: typeof label.$inferSelect) {
     retiredAt: row.retiredAt?.toISOString() ?? null,
     // Read by the relation resolvers; not schema fields.
     creatorUserId: row.creatorUserId,
+    retiredByUserId: row.retiredAt ? row.retiredByUserId : null,
   };
 }
 
@@ -150,6 +151,9 @@ export const issueLabelResolvers = {
       listLabels(eq(label.parentId, l.id), args, ctx),
     creator: (l: GraphQLIssueLabel, _: unknown, ctx: GraphQLContext) =>
       userById(l.creatorUserId, ctx.user.id),
+    // Linear marks a retired label by who retired it.
+    retiredBy: (l: GraphQLIssueLabel, _: unknown, ctx: GraphQLContext) =>
+      userById(l.retiredByUserId, ctx.user.id),
     issues: (l: GraphQLIssueLabel, args: PageArgs & { filter?: unknown }, ctx: GraphQLContext) =>
       listIssues(
         inArray(

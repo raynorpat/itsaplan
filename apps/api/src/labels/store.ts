@@ -147,7 +147,11 @@ async function setRetired(id: string, retired: boolean, actorUserId: string | nu
   const before = await issueLabelData(id);
   const [row] = await db
     .update(label)
-    .set({ retiredAt: retired ? new Date() : null, updatedAt: sql`now()` })
+    .set({
+      retiredAt: retired ? new Date() : null,
+      retiredByUserId: retired ? actorUserId : null,
+      updatedAt: sql`now()`,
+    })
     .where(eq(label.id, id))
     .returning();
   if (!row) return null;

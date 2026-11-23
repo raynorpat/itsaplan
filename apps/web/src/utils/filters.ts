@@ -14,6 +14,7 @@ export type BuiltinFilterField =
   | 'delegate' // delegate agent id, or null for "no delegate"
   | 'priority' // priority string, or null for "no priority"
   | 'labels' // label ids (a issue has any/none of the chosen ones)
+  | 'subscribers' // subscriber user ids, or 'me' for the viewer
   | 'dueDate'
   | 'created'
   | 'updated';
@@ -125,7 +126,45 @@ const SET_FIELDS: BuiltinFilterField[] = [
   'delegate',
   'priority',
   'labels',
+  'subscribers',
 ];
+
+// The value a subscribers condition stores for the viewer, so a saved view filters
+// "subscribed by me" for whoever opens it.
+export const SUBSCRIBER_ME = 'me';
+
+// A subscribers condition's chosen users, with "me" replaced by the viewer.
+export function resolveSubscriberValues(values: FilterValue[], viewerId: string): string[] {
+  const ids = values
+    .filter((v): v is string => typeof v === 'string' && v !== '')
+    .map((v) => (v === SUBSCRIBER_ME ? viewerId : v));
+  return [...new Set(ids)];
+}
+
+// The key under which the issue ids matching one subscribers condition are held: its
+// chosen users, resolved and sorted, so equal conditions share one lookup.
+export function subscriberSetKey(values: FilterValue[], viewerId: string): string {
+  return resolveSubscriberValues(values, viewerId).sort().join(',');
+}
+
+// Whether an issue passes a subscribers condition, given the ids of the issues that
+// have one of the chosen subscribers (asked from the server; Linear's Issue carries no
+// subscriber ids). While the set is still loading the condition constrains nothing.
+export function matchesSubscribers(
+  issueId: string,
+  subscribed: ReadonlySet<string> | undefined,
+  op: FilterOperator,
+): boolean {
+  if (!subscribed) return true;
+  return op === 'is_not' ? !subscribed.has(issueId) : subscribed.has(issueId);
+}
+
+// Context a filter needs beyond the issue itself: the issue ids matching each
+// subscribers condition (by subscriberSetKey) and the viewer.
+export interface FilterContext {
+  viewerId: string;
+  subscriberSets: ReadonlyMap<string, ReadonlySet<string>>;
+}
 
 // Whether one issue satisfies one condition. A condition on a field that is not
 // offered (left in a saved view after the field was removed) matches every issue.
@@ -133,8 +172,14 @@ function matchCondition(
   issue: Issue,
   cond: FilterCondition,
   columnStateType: Map<string, StateType>,
+  context: FilterContext | undefined,
 ): boolean {
   const field = cond.field as BuiltinFilterField;
+  if (field === 'subscribers') {
+    if (cond.op !== 'is' && cond.op !== 'is_not') return true;
+    const key = context ? subscriberSetKey(cond.values, context.viewerId) : '';
+    return matchesSubscribers(issue.id, context?.subscriberSets.get(key), cond.op);
+  }
   const isDate = DATE_FIELDS.includes(field);
   if (!isDate && !SET_FIELDS.includes(field)) return true;
 
@@ -165,9 +210,21 @@ export function applyFilters(
   issues: Issue[],
   filters: FilterSet | null | undefined,
   team: TeamDetail,
+  context?: FilterContext,
 ): Issue[] {
   if (!isActiveFilterSet(filters)) return issues;
   const columnStateType = new Map(team.states.map((c) => [c.id, c.stateType]));
   const active = filters!.conditions.filter(isEffectiveCondition);
-  return issues.filter((t) => active.every((cond) => matchCondition(t, cond, columnStateType)));
+  return issues.filter((t) =>
+    active.every((cond) => matchCondition(t, cond, columnStateType, context)),
+  );
+}
+
+// The subscribers conditions of a filter set that constrain the result; the board
+// asks the server for the issues matching each.
+export function subscriberConditions(filters: FilterSet | null | undefined): FilterCondition[] {
+  return (filters?.conditions ?? []).filter(
+    (c) =>
+      c.field === 'subscribers' && isEffectiveCondition(c) && (c.op === 'is' || c.op === 'is_not'),
+  );
 }
