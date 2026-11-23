@@ -259,17 +259,20 @@ export function useUpdateIssueDetail(teamKey: string | null) {
     },
     onSettled: (_data, _err, { id }) => {
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }
 
-// An issue write changes its project's progress and scope, and the projects list
-// shows that progress. The mutations do not know the project
-// id, so they invalidate by prefix; only active queries refetch.
-function invalidateProjects(qc: ReturnType<typeof useQueryClient>) {
+// An issue write changes its project's and its cycle's progress and scope, which the
+// project and cycle pages show, and archiving one changes a past cycle's archived
+// issues. The mutations do not know the project or cycle, so they invalidate by
+// prefix; only active queries refetch.
+function invalidateProgress(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: qk.anyProject });
   void qc.invalidateQueries({ queryKey: qk.anyProjects });
+  void qc.invalidateQueries({ queryKey: qk.anyCycle });
+  void qc.invalidateQueries({ queryKey: qk.anyCycles });
 }
 
 // Deletes an issue. Drops it from the team detail immediately and discards its
@@ -294,7 +297,7 @@ export function useDeleteIssue(teamKey: string | null) {
       qc.removeQueries({ queryKey: qk.issue(id) });
       qc.removeQueries({ queryKey: qk.feed(id) });
       qc.removeQueries({ queryKey: qk.attachments(id) });
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }
@@ -316,7 +319,7 @@ export function useArchiveIssue(teamKey: string | null) {
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }
@@ -333,7 +336,7 @@ export function useRestoreIssue(teamKey: string | null) {
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }
@@ -426,7 +429,7 @@ function useBulkEdit<V>(
         if (qc.getQueryData(qk.issue(issue.id))) qc.setQueryData(qk.issue(issue.id), issue);
       reportFailures('update', result.failed, ctx?.prev);
     },
-    onSettled: () => invalidateProjects(qc),
+    onSettled: () => invalidateProgress(qc),
   });
 }
 
@@ -477,7 +480,7 @@ function useBulkRemoval(teamKey: string, action: string, runOne: (id: string) =>
     },
     onSettled: () => {
       void refetchInFull(qc, key);
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }
@@ -534,7 +537,7 @@ export function useCreateIssue() {
     onSuccess: (_issue, { teamKey }) => {
       void refetchInFull(qc, qk.boardIssues(teamKey));
       void invalidateSubscribedIssueIds(qc);
-      invalidateProjects(qc);
+      invalidateProgress(qc);
     },
   });
 }

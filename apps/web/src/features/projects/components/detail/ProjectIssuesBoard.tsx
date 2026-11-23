@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
+import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
 import { applyFilters } from '@/utils/filters';
 import { cyclesVisible } from '@/utils/cycles';
 import FilterBar from '@/components/layout/FilterBar';
@@ -10,7 +11,6 @@ import KanbanBoard from '@/features/work-items/components/kanban/KanbanBoard';
 import TableView from '@/features/work-items/components/table/TableView';
 import TimelineView from '@/features/work-items/components/timeline/TimelineView';
 import CalendarView from '@/features/work-items/components/calendar/CalendarView';
-import { useProjectBoardSettings } from '../../hooks/useProjectBoardSettings';
 
 // The project's issues rendered as the work items board (kanban/table/timeline/
 // calendar) with filters and display settings, but no saved views. The board is
@@ -18,7 +18,7 @@ import { useProjectBoardSettings } from '../../hooks/useProjectBoardSettings';
 // real issues and the live board refresh keeps it current.
 export default function ProjectIssuesBoard({ projectId }: { projectId: string }) {
   const { team, onOpenIssue, onAddIssue } = useShell();
-  const board = useProjectBoardSettings(projectId);
+  const board = useLocalBoardSettings('planner_project_board_settings', projectId);
 
   const viewTeam = useMemo(() => {
     if (!team) return null;

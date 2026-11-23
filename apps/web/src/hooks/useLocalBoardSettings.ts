@@ -3,36 +3,32 @@ import type { WorkItemsView } from '@/utils/viewTypes';
 import { normalizeViewSettings, type ViewSettings } from '@/utils/viewSettings';
 import { EMPTY_FILTER_SET, type FilterSet } from '@/utils/filters';
 
-// Display settings for an project's issue board, persisted per project in
-// localStorage (there are no saved views here). Filters stay transient in state.
-// Layout (kanban/table) and its display settings are stored under one key so a
-// reload restores them. Mirrors the localStorage store in lib/viewSettings but
-// keyed by project id and layout.
-
-const STORE_KEY = 'planner_project_board_settings';
+// Display settings for an issue board without saved views (a project's or a
+// cycle's issues), persisted in localStorage under `storeKey`, one entry per `id`.
+// Filters stay transient in state. Layout (kanban/table) and its display settings
+// are stored together so a reload restores them.
 
 type Stored = { layout?: WorkItemsView } & Partial<ViewSettings>;
 type Store = Record<string, Stored>;
 
-function readStore(): Store {
+function readStore(storeKey: string): Store {
   if (typeof window === 'undefined') return {};
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null');
+    const parsed = JSON.parse(localStorage.getItem(storeKey) ?? 'null');
     return parsed && typeof parsed === 'object' ? (parsed as Store) : {};
   } catch {
     return {};
   }
 }
 
-function writeStore(store: Store) {
+function writeStore(storeKey: string, store: Store) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  localStorage.setItem(storeKey, JSON.stringify(store));
 }
 
-export function useProjectBoardSettings(projectId: string) {
-  const key = String(projectId);
+export function useLocalBoardSettings(storeKey: string, id: string) {
   const [state, setState] = useState<{ view: WorkItemsView; settings: ViewSettings }>(() => {
-    const stored = readStore()[key];
+    const stored = readStore(storeKey)[id];
     const view: WorkItemsView = stored?.layout ?? 'kanban';
     return { view, settings: normalizeViewSettings(stored, view) };
   });
@@ -40,20 +36,20 @@ export function useProjectBoardSettings(projectId: string) {
 
   const persist = useCallback(
     (view: WorkItemsView, settings: ViewSettings) => {
-      const store = readStore();
-      store[key] = { layout: view, ...settings };
-      writeStore(store);
+      const store = readStore(storeKey);
+      store[id] = { layout: view, ...settings };
+      writeStore(storeKey, store);
     },
-    [key],
+    [storeKey, id],
   );
 
   const changeView = useCallback(
     (view: WorkItemsView) => {
-      const settings = normalizeViewSettings(readStore()[key], view);
+      const settings = normalizeViewSettings(readStore(storeKey)[id], view);
       persist(view, settings);
       setState({ view, settings });
     },
-    [key, persist],
+    [storeKey, id, persist],
   );
 
   const changeSettings = useCallback(

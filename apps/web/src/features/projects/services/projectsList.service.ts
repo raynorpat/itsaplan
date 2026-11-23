@@ -5,7 +5,8 @@ import { fetchProjectsPage } from '@/services/projects.service';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
-import { appendPage, sumStatusCounts } from '../utils/projectList';
+import { appendPage } from '@/utils/appendPage';
+import { sumStatusCounts } from '../utils/projectList';
 
 const PAGE_SIZE = 25;
 

@@ -50,7 +50,7 @@ export const qk = {
   projectDocuments: (id: string) => ['projectDocuments', id] as const,
   projectLabels: ['projectLabels'] as const,
   // Prefix keys: issue mutations invalidate every project query without
-  // knowing the id (see invalidateProjects in issues.service).
+  // knowing the id (see invalidateProgress in issues.service).
   anyProject: ['project'] as const,
   anyProjects: ['projects'] as const,
   // Initiatives: the workspace's list, one initiative, its updates with their
@@ -59,6 +59,14 @@ export const qk = {
   initiative: (id: string) => ['initiative', id] as const,
   initiativeUpdates: (id: string) => ['initiativeUpdates', id] as const,
   initiativeRelations: ['initiativeRelations'] as const,
+  // Cycles: a team's cycle lists ("open" is the current and upcoming ones, "past"
+  // the paged past ones), one cycle by team and number, and a past cycle's archived
+  // issues. Issue writes change a cycle's progress, so they invalidate the prefixes.
+  cycles: (teamId: string, list: 'open' | 'past') => ['cycles', teamId, list] as const,
+  cycle: (teamId: string, number: number) => ['cycle', teamId, number] as const,
+  cycleArchivedIssues: (cycleId: string) => ['cycle', 'archived-issues', cycleId] as const,
+  anyCycle: ['cycle'] as const,
+  anyCycles: ['cycles'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,
   // The viewer's notifications for the whole workspace (the inbox and its badge).

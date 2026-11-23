@@ -21,10 +21,10 @@ function isCurrent(cycle: Cycle, now: number): boolean {
 
 // The cycles an issue can be put in: the current one (none during a cooldown) and
 // the upcoming ones, soonest first.
-export function cycleOptions(
-  cycles: Cycle[],
+export function cycleOptions<C extends Cycle>(
+  cycles: C[],
   now: Date,
-): { current: Cycle | undefined; upcoming: Cycle[] } {
+): { current: C | undefined; upcoming: C[] } {
   const at = now.getTime();
   return {
     current: cycles.find((c) => isCurrent(c, at)),

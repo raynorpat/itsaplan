@@ -9,22 +9,6 @@ const STATUSES: ProjectStatus[] = [
   'canceled',
 ];
 
-// Adds a "Load more" page to the loaded rows. A row the page repeats (the list
-// shifted because a project was created or moved between pages) keeps its first
-// position and takes the page's newer copy.
-export function appendPage<T extends { id: string }>(current: T[], page: T[]): T[] {
-  const index = new Map(current.map((row, i) => [row.id, i]));
-  const out = [...current];
-  for (const row of page) {
-    const at = index.get(row.id);
-    if (at === undefined) {
-      index.set(row.id, out.length);
-      out.push(row);
-    } else out[at] = row;
-  }
-  return out;
-}
-
 // The status tab counts from the number of projects per status type; a status with
 // no projects counts 0.
 export function sumStatusCounts(perStatus: Partial<Record<ProjectStatus, number>>): ProjectCounts {
