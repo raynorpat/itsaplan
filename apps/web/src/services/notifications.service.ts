@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Notification, NotificationType } from '@/types/notification';
 import type { StateType } from '@/types/team';
+import { chunk } from '@/utils/bulk';
 import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { useChangedSince } from '@/hooks/useChangedSince';
 import { useSnoozeClock } from '@/hooks/useSnoozeClock';
@@ -45,27 +46,34 @@ export const NotificationFields = graphql(`
     }
     ... on AgentSessionNotification {
       agentSessionId
+      agentActivityId
     }
   }
 `);
 
 // The issue an agent session notification is about: AgentSessionNotification has no
-// issue field, so the inbox reads it from the session.
-const AgentSessionIssueQuery = graphql(`
-  query InboxAgentSessionIssue($id: String!) {
-    agentSession(id: $id) {
-      id
-      issue {
+// issue field, so the inbox reads it from the session, through the notification's
+// activity (agentActivities takes an id filter; agentSessions takes none).
+const AgentActivitySessionsQuery = graphql(`
+  query InboxAgentActivitySessions($ids: [ID!]!, $first: Int) {
+    agentActivities(filter: { id: { in: $ids } }, first: $first) {
+      nodes {
         id
-        number
-        title
-        state {
-          type
-        }
-        team {
+        agentSession {
           id
-          key
-          name
+          issue {
+            id
+            number
+            title
+            state {
+              type
+            }
+            team {
+              id
+              key
+              name
+            }
+          }
         }
       }
     }
@@ -145,27 +153,28 @@ export const toNotifications = (
   sessionIssues?: Map<string, NotificationIssue | null>,
 ) => nodes.map((n) => toNotification(n, sessionIssues)).filter((n): n is Notification => n != null);
 
-// The issues of the agent sessions the notifications refer to, one request per
-// session. A session the viewer can no longer read maps to null (not shown).
+// The issues of the agent sessions the notifications refer to, by session id, in one
+// request per 250 notifications. A session the viewer can no longer read is missing
+// (the notification is not shown). A failed request fails the whole load, so the
+// next refresh tries again rather than dropping the notifications.
 async function fetchSessionIssues(
   nodes: FragmentOf<typeof NotificationFields>[],
 ): Promise<Map<string, NotificationIssue | null>> {
-  const ids = new Set<string>();
+  const activityIds = new Set<string>();
   for (const data of nodes) {
     const node = readFragment(NotificationFields, data);
-    if ('agentSessionId' in node && node.agentSessionId) ids.add(node.agentSessionId);
+    if ('agentActivityId' in node && node.agentActivityId) activityIds.add(node.agentActivityId);
   }
-  const entries = await Promise.all(
-    [...ids].map(async (id) => {
-      try {
-        const { agentSession } = await gqlRequest(AgentSessionIssueQuery, { id });
-        return [id, agentSession.issue ?? null] as const;
-      } catch {
-        return [id, null] as const;
-      }
-    }),
-  );
-  return new Map(entries);
+  const issues = new Map<string, NotificationIssue | null>();
+  for (const ids of chunk([...activityIds], 250)) {
+    const { agentActivities } = await gqlRequest(AgentActivitySessionsQuery, {
+      ids,
+      first: ids.length,
+    });
+    for (const a of agentActivities.nodes)
+      issues.set(a.agentSession.id, a.agentSession.issue ?? null);
+  }
+  return issues;
 }
 
 const NotificationsPage = graphql(

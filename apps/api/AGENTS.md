@@ -141,9 +141,19 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `agents/status.ts`. Stop is `POST /api/auth/instance/agent-session-stop`, a `stop`
   prompt. `created` and `prompted` send Linear's `AgentSessionEvent` webhook to the
   application's webhook whatever resource types it lists (`agents/webhook.ts`,
-  registered in `app.ts`, best effort). The creator gets an
+  registered in `app.ts`, best effort), only while the app can see the issue's team;
+  a session whose app lost the team (a narrowed install, a team made private) ends
+  as `stale` when the next event or reply finds it. One session per app in a thread
+  and one open delegation session per app on an issue (unique indexes; a second
+  trigger prompts the existing one). Activities apply under a row lock on the
+  session; a repeated `agentActivityCreate` id from the same app returns the stored
+  activity. `Comment.agentSession` is the session whose thread root the comment is,
+  or that the reply started (a second app mentioned in a thread). A session's thread
+  root can be deleted only by its app. The creator gets an
   `AgentSessionNotification` (inbox only) on an elicitation and on a response that
-  ends the turn. Uninstalling the application ends its open sessions as `stale`.
+  ends the turn. Session side effects of a comment or a delegation are best effort.
+  Uninstalling the application ends its open sessions as `stale` and marks its
+  webhook's pending deliveries failed.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is
@@ -300,7 +310,8 @@ receiver works against the instance.
   team without webhooks. A new write path for these entities must call `emitEvent`
   too.
 - **Delivery** is the worker's (`apps/worker`): it adds `webhookTimestamp`, signs
-  the body and retries on Linear's schedule.
+  the body and retries on Linear's schedule. An application's webhook is skipped
+  once the application is archived or neither installed nor authorized by anyone.
 
 ## GraphQL (Linear-compatible)
 

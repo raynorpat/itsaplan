@@ -14,6 +14,7 @@ import CycleSelect from '@/components/common/fields/CycleSelect';
 import { cyclesVisible, knownCycles } from '@/utils/cycles';
 import ProjectSelect from '../fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
+import IssueAgentStatus from '../agent/IssueAgentStatus';
 
 // One property row in the two-column list: name on the left, control on the right.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
@@ -69,12 +70,15 @@ export default function IssueProperties({
 
       {(team.delegates.length > 0 || issue.delegateUserId) && (
         <PropertyRow label="Delegate">
-          <DelegateSelect
-            delegates={team.delegates}
-            value={issue.delegateUserId}
-            onChange={(userId) => onPatch({ delegateUserId: userId })}
-            readOnly={readOnly}
-          />
+          <div className="flex items-center gap-2">
+            <DelegateSelect
+              delegates={team.delegates}
+              value={issue.delegateUserId}
+              onChange={(userId) => onPatch({ delegateUserId: userId })}
+              readOnly={readOnly}
+            />
+            <IssueAgentStatus issueId={issue.id} />
+          </div>
         </PropertyRow>
       )}
 

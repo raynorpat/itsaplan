@@ -177,7 +177,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             t.String({
               format: 'uuid',
               description:
-                'Delegate user id. Only null is accepted: the instance has no agents yet.',
+                'Delegate: an installed agent (app user) that may be assigned issues and can see the team, or null.',
             }),
           ),
         ),
@@ -619,7 +619,7 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
             t.String({
               format: 'uuid',
               description:
-                'New delegate user id. Only null is accepted: the instance has no agents yet.',
+                'New delegate: an installed agent (app user) that may be assigned issues and can see the team, or null to remove it.',
             }),
           ),
         ),

@@ -35,7 +35,7 @@ import {
 } from './activity';
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
-import { assertDelegate, issueDelegated } from '../agents/store';
+import { assertDelegate, bestEffort, issueDelegated } from '../agents/store';
 import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
@@ -697,7 +697,9 @@ export async function createIssue(
   const created = (await getIssue(issueId))!;
   await emitIssue('create', issueId, team.id, actorUserId);
   if (created.delegateUserId)
-    await issueDelegated(issueId, created.delegateUserId, actorUserId ?? null);
+    await bestEffort('delegation session', () =>
+      issueDelegated(issueId, created.delegateUserId!, actorUserId ?? null),
+    );
   // An issue created already assigned to a member notifies them, the same as
   // assigning one later does.
   if (created.assigneeUserId) {
@@ -826,7 +828,9 @@ export async function updateIssue(
     if (changed || opts.labelIds || opts.before)
       await emitIssue('update', id, after.teamId, actorUserId, beforeData);
     if (after.delegateUserId && after.delegateUserId !== before.delegateUserId)
-      await issueDelegated(id, after.delegateUserId, actorUserId ?? null);
+      await bestEffort('delegation session', () =>
+        issueDelegated(id, after.delegateUserId!, actorUserId ?? null),
+      );
   }
   return after;
 }

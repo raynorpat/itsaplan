@@ -12,6 +12,8 @@ export const linearType = sql`CASE ${notification.type}
   WHEN 'mentioned' THEN 'issueCommentMention'
   WHEN 'commented' THEN 'issueNewComment'
   WHEN 'state_changed' THEN 'issueStatusChanged'
+  WHEN 'agent_needs_input' THEN 'agentSessionNeedsInput'
+  WHEN 'agent_responded' THEN 'agentSessionResponse'
 END`;
 
 const handlers: FieldHandlers = {

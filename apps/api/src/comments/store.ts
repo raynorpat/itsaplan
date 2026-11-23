@@ -18,7 +18,7 @@ import { emitEvent } from '../webhooks/event';
 import { commentData } from '../webhooks/data';
 import { notifyComment } from '../notifications/store';
 import { parseMentions } from '../shared/mentions';
-import { commentPosted } from '../agents/store';
+import { assertThreadDeletable, bestEffort, commentPosted } from '../agents/store';
 import {
   assertTeamAccess,
   type AuthUser,
@@ -246,7 +246,7 @@ export async function createComment(input: {
     });
   if (created.issueId && teamIds[0]) {
     if (input.notify !== false) await notifyComment(teamIds[0], created);
-    await commentPosted(created, teamIds[0]);
+    await bestEffort('mention sessions', () => commentPosted(created, teamIds[0]!));
   }
   return created;
 }
@@ -314,6 +314,7 @@ export async function deleteComment(id: string, actorUserId: string): Promise<vo
     if (!managers.includes(true))
       throw new HttpError(403, 'Only the author or a team manager can delete a comment');
   }
+  await assertThreadDeletable(id, actorUserId);
   const beforeData = await commentData(id);
   await db.delete(comment).where(eq(comment.id, id));
   await sendCommentEvent('remove', found, actorUserId, beforeData);
