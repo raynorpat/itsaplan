@@ -5,8 +5,8 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components
 import { EmptyState } from '@/components/common/page/EmptyState';
 import ProjectRow from './ProjectRow';
 
-// Columns in table order. A `sort` key marks the column as sortable; progress and
-// health are derived per row and cannot be sorted server-side.
+// Columns in table order. A `sort` key marks the column as sortable (in the
+// browser, over the loaded rows); progress and health are not sortable.
 const COLUMNS: { label: string; sort?: ProjectSort }[] = [
   { label: 'Name', sort: 'name' },
   { label: 'Priority', sort: 'priority' },

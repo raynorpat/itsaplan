@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Check, CircleDashed, Target } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useProjectQuery, useProjectsQuery } from '@/services/projects.service';
 import type { Project } from '@/lib/api';
-import { qk } from '@/services/queryKeys';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import {
@@ -35,7 +33,7 @@ export default function ProjectSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const qc = useQueryClient();
+  const [picked, setPicked] = useState<Project | null>(null);
 
   // The linked project may fall outside the first page, so fetch it directly to
   // label the trigger. The list query only runs while the dropdown is open.
@@ -47,10 +45,10 @@ export default function ProjectSelect({
   });
   const options = data?.items ?? [];
 
-  // Seed the single-project cache on pick so the trigger labels immediately,
-  // without waiting for its own fetch.
+  // The picked row labels the trigger until the project's own query answers. The
+  // single-project cache holds the detail shape, so a list row is not put there.
   const select = (project: Project | null) => {
-    if (project) qc.setQueryData(qk.project(project.id), project);
+    setPicked(project);
     onChange(project?.id ?? null);
     setOpen(false);
   };
@@ -66,7 +64,7 @@ export default function ProjectSelect({
       <PopoverTrigger asChild>
         <Pill active={value != null}>
           {value != null ? <Target /> : <CircleDashed />}
-          {current?.name ?? 'Project'}
+          {current?.name ?? (picked?.id === value ? picked?.name : undefined) ?? 'Project'}
         </Pill>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">

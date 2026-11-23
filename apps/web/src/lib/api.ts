@@ -539,29 +539,15 @@ export interface Project {
   progress: ProjectProgress;
   // The latest project update's health, or null when there is no update.
   health: ProjectHealth | null;
+  // Linear's scope: the project's open (not canceled) issues. Read over GraphQL.
+  scope?: number;
 }
 
-// Columns the project list can be sorted by, server-side. progress and health
-// are derived and not sortable.
+// Columns the project list can be sorted by (in the browser, over the loaded rows).
+// progress and health are derived and not sortable.
 export const PROJECT_SORTS = ['name', 'priority', 'targetDate', 'lead'] as const;
 
 export type ProjectSort = (typeof PROJECT_SORTS)[number];
-
-export interface ProjectListParams {
-  statuses?: string[];
-  search?: string;
-  sort?: ProjectSort;
-  dir?: 'asc' | 'desc';
-  page?: number;
-  pageSize?: number;
-}
-
-export interface ProjectPage {
-  items: Project[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 // A project milestone (read-only in the web app; edited over GraphQL).
 export interface ProjectMilestone {
@@ -796,28 +782,11 @@ export const api = {
 
   // Projects span teams: the list and counts take an optional team filter, create
   // takes the team ids, and ops on one project take its id.
-  listProjects: (teamKey: string | null, params: ProjectListParams = {}) => {
-    const q = new URLSearchParams();
-    if (teamKey) q.set('teamKey', teamKey);
-    if (params.statuses && params.statuses.length) q.set('status', params.statuses.join(','));
-    if (params.search) q.set('search', params.search);
-    if (params.sort) q.set('sort', params.sort);
-    if (params.dir) q.set('dir', params.dir);
-    if (params.page) q.set('page', String(params.page));
-    if (params.pageSize) q.set('pageSize', String(params.pageSize));
-    const qs = q.toString();
-    return request<ProjectPage>(`/projects?${qs}`);
-  },
-  projectCounts: (teamKey: string | null) =>
-    request<ProjectCounts>(
-      `/projects/counts${teamKey ? `?teamKey=${encodeURIComponent(teamKey)}` : ''}`,
-    ),
   setProjectTeams: (id: string, teamIds: string[]) =>
     request<Project>(`/projects/${id}/teams`, {
       method: 'PUT',
       body: JSON.stringify({ teamIds }),
     }),
-  listProjectMilestones: (id: string) => request<ProjectMilestone[]>(`/projects/${id}/milestones`),
   listProjectLabels: () => request<ProjectLabel[]>('/project-labels'),
   createProjectLabel: (input: { name: string; color?: string }) =>
     request<ProjectLabel>('/project-labels', { method: 'POST', body: JSON.stringify(input) }),
@@ -827,7 +796,6 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   deleteProjectLabel: (id: string) => request<void>(`/project-labels/${id}`, { method: 'DELETE' }),
-  getProject: (id: string) => request<Project>(`/projects/${id}`),
   createProject: (input: NewProjectInput & { teamIds: string[] }) =>
     request<Project>('/projects', {
       method: 'POST',

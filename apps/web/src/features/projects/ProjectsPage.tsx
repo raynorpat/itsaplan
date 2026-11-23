@@ -5,18 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useProjectCountsQuery, useProjectsQuery } from '@/services/projects.service';
 import { PROJECT_SORTS, type ProjectCounts, type ProjectSort, type ProjectStatus } from '@/lib/api';
 import { projectsTabPath, type ProjectsTab } from '@/utils/paths';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProjectsList from './components/list/ProjectsList';
-import ProjectsPagination from './components/list/ProjectsPagination';
 import CreateProjectDialog from './components/list/CreateProjectDialog';
 import ProjectTabCount from './components/list/ProjectTabCount';
 import ProjectTeamFilter from './components/list/ProjectTeamFilter';
-
-const PAGE_SIZE = 25;
+import { useProjectStatusCounts, useProjectsList } from './services/projectsList.service';
+import { sortProjects } from './utils/projectList';
 
 // One tab per lifecycle status, except the terminal statuses share a "Completed"
 // tab. `statuses: undefined` means the tab takes every status.
@@ -48,11 +46,11 @@ function tabCount(counts: ProjectCounts | undefined, tab: ProjectsTab): number |
   }
 }
 
-// A team's projects, one status tab at a time. The open tab is a route of its
-// own and the page and sorting are query parameters, so the list reopens as it was
-// after a reload and can be shared as a link. Each tab loads its own page from the
-// server, sorted and paged there; the tab counts come from a separate aggregate so
-// they stay correct regardless of the current page.
+// A team's projects, one status tab at a time. The open tab is a route of its own and
+// the sorting is a query parameter, so the list reopens as it was after a reload and
+// can be shared as a link. Each tab loads 25 projects at a time ("Load more"), newest
+// first; a sort applies to the loaded rows. The tab counts are counted separately so
+// they stay correct however much of the list is loaded.
 export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const { team } = useShell();
   const { can } = usePermissions();
@@ -66,27 +64,20 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const teamKey = team?.team.key ?? null;
   const activeTab = TABS.find((t) => t.value === tab)!;
 
-  const pageParam = Number(searchParams.get('page'));
-  const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
-  // A sort the server does not support is no sort at all, and a direction on its own
-  // means nothing.
+  // An unknown sort is no sort at all, and a direction on its own means nothing.
   const sort = PROJECT_SORTS.find((key) => key === searchParams.get('sort'));
   const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
   const dir = sort ? sortDir : undefined;
 
-  const query = useProjectsQuery(filterKey, {
-    statuses: activeTab.statuses,
-    sort,
-    dir,
-    page,
-    pageSize: PAGE_SIZE,
-  });
-  const counts = useProjectCountsQuery(filterKey).data;
+  const query = useProjectsList({ teamKey: filterKey, statuses: activeTab.statuses });
+  const counts = useProjectStatusCounts(filterKey).data;
 
   if (!team) return null;
 
-  const items = query.data?.items ?? [];
-  const total = query.data?.total ?? 0;
+  const leadNames = new Map(team.assignees.map((a) => [a.userId, a.name]));
+  const items = sortProjects(query.items, sort, sortDir, (id) =>
+    id ? (leadNames.get(id) ?? '') : '',
+  );
 
   const tabPath = projectsTabPath(filterKey, tab);
 
@@ -95,17 +86,10 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
     router.push(search ? `${tabPath.split('?')[0]}?${search}` : tabPath.split('?')[0]);
   };
 
-  // A tab is its own route and carries no query, so switching one drops the page and
-  // the sorting of the tab left behind.
+  // A tab is its own route and carries no query, so switching one drops the sorting
+  // of the tab left behind.
   const changeTab = (next: ProjectsTab) => {
     router.push(projectsTabPath(filterKey, next));
-  };
-
-  const changePage = (next: number) => {
-    const params = new URLSearchParams(searchParams);
-    if (next > 1) params.set('page', String(next));
-    else params.delete('page');
-    pushQuery(params);
   };
 
   // Re-selecting the sorted column flips its direction; a new column sorts ascending.
@@ -113,7 +97,6 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
     const params = new URLSearchParams(searchParams);
     params.set('sort', key);
     params.set('dir', sort === key && sortDir === 'asc' ? 'desc' : 'asc');
-    params.delete('page');
     pushQuery(params);
   };
 
@@ -160,7 +143,18 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
         onSort={changeSort}
       />
 
-      <ProjectsPagination page={page} pageSize={PAGE_SIZE} total={total} onPage={changePage} />
+      {query.hasNextPage && (
+        <div className="flex justify-center px-4 py-3">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={query.isFetchingNextPage}
+            onClick={() => query.fetchNextPage()}
+          >
+            {query.isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
+      )}
 
       {creating && teamKey && (
         <CreateProjectDialog teamKey={teamKey} onClose={() => setCreating(false)} />
