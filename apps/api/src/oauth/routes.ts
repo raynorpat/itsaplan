@@ -1,4 +1,10 @@
-import { auth, MCP_CLIENT_SCOPES, OAUTH_SCOPES, revokeOAuthAccessToken } from '@repo/auth';
+import {
+  auth,
+  MCP_CLIENT_SCOPES,
+  OAUTH_SCOPES,
+  oauthIssuer,
+  revokeOAuthAccessToken,
+} from '@repo/auth';
 
 // Linear's OAuth paths on the API, forwarded to better-auth's OAuth provider plugin
 // (/api/auth/oauth2/*), so an application written for Linear changes only its base
@@ -32,7 +38,7 @@ async function forward(request: Request, path: string): Promise<Response> {
 // The server metadata, pointing at the paths above.
 export function authorizationServerMetadata(apiUrl: string) {
   return {
-    issuer: apiUrl,
+    issuer: oauthIssuer(apiUrl),
     authorization_endpoint: `${apiUrl}/oauth/authorize`,
     token_endpoint: `${apiUrl}/oauth/token`,
     revocation_endpoint: `${apiUrl}/oauth/revoke`,
@@ -52,7 +58,7 @@ export function authorizationServerMetadata(apiUrl: string) {
 export function protectedResourceMetadata(apiUrl: string) {
   return {
     resource: `${apiUrl}/mcp`,
-    authorization_servers: [apiUrl],
+    authorization_servers: [oauthIssuer(apiUrl)],
     scopes_supported: [...MCP_CLIENT_SCOPES],
     bearer_methods_supported: ['header'],
     resource_name: 'Itsaplan MCP',

@@ -10,6 +10,7 @@ import {
   activeInstallation,
   installApplication,
   isAppActor,
+  isAppUser,
   isWorkspaceAdmin,
   parseTeamSelection,
   type TeamSelection,
@@ -60,13 +61,40 @@ export function oauthPages(appUrl: string) {
 
 const isAdminRole = (role: unknown) => role === 'owner' || role === 'admin';
 
-export const oauthPlugins = (appUrl: string) => [
+// The issuer, as the plugin writes it into authorization responses (`iss`, RFC 9207)
+// and as the API's discovery document states it: the API origin, https unless on a
+// loopback host, without a trailing slash.
+export function oauthIssuer(apiUrl: string): string {
+  const url = new URL(apiUrl);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !loopback) url.protocol = 'https:';
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+}
+
+// The consent row a grant is stored under. An `actor=app` install and the same
+// person's own authorization of the application are separate grants: separate
+// consent rows here, and separate token families because the install's tokens
+// belong to the app user (beforeCodeExchange).
+const INSTALL_REFERENCE = 'app-install';
+const PERSONAL_REFERENCE = 'personal';
+const consentReference = (scopes: string[] | undefined) =>
+  scopes?.includes(APP_ACTOR_SCOPE) ? INSTALL_REFERENCE : PERSONAL_REFERENCE;
+
+export const oauthPlugins = (appUrl: string, apiUrl: string) => [
   // The provider signs nothing with it for us (access tokens stay opaque, see the
   // `resource` handling in oauthBeforeHook), but it needs the JWT plugin to store
-  // client secrets hashed.
-  jwt({ disableSettingJwtHeader: true }),
+  // client secrets hashed. Its issuer is the one the API's discovery document states.
+  jwt({ disableSettingJwtHeader: true, jwt: { issuer: oauthIssuer(apiUrl) } }),
   oauthProvider({
     ...oauthPages(appUrl),
+    // Used only for consentReferenceId; nothing redirects to a post-login page.
+    postLogin: {
+      page: oauthPages(appUrl).consentPage,
+      shouldRedirect: () => false,
+      consentReferenceId: ({ scopes }) => consentReference(scopes),
+    },
     // APP_ACTOR_SCOPE marks the tokens of an `actor=app` install (oauth-install.ts);
     // it is never advertised and never accepted from a client.
     scopes: [...OAUTH_SCOPES, OFFLINE, APP_ACTOR_SCOPE],
@@ -160,6 +188,7 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     delete body.resource;
     if (typeof body.scope === 'string') body.scope = normaliseScopes(body.scope).join(' ');
     if (body.grant_type === 'authorization_code') await beforeCodeExchange(body);
+    if (body.grant_type === 'refresh_token') await beforeRefresh(body);
     if (body.grant_type === 'client_credentials') await beforeClientCredentials(ctx, body);
     return;
   }
@@ -286,44 +315,91 @@ async function afterConsent(ctx: HookContext): Promise<void> {
   });
 }
 
+interface PendingAuthorization {
+  userId?: string;
+  query?: { scope?: string; client_id?: string };
+  [key: string]: unknown;
+}
+
 // The pending authorization behind a code, read without using it up. The plugin
 // stores the code hashed like every token.
 async function pendingAuthorization(
   code: string,
-): Promise<{ userId?: string; query?: { scope?: string; client_id?: string } } | null> {
+): Promise<{ id: string; value: PendingAuthorization } | null> {
   const [row] = await db
-    .select({ value: schema.verification.value })
+    .select({ id: schema.verification.id, value: schema.verification.value })
     .from(schema.verification)
     .where(eq(schema.verification.identifier, hashToken(code)));
   if (!row) return null;
+  let value: unknown;
   try {
-    return JSON.parse(row.value) as { userId?: string; query?: { scope?: string } };
+    value = JSON.parse(row.value);
   } catch {
-    return null;
+    value = null;
   }
+  if (!value || typeof value !== 'object')
+    throw tokenError('invalid_grant', 'The authorization code is not valid');
+  return { id: row.id, value: value as PendingAuthorization };
 }
 
-// An app-actor code is exchanged only while the application is installed and its
-// installer is still a workspace admin or owner.
+// Every code is looked up here before the plugin uses it, so the app-actor checks
+// cannot be skipped: an unknown code is refused here (fail closed), as the plugin
+// would refuse it. An app-actor code is exchanged only while the application is
+// installed and its installer is still a workspace admin or owner, and its tokens
+// are issued to the application's app user, not to the installer, so no later
+// request on them (a refresh with fewer scopes, a revoked family) can act as the
+// installer or touch the installer's own grant.
 async function beforeCodeExchange(body: Record<string, unknown>): Promise<void> {
-  if (typeof body.code !== 'string') return;
+  if (typeof body.code !== 'string') throw tokenError('invalid_request', 'code is required');
   const pending = await pendingAuthorization(body.code);
-  const scopes = (pending?.query?.scope ?? '').split(' ');
-  if (!pending || !scopes.includes(APP_ACTOR_SCOPE)) return;
-  const clientId = pending.query?.client_id;
-  if (!clientId || !(await activeInstallation(clientId)))
-    throw tokenError('invalid_grant', 'The application is not installed');
-  if (!(await isWorkspaceAdmin(pending.userId)))
+  if (!pending) throw tokenError('invalid_grant', 'invalid code');
+  const scopes = (pending.value.query?.scope ?? '').split(' ');
+  if (!scopes.includes(APP_ACTOR_SCOPE)) return;
+  const clientId = pending.value.query?.client_id;
+  const installation = clientId ? await activeInstallation(clientId) : null;
+  if (!installation) throw tokenError('invalid_grant', 'The application is not installed');
+  if (pending.value.userId === installation.appUserId) return;
+  if (!(await isWorkspaceAdmin(pending.value.userId)))
     throw tokenError('invalid_grant', 'Only a workspace admin or owner can install an application');
+  await db
+    .update(schema.verification)
+    .set({ value: JSON.stringify({ ...pending.value, userId: installation.appUserId }) })
+    .where(eq(schema.verification.id, pending.id));
 }
 
-// The client id of a token request: Basic credentials or the body.
+// A refresh keeps what marks its grant: a refresh of an install's token keeps the
+// app actor (and `offline_access`, so a narrowed refresh still gets a refresh token),
+// and a client cannot add the app actor to any other refresh.
+async function beforeRefresh(body: Record<string, unknown>): Promise<void> {
+  if (typeof body.scope !== 'string') return;
+  const requested = body.scope.split(' ').filter((s) => s && s !== APP_ACTOR_SCOPE);
+  const raw = typeof body.refresh_token === 'string' ? body.refresh_token : '';
+  const stored = raw.startsWith(REFRESH_TOKEN_PREFIX)
+    ? hashToken(raw.slice(REFRESH_TOKEN_PREFIX.length))
+    : null;
+  const [row] = stored
+    ? await db
+        .select({ scopes: schema.oauthRefreshToken.scopes })
+        .from(schema.oauthRefreshToken)
+        .where(eq(schema.oauthRefreshToken.token, stored))
+    : [];
+  const kept = (row?.scopes ?? []).filter((s) => s === APP_ACTOR_SCOPE || s === OFFLINE);
+  body.scope = [...new Set([...requested, ...kept])].join(' ');
+}
+
+// The client id of a token request: Basic credentials or the body. Malformed Basic
+// credentials are the client's error (invalid_client), never a server error.
 function requestClientId(ctx: HookContext, body: Record<string, unknown>): string | null {
   const basic = ctx.headers?.get('authorization')?.match(/^Basic\s+(.+)$/i)?.[1];
   if (basic) {
     const decoded = Buffer.from(basic, 'base64').toString('utf8');
-    const id = decoded.slice(0, decoded.indexOf(':'));
-    if (id) return decodeURIComponent(id);
+    const colon = decoded.indexOf(':');
+    if (colon <= 0) throw tokenError('invalid_client', 'Malformed client credentials');
+    try {
+      return decodeURIComponent(decoded.slice(0, colon));
+    } catch {
+      throw tokenError('invalid_client', 'Malformed client credentials');
+    }
   }
   return typeof body.client_id === 'string' ? body.client_id : null;
 }
@@ -464,12 +540,17 @@ export async function resolveOAuthAccessToken(token: string): Promise<OAuthGrant
   const scopes = (row.scopes ?? []).filter((s): s is OAuthScope =>
     (OAUTH_SCOPES as readonly string[]).includes(s),
   );
-  if ((row.scopes ?? []).includes(APP_ACTOR_SCOPE)) {
-    const installation = await activeInstallation(row.clientId);
+  // An install's tokens belong to its app user (client_credentials tokens have no
+  // user); they work only while the application is installed. A token marked as the
+  // install's but issued to anyone else is refused.
+  const installation = await activeInstallation(row.clientId);
+  const marked = (row.scopes ?? []).includes(APP_ACTOR_SCOPE);
+  if (marked || (installation && row.userId === installation.appUserId)) {
     if (!installation) return null;
+    if (row.userId && row.userId !== installation.appUserId) return null;
     return { userId: installation.appUserId, clientId: row.clientId, scopes, actor: 'app' };
   }
-  if (!row.userId) return null;
+  if (!row.userId || (await isAppUser(row.userId))) return null;
   return { userId: row.userId, clientId: row.clientId, scopes, actor: 'user' };
 }
 

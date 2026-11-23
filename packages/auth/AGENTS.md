@@ -29,7 +29,9 @@ with the JWT plugin it needs to store client secrets hashed (its `/token` endpoi
 in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
 (`/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/register`,
 `/.well-known/oauth-authorization-server`) and forwards them to `/api/auth/oauth2/*`
-(`apps/api/src/oauth/routes.ts`).
+(`apps/api/src/oauth/routes.ts`). One issuer (`oauthIssuer(API_URL)`) is used in the
+API's discovery document and in the `iss` of authorization responses (the JWT
+plugin's `issuer`); the plugin's own discovery endpoints are disabled.
 
 - Scopes are Linear's (`OAUTH_SCOPES`). `oauthBeforeHook` accepts them comma-separated,
   defaults a missing scope to `read`, and adds the plugin's `offline_access` when the
@@ -74,8 +76,17 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
   icon) and the `oauth_installation` row (scopes granted, `public_teams`), and makes it
   a member of the chosen teams. Installing again reuses both.
 - A code of the install is exchanged only while the application is installed and its
-  installer is still an admin or owner. `resolveOAuthAccessToken` maps a token with
-  `actor:app` to the install's app user (`actor: 'app'`).
+  installer is still an admin or owner, and `beforeCodeExchange` issues its tokens to
+  the app user (it rewrites the pending code's user), so the install's tokens and
+  refresh family belong to the app user, never to the installer. Every code is looked
+  up there first; an unknown or unreadable code is refused (fail closed). A refresh
+  of an install token keeps `actor:app` and `offline_access` whatever scope it asks
+  for (`beforeRefresh`). `resolveOAuthAccessToken` returns `actor: 'app'` for a token of
+  the app user (or a `client_credentials` token), only while the application is
+  installed, and refuses a token marked `actor:app` that belongs to anyone else.
+- The install's consent and the same person's own authorization are separate consent
+  rows (`reference_id` `app-install` / `personal`, set through the plugin's
+  `postLogin.consentReferenceId`).
 - `client_credentials` needs the grant on the application and an install; it gives an
   app-user token within the install's scopes.
 - An app user never signs in: `databaseHooks.session.create.before` refuses it and no
@@ -97,9 +108,9 @@ in `disabledPaths`; nothing accepts a JWT). The API serves Linear's paths
   { clientId }` (signed in, Origin rule; `src/oauth-authorized.ts`) list and revoke
   the applications the person authorized to act as themselves. An `actor=app`
   install's consent and tokens are the workspace's: not listed, not revoked here.
-- Token rows of an `actor=app` install carry the installing admin as their user. Users
-  are never deleted (suspension), so the install keeps working when its installer is
-  suspended or demoted; only new install codes need the installer to be an admin.
+- Token rows of an `actor=app` install carry the app user. The install keeps working
+  when its installer is suspended or demoted; only new install codes need the
+  installer to be an admin.
 
 ## Workspace role and suspension
 

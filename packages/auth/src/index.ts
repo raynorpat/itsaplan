@@ -470,7 +470,7 @@ export const auth = betterAuth({
     // The OAuth server (src/oauth.ts): Linear's OAuth applications and MCP clients.
     // Adds the oauthClient, oauthAccessToken, oauthRefreshToken, oauthConsent and jwks
     // tables.
-    ...oauthPlugins(trustedOrigins[0]!),
+    ...oauthPlugins(trustedOrigins[0]!, baseURL),
     // OpenAPI reference for the better-auth handler. Serves a Scalar UI at
     // /api/auth/reference and the raw schema at /api/auth/open-api/generate-schema.
     // The schema is built from every active plugin, so the passkey and apiKey
@@ -486,7 +486,17 @@ export const auth = betterAuth({
   // not offered. userinfo and end-session are OpenID Connect, which is not enabled.
   // The OAuth plugin's client and consent management is replaced by the instance
   // plugin's (OAUTH_DISABLED_PATHS).
-  disabledPaths: ['/token', '/oauth2/userinfo', '/oauth2/end-session', ...OAUTH_DISABLED_PATHS],
+  // The plugin's own discovery documents are replaced by the API's
+  // (/.well-known/oauth-authorization-server at the API root), which name Linear's
+  // paths; both state the same issuer (oauthIssuer).
+  disabledPaths: [
+    '/token',
+    '/oauth2/userinfo',
+    '/oauth2/end-session',
+    '/.well-known/oauth-authorization-server',
+    '/.well-known/openid-configuration',
+    ...OAUTH_DISABLED_PATHS,
+  ],
 
   advanced: {
     // Every id is a UUID, as in Linear's API. The columns are uuid in
@@ -563,6 +573,7 @@ export {
   isWorkspaceApplication,
   newClientSecret,
   normaliseScopes,
+  oauthIssuer,
   resolveOAuthAccessToken,
   revokeOAuthAccessToken,
 } from './oauth';
