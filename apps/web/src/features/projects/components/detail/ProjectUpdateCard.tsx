@@ -9,14 +9,14 @@ import { useToggleReaction } from '@/services/reactions.service';
 import Avatar from '@/components/common/Avatar';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import ReactionBar from '@/components/common/reactions/ReactionBar';
-import HealthBadge from '../shared/HealthBadge';
+import HealthBadge from '@/components/common/updates/HealthBadge';
 import {
   useEditProjectUpdate,
   type ProjectUpdateItem,
 } from '../../services/projectUpdates.service';
 import ProjectUpdateActions from './ProjectUpdateActions';
 import ProjectUpdateComments from './ProjectUpdateComments';
-import ProjectUpdateForm from './ProjectUpdateForm';
+import UpdateForm from '@/components/common/updates/UpdateForm';
 
 // One project update: author, age, health and Markdown body; its reactions and
 // comments below. The author edits or deletes it from the menu.
@@ -58,7 +58,7 @@ export default function ProjectUpdateCard({
         </span>
       </div>
       {editing ? (
-        <ProjectUpdateForm
+        <UpdateForm
           initial={{ body: update.body, health: update.health }}
           submitLabel="Save"
           busy={edit.isPending}

@@ -8,8 +8,9 @@ import PopoverPick from '@/components/common/fields/PopoverPick';
 
 const HEALTHS: ProjectHealth[] = ['onTrack', 'atRisk', 'offTrack'];
 
-// The health an update reports: on track, at risk or off track.
-export default function ProjectHealthSelect({
+// The health a project or initiative update reports: on track, at risk or off
+// track.
+export default function HealthSelect({
   value,
   onChange,
 }: {

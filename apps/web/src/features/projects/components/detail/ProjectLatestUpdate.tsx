@@ -5,7 +5,7 @@ import { formatDistanceToNow, parseISO } from 'date-fns';
 import type { ProjectDetail } from '@/services/projects.service';
 import { projectPath } from '@/utils/paths';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
-import HealthBadge from '../shared/HealthBadge';
+import HealthBadge from '@/components/common/updates/HealthBadge';
 
 // The project's latest update on the overview: its health, author, age and body,
 // with a link to every update.

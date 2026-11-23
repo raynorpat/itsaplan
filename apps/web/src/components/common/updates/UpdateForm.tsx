@@ -4,11 +4,11 @@ import { useState } from 'react';
 import type { ProjectHealth } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
-import ProjectHealthSelect from './ProjectHealthSelect';
+import HealthSelect from './HealthSelect';
 
-// The health and Markdown body of a new update, or of one being edited. A new
-// update starts from the project's current health.
-export default function ProjectUpdateForm({
+// The health and Markdown body of a new project or initiative update, or of one
+// being edited. A new update starts from the item's current health.
+export default function UpdateForm({
   initial,
   submitLabel,
   busy,
@@ -43,7 +43,7 @@ export default function ProjectUpdateForm({
         onChange={setBody}
       />
       <div className="flex items-center justify-between gap-2">
-        <ProjectHealthSelect value={health} onChange={setHealth} />
+        <HealthSelect value={health} onChange={setHealth} />
         <div className="flex gap-2">
           {onCancel && (
             <Button variant="ghost" size="sm" onClick={onCancel}>

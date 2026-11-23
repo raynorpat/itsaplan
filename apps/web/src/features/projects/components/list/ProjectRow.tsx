@@ -9,7 +9,7 @@ import { PriorityIcon } from '@/features/issue/components/shared/IssueIcons';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { STATUS_META } from '@/utils/projectMeta';
-import HealthBadge from '../shared/HealthBadge';
+import HealthBadge from '@/components/common/updates/HealthBadge';
 import ProgressBar from '../shared/ProgressBar';
 
 // The whole row navigates to the detail page; the title is also a real anchor so

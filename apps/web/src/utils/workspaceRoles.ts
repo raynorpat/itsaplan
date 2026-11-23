@@ -39,3 +39,8 @@ export function invitableRoles(actor: WorkspaceRole): Array<'admin' | 'member' |
   if (actor === 'member') return ['member', 'guest'];
   return [];
 }
+
+// Owners, admins and members see initiatives; Linear's guests have none. An unknown
+// role (the team is not loaded yet) shows none.
+export const canSeeInitiatives = (role: WorkspaceRole | null) =>
+  role != null && atLeast(role, 'member');

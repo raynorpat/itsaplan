@@ -3,7 +3,7 @@
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import type { Project } from '@/lib/api';
 import { formatDate } from '@/utils/dates';
-import HealthBadge from '../shared/HealthBadge';
+import HealthBadge from '@/components/common/updates/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';
 import ProjectTimelineMeter from './ProjectTimelineMeter';
 

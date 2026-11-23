@@ -21,16 +21,19 @@ const ReactionDelete = graphql(`
   }
 `);
 
-// What a reaction is on: an issue, a comment (of any comment target) or a project
-// update. A comment or an update carries the cache entry that holds its reactions.
+// What a reaction is on: an issue, a comment (of any comment target), a project
+// update or an initiative update. A comment or an update carries the cache entry that holds its reactions.
 export type ReactionTarget =
   | { issueId: string }
   | { commentId: string; refresh: readonly unknown[] }
-  | { projectUpdateId: string; refresh: readonly unknown[] };
+  | { projectUpdateId: string; refresh: readonly unknown[] }
+  | { initiativeUpdateId: string; refresh: readonly unknown[] };
 
 function reactionInput(target: ReactionTarget, emoji: string) {
   if ('commentId' in target) return { commentId: target.commentId, emoji };
   if ('projectUpdateId' in target) return { projectUpdateId: target.projectUpdateId, emoji };
+  if ('initiativeUpdateId' in target)
+    return { initiativeUpdateId: target.initiativeUpdateId, emoji };
   return { issueId: target.issueId, emoji };
 }
 

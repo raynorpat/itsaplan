@@ -54,7 +54,7 @@ export default function ProjectsList({
     return (
       <EmptyState
         title="No projects yet"
-        description="An project groups related issues under one goal."
+        description="A project groups related issues under one goal."
       >
         {canCreate && (
           <Button size="sm" onClick={onCreate}>

@@ -61,6 +61,13 @@ export const projectPath = (
 
 export const projectLabelsSettingsPath = () => '/projects/settings/labels';
 
+// Initiatives are workspace-level too (/initiatives); `?team=KEY` only picks the
+// Shell's team, as on the projects pages.
+export const initiativesPath = (key?: string | null) => withTeam('/initiatives', key);
+
+export const initiativePath = (key: string | null | undefined, initiativeId: string) =>
+  withTeam(`/initiatives/${initiativeId}`, key);
+
 // Where the app root sends the user, from their start page preference. The section
 // opens in the team they were last in (see app/page.tsx).
 export const startPagePath = (key: string, startPage: StartPage) => {

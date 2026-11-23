@@ -54,6 +54,12 @@ export const qk = {
   // knowing the id (see invalidateProjects in issues.service).
   anyProject: ['project'] as const,
   anyProjects: ['projects'] as const,
+  // Initiatives: the workspace's list, one initiative, its updates with their
+  // comments, and the workspace's sub-initiative relations.
+  initiatives: ['initiatives'] as const,
+  initiative: (id: string) => ['initiative', id] as const,
+  initiativeUpdates: (id: string) => ['initiativeUpdates', id] as const,
+  initiativeRelations: ['initiativeRelations'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,
   // The viewer's notifications for the whole workspace (the inbox and its badge).

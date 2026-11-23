@@ -2,7 +2,8 @@ import { useParams, usePathname, useSearchParams } from 'next/navigation';
 
 export type ShellRoute = {
   teamKey: string | null;
-  // The workspace-level Projects area (/projects…). Its team comes from ?team=
+  // The workspace-level Projects and Initiatives areas (/projects…,
+  // /initiatives…). Their team comes from ?team=
   // (null when the URL names none; the Shell then falls back to the last team).
   workspace: boolean;
   // The segment after the team key: 'view', 'settings', 'issue', 'members', …
@@ -36,6 +37,18 @@ export function useShellRoute(): ShellRoute {
       section: null,
       routeIssueSeq: null,
       routeProjectId: id,
+      onBoard: false,
+    };
+  }
+  if (segs[0] === 'initiatives') {
+    return {
+      teamKey: search.get('team'),
+      workspace: true,
+      sub: 'initiatives',
+      activeViewId: null,
+      section: null,
+      routeIssueSeq: null,
+      routeProjectId: null,
       onBoard: false,
     };
   }

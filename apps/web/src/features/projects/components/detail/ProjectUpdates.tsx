@@ -8,7 +8,7 @@ import {
   useProjectUpdatesQuery,
 } from '../../services/projectUpdates.service';
 import ProjectUpdateCard from './ProjectUpdateCard';
-import ProjectUpdateForm from './ProjectUpdateForm';
+import UpdateForm from '@/components/common/updates/UpdateForm';
 
 // The Updates tab: a box to post an update with a health, then every update newest
 // first, each with its reactions and comments.
@@ -27,7 +27,7 @@ export default function ProjectUpdates({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 py-8">
       {canPost && (
-        <ProjectUpdateForm
+        <UpdateForm
           initial={{ body: '', health: project.health ?? 'onTrack' }}
           submitLabel="Post update"
           busy={create.isPending}

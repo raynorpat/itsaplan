@@ -191,6 +191,25 @@ describe('graphql initiatives', () => {
     expect(errorCode(loop)).toBe('INVALID_INPUT');
   });
 
+  it('rejects a sub-initiative past the depth limit with its message and no change', async () => {
+    const { owner, client } = await setup();
+    const chain = [];
+    for (const name of ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'])
+      chain.push((await (await client.createInitiative({ name })).initiative)!);
+    for (let i = 0; i < 4; i++)
+      await client.createInitiativeRelation({
+        initiativeId: chain[i]!.id,
+        relatedInitiativeId: chain[i + 1]!.id,
+      });
+    const tooDeep = await gql(
+      { cookie: owner.cookie },
+      `mutation { initiativeRelationCreate(input: { initiativeId: "${chain[4]!.id}", relatedInitiativeId: "${chain[5]!.id}" }) { success } }`,
+    );
+    expect(errorCode(tooDeep)).toBe('INVALID_INPUT');
+    expect(errorMessage(tooDeep)).toContain('at most 5 levels deep');
+    expect((await client.initiativeRelations()).nodes).toHaveLength(4);
+  });
+
   it('posts updates and derives health', async () => {
     const { client } = await setup();
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;

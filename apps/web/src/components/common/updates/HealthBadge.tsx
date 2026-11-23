@@ -2,7 +2,8 @@ import type { ProjectHealth } from '@/lib/api';
 import { healthMeta } from '@/utils/projectMeta';
 
 // A small health signal: a colored dot plus its label. null renders a muted
-// "No update". Used in the list column and the detail header.
+// "No update". Used in the project and initiative lists, headers
+// and updates.
 export default function HealthBadge({ health }: { health: ProjectHealth | null }) {
   const { label, color } = healthMeta(health);
   return (

@@ -1,13 +1,15 @@
 import { qk } from '@/services/queryKeys';
 
 // What a comment thread belongs to: an issue, a document (Linear's documentContentId
-// is the document's id here), a project, or a project update. An update carries its
-// project, whose update list holds the update's comments.
+// is the document's id here), a project, a project update or an initiative update.
+// An update carries its project or initiative, whose update list holds the update's
+// comments.
 export type CommentTarget =
   | { issueId: string }
   | { documentId: string }
   | { projectId: string }
-  | { projectUpdateId: string; projectId: string };
+  | { projectUpdateId: string; projectId: string }
+  | { initiativeUpdateId: string; initiativeId: string };
 
 // The commentCreate input field that attaches a new comment to the target.
 export function commentTargetInput(
@@ -16,18 +18,21 @@ export function commentTargetInput(
   | { issueId: string }
   | { documentContentId: string }
   | { projectId: string }
-  | { projectUpdateId: string } {
+  | { projectUpdateId: string }
+  | { initiativeUpdateId: string } {
   if ('issueId' in target) return { issueId: target.issueId };
   if ('documentId' in target) return { documentContentId: target.documentId };
   if ('projectUpdateId' in target) return { projectUpdateId: target.projectUpdateId };
+  if ('initiativeUpdateId' in target) return { initiativeUpdateId: target.initiativeUpdateId };
   return { projectId: target.projectId };
 }
 
 // The cache entry that holds the target's comments: the issue's feed, the document's
-// comment list, the project's activity, or the project's updates.
+// comment list, the project's activity, or the project's or initiative's updates.
 export function commentTargetKey(target: CommentTarget): readonly unknown[] {
   if ('issueId' in target) return qk.feed(target.issueId);
   if ('documentId' in target) return qk.documentComments(target.documentId);
   if ('projectUpdateId' in target) return qk.projectUpdates(target.projectId);
+  if ('initiativeUpdateId' in target) return qk.initiativeUpdates(target.initiativeId);
   return qk.projectActivity(target.projectId);
 }

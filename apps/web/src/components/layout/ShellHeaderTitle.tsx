@@ -9,6 +9,7 @@ function pageLabel(route: ShellRoute, teamName: string): string {
   if (section) return SETTINGS_SECTIONS.find((s) => s.slug === section)?.label ?? 'Settings';
   if (sub === 'members') return 'Members';
   if (sub === 'projects') return 'Projects';
+  if (sub === 'initiatives') return 'Initiatives';
   if (sub === 'api') return 'API';
   return teamName;
 }

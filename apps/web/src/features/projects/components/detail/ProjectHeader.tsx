@@ -2,10 +2,10 @@
 
 import type { TeamDetail } from '@/lib/api';
 import type { ProjectDetail } from '@/services/projects.service';
-import HealthBadge from '../shared/HealthBadge';
+import { shownHealth } from '@/utils/health';
+import HealthBadge from '@/components/common/updates/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';
 import ProgressBar from '../shared/ProgressBar';
-import { projectHealth } from '../../utils/projectHealth';
 import ProjectActions from './ProjectActions';
 
 // The project detail header on every tab: the name, the health of the latest update,
@@ -23,7 +23,7 @@ export default function ProjectHeader({
       <div className="flex shrink-0 items-center gap-3">
         <div className="flex items-center gap-1">
           <HealthInfoPopover />
-          <HealthBadge health={projectHealth(project, project.latestUpdate)} />
+          <HealthBadge health={shownHealth(project, project.latestUpdate)} />
         </div>
         <ProgressBar progress={project.progress} />
         <ProjectActions project={project} teamKey={team.team.key} />
