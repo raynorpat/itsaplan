@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy, X } from 'lucide-react';
-import type { InviteRow } from '@/types/workspace';
+import type { InviteRow } from '../services/workspace.service';
 import { formatShortDate } from '@/utils/dates';
 import { inviteLink } from '@/utils/paths';
 import { ROLE_LABELS } from '@/utils/workspaceRoles';

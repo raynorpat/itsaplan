@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Webhook, WebhookResourceType } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
@@ -211,4 +210,33 @@ export function useDeleteWebhook() {
     mutationFn: (id: string) => gqlRequest(WebhookDelete, { id }),
     onSuccess: invalidate,
   });
+}
+
+// Outgoing webhook subscription (mirrors apps/api webhooks/store.ts). The
+// resource types must stay in sync with WEBHOOK_RESOURCE_TYPES on the server.
+export type WebhookResourceType =
+  | 'Issue'
+  | 'Comment'
+  | 'IssueLabel'
+  | 'Project'
+  | 'ProjectUpdate'
+  | 'Reaction'
+  | 'Cycle'
+  | 'Initiative'
+  | 'InitiativeUpdate'
+  | 'Document'
+  | 'Attachment';
+
+export interface Webhook {
+  id: string;
+  teamId: string | null;
+  allPublicTeams: boolean;
+  url: string;
+  label: string | null;
+  secret: string;
+  resourceTypes: WebhookResourceType[];
+  enabled: boolean;
+  creatorUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

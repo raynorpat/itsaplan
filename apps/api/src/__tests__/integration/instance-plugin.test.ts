@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
+import { provideInstanceHandlers } from '@repo/auth';
 import { app } from '../../app';
+import { registerInstanceHandlers } from '../../instance/handlers';
 import { authedApi } from '../helpers/app';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
@@ -129,5 +131,48 @@ describe('instance plugin', () => {
     expect(badId.status).toBe(400);
 
     expect(await roleOf(asOwner, other.userId)).toBe('member');
+  });
+});
+
+describe('instance plugin errors and origin checks', () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("answers a handler's HTTP status as is, beyond the common ones", async () => {
+    const tooLarge = Object.assign(new Error('Too large'), { status: 413 });
+    provideInstanceHandlers({
+      version: async () => {
+        throw tooLarge;
+      },
+      uploadLimits: async () => ({}),
+      setTeamOwner: async () => {
+        throw tooLarge;
+      },
+    });
+    try {
+      const res = await call('version');
+      expect(res.status).toBe(413);
+      expect(((await res.json()) as { message: string }).message).toBe('Too large');
+    } finally {
+      registerInstanceHandlers();
+    }
+  });
+
+  it('refuses a cookie-authenticated owner change from a foreign origin or none', async () => {
+    const { owner, teamId, member } = await setupTeam();
+    const body = JSON.stringify({ teamId, userId: member.userId, owner: true });
+    for (const origin of ['https://evil.example', null]) {
+      const headers = new Headers({ cookie: owner.cookie, 'content-type': 'application/json' });
+      if (origin) headers.set('origin', origin);
+      const res = await app.handle(
+        new Request('http://localhost/api/auth/instance/team-owner', {
+          method: 'POST',
+          headers,
+          body,
+        }),
+      );
+      expect(res.status).toBe(403);
+    }
   });
 });

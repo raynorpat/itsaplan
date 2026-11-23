@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { OrganizationSettingsPatch } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { toOrganizationInput, toOrganizationSettings } from '../utils/organization';
@@ -66,3 +65,38 @@ export function useUpdateOrganization() {
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not save'),
   });
 }
+
+// The minimum workspace role for an action.
+export type MinimumRole = 'owner' | 'admin' | 'member';
+
+// The workspace settings. Readable by any signed-in user; changed by owners and
+// admins. approvedDomains (from the environment) is read-only.
+export interface OrganizationSettings {
+  id: string;
+  name: string;
+  urlKey: string;
+  logoUrl: string | null;
+  // 'email' (magic link), 'google', 'passkey'. Empty means every configured one.
+  allowedAuthServices: string[];
+  allowedFileUploadContentTypes: string[];
+  teamCreationRole: MinimumRole;
+  labelManagementRole: MinimumRole;
+  invitationsRole: MinimumRole;
+  approvedDomains: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OrganizationSettingsPatch = Partial<
+  Pick<
+    OrganizationSettings,
+    | 'name'
+    | 'urlKey'
+    | 'logoUrl'
+    | 'allowedAuthServices'
+    | 'allowedFileUploadContentTypes'
+    | 'teamCreationRole'
+    | 'labelManagementRole'
+    | 'invitationsRole'
+  >
+>;

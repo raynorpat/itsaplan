@@ -9,7 +9,8 @@ import { signInOptions } from './instance';
 // - GET  /instance/version          signed in: { version }
 // - GET  /instance/upload-limits    signed in: the upload limits
 // - POST /instance/team-owner       team managers: { teamId, userId, owner } makes a
-//   team member a team owner or a plain member, answering the same body.
+//   team member a team owner or a plain member, answering the same body. With a
+//   session cookie the request's Origin must be one of the app's origins.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -37,30 +38,34 @@ export function provideInstanceHandlers(provided: InstanceHandlers): void {
   handlers = provided;
 }
 
-const STATUS = {
-  400: 'BAD_REQUEST',
-  401: 'UNAUTHORIZED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  409: 'CONFLICT',
-} as const;
-
-// Runs a registered handler, turning its HTTP-status errors into better-auth's.
+// Runs a registered handler, turning an error with an HTTP `status` into better-auth's
+// error of that status and message. Anything else is an unexpected failure (500).
 async function run<T>(call: (h: InstanceHandlers) => Promise<T>): Promise<T> {
   if (!handlers) throw new Error('Instance handlers are not registered');
   try {
     return await call(handlers);
   } catch (err) {
     const status = (err as { status?: unknown }).status;
-    if (typeof status === 'number' && status in STATUS)
-      throw new APIError(STATUS[status as keyof typeof STATUS], {
+    if (typeof status === 'number' && status >= 400 && status < 600)
+      throw new APIError(status as ConstructorParameters<typeof APIError>[0], {
         message: (err as Error).message,
       });
     throw err;
   }
 }
 
-export const instancePlugin = () =>
+// A write authenticated by the session cookie must come from a trusted origin, so
+// another site cannot make a signed-in browser change a team owner (CSRF). better-auth
+// does not check the request origin on plugin endpoints. A request without a cookie
+// (an API key) carries no ambient credential and is not checked.
+function assertTrustedOrigin(headers: Headers | undefined, trusted: string[]): void {
+  if (!headers?.get('cookie')) return;
+  const origin = headers.get('origin');
+  if (!origin || !trusted.includes(origin))
+    throw new APIError('FORBIDDEN', { message: 'This request must come from the app' });
+}
+
+export const instancePlugin = (options: { trustedOrigins: string[] }) =>
   ({
     id: 'instance',
     endpoints: {
@@ -80,8 +85,10 @@ export const instancePlugin = () =>
       instanceTeamOwner: createAuthEndpoint(
         '/instance/team-owner',
         { method: 'POST' },
-        async (ctx) =>
-          ctx.json(await run((h) => h.setTeamOwner(ctx.headers ?? new Headers(), ctx.body))),
+        async (ctx) => {
+          assertTrustedOrigin(ctx.headers, options.trustedOrigins);
+          return ctx.json(await run((h) => h.setTeamOwner(ctx.headers ?? new Headers(), ctx.body)));
+        },
       ),
     },
   }) satisfies BetterAuthPlugin;

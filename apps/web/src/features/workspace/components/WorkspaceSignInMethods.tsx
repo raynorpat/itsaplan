@@ -3,7 +3,7 @@
 import { Switch } from '@/components/ui/switch';
 import SettingsCard from '@/components/common/page/SettingsCard';
 import SettingsRow from '@/components/common/page/SettingsRow';
-import type { OrganizationSettings } from '@/types/workspace';
+import type { OrganizationSettings } from '../services/organization.service';
 import { useUpdateOrganization } from '../services/organization.service';
 
 const SERVICES = [

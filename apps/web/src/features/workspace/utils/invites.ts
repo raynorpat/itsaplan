@@ -1,4 +1,4 @@
-import type { InviteRow } from '@/types/workspace';
+import type { InviteRow } from '../services/workspace.service';
 import { inviteRoleFromLinear } from '@/utils/workspaceRoles';
 
 type InviteNode = {

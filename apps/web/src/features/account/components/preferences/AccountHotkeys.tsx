@@ -1,4 +1,4 @@
-import type { HotkeyOverrides } from '@/types/account';
+import type { HotkeyOverrides } from '@/services/preferences.service';
 import { DEFAULT_COMBOS } from '@/utils/hotkeys';
 import HotkeysEditor from '@/components/common/hotkeys/HotkeysEditor';
 

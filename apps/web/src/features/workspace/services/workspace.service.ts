@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { InviteRole, InviteRow, WorkspaceRole } from '@/types/workspace';
+import type { InviteRole, WorkspaceRole } from '@/types/workspace';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
@@ -154,4 +154,19 @@ export function useSetSuspended() {
       toast.success(suspended ? 'User suspended' : 'User unsuspended');
     },
   });
+}
+
+// A pending workspace invite: the account created for its email takes its role
+// and joins its teams.
+export interface InviteRow {
+  id: string;
+  // Null unless the viewer sent the invite or is an admin or owner.
+  token: string | null;
+  email: string;
+  role: InviteRole;
+  teamIds: string[];
+  createdAt: string;
+  expiresAt: string;
+  invitedByUserId: string | null;
+  invitedByName: string | null;
 }

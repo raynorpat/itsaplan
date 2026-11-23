@@ -1,7 +1,7 @@
 // Path builders for the planner routes. The team, the open view and the open
 // settings section live in the URL, so these are the single source of truth —
 // see the app/team/[teamKey] route tree.
-import type { StartPage } from '@/types/account';
+import type { StartPage } from '@/services/preferences.service';
 
 export const teamPath = (key: string) => `/team/${encodeURIComponent(key)}`;
 

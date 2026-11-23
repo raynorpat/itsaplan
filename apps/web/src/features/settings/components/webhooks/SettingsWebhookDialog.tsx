@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Webhook, WebhookResourceType } from '@/types/workspace';
+import type { Webhook, WebhookResourceType } from '@/services/webhooks.service';
 import Modal from '@/components/common/overlay/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

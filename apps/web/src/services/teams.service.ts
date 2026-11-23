@@ -3,7 +3,7 @@ import type { Team, TeamVisibility } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
-import { joinTeam, removeTeamMember } from '@/services/members.service';
+import { createMembership, removeTeamMember } from '@/services/members.service';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { needsTeamOwners, teamAccess } from '@/utils/members';
 
@@ -151,7 +151,7 @@ export function useJoinTeam() {
   const qc = useQueryClient();
   const { data: session } = useSession();
   return useMutation({
-    mutationFn: (teamKey: string) => joinTeam(teamKey, session!.user.id),
+    mutationFn: (teamKey: string) => createMembership(teamKey, session!.user.id),
     onSuccess: (_data, teamKey) => {
       void qc.invalidateQueries({ queryKey: qk.teams });
       void qc.invalidateQueries({ queryKey: qk.team(teamKey) });

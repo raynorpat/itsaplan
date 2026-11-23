@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
 import SettingsCard from '@/components/common/page/SettingsCard';
-import type { OrganizationSettings } from '@/types/workspace';
+import type { OrganizationSettings } from '../services/organization.service';
 import { useUpdateOrganization } from '../services/organization.service';
 
 // The file types people may attach, one per line: a full type (application/pdf) or a

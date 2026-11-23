@@ -18,7 +18,9 @@ A better-auth plugin serves what Linear's GraphQL schema has no place for, under
 it). The last three need the API's session and access rules, which this package cannot
 import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
-HTTP `status`, which the plugin turns into better-auth's error of that status.
+HTTP `status`, which the plugin turns into better-auth's error of that status. A
+`POST team-owner` that carries the session cookie must send an `Origin` from
+`trustedOrigins` (CSRF); better-auth does not check the origin on plugin endpoints.
 
 ## Workspace role and suspension
 

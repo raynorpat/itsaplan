@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { MinimumRole } from '@/types/workspace';
+import type { MinimumRole } from '../services/organization.service';
 
 const OPTIONS: { value: MinimumRole; label: string }[] = [
   { value: 'member', label: 'Members and up' },

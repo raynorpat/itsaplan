@@ -371,7 +371,7 @@ export const auth = betterAuth({
 
   plugins: [
     // Instance information and the team owner change (src/instance-plugin.ts).
-    instancePlugin(),
+    instancePlugin({ trustedOrigins }),
     // WebAuthn passkeys, a sign-in method alongside the magic link and Google. A
     // passkey is added to an already signed-in account (passkey.addPasskey) and
     // then used to sign in (signIn.passkey). Adds the `passkey` table.

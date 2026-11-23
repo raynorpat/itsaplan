@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { StorageSettings } from '@/types/workspace';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 
@@ -15,4 +14,17 @@ export function useStorageSettingsQuery() {
     queryFn: () => instanceFetch<StorageSettings>('/instance/upload-limits'),
     staleTime: 5 * 60_000,
   });
+}
+
+// The instance upload limits. Readable by any signed-in user, because the upload UI
+// states them before a file is picked. Sizes come from the environment, accepted
+// types from the workspace settings.
+export interface StorageSettings {
+  maxAttachmentMb: number;
+  maxAvatarMb: number;
+  // Accepted attachment content types: a full type ('application/pdf') or a
+  // wildcard ('image/*'). Empty means any type is accepted.
+  attachmentMimeTypes: string[];
+  // Stored attachment bytes allowed per team, in MB. 0 means unlimited.
+  teamQuotaMb: number;
 }

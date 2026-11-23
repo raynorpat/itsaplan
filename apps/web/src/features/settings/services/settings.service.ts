@@ -373,29 +373,45 @@ const UserSettingsUpdate = graphql(`
     }
   }
 `);
-// A write returns the full result, which replaces the cache directly.
+// The cache entry keeps the UserSettings id next to the preferences, because a write
+// addresses userSettingsUpdate by id; callers see only the preferences (select). A
+// write returns the full result, which replaces the cache directly.
+type NotificationSettingsEntry = { id: string; preferences: NotificationPreferences };
+
+async function fetchNotificationSettings(): Promise<NotificationSettingsEntry> {
+  const { userSettings } = await gqlRequest(UserSettingsQuery, {});
+  return {
+    id: userSettings.id,
+    preferences: toNotificationPreferences(userSettings.notificationCategoryPreferences),
+  };
+}
+
 export function useNotificationPreferencesQuery() {
   return useQuery({
     queryKey: qk.notificationPreferences(),
-    queryFn: async () =>
-      toNotificationPreferences(
-        (await gqlRequest(UserSettingsQuery, {})).userSettings.notificationCategoryPreferences,
-      ),
+    queryFn: fetchNotificationSettings,
+    select: (entry: NotificationSettingsEntry) => entry.preferences,
   });
 }
 
 export function useUpdateNotificationPreferences() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: NotificationPreferences) => {
+    mutationFn: async (input: NotificationPreferences): Promise<NotificationSettingsEntry> => {
+      const id =
+        qc.getQueryData<NotificationSettingsEntry>(qk.notificationPreferences())?.id ??
+        (await fetchNotificationSettings()).id;
       const { userSettingsUpdate } = await gqlRequest(UserSettingsUpdate, {
-        id: (await gqlRequest(UserSettingsQuery, {})).userSettings.id,
+        id,
         input: { notificationCategoryPreferences: toCategoryPreferencesInput(input) },
       });
-      return toNotificationPreferences(
-        userSettingsUpdate.userSettings.notificationCategoryPreferences,
-      );
+      return {
+        id: userSettingsUpdate.userSettings.id,
+        preferences: toNotificationPreferences(
+          userSettingsUpdate.userSettings.notificationCategoryPreferences,
+        ),
+      };
     },
-    onSuccess: (data) => qc.setQueryData(qk.notificationPreferences(), data),
+    onSuccess: (entry) => qc.setQueryData(qk.notificationPreferences(), entry),
   });
 }

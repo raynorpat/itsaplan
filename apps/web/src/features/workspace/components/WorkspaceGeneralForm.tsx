@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import SettingsCard from '@/components/common/page/SettingsCard';
-import type { OrganizationSettings } from '@/types/workspace';
+import type { OrganizationSettings } from '../services/organization.service';
 import { useUpdateOrganization } from '../services/organization.service';
 
 // The workspace name, URL key and logo. Saved together with one button.

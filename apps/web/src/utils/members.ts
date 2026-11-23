@@ -1,5 +1,5 @@
 import type { MemberRole, MemberRow } from '@/types/team';
-import type { WorkspaceRole, WorkspaceUser } from '@/types/workspace';
+import type { WorkspaceRole } from '@/types/workspace';
 
 // Linear's role flags on a user: owner and admin both set for an owner, neither nor
 // guest for a member.
@@ -86,4 +86,16 @@ export function teamAccess(
 // member of the team who is not a workspace admin or owner.
 export function needsTeamOwners(viewer: Viewer, mine: { owner: boolean } | null): boolean {
   return !!mine && !mine.owner && !viewer.admin && !viewer.owner;
+}
+
+// A user of the workspace, as owners and admins manage them.
+export interface WorkspaceUser {
+  userId: string;
+  name: string;
+  email: string;
+  image: string | null;
+  role: WorkspaceRole;
+  // Suspension is Linear's way to remove someone.
+  suspended: boolean;
+  createdAt: string;
 }

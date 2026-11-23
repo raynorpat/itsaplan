@@ -2,7 +2,7 @@ import type {
   MinimumRole,
   OrganizationSettings,
   OrganizationSettingsPatch,
-} from '@/types/workspace';
+} from '../services/organization.service';
 
 // Linear names the member minimum role `user`.
 const fromLinear = (role: string): MinimumRole =>

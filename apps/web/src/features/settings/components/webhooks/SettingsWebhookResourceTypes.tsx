@@ -1,19 +1,25 @@
-import type { WebhookResourceType } from '@/types/workspace';
+import type { WebhookResourceType } from '@/services/webhooks.service';
 import { Checkbox } from '@/components/ui/checkbox';
 
-const WEBHOOK_RESOURCE_TYPES: { value: WebhookResourceType; label: string }[] = [
-  { value: 'Issue', label: 'Issues' },
-  { value: 'Comment', label: 'Comments' },
-  { value: 'IssueLabel', label: 'Issue labels' },
-  { value: 'Project', label: 'Projects' },
-  { value: 'ProjectUpdate', label: 'Project updates' },
-  { value: 'Reaction', label: 'Reactions' },
-  { value: 'Cycle', label: 'Cycles' },
-  { value: 'Initiative', label: 'Initiatives' },
-  { value: 'InitiativeUpdate', label: 'Initiative updates' },
-  { value: 'Document', label: 'Documents' },
-  { value: 'Attachment', label: 'Attachments' },
-];
+// A Record keyed by the union, so a resource type added to WebhookResourceType without
+// a label here fails to compile.
+const RESOURCE_LABELS: Record<WebhookResourceType, string> = {
+  Issue: 'Issues',
+  Comment: 'Comments',
+  IssueLabel: 'Issue labels',
+  Project: 'Projects',
+  ProjectUpdate: 'Project updates',
+  Reaction: 'Reactions',
+  Cycle: 'Cycles',
+  Initiative: 'Initiatives',
+  InitiativeUpdate: 'Initiative updates',
+  Document: 'Documents',
+  Attachment: 'Attachments',
+};
+
+const WEBHOOK_RESOURCE_TYPES = (Object.keys(RESOURCE_LABELS) as WebhookResourceType[]).map(
+  (value) => ({ value, label: RESOURCE_LABELS[value] }),
+);
 
 // Checkboxes for the Linear resource types a webhook receives.
 export function SettingsWebhookResourceTypes({

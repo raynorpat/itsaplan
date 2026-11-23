@@ -97,9 +97,10 @@ export async function removeTeamMember(qc: QueryClient, teamKey: string, userId:
   await gqlRequest(MembershipDelete, { id: member.membershipId });
 }
 
-// Joining a public team is a membership the viewer creates for themselves;
-// teamMembershipCreate takes the team key as its teamId, as team(id:) does.
-export const joinTeam = (teamKey: string, userId: string) =>
+// Adds a user to a team. For the viewer this is joining a public team; for someone
+// else it is adding a member. teamMembershipCreate takes the team key as its teamId,
+// as team(id:) does.
+export const createMembership = (teamKey: string, userId: string) =>
   gqlRequest(MembershipCreate, { input: { teamId: teamKey, userId } });
 
 export function useMembersQuery(teamKey: string | null) {
@@ -115,7 +116,7 @@ export function useMembersQuery(teamKey: string | null) {
 export function useAddMember(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => joinTeam(teamKey, userId),
+    mutationFn: (userId: string) => createMembership(teamKey, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.members(teamKey) });
       toast.success('Member added');
