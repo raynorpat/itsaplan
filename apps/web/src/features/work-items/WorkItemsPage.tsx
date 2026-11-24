@@ -21,6 +21,12 @@ import ListView from '@/components/common/board/list/ListView';
 import TimelineView from '@/components/common/board/timeline/TimelineView';
 import CalendarView from '@/components/common/board/calendar/CalendarView';
 import { useNewViewFromUrl } from './hooks/useNewViewFromUrl';
+import InsightsButton from '@/features/insights/components/InsightsButton';
+import InsightsPanel from '@/features/insights/components/InsightsPanel';
+import { useInsightsSettings } from '@/features/insights/hooks/useInsightsSettings';
+import { insightsViewKey } from '@/features/insights/utils/settings';
+import { contextFromTeam, EMPTY_CONTEXT } from '@/features/insights/utils/context';
+import { insightsScope, withSliceFilter } from '@/features/insights/utils/panel';
 
 interface TimelineCollapseState {
   scope: string;
@@ -53,6 +59,14 @@ export default function WorkItemsPage() {
   );
 
   useNewViewFromUrl(shownTeam != null, can('views', 'create'), editor.beginNewView);
+
+  const insightsKey = insightsViewKey(
+    editor.activeViewId
+      ? { kind: 'view', viewId: editor.activeViewId }
+      : { kind: 'allIssues', teamId: team?.team.id ?? '' },
+  );
+  const insights = useInsightsSettings(insightsKey);
+  const insightsContext = useMemo(() => (team ? contextFromTeam(team) : EMPTY_CONTEXT), [team]);
 
   if (editor.error) return <PreferencesError message={editor.error} onRetry={editor.retry} />;
   if (!team || !filteredTeam || !shownTeam || !editor.ready) return null;
@@ -146,7 +160,15 @@ export default function WorkItemsPage() {
           onEdit={editor.beginEditView}
           onDelete={(v) => void editor.deleteView(v)}
           onToggleFilter={editor.toggleFilters}
-          displayControl={<DisplayPopover {...displayProps} />}
+          displayControl={
+            <>
+              <InsightsButton
+                open={insights.settings.open}
+                onToggle={() => insights.update({ open: !insights.settings.open })}
+              />
+              <DisplayPopover {...displayProps} />
+            </>
+          }
         />
       </PageHeaderPortal>
 
@@ -192,6 +214,18 @@ export default function WorkItemsPage() {
       )}
 
       <div className="relative flex-1 overflow-hidden">{renderView()}</div>
+      {insights.settings.open && (
+        <InsightsPanel
+          viewKey={insightsKey}
+          settings={insights.settings}
+          onChange={insights.update}
+          scope={insightsScope({ team: { id: { eq: team.team.id } } }, editor.effectiveFilters)}
+          viewIssues={shownTeam.issues}
+          baseContext={insightsContext}
+          onSliceFilter={(c) => editor.changeFilters(withSliceFilter(editor.filters, c))}
+          onOpenIssue={onOpenIssue}
+        />
+      )}
     </>
   );
 }

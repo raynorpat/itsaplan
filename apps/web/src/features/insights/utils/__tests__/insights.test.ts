@@ -142,7 +142,7 @@ describe('breakdown', () => {
     );
   });
 
-  it('sums estimate points, an unestimated issue adding nothing', () => {
+  it('sums estimate points, an unestimated issue counting 1 as in project progress', () => {
     const rows = breakdown(
       [
         issue({ id: '1', estimate: 3, stateId: 's-todo' }),
@@ -156,7 +156,7 @@ describe('breakdown', () => {
       rows.map((r) => [r.label, r.value]),
       [
         ['Todo', 8],
-        ['Done', 0],
+        ['Done', 1],
       ],
     );
   });

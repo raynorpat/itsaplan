@@ -14,7 +14,8 @@ function daysBetween(from: string, to: number): number {
 
 // One issue's value for a measure, or null when the measure does not apply to it:
 // - count: 1;
-// - points: the estimate (an unestimated issue adds nothing);
+// - points: the estimate, an unestimated issue counting 1 (the project progress rule;
+//   the panel offers points only when the issues have estimates);
 // - cycleTime: days from start to completion (completed issues with a start);
 // - leadTime: days from creation to completion (completed issues);
 // - age: days from creation to `now` (open issues: neither completed nor canceled).
@@ -23,7 +24,7 @@ export function measureValue(issue: InsightIssue, measure: Measure, now: Date): 
     case 'count':
       return 1;
     case 'points':
-      return issue.estimate ?? 0;
+      return issue.estimate ?? 1;
     case 'cycleTime':
       if (!issue.startedAt || !issue.completedAt) return null;
       return daysBetween(issue.startedAt, new Date(issue.completedAt).getTime());

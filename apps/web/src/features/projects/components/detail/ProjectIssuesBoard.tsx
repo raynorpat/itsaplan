@@ -14,6 +14,12 @@ import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
 import ListView from '@/components/common/board/list/ListView';
 import TimelineView from '@/components/common/board/timeline/TimelineView';
 import CalendarView from '@/components/common/board/calendar/CalendarView';
+import InsightsButton from '@/features/insights/components/InsightsButton';
+import InsightsPanel from '@/features/insights/components/InsightsPanel';
+import { useInsightsSettings } from '@/features/insights/hooks/useInsightsSettings';
+import { insightsViewKey } from '@/features/insights/utils/settings';
+import { contextFromTeam, EMPTY_CONTEXT } from '@/features/insights/utils/context';
+import { insightsScope, withSliceFilter } from '@/features/insights/utils/panel';
 
 // The project's issues rendered as the work items board (kanban/table/timeline/
 // calendar) with filters and display settings, but no saved views. The board is
@@ -29,6 +35,10 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
     const shown = visibleIssues(issues, board.settings, new Date(), closedStateIds(team.states));
     return { ...team, issues: applyFilters(shown, board.filters, team) };
   }, [team, projectId, board.filters, board.settings]);
+
+  const insightsKey = insightsViewKey({ kind: 'project', projectId });
+  const insights = useInsightsSettings(insightsKey);
+  const insightsContext = useMemo(() => (team ? contextFromTeam(team) : EMPTY_CONTEXT), [team]);
 
   // Rendered once the stored display is loaded, so the list does not first show the
   // defaults.
@@ -65,15 +75,33 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <FilterBar filters={board.filters} onChange={board.setFilters} team={team} />
-        <DisplayPopover
-          view={board.view}
-          onViewChange={board.changeView}
-          settings={settings}
-          onSettingsChange={board.changeSettings}
-          cyclesOn={cyclesVisible(team)}
-        />
+        <div className="flex items-center gap-1">
+          <InsightsButton
+            open={insights.settings.open}
+            onToggle={() => insights.update({ open: !insights.settings.open })}
+          />
+          <DisplayPopover
+            view={board.view}
+            onViewChange={board.changeView}
+            settings={settings}
+            onSettingsChange={board.changeSettings}
+            cyclesOn={cyclesVisible(team)}
+          />
+        </div>
       </div>
       <div className="relative flex-1 overflow-hidden">{view}</div>
+      {insights.settings.open && (
+        <InsightsPanel
+          viewKey={insightsKey}
+          settings={insights.settings}
+          onChange={insights.update}
+          scope={insightsScope({ project: { id: { eq: projectId } } }, board.filters)}
+          viewIssues={viewTeam.issues}
+          baseContext={insightsContext}
+          onSliceFilter={(c) => board.setFilters(withSliceFilter(board.filters, c))}
+          onOpenIssue={onOpenIssue}
+        />
+      )}
     </div>
   );
 }
