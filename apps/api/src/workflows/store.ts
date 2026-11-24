@@ -85,7 +85,10 @@ function toColumns(fields: RuleFields) {
 
 async function findRow(id: unknown): Promise<Row | undefined> {
   if (typeof id !== 'string' || !UUID_RE.test(id)) return undefined;
-  const [row] = await db.select().from(workflowDefinition).where(eq(workflowDefinition.id, id));
+  const [row] = await db
+    .select()
+    .from(workflowDefinition)
+    .where(and(eq(workflowDefinition.id, id), isNull(workflowDefinition.deletedAt)));
   return row;
 }
 
@@ -111,6 +114,7 @@ export async function listWorkflows(
     .where(
       and(
         eq(workflowDefinition.teamId, teamId),
+        isNull(workflowDefinition.deletedAt),
         includeArchived ? undefined : isNull(workflowDefinition.archivedAt),
       ),
     )
@@ -134,7 +138,7 @@ export async function createWorkflow(input: RuleInput, userId: string): Promise<
       count: sql<number>`count(*)::int`,
     })
     .from(workflowDefinition)
-    .where(eq(workflowDefinition.teamId, teamId));
+    .where(and(eq(workflowDefinition.teamId, teamId), isNull(workflowDefinition.deletedAt)));
   if (num(last?.count) >= MAX_RULES_PER_TEAM)
     throw new HttpError(400, `A team has at most ${MAX_RULES_PER_TEAM} workflows`);
   const fields = await validateRule(input, null, userId, num(last?.max) + 1000);
@@ -170,7 +174,7 @@ async function write(
   const [row] = await db
     .update(workflowDefinition)
     .set({ ...values, updatedAt: new Date() })
-    .where(eq(workflowDefinition.id, id))
+    .where(and(eq(workflowDefinition.id, id), isNull(workflowDefinition.deletedAt)))
     .returning();
   if (!row) throw new HttpError(404, 'Workflow not found');
   return mapWorkflow(row);
@@ -212,7 +216,10 @@ export async function archiveWorkflow(
   return write(existing.id, { archivedAt: archived ? new Date() : null, updatedByUserId: userId });
 }
 
+// Deleting keeps the row (deletedAt) so the history entries, comments and notifications
+// the rule made still name it (graphql/resolvers/workflow-definition.ts); every other
+// read leaves it out.
 export async function deleteWorkflow(id: unknown, userId: string): Promise<void> {
   const existing = await editable(id, userId);
-  await db.delete(workflowDefinition).where(eq(workflowDefinition.id, existing.id));
+  await write(existing.id, { deletedAt: new Date(), enabled: false, updatedByUserId: userId });
 }

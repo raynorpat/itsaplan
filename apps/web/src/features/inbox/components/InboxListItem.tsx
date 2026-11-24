@@ -8,6 +8,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   UserRound,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import type { Notification, NotificationType } from '@/types/notification';
@@ -39,6 +40,7 @@ import {
 import InboxItemActions from './InboxItemActions';
 import InboxSnoozeCalendar from './InboxSnoozeCalendar';
 import { isSnoozed } from '@/utils/notifications';
+import { notificationText } from '../utils/inbox';
 
 const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   assigned: UserRound,
@@ -48,25 +50,6 @@ const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   agent_needs_input: Bot,
   agent_response: Bot,
 };
-
-// The verb phrase for a notification, addressed to the reader ("you").
-function notificationText(n: Notification): string {
-  const who = n.actorName ?? 'Someone';
-  switch (n.type) {
-    case 'assigned':
-      return `${who} assigned the issue to you`;
-    case 'mentioned':
-      return `${who} mentioned you`;
-    case 'commented':
-      return `${who} commented`;
-    case 'state_changed':
-      return `${who} changed the status`;
-    case 'agent_needs_input':
-      return `${who} needs your input`;
-    case 'agent_response':
-      return `${who} responded`;
-  }
-}
 
 const dropdownMenu = {
   Item: DropdownMenuItem,
@@ -174,6 +157,7 @@ export default function InboxListItem({
             </span>
             <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
               {snoozed && <Clock className="size-3 shrink-0" />}
+              {n.actorWorkflow && <Workflow className="size-3 shrink-0" aria-hidden />}
               {notificationText(n)}
             </span>
           </div>

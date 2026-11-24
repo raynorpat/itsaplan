@@ -37,6 +37,7 @@ export const toNotification = (row: NotificationRecord) => ({
   category: TYPES[row.type]!.category,
   userId: row.userId,
   actorUserId: row.actorUserId,
+  workflowDefinitionId: row.workflowDefinitionId,
   issueId: row.issueId,
   teamId: row.teamId,
   commentId: row.sourceCommentId,
@@ -161,7 +162,8 @@ export const notificationResolvers = {
       n.commentId ? ((await getComment(n.commentId))?.parentId ?? null) : null,
     parentComment: async (n: GraphQLNotification) =>
       n.commentId ? commentFor((await getComment(n.commentId))?.parentId ?? null) : null,
-    botActor: () => null,
+    botActor: (n: GraphQLNotification, _: unknown, ctx: GraphQLContext) =>
+      n.workflowDefinitionId ? loaders(ctx).workflowBot.load(n.workflowDefinitionId) : null,
     externalUserActor: () => null,
   },
   AgentSessionNotification: {

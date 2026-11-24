@@ -327,6 +327,10 @@ describe('workflow rules', () => {
     // Two rules exist; fill the team up to 50, then one more is refused.
     for (let i = 2; i < 50; i++) await ok(await create(s.owner, rule(s, { name: `r${i}` })));
     expect(await refused({ name: 'one too many' })).toBe(400);
+    // A deleted rule no longer counts.
+    const last = (await list(s.owner, s.teamId)).at(-1)!;
+    await ok(await call('workflows/delete', { cookie: s.owner.cookie, body: { id: last.id } }));
+    expect(await refused({ name: 'fits again' })).toBe(200);
   });
 
   it('refuses a guest, even on a rule everyone may edit', async () => {

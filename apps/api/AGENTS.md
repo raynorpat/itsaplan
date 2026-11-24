@@ -186,8 +186,11 @@ Rules and invariants for this package below; read the code for the walkthrough.
   subscribes no one for the workflow; the members it mentions are subscribed as for
   any mention. A team has at most 50 rules, and a rule's conditions at most 8 KB and
   8 levels of nested objects (every enabled rule is checked on each issue write in
-  its team). Deleting a rule leaves its comments and history entries with neither a
-  user nor a `botActor`, like those of a removed user.
+  its team). A notification a workflow's change causes stores the rule
+  (`notification.workflow_definition_id`, GraphQL `botActor`). Deleting a rule keeps
+  its row (`deleted_at`), so its history entries, comments and notifications still
+  name it; a deleted rule is never listed, read, edited, counted against the limit or
+  run.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

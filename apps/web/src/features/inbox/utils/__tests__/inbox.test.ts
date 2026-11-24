@@ -13,6 +13,7 @@ const n = (id: string, patch: Partial<Notification> = {}): Notification => ({
   type: 'assigned',
   actorUserId: null,
   actorName: null,
+  actorWorkflow: false,
   readAt: null,
   snoozedUntil: null,
   archivedAt: null,

@@ -1,0 +1,3 @@
+ALTER TABLE "notification" ADD COLUMN "workflow_definition_id" uuid;--> statement-breakpoint
+ALTER TABLE "workflow_definition" ADD COLUMN "deleted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "notification" ADD CONSTRAINT "notification_workflow_definition_id_workflow_definition_id_fk" FOREIGN KEY ("workflow_definition_id") REFERENCES "public"."workflow_definition"("id") ON DELETE set null ON UPDATE no action;

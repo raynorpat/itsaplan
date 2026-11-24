@@ -4,6 +4,7 @@ import { parseMentions } from '../shared/mentions';
 import { enqueueOutbound } from './outbound';
 import { subscribe, subscriberIds } from './subscriptions';
 import { visibleTeamIds } from '../shared/access';
+import { currentWorkflow } from '../shared/workflow-context';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
 // about an issue they are involved in. Comment and status-change notifications go to
@@ -58,8 +59,14 @@ async function insertNotifications(all: NewNotificationRow[]): Promise<void> {
   const skip = new Set(suspended.map((r) => r.id));
   const rows = all.filter((r) => !skip.has(r.userId));
   if (rows.length === 0) return;
-  const name = await actorName(rows[0].actorUserId);
-  await db.insert(notification).values(rows.map((r) => ({ ...r, actorName: name })));
+  // A change a workflow made has no user actor; the notification names the workflow.
+  const workflow = currentWorkflow();
+  const name =
+    workflow && !rows[0].actorUserId ? workflow.name : await actorName(rows[0].actorUserId);
+  const workflowDefinitionId = workflow && !rows[0].actorUserId ? workflow.id : null;
+  await db
+    .insert(notification)
+    .values(rows.map((r) => ({ ...r, actorName: name, workflowDefinitionId })));
   // Queue notification email for members who want it. Best-effort:
   // a delivery failure must not break the inbox insert or the domain mutation.
   try {

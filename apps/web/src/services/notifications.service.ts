@@ -8,6 +8,7 @@ import { useSnoozeClock } from '@/hooks/useSnoozeClock';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { unreadCount } from '@/utils/notifications';
 import { agentNotificationType } from '@/utils/agentNotifications';
+import { actorDisplay } from '@/utils/actorDisplay';
 import { qk } from '@/services/queryKeys';
 
 // The viewer's notifications for the whole workspace (Linear has one inbox, not one
@@ -26,6 +27,10 @@ export const NotificationFields = graphql(`
     updatedAt
     actor {
       id
+      name
+    }
+    botActor {
+      type
       name
     }
     ... on IssueNotification {
@@ -103,6 +108,12 @@ export function toNotification(
   sessionIssues: Map<string, NotificationIssue | null> = new Map(),
 ): Notification | null {
   const node = readFragment(NotificationFields, data);
+  const who = actorDisplay(node);
+  const actor = {
+    actorUserId: node.actor?.id ?? null,
+    actorName: who.kind === 'unknown' ? null : who.name,
+    actorWorkflow: who.kind === 'workflow',
+  };
   const agentType = agentNotificationType(node.type);
   if (agentType && 'agentSessionId' in node) {
     const issue = sessionIssues.get(node.agentSessionId);
@@ -110,8 +121,7 @@ export function toNotification(
     return {
       id: node.id,
       type: agentType,
-      actorUserId: node.actor?.id ?? null,
-      actorName: node.actor?.name ?? null,
+      ...actor,
       readAt: node.readAt ?? null,
       snoozedUntil: node.snoozedUntilAt ?? null,
       archivedAt: node.archivedAt ?? null,
@@ -131,8 +141,7 @@ export function toNotification(
   return {
     id: node.id,
     type,
-    actorUserId: node.actor?.id ?? null,
-    actorName: node.actor?.name ?? null,
+    ...actor,
     readAt: node.readAt ?? null,
     snoozedUntil: node.snoozedUntilAt ?? null,
     archivedAt: node.archivedAt ?? null,

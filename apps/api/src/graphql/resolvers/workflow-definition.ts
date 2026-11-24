@@ -14,7 +14,8 @@ export interface WorkflowBotActor {
   avatarUrl: null;
 }
 
-// The bot actors of the given rule ids, in key order; null for a deleted rule.
+// The bot actors of the given rule ids, in key order. A deleted rule keeps its row and
+// is still named here; null only when its team, and so the rule, is gone.
 export async function workflowBotActors(
   ids: readonly string[],
 ): Promise<(WorkflowBotActor | null)[]> {

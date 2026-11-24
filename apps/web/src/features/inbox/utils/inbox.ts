@@ -73,3 +73,24 @@ export function inboxKeyAction(
   if (overlayOpen || e.defaultPrevented || blocksShortcuts(e.target)) return null;
   return matchesCombo(e, combos['inbox.archive']) ? 'archive' : null;
 }
+
+// The verb phrase for a notification, addressed to the reader ("you"). A workflow's
+// change names the workflow, marked as one.
+export function notificationText(n: Notification): string {
+  let who = n.actorName ?? 'Someone';
+  if (n.actorName && n.actorWorkflow) who = `${n.actorName} (workflow)`;
+  switch (n.type) {
+    case 'assigned':
+      return `${who} assigned the issue to you`;
+    case 'mentioned':
+      return `${who} mentioned you`;
+    case 'commented':
+      return `${who} commented`;
+    case 'state_changed':
+      return `${who} changed the status`;
+    case 'agent_needs_input':
+      return `${who} needs your input`;
+    case 'agent_response':
+      return `${who} responded`;
+  }
+}

@@ -827,6 +827,9 @@ export const workflowDefinition = pgTable(
     lastExecutedAt: timestamp('last_executed_at', { withTimezone: true }),
     stats: jsonb('stats').notNull().default({ runs: 0 }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // A deleted rule keeps its row so the history, comments and notifications it made
+    // still name it; it is never listed, read, edited or run.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1250,6 +1253,10 @@ export const notification = pgTable(
       onDelete: 'set null',
     }),
     actorName: text('actor_name'),
+    // The workflow whose change caused the notification (no user actor then).
+    workflowDefinitionId: uuid('workflow_definition_id').references(() => workflowDefinition.id, {
+      onDelete: 'set null',
+    }),
     readAt: timestamp('read_at', { withTimezone: true }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
     // Set by Linear's notificationArchive; an archived notification leaves the inbox.

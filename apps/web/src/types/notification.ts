@@ -9,7 +9,9 @@ export interface Notification {
   id: string;
   type: NotificationType;
   actorUserId: string | null;
+  // The person who acted, or the workflow when actorWorkflow (Linear's ActorBot).
   actorName: string | null;
+  actorWorkflow: boolean;
   readAt: string | null;
   snoozedUntil: string | null;
   archivedAt: string | null;

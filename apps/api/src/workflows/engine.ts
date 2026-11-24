@@ -36,6 +36,7 @@ async function loadRules(teamId: string): Promise<WorkflowRow[]> {
         eq(workflowDefinition.teamId, teamId),
         eq(workflowDefinition.enabled, true),
         isNull(workflowDefinition.archivedAt),
+        isNull(workflowDefinition.deletedAt),
       ),
     )
     .orderBy(...RULE_ORDER);

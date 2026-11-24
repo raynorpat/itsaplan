@@ -279,6 +279,79 @@ describe('workflow runs', () => {
     expect(data.notifications.nodes.map((n: Json) => n.type)).toContain('issueAssignedToYou');
   });
 
+  it('names the workflow on the notifications its change causes, and the person on theirs', async () => {
+    const s = await setup();
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Start urgent',
+      trigger: 'entityUpdated',
+      activationMode: 'conditionsStartedMatching',
+      conditions: { priority: { eq: 1 } },
+      activities: [{ type: 'setState', stateId: s.states.started }],
+    });
+    // The member subscribes by creating the issue; the owner assigns it to them, then
+    // raises the priority, which makes the rule move it to started.
+    const issue = await createIssue(s.member, { teamId: s.teamId, priority: 3 });
+    await updateIssue(s.owner, issue.id, { assigneeId: s.member.userId, priority: 1 });
+    const data = await gqlData(
+      s.member,
+      '{ notifications { nodes { type actor { id } botActor { type id name } } } }',
+    );
+    const nodes = data.notifications.nodes as Json[];
+    const assigned = nodes.find((n) => n.type === 'issueAssignedToYou');
+    expect(assigned?.actor?.id).toBe(s.owner.userId);
+    expect(assigned?.botActor).toBeNull();
+    const status = nodes.find((n) => n.type === 'issueStatusChanged');
+    expect(status?.actor).toBeNull();
+    expect(status?.botActor).toEqual({ type: 'workflow', id: rule.id, name: 'Start urgent' });
+  });
+
+  it('keeps a deleted workflow on its history, comments and notifications', async () => {
+    const s = await setup();
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Welcome',
+      trigger: 'entityCreated',
+      conditions: { priority: { eq: 1 } },
+      activities: [
+        { type: 'setAssignee', userId: s.member.userId },
+        { type: 'addComment', body: 'Thanks.' },
+      ],
+    });
+    const issue = await createIssue(s.owner, { teamId: s.teamId, priority: 1 });
+    await plugin(s.owner, 'workflows/delete', { id: rule.id });
+    // A new rule with the same name is a different workflow.
+    const again = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Welcome',
+      trigger: 'entityCreated',
+      conditions: { priority: { eq: 2 } },
+      activities: [{ type: 'addComment', body: 'Hi.' }],
+    });
+
+    const detail = await issueDetail(s.owner, issue.id);
+    const bots = detail.history.nodes.map((h: Json) => h.botActor).filter(Boolean);
+    expect(bots.length).toBeGreaterThan(0);
+    for (const b of bots) expect(b).toEqual({ type: 'workflow', id: rule.id, name: 'Welcome' });
+    expect(detail.comments.nodes[0].botActor).toEqual({
+      type: 'workflow',
+      id: rule.id,
+      name: 'Welcome',
+    });
+    const data = await gqlData(s.member, '{ notifications { nodes { type botActor { id } } } }');
+    const assigned = (data.notifications.nodes as Json[]).find(
+      (n) => n.type === 'issueAssignedToYou',
+    );
+    expect(assigned?.botActor?.id).toBe(rule.id);
+
+    // The deleted rule is gone from the list and cannot be read; it no longer runs.
+    const listed = await plugin(s.owner, `workflows?teamId=${s.teamId}&includeArchived=true`);
+    expect((listed.workflows as Json[]).map((w) => w.id)).toEqual([again.id]);
+    await expect(ruleRow(rule.id)).rejects.toThrow('404');
+    const later = await createIssue(s.owner, { teamId: s.teamId, priority: 1 });
+    expect((await issueDetail(s.owner, later.id)).comments.nodes).toHaveLength(0);
+  });
+
   it("delegates to an agent with the rule's owner as the session's creator", async () => {
     const s = await setup();
     const client = await createClient(s.owner.cookie);
