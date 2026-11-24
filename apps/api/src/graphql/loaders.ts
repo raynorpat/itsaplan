@@ -18,6 +18,7 @@ import { sessionsOfComments } from '../agents/store';
 import { mapCycle } from '../cycles/store';
 import { projectsInTeams } from '../projects/access';
 import { getProjectsByIds } from '../projects/store';
+import { projectHistories } from '../projects/progress';
 import { listReactions, type ReactionRow } from '../reactions/store';
 import { visibleTeamIdList } from '../shared/access';
 import type { GraphQLContext } from './context';
@@ -78,6 +79,12 @@ function createLoaders(ctx: GraphQLContext) {
   });
 
   return {
+    // A project's progress histories (projects/progress.ts), built on first need.
+    // Callers pass ids of projects the viewer already sees.
+    projectHistory: new DataLoader(async (keys: readonly string[]) => {
+      const found = await projectHistories([...keys], new Date());
+      return keys.map((k) => found.get(k) ?? null);
+    }),
     state: new DataLoader(async (keys: readonly string[]) =>
       byId(
         await db

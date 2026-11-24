@@ -1,16 +1,23 @@
 import { Elysia } from 'elysia';
 import { workerTokenValid } from '../shared/http';
+import { snapshotProjects } from './progress';
 import { purgeTrashedProjects } from './store';
 
-// The worker calls this on its cleanup interval; the purge runs in the API so the
-// deletions send their webhooks through the store.
-export const internalProjectRoutes = new Elysia({ name: 'internal-projects' }).post(
-  '/internal/projects/purge',
-  async ({ headers, set }) => {
+// The worker calls the purge on its cleanup interval and the snapshot with the cycle
+// upkeep; both run in the API so their writes go through the stores (the purge's
+// deletions send their webhooks).
+export const internalProjectRoutes = new Elysia({ name: 'internal-projects' })
+  .post('/internal/projects/purge', async ({ headers, set }) => {
     if (!workerTokenValid(headers)) {
       set.status = 401;
       return { error: 'Unauthorized' };
     }
     return { removed: await purgeTrashedProjects(new Date()) };
-  },
-);
+  })
+  .post('/internal/projects/snapshot', async ({ headers, set }) => {
+    if (!workerTokenValid(headers)) {
+      set.status = 401;
+      return { error: 'Unauthorized' };
+    }
+    return { changed: await snapshotProjects(new Date()) };
+  });

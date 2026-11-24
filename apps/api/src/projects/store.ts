@@ -17,6 +17,8 @@ import {
 } from '@repo/db';
 import { and, asc, eq, exists, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { projectTeamIds } from './access';
+import { liveProgressMany } from './progress';
+import type { Progress } from '../shared/progress';
 import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
 import { latestHealthFor, type UpdateHealth } from './updates';
@@ -68,6 +70,8 @@ export interface ProjectRow {
   updatedAt: string;
   labelIds: string[];
   progress: ProjectProgress;
+  // Linear's weighted progress and scope (projects/progress.ts).
+  weighted: Progress;
   // The latest project update's health (Linear's Project.health), or null.
   health: UpdateHealth | null;
 }
@@ -152,6 +156,7 @@ function mapProject(
   teams: ProjectTeam[],
   labelIds: string[],
   progress: ProjectProgress,
+  weighted: Progress,
   health: UpdateHealth | null,
 ): ProjectRow {
   const row = sel.row;
@@ -177,6 +182,7 @@ function mapProject(
     updatedAt: iso(row.updatedAt),
     labelIds,
     progress,
+    weighted,
     health,
   };
 }
@@ -190,11 +196,12 @@ async function enrich(
   visibleTeamIds: string[] | null,
 ): Promise<ProjectRow[]> {
   const ids = rows.map((r) => r.row.id);
-  const [teams, counts, labels, healths] = await Promise.all([
+  const [teams, counts, labels, healths, weighted] = await Promise.all([
     teamsFor(ids, visibleTeamIds),
     countsFor(ids),
     labelsFor(ids),
     latestHealthFor(ids),
+    liveProgressMany(ids),
   ]);
   return rows.map((r) =>
     mapProject(
@@ -202,6 +209,7 @@ async function enrich(
       teams.get(r.row.id) ?? [],
       labels.get(r.row.id) ?? [],
       counts.get(r.row.id) ?? EMPTY_PROGRESS,
+      weighted.get(r.row.id)!,
       healths.get(r.row.id) ?? null,
     ),
   );

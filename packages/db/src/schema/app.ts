@@ -359,6 +359,31 @@ export const project = pgTable(
     // Set with archived_at by projectDelete (Linear's trash); the worker deletes a
     // project 30 days after archived_at while it is set.
     trashed: boolean('trashed'),
+    // Linear's progress histories: one value per UTC day from history_start (the
+    // start date, else the creation day, when the history was built), appended
+    // daily by the worker. history_start is null until the history is first built
+    // from issue_activity (projects/progress.ts).
+    historyStart: date('history_start'),
+    issueCountHistory: integer('issue_count_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    completedIssueCountHistory: integer('completed_issue_count_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    scopeHistory: real('scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    completedScopeHistory: real('completed_scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    inProgressScopeHistory: real('in_progress_scope_history')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

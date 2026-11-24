@@ -1,4 +1,5 @@
 import { withoutWorkflows } from '../shared/workflow-context';
+import { weighProgress, type Progress } from '../shared/progress';
 import { cycle, db, issue, team, workflowState } from '@repo/db';
 import { and, asc, eq, gt, isNull, lt, lte, notInArray, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
@@ -307,42 +308,16 @@ export async function ensureCycles(teamId: string, now: Date): Promise<void> {
 
 // --- Progress -------------------------------------------------------------------
 
-export interface CycleProgress {
-  progress: number;
-  issueCount: number;
-  completedIssueCount: number;
-  scope: number;
-  completedScope: number;
-  inProgressScope: number;
-}
+export type CycleProgress = Progress;
 
-// Linear's cycle progress: completed issues count 1, started issues 0.25, canceled
-// issues are left out. Weighted by estimate when the cycle's estimate total is
-// nonzero (an issue without an estimate counts 1), otherwise by issue count. 0 when
-// nothing counts; 0.999 instead of 1 while open issues with a zero estimate remain.
+// Linear's cycle progress (shared/progress.ts) over the cycle's issues.
 export async function cycleProgress(cycleId: string): Promise<CycleProgress> {
   const rows = await db
     .select({ estimate: issue.estimate, type: workflowState.stateType })
     .from(issue)
     .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
     .where(eq(issue.cycleId, cycleId));
-  const counted = rows.filter((r) => r.type !== 'canceled');
-  const weighted = counted.some((r) => (r.estimate ?? 0) > 0);
-  const weight = (r: { estimate: number | null }) => (weighted ? (r.estimate ?? 1) : 1);
-  const sum = (list: typeof counted) => list.reduce((n, r) => n + weight(r), 0);
-  const completed = counted.filter((r) => r.type === 'completed');
-  const started = counted.filter((r) => r.type === 'started');
-  const scope = sum(counted);
-  let progress = scope > 0 ? (sum(completed) + 0.25 * sum(started)) / scope : 0;
-  if (progress === 1 && counted.some((r) => r.type !== 'completed')) progress = 0.999;
-  return {
-    progress,
-    issueCount: counted.length,
-    completedIssueCount: completed.length,
-    scope,
-    completedScope: sum(completed),
-    inProgressScope: sum(started),
-  };
+  return weighProgress(rows);
 }
 
 // --- Upkeep ---------------------------------------------------------------------

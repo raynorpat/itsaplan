@@ -6,6 +6,7 @@ import {
   notifyIssuesArchived,
   runCycleUpkeep,
   runProjectPurge,
+  runProjectSnapshot,
   runUploadCleanup,
 } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
@@ -30,7 +31,8 @@ export function startWorker(): WorkerHandle {
 
 // One poll: claim a batch of due deliveries, send them concurrently, record each
 // outcome, then run the delivery, upload and trashed-project cleanup, the
-// auto-archive sweep and the cycle upkeep on their own tick intervals.
+// auto-archive sweep and the cycle upkeep with the project progress snapshot on
+// their own tick intervals.
 async function tick(): Promise<void> {
   const cfg = workerConfig();
   const claimed = await claimDueDeliveries();
@@ -77,6 +79,11 @@ async function tick(): Promise<void> {
       await runCycleUpkeep();
     } catch (error) {
       console.error('[worker] cycle upkeep failed:', error);
+    }
+    try {
+      await runProjectSnapshot();
+    } catch (error) {
+      console.error('[worker] project progress snapshot failed:', error);
     }
   }
 }

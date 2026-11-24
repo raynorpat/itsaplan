@@ -86,6 +86,7 @@ describe('routes', () => {
       '/internal/cycles/tick',
       '/internal/uploads/cleanup',
       '/internal/projects/purge',
+      '/internal/projects/snapshot',
     ])
       expect([path, (await call('POST', path)).status]).toEqual([path, 401]);
   });

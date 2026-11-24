@@ -330,6 +330,13 @@
       "when": 1795541430118,
       "tag": "0046_easy_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795544224118,
+      "tag": "0047_thin_psynapse",
+      "breakpoints": true
     }
   ]
 }

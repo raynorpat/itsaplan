@@ -57,3 +57,13 @@ export async function runProjectPurge(): Promise<number> {
   const body = (await response.json()) as { removed?: number };
   return body.removed ?? 0;
 }
+
+// Appends today's progress to each open project's history (Linear's
+// Project.*History), in the api, which builds a history from issue history the
+// first time.
+export async function runProjectSnapshot(): Promise<number> {
+  const response = await postInternal('/internal/projects/snapshot', {}, 120_000);
+  if (!response.ok) throw new Error(`Project snapshot API returned ${response.status}`);
+  const body = (await response.json()) as { changed?: number };
+  return body.changed ?? 0;
+}

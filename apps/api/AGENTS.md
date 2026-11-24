@@ -312,6 +312,17 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `PROJECT_TRASH_DAYS` (30) days ago; a project only archived through `projectArchive`
   is never purged. A purged project's issues lose the project and its milestone, each
   with a system history entry and an Issue update event.
+- **Project progress** (`projects/progress.ts`): `Project.progress` and `scope` follow
+  the cycles' rule (`shared/progress.ts`: completed 1, started 0.25, canceled left out,
+  weighted by estimate when any issue has one). The five history arrays hold one value
+  per UTC day from `history_start`: built from `issue_activity` (project and status
+  changes by id, worked back from each issue's current values; current estimates for
+  past days) the first time they are read or snapshotted, and again only when the
+  start date moves to a day that has begun; then the worker's hourly
+  `/internal/projects/snapshot` appends the missing days of each open project with
+  that day's values. An open project's today is always live; a completed, canceled,
+  archived or trashed project gets no new days. The histories resolve through the
+  `projectHistory` request loader.
 
 ## Security
 

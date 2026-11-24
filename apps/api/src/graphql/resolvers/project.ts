@@ -23,6 +23,7 @@ import { projectFilterSql } from '../project-filter';
 import { UUID_RE } from '../../shared/lib';
 import { projectsInTeams } from '../../projects/access';
 import { getProjectsByIds, type ProjectRow } from '../../projects/store';
+import type { ProjectHistory } from '../../projects/progress';
 import { listIssues, userById } from './issue';
 import { listUsers, toTeam, visibleUsers } from './team';
 import { toGraphQLUser } from './user';
@@ -39,7 +40,6 @@ type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean |
 const readable = (ctx: GraphQLContext) => visibleTeamIdList(ctx.user.id);
 
 export function toProject(p: ProjectRow) {
-  const open = p.progress.total - p.progress.canceled;
   return {
     id: p.id,
     name: p.name,
@@ -59,15 +59,10 @@ export function toProject(p: ProjectRow) {
     updatedAt: p.updatedAt,
     archivedAt: p.archivedAt,
     health: p.health,
-    progress: open > 0 ? p.progress.completed / open : 0,
-    // Linear's scope is the number of open (not canceled) issues. No history is
-    // stored, so each history array holds the current value only.
-    scope: open,
-    scopeHistory: [open],
-    completedScopeHistory: [p.progress.completed],
-    inProgressScopeHistory: [],
-    issueCountHistory: [p.progress.total],
-    completedIssueCountHistory: [p.progress.completed],
+    // Linear's weighted progress and scope (projects/progress.ts); the history arrays
+    // resolve through the projectHistory loader.
+    progress: p.weighted.progress,
+    scope: p.weighted.scope,
     // Deprecated in Linear, still selected by the SDK: the status type.
     state: p.status,
     url: `${trustedOrigins[0]}/projects/${p.id}`,
@@ -81,6 +76,17 @@ export function toProject(p: ProjectRow) {
 }
 
 type GraphQLProject = ReturnType<typeof toProject>;
+
+const EMPTY_HISTORY: ProjectHistory = {
+  issueCountHistory: [],
+  completedIssueCountHistory: [],
+  scopeHistory: [],
+  completedScopeHistory: [],
+  inProgressScopeHistory: [],
+};
+
+const history = async (p: GraphQLProject, ctx: GraphQLContext) =>
+  (await loaders(ctx).projectHistory.load(p.id)) ?? EMPTY_HISTORY;
 
 // One page of the viewer's visible projects matching `where`, the filter and
 // includeArchived.
@@ -364,6 +370,16 @@ export const projectResolvers = {
     },
   },
   Project: {
+    issueCountHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      history(p, ctx).then((h) => h.issueCountHistory),
+    completedIssueCountHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      history(p, ctx).then((h) => h.completedIssueCountHistory),
+    scopeHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      history(p, ctx).then((h) => h.scopeHistory),
+    completedScopeHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      history(p, ctx).then((h) => h.completedScopeHistory),
+    inProgressScopeHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      history(p, ctx).then((h) => h.inProgressScopeHistory),
     status: async (p: GraphQLProject) => {
       const [row] = await db.select().from(projectStatus).where(eq(projectStatus.id, p.statusId));
       return toStatus(row!);
