@@ -48,7 +48,7 @@ function ghIssue(n: number, extra: Json = {}): Json {
     assignee: n === 1 ? ghUser(2, 'hubot') : null,
     created_at: `2024-01-0${n}T10:00:00Z`,
     closed_at: null,
-    comments: n === 1 ? 1 : 0,
+    comments: n === 1 ? 150 : 0,
     ...extra,
   };
 }
@@ -59,6 +59,30 @@ const ghIssues: Json[] = [
   ghIssue(3, { state: 'closed', state_reason: 'not_planned', closed_at: '2024-02-02T10:00:00Z' }),
   ghIssue(4, { pull_request: { url: 'x' } }),
 ];
+
+// Issue 1's 150 comments, as GitHub lists a repository's comments (with each one's
+// issue URL), over two pages.
+const ghComments: Json[] = Array.from({ length: 150 }, (_, k) => ({
+  id: k + 1,
+  user: ghUser(2, 'hubot'),
+  body: k === 0 ? 'A comment' : `Comment ${k + 1}`,
+  created_at: `2024-01-02T${String(10 + Math.floor(k / 60)).padStart(2, '0')}:${String(k % 60).padStart(2, '0')}:00Z`,
+  issue_url: 'https://api.github.com/repos/acme/app/issues/1',
+}));
+
+let issueRequests: string[] = [];
+
+// A page of a list with GitHub's `Link` header to the next page.
+function linked(url: URL, items: Json[]): Response {
+  const page = Number(url.searchParams.get('page') || '1');
+  const perPage = Number(url.searchParams.get('per_page') || '30');
+  const next = new URL(url);
+  next.searchParams.set('page', String(page + 1));
+  const more = page * perPage < items.length;
+  return Response.json(items.slice((page - 1) * perPage, page * perPage), {
+    headers: more ? { link: `<${next.href}>; rel="next"` } : {},
+  });
+}
 
 const github = Bun.serve({
   port: 0,
@@ -92,18 +116,14 @@ const github = Bun.serve({
           Number(url.searchParams.get('page')) === 1 ? [{ id: 101, full_name: 'acme/app' }] : [],
       });
     if (url.pathname === '/repos/acme/app/issues') {
+      issueRequests.push(url.search);
       const state = url.searchParams.get('state');
-      const items = ghIssues.filter((i) => state === 'all' || i.state === 'open');
-      const page = Number(url.searchParams.get('page'));
-      const perPage = Number(url.searchParams.get('per_page'));
-      return Response.json(items.slice((page - 1) * perPage, page * perPage));
+      const items = ghIssues
+        .filter((i) => state === 'all' || i.state === 'open')
+        .map((i) => ({ ...i, html_url: i.html_url.replace('https://github.com', url.origin) }));
+      return linked(url, items);
     }
-    if (url.pathname === '/repos/acme/app/issues/1/comments')
-      return Response.json(
-        Number(url.searchParams.get('page')) === 1
-          ? [{ user: ghUser(2, 'hubot'), body: 'A comment', created_at: '2024-01-02T10:00:00Z' }]
-          : [],
-      );
+    if (url.pathname === '/repos/acme/app/issues/comments') return linked(url, ghComments);
     if (url.pathname === '/users/octocat')
       return Response.json({
         id: 1,
@@ -200,6 +220,7 @@ async function connect(): Promise<string> {
 
 beforeEach(async () => {
   setEnv(true);
+  issueRequests = [];
   await resetDb();
   owner = await signUpTestUser({ name: 'Owner' });
   teamId = (await createTeam(owner, { key: 'ENG', name: 'Engineering' })).team.id;
@@ -284,7 +305,9 @@ describe('GitHub import', () => {
     expect(processed.errors).toBeUndefined();
     const done = await waitFor(imp.id, (i) => i.status === 'complete' || i.status === 'error');
     expect(done.status).toBe('complete');
-    expect(done.summary).toMatchObject({ issues: 3, comments: 1, total: 3 });
+    expect(done.summary).toMatchObject({ issues: 3, comments: 150, total: 3 });
+    // Oldest first, so issues opened during the fetch do not shift earlier pages.
+    expect(issueRequests.every((q) => q.includes('sort=created&direction=asc'))).toBe(true);
 
     const issues = await query(
       owner,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -52,10 +52,10 @@ export default function ImportPeopleDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogTitle>Match people</DialogTitle>
-        <p className="text-sm text-muted-foreground">
+        <DialogDescription>
           Choose the member each person&apos;s issues and comments belong to. Unmatched
           people&apos;s issues are left unassigned and credited to you.
-        </p>
+        </DialogDescription>
         {isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         {data && data.people.length === 0 && (

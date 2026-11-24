@@ -21,8 +21,9 @@ automation rules (`GET workflows?teamId=`, `GET workflow?id=`, `POST workflows/{
 update, enable, reorder, archive, unarchive, delete}`; Linear's schema has no operation
 for them; the rules run in the API's issue writes, `apps/api/src/workflows/engine.ts`).
 A person's extra email addresses (`GET account/emails`, `POST account/emails/{add,
-remove}`, and the public `GET account/emails/confirm?token=` the confirmation mail links
-to, which redirects to the web's profile page) are used only to match people in an
+remove}`, and the public `GET account/emails/confirm-info?token=` and `POST
+account/emails/confirm { token }` that the web's confirmation page, opened by the mailed
+link, calls; opening the link confirms nothing, the page's button does) are used only to match people in an
 issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email`. Issue
 imports from GitLab, Gitea and Forgejo (`GET imports`, `GET import?id=`, `GET
 import/people?id=`, `POST imports/{repositories, start, process}`; owners and admins)

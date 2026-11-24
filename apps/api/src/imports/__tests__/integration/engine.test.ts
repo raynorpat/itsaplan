@@ -206,24 +206,15 @@ describe('processImport', () => {
       sourceIssue(n, {
         comments: [{ author: octo, body: `c${n}`, createdAt: '2024-01-05T10:00:00Z' }],
       });
-    const first = await newImport();
-    let calls = 0;
-    await expect(
-      processImport(
-        first,
-        data([withComment(1), withComment(2)]),
-        {},
-        {
-          // Stops while the second issue is half written (after its issue, before its
-          // comments).
-          afterIssueCreated: () => {
-            calls += 1;
-            if (calls === 2) throw new Error('stopped');
-          },
-        },
-      ),
-    ).rejects.toThrow('stopped');
-    expect((await getImport(first))!.status).toBe('error');
+    await processImport(await newImport(), data([withComment(1), withComment(2)]), {});
+    // A run stopped while the second issue was half written: its link not yet marked
+    // complete and its comments not yet added.
+    const [, second] = await teamIssues();
+    await db.delete(comment).where(eq(comment.issueId, second!.id));
+    await db
+      .update(attachment)
+      .set({ metadata: { imported: false } })
+      .where(eq(attachment.issueId, second!.id));
 
     await processImport(await newImport(), data([withComment(1), withComment(2)]), {});
     const rows = await teamIssues();
@@ -241,6 +232,30 @@ describe('processImport', () => {
       '**Octo Cat** on GitHub wrote:\n\nc1',
       '**Octo Cat** on GitHub wrote:\n\nc2',
     ]);
+  });
+
+  it('imports a source issue listed twice once', async () => {
+    const summary = await processImport(
+      await newImport(),
+      data([sourceIssue(1), sourceIssue(2), sourceIssue(1)]),
+      {},
+    );
+    expect((await teamIssues()).map((r) => r.title)).toEqual(['Issue 1', 'Issue 2']);
+    expect(summary).toMatchObject({ issues: 2, skippedExisting: 1 });
+  });
+
+  it('leaves an issue unassigned when its matched member is suspended', async () => {
+    await gqlData(owner, 'mutation($id: String!) { userSuspend(id: $id) { success } }', {
+      id: member.userId,
+    });
+    const summary = await processImport(
+      await newImport(),
+      data([sourceIssue(1, { assignee: ann, author: ann })]),
+      { ann: member.userId },
+    );
+    expect(summary).toMatchObject({ issues: 1, skipped: [] });
+    const [row] = await teamIssues();
+    expect(row!.assigneeUserId).toBeNull();
   });
 
   it('truncates long titles and keeps the full title in the body', async () => {
@@ -306,6 +321,39 @@ describe('processImport', () => {
       service: 'github',
       status: 'complete',
       displayName: 'acme/app',
+    });
+  });
+
+  it("shows an import's error, mapping and server address to admins only", async () => {
+    const id = await createImport({
+      service: 'gitea',
+      teamId,
+      creatorId: owner.userId,
+      displayName: 'acme/app',
+      serviceMetadata: { host: 'http://git.internal:3000', repository: 'acme/app' },
+    }).then((r) => r.id);
+    await processImport(id, data([sourceIssue(1, { assignee: ann })]), { ann: member.userId });
+    await setImportStatus(id, 'error', { error: 'The server answered 500: internal detail' });
+    const [row] = await teamIssues();
+    const read = async (as: TestUser) => {
+      const res = await gqlData(
+        as,
+        `query ($id: String!) { issue(id: $id) { history { nodes {
+          issueImport { error mapping serviceMetadata } } } } }`,
+        { id: row!.id },
+      );
+      const nodes = res.issue.history.nodes as { issueImport: Record<string, unknown> | null }[];
+      return nodes.find((n) => n.issueImport)!.issueImport!;
+    };
+    expect(await read(owner)).toMatchObject({
+      error: 'The server answered 500: internal detail',
+      mapping: { people: { ann: member.userId } },
+      serviceMetadata: { host: 'http://git.internal:3000' },
+    });
+    expect(await read(member)).toEqual({
+      error: null,
+      mapping: null,
+      serviceMetadata: { repository: 'acme/app' },
     });
   });
 });

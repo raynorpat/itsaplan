@@ -37,10 +37,26 @@ export const SERVICE_LABEL: Record<ImportService, string> = {
   forgejo: 'Forgejo',
 };
 
+const clock = (at: Date) =>
+  `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+
+// Until when the fetch waits for the source's rate limit, while it does.
+function waitingUntil(imp: ImportView): Date | null {
+  const raw = imp.serviceMetadata?.waitingUntil;
+  if (typeof raw !== 'string') return null;
+  const at = new Date(raw);
+  return at.getTime() > Date.now() ? at : null;
+}
+
 export function importStatusText(imp: ImportView): string {
   switch (imp.status) {
-    case 'inProgress':
-      return imp.awaitingPeople ? 'Match people to continue' : 'Fetching issues…';
+    case 'inProgress': {
+      if (imp.awaitingPeople) return 'Match people to continue';
+      const until = waitingUntil(imp);
+      return until
+        ? `Waiting for the source's rate limit until ${clock(until)}`
+        : 'Fetching issues…';
+    }
     case 'inProcess': {
       const s = imp.summary;
       if (!s) return 'Starting…';
@@ -116,4 +132,47 @@ export function destinationInput(form: DestinationForm): ImportDestination | { e
     return { teamId: null, teamName: name, includeClosed: form.includeClosed, labels };
   }
   return { teamId: form.team, teamName: null, includeClosed: form.includeClosed, labels };
+}
+
+// What "Run again" repeats for a failed import: the same source, repository and options
+// into the same team (the one it created, if it got that far), so the issues already
+// imported are skipped. A token import asks for the token again.
+export type RerunInput =
+  | {
+      kind: 'token';
+      service: Exclude<ImportService, 'github'>;
+      host: string;
+      repository: string;
+      destination: ImportDestination;
+    }
+  | { kind: 'github'; repoIds: number[]; destination: ImportDestination };
+
+export function rerunInput(imp: ImportView): RerunInput | null {
+  if (imp.status !== 'error') return null;
+  const meta = imp.serviceMetadata ?? {};
+  const destination: ImportDestination = {
+    teamId: imp.teamId,
+    teamName: imp.teamId ? null : imp.teamName,
+    includeClosed: meta.includeClosed === true,
+    labels: Array.isArray(meta.labels)
+      ? meta.labels.filter((l): l is string => typeof l === 'string')
+      : [],
+  };
+  if (!destination.teamId && !destination.teamName) return null;
+  if (imp.service === 'github') {
+    const repos = Array.isArray(meta.repositories) ? meta.repositories : [];
+    const repoIds = repos
+      .map((r) => (r && typeof r === 'object' ? (r as { id?: unknown }).id : null))
+      .filter((id): id is number => typeof id === 'number');
+    return repoIds.length ? { kind: 'github', repoIds, destination } : null;
+  }
+  if (imp.service !== 'gitlab' && imp.service !== 'gitea' && imp.service !== 'forgejo') return null;
+  if (typeof meta.host !== 'string' || typeof meta.repository !== 'string') return null;
+  return {
+    kind: 'token',
+    service: imp.service,
+    host: meta.host,
+    repository: meta.repository,
+    destination,
+  };
 }

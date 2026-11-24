@@ -1,10 +1,17 @@
-import { db, issueImport, teamMember, user } from '@repo/db';
+import { db, teamMember, user } from '@repo/db';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { memberEmails } from '../accounts/emails';
-import { HttpError, UUID_RE } from '../shared/lib';
+import { HttpError, pgErrorCode, UUID_RE } from '../shared/lib';
 import { shownName } from '../shared/user-name';
 import { processImport, suggestPeople } from './engine';
-import { getImport, setImportStatus, type ImportRow } from './store';
+import { withRateLimitNotice } from './sources/http';
+import {
+  claimForProcessing,
+  getImport,
+  setImportStatus,
+  setWaitingUntil,
+  type ImportRow,
+} from './store';
 import type { SourceData, SourcePerson } from './types';
 
 // The steps every import goes through, whatever its source: a background fetch, the
@@ -13,8 +20,13 @@ import type { SourceData, SourcePerson } from './types';
 // mutations (github.ts, graphql/resolvers/issue-import.ts). An API restart in between
 // ends a waiting import as an error (store.ts sweepInterruptedImports).
 
-// Fetched source data of imports waiting for people matching, by import id.
-const fetched = new Map<string, SourceData>();
+// Fetched source data waits this long for the people matching, then the import ends.
+const WAIT_FOR_PEOPLE_MS = 24 * 60 * 60 * 1000;
+export const EXPIRED = 'Expired, run the import again';
+
+// Fetched source data of imports waiting for people matching, by import id, with the
+// time the fetch ended.
+const fetched = new Map<string, { data: SourceData; at: number }>();
 
 export function isAwaitingPeople(row: ImportRow): boolean {
   return row.status === 'inProgress' && fetched.has(row.id);
@@ -59,8 +71,13 @@ export function beginFetch(
 ): void {
   void (async () => {
     try {
-      const data = await fetchSource();
-      fetched.set(row.id, data);
+      // While a request waits for the source's rate limit, the import shows until when.
+      const data = await withRateLimitNotice(
+        (until) => setWaitingUntil(row.id, until),
+        fetchSource,
+      );
+      await setWaitingUntil(row.id, null);
+      fetched.set(row.id, { data, at: Date.now() });
       await setImportStatus(row.id, 'inProgress', { progress: 100 });
       if (opts.instantProcess) {
         const { people, members } = await peopleOf(row);
@@ -73,6 +90,7 @@ export function beginFetch(
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The fetch failed';
       const secret = opts.secret;
+      await setWaitingUntil(row.id, null);
       await setImportStatus(row.id, 'error', {
         error: secret ? message.split(secret).join('***') : message,
       });
@@ -105,7 +123,7 @@ async function candidates(row: ImportRow) {
 // The people of the fetched data with their issue counts, in order of appearance,
 // and the members they may be matched to.
 async function peopleOf(row: ImportRow) {
-  const data = fetched.get(row.id);
+  const data = fetched.get(row.id)?.data;
   if (!data) throw new HttpError(409, 'The import is not waiting for people matching');
   const byKey = new Map<string, { person: SourcePerson; issues: Set<string> }>();
   const note = (p: SourcePerson | null, issueUrl: string) => {
@@ -159,29 +177,46 @@ export function peopleMapping(value: unknown): Record<string, string | null> {
   return out;
 }
 
-// Starts processing a fetched import with the people mapping. One running import per
-// team.
+// Starts processing a fetched import with the people mapping. The fetched data is
+// taken before anything else, so a second request for the same import finds none; the
+// import is then claimed in one statement, and the database allows one running import
+// per team. A person matched to someone who may not be chosen (not, or no longer, a
+// member of the team) is left unmatched.
 export async function startProcessing(
   row: ImportRow,
   people: Record<string, string | null>,
 ): Promise<ImportRow> {
-  const data = fetched.get(row.id);
-  if (row.status !== 'inProgress' || !data)
-    throw new HttpError(409, 'The import is not waiting for people matching');
-  if (row.teamId) {
-    const [running] = await db
-      .select({ id: issueImport.id })
-      .from(issueImport)
-      .where(and(eq(issueImport.teamId, row.teamId), eq(issueImport.status, 'inProcess')));
-    if (running) throw new HttpError(409, 'Another import into this team is running');
-  }
-  const known = new Set((await candidates(row)).map((m) => m.id));
-  for (const id of Object.values(people))
-    if (id !== null && !known.has(id))
-      throw new HttpError(400, 'A matched person is not a member of the team');
+  const entry = fetched.get(row.id);
+  if (!entry) throw new HttpError(409, 'The import is not waiting for people matching');
   fetched.delete(row.id);
-  void processImport(row.id, data, people).catch(() => {
+  let claimed: ImportRow | null;
+  let allowed: Record<string, string | null>;
+  try {
+    const known = new Set((await candidates(row)).map((m) => m.id));
+    allowed = Object.fromEntries(
+      Object.entries(people).map(([key, id]) => [key, id !== null && known.has(id) ? id : null]),
+    );
+    claimed = await claimForProcessing(row.id);
+  } catch (err) {
+    fetched.set(row.id, entry);
+    if (pgErrorCode(err) === '23505')
+      throw new HttpError(409, 'Another import into this team is running');
+    throw err;
+  }
+  if (!claimed) throw new HttpError(409, 'The import is not waiting for people matching');
+  void processImport(row.id, entry.data, allowed).catch(() => {
     // processImport records the error on the import.
   });
-  return { ...row, status: 'inProcess' };
+  return claimed;
+}
+
+// Ends the imports whose fetched data has waited longer than WAIT_FOR_PEOPLE_MS for
+// the people matching (the API checks hourly, index.ts), freeing their memory.
+export async function expireWaitingImports(now: Date = new Date()): Promise<void> {
+  for (const [id, entry] of [...fetched]) {
+    if (now.getTime() - entry.at < WAIT_FOR_PEOPLE_MS) continue;
+    fetched.delete(id);
+    const row = await getImport(id);
+    if (row?.status === 'inProgress') await setImportStatus(id, 'error', { error: EXPIRED });
+  }
 }

@@ -7,6 +7,7 @@ import {
   importStatusText,
   importSummaryText,
   peopleMappingInput,
+  rerunInput,
   type ImportView,
 } from '../imports';
 
@@ -145,5 +146,85 @@ describe('importSummaryText', () => {
   });
   it('is null until the import is complete', () => {
     assert.equal(importSummaryText(base), null);
+  });
+});
+
+describe('importStatusText while waiting for a rate limit', () => {
+  it('says until when the fetch waits', () => {
+    const until = new Date(Date.now() + 30 * 60_000);
+    const hhmm = `${String(until.getHours()).padStart(2, '0')}:${String(until.getMinutes()).padStart(2, '0')}`;
+    assert.equal(
+      importStatusText({ ...base, serviceMetadata: { waitingUntil: until.toISOString() } }),
+      `Waiting for the source's rate limit until ${hhmm}`,
+    );
+  });
+
+  it('reads fetching once the wait is over', () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    assert.equal(
+      importStatusText({ ...base, serviceMetadata: { waitingUntil: past } }),
+      'Fetching issues…',
+    );
+  });
+});
+
+describe('rerunInput', () => {
+  const failed: ImportView = {
+    ...base,
+    status: 'error',
+    error: 'Interrupted, run the import again',
+    teamId: 't9',
+    teamName: 'Acme',
+    serviceMetadata: {
+      service: 'Gitea',
+      host: 'https://git.example',
+      repository: 'acme/api',
+      includeClosed: true,
+      labels: ['bug'],
+    },
+  };
+
+  it('repeats a token import into the team it created, without the token', () => {
+    assert.deepEqual(rerunInput(failed), {
+      kind: 'token',
+      service: 'gitea',
+      host: 'https://git.example',
+      repository: 'acme/api',
+      destination: { teamId: 't9', teamName: null, includeClosed: true, labels: ['bug'] },
+    });
+  });
+
+  it('keeps the new team name when the team was not created yet', () => {
+    const r = rerunInput({ ...failed, teamId: null });
+    assert.ok(r && r.kind === 'token');
+    assert.deepEqual(r.destination, {
+      teamId: null,
+      teamName: 'Acme',
+      includeClosed: true,
+      labels: ['bug'],
+    });
+  });
+
+  it('repeats a GitHub import with its repositories', () => {
+    assert.deepEqual(
+      rerunInput({
+        ...failed,
+        service: 'github',
+        serviceMetadata: {
+          repositories: [{ id: 101, name: 'acme/app' }],
+          includeClosed: false,
+          labels: [],
+        },
+      }),
+      {
+        kind: 'github',
+        repoIds: [101],
+        destination: { teamId: 't9', teamName: null, includeClosed: false, labels: [] },
+      },
+    );
+  });
+
+  it('is null for an import that did not fail', () => {
+    assert.equal(rerunInput({ ...failed, status: 'complete' }), null);
   });
 });

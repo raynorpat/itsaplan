@@ -8,7 +8,7 @@ import { paginate, type PageArgs } from '../connection';
 import { toCycle } from './cycle';
 import { issueById, toIssue, userFor } from './issue';
 import { getImport } from '../../imports/store';
-import { toIssueImport } from './issue-import';
+import { seesImportDetails, toIssueImport } from './issue-import';
 import { toIssueLabel } from './issue-label';
 import { findProject, toProject } from './project';
 import { toWorkflowState } from './workflow-state';
@@ -244,10 +244,10 @@ export const historyResolvers = {
     botActor: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       h.workflowDefinitionId ? loaders(ctx).workflowBot.load(h.workflowDefinitionId) : null,
     // The import that created the issue; anyone who can read the history may see it.
-    issueImport: async (h: GraphQLIssueHistory) => {
+    issueImport: async (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => {
       if (!h.issueImportId) return null;
       const job = await getImport(h.issueImportId);
-      return job ? toIssueImport(job) : null;
+      return job ? toIssueImport(job, await seesImportDetails(ctx)) : null;
     },
     fromState: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       stateOrNull(h.fromStateId, ctx),

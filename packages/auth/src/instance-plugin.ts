@@ -37,9 +37,10 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - GET  /instance/account/emails and POST /instance/account/emails/{add, remove}
 //   signed in: the person's extra email addresses, used only to match people in an
 //   issue import (apps/api src/accounts/emails.ts). Same Origin rule for the POSTs.
-// - GET  /instance/account/emails/confirm?token=  public: the link mailed to an added
-//   address; confirms it and redirects to the web's profile page with
-//   `emailConfirmed=1` or `emailConfirmError=<message>`.
+// - GET  /instance/account/emails/confirm-info?token= and POST
+//   /instance/account/emails/confirm { token }  public (the token is the credential):
+//   the web's confirmation page, which the mailed link opens, reads the address, and
+//   its button confirms it. Opening the link confirms nothing.
 // - GET  /instance/imports, GET /instance/import?id=, GET /instance/import/people?id=
 //   and POST /instance/imports/{repositories, start, process}  workspace admins and
 //   owners: issue imports from GitLab, Gitea and Forgejo with a pasted access token
@@ -93,6 +94,7 @@ export interface AccountEmailsHandlers {
   list(headers: Headers): Promise<object>;
   add(headers: Headers, body: unknown): Promise<object>;
   remove(headers: Headers, body: unknown): Promise<object>;
+  confirmInfo(token: unknown): Promise<{ email: string }>;
   confirm(token: unknown): Promise<{ email: string }>;
 }
 
@@ -292,18 +294,20 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         options.trustedOrigins,
         (h, headers, body) => h.remove(headers, body),
       ),
+      // The confirmation page (the mailed link) reads the address, then posts the token
+      // when its button is pressed. Neither needs a session: the token is the
+      // credential, so the POST has no Origin check of its own.
+      instanceAccountEmailConfirmInfo: createAuthEndpoint(
+        '/instance/account/emails/confirm-info',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.accountEmails.confirmInfo(ctx.query?.token))),
+      ),
       instanceAccountEmailConfirm: createAuthEndpoint(
         '/instance/account/emails/confirm',
-        { method: 'GET' },
+        { method: 'POST' },
         async (ctx) => {
-          const profile = `${options.trustedOrigins[0]}/settings/account/profile`;
-          try {
-            await run((h) => h.accountEmails.confirm(ctx.query?.token));
-          } catch (err) {
-            const message = err instanceof APIError ? err.message : 'The link could not be used';
-            throw ctx.redirect(`${profile}?emailConfirmError=${encodeURIComponent(message)}`);
-          }
-          throw ctx.redirect(`${profile}?emailConfirmed=1`);
+          const body = ctx.body as Record<string, unknown> | undefined;
+          return ctx.json(await run((h) => h.accountEmails.confirm(body?.token)));
         },
       ),
       instanceImports: createAuthEndpoint('/instance/imports', { method: 'GET' }, async (ctx) =>

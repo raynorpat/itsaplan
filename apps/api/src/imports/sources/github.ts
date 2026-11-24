@@ -1,7 +1,7 @@
 import { createPrivateKey, sign } from 'node:crypto';
 import { HttpError } from '../../shared/lib';
 import type { SourceComment, SourceData, SourceIssue, SourcePerson } from '../types';
-import { getJson, postJson } from './http';
+import { getJson, MAX_PAGES, nextLink, postJson, sourceUrl } from './http';
 
 // GitHub through this instance's GitHub Import App (Linear's model): the app's key
 // signs a JWT, which mints an installation token for the repositories the workspace
@@ -99,7 +99,7 @@ export async function confirmInstallation(code: string, installationId: string):
   const userToken = data.access_token;
   if (!userToken) throw new HttpError(400, 'GitHub did not accept the authorization code');
   const installations: { id: number }[] = [];
-  for (let page = 1; ; page += 1) {
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
     const { data: res } = await getJson<{ installations: { id: number }[] }>(
       `${config.apiUrl}/user/installations?per_page=${PAGE_SIZE}&page=${page}`,
       { authorization: `Bearer ${userToken}`, ...API_VERSION },
@@ -134,13 +134,14 @@ async function installationGet<T>(
 export async function listGithubRepos(installationId: string): Promise<GithubRepository[]> {
   const config = requireGithubConfig();
   const out: GithubRepository[] = [];
-  for (let page = 1; ; page += 1) {
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
     const { data } = await installationGet<{
       repositories: { id: number; full_name: string }[];
     }>(config, installationId, `/installation/repositories?per_page=${PAGE_SIZE}&page=${page}`);
     out.push(...data.repositories.map((r) => ({ id: r.id, name: r.full_name })));
-    if (data.repositories.length < PAGE_SIZE) return out;
+    if (data.repositories.length < PAGE_SIZE) break;
   }
+  return out;
 }
 
 interface GithubUser {
@@ -165,22 +166,32 @@ interface GithubIssue {
 }
 
 interface GithubComment {
+  id: number;
+  // The API URL of the issue (or pull request) it is on, ending in its number.
+  issue_url: string;
   user: GithubUser;
   body: string | null;
   created_at: string;
 }
 
+// Every page of a list, following GitHub's `Link: rel="next"`. Items are kept once by `key`, since a list that changes
+// during the read shifts its pages.
 async function allPages<T>(
   config: GithubConfig,
   installationId: string,
-  path: (page: number) => string,
+  path: string,
+  key: (item: T) => number,
 ): Promise<T[]> {
-  const out: T[] = [];
-  for (let page = 1; ; page += 1) {
-    const { data } = await installationGet<T[]>(config, installationId, path(page));
-    out.push(...data);
-    if (data.length < PAGE_SIZE) return out;
+  const out = new Map<number, T>();
+  let next: string | null = `${path}${path.includes('?') ? '&' : '?'}per_page=${PAGE_SIZE}&page=1`;
+  for (let reads = 0; next && reads < MAX_PAGES; reads += 1) {
+    const { data, headers } = await installationGet<T[]>(config, installationId, next);
+    for (const item of data) if (!out.has(key(item))) out.set(key(item), item);
+    const link = nextLink(headers);
+    // The Link header holds an absolute URL; keep its path and query.
+    next = link ? link.slice(new URL(link).origin.length) : null;
   }
+  return [...out.values()];
 }
 
 // GitHub's "closed as not planned" is its own state, which the engine maps to canceled.
@@ -189,9 +200,11 @@ function issueState(i: GithubIssue): SourceIssue['state'] {
   return i.state_reason === 'not_planned' ? 'notPlanned' : 'closed';
 }
 
-// Fetches the issues (no pull requests) of the given repositories. The issues list
-// carries only a user's id and login, so each person's profile is read once for the
-// name and the public email the people matching uses.
+// Fetches the issues (no pull requests) of the given repositories, oldest first, with
+// their comments read from the repository's comment list (one request per 100
+// comments, not one per issue). The lists carry only a user's id and login, so each
+// person's profile is read once for the name and the public email the people matching
+// uses.
 export async function fetchGithub(
   installationId: string,
   repositories: GithubRepository[],
@@ -225,29 +238,41 @@ export async function fetchGithub(
       .split('/')
       .map((part) => encodeURIComponent(part))
       .join('/');
-    const raw = await allPages<GithubIssue>(
-      config,
-      installationId,
-      (page) => `/repos/${repo}/issues?state=${state}&per_page=${PAGE_SIZE}&page=${page}${labels}`,
-    );
-    for (const i of raw) {
-      if (i.pull_request) continue;
-      const comments: SourceComment[] = [];
-      if (i.comments > 0) {
-        const rows = await allPages<GithubComment>(
-          config,
-          installationId,
-          (page) => `/repos/${repo}/issues/${i.number}/comments?per_page=${PAGE_SIZE}&page=${page}`,
-        );
-        for (const c of rows)
-          comments.push({
-            author: await person(c.user),
-            body: c.body ?? '',
-            createdAt: c.created_at,
-          });
+    const raw = (
+      await allPages<GithubIssue>(
+        config,
+        installationId,
+        `/repos/${repo}/issues?state=${state}&sort=created&direction=asc${labels}`,
+        (i) => i.number,
+      )
+    ).filter((i) => !i.pull_request);
+    const byIssue = new Map<number, GithubComment[]>();
+    if (raw.some((i) => i.comments > 0)) {
+      const rows = await allPages<GithubComment>(
+        config,
+        installationId,
+        `/repos/${repo}/issues/comments?sort=created&direction=asc`,
+        (c) => c.id,
+      );
+      for (const c of rows) {
+        const n = Number(/\/(\d+)$/.exec(c.issue_url)?.[1]);
+        if (n) byIssue.set(n, [...(byIssue.get(n) ?? []), c]);
       }
+    }
+    for (const i of raw) {
+      const comments: SourceComment[] = [];
+      for (const c of byIssue.get(i.number) ?? [])
+        comments.push({
+          author: await person(c.user),
+          body: c.body ?? '',
+          createdAt: c.created_at,
+        });
       issues.push({
-        url: i.html_url,
+        url: sourceUrl(
+          i.html_url,
+          config.webUrl,
+          `${config.webUrl}/${repository.name}/issues/${i.number}`,
+        ),
         number: i.number,
         title: i.title,
         body: i.body ?? '',

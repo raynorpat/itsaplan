@@ -1,4 +1,4 @@
-import { attachment, db, issue, label, teamMember, workflowState } from '@repo/db';
+import { attachment, db, issue, label, teamMember, user, workflowState } from '@repo/db';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { createComment } from '../comments/store';
 import { createIssue } from '../issues/store';
@@ -22,12 +22,6 @@ export { suggestPeople } from './normalize';
 
 // Linear's progress is updated at most this often (and at the end).
 const PROGRESS_EVERY_MS = 1000;
-
-export interface ImportHooks {
-  // Called after each issue (and its link) is created, before its comments: tests
-  // stop a run there to check an interrupted import.
-  afterIssueCreated?: (issueId: string) => void | Promise<void>;
-}
 
 interface StateIds {
   open: string;
@@ -122,7 +116,6 @@ export async function processImport(
   importId: string,
   data: SourceData,
   people: Record<string, string | null>,
-  hooks: ImportHooks = {},
 ): Promise<ImportSummary> {
   const job = await getImport(importId);
   if (!job) throw new HttpError(404, 'Import not found');
@@ -144,9 +137,7 @@ export async function processImport(
       progress: 0,
       error: null,
     });
-    await runAsImport(importId, () =>
-      createAll(importId, team, creatorId, data, people, summary, hooks),
-    );
+    await runAsImport(importId, () => createAll(importId, team, creatorId, data, people, summary));
     await setImportStatus(importId, 'complete', { progress: 100, summary });
     return summary;
   } catch (err) {
@@ -165,7 +156,6 @@ async function createAll(
   data: SourceData,
   people: Record<string, string | null>,
   summary: ImportSummary,
-  hooks: ImportHooks,
 ): Promise<void> {
   const states = await teamStates(team.id);
   const members = new Set(
@@ -173,10 +163,12 @@ async function createAll(
       await db
         .select({ userId: teamMember.userId })
         .from(teamMember)
-        .where(eq(teamMember.teamId, team.id))
+        .innerJoin(user, eq(user.id, teamMember.userId))
+        .where(and(eq(teamMember.teamId, team.id), isNull(user.suspendedAt)))
     ).map((m) => m.userId),
   );
-  // A mapping to someone outside the team is dropped (unassigned, importer as author).
+  // A mapping to someone outside the team, or suspended, is dropped (unassigned,
+  // importer as author).
   const member = (p: SourcePerson | null) => {
     const id = p ? people[p.key] : null;
     return id && members.has(id) ? id : null;
@@ -219,7 +211,7 @@ async function createAll(
       // A half-written issue from an interrupted run is rebuilt.
       if (link) await db.delete(issue).where(eq(issue.id, link.issueId));
       try {
-        await importIssue(
+        const issueId = await importIssue(
           importId,
           team,
           creatorId,
@@ -229,8 +221,9 @@ async function createAll(
           member,
           labelIds,
           summary,
-          hooks,
         );
+        // A source issue listed again later in the data is then skipped.
+        existing.set(source.url, { issueId, imported: true });
       } catch (err) {
         if (!(err instanceof HttpError)) throw err;
         summary.skipped.push({ url: source.url, reason: err.message });
@@ -253,8 +246,7 @@ async function importIssue(
   member: (p: SourcePerson | null) => string | null,
   labelIds: (source: SourceIssue['labels']) => Promise<string[]>,
   summary: ImportSummary,
-  hooks: ImportHooks,
-): Promise<void> {
+): Promise<string> {
   const createdAt = pastDate(source.createdAt);
   const closedAt = source.closedAt ? pastDate(source.closedAt) : createdAt;
   const closed = closedAt.getTime() < createdAt.getTime() ? createdAt : closedAt;
@@ -265,28 +257,33 @@ async function importIssue(
       : source.state === 'closed'
         ? states.completed
         : states.canceled;
-  const created = await createIssue(
-    team,
-    {
-      stateId,
-      title,
-      description,
-      assigneeUserId: member(source.assignee),
-      labelIds: await labelIds(source.labels),
-    },
-    member(source.author) ?? creatorId,
-    {
-      createdAt,
-      ...(source.state === 'closed' ? { completedAt: closed } : {}),
-      ...(source.state === 'notPlanned' ? { closedAt: closed } : {}),
-      link: {
-        url: source.url,
-        title: `${data.serviceLabel} #${source.number}`,
-        metadata: { issueImportId: importId, imported: false },
+  const assigneeUserId = member(source.assignee);
+  const ids = await labelIds(source.labels);
+  const create = (assignee: string | null) =>
+    createIssue(
+      team,
+      { stateId, title, description, assigneeUserId: assignee, labelIds: ids },
+      member(source.author) ?? creatorId,
+      {
+        createdAt,
+        ...(source.state === 'closed' ? { completedAt: closed } : {}),
+        ...(source.state === 'notPlanned' ? { closedAt: closed } : {}),
+        link: {
+          url: source.url,
+          title: `${data.serviceLabel} #${source.number}`,
+          metadata: { issueImportId: importId, imported: false },
+        },
       },
-    },
-  );
-  await hooks.afterIssueCreated?.(created.id);
+    );
+  let created;
+  try {
+    created = await create(assigneeUserId);
+  } catch (err) {
+    // The matched assignee left the team during the run: the issue is imported
+    // unassigned.
+    if (!(err instanceof HttpError) || !assigneeUserId) throw err;
+    created = await create(null);
+  }
   for (const c of source.comments) {
     await createComment({
       parent: { issueId: created.id },
@@ -302,4 +299,5 @@ async function importIssue(
     .set({ metadata: sql`${attachment.metadata} || '{"imported": true}'::jsonb` })
     .where(and(eq(attachment.issueId, created.id), eq(attachment.url, source.url)));
   summary.issues += 1;
+  return created.id;
 }

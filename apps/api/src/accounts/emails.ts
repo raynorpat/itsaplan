@@ -13,6 +13,8 @@ import { HttpError, iso, UUID_RE } from '../shared/lib';
 
 export const MAX_EXTRA_EMAILS = 10;
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// A pending address gets a new link at most this often.
+const RESEND_AFTER_MS = 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface ExtraEmailDto {
@@ -59,10 +61,12 @@ async function isTaken(email: string, userId: string): Promise<boolean> {
   return confirmed != null;
 }
 
-// Sends the confirmation link. With no mail provider, or when sending fails, the link
-// is written to the log, as the magic link is, so an operator can still pass it on.
+// Sends the confirmation link: the web's confirmation page, which shows the address
+// and confirms only when its button is pressed (a mail scanner that opens the link
+// confirms nothing). With no mail provider, or when sending fails, the link is written
+// to the log, as the magic link is, so an operator can still pass it on.
 async function sendConfirmation(email: string, token: string): Promise<void> {
-  const url = `${(process.env.API_URL ?? '').replace(/\/+$/, '')}/api/auth/instance/account/emails/confirm?token=${token}`;
+  const url = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/confirm-email?token=${token}`;
   const logLink = () => console.info(`[auth] email confirmation link for ${email}: ${url}`);
   if (!(await hasConfiguredEmailProvider())) {
     logLink();
@@ -91,6 +95,10 @@ export async function addEmail(userId: string, rawEmail: unknown): Promise<Extra
   if (own?.verifiedAt) throw new HttpError(400, 'This address is already on your account');
   if (!own && existing.length >= MAX_EXTRA_EMAILS)
     throw new HttpError(400, `You can add at most ${MAX_EXTRA_EMAILS} addresses`);
+  // The last link went out at its expiry minus the token's lifetime.
+  const lastSent = own?.tokenExpiresAt ? own.tokenExpiresAt.getTime() - TOKEN_TTL_MS : null;
+  if (lastSent !== null && Date.now() - lastSent < RESEND_AFTER_MS)
+    throw new HttpError(429, 'Wait a minute before sending another link to this address');
 
   const token = randomBytes(32).toString('base64url');
   const fields = {
@@ -108,10 +116,7 @@ export async function addEmail(userId: string, rawEmail: unknown): Promise<Extra
   return { id: row!.id, email, verified: false, createdAt: iso(row!.createdAt) };
 }
 
-// Confirms the address whose link carries `token`. Fails for an unknown, used or
-// expired token, and for an address that meanwhile became another account's.
-// Confirming removes other users' pending rows for the same address.
-export async function confirmEmail(token: unknown): Promise<{ email: string }> {
+async function pendingByToken(token: unknown) {
   if (typeof token !== 'string' || !token) throw new HttpError(400, 'The link is not valid');
   const [row] = await db
     .select()
@@ -120,6 +125,21 @@ export async function confirmEmail(token: unknown): Promise<{ email: string }> {
     .limit(1);
   if (!row || !row.tokenExpiresAt || row.tokenExpiresAt.getTime() < Date.now())
     throw new HttpError(400, 'The link is not valid or has expired');
+  return row;
+}
+
+// The address a confirmation link is for, read by the confirmation page; changes
+// nothing.
+export async function confirmationAddress(token: unknown): Promise<{ email: string }> {
+  return { email: (await pendingByToken(token)).email };
+}
+
+// Confirms the address whose link carries `token` (the confirmation page's button).
+// Fails for an unknown, used or expired token, and for an address that meanwhile
+// became another account's. Confirming removes other users' pending rows for the same
+// address.
+export async function confirmEmail(token: unknown): Promise<{ email: string }> {
+  const row = await pendingByToken(token);
   if (await isTaken(row.email, row.userId))
     throw new HttpError(400, 'This address belongs to another account');
   await db.transaction(async (tx) => {

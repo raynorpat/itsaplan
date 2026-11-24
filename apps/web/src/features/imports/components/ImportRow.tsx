@@ -3,15 +3,20 @@ import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
+  importIsRunning,
   importStatusText,
   importSummaryText,
+  rerunInput,
   SERVICE_LABEL,
   type ImportService,
   type ImportView,
 } from '../utils/imports';
+import ImportRerun from './ImportRerun';
 
 // One import in the list: repository, source, team, status (with progress while it
-// creates records), and the summary or error when done.
+// creates records), and the summary or error when done, with "Run again" when it
+// failed. Only a running import's status is a live region, so polling the list does
+// not make screen readers repeat every row.
 export default function ImportRow({
   imp,
   teamName,
@@ -25,6 +30,7 @@ export default function ImportRow({
   const label = SERVICE_LABEL[imp.service as ImportService] ?? imp.service;
   const summary = importSummaryText(imp);
   const skipped = imp.summary?.skipped ?? [];
+  const rerun = rerunInput(imp);
   return (
     <div className="flex flex-col gap-1.5 p-4">
       <div className="flex items-center justify-between gap-4">
@@ -41,7 +47,7 @@ export default function ImportRow({
           </Button>
         ) : (
           <span
-            role="status"
+            role={importIsRunning(imp) ? 'status' : undefined}
             className={cn(
               'shrink-0 text-sm',
               imp.status === 'error' ? 'text-destructive' : 'text-muted-foreground',
@@ -70,6 +76,7 @@ export default function ImportRow({
         <p className="text-xs text-muted-foreground">{importStatusText(imp)}</p>
       )}
       {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
+      {rerun && <ImportRerun rerun={rerun} />}
       {skipped.length > 0 && (
         <div>
           <button
@@ -82,8 +89,8 @@ export default function ImportRow({
           </button>
           {showSkipped && (
             <ul className="mt-1 space-y-0.5">
-              {skipped.map((s) => (
-                <li key={s.url} className="text-xs text-muted-foreground">
+              {skipped.map((s, index) => (
+                <li key={`${index}-${s.url}`} className="text-xs text-muted-foreground">
                   <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline">
                     {s.url}
                   </a>

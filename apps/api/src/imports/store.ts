@@ -1,5 +1,5 @@
 import { db, issueImport } from '@repo/db';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { ImportStatus, ImportSummary } from './types';
 
 // Import jobs (Linear's IssueImport). A row never holds a source token.
@@ -77,6 +77,33 @@ export async function setImportProgress(
     .set({
       progress,
       ...(summary ? { summary: { ...summary } } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(issueImport.id, id));
+}
+
+// Claims a fetched import for processing: `inProgress` → `inProcess` in one statement,
+// so only one request starts it. Null when it was not waiting. A second running import
+// into the same team fails on `issue_import_team_in_process_uq` (unique violation).
+export async function claimForProcessing(id: string): Promise<ImportRow | null> {
+  const [row] = await db
+    .update(issueImport)
+    .set({ status: 'inProcess', progress: 0, updatedAt: sql`now()` })
+    .where(and(eq(issueImport.id, id), eq(issueImport.status, 'inProgress')))
+    .returning();
+  return row ?? null;
+}
+
+// Records (or clears, with null) until when the fetch waits for the source's rate
+// limit, as `serviceMetadata.waitingUntil`; the Import page shows it.
+export async function setWaitingUntil(id: string, until: Date | null): Promise<void> {
+  await db
+    .update(issueImport)
+    .set({
+      serviceMetadata:
+        until === null
+          ? sql`coalesce(${issueImport.serviceMetadata}, '{}'::jsonb) - 'waitingUntil'`
+          : sql`coalesce(${issueImport.serviceMetadata}, '{}'::jsonb) || jsonb_build_object('waitingUntil', ${until.toISOString()}::text)`,
       updatedAt: sql`now()`,
     })
     .where(eq(issueImport.id, id));

@@ -38,7 +38,7 @@ function giteaIssue(n: number, extra: Json = {}): Json {
     assignees: null,
     created_at: `2024-01-0${n}T10:00:00Z`,
     closed_at: null,
-    comments: n === 1 ? 2 : 0,
+    comments: n === 1 ? 2 : n === 4 ? 60 : 0,
     pull_request: null,
     ...extra,
   };
@@ -49,11 +49,32 @@ const giteaIssues: Json[] = [
   giteaIssue(2, { state: 'closed', closed_at: '2024-02-01T10:00:00Z' }),
   giteaIssue(3, { pull_request: { merged: false } }),
   giteaIssue(4),
-  giteaIssue(5),
+  giteaIssue(5, { html_url: 'javascript:alert(1)' }),
 ];
+
+// Issue 1's two comments, then 60 on issue 4 (more than one page), as Gitea lists a
+// repository's comments: oldest first, each with its issue's API URL.
+const giteaComments: Json[] = [
+  { user: giteaUser(2, 'bob'), body: 'First', created_at: '2024-01-02T10:00:00Z', n: 1 },
+  { user: giteaUser(1, 'ann'), body: 'Second', created_at: '2024-01-03T10:00:00Z', n: 1 },
+  ...Array.from({ length: 60 }, (_, k) => ({
+    user: giteaUser(1, 'ann'),
+    body: `Note ${k + 1}`,
+    created_at: `2024-01-05T10:${String(k).padStart(2, '0')}:00Z`,
+    n: 4,
+  })),
+].map(({ n, ...c }, k) => ({
+  id: k + 1,
+  ...c,
+  issue_url: `http://gitea.test/api/v1/repos/acme/app/issues/${n}`,
+}));
 
 let giteaRateLimited = false;
 let giteaRequests: string[] = [];
+// The server's own page size limit (Gitea's MAX_RESPONSE_ITEMS), below what is asked.
+let giteaMaxLimit = 1000;
+// Pages shift by one between requests, as when an issue is opened during the fetch.
+let giteaShift = false;
 
 const gitea = Bun.serve({
   port: 0,
@@ -75,23 +96,31 @@ const gitea = Bun.serve({
         giteaRateLimited = false;
         return new Response('slow down', { status: 429, headers: { 'retry-after': '0' } });
       }
-      const limit = Number(url.searchParams.get('limit'));
+      const limit = Math.min(Number(url.searchParams.get('limit')), giteaMaxLimit);
       const page = Number(url.searchParams.get('page'));
       const state = url.searchParams.get('state');
       const all = giteaIssues.filter((i) => state === 'all' || i.state === 'open');
-      return Response.json(all.slice((page - 1) * limit, page * limit));
+      const start = (page - 1) * limit - (giteaShift && page > 1 ? 1 : 0);
+      // Gitea's issue URLs are on its own address.
+      const page_ = all.slice(start, start + limit).map((i) => ({
+        ...i,
+        html_url: String(i.html_url).replace('http://gitea.test', url.origin),
+      }));
+      return Response.json(page_, { headers: { 'x-total-count': String(all.length) } });
     }
-    if (url.pathname === '/api/v1/repos/acme/app/issues/1/comments') {
+    if (url.pathname === '/api/v1/repos/acme/app/issues/comments') {
+      const limit = Math.min(Number(url.searchParams.get('limit')), giteaMaxLimit);
       const page = Number(url.searchParams.get('page'));
-      return Response.json(
-        page === 1
-          ? [
-              { user: giteaUser(2, 'bob'), body: 'First', created_at: '2024-01-02T10:00:00Z' },
-              { user: giteaUser(1, 'ann'), body: 'Second', created_at: '2024-01-03T10:00:00Z' },
-            ]
-          : [],
-      );
+      return Response.json(giteaComments.slice((page - 1) * limit, page * limit), {
+        headers: { 'x-total-count': String(giteaComments.length) },
+      });
     }
+    // Gitea's per-issue comments take no paging: every call answers all of them.
+    const perIssue = /^\/api\/v1\/repos\/acme\/app\/issues\/(\d+)\/comments$/.exec(url.pathname);
+    if (perIssue)
+      return Response.json(
+        giteaComments.filter((c) => c.issue_url.endsWith(`/issues/${perIssue[1]}`)),
+      );
     return new Response('not found', { status: 404 });
   },
 });
@@ -121,8 +150,12 @@ function glIssue(iid: number, extra: Json = {}): Json {
 const glIssues: Json[] = [
   glIssue(1),
   glIssue(2, { state: 'closed', closed_at: '2024-04-01T10:00:00Z' }),
-  glIssue(3),
+  glIssue(3, { web_url: 'ftp://gitlab.test/acme/app/-/issues/3' }),
 ];
+
+// Pages repeat the last issue of the previous page, as when an issue is added during
+// the fetch.
+let glShift = false;
 
 const gitlab = Bun.serve({
   port: 0,
@@ -132,8 +165,15 @@ const gitlab = Bun.serve({
       return new Response('unauthorized', { status: 401 });
     const page = Number(url.searchParams.get('page') || '1');
     const perPage = Number(url.searchParams.get('per_page'));
-    const paged = (rows: Json[]) => {
-      const slice = rows.slice((page - 1) * perPage, page * perPage);
+    const paged = (rows: Json[], shift = false) => {
+      const start = (page - 1) * perPage - (shift && page > 1 ? 1 : 0);
+      const slice = rows
+        .slice(start, start + perPage)
+        .map((r) =>
+          typeof r.web_url === 'string'
+            ? { ...r, web_url: r.web_url.replace('http://gitlab.test', url.origin) }
+            : r,
+        );
       const next = page * perPage < rows.length ? String(page + 1) : '';
       return Response.json(slice, { headers: { 'x-next-page': next } });
     };
@@ -145,17 +185,22 @@ const gitlab = Bun.serve({
       ]);
     if (url.pathname === '/api/v4/projects/acme%2Fapp/issues') {
       const state = url.searchParams.get('state');
-      return paged(glIssues.filter((i) => !state || i.state === state));
+      return paged(
+        glIssues.filter((i) => !state || i.state === state),
+        glShift,
+      );
     }
     if (url.pathname === '/api/v4/projects/acme%2Fapp/issues/1/notes')
       return paged([
         {
+          id: 1,
           author: glUser(11, 'dave'),
           body: 'changed the label',
           system: true,
           created_at: '2024-03-02T09:00:00Z',
         },
         {
+          id: 2,
           author: glUser(11, 'dave'),
           body: 'A note',
           system: false,
@@ -180,6 +225,8 @@ describe('Gitea / Forgejo source', () => {
   beforeEach(() => {
     giteaRequests = [];
     giteaRateLimited = false;
+    giteaMaxLimit = 1000;
+    giteaShift = false;
   });
 
   it('lists repositories', async () => {
@@ -200,7 +247,7 @@ describe('Gitea / Forgejo source', () => {
     ).toHaveLength(3);
     const [one, two] = data.issues as [(typeof data.issues)[0], (typeof data.issues)[0]];
     expect(one).toMatchObject({
-      url: 'http://gitea.test/acme/app/issues/1',
+      url: `${giteaHost}/acme/app/issues/1`,
       title: 'Gitea 1',
       body: 'Body 1',
       state: 'open',
@@ -215,6 +262,47 @@ describe('Gitea / Forgejo source', () => {
     ]);
     expect(two).toMatchObject({ state: 'closed', closedAt: '2024-02-01T10:00:00Z' });
   });
+
+  it('reads every comment of an issue with more comments than a page', async () => {
+    const data = await fetchGitea(giteaHost, TOKEN, 'acme/app', {
+      includeClosed: true,
+      serviceLabel: 'Gitea',
+      pageSize: 25,
+    });
+    const four = data.issues.find((i) => i.number === 4)!;
+    expect(four.comments).toHaveLength(60);
+    expect(four.comments[0]!.body).toBe('Note 1');
+    expect(four.comments[59]!.body).toBe('Note 60');
+    expect(giteaRequests.length).toBeLessThan(20);
+  }, 3000);
+
+  it('reads every page when the server pages shorter than asked', async () => {
+    giteaMaxLimit = 2;
+    const data = await fetchGitea(giteaHost, TOKEN, 'acme/app', {
+      includeClosed: true,
+      serviceLabel: 'Gitea',
+    });
+    expect(data.issues.map((i) => i.number)).toEqual([1, 2, 4, 5]);
+    expect(data.issues.find((i) => i.number === 4)!.comments).toHaveLength(60);
+  }, 3000);
+
+  it('keeps each issue once when pages shift during the fetch', async () => {
+    giteaShift = true;
+    const data = await fetchGitea(giteaHost, TOKEN, 'acme/app', {
+      includeClosed: true,
+      serviceLabel: 'Gitea',
+      pageSize: 2,
+    });
+    expect(data.issues.map((i) => i.number)).toEqual([1, 2, 4, 5]);
+  }, 3000);
+
+  it('replaces a link outside the source with one built from the repository', async () => {
+    const data = await fetchGitea(giteaHost, TOKEN, 'acme/app', {
+      includeClosed: true,
+      serviceLabel: 'Gitea',
+    });
+    expect(data.issues.find((i) => i.number === 5)!.url).toBe(`${giteaHost}/acme/app/issues/5`);
+  }, 3000);
 
   it('leaves closed issues out unless asked', async () => {
     const data = await fetchGitea(giteaHost, TOKEN, 'acme/app', {
@@ -265,13 +353,25 @@ describe('GitLab source', () => {
     ]);
     const one = data.issues[0]!;
     expect(one).toMatchObject({
-      url: 'http://gitlab.test/acme/app/-/issues/1',
+      url: `${gitlabHost}/acme/app/-/issues/1`,
       body: 'Desc **1**',
       labels: [{ name: 'Backend', color: '#ff0000' }],
       author: { key: '10', login: 'carol', name: 'carol GL', email: null },
       assignee: { key: '11', login: 'dave' },
     });
     expect(one.comments.map((c) => c.body)).toEqual(['A note']);
+  });
+
+  it('keeps each issue once when pages shift, and only links on the source', async () => {
+    glShift = true;
+    const data = await fetchGitlab(gitlabHost, TOKEN, 'acme/app', {
+      includeClosed: true,
+      pageSize: 2,
+    }).finally(() => {
+      glShift = false;
+    });
+    expect(data.issues.map((i) => i.number)).toEqual([1, 2, 3]);
+    expect(data.issues[2]!.url).toBe(`${gitlabHost}/acme/app/-/issues/3`);
   });
 
   it('asks for open issues only unless closed ones are included', async () => {
@@ -376,7 +476,7 @@ describe('instance import endpoints', () => {
     );
     const done = await waitFor(id, (imp) => imp.status === 'complete' || imp.status === 'error');
     expect(done.status).toBe('complete');
-    expect(done.summary).toMatchObject({ issues: 4, comments: 2, total: 4 });
+    expect(done.summary).toMatchObject({ issues: 4, comments: 62, total: 4 });
 
     const issues = await db.select().from(issue).where(eq(issue.teamId, teamId));
     expect(issues).toHaveLength(4);

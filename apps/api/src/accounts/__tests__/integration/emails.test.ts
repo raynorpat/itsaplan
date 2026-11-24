@@ -29,8 +29,8 @@ console.info = (...args: unknown[]) => {
   previousInfo(...args);
 };
 
-function call(path: string, init: { cookie?: string; body?: unknown } = {}) {
-  const headers = new Headers({ origin: ORIGIN });
+function call(path: string, init: { cookie?: string; body?: unknown; origin?: boolean } = {}) {
+  const headers = new Headers(init.origin === false ? {} : { origin: ORIGIN });
   if (init.cookie) headers.set('cookie', init.cookie);
   if (init.body !== undefined) headers.set('content-type', 'application/json');
   return app.handle(
@@ -57,8 +57,9 @@ const add = (as: TestUser, email: string) =>
 
 const tokenFor = (email: string) => new URL(links.get(email)!).searchParams.get('token')!;
 
+// The confirmation page posts the token from its link; it needs no session.
 const confirm = (token: string) =>
-  call(`account/emails/confirm?token=${encodeURIComponent(token)}`);
+  call('account/emails/confirm', { body: { token }, origin: false });
 
 describe('extra email addresses', () => {
   let owner: TestUser;
@@ -86,16 +87,15 @@ describe('extra email addresses', () => {
     expect(row!.tokenHash).not.toBe(token);
     expect(row!.tokenHash).toBe(createHash('sha256').update(token).digest('hex'));
 
-    const res = await confirm(token);
-    expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toContain('emailConfirmed=1');
+    const res = await ok(await confirm(token));
+    expect(res).toEqual({ email: 'pat@old-work.example' });
     expect((await list(owner))[0]).toMatchObject({ verified: true });
   });
 
   it('refuses a wrong or expired token', async () => {
     await ok(await add(owner, 'pat@old-work.example'));
     const wrong = await confirm('not-a-token');
-    expect(wrong.headers.get('location')).toContain('emailConfirmError=');
+    expect(wrong.status).toBe(400);
     expect((await list(owner))[0]).toMatchObject({ verified: false });
 
     const token = tokenFor('pat@old-work.example');
@@ -104,16 +104,45 @@ describe('extra email addresses', () => {
       .set({ tokenExpiresAt: new Date(Date.now() - 1000) })
       .where(eq(userEmail.userId, owner.userId));
     const expired = await confirm(token);
-    expect(expired.headers.get('location')).toContain('emailConfirmError=');
+    expect(expired.status).toBe(400);
     expect((await list(owner))[0]).toMatchObject({ verified: false });
   });
 
   it("refuses another user's sign-in or confirmed extra address", async () => {
     expect((await add(owner, other.email)).status).toBe(400);
     await ok(await add(other, 'shared@old-work.example'));
-    expect((await confirm(tokenFor('shared@old-work.example'))).status).toBe(302);
+    expect((await confirm(tokenFor('shared@old-work.example'))).status).toBe(200);
     expect((await add(owner, 'shared@old-work.example')).status).toBe(400);
     expect((await add(owner, owner.email)).status).toBe(400);
+  });
+
+  it('mails a link to the confirmation page, which a GET does not confirm', async () => {
+    await ok(await add(owner, 'pat@old-work.example'));
+    const link = new URL(links.get('pat@old-work.example')!);
+    expect(link.pathname).toBe('/confirm-email');
+    const token = link.searchParams.get('token')!;
+    // A mail scanner following links only reads: the address stays pending.
+    await call(`account/emails/confirm?token=${encodeURIComponent(token)}`, { origin: false });
+    const info = await ok(
+      await call(`account/emails/confirm-info?token=${encodeURIComponent(token)}`, {
+        origin: false,
+      }),
+    );
+    expect(info).toEqual({ email: 'pat@old-work.example' });
+    expect((await list(owner))[0]).toMatchObject({ verified: false });
+    expect(
+      (await call('account/emails/confirm-info?token=not-a-token', { origin: false })).status,
+    ).toBe(400);
+  });
+
+  it('sends a new link for a pending address at most once a minute', async () => {
+    await ok(await add(owner, 'pat@old-work.example'));
+    expect((await add(owner, 'pat@old-work.example')).status).toBe(429);
+    await db
+      .update(userEmail)
+      .set({ tokenExpiresAt: new Date(Date.now() + 24 * 3_600_000 - 61_000) })
+      .where(eq(userEmail.userId, owner.userId));
+    await ok(await add(owner, 'pat@old-work.example'));
   });
 
   it('allows at most 10 extra addresses', async () => {

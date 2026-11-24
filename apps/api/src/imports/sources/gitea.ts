@@ -1,8 +1,11 @@
 import type { SourceComment, SourceData, SourceIssue, SourcePerson } from '../types';
-import { baseUrl, getJson } from './http';
+import { baseUrl, getJson, MAX_PAGES, sourceUrl } from './http';
 
 // Gitea and Forgejo (a Gitea fork with the same API): /api/v1 with
-// `Authorization: token <token>`, pages by `page` and `limit`.
+// `Authorization: token <token>`, pages by `page` and `limit` with the list's size in
+// `X-Total-Count`. An issue's own comments endpoint takes no paging (it always answers
+// every comment), so comments are read from the repository's paged comment list and
+// grouped by issue.
 
 const PAGE_SIZE = 50;
 
@@ -30,9 +33,12 @@ interface GiteaIssue {
 }
 
 interface GiteaComment {
+  id: number;
   user: GiteaUser;
-  body: string;
+  body: string | null;
   created_at: string;
+  // The API URL of the issue (or pull request) it is on, ending in its number.
+  issue_url: string | null;
 }
 
 export interface SourceRepository {
@@ -51,18 +57,27 @@ function person(u: GiteaUser): SourcePerson {
   };
 }
 
-// Every page of a list endpoint; a page shorter than the page size is the last.
+// Every page of a list endpoint. The list ends at an empty page, once `X-Total-Count`
+// items were read, or (without that header) at a page shorter than asked; a server may
+// page shorter than asked (its own MAX_RESPONSE_ITEMS), which the count covers. Items
+// are kept once by `key`, since a list that changes during the read shifts its pages.
 async function allPages<T>(
   url: (page: number, limit: number) => string,
   token: string,
   pageSize: number,
+  key: (item: T) => string | number,
 ): Promise<T[]> {
-  const out: T[] = [];
-  for (let page = 1; ; page += 1) {
-    const { data } = await getJson<T[]>(url(page, pageSize), auth(token), token);
-    out.push(...data);
-    if (data.length < pageSize) return out;
+  const out = new Map<string | number, T>();
+  let read = 0;
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const { data, headers } = await getJson<T[]>(url(page, pageSize), auth(token), token);
+    for (const item of data) if (!out.has(key(item))) out.set(key(item), item);
+    read += data.length;
+    const total = Number(headers.get('x-total-count') ?? '');
+    if (data.length === 0) break;
+    if (Number.isFinite(total) && total > 0 ? read >= total : data.length < pageSize) break;
   }
+  return [...out.values()];
 }
 
 // The repositories the token can see, by "owner/name".
@@ -76,6 +91,7 @@ export async function listGiteaRepos(
     (page, limit) => `${base}/api/v1/user/repos?page=${page}&limit=${limit}`,
     token,
     opts.pageSize ?? PAGE_SIZE,
+    (r) => r.full_name,
   );
   return repos.map((r) => ({ id: r.full_name, name: r.full_name }));
 }
@@ -104,24 +120,31 @@ export async function fetchGitea(
       `${base}/api/v1/repos/${repo}/issues?type=issues&state=${state}&page=${page}&limit=${limit}${labels}`,
     token,
     pageSize,
+    (i) => i.number,
   );
+  const wanted = raw.filter((i) => !i.pull_request);
+  const comments = new Map<number, GiteaComment[]>();
+  if (wanted.some((i) => i.comments > 0)) {
+    const all = await allPages<GiteaComment>(
+      (page, limit) => `${base}/api/v1/repos/${repo}/issues/comments?page=${page}&limit=${limit}`,
+      token,
+      pageSize,
+      (c) => c.id,
+    );
+    for (const c of all) {
+      const n = Number(/\/(\d+)$/.exec(c.issue_url ?? '')?.[1]);
+      if (!n) continue;
+      comments.set(n, [...(comments.get(n) ?? []), c]);
+    }
+  }
   const issues: SourceIssue[] = [];
-  for (const i of raw) {
-    if (i.pull_request) continue;
-    const comments: SourceComment[] =
-      i.comments > 0
-        ? (
-            await allPages<GiteaComment>(
-              (page, limit) =>
-                `${base}/api/v1/repos/${repo}/issues/${i.number}/comments?page=${page}&limit=${limit}`,
-              token,
-              pageSize,
-            )
-          ).map((c) => ({ author: person(c.user), body: c.body ?? '', createdAt: c.created_at }))
-        : [];
+  for (const i of wanted) {
+    const own: SourceComment[] = (comments.get(i.number) ?? [])
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id)
+      .map((c) => ({ author: person(c.user), body: c.body ?? '', createdAt: c.created_at }));
     const assignee = i.assignee ?? i.assignees?.[0] ?? null;
     issues.push({
-      url: i.html_url,
+      url: sourceUrl(i.html_url, base, `${base}/${repository}/issues/${i.number}`),
       number: i.number,
       title: i.title,
       body: i.body ?? '',
@@ -131,7 +154,7 @@ export async function fetchGitea(
       assignee: assignee ? person(assignee) : null,
       createdAt: i.created_at,
       closedAt: i.closed_at ?? null,
-      comments,
+      comments: own,
     });
   }
   issues.sort((a, b) => a.number - b.number);

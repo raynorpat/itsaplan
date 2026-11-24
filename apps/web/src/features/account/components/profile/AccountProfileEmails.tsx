@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSession } from '@/lib/auth-client';
 import {
@@ -9,31 +7,18 @@ import {
   useEmailAddressesQuery,
   useRemoveEmailAddress,
 } from '../../services/emailAddresses.service';
-import { confirmResult } from '../../utils/emailAddresses';
 import AccountProfileEmailAddForm from './AccountProfileEmailAddForm';
 import AccountProfileEmailRow from './AccountProfileEmailRow';
 
 const MAX_EXTRA = 10;
 
-// The sign-in address and the extra addresses. The confirmation link lands back here
-// with its result in the URL, shown once as a toast and then removed from the URL.
+// The sign-in address and the extra addresses. An added address is confirmed on the
+// page its mailed link opens (/confirm-email).
 export default function AccountProfileEmails() {
   const { data: session } = useSession();
   const emails = useEmailAddressesQuery();
   const add = useAddEmailAddress();
   const remove = useRemoveEmailAddress();
-  const params = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    const result = confirmResult(params);
-    if (!result) return;
-    if (result.ok) toast.success(result.message);
-    else toast.error(result.message);
-    router.replace(pathname);
-  }, [params, pathname, router]);
-
   const extras = emails.data ?? [];
   const busy = add.isPending || remove.isPending;
 

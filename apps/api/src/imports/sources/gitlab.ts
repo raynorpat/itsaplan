@@ -1,6 +1,6 @@
 import type { SourceComment, SourceData, SourceIssue, SourcePerson } from '../types';
 import type { SourceRepository } from './gitea';
-import { baseUrl, getJson } from './http';
+import { baseUrl, getJson, MAX_PAGES, sourceUrl } from './http';
 
 // GitLab: /api/v4 with `PRIVATE-TOKEN`, pages by `page` and `per_page` with the
 // `X-Next-Page` header. A project is addressed by its URL-encoded path. Issue
@@ -32,6 +32,7 @@ interface GitlabIssue {
 }
 
 interface GitlabNote {
+  id: number;
   author: GitlabUser;
   body: string;
   system: boolean;
@@ -49,15 +50,22 @@ function person(u: GitlabUser): SourcePerson {
   };
 }
 
-async function allPages<T>(url: (page: number) => string, token: string): Promise<T[]> {
-  const out: T[] = [];
-  for (let page = 1; ;) {
+// Every page of a list, following `X-Next-Page`. Items are kept once by `key`, since a
+// list that changes during the read shifts its pages.
+async function allPages<T>(
+  url: (page: number) => string,
+  token: string,
+  key: (item: T) => string | number,
+): Promise<T[]> {
+  const out = new Map<string | number, T>();
+  for (let page = 1, reads = 0; reads < MAX_PAGES; reads += 1) {
     const { data, headers } = await getJson<T[]>(url(page), auth(token), token);
-    out.push(...data);
+    for (const item of data) if (!out.has(key(item))) out.set(key(item), item);
     const next = Number(headers.get('x-next-page') || '');
-    if (!next || next <= page) return out;
+    if (!next || next <= page) break;
     page = next;
   }
+  return [...out.values()];
 }
 
 export async function listGitlabProjects(
@@ -71,6 +79,7 @@ export async function listGitlabProjects(
     (page) =>
       `${base}/api/v4/projects?membership=true&simple=true&order_by=path&sort=asc&per_page=${perPage}&page=${page}`,
     token,
+    (p) => p.path_with_namespace,
   );
   return projects.map((p) => ({ id: p.path_with_namespace, name: p.path_with_namespace }));
 }
@@ -90,6 +99,7 @@ export async function fetchGitlab(
     (page) =>
       `${base}/api/v4/projects/${project}/issues?issue_type=issue&with_labels_details=true&order_by=created_at&sort=asc&per_page=${perPage}&page=${page}${state}${labels}`,
     token,
+    (i) => i.iid,
   );
   const issues: SourceIssue[] = [];
   for (const i of raw) {
@@ -100,6 +110,7 @@ export async function fetchGitlab(
               (page) =>
                 `${base}/api/v4/projects/${project}/issues/${i.iid}/notes?sort=asc&order_by=created_at&per_page=${perPage}&page=${page}`,
               token,
+              (n) => n.id,
             )
           )
             .filter((n) => !n.system)
@@ -107,7 +118,7 @@ export async function fetchGitlab(
         : [];
     const assignee = i.assignee ?? i.assignees?.[0] ?? null;
     issues.push({
-      url: i.web_url,
+      url: sourceUrl(i.web_url, base, `${base}/${projectPath}/-/issues/${i.iid}`),
       number: i.iid,
       title: i.title,
       body: i.description ?? '',

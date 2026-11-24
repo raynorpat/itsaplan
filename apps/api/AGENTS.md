@@ -196,9 +196,12 @@ Rules and invariants for this package below; read the code for the walkthrough.
   name it; a deleted rule is never listed, read, edited, counted against the limit or
   run.
 - **Extra email addresses** (`accounts/`, `user_email`): a user adds addresses through
-  `/api/auth/instance/account/emails*`; each counts once confirmed through a mailed
-  link (token stored hashed, 24 hours; logged as `[auth] email confirmation link for`
-  when no mail provider sends it). At most 10 per user; an address that is an
+  `/api/auth/instance/account/emails*`; each counts once confirmed on the web's
+  confirmation page (`/confirm-email?token=`), which the mailed link opens: opening it
+  only reads the address (`confirm-info`), its button posts the token (`confirm`), so a
+  mail scanner following the link confirms nothing (token stored hashed, 24 hours;
+  logged as `[auth] email confirmation link for` when no mail provider sends it). A
+  pending address gets a new link at most once a minute. At most 10 per user; an address that is an
   account's sign-in address or another user's confirmed one is refused, and confirming
   one removes other users' pending rows for it. They are used only by
   `memberEmails` (issue import matching), never for sign-in or in GraphQL.
@@ -215,11 +218,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   GitLab, Gitea and Forgejo imports go through the instance plugin
   (`/api/auth/instance/imports*`, `imports/handlers.ts`; owners and admins): the
   admin's token is used by a background fetch in the API process
-  (`imports/sources/`: any host, http or https, no redirects followed, rate limits
-  waited out, the token never in an error, row or log) and dropped when the fetch
-  ends; the fetched data waits in memory for the people matching, then
-  `processImport` runs. One running import per team. A team the import creates gets
-  the matched members.
+  (`imports/sources/`: any host, http or https, no redirects followed, a response
+  body at most 20 MB, rate limits waited out up to an hour per request with the wait
+  shown as `serviceMetadata.waitingUntil`, lists read oldest first and each item kept
+  once, comments read from the repository's comment list, the token never in an
+  error, row or log) and dropped when the fetch ends; the fetched data waits in memory
+  for the people matching (at most a day, then the import ends as expired; checked
+  hourly from `index.ts`), then `processImport` runs. Starting the processing takes
+  the fetched data and claims the import in one statement, and a partial unique index
+  (`issue_import_team_in_process_uq`) allows one running import per team. A person
+  matched to someone who is not (or no longer) an active member of the team is left
+  unmatched. A team the import creates gets the matched members. `IssueHistory.issueImport`
+  shows an import's error, people mapping and server address to owners and admins only.
   GitHub imports follow Linear's model: the workspace connects this instance's GitHub
   Import App (`integrationGithubImportConnect(code, installationId)`; the OAuth code
   confirms the person can access the installation, then their token is dropped) as the

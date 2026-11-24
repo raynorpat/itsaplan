@@ -1,6 +1,6 @@
 import { getActiveSession, type AccountEmailsHandlers } from '@repo/auth';
 import { HttpError } from '../shared/lib';
-import { addEmail, confirmEmail, listEmails, removeEmail } from './emails';
+import { addEmail, confirmationAddress, confirmEmail, listEmails, removeEmail } from './emails';
 
 // The instance plugin's account email endpoints (packages/auth src/instance-plugin.ts):
 // a signed-in user's extra addresses. Confirm needs no session; the link's token is
@@ -24,5 +24,6 @@ export const accountEmailsHandlers: AccountEmailsHandlers = {
     await removeEmail(await userId(headers), field(body, 'id'));
     return { success: true };
   },
+  confirmInfo: (token) => confirmationAddress(token),
   confirm: (token) => confirmEmail(token),
 };

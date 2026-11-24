@@ -16,7 +16,10 @@ import { getOrganization } from './organization';
 
 // Linear's IssueImport from an import job (apps/api/src/imports). It is reached
 // through IssueImportPayload and IssueHistory.issueImport; the job never holds a token.
-export function toIssueImport(row: ImportRow) {
+// Without `full` (anyone below admin reading an imported issue's history) the error,
+// the people mapping and the source's server address are left out.
+export function toIssueImport(row: ImportRow, full = true) {
+  const metadata = row.serviceMetadata ?? null;
   return {
     id: row.id,
     service: row.service,
@@ -25,15 +28,25 @@ export function toIssueImport(row: ImportRow) {
     displayName: row.displayName,
     teamName: row.teamName,
     creatorId: row.creatorId,
-    serviceMetadata: row.serviceMetadata ?? null,
-    mapping: row.mapping ?? null,
-    error: row.error,
+    serviceMetadata: full || !metadata ? metadata : omitHost(metadata),
+    mapping: full ? (row.mapping ?? null) : null,
+    error: full ? row.error : null,
     errorMetadata: null,
     csvFileUrl: null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     archivedAt: null,
   };
+}
+
+function omitHost(metadata: Record<string, unknown>): Record<string, unknown> {
+  const { host: _host, ...rest } = metadata;
+  return rest;
+}
+
+// Whether the viewer sees an import's details (the importers: owners and admins).
+export async function seesImportDetails(ctx: GraphQLContext): Promise<boolean> {
+  return atLeast(await workspaceRole(ctx.user.id), 'admin');
 }
 
 function toIntegration(row: IntegrationRow) {
@@ -139,8 +152,8 @@ export const issueImportResolvers = {
       }),
   },
   Integration: {
-    creator: (i: { creatorId: string }, _: unknown, ctx: GraphQLContext) =>
-      userById(i.creatorId, ctx.user.id),
+    creator: (i: { creatorId: string | null }, _: unknown, ctx: GraphQLContext) =>
+      i.creatorId ? userById(i.creatorId, ctx.user.id) : null,
     organization: () => getOrganization(),
     team: () => null,
   },
