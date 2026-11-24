@@ -179,3 +179,24 @@ order of the work.
   removed; nothing is copied from them. My issues gets Linear's Display menu
   (ordering, grouping, completed issues, display properties). The calendar's week
   start stays a browser preference.
+
+## Stage 4d: closing the gaps
+
+- **Projects to the trash (Linear's `projectDelete`):** `projectDelete` archives the
+  project and marks it trashed (`Project.trashed` true), as initiatives already do;
+  `projectUnarchive` restores an archived or trashed project; the worker deletes a
+  project 30 days after it was trashed. The web offers Delete (to the trash) in the
+  project's ⋯ menu in place of Archive; the projects list's Archived tab becomes
+  "Deleted" (archived or trashed projects) with Restore; a trashed project's page shows
+  "This project is in the trash" with Restore. The web no longer calls `projectArchive`.
+- **Deleted workflows:** deleting a workflow keeps a hidden row (`deletedAt`) so history,
+  comments and notifications still resolve its name; a deleted workflow is not listed,
+  read, edited or run.
+- **Notifications from workflows:** a notification caused by a workflow's change stores
+  the workflow; `Notification.botActor` resolves to it; the inbox row names the workflow
+  with the workflow icon.
+- **Workspace labels:** Settings → Workspace → Labels for owners and admins (the API's
+  rule for workspace labels): create, edit, group, retire, restore and delete labels
+  without a team, reusing the team labels components.
+- **Browser checks:** the read-only automation editor as a second member, and the
+  display-settings load error with only that request failing.
