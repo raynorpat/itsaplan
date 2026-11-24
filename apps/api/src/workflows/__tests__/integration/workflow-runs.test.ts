@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, webhookDelivery } from '@repo/db';
+import { db, webhookDelivery, workflowDefinition } from '@repo/db';
+import { eq } from 'drizzle-orm';
 import { app } from '../../../app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -296,6 +297,77 @@ describe('workflow runs', () => {
     ).agentSessions.nodes.filter((n: Json) => n.issue?.id === issue.id);
     expect(sessions).toHaveLength(1);
     expect(sessions[0].creator?.id).toBe(s.owner.userId);
+  });
+
+  it("credits a delegation to whoever last changed the rule's actions", async () => {
+    const s = await setup();
+    const client = await createClient(s.owner.cookie);
+    const tokens = await install(s.owner.cookie, client, { scope: 'read,write,app:assignable' });
+    const appUserId = (await gqlData({ headers: bearer(tokens.access_token) }, '{ viewer { id } }'))
+      .viewer.id as string;
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Open rule',
+      trigger: 'entityCreated',
+      editAccess: 'everyone',
+      activities: [{ type: 'setPriority', priority: 2 }],
+    });
+    await plugin(s.member, 'workflows/update', {
+      id: rule.id,
+      activities: [{ type: 'setDelegate', appUserId }],
+    });
+    const issue = await createIssue(s.owner, { teamId: s.teamId });
+    const sessions = (
+      await gqlData(s.owner, '{ agentSessions { nodes { issue { id } creator { id } } } }')
+    ).agentSessions.nodes.filter((n: Json) => n.issue?.id === issue.id);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].creator?.id).toBe(s.member.userId);
+  });
+
+  it("reads me in a rule's conditions as its owner", async () => {
+    const s = await setup();
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Mine',
+      trigger: 'entityCreated',
+      editAccess: 'everyone',
+      conditions: { assignee: { isMe: { eq: true } } },
+      activities: [{ type: 'setPriority', priority: 1 }],
+    });
+    const forOwner = await createIssue(s.member, { teamId: s.teamId, assigneeId: s.owner.userId });
+    const forMember = await createIssue(s.owner, { teamId: s.teamId, assigneeId: s.member.userId });
+    expect((await issueDetail(s.owner, forOwner.id)).priority).toBe(1);
+    expect((await issueDetail(s.owner, forMember.id)).priority).not.toBe(1);
+
+    // The member changes the conditions, so "me" is now the member.
+    await plugin(s.member, 'workflows/update', {
+      id: rule.id,
+      conditions: { assignee: { isMe: { eq: true } } },
+    });
+    const forMemberNow = await createIssue(s.owner, {
+      teamId: s.teamId,
+      assigneeId: s.member.userId,
+    });
+    expect((await issueDetail(s.owner, forMemberNow.id)).priority).toBe(1);
+  });
+
+  it('matches me with no one when a rule has no owner', async () => {
+    const s = await setup();
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Mine',
+      trigger: 'entityCreated',
+      conditions: { assignee: { isMe: { eq: true } } },
+      activities: [{ type: 'setPriority', priority: 1 }],
+    });
+    // A rule's owner cannot be cleared through the API; an owner that no longer
+    // exists leaves the column null (ON DELETE SET NULL), which this stands in for.
+    await db
+      .update(workflowDefinition)
+      .set({ ownerUserId: null })
+      .where(eq(workflowDefinition.id, rule.id));
+    const issue = await createIssue(s.member, { teamId: s.teamId, assigneeId: s.owner.userId });
+    expect((await issueDetail(s.owner, issue.id)).priority).not.toBe(1);
   });
 
   it('does not run disabled or archived rules', async () => {

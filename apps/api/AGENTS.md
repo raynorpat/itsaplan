@@ -154,9 +154,12 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `setPriority`, `addLabels`, `removeLabels`, `setProject`, `setCycle`, `setDelegate`,
   `addComment`), each checked on save to stay within the rule's team
   (`workflows/validate.ts`). Anyone who can see the team lists its rules; creating
-  one, and changing a rule's edit access or owner, needs a team manager; otherwise
+  one, and changing a rule's edit access, needs a team manager; otherwise
   `editAccess` decides (`everyone`, `teamOwners`, `workspaceAdmins`, `owner`); admins
   and owners change any rule, guests and app users none (`workflows/access.ts`).
+  A rule acts as its owner (`me` in its conditions, the creator of the agent sessions
+  its delegations start), so the owner is always its last author: the creator, then
+  whoever changes its conditions or actions; `ownerId` can only name the editor.
   The run engine (`workflows/engine.ts`, registered with the issues store through
   `setIssueRuleHook` from `app.ts`) runs after a person's `createIssue` /
   `updateIssue`: a created rule when the new issue matches, an updated rule when the

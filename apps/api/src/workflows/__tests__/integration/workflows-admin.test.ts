@@ -227,8 +227,22 @@ describe('workflow rules', () => {
         body: { teamId: s.teamId, userId: teamOwner.userId, owner: true },
       }),
     );
+    // The member becomes the owner by changing the actions of an open rule; a team
+    // manager then limits it to its owner.
+    const open = (await ok(await create(s.owner, rule(s, { editAccess: 'everyone' })))).workflow;
+    await ok(
+      await call('workflows/update', {
+        cookie: s.member.cookie,
+        body: { id: open.id, activities: [{ type: 'setPriority', priority: 2 }] },
+      }),
+    );
     const w = (
-      await ok(await create(s.owner, rule(s, { editAccess: 'owner', ownerId: s.member.userId })))
+      await ok(
+        await call('workflows/update', {
+          cookie: s.owner.cookie,
+          body: { id: open.id, editAccess: 'owner' },
+        }),
+      )
     ).workflow;
     expect(w.ownerId).toBe(s.member.userId);
 
@@ -247,6 +261,49 @@ describe('workflow rules', () => {
       body: { id: w.id, name: 'Admin edit' },
     });
     expect(byAdmin.status).toBe(200);
+  });
+
+  it("refuses setting someone else as a rule's owner, even for an admin", async () => {
+    const s = await setup();
+    const onCreate = await create(s.owner, rule(s, { ownerId: s.member.userId }));
+    expect(onCreate.status).toBe(403);
+    const w = (await ok(await create(s.owner, rule(s, { ownerId: s.owner.userId })))).workflow;
+    expect(w.ownerId).toBe(s.owner.userId);
+    const onUpdate = await call('workflows/update', {
+      cookie: s.owner.cookie,
+      body: { id: w.id, ownerId: s.member.userId },
+    });
+    expect(onUpdate.status).toBe(403);
+    expect(
+      (await ok(await call(`workflow?id=${w.id}`, { cookie: s.owner.cookie }))).workflow.ownerId,
+    ).toBe(s.owner.userId);
+  });
+
+  it("makes whoever changes a rule's conditions or actions its owner", async () => {
+    const s = await setup();
+    const w = (await ok(await create(s.owner, rule(s, { editAccess: 'everyone' })))).workflow;
+    const byMember = await ok(
+      await call('workflows/update', {
+        cookie: s.member.cookie,
+        body: { id: w.id, activities: [{ type: 'setPriority', priority: 2 }] },
+      }),
+    );
+    expect(byMember.workflow.ownerId).toBe(s.member.userId);
+    // A change to anything else keeps the owner.
+    const renamed = await ok(
+      await call('workflows/update', {
+        cookie: s.owner.cookie,
+        body: { id: w.id, name: 'Renamed' },
+      }),
+    );
+    expect(renamed.workflow.ownerId).toBe(s.member.userId);
+    const byOwner = await ok(
+      await call('workflows/update', {
+        cookie: s.owner.cookie,
+        body: { id: w.id, conditions: { priority: { eq: 2 } } },
+      }),
+    );
+    expect(byOwner.workflow.ownerId).toBe(s.owner.userId);
   });
 
   it('refuses a guest, even on a rule everyone may edit', async () => {

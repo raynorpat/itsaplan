@@ -7,7 +7,8 @@ import type { RuleFields } from './validate';
 // admins and owners change any rule. Otherwise the rule's edit access decides:
 // `everyone` any non-guest who can see the team, `teamOwners` a team manager,
 // `workspaceAdmins` nobody else, `owner` the rule's owner. Creating a rule, and
-// changing a rule's edit access or owner, needs a team manager.
+// changing a rule's edit access, needs a team manager. The owner is the rule's last
+// author (validate.ts), never someone else's choice.
 
 export async function assertSeesTeam(
   teamId: string,
@@ -33,7 +34,7 @@ export async function assertMayManageAccess(teamId: string, userId: string): Pro
   if (!(await canManageTeam(teamId, userId)))
     throw new HttpError(
       403,
-      "Only a team owner or a workspace admin can change a workflow's edit access or owner",
+      "Only a team owner or a workspace admin can change a workflow's edit access",
     );
 }
 

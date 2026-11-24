@@ -125,10 +125,7 @@ export async function createWorkflow(input: RuleInput, userId: string): Promise<
     .select({ max: sql<number | null>`max(${workflowDefinition.sortOrder})` })
     .from(workflowDefinition)
     .where(eq(workflowDefinition.teamId, teamId));
-  const fields = await validateRule(input, null, {
-    ownerId: userId,
-    sortOrder: num(last?.max) + 1000,
-  });
+  const fields = await validateRule(input, null, userId, num(last?.max) + 1000);
   const [row] = await db
     .insert(workflowDefinition)
     .values({ ...toColumns(fields), creatorUserId: userId, updatedByUserId: userId })
@@ -136,8 +133,9 @@ export async function createWorkflow(input: RuleInput, userId: string): Promise<
   return mapWorkflow(row!);
 }
 
-// Changes a rule. Who may edit follows its edit access; changing the edit access or
-// the owner needs a team manager.
+// Changes a rule. Who may edit follows its edit access; changing the edit access
+// needs a team manager. Changing the conditions or actions makes the editor the owner
+// (validateRule).
 export async function updateWorkflow(
   id: unknown,
   patch: RuleInput,
@@ -147,14 +145,9 @@ export async function updateWorkflow(
   await assertMayEdit(existing, userId);
   if (patch.teamId !== undefined && patch.teamId !== existing.teamId)
     throw new HttpError(400, 'A workflow cannot move to another team');
-  const accessChange =
-    (patch.editAccess !== undefined && patch.editAccess !== existing.editAccess) ||
-    (patch.ownerId !== undefined && patch.ownerId !== existing.ownerId);
-  if (accessChange) await assertMayManageAccess(existing.teamId, userId);
-  const fields = await validateRule(patch, existing, {
-    ownerId: existing.ownerId,
-    sortOrder: existing.sortOrder,
-  });
+  if (patch.editAccess !== undefined && patch.editAccess !== existing.editAccess)
+    await assertMayManageAccess(existing.teamId, userId);
+  const fields = await validateRule(patch, existing, userId, existing.sortOrder);
   return write(existing.id, { ...toColumns(fields), updatedByUserId: userId });
 }
 

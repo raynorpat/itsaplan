@@ -160,11 +160,15 @@ async function validateOwner(ownerId: string | null, teamId: string): Promise<vo
 }
 
 // Merges `input` over `existing` (null on create) and validates the whole rule.
-// `defaults` fills the owner and sort order of a new rule.
+// `editorId` is the person saving it. A rule acts as its owner (its delegations credit
+// them, `me` in its conditions is them), so the owner is only ever its last author:
+// the creator, then whoever changes its conditions or actions; `ownerId` may only name
+// the editor. `defaultSortOrder` places a new rule.
 export async function validateRule(
   input: RuleInput,
   existing: RuleFields | null,
-  defaults: { ownerId: string | null; sortOrder: number },
+  editorId: string,
+  defaultSortOrder: number,
 ): Promise<RuleFields> {
   const has = (key: keyof RuleFields) => input[key] !== undefined;
   const teamId = existing?.teamId ?? id(input.teamId, 'teamId');
@@ -194,10 +198,11 @@ export async function validateRule(
   ) as EditAccess;
   if (!EDIT_ACCESS.includes(editAccess)) bad(`editAccess must be one of ${EDIT_ACCESS.join(', ')}`);
 
-  const ownerId = has('ownerId')
-    ? optionalId(input.ownerId, 'ownerId')
-    : (existing?.ownerId ?? defaults.ownerId);
-  if (has('ownerId')) await validateOwner(ownerId, teamId);
+  if (has('ownerId') && input.ownerId !== editorId)
+    throw new HttpError(403, "A workflow's owner can only be set to yourself");
+  const authored = !existing || has('ownerId') || has('conditions') || has('activities');
+  const ownerId = authored ? editorId : existing.ownerId;
+  if (ownerId !== existing?.ownerId) await validateOwner(ownerId, teamId);
 
   const conditions = has('conditions')
     ? validateConditions(input.conditions, ownerId)
@@ -218,9 +223,7 @@ export async function validateRule(
 
   const enabled = has('enabled') ? input.enabled : (existing?.enabled ?? true);
   if (typeof enabled !== 'boolean') bad('enabled must be true or false');
-  const sortOrder = has('sortOrder')
-    ? input.sortOrder
-    : (existing?.sortOrder ?? defaults.sortOrder);
+  const sortOrder = has('sortOrder') ? input.sortOrder : (existing?.sortOrder ?? defaultSortOrder);
   if (typeof sortOrder !== 'number' || !Number.isFinite(sortOrder))
     bad('sortOrder must be a number');
 
