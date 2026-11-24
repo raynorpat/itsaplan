@@ -1,9 +1,7 @@
-// Issue feed (comments + history) and the status timeline, over
-// GraphQL. The feed is the issue's comments and Linear's IssueHistory merged into
-// threads by buildFeed; the timeline is the issue's state spans.
+// Issue feed (comments + history) over GraphQL: the issue's comments and Linear's
+// IssueHistory merged into threads by buildFeed.
 
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import type { FeedItem, TimelineSegment } from '@/types/issue';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { type FeedComment, type FeedEntry } from '@/utils/commentThreads';
@@ -137,24 +135,6 @@ const FeedHistoryQuery = graphql(`
   }
 `);
 
-const TimelineQuery = graphql(`
-  query IssueStateHistory($id: String!) {
-    issue(id: $id) {
-      id
-      stateHistory(first: 250) {
-        nodes {
-          id
-          startedAt
-          endedAt
-          state {
-            name
-          }
-        }
-      }
-    }
-  }
-`);
-
 // Where each connection's next page starts: a cursor, null for the first page, or
 // false when the connection has no more pages.
 interface FeedCursors {
@@ -242,48 +222,4 @@ export function useFeedQuery(id: string): FeedQueryResult {
     loadingOlder: query.isFetchingNextPage,
     loadOlder: () => void query.fetchNextPage(),
   };
-}
-
-// The stretches the issue spent in one status, oldest first.
-export function useTimelineQuery(id: string) {
-  return useQuery({
-    queryKey: qk.timeline(id),
-    queryFn: async (): Promise<TimelineSegment[]> => {
-      const { issue } = await gqlRequest(TimelineQuery, { id });
-      const now = Date.now();
-      return issue.stateHistory.nodes.map((span) => {
-        const to = span.endedAt ?? null;
-        return {
-          status: span.state?.name ?? null,
-          from: span.startedAt,
-          to,
-          durationMs: (to ? Date.parse(to) : now) - Date.parse(span.startedAt),
-        };
-      });
-    },
-  });
-}
-
-// One time range of the issue's activity, as the timeline addresses its stretches.
-export interface TimelineRange {
-  from: string;
-  to: string | null;
-}
-
-// The feed entries written inside the given stretches, oldest first. A status may
-// have been visited more than once, so a lane's popover asks for several ranges.
-// Filtered from the loaded feed (history has no time filter of its own);
-// `olderNotLoaded` says a range reaches before the oldest loaded entry.
-export function useTimelineItemsQuery(issueId: string, ranges: TimelineRange[]) {
-  const feed = useFeedQuery(issueId);
-  const loaded = (feed.data ?? []).map((e) => e.item.createdAt).sort()[0];
-  const olderNotLoaded =
-    feed.hasOlder && ranges.some((r) => loaded !== undefined && r.from < loaded);
-  const inRange = (item: FeedItem) =>
-    ranges.some((r) => item.createdAt >= r.from && (r.to == null || item.createdAt < r.to));
-  const items = (feed.data ?? [])
-    .flatMap((entry) => [entry.item, ...entry.replies])
-    .filter(inRange)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return { isPending: feed.isPending, isError: feed.isError, items, olderNotLoaded };
 }

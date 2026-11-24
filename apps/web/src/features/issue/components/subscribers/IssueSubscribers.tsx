@@ -12,7 +12,7 @@ import {
 } from '../../services/subscribers.service';
 
 // The issue's subscribers (who gets its comment and status notifications) and the
-// viewer's Subscribe / Unsubscribe toggle.
+// viewer's Subscribe / Unsubscribe toggle, in the activity header.
 
 export default function IssueSubscribers({ issueId }: { issueId: string }) {
   const { data: session } = useSession();
@@ -23,7 +23,7 @@ export default function IssueSubscribers({ issueId }: { issueId: string }) {
   const subscribed = isSubscribed(users, viewerId);
 
   return (
-    <div className="mt-3 flex items-center gap-2">
+    <div className="flex items-center gap-2">
       {viewerId && (
         <Button
           variant="ghost"

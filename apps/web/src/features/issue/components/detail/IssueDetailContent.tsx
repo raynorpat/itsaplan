@@ -5,17 +5,17 @@ import IssueAttachmentsPanel from './IssueAttachmentsPanel';
 import IssueRelations from '../relations/IssueRelations';
 import { usePermissions } from '@/hooks/usePermissions';
 import IssueReactions from '../reactions/IssueReactions';
-import IssueSubscribers from '../subscribers/IssueSubscribers';
 import DocumentList from '@/components/common/documents/DocumentList';
 import IssueActivityFeed from './IssueActivityFeed';
-import IssueStatusTimeline from './IssueStatusTimeline';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import IssueProperties from './IssueProperties';
-import IssueActionsBar from '../actions/IssueActionsBar';
+import IssueActionsMenu from '../actions/IssueActionsMenu';
 
-// The full editable body of a issue — title, description, attachments, the Properties grid, and the activity feed. Shared by the
-// side panel (IssueDetail) and the full-page view (IssueViewPage); each supplies
-// its own surrounding chrome (close button / breadcrumbs). Data loading and
+// The full editable body of an issue in Linear's order — title, description,
+// reactions, links and attachments, relations, documents, activity — and its
+// properties. Shared by the side panel (IssueDetail), the full-page view
+// (IssueViewPage) and the inbox pane; the panel and the page put the ⋯ menu in their
+// own header, the inbox pane gets it above the properties. Data loading and
 // mutations live in useIssueDetail; this component is layout only.
 export default function IssueDetailContent({
   team,
@@ -94,11 +94,9 @@ export default function IssueDetailContent({
 
       <IssueReactions issueId={issue.id} />
 
-      <IssueSubscribers issueId={issue.id} />
+      <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
 
       <IssueRelations issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
-
-      <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
 
       <DocumentList
         parent={{ issueId: issue.id }}
@@ -119,19 +117,12 @@ export default function IssueDetailContent({
     />
   );
 
-  const actions = (
-    <IssueActionsBar team={team} issue={issue} hasSidebar={hasSidebar} onDeleted={onDeleted} />
-  );
-
   const activity = (
-    <>
-      <IssueStatusTimeline issueId={issue.id} columns={team.states} imageByUserId={imageByUserId} />
-      <IssueActivityFeed
-        issueId={issue.id}
-        assignees={team.mentionCandidates}
-        imageByUserId={imageByUserId}
-      />
-    </>
+    <IssueActivityFeed
+      issueId={issue.id}
+      assignees={team.mentionCandidates}
+      imageByUserId={imageByUserId}
+    />
   );
 
   if (isPage) {
@@ -143,8 +134,7 @@ export default function IssueDetailContent({
           {body}
           {activity}
         </div>
-        <aside className="fixed top-16 right-6 max-h-[calc(100vh-5.5rem)] w-[340px] overflow-y-auto">
-          {actions}
+        <aside className="fixed top-16 right-6 max-h-[calc(100vh-5.5rem)] w-[260px] overflow-y-auto">
           {properties}
         </aside>
       </>
@@ -161,16 +151,16 @@ export default function IssueDetailContent({
           {body}
           {activity}
         </div>
-        <aside className="w-[320px] shrink-0">
-          {actions}
+        <aside className="w-[240px] shrink-0">
+          <div className="mb-2 flex justify-end">
+            <IssueActionsMenu team={team} issue={issue} onDeleted={onDeleted} />
+          </div>
           {properties}
         </aside>
       </div>
     );
   }
 
-  // The panel renders the actions in its header row (see IssueDetail), so the
-  // panel body omits them; the page keeps them in the sticky sidebar above.
   return (
     <>
       {body}

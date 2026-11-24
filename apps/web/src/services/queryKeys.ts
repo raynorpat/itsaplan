@@ -36,9 +36,8 @@ export const qk = {
   documentComments: (id: string) => ['documentComments', id] as const,
   issueDocuments: (id: string) => ['issueDocuments', id] as const,
   issueSubscribers: (id: string) => ['issueSubscribers', id] as const,
-  // The status stretches of the timeline view and the issue's own reactions. Both
-  // keyed under the feed, so every existing feed invalidation refreshes them too.
-  timeline: (id: string) => ['feed', id, 'timeline'] as const,
+  // The issue's own reactions, keyed under the feed so every existing feed
+  // invalidation refreshes them too.
   issueReactions: (id: string) => ['feed', id, 'reactions'] as const,
   // An agent session on the issue, keyed under the feed so feed invalidations refresh it.
   agentSession: (issueId: string, sessionId: string) =>

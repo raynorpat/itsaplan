@@ -70,9 +70,9 @@ function onDragStart(e: DragEvent<HTMLElement>, a: Attachment) {
   if (card) e.dataTransfer.setDragImage(card, 0, 0);
 }
 
-// Attachments for one issue: uploaded files (preview, download, insert into the
-// description, delete) and links (add, rename, delete), as Linear lists both on
-// the issue. onInsert hands a file back to the parent, which embeds it into the
+// Links and attachments for one issue, one compact row each under the description
+// as in Linear: uploaded files (preview, download, insert into the description,
+// delete) and links (add, rename, delete). Hidden for a reader when there are none. onInsert hands a file back to the parent, which embeds it into the
 // description via the live editor. Add, rename and delete are offered only to
 // someone who can edit the issue.
 export default function IssueAttachmentsPanel({
@@ -156,16 +156,18 @@ export default function IssueAttachmentsPanel({
     void onFilesPicked(e.dataTransfer.files);
   }
 
+  if (!canEdit && items.length === 0 && links.length === 0) return null;
+
   return (
     <div
-      className="relative mt-6 border-t pt-5"
+      className="relative mt-5"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Paperclip className="size-3.5" />
           Attachments
           {limits && (
@@ -187,20 +189,20 @@ export default function IssueAttachmentsPanel({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5"
+              className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
               onClick={() => setAddingLink(true)}
             >
-              <Link2 className="size-4" />
+              <Link2 className="size-3.5" />
               Link
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5"
+              className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
               disabled={uploading}
               onClick={() => fileInput.current?.click()}
             >
-              <Plus className="size-4" />
+              <Plus className="size-3.5" />
               {uploading ? 'Uploading…' : 'File'}
             </Button>
           </div>
@@ -229,7 +231,7 @@ export default function IssueAttachmentsPanel({
       )}
 
       {links.length > 0 && (
-        <div className="mb-2 flex flex-col gap-2">
+        <div className="flex flex-col">
           {links.map((l) => (
             <IssueLinkRow
               key={l.id}
@@ -242,14 +244,14 @@ export default function IssueAttachmentsPanel({
         </div>
       )}
 
-      {items.length === 0 && links.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No attachments. Drop files here, or add a file or a link.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
+      {items.length > 0 && (
+        <div className="flex flex-col">
           {items.map((a) => (
-            <AttachmentCard key={a.id} className="w-full">
+            <AttachmentCard
+              key={a.id}
+              size="xs"
+              className="w-full border-transparent bg-transparent hover:bg-accent/50"
+            >
               <span
                 draggable
                 onDragStart={(e) => onDragStart(e, a)}
@@ -264,8 +266,8 @@ export default function IssueAttachmentsPanel({
                 <AttachmentThumb a={a} />
               </AttachmentMedia>
 
-              <AttachmentContent>
-                <AttachmentTitle>{a.filename}</AttachmentTitle>
+              <AttachmentContent className="min-w-0 flex-1 flex-row items-baseline gap-2">
+                <AttachmentTitle className="truncate">{a.filename}</AttachmentTitle>
                 <AttachmentDescription>{formatSize(a.sizeBytes)}</AttachmentDescription>
               </AttachmentContent>
 
@@ -304,7 +306,7 @@ export default function IssueAttachmentsPanel({
       )}
 
       {dropActive && (
-        <div className="pointer-events-none absolute inset-0 top-5 z-30 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-background/80 text-primary backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-background/80 text-primary backdrop-blur-sm">
           <Download className="size-6" />
           <span className="text-sm font-medium">Drop files to upload</span>
         </div>

@@ -16,18 +16,19 @@ import ProjectSelect from '../fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
 
-// One property row in the two-column list: name on the left, control on the right.
+// One property in Linear's flat list: the control alone (its pill shows the icon and the
+// value); the property's name is its accessible label and hover title.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <>
-      <div className="pt-1.5 text-sm text-muted-foreground">{label}</div>
-      <div className="min-w-0">{children}</div>
-    </>
+    <div role="group" aria-label={label} title={label} className="min-w-0">
+      {children}
+    </div>
   );
 }
 
-// The Properties grid of the issue detail: status, assignee, priority, project,
-// cycle, dates and labels, each editable inline. In the page layout it is a bordered card; in the panel a plain block.
+// The issue's properties as Linear lists them: status, assignee, delegate, priority,
+// project and milestone, cycle, due date and labels, each editable inline. In a
+// sidebar they are one flat column; in the panel a wrapping row under the content.
 export default function IssueProperties({
   team,
   issue,
@@ -48,11 +49,19 @@ export default function IssueProperties({
   const hasMembers = team.assignees.length > 0;
   const rows = (
     <>
-      <PropertyRow label="State">
+      <PropertyRow label="Status">
         <StatusSelect
           columns={team.states}
           value={issue.stateId}
           onChange={(id) => onPatch({ stateId: id })}
+          readOnly={readOnly}
+        />
+      </PropertyRow>
+
+      <PropertyRow label="Priority">
+        <PrioritySelect
+          value={issue.priority}
+          onChange={(v) => onPatch({ priority: v })}
           readOnly={readOnly}
         />
       </PropertyRow>
@@ -82,13 +91,17 @@ export default function IssueProperties({
         </PropertyRow>
       )}
 
-      <PropertyRow label="Priority">
-        <PrioritySelect
-          value={issue.priority}
-          onChange={(v) => onPatch({ priority: v })}
-          readOnly={readOnly}
-        />
-      </PropertyRow>
+      {team.labels.length > 0 && (
+        <PropertyRow label="Labels">
+          <LabelsSelect
+            labels={team.labels}
+            groups={team.labelGroups}
+            value={issue.labelIds}
+            onToggle={onToggleLabel}
+            readOnly={readOnly}
+          />
+        </PropertyRow>
+      )}
 
       <PropertyRow label="Project">
         {readOnly ? (
@@ -135,41 +148,12 @@ export default function IssueProperties({
           readOnly={readOnly}
         />
       </PropertyRow>
-
-      {team.labels.length > 0 && (
-        <PropertyRow label="Labels">
-          <LabelsSelect
-            labels={team.labels}
-            groups={team.labelGroups}
-            value={issue.labelIds}
-            onToggle={onToggleLabel}
-            readOnly={readOnly}
-          />
-        </PropertyRow>
-      )}
     </>
   );
 
-  const inner = (
-    <>
-      <h3
-        className={`text-xs font-medium text-muted-foreground ${hasSidebar ? 'mb-2.5' : 'mb-3 tracking-wide uppercase'}`}
-      >
-        Properties
-      </h3>
-      <div
-        className={`grid ${hasSidebar ? 'grid-cols-[72px_1fr] gap-x-2' : 'grid-cols-[110px_1fr] gap-x-3'} items-start gap-y-2.5`}
-      >
-        {rows}
-      </div>
-    </>
-  );
-
-  // In the page layout the properties become a bordered card in the right
-  // sidebar; in the panel they stay a plain block under the content.
   return hasSidebar ? (
-    <div className="rounded-lg border bg-card/50 p-3.5">{inner}</div>
+    <div className="flex flex-col items-start gap-1">{rows}</div>
   ) : (
-    <div className="mt-6 border-t pt-5">{inner}</div>
+    <div className="mt-5 flex flex-wrap items-center gap-1.5">{rows}</div>
   );
 }

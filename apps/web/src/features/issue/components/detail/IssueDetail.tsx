@@ -3,7 +3,7 @@ import { Maximize2, X } from 'lucide-react';
 import type { TeamDetail } from '@/types/team';
 import type { IssueDetail as IssueDetailRow } from '@/types/issue';
 import IssueDetailContent from './IssueDetailContent';
-import IssueActionsBar from '../actions/IssueActionsBar';
+import IssueActionsMenu from '../actions/IssueActionsMenu';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
 import { Button } from '@/components/ui/button';
 
@@ -42,13 +42,7 @@ export default function IssueDetail({
           <div className="flex items-center gap-1">
             {issue && (
               <>
-                <IssueActionsBar
-                  team={team}
-                  issue={issue}
-                  hasSidebar={false}
-                  variant="header"
-                  onDeleted={onClose}
-                />
+                <IssueActionsMenu team={team} issue={issue} onDeleted={onClose} />
                 <div className="mx-1 h-5 w-px bg-border" />
               </>
             )}

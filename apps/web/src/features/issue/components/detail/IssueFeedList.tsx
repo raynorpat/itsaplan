@@ -6,8 +6,9 @@ import CommentThread from '@/components/common/comments/CommentThread';
 import AgentSessionThread from '../agent/AgentSessionThread';
 import { threadSessionIds } from '../../utils/agentSession';
 
-// The issue's feed, newest first: comment threads and change entries, a page at a
-// time with "Show older" for the rest. The feed query refetches when an issue edit
+// The issue's feed as Linear shows it, oldest at the top and newest just above the
+// comment box: comment threads and change entries, a page at a time with "Show
+// older" above them for the rest. The feed query refetches when an issue edit
 // or a new comment invalidates it (see useUpdateIssueDetail / useCreateComment), so
 // it reflects edits without the parent signaling it.
 
@@ -21,7 +22,8 @@ export default function IssueFeedList({
   ctx: CommentContext;
 }) {
   const feedQuery = useFeedQuery(issueId);
-  const entries = feedQuery.data ?? [];
+  // The query pages newest first; the list reads top to bottom in time order.
+  const entries = [...(feedQuery.data ?? [])].reverse();
 
   if (entries.length === 0) {
     return (
@@ -33,6 +35,19 @@ export default function IssueFeedList({
 
   return (
     <ul className="flex flex-col gap-2.5">
+      {feedQuery.hasOlder && (
+        <li>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={feedQuery.loadingOlder}
+            onClick={feedQuery.loadOlder}
+          >
+            {feedQuery.loadingOlder ? 'Loading…' : 'Show older'}
+          </Button>
+        </li>
+      )}
       {entries.map((entry) => {
         const sessionIds = entry.item.kind === 'comment' ? threadSessionIds(entry) : [];
         return sessionIds.length > 0 ? (
@@ -54,19 +69,6 @@ export default function IssueFeedList({
           <ActivityLine key={entry.item.id} item={entry.item} />
         );
       })}
-      {feedQuery.hasOlder && (
-        <li>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            disabled={feedQuery.loadingOlder}
-            onClick={feedQuery.loadOlder}
-          >
-            {feedQuery.loadingOlder ? 'Loading…' : 'Show older'}
-          </Button>
-        </li>
-      )}
     </ul>
   );
 }

@@ -16,8 +16,8 @@ function pathOf(identifier: string): string {
   return issuePath(identifier.slice(0, cut), Number(identifier.slice(cut + 1)));
 }
 
-// The issue's relations, grouped as Linear shows them: blocked by, blocks, related,
-// duplicate of, duplicated by. Adding and removing are offered only to someone who
+// The issue's relations as compact rows, in Linear's group order: blocked by,
+// blocks, related, duplicate of, duplicated by; each row names its kind. Adding and removing are offered only to someone who
 // can edit the issue; the API enforces the same rule.
 export default function IssueRelations({
   issueId,
@@ -36,9 +36,9 @@ export default function IssueRelations({
   if (groups.length === 0 && !canEdit) return null;
 
   return (
-    <div className="mt-6 border-t pt-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+    <div className="mt-5">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Link2 className="size-3.5" />
           Relations
         </h3>
@@ -59,43 +59,40 @@ export default function IssueRelations({
 
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
-      {groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No related issues.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {groups.map((g) => (
-            <div key={g.kind}>
-              <div className="mb-1 text-xs text-muted-foreground">
-                {RELATION_KIND_LABEL[g.kind]}
-              </div>
-              <ul className="flex flex-col gap-1">
-                {g.items.map((it) => (
-                  <li key={it.relationId} className="group flex items-center gap-2 text-sm">
-                    <Link
-                      href={pathOf(it.issue.identifier)}
-                      className="flex min-w-0 flex-1 items-center gap-2 hover:underline"
-                    >
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {it.issue.identifier}
-                      </span>
-                      <span className="truncate">{it.issue.title}</span>
-                    </Link>
-                    {canEdit && (
-                      <button
-                        type="button"
-                        aria-label={`Remove relation to ${it.issue.identifier}`}
-                        className="text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
-                        onClick={() => remove.mutate(it.relationId)}
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+      {groups.length > 0 && (
+        <ul className="flex flex-col">
+          {groups.flatMap((g) =>
+            g.items.map((it) => (
+              <li
+                key={it.relationId}
+                className="group flex h-8 items-center gap-2 rounded-md px-1.5 text-sm hover:bg-accent/50"
+              >
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                  {RELATION_KIND_LABEL[g.kind]}
+                </span>
+                <Link
+                  href={pathOf(it.issue.identifier)}
+                  className="flex min-w-0 flex-1 items-center gap-2"
+                >
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {it.issue.identifier}
+                  </span>
+                  <span className="truncate">{it.issue.title}</span>
+                </Link>
+                {canEdit && (
+                  <button
+                    type="button"
+                    aria-label={`Remove relation to ${it.issue.identifier}`}
+                    className="text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
+                    onClick={() => remove.mutate(it.relationId)}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </li>
+            )),
+          )}
+        </ul>
       )}
     </div>
   );

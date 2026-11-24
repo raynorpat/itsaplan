@@ -34,11 +34,14 @@ export default function IssueLinkRow({
   }
 
   return (
-    <AttachmentCard className="w-full">
+    <AttachmentCard
+      size="xs"
+      className="w-full border-transparent bg-transparent hover:bg-accent/50"
+    >
       <AttachmentMedia variant="icon">
         <Globe className="text-muted-foreground" />
       </AttachmentMedia>
-      <AttachmentContent>
+      <AttachmentContent className="min-w-0 flex-1 flex-row items-baseline gap-2">
         {editing ? (
           <Input
             autoFocus
@@ -56,7 +59,7 @@ export default function IssueLinkRow({
             }}
           />
         ) : (
-          <AttachmentTitle>
+          <AttachmentTitle className="truncate">
             <a
               href={link.url}
               target="_blank"

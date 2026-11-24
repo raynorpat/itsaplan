@@ -103,16 +103,6 @@ export interface FeedItem {
   reactions?: { id: string; emoji: string; user: { id: string; name: string } | null }[];
 }
 
-// One stretch the issue spent in a single state, from Linear's Issue.stateHistory.
-// `status` is the state's name (null when the state was deleted since); `to` is null
-// for the stretch the issue is in now.
-export interface TimelineSegment {
-  status: string | null;
-  from: string;
-  to: string | null;
-  durationMs: number;
-}
-
 export type IssueDetail = Issue;
 
 export interface NewIssueInput {
