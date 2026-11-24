@@ -38,6 +38,10 @@ const CommentsQuery = graphql(`
           createdAt
           editedAt
           resolvedAt
+          botActor {
+            type
+            name
+          }
           parentId
           user {
             id

@@ -27,6 +27,10 @@ const FeedCommentsQuery = graphql(`
           createdAt
           editedAt
           resolvedAt
+          botActor {
+            type
+            name
+          }
           parentId
           agentSession {
             id
@@ -68,6 +72,10 @@ const FeedHistoryQuery = graphql(`
             id
             name
             app
+          }
+          botActor {
+            type
+            name
           }
           fromStateId
           toStateId

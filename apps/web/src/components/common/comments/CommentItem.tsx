@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import AppBadge from '@/components/common/AppBadge';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { Workflow } from 'lucide-react';
 import type { FeedItem } from '@/types/issue';
 import Avatar from '@/components/common/Avatar';
 import { mentionsToChips } from '@/utils/mentions';
@@ -28,11 +29,18 @@ export default function CommentItem({
   const author = item.actorName ?? 'Unknown';
   return (
     <li className="flex gap-3">
-      <Avatar name={author} image={image} className="mt-0.5 size-7 text-[11px]" />
+      {item.actorWorkflow ? (
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <Workflow className="size-3.5" aria-hidden />
+        </span>
+      ) : (
+        <Avatar name={author} image={image} className="mt-0.5 size-7 text-[11px]" />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium">{author}</span>
           {item.actorIsApp && <AppBadge />}
+          {item.actorWorkflow && <AppBadge label="Workflow" />}
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
             {item.editedAt && ' (edited)'}

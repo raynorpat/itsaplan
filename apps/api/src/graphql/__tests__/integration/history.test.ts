@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { db, issue, issueActivity } from '@repo/db';
+import { db, issue, issueActivity, user } from '@repo/db';
+import { APP_ROLE } from '@repo/auth';
 import { and, eq } from 'drizzle-orm';
 import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
@@ -192,6 +193,29 @@ describe('graphql history', () => {
     expect(entries.some((e) => e.action === 'status' && e.toId === started.id)).toBe(true);
     expect(entries.some((e) => e.action === 'lead' && e.toId === owner.userId)).toBe(true);
     expect(nodes[0]!.project).toEqual({ id: project });
+    expect(entries.every((e) => e.actorApp === false)).toBe(true);
+  });
+
+  it('marks project history made by an app user', async () => {
+    const { owner, teamId } = await setup();
+    const project = (
+      await run(
+        owner.cookie,
+        `mutation { projectCreate(input: { name: "Site", teamIds: ["${teamId}"] }) { project { id } } }`,
+      )
+    ).projectCreate.project.id;
+    await run(
+      owner.cookie,
+      `mutation { projectUpdate(id: "${project}", input: { leadId: "${owner.userId}" }) { success } }`,
+    );
+    // The actor's role decides it, as it does for User.app.
+    await db.update(user).set({ workspaceRole: APP_ROLE }).where(eq(user.id, owner.userId));
+    const viewer = await signUpAs('admin');
+    const nodes: Data[] = (
+      await run(viewer.cookie, `{ project(id: "${project}") { history { nodes { entries } } } }`)
+    ).project.history.nodes;
+    const lead = nodes.map((n) => n.entries).find((e) => e.action === 'lead');
+    expect(lead?.actorApp).toBe(true);
   });
 
   it('filters archived issues', async () => {

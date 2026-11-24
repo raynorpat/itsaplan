@@ -1,3 +1,4 @@
+import { actorDisplay } from '@/utils/actorDisplay';
 import type { FeedItem } from '@/types/issue';
 import {
   buildThreads,
@@ -27,6 +28,8 @@ export interface FeedHistory {
   // visible or was removed; null for a change the system made.
   actorId?: string | null;
   actor: FeedUser | null;
+  // The workflow that made the change (Linear's IssueHistory.botActor); no actor then.
+  botActor?: { type?: string | null; name?: string | null } | null;
   fromStateId?: string | null;
   toStateId?: string | null;
   fromState?: Named | null;
@@ -95,13 +98,15 @@ function parentName(parent: FeedHistory['fromParent'], id: string | null | undef
 }
 
 function base(h: FeedHistory, issueId: string, suffix = ''): FeedItem {
+  const actor = actorDisplay(h);
   return {
     id: h.id + suffix,
     issueId,
     kind: 'activity',
     actorUserId: h.actor?.id ?? null,
-    actorName: h.actor?.name ?? (h.actorId ? REMOVED_USER : null),
-    actorIsApp: h.actor?.app ?? false,
+    actorName: actor.kind === 'unknown' ? (h.actorId ? REMOVED_USER : null) : actor.name,
+    actorIsApp: actor.kind === 'app',
+    actorWorkflow: actor.kind === 'workflow',
     body: null,
     action: null,
     subject: null,

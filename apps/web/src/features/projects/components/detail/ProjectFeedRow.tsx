@@ -1,5 +1,6 @@
 'use client';
 
+import AppBadge from '@/components/common/AppBadge';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   CircleDot,
@@ -75,7 +76,14 @@ export default function ProjectFeedRow({ entry }: { entry: HistoryEntry }) {
         <Icon className="size-3" />
       </span>
       <span className="min-w-0 text-muted-foreground">
-        <span className="font-medium">{entry.actorName ?? 'System'}</span> {describe(entry)}
+        <span className="font-medium">{entry.actorName ?? 'System'}</span>
+        {entry.actorIsApp && (
+          <>
+            {' '}
+            <AppBadge />
+          </>
+        )}{' '}
+        {describe(entry)}
         <span className="ml-1.5">
           · {formatDistanceToNow(parseISO(entry.createdAt), { addSuffix: true })}
         </span>

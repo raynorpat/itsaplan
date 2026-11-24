@@ -22,6 +22,8 @@ export interface ProjectHistoryNode {
     to?: string | null;
     actorId?: string | null;
     actorName?: string | null;
+    // The actor is an app user (an OAuth application installed with actor=app).
+    actorApp?: boolean;
   };
 }
 
@@ -40,6 +42,7 @@ export type ProjectFeedEntry =
       createdAt: string;
       // null for a change the system made.
       actorName: string | null;
+      actorIsApp: boolean;
       action: string;
       subject: string | null;
       from: string | null;
@@ -72,6 +75,7 @@ export function buildProjectFeed(
       id: h.id,
       createdAt: h.createdAt,
       actorName: e.actorName ?? (e.actorId ? REMOVED_USER : null),
+      actorIsApp: e.actorApp ?? false,
       action: e.action,
       subject: e.subject ?? null,
       from: e.from ?? null,

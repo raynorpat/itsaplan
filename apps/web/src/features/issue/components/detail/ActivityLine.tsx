@@ -1,6 +1,6 @@
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import AppBadge from '@/components/common/AppBadge';
-import { CircleDot } from 'lucide-react';
+import { CircleDot, Workflow } from 'lucide-react';
 import type { FeedItem } from '@/types/issue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ACTION_ICON, describeActivity } from '../../utils/activityText';
@@ -21,14 +21,25 @@ export default function ActivityLine({ item }: { item: FeedItem }) {
         <Icon className="size-3" />
       </span>
       <span className="min-w-0 text-muted-foreground">
-        <span className="font-medium text-muted-foreground">{actor}</span>
-        {item.actorIsApp && (
+        {/* A workflow's change reads "<change> · via workflow <name>", as in Linear. */}
+        {!item.actorWorkflow && (
           <>
-            {' '}
-            <AppBadge />
+            <span className="font-medium text-muted-foreground">{actor}</span>
+            {item.actorIsApp && (
+              <>
+                {' '}
+                <AppBadge />
+              </>
+            )}{' '}
           </>
-        )}{' '}
+        )}
         {line}
+        {item.actorWorkflow && (
+          <span className="ml-1.5">
+            · via workflow <Workflow className="inline size-3 align-[-2px]" aria-hidden />{' '}
+            <span className="font-medium">{item.actorName}</span>
+          </span>
+        )}
         {popover && (
           <Popover>
             <PopoverTrigger asChild>

@@ -1,5 +1,6 @@
-import { db, issue, issueActivity, team, workflowState } from '@repo/db';
-import { and, asc, eq, getTableColumns } from 'drizzle-orm';
+import { APP_ROLE } from '@repo/auth';
+import { db, issue, issueActivity, team, user, workflowState } from '@repo/db';
+import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { canSeeTeam } from '../../shared/access';
 import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
@@ -288,6 +289,10 @@ export const historyResolvers = {
   },
   Project: {
     history: async (p: { id: string }, args: ListArgs) => {
+      const page = await listActivity('project', p.id, args);
+      // `entries` is Linear's free-form JSON; actorApp marks a change an app user
+      // (actor=app install) made, as User.app does, so a client can badge it.
+      const appActors = await appUserIds(page.nodes.map((row) => row.actorUserId));
       const toNode = (row: ActivityRow) => ({
         id: row.id,
         projectId: row.projectId,
@@ -303,9 +308,9 @@ export const historyResolvers = {
           toId: row.toId,
           actorId: row.actorUserId,
           actorName: row.actorName,
+          actorApp: row.actorUserId != null && appActors.has(row.actorUserId),
         },
       });
-      const page = await listActivity('project', p.id, args);
       return {
         ...page,
         nodes: page.nodes.map(toNode),
@@ -318,3 +323,14 @@ export const historyResolvers = {
       findProject(h.projectId, ctx).catch(() => null),
   },
 };
+
+// The ids among `ids` that belong to app users (workspace role APP_ROLE).
+async function appUserIds(ids: (string | null)[]): Promise<Set<string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => id != null))];
+  if (!wanted.length) return new Set();
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(inArray(user.id, wanted), eq(user.workspaceRole, APP_ROLE)));
+  return new Set(rows.map((r) => r.id));
+}

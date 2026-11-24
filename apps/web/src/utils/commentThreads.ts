@@ -1,3 +1,4 @@
+import { actorDisplay } from '@/utils/actorDisplay';
 import type { FeedItem } from '@/types/issue';
 
 // Comment threads built from Linear's GraphQL comments, for every comment list (an
@@ -22,6 +23,8 @@ export interface FeedComment {
   // The agent session a thread belongs to (Linear's Comment.agentSession).
   agentSession?: { id: string } | null;
   user: FeedUser | null;
+  // The workflow that wrote the comment (Linear's Comment.botActor); no user then.
+  botActor?: { type?: string | null; name?: string | null } | null;
   reactions?: { id: string; emoji: string; user: FeedUser | null }[];
 }
 
@@ -38,14 +41,16 @@ export const REMOVED_USER = 'a removed user';
 // `ownerId` fills FeedItem.issueId: the id of the issue, document, project or
 // update the comment belongs to.
 export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
+  const author = actorDisplay({ actor: c.user, botActor: c.botActor });
   return {
     id: c.id,
     issueId: ownerId,
     kind: 'comment',
     actorUserId: c.user?.id ?? null,
     // Every comment has an author; a missing one was removed or is hidden.
-    actorName: c.user?.name ?? REMOVED_USER,
-    actorIsApp: c.user?.app ?? false,
+    actorName: author.kind === 'unknown' ? REMOVED_USER : author.name,
+    actorIsApp: author.kind === 'app',
+    actorWorkflow: author.kind === 'workflow',
     body: c.body,
     action: null,
     subject: null,

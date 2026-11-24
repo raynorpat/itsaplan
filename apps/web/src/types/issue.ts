@@ -89,6 +89,8 @@ export interface FeedItem {
   actorName: string | null;
   // The actor is an app user (an OAuth application installed with actor=app).
   actorIsApp?: boolean;
+  // The actor is a workflow (Linear's ActorBot of type "workflow"); actorName is its name.
+  actorWorkflow?: boolean;
   body: string | null;
   action: ActivityAction | null;
   subject: string | null;

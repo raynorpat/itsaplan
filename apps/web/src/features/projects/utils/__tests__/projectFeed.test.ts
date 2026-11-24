@@ -134,3 +134,27 @@ describe('buildProjectFeed', () => {
     assert.equal(all.length, 7);
   });
 });
+
+describe('buildProjectFeed app actors', () => {
+  it('marks a change an app user made', () => {
+    const [app, person] = buildProjectFeed(
+      [
+        {
+          id: 'a',
+          createdAt: '2026-01-02T00:00:00Z',
+          entries: { action: 'name', actorId: 'bot', actorName: 'Deploy bot', actorApp: true },
+        },
+        {
+          id: 'b',
+          createdAt: '2026-01-01T00:00:00Z',
+          entries: { action: 'name', actorId: 'ann', actorName: 'Ann', actorApp: false },
+        },
+      ],
+      [],
+      [],
+    );
+    assert.ok(app?.kind === 'history' && person?.kind === 'history');
+    assert.equal(app.actorIsApp, true);
+    assert.equal(person.actorIsApp, false);
+  });
+});
