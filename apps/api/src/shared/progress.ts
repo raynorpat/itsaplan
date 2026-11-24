@@ -19,22 +19,51 @@ export interface ProgressIssue {
   type: string;
 }
 
-export function weighProgress(rows: ProgressIssue[]): Progress {
-  const counted = rows.filter((r) => r.type !== 'canceled');
-  const weighted = counted.some((r) => (r.estimate ?? 0) > 0);
-  const weight = (r: ProgressIssue) => (weighted ? (r.estimate ?? 1) : 1);
-  const sum = (list: ProgressIssue[]) => list.reduce((n, r) => n + weight(r), 0);
-  const completed = counted.filter((r) => r.type === 'completed');
-  const started = counted.filter((r) => r.type === 'started');
-  const scope = sum(counted);
-  let progress = scope > 0 ? (sum(completed) + 0.25 * sum(started)) / scope : 0;
-  if (progress === 1 && counted.some((r) => r.type !== 'completed')) progress = 0.999;
+// The sums the rule needs, so it can be applied to rows or to SQL aggregates.
+export interface ProgressTotals {
+  // Issues not canceled, completed ones, started ones.
+  count: number;
+  completedCount: number;
+  startedCount: number;
+  // Whether any counted issue has an estimate above 0.
+  weighted: boolean;
+  // Sums of the estimates (an issue without one counts 1) of the same three sets.
+  weight: number;
+  completedWeight: number;
+  startedWeight: number;
+  // Whether any counted issue is not completed.
+  anyOpen: boolean;
+}
+
+export function weighTotals(t: ProgressTotals): Progress {
+  const scope = t.weighted ? t.weight : t.count;
+  const completedScope = t.weighted ? t.completedWeight : t.completedCount;
+  const inProgressScope = t.weighted ? t.startedWeight : t.startedCount;
+  let progress = scope > 0 ? (completedScope + 0.25 * inProgressScope) / scope : 0;
+  if (progress === 1 && t.anyOpen) progress = 0.999;
   return {
     progress,
-    issueCount: counted.length,
-    completedIssueCount: completed.length,
+    issueCount: t.count,
+    completedIssueCount: t.completedCount,
     scope,
-    completedScope: sum(completed),
-    inProgressScope: sum(started),
+    completedScope,
+    inProgressScope,
   };
+}
+
+export function weighProgress(rows: ProgressIssue[]): Progress {
+  const counted = rows.filter((r) => r.type !== 'canceled');
+  const completed = counted.filter((r) => r.type === 'completed');
+  const started = counted.filter((r) => r.type === 'started');
+  const sum = (list: ProgressIssue[]) => list.reduce((n, r) => n + (r.estimate ?? 1), 0);
+  return weighTotals({
+    count: counted.length,
+    completedCount: completed.length,
+    startedCount: started.length,
+    weighted: counted.some((r) => (r.estimate ?? 0) > 0),
+    weight: sum(counted),
+    completedWeight: sum(completed),
+    startedWeight: sum(started),
+    anyOpen: counted.some((r) => r.type !== 'completed'),
+  });
 }

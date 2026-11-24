@@ -72,6 +72,20 @@ describe('project webhooks', () => {
     expect(await payloads(hooks.ENG!)).toEqual([]);
   });
 
+  it("carries Linear's progress histories in the Project data", async () => {
+    const { asOwner, ids, hooks } = await setup();
+    await createProject(asOwner, [ids.MKT!]);
+    const [created] = await payloads(hooks.MKT!);
+    for (const field of [
+      'scopeHistory',
+      'completedScopeHistory',
+      'inProgressScopeHistory',
+      'issueCountHistory',
+      'completedIssueCountHistory',
+    ])
+      expect(created!.data[field]).toEqual([0]);
+  });
+
   it('sends an all-teams webhook one delivery for a two-team project', async () => {
     const { asOwner, ids } = await setup();
     const all = await createWebhook(asOwner, {

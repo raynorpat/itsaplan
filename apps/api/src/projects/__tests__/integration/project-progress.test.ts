@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, issueActivity, PROJECT_STATUS_IDS } from '@repo/db';
+import { db, issueActivity, project as projectTable, PROJECT_STATUS_IDS } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -12,7 +12,7 @@ import {
   updateIssue,
   type As,
 } from '../../../__tests__/helpers/graphql';
-import { projectHistories, snapshotProjects } from '../../progress';
+import { batches, projectHistories, snapshotProjects } from '../../progress';
 
 // Linear's project progress: the cycles' rule (completed 1, started 0.25, canceled
 // left out, weighted by estimate when any issue has one) and one history value per
@@ -179,5 +179,104 @@ describe('project progress', () => {
     const histories = await projectHistories([done.id, trashed.id], at);
     expect(histories.get(done.id)!.issueCountHistory).toEqual([1]);
     expect(histories.get(trashed.id)!.issueCountHistory).toEqual([1]);
+  });
+  it('keeps zero estimates and the 0.999 cap in the live progress', async () => {
+    const { owner, teamId, states } = await setup();
+    const p = await createProject(owner, { name: 'Q3', teamIds: [teamId] });
+    await createIssue(owner, { teamId, projectId: p.id, stateId: states.completed!, estimate: 3 });
+    await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted!, estimate: 0 });
+    const read = await readProject(owner, p.id);
+    expect(read.scope).toBe(3);
+    expect(read.progress).toBe(0.999);
+  });
+
+  it("overwrites today's stored day on each snapshot", async () => {
+    const { owner, teamId, states } = await setup();
+    const p = await createProject(owner, { name: 'Q3', teamIds: [teamId] });
+    const one = await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted! });
+    const tomorrow = dayStart(1);
+    await snapshotProjects(new Date(tomorrow.getTime() + 60 * 60 * 1000));
+    await updateIssue(owner, one.id, { stateId: states.completed! });
+    await snapshotProjects(new Date(tomorrow.getTime() + 20 * 60 * 60 * 1000));
+    const [history] = [...(await projectHistories([p.id], dayStart(3))).values()];
+    // Day 1 holds its last snapshot (the completion), not the first one of the day.
+    expect(history!.completedIssueCountHistory.slice(0, 2)).toEqual([0, 1]);
+  });
+
+  it('stores the closing day of a project that is completed, and stops there', async () => {
+    const { owner, teamId, states } = await setup();
+    const p = await createProject(owner, { name: 'Q3', teamIds: [teamId] });
+    const one = await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted! });
+    await readProject(owner, p.id);
+    await updateIssue(owner, one.id, { stateId: states.completed! });
+    await gqlData(
+      owner,
+      `mutation ($id: String!, $status: String!) { projectUpdate(id: $id, input: { statusId: $status }) { success } }`,
+      { id: p.id, status: PROJECT_STATUS_IDS.completed },
+    );
+    const [history] = [...(await projectHistories([p.id], dayStart(4))).values()];
+    expect(history!.completedIssueCountHistory).toEqual([1]);
+    expect(history!.issueCountHistory).toEqual([1]);
+  });
+
+  it('builds a closed project only up to the day it closed', async () => {
+    const { owner, teamId, states } = await setup();
+    const p = await createProject(owner, {
+      name: 'Q3',
+      teamIds: [teamId],
+      startDate: dateOnly(dayStart(-3)),
+    });
+    await createIssue(owner, { teamId, projectId: p.id, stateId: states.completed! });
+    // Closed today before its history was ever built.
+    await db
+      .update(projectTable)
+      .set({ statusId: PROJECT_STATUS_IDS.completed })
+      .where(eq(projectTable.id, p.id));
+    const [history] = [...(await projectHistories([p.id], dayStart(10))).values()];
+    expect(history!.issueCountHistory).toHaveLength(4);
+  });
+
+  it('builds many projects with moving issues correctly', async () => {
+    const { owner, teamId, states } = await setup();
+    const start = dateOnly(dayStart(-2));
+    const projects = [];
+    for (let i = 0; i < 30; i++)
+      projects.push(
+        await createProject(owner, { name: `P${i}`, teamIds: [teamId], startDate: start }),
+      );
+    for (let i = 0; i < 30; i++) {
+      const p = projects[i]!;
+      for (let j = 0; j < 6; j++) {
+        const created = await createIssue(owner, {
+          teamId,
+          projectId: p.id,
+          stateId: j % 3 === 0 ? states.completed! : states.unstarted!,
+          estimate: j,
+        });
+        // Every third issue moves to the next project.
+        if (j % 3 === 1)
+          await updateIssue(owner, created.id, { projectId: projects[(i + 1) % 30]!.id });
+      }
+    }
+    await snapshotProjects(new Date());
+    const live = await gqlData(
+      owner,
+      `query { projects(first: 50) { nodes { id scope scopeHistory issueCountHistory } } }`,
+      {},
+    );
+    for (const n of live.projects.nodes as {
+      scope: number;
+      scopeHistory: number[];
+      issueCountHistory: number[];
+    }[]) {
+      expect(n.scopeHistory).toHaveLength(3);
+      expect(n.scopeHistory.at(-1)).toBe(n.scope);
+      expect(n.issueCountHistory.at(-1)).toBe(6);
+    }
+  });
+
+  it('splits long id lists into batches', () => {
+    expect(batches([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(batches([], 2)).toEqual([]);
   });
 });

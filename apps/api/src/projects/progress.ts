@@ -1,18 +1,25 @@
 import { db, issue, issueActivity, project, projectStatus, workflowState } from '@repo/db';
-import { and, eq, inArray, isNull, notInArray, or } from 'drizzle-orm';
-import { weighProgress, type Progress, type ProgressIssue } from '../shared/progress';
+import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { weighProgress, weighTotals, type Progress, type ProgressIssue } from '../shared/progress';
 
 // Linear's project progress (Project.progress, scope and the five history arrays).
 // Progress follows the cycles' rule (shared/progress.ts) over the project's issues.
 // The histories hold one value per UTC day from history_start: built from
 // issue_activity the first time they are needed (each issue's project and state on
 // each past day, worked back from its current values; current estimates are used
-// for past days since estimate changes are not recorded), then appended daily by
-// the worker (snapshotProjects). An open project's value for today is always the
-// live one; a completed, canceled, archived or trashed project gets no new days.
+// for past days since estimate changes are not recorded), then kept by the worker
+// (snapshotProjects), which fills missing days and rewrites today's day on every run,
+// so a finished day holds its last snapshot. An open project's value for today is
+// always the live one. A project that closes (completed, canceled, archived or
+// trashed) has its closing day stored then (closeProjectHistory) and gets no new days.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CLOSED_STATUSES = ['completed', 'canceled'];
+// Ids per `IN (...)` list, well below Postgres' 65,534 bind parameters.
+const BATCH = 1000;
+// Projects built per step; the event loop is yielded between steps and each step's
+// histories are stored before the next, so an interrupted run keeps its work.
+const BUILD_CHUNK = 20;
 
 export interface ProjectHistory {
   issueCountHistory: number[];
@@ -27,6 +34,19 @@ const EMPTY_PROGRESS: Progress = weighProgress([]);
 const dayOf = (at: Date) => Math.floor(at.getTime() / DAY_MS);
 const dayOfDate = (date: string) => Math.floor(Date.parse(`${date}T00:00:00Z`) / DAY_MS);
 const dateOfDay = (day: number) => new Date(day * DAY_MS).toISOString().slice(0, 10);
+const yieldToLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+export function batches<T>(list: T[], size = BATCH): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+async function inBatches<T>(ids: string[], run: (batch: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (const batch of batches(ids)) out.push(...(await run(batch)));
+  return out;
+}
 
 function historyOf(days: Progress[]): ProjectHistory {
   return {
@@ -49,59 +69,89 @@ function dayAt(h: ProjectHistory, i: number): Progress {
   };
 }
 
-// Today's progress of each project, in one query.
+const sameHistory = (a: ProjectHistory, b: ProjectHistory) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+// Today's progress of each project, aggregated in SQL.
 export async function liveProgressMany(projectIds: string[]): Promise<Map<string, Progress>> {
   const out = new Map<string, Progress>();
-  if (projectIds.length === 0) return out;
-  const rows = await db
-    .select({ projectId: issue.projectId, estimate: issue.estimate, type: workflowState.stateType })
-    .from(issue)
-    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
-    .where(inArray(issue.projectId, projectIds));
-  const byProject = new Map<string, ProgressIssue[]>();
+  const counted = sql`${workflowState.stateType} <> 'canceled'`;
+  const weight = sql`coalesce(${issue.estimate}, 1)`;
+  const rows = await inBatches(projectIds, (batch) =>
+    db
+      .select({
+        projectId: issue.projectId,
+        count: sql<number>`count(*) filter (where ${counted})`,
+        completedCount: sql<number>`count(*) filter (where ${workflowState.stateType} = 'completed')`,
+        startedCount: sql<number>`count(*) filter (where ${workflowState.stateType} = 'started')`,
+        weightedSum: sql<number>`coalesce(sum(${weight}) filter (where ${counted}), 0)`,
+        completedWeight: sql<number>`coalesce(sum(${weight}) filter (where ${workflowState.stateType} = 'completed'), 0)`,
+        startedWeight: sql<number>`coalesce(sum(${weight}) filter (where ${workflowState.stateType} = 'started'), 0)`,
+        anyEstimate: sql<boolean>`coalesce(bool_or(${issue.estimate} > 0) filter (where ${counted}), false)`,
+        anyOpen: sql<boolean>`coalesce(bool_or(true) filter (where ${workflowState.stateType} not in ('canceled', 'completed')), false)`,
+      })
+      .from(issue)
+      .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+      .where(inArray(issue.projectId, batch))
+      .groupBy(issue.projectId),
+  );
   for (const r of rows) {
     if (r.projectId == null) continue;
-    const list = byProject.get(r.projectId) ?? [];
-    list.push(r);
-    byProject.set(r.projectId, list);
+    out.set(
+      r.projectId,
+      weighTotals({
+        count: Number(r.count),
+        completedCount: Number(r.completedCount),
+        startedCount: Number(r.startedCount),
+        weighted: r.anyEstimate,
+        weight: Number(r.weightedSum),
+        completedWeight: Number(r.completedWeight),
+        startedWeight: Number(r.startedWeight),
+        anyOpen: r.anyOpen,
+      }),
+    );
   }
-  for (const id of projectIds) out.set(id, weighProgress(byProject.get(id) ?? []));
+  for (const id of projectIds) if (!out.has(id)) out.set(id, EMPTY_PROGRESS);
   return out;
-}
-
-export async function projectProgress(projectId: string): Promise<Progress> {
-  return (await liveProgressMany([projectId])).get(projectId) ?? EMPTY_PROGRESS;
 }
 
 interface ProjectState {
   id: string;
   // The day the series should start on: the start date, else the creation day.
   anchorDay: number;
+  // The last day of a closed project's series (the day it was archived, else its
+  // last change, which is when it was completed or canceled); null while open.
+  endDay: number | null;
   historyStart: string | null;
   open: boolean;
   stored: ProjectHistory;
 }
 
 async function loadStates(projectIds: string[]): Promise<ProjectState[]> {
-  if (projectIds.length === 0) return [];
-  const rows = await db
-    .select({ row: project, statusType: projectStatus.type })
-    .from(project)
-    .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-    .where(inArray(project.id, projectIds));
-  return rows.map(({ row, statusType }) => ({
-    id: row.id,
-    anchorDay: row.startDate ? dayOfDate(row.startDate) : dayOf(row.createdAt),
-    historyStart: row.historyStart,
-    open: row.archivedAt == null && !CLOSED_STATUSES.includes(statusType),
-    stored: {
-      issueCountHistory: row.issueCountHistory,
-      completedIssueCountHistory: row.completedIssueCountHistory,
-      scopeHistory: row.scopeHistory,
-      completedScopeHistory: row.completedScopeHistory,
-      inProgressScopeHistory: row.inProgressScopeHistory,
-    },
-  }));
+  const rows = await inBatches(projectIds, (batch) =>
+    db
+      .select({ row: project, statusType: projectStatus.type })
+      .from(project)
+      .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
+      .where(inArray(project.id, batch)),
+  );
+  return rows.map(({ row, statusType }) => {
+    const open = row.archivedAt == null && !CLOSED_STATUSES.includes(statusType);
+    return {
+      id: row.id,
+      anchorDay: row.startDate ? dayOfDate(row.startDate) : dayOf(row.createdAt),
+      endDay: open ? null : dayOf(row.archivedAt ?? row.updatedAt),
+      historyStart: row.historyStart,
+      open,
+      stored: {
+        issueCountHistory: row.issueCountHistory,
+        completedIssueCountHistory: row.completedIssueCountHistory,
+        scopeHistory: row.scopeHistory,
+        completedScopeHistory: row.completedScopeHistory,
+        inProgressScopeHistory: row.inProgressScopeHistory,
+      },
+    };
+  });
 }
 
 // A history is built once, and again only when the project's start moved to another
@@ -109,6 +159,24 @@ async function loadStates(projectIds: string[]): Promise<ProjectState[]> {
 function needsBuild(p: ProjectState, today: number): boolean {
   if (p.historyStart == null) return true;
   return p.anchorDay <= today && dayOfDate(p.historyStart) !== p.anchorDay;
+}
+
+// Stores a history unless another write changed history_start since `p` was read
+// (a rebuild after a start-date change), so arrays never mismatch their start.
+async function store(p: ProjectState, historyStart: string, history: ProjectHistory) {
+  await db
+    .update(project)
+    .set({ historyStart, ...history })
+    .where(
+      and(
+        eq(project.id, p.id),
+        p.historyStart == null
+          ? isNull(project.historyStart)
+          : eq(project.historyStart, p.historyStart),
+      ),
+    );
+  p.historyStart = historyStart;
+  p.stored = history;
 }
 
 interface Checkpoint {
@@ -127,50 +195,41 @@ interface IssueTimeline {
   changes: Checkpoint[];
 }
 
-function valueAt(t: IssueTimeline, at: number): { projectId: string | null; stateId: string } {
-  let value = t.initial;
-  for (const c of t.changes) {
-    if (c.at > at) break;
-    value = c;
-  }
-  return value;
-}
-
-// Builds and stores the histories of `projects` from issue_activity up to today.
-async function build(projects: ProjectState[], now: Date): Promise<void> {
-  if (projects.length === 0) return;
-  const ids = projects.map((p) => p.id);
-  const moved = await db
-    .selectDistinct({ id: issueActivity.issueId })
-    .from(issueActivity)
-    .where(
-      and(
-        eq(issueActivity.action, 'project'),
-        or(inArray(issueActivity.fromId, ids), inArray(issueActivity.toId, ids)),
+async function loadTimelines(ids: string[]) {
+  const moved = await inBatches(ids, (batch) =>
+    db
+      .selectDistinct({ id: issueActivity.issueId })
+      .from(issueActivity)
+      .where(
+        and(
+          eq(issueActivity.action, 'project'),
+          or(inArray(issueActivity.fromId, batch), inArray(issueActivity.toId, batch)),
+        ),
       ),
-    );
-  const current = await db
-    .select({ id: issue.id })
-    .from(issue)
-    .where(inArray(issue.projectId, ids));
+  );
+  const current = await inBatches(ids, (batch) =>
+    db.select({ id: issue.id }).from(issue).where(inArray(issue.projectId, batch)),
+  );
   const candidateIds = [
     ...new Set([...current.map((r) => r.id), ...moved.map((r) => r.id)]),
   ].filter((id): id is string => id != null);
 
-  const issues = candidateIds.length
-    ? await db
-        .select({
-          id: issue.id,
-          projectId: issue.projectId,
-          stateId: issue.stateId,
-          estimate: issue.estimate,
-          createdAt: issue.createdAt,
-        })
-        .from(issue)
-        .where(inArray(issue.id, candidateIds))
-    : [];
-  const activity = issues.length
-    ? await db
+  const issues = await inBatches(candidateIds, (batch) =>
+    db
+      .select({
+        id: issue.id,
+        projectId: issue.projectId,
+        stateId: issue.stateId,
+        estimate: issue.estimate,
+        createdAt: issue.createdAt,
+      })
+      .from(issue)
+      .where(inArray(issue.id, batch)),
+  );
+  const activity = await inBatches(
+    issues.map((i) => i.id),
+    (batch) =>
+      db
         .select({
           issueId: issueActivity.issueId,
           action: issueActivity.action,
@@ -181,14 +240,11 @@ async function build(projects: ProjectState[], now: Date): Promise<void> {
         .from(issueActivity)
         .where(
           and(
-            inArray(
-              issueActivity.issueId,
-              issues.map((i) => i.id),
-            ),
+            inArray(issueActivity.issueId, batch),
             inArray(issueActivity.action, ['project', 'status']),
           ),
-        )
-    : [];
+        ),
+  );
 
   const stateIds = new Set<string>(issues.map((i) => i.stateId));
   for (const a of activity) {
@@ -197,14 +253,14 @@ async function build(projects: ProjectState[], now: Date): Promise<void> {
     if (a.toId) stateIds.add(a.toId);
   }
   const stateTypes = new Map(
-    stateIds.size
-      ? (
-          await db
-            .select({ id: workflowState.id, type: workflowState.stateType })
-            .from(workflowState)
-            .where(inArray(workflowState.id, [...stateIds]))
-        ).map((s) => [s.id, s.type])
-      : [],
+    (
+      await inBatches([...stateIds], (batch) =>
+        db
+          .select({ id: workflowState.id, type: workflowState.stateType })
+          .from(workflowState)
+          .where(inArray(workflowState.id, batch)),
+      )
+    ).map((s) => [s.id, s.type]),
   );
 
   const byIssue = new Map<string, typeof activity>();
@@ -214,7 +270,10 @@ async function build(projects: ProjectState[], now: Date): Promise<void> {
     list.push(a);
     byIssue.set(a.issueId, list);
   }
-  const timelines = issues.map((i): IssueTimeline => {
+  // Each timeline is indexed under every project the issue was ever in, so a
+  // project's days look only at its own issues.
+  const byProject = new Map<string, IssueTimeline[]>();
+  for (const i of issues) {
     const events = (byIssue.get(i.id) ?? [])
       .filter((e) => e.fromId != null || e.toId != null)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -225,99 +284,142 @@ async function build(projects: ProjectState[], now: Date): Promise<void> {
       if (e.action === 'project') cur = { ...cur, projectId: e.fromId };
       else if (e.fromId) cur = { ...cur, stateId: e.fromId };
     }
-    return {
+    const timeline: IssueTimeline = {
       createdAt: i.createdAt.getTime(),
       estimate: i.estimate,
       initial: cur,
       changes: changes.reverse(),
     };
-  });
-
-  const today = dayOf(now);
-  for (const p of projects) {
-    const start = Math.min(p.anchorDay, today);
-    const days: Progress[] = [];
-    for (let day = start; day <= today; day++) {
-      const at = Math.min((day + 1) * DAY_MS - 1, now.getTime());
-      const rows: ProgressIssue[] = [];
-      for (const t of timelines) {
-        if (t.createdAt > at) continue;
-        const v = valueAt(t, at);
-        if (v.projectId !== p.id) continue;
-        rows.push({ estimate: t.estimate, type: stateTypes.get(v.stateId) ?? 'backlog' });
-      }
-      days.push(weighProgress(rows));
+    const projects = new Set([cur.projectId, ...changes.map((c) => c.projectId)]);
+    for (const id of projects) {
+      if (id == null) continue;
+      const list = byProject.get(id) ?? [];
+      list.push(timeline);
+      byProject.set(id, list);
     }
-    const history = historyOf(days);
-    await db
-      .update(project)
-      .set({ historyStart: dateOfDay(start), ...history })
-      .where(eq(project.id, p.id));
-    p.historyStart = dateOfDay(start);
-    p.stored = history;
+  }
+  return { byProject, stateTypes };
+}
+
+// The project's days from `start` to `end`, each the state at the end of that day
+// (or `now` for today), walking each issue's changes once.
+function daysOf(
+  projectId: string,
+  timelines: IssueTimeline[],
+  stateTypes: Map<string, string>,
+  start: number,
+  end: number,
+  now: Date,
+): Progress[] {
+  const rows: ProgressIssue[][] = Array.from({ length: end - start + 1 }, () => []);
+  for (const t of timelines) {
+    let value = t.initial;
+    let next = 0;
+    for (let day = start; day <= end; day++) {
+      const at = Math.min((day + 1) * DAY_MS - 1, now.getTime());
+      if (t.createdAt > at) continue;
+      while (next < t.changes.length && t.changes[next]!.at <= at) value = t.changes[next++]!;
+      if (value.projectId !== projectId) continue;
+      rows[day - start]!.push({
+        estimate: t.estimate,
+        type: stateTypes.get(value.stateId) ?? 'backlog',
+      });
+    }
+  }
+  return rows.map(weighProgress);
+}
+
+// Builds the histories of `projects` from issue_activity, a chunk at a time: an open
+// project up to today, a closed one up to the day it closed. Stored unless `persist`
+// is false (then only `projects` is updated).
+async function build(projects: ProjectState[], now: Date, persist = true): Promise<void> {
+  const today = dayOf(now);
+  for (const chunk of batches(projects, BUILD_CHUNK)) {
+    const { byProject, stateTypes } = await loadTimelines(chunk.map((p) => p.id));
+    for (const p of chunk) {
+      const start = Math.min(p.anchorDay, today);
+      const end = Math.max(start, Math.min(today, p.endDay ?? today));
+      const days = daysOf(p.id, byProject.get(p.id) ?? [], stateTypes, start, end, now);
+      if (persist) await store(p, dateOfDay(start), historyOf(days));
+      else {
+        p.historyStart = dateOfDay(start);
+        p.stored = historyOf(days);
+      }
+    }
+    await yieldToLoop();
   }
 }
 
+// The stored days up to yesterday (a missed day reads as `value`) and `value` for
+// today.
+function withToday(p: ProjectState, value: Progress, today: number): ProjectHistory {
+  const todayIndex = today - dayOfDate(p.historyStart!);
+  const days: Progress[] = [];
+  for (let i = 0; i < todayIndex; i++)
+    days.push(i < p.stored.issueCountHistory.length ? dayAt(p.stored, i) : value);
+  days.push(value);
+  return historyOf(days);
+}
+
 // The served histories of `projectIds` (missing projects are left out), building
-// any that are not built yet. An open project's past days come from the stored
-// history (a day the worker missed reads as today's values) and today is live; a
-// closed, archived or trashed project's history is served as stored.
+// any that are not built yet (stored, unless `persist` is false: webhook data is
+// read while a project is being written, before its issues may be in place). An open
+// project's past days come from the stored history and today is live; a closed
+// project's history is served as stored.
 export async function projectHistories(
   projectIds: string[],
   now: Date,
+  { persist = true }: { persist?: boolean } = {},
 ): Promise<Map<string, ProjectHistory>> {
   const states = await loadStates(projectIds);
   const today = dayOf(now);
   await build(
     states.filter((p) => needsBuild(p, today)),
     now,
+    persist,
   );
   const live = await liveProgressMany(states.filter((p) => p.open).map((p) => p.id));
   const out = new Map<string, ProjectHistory>();
-  for (const p of states) {
-    if (!p.open) {
-      out.set(p.id, p.stored);
-      continue;
-    }
-    const now_ = live.get(p.id) ?? EMPTY_PROGRESS;
-    const todayIndex = today - dayOfDate(p.historyStart!);
-    const days: Progress[] = [];
-    for (let i = 0; i < todayIndex; i++)
-      days.push(i < p.stored.issueCountHistory.length ? dayAt(p.stored, i) : now_);
-    days.push(now_);
-    out.set(p.id, historyOf(days));
-  }
+  for (const p of states)
+    out.set(p.id, p.open ? withToday(p, live.get(p.id) ?? EMPTY_PROGRESS, today) : p.stored);
   return out;
 }
 
-// The worker's daily step: each open project's history gains the days up to today
-// it does not have yet, with today's values (a missed day is filled the same way).
-// A history not built yet is built from issue_activity instead. Returns the number
-// of projects changed.
+// Stores today's values in each project's history, filling missing days with them
+// and rewriting today's day. Returns the projects whose history changed.
+async function storeToday(states: ProjectState[], now: Date): Promise<number> {
+  const today = dayOf(now);
+  const toBuild = states.filter((p) => needsBuild(p, today));
+  await build(toBuild, now);
+  const rest = states.filter((p) => !toBuild.includes(p));
+  let changed = toBuild.length;
+  for (const chunk of batches(rest, BATCH)) {
+    const live = await liveProgressMany(chunk.map((p) => p.id));
+    for (const p of chunk) {
+      const next = withToday(p, live.get(p.id) ?? EMPTY_PROGRESS, today);
+      if (sameHistory(next, p.stored)) continue;
+      await store(p, p.historyStart!, next);
+      changed++;
+    }
+    await yieldToLoop();
+  }
+  return changed;
+}
+
+// The worker's step, run hourly: each open project's history gains its missing days
+// and today's latest values. A history not built yet is built from issue_activity.
 export async function snapshotProjects(now: Date): Promise<number> {
   const open = await db
     .select({ id: project.id })
     .from(project)
     .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
     .where(and(isNull(project.archivedAt), notInArray(projectStatus.type, CLOSED_STATUSES)));
-  const states = await loadStates(open.map((r) => r.id));
-  const today = dayOf(now);
-  const toBuild = states.filter((p) => needsBuild(p, today));
-  await build(toBuild, now);
-  const rest = states.filter((p) => !toBuild.includes(p));
-  const live = await liveProgressMany(rest.map((p) => p.id));
-  let changed = toBuild.length;
-  for (const p of rest) {
-    const length = p.stored.issueCountHistory.length;
-    const missing = today - dayOfDate(p.historyStart!) + 1 - length;
-    if (missing <= 0) continue;
-    const value = live.get(p.id) ?? EMPTY_PROGRESS;
-    const days = [
-      ...Array.from({ length }, (_, i) => dayAt(p.stored, i)),
-      ...Array<Progress>(missing).fill(value),
-    ];
-    await db.update(project).set(historyOf(days)).where(eq(project.id, p.id));
-    changed++;
-  }
-  return changed;
+  return storeToday(await loadStates(open.map((r) => r.id)), now);
+}
+
+// Stores the closing day of a project that was just completed, canceled, archived or
+// trashed: its history then ends on that day with its final values.
+export async function closeProjectHistory(projectId: string, now: Date): Promise<void> {
+  const states = await loadStates([projectId]);
+  await storeToday(states, now);
 }

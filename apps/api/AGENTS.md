@@ -319,10 +319,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   changes by id, worked back from each issue's current values; current estimates for
   past days) the first time they are read or snapshotted, and again only when the
   start date moves to a day that has begun; then the worker's hourly
-  `/internal/projects/snapshot` appends the missing days of each open project with
-  that day's values. An open project's today is always live; a completed, canceled,
-  archived or trashed project gets no new days. The histories resolve through the
-  `projectHistory` request loader.
+  `/internal/projects/snapshot` fills the missing days of each open project and
+  rewrites today's day, so a finished day holds its last snapshot. The build works in
+  chunks of projects, stores each chunk before the next and yields the event loop
+  between them, and splits id lists into batches of 1,000. An open project's today is
+  always live; a project that is completed, canceled, archived or trashed has its
+  closing day stored then (`closeProjectHistory`) and gets no new days (one never
+  built is built up to the day it was archived or last changed). Writes check
+  `history_start` so a rebuild and a snapshot never mix. The histories resolve through
+  the `projectHistory` request loader, and Project webhook data carries them (computed
+  without storing).
 
 ## Security
 

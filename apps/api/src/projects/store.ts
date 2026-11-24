@@ -11,13 +11,12 @@ import {
   projectStatus,
   projectTeam,
   user,
-  workflowState,
   PROJECT_STATUS_IDS,
   type ProjectStatusType,
 } from '@repo/db';
 import { and, asc, eq, exists, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { projectTeamIds } from './access';
-import { liveProgressMany } from './progress';
+import { closeProjectHistory, liveProgressMany } from './progress';
 import type { Progress } from '../shared/progress';
 import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
@@ -33,12 +32,6 @@ import { shownNameSql } from '../shared/user-name';
 // through project_team. Issues link to a project through issue.project_id.
 // status is one of the seeded project statuses, addressed here by its type.
 // progress and computed health are derived from the linked issues' states.
-
-export interface ProjectProgress {
-  completed: number;
-  canceled: number;
-  total: number;
-}
 
 export interface ProjectTeam {
   id: string;
@@ -69,7 +62,6 @@ export interface ProjectRow {
   createdAt: string;
   updatedAt: string;
   labelIds: string[];
-  progress: ProjectProgress;
   // Linear's weighted progress and scope (projects/progress.ts).
   weighted: Progress;
   // The latest project update's health (Linear's Project.health), or null.
@@ -85,33 +77,6 @@ const selectProjects = () =>
     .innerJoin(projectStatus, eq(projectStatus.id, project.statusId));
 
 type ProjectSelect = Awaited<ReturnType<typeof selectProjects>>[number];
-
-// Issue counts per project, grouped by the linked issues' state type. Empty
-// entries (a project with no issues) are absent from the map.
-async function countsFor(projectIds: string[]): Promise<Map<string, ProjectProgress>> {
-  const out = new Map<string, ProjectProgress>();
-  if (projectIds.length === 0) return out;
-  const rows = await db
-    .select({
-      projectId: issue.projectId,
-      total: sql<number>`count(*)`,
-      completed: sql<number>`count(*) filter (where ${workflowState.stateType} = 'completed')`,
-      canceled: sql<number>`count(*) filter (where ${workflowState.stateType} = 'canceled')`,
-    })
-    .from(issue)
-    .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
-    .where(inArray(issue.projectId, projectIds))
-    .groupBy(issue.projectId);
-  for (const r of rows) {
-    if (r.projectId == null) continue;
-    out.set(r.projectId, {
-      total: Number(r.total),
-      completed: Number(r.completed),
-      canceled: Number(r.canceled),
-    });
-  }
-  return out;
-}
 
 // Label ids per project, in one query.
 async function labelsFor(projectIds: string[]): Promise<Map<string, string[]>> {
@@ -155,7 +120,6 @@ function mapProject(
   sel: ProjectSelect,
   teams: ProjectTeam[],
   labelIds: string[],
-  progress: ProjectProgress,
   weighted: Progress,
   health: UpdateHealth | null,
 ): ProjectRow {
@@ -181,13 +145,10 @@ function mapProject(
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     labelIds,
-    progress,
     weighted,
     health,
   };
 }
-
-const EMPTY_PROGRESS: ProjectProgress = { completed: 0, canceled: 0, total: 0 };
 
 // visibleTeamIds limits each project's `teams` to what the viewer can access;
 // null lists every team.
@@ -196,9 +157,8 @@ async function enrich(
   visibleTeamIds: string[] | null,
 ): Promise<ProjectRow[]> {
   const ids = rows.map((r) => r.row.id);
-  const [teams, counts, labels, healths, weighted] = await Promise.all([
+  const [teams, labels, healths, weighted] = await Promise.all([
     teamsFor(ids, visibleTeamIds),
-    countsFor(ids),
     labelsFor(ids),
     latestHealthFor(ids),
     liveProgressMany(ids),
@@ -208,7 +168,6 @@ async function enrich(
       r,
       teams.get(r.row.id) ?? [],
       labels.get(r.row.id) ?? [],
-      counts.get(r.row.id) ?? EMPTY_PROGRESS,
       weighted.get(r.row.id)!,
       healths.get(r.row.id) ?? null,
     ),
@@ -480,6 +439,9 @@ export async function updateProject(
   if (Object.keys(set).length > 0) {
     set.updatedAt = sql`now()` as unknown as Date;
     await db.update(project).set(set).where(eq(project.id, id));
+    const closes = (s: string) => s === 'completed' || s === 'canceled';
+    if (patch.status !== undefined && closes(patch.status) && !closes(before.status))
+      await closeProjectHistory(id, new Date());
     await logProjectUpdate(snapshot(before), snapshot((await getProject(id))!), actorUserId);
   }
   if (patch.labelIds !== undefined) await setProjectLabels(id, patch.labelIds, actorUserId);
@@ -569,6 +531,7 @@ async function setArchiveState(
     .set({ ...values, updatedAt: sql`now()` })
     .where(eq(project.id, id))
     .returning({ id: project.id });
+  if (rows.length && values.archivedAt !== null) await closeProjectHistory(id, new Date());
   if (rows.length) await emitProject('update', await projectData(id), actorUserId, beforeData);
   return rows.length > 0;
 }

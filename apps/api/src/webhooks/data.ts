@@ -1,3 +1,4 @@
+import { projectHistories } from '../projects/progress';
 import {
   db,
   initiative,
@@ -93,8 +94,13 @@ export async function projectData(projectId: string): Promise<WebhookData | null
   const found = await getProject(projectId);
   if (!found) return null;
   const { visibleTeamIds, leadUserId, labelIds, ...rest } = toProject(found);
+  // Linear's ProjectWebhookPayload carries the five progress histories.
+  const history = (await projectHistories([projectId], new Date(), { persist: false })).get(
+    projectId,
+  );
   return {
     ...rest,
+    ...history,
     teamIds: [...visibleTeamIds].sort(),
     leadId: leadUserId,
     labelIds: [...labelIds].sort(),
