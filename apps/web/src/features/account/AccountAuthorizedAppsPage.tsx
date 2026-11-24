@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import {
   useAuthorizedAppsQuery,
@@ -11,7 +11,7 @@ import {
 import AuthorizedAppItem from './components/authorized-apps/AuthorizedAppItem';
 
 // The applications the signed-in person has allowed to act as them
-// (/account/authorized-apps), with revoke. Apps installed in the workspace as apps are
+// (/settings/account/authorized-apps), with revoke. Apps installed in the workspace as apps are
 // managed by its admins.
 export default function AccountAuthorizedAppsPage() {
   const { data: apps, isPending } = useAuthorizedAppsQuery();
@@ -19,8 +19,7 @@ export default function AccountAuthorizedAppsPage() {
   const [revoking, setRevoking] = useState<AuthorizedApp | null>(null);
 
   return (
-    <FullPageView
-      label="Authorized apps"
+    <SectionPageView
       title="Authorized apps"
       description="Applications you have allowed to act as you with OAuth. Revoking one signs it out: its access stops at once."
     >
@@ -51,6 +50,6 @@ export default function AccountAuthorizedAppsPage() {
           </p>
         </ConfirmDialog>
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

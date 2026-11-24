@@ -2,7 +2,7 @@
 
 import { useSession } from '@/lib/auth-client';
 import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import SettingsSection from '@/components/common/page/SettingsSection';
 import { useOrganizationQuery } from './services/organization.service';
 import WorkspaceAbout from './components/WorkspaceAbout';
@@ -11,7 +11,7 @@ import WorkspacePermissions from './components/WorkspacePermissions';
 import WorkspaceSignInMethods from './components/WorkspaceSignInMethods';
 import WorkspaceUploadTypes from './components/WorkspaceUploadTypes';
 
-// The workspace settings page (/workspace/settings), Linear's Organization settings.
+// The workspace settings page (/settings/workspace/general), Linear's Organization settings.
 // Owners and admins change them; the API refuses everyone else.
 export default function WorkspaceSettingsPage() {
   const { data: session, isPending } = useSession();
@@ -19,8 +19,7 @@ export default function WorkspaceSettingsPage() {
   const { data: org } = useOrganizationQuery();
 
   return (
-    <FullPageView
-      label="Workspace"
+    <SectionPageView
       title="Workspace settings"
       description="The workspace name, how people sign in, what they may upload, and who may create teams, manage labels and invite."
     >
@@ -51,6 +50,6 @@ export default function WorkspaceSettingsPage() {
           </SettingsSection>
         </div>
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

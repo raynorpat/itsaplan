@@ -11,7 +11,14 @@ import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import { useShellTeam } from '@/hooks/useShellTeam';
 import { useShellRoute } from '@/hooks/useShellRoute';
 import { useTeamRouteSync } from '@/hooks/useTeamRouteSync';
-import { teamPath, issuePath, inboxPath, myIssuesPath, projectsPath } from '@/utils/paths';
+import {
+  teamPath,
+  issuePath,
+  inboxPath,
+  myIssuesPath,
+  projectsPath,
+  settingsHomePath,
+} from '@/utils/paths';
 import type { GoTarget } from '@/utils/goSequence';
 
 // Where each G-then-letter shortcut leads.
@@ -106,7 +113,8 @@ export default function Shell({
     onChangeView: editor.changeView,
     onNewIssue: () => canCreateIssue && openNewIssue(),
     onNewTeam: () => overlays.setShowNewTeam(true),
-    onSettings: () => firstSettingsHref && router.push(firstSettingsHref),
+    onSettings: () => router.push(settingsHomePath()),
+    onTeamSettings: () => firstSettingsHref && router.push(firstSettingsHref),
     onGo: (target) => router.push(GO_PATHS[target]()),
   });
 

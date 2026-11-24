@@ -10,7 +10,7 @@ import {
 
 // The account pages, in the order the user menu lists them. Every signed-in user
 // reaches all of them, so there is no permission gate. Each slug is a page under
-// /account/<slug>. Used by the user menu and the command palette's section search.
+// /settings/account/<slug>. Used by the user menu and the command palette's section search.
 export type AccountSection = { slug: string; label: string; icon: LucideIcon };
 
 export const ACCOUNT_SECTIONS: AccountSection[] = [
@@ -22,4 +22,4 @@ export const ACCOUNT_SECTIONS: AccountSection[] = [
   { slug: 'authorized-apps', label: 'Authorized apps', icon: AppWindow },
 ];
 
-export const accountPath = (slug: string) => `/account/${slug}`;
+export const accountPath = (slug: string) => `/settings/account/${slug}`;

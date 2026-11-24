@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from '@/lib/auth-client';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import AccountProfileAvatar from './components/profile/AccountProfileAvatar';
 import AccountProfileNameForm from './components/profile/AccountProfileNameForm';
 import AccountSection from './components/AccountSection';
@@ -10,8 +10,7 @@ export default function AccountProfilePage() {
   const { data: session } = useSession();
 
   return (
-    <FullPageView
-      label="Profile"
+    <SectionPageView
       title="Profile"
       description={`Your name and avatar are shown across the app. Signed in as ${session?.user.email ?? '…'}.`}
     >
@@ -24,6 +23,6 @@ export default function AccountProfilePage() {
       <AccountSection title="Name">
         <AccountProfileNameForm />
       </AccountSection>
-    </FullPageView>
+    </SectionPageView>
   );
 }

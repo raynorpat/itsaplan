@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
+import { SETTINGS_REDIRECTS } from './src/utils/settingsRedirects';
 
 const nextConfig: NextConfig = {
   // standalone build for a lean docker image.
@@ -30,9 +31,13 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // The inbox is workspace-wide (/inbox); the old per-team address leads there.
+  // The inbox is workspace-wide (/inbox); the old per-team address leads there. The
+  // settings pages moved under /settings; their old addresses lead there too.
   async redirects() {
-    return [{ source: '/team/:teamKey/inbox', destination: '/inbox', permanent: false }];
+    return [
+      { source: '/team/:teamKey/inbox', destination: '/inbox', permanent: false },
+      ...SETTINGS_REDIRECTS.map((r) => ({ ...r, permanent: false })),
+    ];
   },
 };
 

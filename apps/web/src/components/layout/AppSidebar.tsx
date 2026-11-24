@@ -1,7 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import type { Team } from '@/types/team';
-import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import {
   Sidebar,
   SidebarContent,
@@ -16,8 +16,8 @@ import SidebarSettingsNav from '@/components/layout/SidebarSettingsNav';
 import WorkspaceMenu from '@/components/layout/WorkspaceMenu';
 
 // The app sidebar, workspace-first as in Linear: the workspace menu with search and
-// new-issue buttons on top, then the main navigation. On a team settings page the
-// body switches to the settings navigation.
+// new-issue buttons on top, then the main navigation. In the Settings area the body
+// switches to the settings navigation.
 export default function AppSidebar({
   teams,
   currentTeamKey,
@@ -33,16 +33,15 @@ export default function AppSidebar({
   onNewIssue: () => void;
   canCreateIssue: boolean;
 }) {
-  // Settings mode is on whenever the route matches one of the settings nav items.
-  const settingsNav = useSettingsNavGroups(currentTeamKey);
-  const settingsMode = settingsNav.groups.some((g) => g.items.some((i) => i.active));
+  // The Settings area (/settings/…) shows the settings navigation instead.
+  const settingsMode = usePathname().startsWith('/settings');
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem className="flex items-center gap-1">
-            <WorkspaceMenu teamKey={currentTeamKey} onNewTeam={onNewTeam} />
+            <WorkspaceMenu onNewTeam={onNewTeam} />
             <SidebarQuickActions
               onOpenCommand={onOpenCommand}
               onNewIssue={onNewIssue}
@@ -54,7 +53,7 @@ export default function AppSidebar({
 
       <SidebarContent>
         {settingsMode ? (
-          <SidebarSettingsNav teamKey={currentTeamKey} />
+          <SidebarSettingsNav teams={teams} />
         ) : (
           <SidebarMainNav teams={teams} teamKey={currentTeamKey} />
         )}

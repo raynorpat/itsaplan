@@ -28,7 +28,9 @@ export function useKeyboardShortcuts(opts: {
   onChangeView: (view: WorkItemsView) => void;
   onNewIssue: () => void;
   onNewTeam: () => void;
+  // Cmd+, opens the Settings area; S opens the current team's settings.
   onSettings: () => void;
+  onTeamSettings: () => void;
   // Linear's G-then-letter navigation (G I, G M, G P).
   onGo: (target: GoTarget) => void;
 }) {
@@ -42,6 +44,7 @@ export function useKeyboardShortcuts(opts: {
     onNewIssue,
     onNewTeam,
     onSettings,
+    onTeamSettings,
     onGo,
   } = opts;
   // The time G was pressed, while a G sequence waits for its second key.
@@ -112,7 +115,7 @@ export function useKeyboardShortcuts(opts: {
       }
       if (hasTeam && matches(e, 'team.settings')) {
         e.preventDefault();
-        onSettings();
+        onTeamSettings();
       }
     }
     window.addEventListener('keydown', onKeyDown);
@@ -129,6 +132,7 @@ export function useKeyboardShortcuts(opts: {
     onNewIssue,
     onNewTeam,
     onSettings,
+    onTeamSettings,
     onGo,
   ]);
 }

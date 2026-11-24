@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import { usePasskeysQuery, type PasskeyRow } from './services/passkeys.service';
 import AccountSection from './components/AccountSection';
 import AccountSecurityAddPasskey from './components/security/AccountSecurityAddPasskey';
@@ -24,8 +24,7 @@ export default function AccountSecurityPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.passkeys });
 
   return (
-    <FullPageView
-      label="Security"
+    <SectionPageView
       title="Security"
       description={`How you sign in to ${session?.user.email ?? '…'}.`}
     >
@@ -52,6 +51,6 @@ export default function AccountSecurityPage() {
           }}
         />
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

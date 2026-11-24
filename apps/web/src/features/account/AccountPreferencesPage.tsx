@@ -13,7 +13,7 @@ import {
   useUpdateAccountPreferences,
   PREFERENCE_DEFAULTS,
 } from '@/services/preferences.service';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import { Switch } from '@/components/ui/switch';
 import AccountPreferenceRow from './components/preferences/AccountPreferenceRow';
 import AccountPreferenceSelect from './components/preferences/AccountPreferenceSelect';
@@ -44,7 +44,7 @@ const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
   { value: 'projects', label: 'Projects' },
 ];
 
-// Personal interface preferences (/account/preferences). Each choice saves as soon
+// Personal interface preferences (/settings/account/preferences). Each choice saves as soon
 // as it is made and applies on every device the user signs in from.
 export default function AccountPreferencesPage() {
   const { data, isPending } = useAccountPreferencesQuery();
@@ -60,8 +60,7 @@ export default function AccountPreferencesPage() {
     update.mutate(patch, { onSuccess: () => setSavedAt(Date.now()) });
 
   return (
-    <FullPageView
-      label="Preferences"
+    <SectionPageView
       title="Preferences"
       description="How the app looks and behaves for you. Every change saves right away and applies wherever you sign in."
       actions={<AccountPreferencesSaveState saving={update.isPending} savedAt={savedAt} />}
@@ -158,6 +157,6 @@ export default function AccountPreferencesPage() {
           <AccountHotkeys overrides={data.hotkeys} onChange={(hotkeys) => save({ hotkeys })} />
         )}
       </AccountPreferencesSection>
-    </FullPageView>
+    </SectionPageView>
   );
 }

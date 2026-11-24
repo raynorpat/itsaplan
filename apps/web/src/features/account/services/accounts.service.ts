@@ -31,7 +31,7 @@ export function useLinkedAccountsQuery() {
 export async function connectGoogle(): Promise<void> {
   const { error } = await linkSocial({
     provider: 'google',
-    callbackURL: `${window.location.origin}/account/accounts`,
+    callbackURL: `${window.location.origin}/settings/account/accounts`,
   });
   if (error) throw new Error(error.message ?? 'Could not connect Google.');
 }

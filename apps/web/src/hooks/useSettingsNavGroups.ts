@@ -10,11 +10,9 @@ import {
 import { usePermissions } from '@/hooks/usePermissions';
 import type { TeamDetail } from '@/types/team';
 
-// The team settings sidebar (the "Team settings" mode) lists the
-// Configuration sections flat under group labels. This hook builds those groups
-// from the section config and the viewer's permissions, and reports the first
-// reachable destination so the main sidebar's "Team settings" entry knows
-// where to point.
+// A team's settings sections in the Settings area, grouped under labels. This hook
+// builds those groups from the section config and the viewer's permissions, and
+// reports the first reachable section, where the team's settings open.
 
 export type SettingsNavItem = {
   key: string;
@@ -42,26 +40,18 @@ export function useSettingsNavGroups(
   const pathname = usePathname();
   const { can } = usePermissions(team);
 
-  // The readable sections of one group as nav items. `activeBase` is the path
-  // segment the slug is appended to when matching the current route.
-  const toItems = (
-    sections: SettingsSection[],
-    hrefFor: (key: string, slug: string) => string,
-    activeBase: string,
-  ): SettingsNavItem[] =>
+  // The readable sections of one group as nav items.
+  const toItems = (sections: SettingsSection[]): SettingsNavItem[] =>
     sections
       .filter((s) => can(s.resource, 'read'))
-      .map((s) => ({
-        key: s.slug,
-        href: teamKey ? hrefFor(teamKey, s.slug) : '#',
-        icon: s.icon,
-        label: s.label,
-        active: pathname.endsWith(`${activeBase}/${s.slug}`),
-      }));
+      .map((s) => {
+        const href = teamKey ? settingsPath(teamKey, s.slug) : '#';
+        return { key: s.slug, href, icon: s.icon, label: s.label, active: pathname === href };
+      });
 
-  const generalItems = toItems(GENERAL_SECTIONS, settingsPath, '/settings');
-  const workflowItems = toItems(CONFIGURATION_SECTIONS, settingsPath, '/settings');
-  const automationItems = toItems(AUTOMATION_SECTIONS, settingsPath, '/settings');
+  const generalItems = toItems(GENERAL_SECTIONS);
+  const workflowItems = toItems(CONFIGURATION_SECTIONS);
+  const automationItems = toItems(AUTOMATION_SECTIONS);
 
   const groups: SettingsNavGroup[] = [
     { key: 'general', label: 'Team', items: generalItems },

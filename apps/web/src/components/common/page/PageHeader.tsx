@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-// The title and description block at the top of a page body. Shared by the page
-// containers (SectionPageView, FullPageView). `actions` renders on the right of the
+// The title and description block at the top of a page body. Used by the page
+// container (SectionPageView). `actions` renders on the right of the
 // header row, aligned with the title (e.g. a page-level primary button).
 export default function PageHeader({
   title,

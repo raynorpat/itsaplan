@@ -5,7 +5,7 @@ import type { Team } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
 import { useJoinTeam, useTeamsQuery } from '@/services/teams.service';
 import { toWorkspaceRole } from '@/utils/workspaceRoles';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import ManageTeamsList from './components/ManageTeamsList';
 import ManageTeamsDeleteDialog from './components/ManageTeamsDeleteDialog';
 import ManageTeamsLeaveDialog from './components/ManageTeamsLeaveDialog';
@@ -21,8 +21,7 @@ export default function ManageTeamsPage() {
   const [leaving, setLeaving] = useState<Team | null>(null);
 
   return (
-    <FullPageView
-      label="Teams"
+    <SectionPageView
       title="Browse teams"
       description="Every team you can see. Join a public team to add it to your sidebar; leave a team at any time. A team's owners and workspace admins can delete it, which permanently removes the team and everything in it."
     >
@@ -45,6 +44,6 @@ export default function ManageTeamsPage() {
           onClose={() => setLeaving(null)}
         />
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

@@ -51,7 +51,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
     add('nav.work-items', 'Issues', <SquareKanban />, teamPath(key), 'board issues kanban');
     add('nav.projects', 'Projects', <Target />, projectsPath(), 'epics roadmap');
     add('nav.members', 'Members', <Users />, membersPath(key), 'team people invite');
-    add('nav.notifications', 'Notification preferences', <Bell />, notificationsPath(key), 'email');
+    add('nav.notifications', 'Notification preferences', <Bell />, notificationsPath(), 'email');
     // The settings destinations, already permission-filtered by the hook the
     // settings sidebar uses. The group label is a keyword so "workflow" or
     // "automation" finds its sections.
@@ -66,7 +66,7 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
         });
       }
     }
-    add('nav.mcp', 'MCP Server', <Server />, mcpServerPath(key), 'model context protocol');
+    add('nav.mcp', 'MCP Server', <Server />, mcpServerPath(), 'model context protocol');
   }
 
   add('nav.manage-teams', 'Browse teams', <FolderKanban />, manageTeamsPath(), 'join leave delete');

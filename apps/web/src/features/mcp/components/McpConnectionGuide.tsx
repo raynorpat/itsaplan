@@ -21,7 +21,7 @@ export default function McpConnectionGuide() {
         the endpoint without an Authorization header, and the client opens a page where you sign in
         and choose what it may do. You can revoke it later under{' '}
         <Link
-          href="/account/authorized-apps"
+          href="/settings/account/authorized-apps"
           className="font-medium text-foreground underline underline-offset-4"
         >
           Authorized apps
@@ -32,7 +32,7 @@ export default function McpConnectionGuide() {
       <p className="text-sm text-muted-foreground">
         A client that cannot sign in can use a personal API key as a Bearer token. Create one on the{' '}
         <Link
-          href="/account/api-keys"
+          href="/settings/account/api-keys"
           className="font-medium text-foreground underline underline-offset-4"
         >
           API keys

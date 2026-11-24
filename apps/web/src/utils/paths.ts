@@ -8,8 +8,13 @@ export const teamPath = (key: string) => `/team/${encodeURIComponent(key)}`;
 export const viewPath = (key: string, viewId: string | null) =>
   viewId != null ? `${teamPath(key)}/view/${viewId}` : teamPath(key);
 
-export const settingsPath = (key: string, section: string) =>
-  `${teamPath(key)}/settings/${section}`;
+// A team's settings pages live in the Settings area: /settings/teams/:key/:section.
+export const teamSettingsPath = (key: string) => `/settings/teams/${encodeURIComponent(key)}`;
+
+export const settingsPath = (key: string, section: string) => `${teamSettingsPath(key)}/${section}`;
+
+// The Settings area opens on the account profile, as Linear's opens on the account.
+export const settingsHomePath = () => '/settings/account/profile';
 
 // The workspace inbox: one for every team, as in Linear.
 export const inboxPath = () => '/inbox';
@@ -17,13 +22,13 @@ export const inboxPath = () => '/inbox';
 // The viewer's own issues across every team, as Linear's "My issues".
 export const myIssuesPath = () => '/my-issues';
 
-// The member's own notification preferences (which events are sent by email). A
-// main-nav Configuration destination, open to any member.
-export const notificationsPath = (key: string) => `${teamPath(key)}/notifications`;
+// The member's own notification preferences (which events are sent by email); they
+// apply to every team, so they sit with the account settings.
+export const notificationsPath = () => '/settings/account/notifications';
 
-export const mcpServerPath = (key: string) => `${teamPath(key)}/mcp`;
+export const mcpServerPath = () => '/settings/workspace/mcp';
 
-export const membersPath = (key: string) => `${teamPath(key)}/members`;
+export const membersPath = (key: string) => settingsPath(key, 'members');
 
 export const cyclesPath = (key: string) => `${teamPath(key)}/cycles`;
 export const cyclePath = (key: string, number: number) => `${cyclesPath(key)}/${number}`;
@@ -63,7 +68,7 @@ export const projectPath = (
   tab: ProjectTab = 'overview',
 ) => withTeam(`/projects/${projectId}${tab === 'overview' ? '' : `/${tab}`}`, key);
 
-export const projectLabelsSettingsPath = () => '/projects/settings/labels';
+export const projectLabelsSettingsPath = () => '/settings/workspace/project-labels';
 
 // Initiatives are workspace-level too (/initiatives); `?team=KEY` only picks the
 // Shell's team, as on the projects pages.
@@ -85,19 +90,18 @@ export const startPagePath = (key: string, startPage: StartPage) => {
   }
 };
 
-// The standalone Manage teams page (outside the team shell), reached from
-// the team switcher. Lists every team the user belongs to and lets an owner
-// delete one.
-export const manageTeamsPath = () => '/account/teams';
-export const workspaceMembersPath = () => '/workspace/members';
+// The Manage teams page in the account settings: every team the user can see, to
+// join, leave or delete.
+export const manageTeamsPath = () => '/settings/account/teams';
+export const workspaceMembersPath = () => '/settings/workspace/members';
 
 // The invitee-facing link an owner shares. Points at this web app's public
 // /invite/:token page, which reads the token and shows the accept screen.
 export const inviteLink = (origin: string, token: string) => `${origin}/invite/${token}`;
 
 // Workspace settings (Linear's Organization), for owners and admins.
-export const workspaceSettingsPath = () => '/workspace/settings';
+export const workspaceSettingsPath = () => '/settings/workspace/general';
 
 // The workspace's OAuth applications (Linear's Settings → API → OAuth applications),
 // for owners and admins.
-export const workspaceApplicationsPath = () => '/workspace/applications';
+export const workspaceApplicationsPath = () => '/settings/workspace/applications';

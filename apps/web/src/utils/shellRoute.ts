@@ -4,8 +4,8 @@ export type ShellRoute = {
   // comes from ?team= (null when the URL names none; the Shell then falls back to
   // the last team) and the Shell never redirects them to a team.
   workspace: boolean;
-  // The segment after the team key: 'view', 'settings', 'issue', 'members', …
-  // null on the team root. On a workspace route, the area's name.
+  // The segment after the team key: 'view', 'issue', 'cycles', … null on the team
+  // root. On a workspace route, the area's name; 'settings' in the Settings area.
   sub: string | null;
   activeViewId: string | null;
   section: string | null;
@@ -17,7 +17,7 @@ export type ShellRoute = {
 };
 
 // Every path that is not under /team/<key> is a workspace route.
-const WORKSPACE_AREAS = ['projects', 'initiatives', 'inbox', 'my-issues'];
+const WORKSPACE_AREAS = ['projects', 'initiatives', 'inbox', 'my-issues', 'settings'];
 
 // The parts of a route the Shell renders from. `teamParam` is ?team=, `routeTeamKey`
 // the [teamKey] route param.
@@ -28,6 +28,22 @@ export function parseShellRoute(
 ): ShellRoute {
   const segs = pathname.split('/').filter(Boolean); // ['team', key, sub?, id?]
   const area = segs[0] ?? '';
+  // The Settings area: a team's settings name their team in the path
+  // (/settings/teams/:key/:section); the account and workspace pages take the
+  // Shell's team from ?team= like the other workspace areas.
+  if (area === 'settings') {
+    const teamSettings = segs[1] === 'teams' && segs[2] != null;
+    return {
+      teamKey: teamSettings ? (routeTeamKey ?? segs[2]!) : teamParam,
+      workspace: !teamSettings,
+      sub: 'settings',
+      activeViewId: null,
+      section: (teamSettings ? segs[3] : segs[2]) ?? null,
+      routeIssueSeq: null,
+      routeProjectId: null,
+      onBoard: false,
+    };
+  }
   if (WORKSPACE_AREAS.includes(area)) {
     const projectId =
       area === 'projects' && segs[1] && segs[1] !== 'tab' && segs[1] !== 'settings'

@@ -1,6 +1,6 @@
 'use client';
 
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import AccountGoogleConnection from './components/accounts/AccountGoogleConnection';
 import { useGoogleAvailable } from './services/accounts.service';
 
@@ -10,12 +10,8 @@ export default function AccountAccountsPage() {
   const googleAvailable = useGoogleAvailable();
 
   return (
-    <FullPageView
-      label="Accounts"
-      title="Accounts"
-      description="Connect external accounts to sign in with them."
-    >
+    <SectionPageView title="Accounts" description="Connect external accounts to sign in with them.">
       <div className="divide-y">{googleAvailable && <AccountGoogleConnection />}</div>
-    </FullPageView>
+    </SectionPageView>
   );
 }

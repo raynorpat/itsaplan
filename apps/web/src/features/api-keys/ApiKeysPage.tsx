@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import { useApiKeysQuery, type ApiKeyRow } from './services/apiKeys.service';
 import ApiKeysCreateSection from './components/ApiKeysCreateSection';
 import ApiKeysList from './components/ApiKeysList';
@@ -22,8 +22,7 @@ export default function ApiKeysPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.apiKeys });
 
   return (
-    <FullPageView
-      label="API keys"
+    <SectionPageView
       title="API keys"
       description={`Personal API keys authenticate requests to the API as your account (${session?.user.email}). A key's value is shown only once, when you create it.`}
     >
@@ -40,6 +39,6 @@ export default function ApiKeysPage() {
           }}
         />
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

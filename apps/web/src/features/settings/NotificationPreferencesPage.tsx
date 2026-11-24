@@ -8,7 +8,7 @@ import NotificationPreferences from './components/notifications/NotificationPref
 import { useNotificationPreferencesQuery } from './services/settings.service';
 import { useNotificationPreferencesForm } from './hooks/useNotificationPreferencesForm';
 
-// The user's own email notification preferences (/team/:teamKey/notifications).
+// The user's own email notification preferences (/settings/account/notifications).
 // They apply to the whole workspace, not only this team: choose which notification
 // categories you get by email. Email is sent through the instance email provider.
 export default function NotificationPreferencesPage() {

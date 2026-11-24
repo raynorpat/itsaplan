@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,7 +41,7 @@ const CONFIRM_COPY: Record<Confirm['action'], { title: string; label: string; te
   },
 };
 
-// The workspace's OAuth applications (/workspace/applications), Linear's Settings →
+// The workspace's OAuth applications (/settings/workspace/applications), Linear's Settings →
 // API → OAuth applications. Owners and admins register applications, install them as
 // apps through the consent page, and rotate, uninstall or archive them.
 export default function WorkspaceOAuthAppsPage() {
@@ -77,8 +77,7 @@ export default function WorkspaceOAuthAppsPage() {
   const archived = (apps ?? []).filter((a) => a.archived);
 
   return (
-    <FullPageView
-      label="Workspace"
+    <SectionPageView
       title="OAuth applications"
       description="Applications that sign people in with OAuth, or that are installed in the workspace as apps. Installing happens on the consent page, when an admin authorizes the application with actor=app."
       actions={
@@ -150,6 +149,6 @@ export default function WorkspaceOAuthAppsPage() {
           onClose={() => setShown(null)}
         />
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

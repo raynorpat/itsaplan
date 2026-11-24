@@ -2,12 +2,12 @@
 
 import { useSession } from '@/lib/auth-client';
 import { toWorkspaceRole } from '@/utils/workspaceRoles';
-import FullPageView from '@/components/common/page/FullPageView';
+import SectionPageView from '@/components/common/page/SectionPageView';
 import WorkspaceInviteDialog from './components/WorkspaceInviteDialog';
 import WorkspaceInvites from './components/WorkspaceInvites';
 import WorkspaceUsersTable from './components/WorkspaceUsersTable';
 
-// The workspace Members page (/workspace/members): everyone in the workspace and
+// The workspace Members page (/settings/workspace/members): everyone in the workspace and
 // the pending invites. Owners, admins and members invite (never above their own
 // role); owners and admins change roles and suspend. Guests do not see it.
 export default function WorkspaceMembersPage() {
@@ -16,8 +16,7 @@ export default function WorkspaceMembersPage() {
   const viewerId = session?.user.id ?? null;
 
   return (
-    <FullPageView
-      label="Members"
+    <SectionPageView
       title="Workspace members"
       description="Everyone in this workspace. Invite people by email with a role and teams; owners and admins change roles and suspend people, which ends their access."
       actions={!isPending && role !== 'guest' ? <WorkspaceInviteDialog viewerRole={role} /> : null}
@@ -32,6 +31,6 @@ export default function WorkspaceMembersPage() {
           <WorkspaceUsersTable viewerRole={role} viewerId={viewerId} />
         </>
       )}
-    </FullPageView>
+    </SectionPageView>
   );
 }

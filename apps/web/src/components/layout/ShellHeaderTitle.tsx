@@ -1,13 +1,11 @@
-import { SETTINGS_SECTIONS } from '@/utils/settingsSections';
 import type { ShellRoute } from '@/hooks/useShellRoute';
 import ProjectBreadcrumb from '@/components/layout/ProjectBreadcrumb';
 import IssueBreadcrumb from '@/components/layout/IssueBreadcrumb';
 
 // The label on the pages that are not an issue or project detail.
 function pageLabel(route: ShellRoute, teamName: string): string {
-  const { sub, section } = route;
-  if (section) return SETTINGS_SECTIONS.find((s) => s.slug === section)?.label ?? 'Settings';
-  if (sub === 'members') return 'Members';
+  const { sub } = route;
+  if (sub === 'settings') return 'Settings';
   if (sub === 'projects') return 'Projects';
   if (sub === 'initiatives') return 'Initiatives';
   if (sub === 'inbox') return 'Inbox';

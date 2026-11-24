@@ -55,7 +55,7 @@ async function userChild(id: string | null): Promise<Data | null> {
     name: row.name,
     email: row.email,
     avatarUrl: row.image ?? null,
-    url: `${trustedOrigins[0]}/workspace/members`,
+    url: `${trustedOrigins[0]}/settings/workspace/members`,
   };
 }
 
