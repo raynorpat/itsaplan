@@ -3,12 +3,6 @@ export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'comp
 
 export type ProjectHealth = 'onTrack' | 'atRisk' | 'offTrack';
 
-export interface ProjectProgress {
-  completed: number;
-  canceled: number;
-  total: number;
-}
-
 export interface Project {
   id: string;
   // The project's teams the viewer can access.
@@ -33,11 +27,14 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   labelIds: string[];
-  progress: ProjectProgress;
+  // Linear's progress, 0–1: completed issues count 1 and started ones a quarter,
+  // weighted by estimate when the project's issues have estimates.
+  progress: number;
   // The latest project update's health, or null when there is no update.
   health: ProjectHealth | null;
-  // Linear's scope: the project's open (not canceled) issues. Read over GraphQL.
-  scope?: number;
+  // Linear's scope: the project's issues that are not canceled, in estimate points
+  // when they have estimates.
+  scope: number;
 }
 
 // Columns the project list can be sorted by (in the browser, over the loaded rows).

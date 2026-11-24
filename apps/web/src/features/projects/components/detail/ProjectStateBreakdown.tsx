@@ -3,8 +3,8 @@
 import { useMemo } from 'react';
 import type { TeamDetail, StateType } from '@/types/team';
 
-// The project's linked issues counted per state group. Complements the header
-// progress pill with the full distribution (backlog through canceled).
+// The project's linked issues counted per state group (backlog through canceled),
+// beside the progress chart's weighted figures.
 
 // Colors are fixed per group rather than taken from the columns, because a group
 // spans several columns with their own colors.
@@ -19,12 +19,9 @@ const GROUPS: { type: StateType; label: string; color: string }[] = [
 export default function ProjectStateBreakdown({
   team,
   projectId,
-  scope,
 }: {
   team: TeamDetail;
   projectId: string;
-  // Linear's Project.scope: the project's issues that are not canceled.
-  scope: number;
 }) {
   const counts = useMemo(() => {
     const stateByColumn = new Map(team.states.map((c) => [c.id, c.stateType]));
@@ -48,7 +45,7 @@ export default function ProjectStateBreakdown({
   return (
     <div>
       <h4 className="mb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Progress <span className="tabular-nums">· scope {scope}</span>
+        Issues <span className="tabular-nums">· {total}</span>
       </h4>
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">No issues linked yet.</p>

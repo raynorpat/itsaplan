@@ -13,8 +13,8 @@ import { patchProject } from '@/utils/projectPatch';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 
 // The project fields the list, the pickers and the detail page read, mapped onto the
-// web's Project shape. progress counts come from Linear's count histories (each holds
-// the current value only) and scope (open issues: total minus canceled).
+// web's Project shape. The daily histories are read only by the detail page: the API
+// builds a project's history on first request.
 export const ProjectFields = graphql(`
   fragment ProjectFields on Project {
     id
@@ -32,9 +32,8 @@ export const ProjectFields = graphql(`
     trashed
     labelIds
     health
+    progress
     scope
-    issueCountHistory
-    completedIssueCountHistory
     status {
       id
       type
@@ -52,11 +51,8 @@ export const ProjectFields = graphql(`
   }
 `);
 
-const last = (values: readonly number[]) => values[values.length - 1] ?? 0;
-
 export function toProject(data: FragmentOf<typeof ProjectFields>): Project {
   const node = readFragment(ProjectFields, data);
-  const total = last(node.issueCountHistory);
   return {
     id: node.id,
     teams: node.teams.nodes.map((t) => ({ id: t.id, key: t.key, name: t.name })),
@@ -76,11 +72,7 @@ export function toProject(data: FragmentOf<typeof ProjectFields>): Project {
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     labelIds: node.labelIds,
-    progress: {
-      completed: last(node.completedIssueCountHistory),
-      canceled: Math.max(0, total - node.scope),
-      total,
-    },
+    progress: node.progress,
     health: (node.health ?? null) as ProjectHealth | null,
     scope: node.scope,
   };
@@ -143,6 +135,11 @@ const ProjectQuery = graphql(
     query Project($id: String!) {
       project(id: $id) {
         ...ProjectFields
+        scopeHistory
+        completedScopeHistory
+        inProgressScopeHistory
+        issueCountHistory
+        completedIssueCountHistory
         members(first: 250) {
           nodes {
             id
@@ -193,7 +190,17 @@ export interface ProjectMember {
   image: string | null;
 }
 
+// Linear's daily progress histories, oldest first, ending today for an open project.
+export interface ProjectHistory {
+  scopeHistory: number[];
+  completedScopeHistory: number[];
+  inProgressScopeHistory: number[];
+  issueCountHistory: number[];
+  completedIssueCountHistory: number[];
+}
+
 export type ProjectDetail = Project & {
+  history: ProjectHistory;
   members: ProjectMember[];
   milestones: ProjectMilestone[];
   latestUpdate: ProjectLatestUpdate | null;
@@ -205,6 +212,13 @@ async function fetchProject(id: string): Promise<ProjectDetail> {
   const base = toProject(project);
   return {
     ...base,
+    history: {
+      scopeHistory: project.scopeHistory,
+      completedScopeHistory: project.completedScopeHistory,
+      inProgressScopeHistory: project.inProgressScopeHistory,
+      issueCountHistory: project.issueCountHistory,
+      completedIssueCountHistory: project.completedIssueCountHistory,
+    },
     members: project.members.nodes.map((m) => ({
       id: m.id,
       name: m.name,

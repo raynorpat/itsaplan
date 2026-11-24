@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { STATUS_META } from '@/utils/projectMeta';
 import HealthBadge from '@/components/common/updates/HealthBadge';
-import ProgressBar from '../shared/ProgressBar';
+import ProgressRing from '../shared/ProgressRing';
 
 // The whole row navigates to the detail page; the title is also a real anchor so
 // middle/cmd-click opens it in a new tab.
@@ -80,7 +80,7 @@ export default function ProjectRow({
       </TableCell>
 
       <TableCell className="px-3 py-2.5 align-middle">
-        <ProgressBar progress={project.progress} />
+        <ProgressRing progress={project.progress} />
       </TableCell>
 
       <TableCell className="px-3 py-2.5 align-middle">

@@ -5,7 +5,7 @@ import type { ProjectDetail } from '@/services/projects.service';
 import { shownHealth } from '@/utils/health';
 import HealthBadge from '@/components/common/updates/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';
-import ProgressBar from '../shared/ProgressBar';
+import ProgressRing from '../shared/ProgressRing';
 import ProjectActions from './ProjectActions';
 
 // The project detail header on every tab: the name, the health of the latest update,
@@ -25,7 +25,7 @@ export default function ProjectHeader({
           <HealthInfoPopover />
           <HealthBadge health={shownHealth(project, project.latestUpdate)} />
         </div>
-        <ProgressBar progress={project.progress} />
+        <ProgressRing progress={project.progress} />
         <ProjectActions project={project} teamKey={team.team.key} />
       </div>
     </div>

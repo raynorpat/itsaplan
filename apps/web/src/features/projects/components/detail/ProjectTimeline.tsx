@@ -22,8 +22,7 @@ function remainingLabel(daysLeft: number): string {
 export default function ProjectTimeline({ project }: { project: Project }) {
   const { startDate, targetDate, createdAt, progress } = project;
   const start = startDate ?? createdAt;
-  const denom = progress.total - progress.canceled;
-  const work = denom > 0 ? clamp01(progress.completed / denom) : 0;
+  const work = clamp01(progress);
 
   let elapsed: number | null = null;
   let daysLeft: number | null = null;

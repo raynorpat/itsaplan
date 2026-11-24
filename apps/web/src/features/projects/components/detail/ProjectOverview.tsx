@@ -8,6 +8,7 @@ import ProjectActiveWork from './ProjectActiveWork';
 import ProjectDescription from './ProjectDescription';
 import ProjectLatestUpdate from './ProjectLatestUpdate';
 import ProjectMilestones from './ProjectMilestones';
+import ProjectProgressChart from './ProjectProgressChart';
 import ProjectProperties from './ProjectProperties';
 import ProjectStateBreakdown from './ProjectStateBreakdown';
 import ProjectTimeline from './ProjectTimeline';
@@ -33,8 +34,12 @@ export default function ProjectOverview({
         </div>
         <ProjectDescription project={project} canEdit={canEdit} />
 
+        <div className="mt-8">
+          <ProjectProgressChart project={project} />
+        </div>
+
         <div className="mt-8 grid gap-8 sm:grid-cols-2 sm:gap-10">
-          <ProjectStateBreakdown team={team} projectId={project.id} scope={project.scope ?? 0} />
+          <ProjectStateBreakdown team={team} projectId={project.id} />
           <ProjectTimeline project={project} />
         </div>
 
