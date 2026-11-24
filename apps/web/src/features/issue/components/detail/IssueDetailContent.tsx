@@ -11,9 +11,11 @@ import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import IssueProperties from './IssueProperties';
 import IssueActionsMenu from '../actions/IssueActionsMenu';
 import IssueSubIssues from '../subissues/IssueSubIssues';
+import IssueFeedback from '@/components/common/feedback/IssueFeedback';
+import { canSeeFeedback } from '@/utils/feedback';
 
 // The full editable body of an issue in Linear's order — title, description,
-// reactions, links and attachments, sub-issues, relations, documents, activity — and its
+// reactions, feedback, links and attachments, sub-issues, relations, documents, activity — and its
 // properties. Shared by the side panel (IssueDetail), the full-page view
 // (IssueViewPage) and the inbox pane; the panel and the page put the ⋯ menu in their
 // own header, the inbox pane gets it above the properties. Data loading and
@@ -46,7 +48,9 @@ export default function IssueDetailContent({
     imageAttachments,
     setDescEditor,
   } = useIssueDetail(team, issueId, onIssueLoaded);
-  const canEdit = usePermissions(team).can('work_items', 'edit');
+  const permissions = usePermissions(team);
+  const canEdit = permissions.can('work_items', 'edit');
+  const showFeedback = canSeeFeedback(permissions.workspaceRole);
 
   if (!issue) {
     return <div className="py-6 text-sm text-muted-foreground">Loading…</div>;
@@ -94,6 +98,10 @@ export default function IssueDetailContent({
       />
 
       <IssueReactions issueId={issue.id} />
+
+      {showFeedback && (
+        <IssueFeedback issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
+      )}
 
       <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
 

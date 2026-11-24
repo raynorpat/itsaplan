@@ -17,7 +17,10 @@ export default function IssueRedirect() {
   useEffect(() => {
     if (isLoading) return;
     const teamKey = data ? data.identifier.replace(/-\d+$/, '') : null;
-    router.replace(teamKey && data ? issuePath(teamKey, data.sequenceNumber) : '/');
+    // The query string carries on (a feedback link's `?feedback=` highlights that item).
+    router.replace(
+      teamKey && data ? issuePath(teamKey, data.sequenceNumber) + window.location.search : '/',
+    );
   }, [data, isLoading, router]);
 
   return (

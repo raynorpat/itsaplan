@@ -22,4 +22,8 @@ describe('ISSUE_DEPENDENT_KEYS', () => {
   it('refreshes every issue’s parent and sub-issues', () => {
     assert.equal(covers(qk.issueFamily('any-issue')), true);
   });
+
+  it('refreshes every project’s feedback (an issue can move between projects)', () => {
+    assert.equal(covers(qk.projectFeedback('any-project')), true);
+  });
 });

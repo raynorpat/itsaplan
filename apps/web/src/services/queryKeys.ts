@@ -92,6 +92,12 @@ export const qk = {
   // An issue's parent and sub-issues; issue writes refresh every entry by the prefix.
   issueFamily: (id: string) => ['issueFamily', id] as const,
   anyIssueFamily: ['issueFamily'] as const,
+  // Feedback: one issue's, one project's (on its issues), and the requester search.
+  issueFeedback: (id: string) => ['feedback', 'issue', id] as const,
+  projectFeedback: (id: string) => ['feedback', 'project', id] as const,
+  anyFeedback: ['feedback'] as const,
+  anyProjectFeedback: ['feedback', 'project'] as const,
+  requesterSearch: (q: string) => ['requesters', 'search', q] as const,
   // The viewer's notifications for the whole workspace (the inbox and its badge).
   notifications: () => ['notifications'] as const,
   // The signed-in user's WebAuthn passkeys (account security page).
@@ -141,4 +147,5 @@ export const ISSUE_DEPENDENT_KEYS: readonly (readonly unknown[])[] = [
   qk.anyCycles,
   qk.anyMyIssues,
   qk.anyIssueFamily,
+  qk.anyProjectFeedback,
 ];

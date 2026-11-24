@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Attachment } from '@/types/issue';
 import { gqlRequest, graphql, type ResultOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
+import { isFeedbackAttachment } from '@/utils/feedback';
 import { uploadFile, type UploadedAttachment } from '../utils/upload';
 
 const IssueAttachmentsQuery = graphql(`
@@ -74,6 +75,8 @@ function toIssueAttachments(nodes: AttachmentNode[]): IssueAttachments {
   const files: Attachment[] = [];
   const links: LinkAttachment[] = [];
   for (const n of sorted) {
+    // A feedback item's source attachment is shown with the feedback.
+    if (isFeedbackAttachment(n.sourceType)) continue;
     if (n.sourceType === 'upload') {
       const meta = (n.metadata ?? {}) as {
         filename?: string;

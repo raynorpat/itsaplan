@@ -12,6 +12,8 @@ import ProjectProgressChart from './ProjectProgressChart';
 import ProjectProperties from './ProjectProperties';
 import ProjectStateBreakdown from './ProjectStateBreakdown';
 import ProjectTimeline from './ProjectTimeline';
+import ProjectFeedback from '@/components/common/feedback/ProjectFeedback';
+import { canSeeFeedback } from '@/utils/feedback';
 
 // The project overview: name, properties and description, progress, the latest
 // update and milestones in the content column, with the activity beside it,
@@ -23,7 +25,8 @@ export default function ProjectOverview({
   project: ProjectDetail;
   team: TeamDetail;
 }) {
-  const canEdit = usePermissions().can('projects', 'edit');
+  const permissions = usePermissions();
+  const canEdit = permissions.can('projects', 'edit');
 
   return (
     <div className="flex w-full flex-col gap-10 px-8 py-8 lg:flex-row">
@@ -50,6 +53,12 @@ export default function ProjectOverview({
         <div className="mt-8">
           <ProjectMilestones project={project} canEdit={canEdit} />
         </div>
+
+        {canSeeFeedback(permissions.workspaceRole) && (
+          <div className="mt-8">
+            <ProjectFeedback projectId={project.id} />
+          </div>
+        )}
 
         <ProjectActiveWork team={team} projectId={project.id} />
       </div>
