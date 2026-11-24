@@ -149,6 +149,20 @@ Rules and invariants for this package below; read the code for the walkthrough.
   (`portal/access.ts`) is checked on every request; blocking a requester
   (`/api/auth/instance/portal/block`, owners and admins) ends their sessions and stops
   their links. Every `/portal/*` POST needs an `Origin` in `trustedOrigins` (403).
+- **Portal board actions** (`portal/issues.ts`, `votes.ts`, `suggestions.ts`): a
+  visitor reads a board's issues (Top by votes or New, title-word search, detail with
+  the description only when the board shows it) and, signed in, their own suggestions
+  the board does not show yet (`underReview`). A board, or an issue on it, the visitor
+  may not read is 404. A vote is a `CustomerNeed` from the visitor's requester with a
+  source attachment whose `metadata.source` is `portal` and no quote, at most one per
+  person and issue (an advisory lock per person and issue); the vote count is the
+  issue's people asking (team-logged feedback counts, and makes the visitor "voted"),
+  and unvoting deletes only portal votes without a quote. A suggestion creates an
+  issue in the board's suggestion team, state and label with
+  `issue.external_user_creator_id` (GraphQL `Issue.externalUserCreator`, null for
+  guests) and no member creator, plus the visitor's portal feedback quoting the
+  details; it runs as any issue creation. Votes 60 and suggestions 10 per visitor an
+  hour.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

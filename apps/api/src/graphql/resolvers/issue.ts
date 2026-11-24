@@ -70,6 +70,7 @@ export function toIssue(row: IssueRecord) {
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
     creatorUserId: row.creatorUserId,
+    externalUserCreatorId: row.externalUserCreatorId,
   };
 }
 

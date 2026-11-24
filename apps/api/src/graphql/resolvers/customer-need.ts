@@ -140,6 +140,15 @@ export const customerNeedResolvers = {
   Issue: {
     needs: (i: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
       listNeeds(eq(customerNeed.issueId, i.id), args, ctx),
+    // The portal visitor who suggested the issue; guests see no requester.
+    externalUserCreator: async (
+      i: { externalUserCreatorId?: string | null },
+      _: unknown,
+      ctx: GraphQLContext,
+    ) => {
+      if (!i.externalUserCreatorId || !(await loaders(ctx).readsFeedback())) return null;
+      return externalUserById(ctx, i.externalUserCreatorId);
+    },
   },
   CustomerNeed: {
     issue: async (n: GraphQLNeed, _: unknown, ctx: GraphQLContext) => {

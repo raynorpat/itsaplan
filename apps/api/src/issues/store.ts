@@ -479,6 +479,8 @@ export interface NewIssueInput {
   // Linear's subscriberIds: subscribed with the creator and the assignee. The caller
   // checks they are team members.
   subscriberIds?: string[];
+  // The requester who suggested the issue on the portal (Linear's externalUserCreator).
+  externalUserCreatorId?: string | null;
 }
 
 // Enforces that the assignee is a team member and the delegate an installed agent
@@ -741,6 +743,7 @@ export async function createIssue(
         stateId: input.stateId,
         parentId: input.parentId ?? null,
         creatorUserId: actorUserId ?? null,
+        externalUserCreatorId: input.externalUserCreatorId ?? null,
         title: input.title,
         description: input.description ?? '',
         priority: input.priority ?? 0,

@@ -311,6 +311,7 @@ export async function createFeedbackAttachment(input: {
   title: string;
   subtitle: string;
   creatorUserId: string | null;
+  source: 'team' | 'portal' | 'form';
 }): Promise<AttachmentRow> {
   const id = randomUUID();
   const [row] = await db
@@ -322,6 +323,8 @@ export async function createFeedbackAttachment(input: {
       title: cleanTitle(input.title),
       subtitle: input.subtitle,
       sourceType: 'feedback',
+      // Where the feedback came from; the portal finds a visitor's votes by it.
+      metadata: { source: input.source },
       groupBySource: true,
       creatorUserId: input.creatorUserId,
       externalUserCreatorId: input.externalUserCreatorId,

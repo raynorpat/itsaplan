@@ -130,6 +130,7 @@ export async function createRequesterAttachment(
     title: requester.displayName,
     subtitle,
     creatorUserId: actorId,
+    source,
   });
   return { attachmentId: created.id };
 }
