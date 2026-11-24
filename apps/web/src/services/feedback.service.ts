@@ -9,6 +9,7 @@ import { qk } from '@/services/queryKeys';
 import type { FeedbackItem, FeedbackRequester } from '@/utils/feedback';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { summarizeNeeds } from '@/utils/requests';
+import { addFeedbackWithSource } from '@/services/feedbackCreate';
 import type { IssueFilter } from '@/utils/viewFilters';
 import type { RequestSummary } from '@/types/issue';
 
@@ -39,12 +40,16 @@ const FeedbackFields = graphql(`
 
 const IssueFeedbackQuery = graphql(
   `
-    query IssueFeedback($id: String!) {
+    query IssueFeedback($id: String!, $first: Int, $after: String) {
       issue(id: $id) {
         id
-        needs(first: 250) {
+        needs(first: $first, after: $after) {
           nodes {
             ...FeedbackFields
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
@@ -55,10 +60,14 @@ const IssueFeedbackQuery = graphql(
 
 const ProjectFeedbackQuery = graphql(
   `
-    query ProjectFeedback($filter: CustomerNeedFilter) {
-      customerNeeds(filter: $filter, first: 250) {
+    query ProjectFeedback($filter: CustomerNeedFilter, $first: Int, $after: String) {
+      customerNeeds(filter: $filter, first: $first, after: $after) {
         nodes {
           ...FeedbackFields
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -86,6 +95,14 @@ const FeedbackDelete = graphql(`
   mutation FeedbackDelete($id: String!) {
     customerNeedDelete(id: $id) {
       success
+    }
+  }
+`);
+
+const FeedbackExists = graphql(`
+  query FeedbackExists($id: String!) {
+    customerNeed(id: $id) {
+      id
     }
   }
 `);
@@ -135,8 +152,11 @@ export function useIssueFeedbackQuery(issueId: string, opts: { enabled: boolean 
     queryKey: qk.issueFeedback(issueId),
     enabled: opts.enabled,
     queryFn: async () => {
-      const { issue } = await gqlRequest(IssueFeedbackQuery, { id: issueId });
-      return toItems(readFragment(FeedbackFields, issue.needs.nodes));
+      const nodes = await fetchAllPages(
+        async (after, first) =>
+          (await gqlRequest(IssueFeedbackQuery, { id: issueId, after, first })).issue.needs,
+      );
+      return toItems(readFragment(FeedbackFields, nodes));
     },
   });
 }
@@ -147,10 +167,17 @@ export function useProjectFeedbackQuery(projectId: string, opts: { enabled: bool
     queryKey: qk.projectFeedback(projectId),
     enabled: opts.enabled,
     queryFn: async () => {
-      const { customerNeeds } = await gqlRequest(ProjectFeedbackQuery, {
-        filter: { issue: { project: { id: { eq: projectId } } } },
-      });
-      return toItems(readFragment(FeedbackFields, customerNeeds.nodes));
+      const nodes = await fetchAllPages(
+        async (after, first) =>
+          (
+            await gqlRequest(ProjectFeedbackQuery, {
+              filter: { issue: { project: { id: { eq: projectId } } } },
+              after,
+              first,
+            })
+          ).customerNeeds,
+      );
+      return toItems(readFragment(FeedbackFields, nodes));
     },
   });
 }
@@ -210,32 +237,35 @@ function useRefreshFeedback() {
   };
 }
 
-// Adds feedback: the requester's source attachment first (the instance plugin, since
-// Linear's attachment input cannot name an external person), then Linear's
-// customerNeedCreate. When the second step fails the attachment is removed again so
-// no orphan source stays on the issue.
+// Adds feedback: the requester's source attachment, then Linear's customerNeedCreate
+// with an id chosen here (services/feedbackCreate.ts handles a failed second step).
 export function useAddFeedback(issueId: string) {
   const refresh = useRefreshFeedback();
   return useMutation({
-    mutationFn: async (input: { requesterId: string; body: string; important: boolean }) => {
-      const { attachmentId } = await instanceFetch<{ attachmentId: string }>(
-        '/instance/feedback/attachment',
-        { method: 'POST', body: { issueId, requesterId: input.requesterId } },
-      );
-      try {
-        await gqlRequest(FeedbackCreate, {
-          input: {
-            issueId,
-            attachmentId,
-            body: input.body.trim() || null,
-            priority: input.important ? 1 : 0,
-          },
-        });
-      } catch (err) {
-        await gqlRequest(OrphanAttachmentDelete, { id: attachmentId }).catch(() => undefined);
-        throw err;
-      }
-    },
+    mutationFn: (input: { requesterId: string; body: string; important: boolean }) =>
+      addFeedbackWithSource({
+        createAttachment: async () =>
+          (
+            await instanceFetch<{ attachmentId: string }>('/instance/feedback/attachment', {
+              method: 'POST',
+              body: { issueId, requesterId: input.requesterId },
+            })
+          ).attachmentId,
+        createNeed: (id, attachmentId) =>
+          gqlRequest(FeedbackCreate, {
+            input: {
+              id,
+              issueId,
+              attachmentId,
+              body: input.body.trim() || null,
+              priority: input.important ? 1 : 0,
+            },
+          }),
+        needExists: async (id) =>
+          (await gqlRequest(FeedbackExists, { id }).catch(() => null))?.customerNeed != null,
+        deleteAttachment: (attachmentId) =>
+          gqlRequest(OrphanAttachmentDelete, { id: attachmentId }),
+      }),
     onSettled: () => refresh([issueId]),
   });
 }
@@ -272,8 +302,18 @@ export function useDeleteFeedback(issueId: string) {
 }
 
 const RequestRefsPage = graphql(`
-  query RequestRefs($filter: CustomerNeedFilter, $after: String, $first: Int) {
-    customerNeeds(filter: $filter, first: $first, after: $after) {
+  query RequestRefs(
+    $filter: CustomerNeedFilter
+    $after: String
+    $first: Int
+    $includeArchived: Boolean
+  ) {
+    customerNeeds(
+      filter: $filter
+      first: $first
+      after: $after
+      includeArchived: $includeArchived
+    ) {
       nodes {
         priority
         issue {
@@ -295,14 +335,19 @@ const RequestRefsPage = graphql(`
 
 // The feedback summaries of the issues matching `issueFilter` (utils/requests.ts),
 // from the feedback items alone: one paged list instead of a field on every issue.
+// Without `includeArchived` the API leaves out feedback on archived issues (the board
+// shows none); Insights asks for them, since its period includes archived issues.
+// The list grows with the team's active feedback: 250 items per request.
 export async function fetchRequestSummaries(
   issueFilter: IssueFilter,
+  opts: { includeArchived?: boolean } = {},
 ): Promise<Map<string, RequestSummary>> {
   const nodes = await fetchAllPages(async (after, first) => {
     const data = await gqlRequest(RequestRefsPage, {
       filter: { issue: issueFilter },
       after,
       first,
+      includeArchived: opts.includeArchived ?? false,
     });
     return data.customerNeeds;
   });

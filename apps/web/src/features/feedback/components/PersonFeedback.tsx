@@ -37,6 +37,9 @@ export default function PersonFeedback({ groups }: { groups: PersonIssueFeedback
               <li key={f.id} className="text-sm">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {formatShortDate(f.createdAt)}
+                  {f.archived && (
+                    <span className="rounded border px-1 text-[10px] uppercase">Archived</span>
+                  )}
                   {f.important && (
                     <span className="inline-flex items-center gap-0.5 text-orange-600 dark:text-orange-400">
                       <Flame className="size-3" aria-hidden />

@@ -25,7 +25,13 @@ export interface PersonIssueFeedback {
     archivedAt: string | null;
     state: { name: string; type: StateType; color: string };
   };
-  feedback: { id: string; body: string | null; important: boolean; createdAt: string }[];
+  feedback: {
+    id: string;
+    body: string | null;
+    important: boolean;
+    createdAt: string;
+    archived: boolean;
+  }[];
 }
 
 interface PersonDto {
@@ -40,7 +46,13 @@ interface PersonDto {
 
 interface PersonIssueDto {
   issue: Omit<PersonIssueFeedback['issue'], 'archivedAt'> & { archivedAt: unknown };
-  feedback: { id: string; body: string | null; priority: number; createdAt: unknown }[];
+  feedback: {
+    id: string;
+    body: string | null;
+    priority: number;
+    createdAt: unknown;
+    archivedAt?: unknown;
+  }[];
 }
 
 const toPerson = (r: PersonDto): Person => ({
@@ -59,6 +71,7 @@ const toIssueFeedback = (g: PersonIssueDto): PersonIssueFeedback => ({
     body: f.body,
     important: f.priority >= 1,
     createdAt: isoString(f.createdAt) ?? '',
+    archived: f.archivedAt != null,
   })),
 });
 

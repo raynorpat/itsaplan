@@ -157,5 +157,12 @@ export const ISSUE_DEPENDENT_KEYS: readonly (readonly unknown[])[] = [
   qk.anyMyIssues,
   qk.anyIssueFamily,
   qk.anyProjectFeedback,
+];
+
+// An issue leaving or rejoining the active issues (delete, archive, restore) also
+// changes the feedback request counts, which read active issues only. Feedback writes
+// refresh them on their own (feedback.service.ts); ordinary issue edits leave them.
+export const ISSUE_REMOVAL_KEYS: readonly (readonly unknown[])[] = [
+  ...ISSUE_DEPENDENT_KEYS,
   qk.anyRequests,
 ];

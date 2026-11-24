@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BulkIssuePatch, Issue, IssuePatch, NewIssueInput } from '@/types/issue';
-import { ISSUE_DEPENDENT_KEYS, qk } from '@/services/queryKeys';
+import { ISSUE_DEPENDENT_KEYS, ISSUE_REMOVAL_KEYS, qk } from '@/services/queryKeys';
 import { toast } from 'sonner';
 import { refetchInFull } from '@/hooks/useChangedSince';
 import { patchIssueInList, rollbackRow } from '@/utils/boardCache';
@@ -368,9 +368,14 @@ export function useUpdateIssueDetail(teamKey: string | null) {
 }
 
 // Refreshes the queries an issue write can change beyond its own caches and board
-// (ISSUE_DEPENDENT_KEYS).
-function invalidateIssueDependents(qc: ReturnType<typeof useQueryClient>) {
-  for (const queryKey of ISSUE_DEPENDENT_KEYS) void qc.invalidateQueries({ queryKey });
+// (ISSUE_DEPENDENT_KEYS, or ISSUE_REMOVAL_KEYS when issues were deleted, archived or
+// restored).
+function invalidateIssueDependents(
+  qc: ReturnType<typeof useQueryClient>,
+  kind: 'edit' | 'removal' = 'edit',
+) {
+  const keys = kind === 'removal' ? ISSUE_REMOVAL_KEYS : ISSUE_DEPENDENT_KEYS;
+  for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
 }
 
 // Deletes an issue. Drops it from the team detail immediately and discards its
@@ -395,7 +400,7 @@ export function useDeleteIssue(teamKey: string | null) {
       qc.removeQueries({ queryKey: qk.issue(id) });
       qc.removeQueries({ queryKey: qk.feed(id) });
       qc.removeQueries({ queryKey: qk.attachments(id) });
-      invalidateIssueDependents(qc);
+      invalidateIssueDependents(qc, 'removal');
     },
   });
 }
@@ -417,7 +422,7 @@ export function useArchiveIssue(teamKey: string | null) {
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateIssueDependents(qc);
+      invalidateIssueDependents(qc, 'removal');
     },
   });
 }
@@ -434,7 +439,7 @@ export function useRestoreIssue(teamKey: string | null) {
       }
       void qc.invalidateQueries({ queryKey: qk.issue(id) });
       void qc.invalidateQueries({ queryKey: qk.feed(id) });
-      invalidateIssueDependents(qc);
+      invalidateIssueDependents(qc, 'removal');
     },
   });
 }
@@ -578,7 +583,7 @@ function useBulkRemoval(teamKey: string, action: string, runOne: (id: string) =>
     },
     onSettled: () => {
       void refetchInFull(qc, key);
-      invalidateIssueDependents(qc);
+      invalidateIssueDependents(qc, 'removal');
     },
   });
 }

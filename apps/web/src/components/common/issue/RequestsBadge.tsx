@@ -14,13 +14,13 @@ export function RequestsBadge({ issue }: { issue: Pick<Issue, 'requests'> }) {
     <span
       className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums"
       title={label}
-      aria-label={label}
     >
       <MessageSquare
         aria-hidden
         className={cn('size-3', important > 0 && 'text-amber-600 dark:text-amber-400')}
       />
-      {people}
+      <span aria-hidden>{people}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }

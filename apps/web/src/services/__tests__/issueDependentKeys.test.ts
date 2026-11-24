@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ISSUE_DEPENDENT_KEYS, qk } from '@/services/queryKeys';
+import { ISSUE_DEPENDENT_KEYS, ISSUE_REMOVAL_KEYS, qk } from '@/services/queryKeys';
 
 // Each prefix in ISSUE_DEPENDENT_KEYS is invalidated after every issue write.
 const covers = (key: readonly unknown[]) =>
@@ -27,8 +27,16 @@ describe('ISSUE_DEPENDENT_KEYS', () => {
     assert.equal(covers(qk.projectFeedback('any-project')), true);
   });
 
-  it('refreshes request counts (an issue can move between teams or be deleted)', () => {
-    assert.equal(covers(qk.teamRequests('ENG')), true);
-    assert.equal(covers(qk.insightsRequests('view', '{}')), true);
+  it('leaves request counts alone on ordinary issue edits', () => {
+    assert.equal(covers(qk.teamRequests('ENG')), false);
+    assert.equal(covers(qk.insightsRequests('view', '{}')), false);
+  });
+
+  it('refreshes request counts when an issue is deleted, archived or restored', () => {
+    const removalCovers = (key: readonly unknown[]) =>
+      ISSUE_REMOVAL_KEYS.some((prefix) => prefix.every((part, i) => key[i] === part));
+    assert.equal(removalCovers(qk.teamRequests('ENG')), true);
+    assert.equal(removalCovers(qk.insightsRequests('view', '{}')), true);
+    assert.equal(removalCovers(qk.anyMyIssues), true);
   });
 });

@@ -60,7 +60,7 @@ export function useInsightsData({
 
   const requests = useQuery({
     queryKey: qk.insightsRequests(viewKey, scopeKey),
-    queryFn: () => fetchRequestSummaries(scope),
+    queryFn: () => fetchRequestSummaries(scope, { includeArchived: true }),
     enabled: enabled && readsRequests,
     staleTime: 60_000,
   });

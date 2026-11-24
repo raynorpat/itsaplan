@@ -11,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useRequesterSearchQuery } from '@/services/feedback.service';
 import type { FeedbackRequester } from '@/utils/feedback';
 
@@ -26,7 +27,9 @@ export default function FeedbackRequesterPicker({
   excludeId?: string;
 }) {
   const [term, setTerm] = useState('');
-  const results = (useRequesterSearchQuery(term, { enabled: true }).data ?? []).filter(
+  // One search per pause in typing, not one per keystroke.
+  const searched = useDebouncedValue(term, 250);
+  const results = (useRequesterSearchQuery(searched, { enabled: true }).data ?? []).filter(
     (r) => r.id !== excludeId,
   );
 
