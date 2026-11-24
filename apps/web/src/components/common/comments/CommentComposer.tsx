@@ -127,6 +127,8 @@ export default function CommentComposer({
     }
     setBody('');
     setMenu(null);
+    // Back to internal after each post, so the next comment is never public by accident.
+    setPortalBoardId(INTERNAL);
     onDone?.();
   }
 
