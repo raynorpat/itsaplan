@@ -157,3 +157,25 @@ order of the work.
   owner); Then (actions: set status, assignee, priority, project, cycle, delegate;
   add / remove labels; add a comment); edit access for team owners and workspace admins
   only; Save / Cancel; the API's validation message shown next to the form.
+
+## Stage 4c: display preferences on the server
+
+- **Scope:** one personal record per list kind, Linear's view types: `allIssues` (each
+  team's "All issues" list), `project` (each project's Issues tab), `cycle` (each cycle
+  page), `myIssues` (My issues). Saved views keep their own preferences. Linear's
+  public SDL reads personal preferences only per view type
+  (`userViewPreferences(viewType)`), so a setting applies to every list of that kind.
+- **Stored:** layout, grouping, sub-grouping, ordering, completed issues, show
+  sub-issues, display properties and collapsed groups and swimlanes, as one
+  `preferences` JSON per user and view type.
+- **API:** `viewPreferencesCreate` / `viewPreferencesUpdate` accept `type: user` with
+  one of the four view types and no `customViewId`; `userViewPreferences(viewType)`
+  returns the viewer's record or null; one incremental migration (the saved view
+  becomes optional; one record per user and view type without a saved view).
+- **Web:** these lists read their preferences from the server; a list never changed
+  uses Linear's defaults (List, grouped by status); a change applies at once and is
+  saved in the background, with quick successive changes sent as one save; a failed
+  save reverts and shows the error. The browser stores for these settings are
+  removed; nothing is copied from them. My issues gets Linear's Display menu
+  (ordering, grouping, completed issues, display properties). The calendar's week
+  start stays a browser preference.
