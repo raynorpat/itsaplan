@@ -34,8 +34,9 @@ here (`GET imports/github`, `GET imports/github/repositories`, `POST
 imports/github/disconnect`). The people who give feedback, Linear's `ExternalUser`
 (`GET requesters?q=&cursor=`, `GET requester?id=`, `POST requesters/{create, update,
 merge}`; members, merge for owners and admins, never guests), and the attachment that
-names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`)
-are here because Linear's schema has no mutation for them
+names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`),
+and the number of people asking on an issue (`GET feedback/count?issueId=`, `{ people }`,
+for anyone who can see the issue, guests included) are here because Linear's schema has no mutation for them
 (`apps/api/src/feedback/requesters.ts`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an

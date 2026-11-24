@@ -249,6 +249,50 @@ describe('requesters', () => {
     expect(hidden.status).toBe(404);
   });
 
+  it('gives anyone who can see the issue, guests included, the number of people asking', async () => {
+    const { owner, guest, issue } = await setup();
+    const peopleOn = async (as: TestUser, issueId: string) =>
+      (await ok(await call('feedback/count', { as, query: { issueId } }))).people as number;
+    expect(await peopleOn(guest, issue.id)).toBe(0);
+
+    const jane = await create(owner, { name: 'Jane', email: 'jane@x.com' });
+    const jd = await create(owner, { name: 'J. D.', email: 'jd@x.com' });
+    const sam = await create(owner, { name: 'Sam' });
+    await addFeedback(owner, issue.id, jane.id, 'One');
+    await addFeedback(owner, issue.id, jane.id, 'Two');
+    await addFeedback(owner, issue.id, jd.id, 'Three');
+    const archived = await addFeedback(owner, issue.id, sam.id, 'Archived');
+    await gqlData(owner, `mutation ($id: String!) { customerNeedArchive(id: $id) { success } }`, {
+      id: archived,
+    });
+    expect(await peopleOn(guest, issue.id)).toBe(2);
+
+    await ok(
+      await call('requesters/merge', { as: owner, body: { fromId: jd.id, intoId: jane.id } }),
+    );
+    expect(await peopleOn(guest, issue.id)).toBe(1);
+    const body = await ok(
+      await call('feedback/count', { as: guest, query: { issueId: issue.id } }),
+    );
+    expect(Object.keys(body)).toEqual(['people']);
+  });
+
+  it('hides the number of people asking on an issue the caller cannot see', async () => {
+    const { owner, guest } = await setup();
+    await createTeam(owner, { key: 'SEC', name: 'Secret' });
+    await makePrivate(owner, 'SEC');
+    const view = await teamView(owner, 'SEC');
+    const hidden = await createIssue(owner, {
+      teamId: 'SEC',
+      stateId: view.states[0]!.id,
+      title: 'Hidden',
+    });
+    expect(
+      (await call('feedback/count', { as: guest, query: { issueId: hidden.id } })).status,
+    ).toBe(404);
+    expect((await call('feedback/count', { query: { issueId: hidden.id } })).status).toBe(401);
+  });
+
   it('keeps two opposite merges at the same time from pointing at each other', async () => {
     const { owner } = await setup();
     const a = await create(owner, { name: 'Ann', email: 'ann@x.com' });

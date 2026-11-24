@@ -56,8 +56,12 @@ optional grouping.
   wherever Linear exposes `ExternalUser`.
 - Feedback writes follow the issue's access rules for **members, admins and owners**:
   anyone of them who may edit the issue may add, edit, mark important, move or delete its
-  feedback. **Guests cannot add or change feedback, and see no requester names or emails**
-  (they see the count only) (builder's call: avoids revealing who exists).
+  feedback. **Guests cannot add or change feedback, and see no requester names, emails or
+  quotes**; on an issue they see "4 people asked for this" (hidden when nobody asked)
+  (builder's call: avoids revealing who exists). Linear's schema has no per-issue count a
+  guest can read, so the count comes from the instance endpoint
+  `/api/auth/instance/feedback/count?issueId=` (anyone who can see the issue; the number
+  of distinct requesters of its active feedback only) (user's decision).
 - Requesters: any member may create and edit them; **merging** two requesters is for
   owners and admins (it cannot be undone) (builder's call).
 - Creating feedback does not notify anyone and runs no workflow automation; it does send

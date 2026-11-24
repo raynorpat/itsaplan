@@ -4,6 +4,7 @@ import {
   canSeeFeedback,
   countPeople,
   feedbackHeader,
+  guestFeedbackText,
   groupFeedbackByIssue,
   isFeedbackAttachment,
   type FeedbackItem,
@@ -37,6 +38,14 @@ describe('feedbackHeader', () => {
     assert.equal(feedbackHeader(1), 'Feedback · 1 person');
     assert.equal(feedbackHeader(4), 'Feedback · 4 people');
     assert.equal(feedbackHeader(0), 'Feedback');
+  });
+});
+
+describe('guestFeedbackText', () => {
+  it('says how many people asked, and nothing when nobody did', () => {
+    assert.equal(guestFeedbackText(1), '1 person asked for this');
+    assert.equal(guestFeedbackText(4), '4 people asked for this');
+    assert.equal(guestFeedbackText(0), null);
   });
 });
 

@@ -12,6 +12,7 @@ import IssueProperties from './IssueProperties';
 import IssueActionsMenu from '../actions/IssueActionsMenu';
 import IssueSubIssues from '../subissues/IssueSubIssues';
 import IssueFeedback from '@/components/common/feedback/IssueFeedback';
+import IssueFeedbackCount from '@/components/common/feedback/IssueFeedbackCount';
 import { canSeeFeedback } from '@/utils/feedback';
 
 // The full editable body of an issue in Linear's order — title, description,
@@ -102,6 +103,7 @@ export default function IssueDetailContent({
       {showFeedback && (
         <IssueFeedback issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
       )}
+      {permissions.workspaceRole === 'guest' && <IssueFeedbackCount issueId={issue.id} />}
 
       <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
 

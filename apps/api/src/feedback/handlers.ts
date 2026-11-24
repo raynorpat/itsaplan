@@ -3,6 +3,7 @@ import { HttpError } from '../shared/lib';
 import {
   createRequester,
   createTeamFeedbackAttachment,
+  feedbackPeopleCount,
   getRequester,
   listRequesters,
   mergeRequesters,
@@ -38,4 +39,5 @@ export const requestersHandlers: RequestersHandlers = {
   }),
   feedbackAttachment: async (headers, body) =>
     createTeamFeedbackAttachment(await signedIn(headers), fields(body)),
+  feedbackCount: async (headers, query) => feedbackPeopleCount((await signedIn(headers)).id, query),
 };

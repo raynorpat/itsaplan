@@ -1,6 +1,12 @@
 import { attachment, customerNeed, db, externalUser, issue, team, workflowState } from '@repo/db';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
-import { atLeast, visibleTeamIds, workspaceRole, type AuthUser } from '../shared/access';
+import {
+  atLeast,
+  canSeeTeam,
+  visibleTeamIds,
+  workspaceRole,
+  type AuthUser,
+} from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { assertFeedbackWrite, readsFeedback } from './access';
 import { retitleFeedbackAttachments } from '../attachments/store';
@@ -373,4 +379,29 @@ export async function createTeamFeedbackAttachment(
   const requesterId = requireId(body.requesterId, 'requesterId');
   await assertFeedbackWrite(issueId, user);
   return createRequesterAttachment(issueId, requesterId, 'team', user.id);
+}
+
+// The number of people asking on an issue (distinct requesters of its active feedback;
+// a merge points the feedback at the person kept), for anyone who can see the issue,
+// guests included. Guests read no feedback through GraphQL, and Linear's schema has no
+// per-issue count they could read, so the web asks here. Only the number is returned.
+export async function feedbackPeopleCount(
+  userId: string,
+  query: { issueId?: unknown },
+): Promise<{ people: number }> {
+  const issueId = requireId(query.issueId, 'issueId');
+  const [row] = await db.select({ teamId: issue.teamId }).from(issue).where(eq(issue.id, issueId));
+  if (!row || !(await canSeeTeam(row.teamId, userId))) throw new HttpError(404, 'Issue not found');
+  const [count] = await db
+    .select({ people: sql<number>`count(DISTINCT ${attachment.externalUserCreatorId})::int` })
+    .from(customerNeed)
+    .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
+    .where(
+      and(
+        eq(customerNeed.issueId, issueId),
+        isNull(customerNeed.archivedAt),
+        sql`${attachment.externalUserCreatorId} IS NOT NULL`,
+      ),
+    );
+  return { people: count?.people ?? 0 };
 }

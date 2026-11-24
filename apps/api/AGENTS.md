@@ -106,7 +106,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
   users) see no feedback and no requester (`Issue.needs` empty, `customerNeed` not
   found, feedback source attachments left out of every attachment read and of
   `IssueFilter.attachments`, `feedbackAttachmentsVisibleSql`) and cannot write it, but
-  get the counts. A quote is at most 10,000 characters. `customerCount` / `customerImportantCount` (filter and `sort`) count the
+  get the counts: the filters and sorts, and the number of people asking on an issue
+  from `/api/auth/instance/feedback/count` (`feedbackPeopleCount`; anyone who can see
+  the issue; the number only). A quote is at most 10,000 characters. `customerCount` / `customerImportantCount` (filter and `sort`) count the
   distinct requesters of an issue's active feedback (with important feedback);
   feedback without a requester is not a person. Moving feedback to another issue moves
   its attachment in the same transaction; deleting it deletes the attachment unless

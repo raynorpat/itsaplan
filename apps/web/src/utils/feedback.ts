@@ -38,6 +38,12 @@ export function feedbackHeader(people: number): string {
   return `Feedback · ${people} ${people === 1 ? 'person' : 'people'}`;
 }
 
+// What a guest sees on an issue: how many people asked, never who; null when nobody did.
+export function guestFeedbackText(people: number): string | null {
+  if (people <= 0) return null;
+  return `${people} ${people === 1 ? 'person' : 'people'} asked for this`;
+}
+
 // The distinct people who gave the feedback; an item without a requester is no person.
 export function countPeople(items: readonly FeedbackItem[]): number {
   return new Set(items.flatMap((i) => (i.requester ? [i.requester.id] : []))).size;

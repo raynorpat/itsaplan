@@ -161,6 +161,21 @@ export function useIssueFeedbackQuery(issueId: string, opts: { enabled: boolean 
   });
 }
 
+// The number of people asking on an issue, for a guest, who reads no feedback through
+// GraphQL (/api/auth/instance/feedback/count).
+export function useIssueFeedbackCountQuery(issueId: string, opts: { enabled: boolean }) {
+  return useQuery({
+    queryKey: qk.issueFeedbackCount(issueId),
+    enabled: opts.enabled,
+    queryFn: async () => {
+      const res = await instanceFetch<{ people: number }>(
+        `/instance/feedback/count?issueId=${encodeURIComponent(issueId)}`,
+      );
+      return res.people;
+    },
+  });
+}
+
 // The feedback on a project's issues.
 export function useProjectFeedbackQuery(projectId: string, opts: { enabled: boolean }) {
   return useQuery({

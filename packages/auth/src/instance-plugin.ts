@@ -124,6 +124,8 @@ export interface RequestersHandlers {
   update(headers: Headers, body: unknown): Promise<object>;
   merge(headers: Headers, body: unknown): Promise<object>;
   feedbackAttachment(headers: Headers, body: unknown): Promise<object>;
+  // The number of people asking on an issue, for anyone who can see it (guests too).
+  feedbackCount(headers: Headers, query: Record<string, unknown>): Promise<object>;
 }
 
 export interface InstanceHandlers {
@@ -329,6 +331,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/feedback/attachment',
         options.trustedOrigins,
         (h, headers, body) => h.feedbackAttachment(headers, body),
+      ),
+      instanceFeedbackCount: createAuthEndpoint(
+        '/instance/feedback/count',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) =>
+              h.requesters.feedbackCount(ctx.headers ?? new Headers(), { ...ctx.query }),
+            ),
+          ),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

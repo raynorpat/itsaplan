@@ -94,6 +94,7 @@ export const qk = {
   anyIssueFamily: ['issueFamily'] as const,
   // Feedback: one issue's, one project's (on its issues), and the requester search.
   issueFeedback: (id: string) => ['feedback', 'issue', id] as const,
+  issueFeedbackCount: (id: string) => ['feedback', 'count', id] as const,
   projectFeedback: (id: string) => ['feedback', 'project', id] as const,
   anyFeedback: ['feedback'] as const,
   anyProjectFeedback: ['feedback', 'project'] as const,
