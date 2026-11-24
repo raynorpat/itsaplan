@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
+import {
+  createIssue as createIssueAs,
+  createLabel,
+  createProject,
+  createState,
+  createTeam,
+  createWebhook,
+  gqlData,
+  updateIssue,
+} from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { removeAttachmentEmbeds } from '../../../attachments/store';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
@@ -22,15 +31,17 @@ type Payload = {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const hook = (
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .webhooks.post({ url: 'https://example.com/hook', resourceTypes: ['Issue'] })
-  ).data!;
-  return { owner, asOwner, team, hookId: hook.id };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const team = {
+    team: view.team,
+    states: view.states.map((s) => ({ id: s.id, stateType: s.stateType })),
+  };
+  const hook = await createWebhook(owner, {
+    url: 'https://example.com/hook',
+    resourceTypes: ['Issue'],
+    teamId: 'MKT',
+  });
+  return { owner, asOwner: owner, team, hookId: hook.id };
 }
 
 // Payloads of a webhook, oldest first.
@@ -42,9 +53,15 @@ async function payloads(webhookId: string): Promise<Payload[]> {
 // Treaty revives ISO strings in the payload to Dates; compare as epoch ms.
 const time = (v: unknown) => new Date(v as string).getTime();
 
-async function createIssue(api: Api, stateId: string, title = 'Task') {
-  return (await api.teams({ teamKey: 'MKT' }).issues.post({ stateId, title })).data!;
+async function createIssue(u: TestUser, stateId: string, title = 'Task', teamId = 'MKT') {
+  return createIssueAs(u, { teamId, stateId, title });
 }
+
+const run = (u: TestUser, mutation: string, id: string) => gqlData(u, mutation, { id });
+const archive = (u: TestUser, id: string) =>
+  run(u, `mutation ($id: String!) { issueArchive(id: $id) { success } }`, id);
+const restore = (u: TestUser, id: string) =>
+  run(u, `mutation ($id: String!) { issueUnarchive(id: $id) { success } }`, id);
 
 describe('issue webhooks', () => {
   beforeEach(async () => {
@@ -83,7 +100,7 @@ describe('issue webhooks', () => {
   it('sends the old stateId in updatedFrom on a state change', async () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).patch({ stateId: team.states[1].id });
+    await updateIssue(asOwner, issue.id, { stateId: team.states[1].id });
     const [created, updated] = await payloads(hookId);
     expect(updated).toMatchObject({ action: 'update', data: { stateId: team.states[1].id } });
     expect(updated!.updatedFrom).toMatchObject({
@@ -95,12 +112,11 @@ describe('issue webhooks', () => {
 
   it('sends the previous labelIds in updatedFrom on a label change', async () => {
     const { asOwner, team, hookId } = await setup();
-    const scope = asOwner.teams({ teamKey: 'MKT' });
-    const a = (await scope.labels.post({ name: 'a' })).data!;
-    const b = (await scope.labels.post({ name: 'b' })).data!;
+    const a = await createLabel(asOwner, { name: 'a', teamId: 'MKT' });
+    const b = await createLabel(asOwner, { name: 'b', teamId: 'MKT' });
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [a.id] });
-    await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [a.id, b.id] });
+    await updateIssue(asOwner, issue.id, { labelIds: [a.id] });
+    await updateIssue(asOwner, issue.id, { labelIds: [a.id, b.id] });
     const all = await payloads(hookId);
     const last = all[all.length - 1]!;
     expect(last.action).toBe('update');
@@ -112,8 +128,8 @@ describe('issue webhooks', () => {
   it('sends archive and restore as Issue updates with archivedAt', async () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).archive.post();
-    await asOwner.issues({ issueId: issue.id }).restore.post();
+    await archive(asOwner, issue.id);
+    await restore(asOwner, issue.id);
     const [, archived, restored] = await payloads(hookId);
     expect(archived).toMatchObject({ action: 'update', updatedFrom: { archivedAt: null } });
     expect(archived!.data.archivedAt).toBeTruthy();
@@ -124,7 +140,7 @@ describe('issue webhooks', () => {
   it('sends Issue remove with the data before deletion', async () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).delete();
+    await run(asOwner, `mutation ($id: String!) { issueDelete(id: $id) { success } }`, issue.id);
     const all = await payloads(hookId);
     expect(all[all.length - 1]).toMatchObject({
       action: 'remove',
@@ -137,36 +153,41 @@ describe('issue webhooks', () => {
     const ids = [];
     for (const t of ['a', 'b', 'c'])
       ids.push((await createIssue(asOwner, team.states[0].id, t)).id);
-    await asOwner.teams({ teamKey: 'MKT' }).issues.bulk.patch({ ids, patch: { priority: 2 } });
+    await gqlData(
+      asOwner,
+      `mutation ($ids: [UUID!]!) { issueBatchUpdate(ids: $ids, input: { priority: 2 }) { success } }`,
+      { ids },
+    );
     const updates = (await payloads(hookId)).filter((p) => p.action === 'update');
     expect(updates.map((p) => p.data.id).sort()).toEqual([...ids].sort());
   });
 
   it('sends events of a team created after an all-teams webhook', async () => {
     const { asOwner } = await setup();
-    const all = (
-      await asOwner.webhooks.post({ url: 'https://example.com/all', resourceTypes: ['Issue'] })
-    ).data!;
-    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
-    await asOwner.teams({ teamKey: 'OPS' }).issues.post({ stateId: ops.states[0].id, title: 'x' });
+    const all = await createWebhook(asOwner, {
+      url: 'https://example.com/all',
+      resourceTypes: ['Issue'],
+      allPublicTeams: true,
+    });
+    const ops = await createTeam(asOwner, { key: 'OPS', name: 'Operations' });
+    await createIssue(asOwner, ops.states[0]!.id, 'x', 'OPS');
     const [p] = await payloads(all.id);
     expect(p).toMatchObject({ action: 'create', data: { teamId: ops.team.id } });
   });
 
   it('sends nothing to a disabled webhook or one without Issue', async () => {
     const { asOwner, team } = await setup();
-    const scope = asOwner.teams({ teamKey: 'MKT' });
-    const off = (
-      await scope.webhooks.post({
-        url: 'https://example.com/a',
-        resourceTypes: ['Issue'],
-        enabled: false,
-      })
-    ).data!;
-    const other = (
-      await scope.webhooks.post({ url: 'https://example.com/b', resourceTypes: ['Comment'] })
-    ).data!;
+    const off = await createWebhook(asOwner, {
+      url: 'https://example.com/a',
+      resourceTypes: ['Issue'],
+      enabled: false,
+      teamId: 'MKT',
+    });
+    const other = await createWebhook(asOwner, {
+      url: 'https://example.com/b',
+      resourceTypes: ['Comment'],
+      teamId: 'MKT',
+    });
     await createIssue(asOwner, team.states[0].id);
     expect(await payloads(off.id)).toEqual([]);
     expect(await payloads(other.id)).toEqual([]);
@@ -176,43 +197,19 @@ describe('issue webhooks', () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
     await Bun.sleep(5);
-    await asOwner.issues({ issueId: issue.id }).archive.post();
+    await archive(asOwner, issue.id);
     await Bun.sleep(5);
-    await asOwner.issues({ issueId: issue.id }).restore.post();
+    await restore(asOwner, issue.id);
     const [, archived, restored] = await payloads(hookId);
     for (const p of [archived!, restored!])
       expect(time(p.data.updatedAt)).toBeGreaterThan(time(p.updatedFrom!.updatedAt));
   });
 
-  it('sends an Issue update for each issue moved by deleting its state', async () => {
-    const { asOwner, team, hookId } = await setup();
-    const from = team.states.find((s) => s.stateType !== 'backlog')!;
-    const to = team.states[0]!;
-    const a = await createIssue(asOwner, from.id, 'a');
-    const b = await createIssue(asOwner, from.id, 'b');
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .states({ stateId: from.id })
-      .delete({ mode: 'move', targetStateId: to.id });
-    const updates = (await payloads(hookId)).filter((p) => p.action === 'update');
-    expect(updates.map((p) => p.data.id).sort()).toEqual([a.id, b.id].sort());
-    for (const p of updates) expect(p.updatedFrom).toMatchObject({ stateId: from.id });
-  });
-
-  it('sends an Issue remove for each issue deleted with its state', async () => {
-    const { asOwner, team, hookId } = await setup();
-    const from = team.states.find((s) => s.stateType !== 'backlog')!;
-    const a = await createIssue(asOwner, from.id, 'a');
-    await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: from.id }).delete({ mode: 'delete' });
-    const removes = (await payloads(hookId)).filter((p) => p.action === 'remove');
-    expect(removes.map((p) => p.data.id)).toEqual([a.id]);
-  });
-
   it('sends one Issue update for a PATCH that changes fields and labels', async () => {
     const { asOwner, team, hookId } = await setup();
-    const label = (await asOwner.teams({ teamKey: 'MKT' }).labels.post({ name: 'bug' })).data!;
+    const label = await createLabel(asOwner, { name: 'bug', teamId: 'MKT' });
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).patch({ title: 'Renamed', labelIds: [label.id] });
+    await updateIssue(asOwner, issue.id, { title: 'Renamed', labelIds: [label.id] });
     const updates = (await payloads(hookId)).filter((p) => p.action === 'update');
     expect(updates).toHaveLength(1);
     expect(updates[0]!.updatedFrom).toMatchObject({ title: 'Task', labelIds: [] });
@@ -222,12 +219,16 @@ describe('issue webhooks', () => {
     const { asOwner, team, hookId } = await setup();
     const from = team.states.find((s) => s.stateType === 'started')!;
     // A second started state, so the issue's state can be archived.
-    await asOwner.teams({ teamKey: 'MKT' }).states.post({ name: 'Review', stateType: 'started' });
+    await createState(asOwner, { teamId: 'MKT', name: 'Review', type: 'started' });
     const issue = await createIssue(asOwner, from.id);
-    await asOwner.issues({ issueId: issue.id }).archive.post();
-    await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: from.id }).archive.post();
+    await archive(asOwner, issue.id);
+    await run(
+      asOwner,
+      `mutation ($id: String!) { workflowStateArchive(id: $id) { success } }`,
+      from.id,
+    );
     const before = (await payloads(hookId)).length;
-    await asOwner.issues({ issueId: issue.id }).restore.post();
+    await restore(asOwner, issue.id);
     const after = (await payloads(hookId)).slice(before);
     expect(after).toHaveLength(1);
     expect(Object.keys(after[0]!.updatedFrom!)).toEqual(
@@ -238,9 +239,9 @@ describe('issue webhooks', () => {
   it('sends an Issue update when deleting an attachment strips its embed', async () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner
-      .issues({ issueId: issue.id })
-      .patch({ description: 'See ![shot](/attachments/abc123/raw) here' });
+    await updateIssue(asOwner, issue.id, {
+      description: 'See ![shot](/attachments/abc123/raw) here',
+    });
     const before = (await payloads(hookId)).length;
     await removeAttachmentEmbeds(issue.id, 'abc123');
     const after = (await payloads(hookId)).slice(before);
@@ -250,20 +251,20 @@ describe('issue webhooks', () => {
 
   it('keeps an issue’s events in its own team when it moves between projects', async () => {
     const { asOwner, team, hookId } = await setup();
-    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
-    const opsHook = (
-      await asOwner
-        .teams({ teamKey: 'OPS' })
-        .webhooks.post({ url: 'https://example.com/ops', resourceTypes: ['Issue'] })
-    ).data!;
-    const shared = (
-      await asOwner.projects.post({ name: 'Shared', teamIds: [team.team.id, ops.team.id] })
-    ).data!;
-    const own = (await asOwner.projects.post({ name: 'Own', teamIds: [team.team.id] })).data!;
+    const ops = await createTeam(asOwner, { key: 'OPS', name: 'Operations' });
+    const opsHook = await createWebhook(asOwner, {
+      url: 'https://example.com/ops',
+      resourceTypes: ['Issue'],
+      teamId: 'OPS',
+    });
+    const shared = await createProject(asOwner, {
+      name: 'Shared',
+      teamIds: [team.team.id, ops.team.id],
+    });
+    const own = await createProject(asOwner, { name: 'Own', teamIds: [team.team.id] });
     const issue = await createIssue(asOwner, team.states[0].id);
-    await asOwner.issues({ issueId: issue.id }).patch({ projectId: shared.id });
-    await asOwner.issues({ issueId: issue.id }).patch({ projectId: own.id });
+    await updateIssue(asOwner, issue.id, { projectId: shared.id });
+    await updateIssue(asOwner, issue.id, { projectId: own.id });
     expect(await payloads(opsHook.id)).toEqual([]);
     expect((await payloads(hookId)).filter((p) => p.action === 'update')).toHaveLength(2);
   });

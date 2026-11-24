@@ -1,17 +1,28 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { createTeam, gqlData } from '../../../__tests__/helpers/graphql';
+import { gql } from '../../../__tests__/helpers/linear';
 import { createCycle, listCycles } from '../../store';
 
-// Team cycle settings and the cycle store.
+// Team cycle settings (through teamUpdate) and the cycle store.
+
+const SETTINGS = `cyclesEnabled cycleDuration cycleStartDay cycleCooldownTime upcomingCycleCount
+  cycleIssueAutoAssignStarted cycleIssueAutoAssignCompleted`;
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  return { owner, asOwner, teamId: team.team.id };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  return { owner, teamId: view.team.id };
+}
+
+function updateTeam(cookie: string, teamId: string, input: Record<string, unknown>) {
+  return gql(
+    { cookie },
+    `mutation ($id: String!, $input: TeamUpdateInput!) {
+      teamUpdate(id: $id, input: $input) { team { ${SETTINGS} } } }`,
+    { id: teamId, input },
+  );
 }
 
 describe('cycles', () => {
@@ -20,19 +31,17 @@ describe('cycles', () => {
   });
 
   it('enabling cycles creates the current and two upcoming cycles', async () => {
-    const { asOwner, teamId } = await setup();
-    const res = await asOwner
-      .teams({ teamKey: 'MKT' })
-      .settings.patch({ cycles: { enabled: true } });
-    expect(res.status).toBe(200);
-    expect(res.data!.cycles).toMatchObject({
-      enabled: true,
-      duration: 2,
-      startDay: 1,
-      cooldown: 0,
-      upcoming: 2,
-      autoAssignStarted: false,
-      autoAssignCompleted: false,
+    const { owner, teamId } = await setup();
+    const res = await updateTeam(owner.cookie, teamId, { cyclesEnabled: true });
+    expect(res.body.errors).toBeUndefined();
+    expect((res.body.data as { teamUpdate: { team: unknown } }).teamUpdate.team).toMatchObject({
+      cyclesEnabled: true,
+      cycleDuration: 2,
+      cycleStartDay: 1,
+      cycleCooldownTime: 0,
+      upcomingCycleCount: 2,
+      cycleIssueAutoAssignStarted: false,
+      cycleIssueAutoAssignCompleted: false,
     });
     const cycles = await listCycles(teamId);
     expect(cycles.map((c) => c.number)).toEqual([1, 2, 3]);
@@ -43,21 +52,30 @@ describe('cycles', () => {
   });
 
   it('rejects out-of-range settings', async () => {
-    const { asOwner } = await setup();
-    const scope = asOwner.teams({ teamKey: 'MKT' }).settings;
-    for (const cycles of [{ duration: 9 }, { cooldown: 4 }, { upcoming: 11 }, { startDay: 7 }]) {
-      expect((await scope.patch({ cycles })).status).toBe(400);
+    const { owner, teamId } = await setup();
+    for (const input of [
+      { cycleDuration: 9 },
+      { cycleCooldownTime: 4 },
+      { upcomingCycleCount: 11 },
+      { cycleStartDay: 7 },
+    ]) {
+      const res = await updateTeam(owner.cookie, teamId, input);
+      expect(res.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
     }
   });
 
   it('rejects a cycle that overlaps another, and any cycle while cycles are off', async () => {
-    const { owner, asOwner, teamId } = await setup();
+    const { owner, teamId } = await setup();
     const start = new Date('2030-01-07T00:00:00Z');
     const end = new Date('2030-01-21T00:00:00Z');
     await expect(
       createCycle(teamId, { startsAt: start, endsAt: end }, owner.userId),
     ).rejects.toThrow();
-    await asOwner.teams({ teamKey: 'MKT' }).settings.patch({ cycles: { enabled: true } });
+    await gqlData(
+      owner,
+      `mutation ($id: String!) { teamUpdate(id: $id, input: { cyclesEnabled: true }) { success } }`,
+      { id: teamId },
+    );
     const made = await createCycle(teamId, { startsAt: start, endsAt: end }, owner.userId);
     expect(made.number).toBe(4);
     await expect(

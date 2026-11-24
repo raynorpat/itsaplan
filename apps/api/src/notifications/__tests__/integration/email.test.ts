@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { db, notificationDelivery } from '@repo/db';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { addMember, createIssue, createTeam, gqlData } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 
 // Notification email goes out through the instance email provider whenever one is
@@ -14,23 +14,34 @@ describe('notification email', () => {
 
   it('queues email with only the instance provider', async () => {
     const owner = await signUpTestUser();
-    const api = authedApi(owner.cookie);
-    await api.teams.post({ key: 'MKT', name: 'Marketing' });
-    const view = (await api.teams({ teamKey: 'MKT' }).get()).data!;
+    const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
     const member = await signUpTestUser();
-    await api.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     // The provider comes from the environment; set after the sign-ups so their magic
     // links are logged rather than sent.
     process.env.SMTP_HOST = 'smtp.example.com';
     process.env.EMAIL_FROM = 'Plan <plan@example.com>';
-    const asMember = authedApi(member.cookie);
-    const saved = await asMember.account['notification-preferences'].patch({
-      emailCategories: { assignments: true, mentions: false },
+    const saved = await gqlData(
+      member,
+      `mutation ($id: String!, $input: UserSettingsUpdateInput!) {
+        userSettingsUpdate(id: $id, input: $input) { success } }`,
+      {
+        id: member.userId,
+        input: {
+          notificationCategoryPreferences: {
+            assignments: { email: true },
+            mentions: { email: false },
+          },
+        },
+      },
+    );
+    expect(saved.userSettingsUpdate.success).toBe(true);
+    await createIssue(owner, {
+      teamId: 'MKT',
+      stateId: view.states[0]!.id,
+      title: 'T',
+      assigneeId: member.userId,
     });
-    expect(saved.status).toBe(200);
-    await api
-      .teams({ teamKey: 'MKT' })
-      .issues.post({ stateId: view.states[0]!.id, title: 'T', assigneeUserId: member.userId });
     const rows = await db.select().from(notificationDelivery);
     expect(rows.map((r) => [r.channel, r.recipient])).toEqual([['email', member.email]]);
   });

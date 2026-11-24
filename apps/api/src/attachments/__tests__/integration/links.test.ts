@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { createIssue, createTeam, createWebhook } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { attachment, db } from '@repo/db';
 import {
@@ -14,18 +14,18 @@ import {
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Link attachments and uploads in one table: defaults, the upsert by issue and URL,
-// URL rules, the absolute URL of uploads, REST and quota counting files only, and
+// URL rules, the absolute URL of uploads, the quota counting files only, and
 // Attachment webhooks. Uploads are created through the store (no object store).
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const issue = (
-    await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId: view.states[0]!.id, title: 'T' })
-  ).data!;
-  return { owner, asOwner, issueId: issue.id, teamId: view.team.id };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const issue = await createIssue(owner, {
+    teamId: view.team.id,
+    stateId: view.states[0]!.id,
+    title: 'T',
+  });
+  return { owner, issueId: issue.id, teamId: view.team.id };
 }
 
 const file = (issueId: string) =>
@@ -120,22 +120,20 @@ describe('link attachments', () => {
     });
   });
 
-  it('keeps links out of the REST list and quota', async () => {
-    const { owner, asOwner, issueId, teamId } = await setup();
+  it('keeps links out of the upload quota', async () => {
+    const { owner, issueId, teamId } = await setup();
     await upsertLinkAttachment({ issueId, url: 'https://e.com/1', title: 'L' }, owner.userId);
-    const up = await file(issueId);
-    const list = (await asOwner.issues({ issueId }).attachments.get()).data!;
-    expect(list.map((a) => a.id)).toEqual([up.publicId!]);
+    await file(issueId);
     expect(await getTeamAttachmentBytes(teamId)).toBe(42);
   });
 
   it('sends Attachment webhooks', async () => {
-    const { owner, asOwner, issueId } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Attachment'] })
-    ).data!;
+    const { owner, issueId } = await setup();
+    const hook = await createWebhook(owner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['Attachment'],
+      teamId: 'MKT',
+    });
     const { row } = await upsertLinkAttachment(
       { issueId, url: 'https://e.com/1', title: 'L' },
       owner.userId,

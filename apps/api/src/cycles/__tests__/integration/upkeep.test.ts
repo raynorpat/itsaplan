@@ -1,9 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { api, authedApi, type Api } from '../../../__tests__/helpers/app';
+import { app } from '../../../app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { updateIssue } from '../../../issues/store';
-import { db, cycle } from '@repo/db';
+import { db, cycle, issue } from '@repo/db';
+import { eq } from 'drizzle-orm';
+import {
+  archiveIssue,
+  createIssue,
+  createTeam,
+  createWebhook,
+  gqlData,
+  statesByType,
+  type As,
+} from '../../../__tests__/helpers/graphql';
 import {
   closeCycle,
   getCycle,
@@ -23,19 +33,30 @@ const TOKEN = 'test-worker-token';
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const state = (type: string) => team.states.find((s) => s.stateType === type)!.id;
-  await setTeamCycleSettings(team.team.id, { enabled: true });
-  const cycles = await listCycles(team.team.id);
-  return { owner, asOwner, teamId: team.team.id, state, cycles };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const states = statesByType(view);
+  const state = (type: string) => states[type]!;
+  await setTeamCycleSettings(view.team.id, { enabled: true });
+  const cycles = await listCycles(view.team.id);
+  return { owner, asOwner: owner, teamId: view.team.id, state, cycles };
 }
 
-async function issueIn(api: Api, stateId: string, cycleId: string) {
-  const issue = (await api.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'x' })).data!;
-  await updateIssue(issue.id, { cycleId });
-  return issue;
+async function issueIn(as: As, stateId: string, cycleId: string) {
+  const created = await createIssue(as, { teamId: 'MKT', stateId, title: 'x' });
+  await updateIssue(created.id, { cycleId });
+  return created;
+}
+
+// The issue's cycle, read from the database (archived issues included).
+async function cycleOf(id: string) {
+  const [row] = await db.select({ cycleId: issue.cycleId }).from(issue).where(eq(issue.id, id));
+  return row?.cycleId ?? null;
+}
+
+function tick(headers: Record<string, string> = {}) {
+  return app.handle(
+    new Request('http://localhost/internal/cycles/tick', { method: 'POST', headers }),
+  );
 }
 
 describe('cycle upkeep', () => {
@@ -58,26 +79,32 @@ describe('cycle upkeep', () => {
     const done = await issueIn(asOwner, state('completed'), first!.id);
     const canceled = await issueIn(asOwner, state('canceled'), first!.id);
     const archived = await issueIn(asOwner, state('started'), first!.id);
-    await asOwner.issues({ issueId: archived.id }).archive.post();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] })
-    ).data!;
+    await archiveIssue(asOwner, archived.id);
+    const hook = await createWebhook(asOwner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['Issue'],
+      teamId: 'MKT',
+    });
 
     await runUpkeep(new Date(new Date(second!.startsAt).getTime() + DAY));
 
     const closed = (await getCycle(first!.id))!;
     expect(closed.completedAt).toBe(closed.endsAt);
     expect(closed.uncompletedIssueIdsUponClose).toEqual([started.id]);
-    const cycleOf = async (id: string) =>
-      (await asOwner.issues({ issueId: id }).get()).data!.cycleId;
     expect(await cycleOf(started.id)).toBe(second!.id);
     expect(await cycleOf(done.id)).toBe(first!.id);
     expect(await cycleOf(canceled.id)).toBe(first!.id);
     expect(await cycleOf(archived.id)).toBe(first!.id);
-    const feed = await asOwner.issues({ issueId: started.id }).feed.get();
-    expect(feed.data!.items.some((i) => i.action === 'cycle')).toBe(true);
+    const history = await gqlData(
+      asOwner,
+      `query ($id: String!) { issue(id: $id) { history { nodes { toCycleId } } } }`,
+      { id: started.id },
+    );
+    expect(
+      (history.issue.history.nodes as { toCycleId: string | null }[]).some(
+        (h) => h.toCycleId === second!.id,
+      ),
+    ).toBe(true);
     const deliveries = (await webhookDeliveries(hook.id)).data!.items;
     expect(
       deliveries.some(
@@ -112,7 +139,7 @@ describe('cycle upkeep', () => {
           new Date(c.endsAt) <= new Date(current.startsAt),
       ),
     ).toEqual([]);
-    expect((await asOwner.issues({ issueId: stuck.id }).get()).data!.cycleId).toBe(current.id);
+    expect(await cycleOf(stuck.id)).toBe(current.id);
     for (const old of cycles) expect((await getCycle(old.id))!.completedAt).toBeTruthy();
   });
 
@@ -144,12 +171,8 @@ describe('cycle upkeep', () => {
   });
 
   it('needs the worker token on the internal route', async () => {
-    const res = await api.internal.cycles.tick.post();
-    expect(res.status).toBe(401);
-    const ok = await api.internal.cycles.tick.post(undefined, {
-      headers: { 'x-worker-token': TOKEN },
-    });
-    expect(ok.status).toBe(200);
+    expect((await tick()).status).toBe(401);
+    expect((await tick({ 'x-worker-token': TOKEN })).status).toBe(200);
   });
 
   it('moves unfinished issues after a gap even when the start day changed', async () => {
@@ -158,7 +181,7 @@ describe('cycle upkeep', () => {
     await setTeamCycleSettings(teamId, { startDay: 3 });
     const now = new Date(new Date(cycles[2]!.endsAt).getTime() + DAY);
     await runUpkeep(now);
-    const moved = (await asOwner.issues({ issueId: stuck.id }).get()).data!.cycleId;
+    const moved = await cycleOf(stuck.id);
     const target = (await getCycle(moved!))!;
     expect(target.completedAt).toBeNull();
   });
@@ -173,9 +196,7 @@ describe('cycle upkeep', () => {
       endsAt: new Date(new Date(broken[2]!.endsAt).getTime() + 100 * DAY),
     });
     const other = await signUpTestUser({ name: 'Other' });
-    const asOther = authedApi(other.cookie);
-    await asOther.teams.post({ key: 'OPS', name: 'Operations' });
-    const ops = (await asOther.teams({ teamKey: 'OPS' }).get()).data!;
+    const ops = await createTeam(other, { key: 'OPS', name: 'Operations' });
     await setTeamCycleSettings(ops.team.id, { enabled: true });
     const opsCycles = await listCycles(ops.team.id);
     await runUpkeep(new Date(new Date(opsCycles[0]!.endsAt).getTime() + DAY));

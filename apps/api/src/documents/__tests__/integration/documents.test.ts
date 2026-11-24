@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
+import {
+  addMember,
+  createIssue,
+  createProject,
+  createTeam,
+  createWebhook,
+  gqlData,
+  makePrivate,
+  signUpAs,
+  statesByType,
+} from '../../../__tests__/helpers/graphql';
 import type { AuthUser } from '../../../shared/access';
 import { assertDocumentParentAccess } from '../../access';
 import {
@@ -19,17 +28,12 @@ import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const team = async (key: string) => (await asOwner.teams({ teamKey: key }).get()).data!;
-  const mkt = await team('MKT');
-  const ops = await team('OPS');
-  const project = (await asOwner.projects.post({ teamIds: [mkt.team.id], name: 'Site' })).data!;
-  const stateId = ops.states.find((s) => s.stateType === 'unstarted')!.id;
-  const issue = (await asOwner.teams({ teamKey: 'OPS' }).issues.post({ stateId, title: 'Bug' }))
-    .data!;
-  return { owner, asOwner, project, issue };
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const ops = await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  const project = await createProject(owner, { teamIds: ['MKT'], name: 'Site' });
+  const stateId = statesByType(ops).unstarted!;
+  const issue = await createIssue(owner, { teamId: ops.team.id, stateId, title: 'Bug' });
+  return { owner, asOwner: owner, project, issue };
 }
 
 const asUser = (id: string) => ({ id }) as AuthUser;
@@ -88,18 +92,18 @@ describe('documents', () => {
   it('follows the access of the parent', async () => {
     const { asOwner, project, issue } = await setup();
     await makePrivate(asOwner, 'MKT');
-    const member = await signUpWithRole('member');
+    const member = await signUpAs('member');
     expect(
       await status(assertDocumentParentAccess({ projectId: project.id }, asUser(member.userId))),
     ).toBe(404);
     expect(
       await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(member.userId))),
     ).toBe(200);
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     expect(
       await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(guest.userId))),
     ).toBe(404);
-    await addToTeam(asOwner, 'OPS', guest);
+    await addMember(asOwner, 'OPS', guest.userId);
     expect(
       await status(assertDocumentParentAccess({ issueId: issue.id }, asUser(guest.userId))),
     ).toBe(200);
@@ -111,11 +115,11 @@ describe('documents', () => {
     const hooks = [];
     for (const key of ['MKT', 'OPS'])
       hooks.push(
-        (
-          await asOwner
-            .teams({ teamKey: key })
-            .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
-        ).data!,
+        await createWebhook(asOwner, {
+          url: 'https://example.com/h',
+          resourceTypes: ['Document'],
+          teamId: key,
+        }),
       );
     const moved = (await updateDocument(doc.id, { issueId: issue.id }, owner.userId))!;
     expect(moved).toMatchObject({ projectId: null, issueId: issue.id });
@@ -127,7 +131,9 @@ describe('documents', () => {
     const { owner, asOwner, project } = await setup();
     const doc = await createDocument({ title: 'Spec', projectId: project.id }, owner.userId);
     await archiveDocument(doc.id, owner.userId);
-    await asOwner.projects({ projectId: project.id }).archive.post();
+    await gqlData(asOwner, `mutation ($id: String!) { projectArchive(id: $id) { success } }`, {
+      id: project.id,
+    });
     expect(
       await status(createDocument({ title: 'New', projectId: project.id }, owner.userId)),
     ).toBe(400);
@@ -136,11 +142,11 @@ describe('documents', () => {
 
   it('deletes to the trash and restores', async () => {
     const { owner, asOwner, project } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
-    ).data!;
+    const hook = await createWebhook(asOwner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['Document'],
+      teamId: 'MKT',
+    });
     const doc = await createDocument({ title: 'Spec', projectId: project.id }, owner.userId);
     const trashed = await archiveDocument(doc.id, owner.userId);
     expect(trashed.archivedAt).toBeTruthy();

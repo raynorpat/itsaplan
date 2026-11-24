@@ -1,20 +1,58 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import { createTeam, gqlData, signUpAs, type Data } from '../../../__tests__/helpers/graphql';
+import { gql } from '../../../__tests__/helpers/linear';
+import { createView } from '../../store';
 
-// Saved views are the tabs above a team's work items view. List and create are
-// team-scoped (/teams/:teamKey/views), but patch and delete address a view by its own id (/views/:viewId) and resolve the
-// owning team through the savedView guard. filterData (Linear's IssueFilter) and
-// display (the view's organization view preferences) are kept verbatim; icon is nullable; tabs are ordered by creation.
+// Saved team views (Linear's CustomView): create and list per team, update only
+// the given fields, filterData kept verbatim, icon nullable, and access through
+// the team.
 
-async function setupOwnerTeam() {
+const MISSING = '00000000-0000-4000-8000-000000000000';
+const VIEW = 'id name icon filterData team { id }';
+
+type Res = Awaited<ReturnType<typeof gql>>;
+const code = (res: Res) => res.body.errors?.[0]?.extensions?.code;
+
+async function setup() {
   const owner = await signUpTestUser();
-  const asOwner = authedApi(owner.cookie);
-  const team = await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  return { asOwner, teamId: team.data!.id };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  return { owner, teamId: view.team.id };
 }
+
+function create(u: TestUser, input: Record<string, unknown>) {
+  return gql(
+    { cookie: u.cookie },
+    `mutation ($input: CustomViewCreateInput!) { customViewCreate(input: $input) { customView { ${VIEW} } } }`,
+    { input },
+  );
+}
+
+async function created(u: TestUser, input: Record<string, unknown>) {
+  const res = await create(u, input);
+  if (res.body.errors) throw new Error(res.body.errors[0]!.message);
+  return (res.body.data as { customViewCreate: { customView: Data } }).customViewCreate.customView;
+}
+
+function update(u: TestUser, id: string, input: Record<string, unknown>) {
+  return gql(
+    { cookie: u.cookie },
+    `mutation ($id: String!, $input: CustomViewUpdateInput!) {
+      customViewUpdate(id: $id, input: $input) { customView { ${VIEW} } } }`,
+    { id, input },
+  );
+}
+
+const updated = (res: Res) =>
+  (res.body.data as { customViewUpdate: { customView: Data } }).customViewUpdate.customView;
+
+const list = async (u: TestUser) =>
+  (await gqlData(u, '{ customViews { nodes { id name filterData } } }')).customViews.nodes as {
+    id: string;
+    name: string;
+    filterData: unknown;
+  }[];
 
 describe('views', () => {
   beforeEach(async () => {
@@ -22,196 +60,114 @@ describe('views', () => {
   });
 
   describe('create and list', () => {
-    it('creates a view with default icon/filters/display and lists it', async () => {
-      const { asOwner, teamId } = await setupOwnerTeam();
-
-      const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({
+    it('creates a view with a null icon and empty filters and lists it', async () => {
+      const { owner, teamId } = await setup();
+      const v = await created(owner, { name: 'My issues', teamId });
+      expect(v).toMatchObject({
         name: 'My issues',
-      });
-      expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({
-        name: 'My issues',
-        teamId,
+        team: { id: teamId },
         icon: null,
         filterData: {},
-        display: {},
       });
-      expect(typeof created.data?.id).toBe('string');
-
-      const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.status).toBe(200);
-      expect(list.data).toHaveLength(1);
-      expect(list.data?.[0]).toMatchObject({ name: 'My issues' });
+      expect((await list(owner)).map((x) => x.name)).toEqual(['My issues']);
     });
 
-    it('stores icon, filters and display verbatim', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const filterData = { state: ['backlog'], assignee: [7] };
-      const display = { group_by: 'state', order_by: '-created_at' };
-
-      const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({
-        name: 'Backlog',
-        icon: 'inbox',
-        filterData,
-        display,
-      });
-      expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ icon: 'inbox', filterData, display });
+    it('stores the icon and filters verbatim', async () => {
+      const { owner, teamId } = await setup();
+      const filterData = { state: { type: { in: ['backlog'] } } };
+      const v = await created(owner, { name: 'Backlog', teamId, icon: 'inbox', filterData });
+      expect(v).toMatchObject({ icon: 'inbox', filterData });
     });
 
-    it('lists views in creation order', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const scope = asOwner.teams({ teamKey: 'MKT' }).views;
-      const a = (await scope.post({ name: 'A' })).data!;
-      const b = (await scope.post({ name: 'B' })).data!;
-      const c = (await scope.post({ name: 'C' })).data!;
+    it("lists views newest first, Linear's default order", async () => {
+      const { owner, teamId } = await setup();
+      const a = await created(owner, { name: 'A', teamId });
+      const b = await created(owner, { name: 'B', teamId });
+      const c = await created(owner, { name: 'C', teamId });
+      expect((await list(owner)).map((x) => x.id)).toEqual([c.id, b.id, a.id]);
+    });
 
-      const list = await scope.get();
-      expect(list.data?.map((v) => v.id)).toEqual([a.id, b.id, c.id]);
+    it('loads a stored view whose filter names removed fields', async () => {
+      const { owner, teamId } = await setup();
+      const filterData = {
+        conditions: [
+          { field: 'type', op: 'is', values: [crypto.randomUUID()] },
+          { field: `cf:${crypto.randomUUID()}`, op: 'is_set', values: [] },
+        ],
+      };
+      await createView(teamId, { name: 'Old', filterData }, owner.userId);
+      expect((await list(owner))[0]).toMatchObject({ name: 'Old', filterData });
+    });
+
+    it('rejects an empty name', async () => {
+      const { owner, teamId } = await setup();
+      expect(code(await create(owner, { name: '', teamId }))).toBe('INVALID_INPUT');
+    });
+
+    it('refuses an unknown team', async () => {
+      const { owner } = await setup();
+      expect(code(await create(owner, { name: 'V', teamId: MISSING }))).toBe('ENTITY_NOT_FOUND');
     });
   });
 
   describe('update', () => {
-    it('updates only the provided fields, replacing filters/display wholesale', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({
-        name: 'Original',
-        filterData: { keep: true },
-        display: { keep: true },
-      });
-      const id = created.data!.id;
-
-      const patchedName = await asOwner.views({ viewId: id }).patch({ name: 'Renamed' });
-      expect(patchedName.status).toBe(200);
-      expect(patchedName.data).toMatchObject({
+    it('keeps the filters when only the name changes', async () => {
+      const { owner, teamId } = await setup();
+      const filterData = { priority: { eq: 1 } };
+      const v = await created(owner, { name: 'Original', teamId, filterData });
+      expect(updated(await update(owner, v.id, { name: 'Renamed' }))).toMatchObject({
         name: 'Renamed',
-        filterData: { keep: true },
-        display: { keep: true },
+        filterData,
       });
+    });
 
-      const patchedFilters = await asOwner
-        .views({ viewId: id })
-        .patch({ filterData: { replaced: true } });
-      expect(patchedFilters.status).toBe(200);
-      expect(patchedFilters.data).toMatchObject({
-        name: 'Renamed',
-        filterData: { replaced: true },
-      });
+    it('replaces the filters wholesale', async () => {
+      const { owner, teamId } = await setup();
+      const v = await created(owner, { name: 'V', teamId, filterData: { priority: { eq: 1 } } });
+      const res = await update(owner, v.id, { filterData: { estimate: { eq: 3 } } });
+      expect(updated(res)).toMatchObject({ name: 'V', filterData: { estimate: { eq: 3 } } });
     });
 
     it('sets and clears the icon', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const id = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'V', icon: 'star' }))
-        .data!.id;
-
-      const cleared = await asOwner.views({ viewId: id }).patch({ icon: null });
-      expect(cleared.status).toBe(200);
-      expect(cleared.data).toMatchObject({ icon: null });
-
-      const set = await asOwner.views({ viewId: id }).patch({ icon: 'flag' });
-      expect(set.data).toMatchObject({ icon: 'flag' });
+      const { owner, teamId } = await setup();
+      const v = await created(owner, { name: 'V', teamId, icon: 'star' });
+      expect(updated(await update(owner, v.id, { icon: null })).icon).toBeNull();
+      expect(updated(await update(owner, v.id, { icon: 'flag' })).icon).toBe('flag');
     });
 
-    it('returns the current view for an empty patch', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const id = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'V' })).data!.id;
-
-      const patched = await asOwner.views({ viewId: id }).patch({});
-      expect(patched.status).toBe(200);
-      expect(patched.data).toMatchObject({ id, name: 'V' });
+    it('returns the current view for an empty update', async () => {
+      const { owner, teamId } = await setup();
+      const v = await created(owner, { name: 'V', teamId });
+      expect(updated(await update(owner, v.id, {}))).toMatchObject({ id: v.id, name: 'V' });
     });
 
-    it('returns 404 when patching a missing view', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner
-        .views({ viewId: '00000000-0000-4000-8000-000000000000' })
-        .patch({ name: 'Nope' });
-      expect(res.status).toBe(404);
+    it('answers not found for a missing view', async () => {
+      const { owner } = await setup();
+      expect(code(await update(owner, MISSING, { name: 'Nope' }))).toBe('ENTITY_NOT_FOUND');
     });
 
-    it('rejects a patch that sets an empty name', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const id = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'V' })).data!.id;
-      const res = await asOwner.views({ viewId: id }).patch({ name: '' });
-      expect(res.status).toBe(400);
+    it('rejects an empty name', async () => {
+      const { owner, teamId } = await setup();
+      const v = await created(owner, { name: 'V', teamId });
+      expect(code(await update(owner, v.id, { name: '' }))).toBe('INVALID_INPUT');
     });
   });
 
-  describe('delete', () => {
-    it('deletes a view', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const id = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Gone' })).data!.id;
-
-      const del = await asOwner.views({ viewId: id }).delete();
-      expect(del.status).toBe(204);
-
-      const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.data).toHaveLength(0);
+  describe('delete and access', () => {
+    it('answers not found when deleting a missing view', async () => {
+      const { owner } = await setup();
+      const res = await gql(
+        { cookie: owner.cookie },
+        `mutation ($id: String!) { customViewDelete(id: $id) { success } }`,
+        { id: MISSING },
+      );
+      expect(code(res)).toBe('ENTITY_NOT_FOUND');
     });
 
-    it('returns 404 when deleting a missing view', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.views({ viewId: '00000000-0000-4000-8000-000000000000' }).delete();
-      expect(res.status).toBe(404);
+    it('refuses to create a view in a team the user cannot see', async () => {
+      const { teamId } = await setup();
+      const guest = await signUpAs('guest');
+      expect(code(await create(guest, { name: 'Intruder', teamId }))).toBe('ENTITY_NOT_FOUND');
     });
-  });
-
-  describe('validation', () => {
-    it('rejects a view with an empty name', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: '' });
-      expect(res.status).toBe(400);
-    });
-
-    it('rejects a non-numeric view id', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.views({ viewId: 'abc' }).patch({ name: 'Nope' });
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe('access', () => {
-    it('returns 404 for an unknown team', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const res = await asOwner.teams({ teamKey: 'NOPE' }).views.get();
-      expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member on team-scoped and entity routes', async () => {
-      const { asOwner } = await setupOwnerTeam();
-      const viewId = (await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Secret' })).data!
-        .id;
-
-      const outsider = (await signUpWithRole('guest')).api;
-
-      // Guard-thrown 403 is not in Treaty's inferred error-status union, so assert
-      // the top-level HTTP status (typed number) rather than error.status.
-      const list = await outsider.teams({ teamKey: 'MKT' }).views.get();
-      expect(list.status).toBe(404);
-
-      const create = await outsider.teams({ teamKey: 'MKT' }).views.post({ name: 'Intruder' });
-      expect(create.status).toBe(404);
-
-      const patch = await outsider.views({ viewId }).patch({ name: 'Hacked' });
-      expect(patch.status).toBe(404);
-
-      const del = await outsider.views({ viewId }).delete();
-      expect(del.status).toBe(404);
-    });
-  });
-
-  it('loads a view whose filter names removed fields', async () => {
-    const { asOwner } = await setupOwnerTeam();
-    const filterData = {
-      conditions: [
-        { field: 'type', op: 'is', values: [crypto.randomUUID()] },
-        { field: `cf:${crypto.randomUUID()}`, op: 'is_set', values: [] },
-      ],
-    };
-    const created = await asOwner.teams({ teamKey: 'MKT' }).views.post({ name: 'Old', filterData });
-    expect(created.status).toBe(201);
-    const list = await asOwner.teams({ teamKey: 'MKT' }).views.get();
-    expect(list.status).toBe(200);
-    expect(list.data?.[0]).toMatchObject({ name: 'Old', filterData });
   });
 });

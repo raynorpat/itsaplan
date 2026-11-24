@@ -2,8 +2,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test
 import { db, fileUpload } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { app } from '../../../app';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { createIssue, createTeam } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { putObject } from '../../../shared/s3';
@@ -31,11 +31,12 @@ type Session = { cookie: string; userId: string; email: string };
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const stateId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.states[0]!.id;
-  const issue = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' }))
-    .data!;
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const issue = await createIssue(owner, {
+    teamId: view.team.id,
+    stateId: view.states[0]!.id,
+    title: 'Task',
+  });
   return { owner, issueId: issue.id };
 }
 
@@ -155,7 +156,7 @@ describe('file uploads', () => {
     delete process.env.MAX_ATTACHMENT_MB;
   });
 
-  it('words a refusal like the REST upload', async () => {
+  it('words a size or type refusal plainly', async () => {
     const { owner } = await setup();
     process.env.MAX_ATTACHMENT_MB = '1';
     process.env.MAX_AVATAR_MB = '1';

@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { db, initiative } from '@repo/db';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
+import {
+  addMember,
+  createTeam,
+  createWebhook,
+  gqlData,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { assertInitiativeAccess, assertLeadTeamMember, visibleInitiativesSql } from '../../access';
 import {
   archiveInitiative,
@@ -19,18 +26,17 @@ import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const teamId = async (key: string) => (await asOwner.teams({ teamKey: key }).get()).data!.team.id;
+  const asOwner = owner;
+  await createTeam(asOwner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(asOwner, { key: 'OPS', name: 'Operations' });
+  const teamId = async (key: string) => (await teamView(asOwner, key)).team.id;
   return { owner, asOwner, mkt: await teamId('MKT'), ops: await teamId('OPS') };
 }
 
-async function addMember(owner: Api, teamKey: string) {
+async function memberOf(owner: TestUser, teamKey: string) {
   const user = await signUpTestUser();
-  await owner.teams({ teamKey }).members.post({ userId: user.userId });
-  const api = authedApi(user.cookie);
-  return { user, api };
+  await addMember(owner, teamKey, user.userId);
+  return { user };
 }
 
 async function visibleIds(userId: string): Promise<string[]> {
@@ -103,22 +109,22 @@ describe('initiatives', () => {
     await makePrivate(asOwner, 'MKT');
     const workspace = await createInitiative({ name: 'W' }, owner.userId);
     const led = await createInitiative({ name: 'L', leadTeamId: mkt }, owner.userId);
-    const opsMember = await addMember(asOwner, 'OPS');
+    const opsMember = await memberOf(asOwner, 'OPS');
     expect(await visibleIds(opsMember.user.userId)).toEqual([workspace.id]);
     expect(await status(assertInitiativeAccess(led.id, opsMember.user.userId))).toBe(404);
     expect((await assertInitiativeAccess(workspace.id, opsMember.user.userId)).id).toBe(
       workspace.id,
     );
-    const mktMember = await addMember(asOwner, 'MKT');
+    const mktMember = await memberOf(asOwner, 'MKT');
     expect((await assertInitiativeAccess(led.id, mktMember.user.userId)).id).toBe(led.id);
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     expect(await visibleIds(guest.userId)).toEqual([]);
   });
 
   it('keeps the owner able to see the initiative', async () => {
     const { owner, asOwner, mkt, ops } = await setup();
     await makePrivate(asOwner, 'MKT');
-    const opsMember = await addMember(asOwner, 'OPS');
+    const opsMember = await memberOf(asOwner, 'OPS');
     expect(
       await status(
         createInitiative(
@@ -145,19 +151,21 @@ describe('initiatives', () => {
     const { owner, asOwner, mkt } = await setup();
     await makePrivate(asOwner, 'MKT');
     const led = await createInitiative({ name: 'L', leadTeamId: mkt }, owner.userId);
-    const opsMember = await addMember(asOwner, 'OPS');
+    const opsMember = await memberOf(asOwner, 'OPS');
     expect(await visibleIds(opsMember.user.userId)).toEqual([]);
-    await asOwner.teams({ teamKey: 'MKT' }).delete();
+    await gqlData(asOwner, `mutation ($id: String!) { teamDelete(id: $id) { success } }`, {
+      id: mkt,
+    });
     expect(await visibleIds(opsMember.user.userId)).toEqual([led.id]);
   });
 
   it('sends Initiative webhooks to the lead team', async () => {
     const { owner, asOwner, mkt } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
-    ).data!;
+    const hook = await createWebhook(asOwner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['Initiative'],
+      teamId: 'MKT',
+    });
     const created = await createInitiative({ name: 'A', leadTeamId: mkt }, owner.userId);
     await updateInitiative(created.id, { name: 'B' }, owner.userId);
     await archiveInitiative(created.id, owner.userId);

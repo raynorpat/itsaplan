@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import {
+  createComment,
+  createIssue,
+  createLabel,
+  createTeam,
+  createWebhook,
+  gqlData,
+  updateIssue,
+} from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
@@ -16,16 +24,21 @@ type Payload = {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const hook = (
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .webhooks.post({ url: 'https://example.com/hook', resourceTypes: ['Comment', 'IssueLabel'] })
-  ).data!;
-  return { owner, asOwner, team, hookId: hook.id, scope: asOwner.teams({ teamKey: 'MKT' }) };
+  const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const hook = await createWebhook(owner, {
+    url: 'https://example.com/hook',
+    resourceTypes: ['Comment', 'IssueLabel'],
+    teamId: 'MKT',
+  });
+  const stateId = view.states[0]!.id;
+  const newIssue = () => createIssue(owner, { teamId: view.team.id, stateId, title: 'x' });
+  const label = (input: { name: string; color?: string; isGroup?: boolean; parentId?: string }) =>
+    createLabel(owner, { teamId: view.team.id, ...input });
+  return { owner, hookId: hook.id, newIssue, label };
 }
+
+const mutate = (owner: { cookie: string }, query: string, id: string) =>
+  gqlData(owner, query, { id });
 
 async function payloads(webhookId: string): Promise<Payload[]> {
   const res = await webhookDeliveries(webhookId);
@@ -38,9 +51,9 @@ describe('comment and label webhooks', () => {
   });
 
   it('sends Comment create', async () => {
-    const { owner, asOwner, team, hookId, scope } = await setup();
-    const issue = (await scope.issues.post({ stateId: team.states[0].id, title: 'x' })).data!;
-    await asOwner.issues({ issueId: issue.id }).comments.post({ body: 'hi' });
+    const { owner, hookId, newIssue } = await setup();
+    const issue = await newIssue();
+    await createComment(owner, { issueId: issue.id, body: 'hi' });
     const [p] = await payloads(hookId);
     expect(p).toMatchObject({
       action: 'create',
@@ -51,11 +64,19 @@ describe('comment and label webhooks', () => {
   });
 
   it('sends IssueLabel create, update and remove', async () => {
-    const { hookId, scope } = await setup();
-    const created = (await scope.labels.post({ name: 'bug', color: '#ff0000' })).data!;
+    const { owner, hookId, label } = await setup();
+    const created = await label({ name: 'bug', color: '#ff0000' });
     await Bun.sleep(5);
-    await scope.labels({ labelId: created.id }).patch({ name: 'defect' });
-    await scope.labels({ labelId: created.id }).delete();
+    await mutate(
+      owner,
+      `mutation ($id: String!) { issueLabelUpdate(id: $id, input: { name: "defect" }) { success } }`,
+      created.id,
+    );
+    await mutate(
+      owner,
+      `mutation ($id: String!) { issueLabelDelete(id: $id) { success } }`,
+      created.id,
+    );
     const [c, u, r] = await payloads(hookId);
     expect(c).toMatchObject({
       action: 'create',
@@ -74,9 +95,9 @@ describe('comment and label webhooks', () => {
   });
 
   it('sends a label group as an IssueLabel with isGroup', async () => {
-    const { hookId, scope } = await setup();
-    const group = (await scope['label-groups'].post({ name: 'Area' })).data!;
-    const inGroup = (await scope.labels.post({ name: 'api', groupId: group.id })).data!;
+    const { hookId, label } = await setup();
+    const group = await label({ name: 'Area', isGroup: true });
+    const inGroup = await label({ name: 'api', parentId: group.id });
     const [g, l] = await payloads(hookId);
     expect(g).toMatchObject({
       action: 'create',
@@ -86,11 +107,15 @@ describe('comment and label webhooks', () => {
   });
 
   it('deleting a group sends an update for each label it held, then the group remove', async () => {
-    const { hookId, scope } = await setup();
-    const group = (await scope['label-groups'].post({ name: 'Area' })).data!;
-    const a = (await scope.labels.post({ name: 'a', groupId: group.id })).data!;
-    const b = (await scope.labels.post({ name: 'b', groupId: group.id })).data!;
-    await scope['label-groups']({ groupId: group.id }).delete();
+    const { owner, hookId, label } = await setup();
+    const group = await label({ name: 'Area', isGroup: true });
+    const a = await label({ name: 'a', parentId: group.id });
+    const b = await label({ name: 'b', parentId: group.id });
+    await mutate(
+      owner,
+      `mutation ($id: String!) { issueLabelDelete(id: $id) { success } }`,
+      group.id,
+    );
     const after = (await payloads(hookId)).slice(3);
     const updates = after.filter((p) => p.action === 'update');
     expect(updates.map((p) => p.data.id).sort()).toEqual([a.id, b.id].sort());
@@ -99,10 +124,10 @@ describe('comment and label webhooks', () => {
   });
 
   it('does not send IssueLabel events when an issue’s labels change', async () => {
-    const { asOwner, team, hookId, scope } = await setup();
-    const l = (await scope.labels.post({ name: 'bug' })).data!;
-    const issue = (await scope.issues.post({ stateId: team.states[0].id, title: 'x' })).data!;
-    await asOwner.issues({ issueId: issue.id }).patch({ labelIds: [l.id] });
+    const { owner, hookId, newIssue, label } = await setup();
+    const l = await label({ name: 'bug' });
+    const issue = await newIssue();
+    await updateIssue(owner, issue.id, { labelIds: [l.id] });
     expect((await payloads(hookId)).map((p) => p.action)).toEqual(['create']);
   });
 });

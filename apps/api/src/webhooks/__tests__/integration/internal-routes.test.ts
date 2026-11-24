@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { db, issue } from '@repo/db';
 import { eq, sql } from 'drizzle-orm';
-import { api, authedApi } from '../../../__tests__/helpers/app';
+import { app } from '../../../app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { createIssue, createTeam, createWebhook } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
@@ -11,6 +12,16 @@ import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 // same UPDATE it runs.
 
 const TOKEN = 'test-worker-token';
+
+function issuesArchived(body: unknown, headers: Record<string, string> = {}) {
+  return app.handle(
+    new Request('http://localhost/internal/webhooks/issues-archived', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
+}
 let previous: string | undefined;
 
 describe('internal webhook routes', () => {
@@ -27,19 +38,17 @@ describe('internal webhook routes', () => {
 
   it('sends an Issue update with a null actor for each auto-archived issue', async () => {
     const owner = await signUpTestUser();
-    const asOwner = authedApi(owner.cookie);
-    await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-    const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/hook', resourceTypes: ['Issue'] })
-    ).data!;
-    const created = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .issues.post({ stateId: team.states[0].id, title: 'x' })
-    ).data!;
+    const team = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+    const hook = await createWebhook(owner, {
+      url: 'https://example.com/hook',
+      resourceTypes: ['Issue'],
+      teamId: 'MKT',
+    });
+    const created = await createIssue(owner, {
+      teamId: team.team.id,
+      stateId: team.states[0]!.id,
+      title: 'x',
+    });
     const [before] = await db
       .select({ updatedAt: issue.updatedAt })
       .from(issue)
@@ -49,9 +58,9 @@ describe('internal webhook routes', () => {
       .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
       .where(eq(issue.id, created.id));
 
-    const res = await api.internal.webhooks['issues-archived'].post(
+    const res = await issuesArchived(
       { issues: [{ id: created.id, previousUpdatedAt: before!.updatedAt.toISOString() }] },
-      { headers: { 'x-worker-token': TOKEN } },
+      { 'x-worker-token': TOKEN },
     );
     expect(res.status).toBe(200);
     const items = (await webhookDeliveries(hook.id)).data!.items;
@@ -68,7 +77,7 @@ describe('internal webhook routes', () => {
   });
 
   it('rejects a missing worker token', async () => {
-    const res = await api.internal.webhooks['issues-archived'].post({ issues: [] });
+    const res = await issuesArchived({ issues: [] });
     expect(res.status).toBe(401);
   });
 });

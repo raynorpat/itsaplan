@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
+import {
+  createProject as createProjectAs,
+  createTeam,
+  createWebhook,
+  gqlData,
+} from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
@@ -19,19 +24,19 @@ const TYPES = ['Project' as const, 'ProjectUpdate' as const];
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
   const ids: Record<string, string> = {};
   const hooks: Record<string, string> = {};
   for (const key of ['MKT', 'OPS', 'ENG']) {
-    await asOwner.teams.post({ key, name: key });
-    ids[key] = (await asOwner.teams({ teamKey: key }).get()).data!.team.id;
+    ids[key] = (await createTeam(owner, { key, name: key })).team.id;
     hooks[key] = (
-      await asOwner
-        .teams({ teamKey: key })
-        .webhooks.post({ url: `https://example.com/${key}`, resourceTypes: TYPES })
-    ).data!.id;
+      await createWebhook(owner, {
+        url: `https://example.com/${key}`,
+        resourceTypes: TYPES,
+        teamId: key,
+      })
+    ).id;
   }
-  return { owner, asOwner, ids, hooks };
+  return { owner, asOwner: owner, ids, hooks };
 }
 
 async function payloads(webhookId: string): Promise<Payload[]> {
@@ -39,9 +44,12 @@ async function payloads(webhookId: string): Promise<Payload[]> {
   return res.data!.items.map((d) => d.payload as Payload).reverse();
 }
 
-async function createProject(api: Api, teamIds: string[], name = 'Launch') {
-  return (await api.projects.post({ name, teamIds })).data!;
+async function createProject(u: TestUser, teamIds: string[], name = 'Launch') {
+  return createProjectAs(u, { name, teamIds });
 }
+
+const run = (u: TestUser, mutation: string, vars: Record<string, unknown>) =>
+  gqlData(u, mutation, vars);
 
 describe('project webhooks', () => {
   beforeEach(async () => {
@@ -65,9 +73,11 @@ describe('project webhooks', () => {
 
   it('sends an all-teams webhook one delivery for a two-team project', async () => {
     const { asOwner, ids } = await setup();
-    const all = (
-      await asOwner.webhooks.post({ url: 'https://example.com/all', resourceTypes: TYPES })
-    ).data!;
+    const all = await createWebhook(asOwner, {
+      url: 'https://example.com/all',
+      resourceTypes: TYPES,
+      allPublicTeams: true,
+    });
     await createProject(asOwner, [ids.MKT!, ids.OPS!]);
     expect(await payloads(all.id)).toHaveLength(1);
   });
@@ -75,14 +85,22 @@ describe('project webhooks', () => {
   it('sends a team change to the teams before and after it, then only to the remaining team', async () => {
     const { asOwner, ids, hooks } = await setup();
     const project = await createProject(asOwner, [ids.MKT!, ids.OPS!]);
-    await asOwner.projects({ projectId: project.id }).teams.put({ teamIds: [ids.MKT!] });
+    await run(
+      asOwner,
+      `mutation ($id: String!, $t: [String!]) { projectUpdate(id: $id, input: { teamIds: $t }) { success } }`,
+      { id: project.id, t: [ids.MKT!] },
+    );
     const ops = await payloads(hooks.OPS!);
     expect(ops[1]).toMatchObject({
       action: 'update',
       data: { teamIds: [ids.MKT] },
       updatedFrom: { teamIds: [ids.MKT, ids.OPS].sort() },
     });
-    await asOwner.projects({ projectId: project.id }).patch({ name: 'Renamed' });
+    await run(
+      asOwner,
+      `mutation ($id: String!) { projectUpdate(id: $id, input: { name: "Renamed" }) { success } }`,
+      { id: project.id },
+    );
     expect(await payloads(hooks.OPS!)).toHaveLength(2);
     const mkt = await payloads(hooks.MKT!);
     expect(mkt[mkt.length - 1]).toMatchObject({
@@ -94,7 +112,9 @@ describe('project webhooks', () => {
   it('sends Project remove to the teams it had', async () => {
     const { asOwner, ids, hooks } = await setup();
     const project = await createProject(asOwner, [ids.MKT!, ids.OPS!]);
-    await asOwner.projects({ projectId: project.id }).delete();
+    await run(asOwner, `mutation ($id: String!) { projectDelete(id: $id) { success } }`, {
+      id: project.id,
+    });
     for (const key of ['MKT', 'OPS']) {
       const ps = await payloads(hooks[key]!);
       expect(ps[ps.length - 1]).toMatchObject({ action: 'remove', data: { id: project.id } });
@@ -104,7 +124,9 @@ describe('project webhooks', () => {
   it('sends archive as a Project update with archivedAt', async () => {
     const { asOwner, ids, hooks } = await setup();
     const project = await createProject(asOwner, [ids.MKT!]);
-    await asOwner.projects({ projectId: project.id }).archive.post();
+    await run(asOwner, `mutation ($id: String!) { projectArchive(id: $id) { success } }`, {
+      id: project.id,
+    });
     const [, archived] = await payloads(hooks.MKT!);
     expect(archived).toMatchObject({ action: 'update', updatedFrom: { archivedAt: null } });
     expect(archived!.data.archivedAt).toBeTruthy();

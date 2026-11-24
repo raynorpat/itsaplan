@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import {
+  addMember,
+  createTeam,
+  createWebhook,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { assertParentAccess, createComment } from '../../../comments/store';
 import { assertReactionParentAccess, createReaction } from '../../../reactions/store';
 import { createInitiative } from '../../store';
@@ -19,10 +24,10 @@ import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  const asOwner = owner;
+  await createTeam(asOwner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(asOwner, { key: 'OPS', name: 'Operations' });
+  const mkt = (await teamView(asOwner, 'MKT')).team.id;
   return { owner, asOwner, mkt };
 }
 
@@ -71,8 +76,8 @@ describe('initiative updates', () => {
     expect(c.initiativeUpdateId).toBe(posted.id);
     const r = await createReaction({ parent, emoji: '👍', userId: owner.userId });
     expect(r.initiativeUpdateId).toBe(posted.id);
-    const outsider = await signUpWithRole('guest');
-    await asOwner.teams({ teamKey: 'OPS' }).members.post({ userId: outsider.userId });
+    const outsider = await signUpAs('guest');
+    await addMember(asOwner, 'OPS', outsider.userId);
     const user = { id: outsider.userId } as Parameters<typeof assertParentAccess>[1];
     expect(await status(assertParentAccess(parent, user))).toBe(404);
     expect(await status(assertReactionParentAccess(parent, user))).toBe(404);
@@ -82,11 +87,11 @@ describe('initiative updates', () => {
 
   it('sends InitiativeUpdate webhooks', async () => {
     const { owner, asOwner, mkt } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['InitiativeUpdate'] })
-    ).data!;
+    const hook = await createWebhook(asOwner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['InitiativeUpdate'],
+      teamId: 'MKT',
+    });
     const a = await createInitiative({ name: 'A', leadTeamId: mkt }, owner.userId);
     const posted = await createInitiativeUpdate(a.id, owner.userId, { body: 'ok' });
     await updateInitiativeUpdate(posted.id, { health: 'atRisk' }, owner.userId);
@@ -107,11 +112,11 @@ describe('initiative updates', () => {
   it('sends an Initiative update when a new update changes the health', async () => {
     const { owner, asOwner, mkt } = await setup();
     const a = await createInitiative({ name: 'A', leadTeamId: mkt }, owner.userId);
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Initiative'] })
-    ).data!;
+    const hook = await createWebhook(asOwner, {
+      url: 'https://example.com/h',
+      resourceTypes: ['Initiative'],
+      teamId: 'MKT',
+    });
     await createInitiativeUpdate(a.id, owner.userId, { body: 'meh', health: 'atRisk' });
     const payloads = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) =>
