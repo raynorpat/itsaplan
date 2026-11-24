@@ -15,6 +15,10 @@ import {
   viewPreferencesFor,
   type ViewPreferencesRow,
   isViewSharedWith,
+  LIST_VIEW_TYPES,
+  listPreferencesFor,
+  type ListViewType,
+  upsertListPreferences,
   type ViewRow,
   viewSharedWith,
 } from '../../views/store';
@@ -48,6 +52,15 @@ const plainJson = (value: unknown) =>
   value === undefined ? undefined : (JSON.parse(JSON.stringify(value)) as unknown);
 
 const toViewPreferences = (row: ViewPreferencesRow) => ({ ...row, archivedAt: null });
+
+function listViewType(value: unknown, path: string): ListViewType {
+  if (!LIST_VIEW_TYPES.includes(value as ListViewType))
+    throw gqlError(
+      'INVALID_INPUT',
+      `${path} must be customView with customViewId, or one of ${LIST_VIEW_TYPES.join(', ')}`,
+    );
+  return value as ListViewType;
+}
 
 // CustomViewFilter fields this API supports, as SQL over team_view.
 const customViewFilter: FieldHandlers = {
@@ -130,11 +143,11 @@ async function viewPreferencesValues(viewId: string, userId: string) {
 }
 
 // A preferences row the viewer may change: its view is visible, and a user row is
-// their own.
+// their own. A row without a saved view is always a user row.
 async function findViewPreferences(id: string, ctx: GraphQLContext): Promise<ViewPreferencesRow> {
   const found = await getViewPreferences(id);
   if (found && (found.type === 'organization' || found.userId === ctx.user.id)) {
-    await findView(found.customViewId, ctx);
+    if (found.customViewId) await findView(found.customViewId, ctx);
     return found;
   }
   throw gqlError('ENTITY_NOT_FOUND', `View preferences ${id} not found`);
@@ -142,6 +155,11 @@ async function findViewPreferences(id: string, ctx: GraphQLContext): Promise<Vie
 
 export const customViewResolvers = {
   Query: {
+    userViewPreferences: (_: unknown, { viewType }: { viewType: string }, ctx: GraphQLContext) =>
+      guard(async () => {
+        const row = await listPreferencesFor(ctx.user.id, listViewType(viewType, 'viewType'));
+        return row ? toViewPreferences(row) : null;
+      }),
     customView: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => toCustomView(await findView(id, ctx))),
     customViews: (_: unknown, args: PageArgs & { filter?: unknown }, ctx: GraphQLContext) =>
@@ -297,13 +315,24 @@ export const customViewResolvers = {
           ['type', 'viewType', 'customViewId', 'preferences', 'userId', 'id'],
           'input',
         );
-        if (input.viewType !== 'customView' || !input.customViewId)
-          throw gqlError(
-            'INVALID_INPUT',
-            'Only custom view preferences are supported (viewType customView with customViewId)',
-          );
         if (input.type === 'user' && input.userId && input.userId !== ctx.user.id)
           throw gqlError('INVALID_INPUT', "input.userId must be the viewer's own id");
+        if (input.viewType !== 'customView' || !input.customViewId) {
+          // A user's own preferences for a list kind, without a saved view.
+          const viewType = listViewType(input.viewType, 'input.viewType');
+          if (input.customViewId || input.type !== 'user')
+            throw gqlError(
+              'INVALID_INPUT',
+              `Preferences for ${viewType} are personal: type user without customViewId`,
+            );
+          const row = await upsertListPreferences({
+            userId: ctx.user.id,
+            viewType,
+            preferences: (plainJson(input.preferences) ?? {}) as Record<string, unknown>,
+            id: (input.id as string | undefined) ?? undefined,
+          });
+          return prefsPayload(row);
+        }
         const view = await findView(String(input.customViewId), ctx);
         const row = await upsertViewPreferences({
           customViewId: view.id,

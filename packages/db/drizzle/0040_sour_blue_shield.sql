@@ -1,0 +1,3 @@
+ALTER TABLE "view_preferences" ALTER COLUMN "custom_view_id" DROP NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "view_preferences_user_view_type_uq" ON "view_preferences" USING btree ("user_id","view_type") WHERE "view_preferences"."custom_view_id" IS NULL;--> statement-breakpoint
+ALTER TABLE "view_preferences" ADD CONSTRAINT "view_preferences_view_type_check" CHECK ("view_preferences"."custom_view_id" IS NOT NULL OR ("view_preferences"."type" = 'user' AND "view_preferences"."view_type" IN ('allIssues', 'project', 'cycle', 'myIssues')));

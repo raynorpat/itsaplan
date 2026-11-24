@@ -281,6 +281,13 @@
       "when": 1795492324245,
       "tag": "0039_light_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795531581424,
+      "tag": "0040_sour_blue_shield",
+      "breakpoints": true
     }
   ]
 }

@@ -38,7 +38,10 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Saved views** (`views/`, Linear's `CustomView`): a team's named view. `filter_data`
   is Linear's `IssueFilter` and the only stored filter (the web converts its filter
   bar's set with `apps/web/src/utils/viewFilters.ts`); the layout and display are the
-  view's `view_preferences` (`organization` defaults, `user` overrides). A shared view
+  view's `view_preferences` (`organization` defaults, `user` overrides). A `user` row
+  without a saved view is the user's own preferences for a list kind (`allIssues`,
+  `project`, `cycle`, `myIssues`; one per user and view type), read through
+  `userViewPreferences(viewType)` and readable and changeable only by that user. A shared view
   is visible, and changeable, by anyone who can see its team; a non-shared view only by
   its owner, who is always its creator.
 - **Sequence numbers** ("MKT-42") are issued under a row lock on `team` inside

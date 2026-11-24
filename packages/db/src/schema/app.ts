@@ -1047,19 +1047,19 @@ export const teamView = pgTable(
 );
 
 // Linear's ViewPreferences for a custom view: the layout and display settings.
-// `organization` preferences are the view's shared defaults (one per view); `user`
-// preferences override them for one user. `preferences` is Linear's
-// ViewPreferencesValues as JSON (the web's display blob, with Linear's key names
-// where they exist, such as `layout`).
+// A saved view's preferences: `organization` rows are the view's shared defaults (one
+// per view); `user` rows override them for one user. A `user` row without a saved view
+// is the user's own preferences for a list kind (`view_type` allIssues, project, cycle
+// or myIssues; one per user and view type), Linear's `userViewPreferences(viewType)`.
+// `preferences` is Linear's ViewPreferencesValues as JSON (the web's display blob,
+// with Linear's key names where they exist, such as `layout`).
 export const viewPreferences = pgTable(
   'view_preferences',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     type: text('type').notNull(),
     viewType: text('view_type').notNull(),
-    customViewId: uuid('custom_view_id')
-      .notNull()
-      .references(() => teamView.id, { onDelete: 'cascade' }),
+    customViewId: uuid('custom_view_id').references(() => teamView.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').references(() => user.id, { onDelete: 'cascade' }),
     preferences: jsonb('preferences').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1074,6 +1074,13 @@ export const viewPreferences = pgTable(
     uniqueIndex('view_preferences_user_uq')
       .on(t.customViewId, t.userId)
       .where(sql`${t.type} = 'user'`),
+    check(
+      'view_preferences_view_type_check',
+      sql`${t.customViewId} IS NOT NULL OR (${t.type} = 'user' AND ${t.viewType} IN ('allIssues', 'project', 'cycle', 'myIssues'))`,
+    ),
+    uniqueIndex('view_preferences_user_view_type_uq')
+      .on(t.userId, t.viewType)
+      .where(sql`${t.customViewId} IS NULL`),
   ],
 );
 

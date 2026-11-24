@@ -1,5 +1,5 @@
 import { db, teamView, viewPreferences } from '@repo/db';
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { iso } from '../shared/lib';
 
 // Saved views (Linear's CustomView): a team's named issue filter. `filterData` is
@@ -138,7 +138,7 @@ export interface ViewPreferencesRow {
   id: string;
   type: 'organization' | 'user';
   viewType: string;
-  customViewId: string;
+  customViewId: string | null;
   userId: string | null;
   preferences: Record<string, unknown>;
   createdAt: string;
@@ -206,6 +206,58 @@ export async function upsertViewPreferences(input: {
       customViewId: input.customViewId,
       userId: input.type === 'user' ? input.userId! : null,
       preferences: input.preferences,
+    })
+    .returning();
+  return mapPrefs(row!);
+}
+
+// The list kinds whose preferences a user keeps without a saved view (Linear's
+// `userViewPreferences(viewType)`).
+export const LIST_VIEW_TYPES = ['allIssues', 'project', 'cycle', 'myIssues'] as const;
+export type ListViewType = (typeof LIST_VIEW_TYPES)[number];
+
+// The user's own preferences for a list kind, or null.
+export async function listPreferencesFor(
+  userId: string,
+  viewType: ListViewType,
+): Promise<ViewPreferencesRow | null> {
+  const [row] = await db
+    .select()
+    .from(viewPreferences)
+    .where(
+      and(
+        isNull(viewPreferences.customViewId),
+        eq(viewPreferences.userId, userId),
+        eq(viewPreferences.viewType, viewType),
+      ),
+    );
+  return row ? mapPrefs(row) : null;
+}
+
+// Creates or replaces the user's preferences for a list kind (one per user and view
+// type).
+export async function upsertListPreferences(input: {
+  userId: string;
+  viewType: ListViewType;
+  preferences: Record<string, unknown>;
+  id?: string;
+}): Promise<ViewPreferencesRow> {
+  const existing = await listPreferencesFor(input.userId, input.viewType);
+  if (existing) return (await updateViewPreferences(existing.id, input.preferences))!;
+  const [row] = await db
+    .insert(viewPreferences)
+    .values({
+      ...(input.id ? { id: input.id } : {}),
+      type: 'user',
+      viewType: input.viewType,
+      customViewId: null,
+      userId: input.userId,
+      preferences: input.preferences,
+    })
+    .onConflictDoUpdate({
+      target: [viewPreferences.userId, viewPreferences.viewType],
+      targetWhere: sql`${viewPreferences.customViewId} IS NULL`,
+      set: { preferences: input.preferences, updatedAt: sql`now()` },
     })
     .returning();
   return mapPrefs(row!);
