@@ -191,6 +191,13 @@ Rules and invariants for this package below; read the code for the walkthrough.
   its row (`deleted_at`), so its history entries, comments and notifications still
   name it; a deleted rule is never listed, read, edited, counted against the limit or
   run.
+- **Extra email addresses** (`accounts/`, `user_email`): a user adds addresses through
+  `/api/auth/instance/account/emails*`; each counts once confirmed through a mailed
+  link (token stored hashed, 24 hours; logged as `[auth] email confirmation link for`
+  when no mail provider sends it). At most 10 per user; an address that is an
+  account's sign-in address or another user's confirmed one is refused, and confirming
+  one removes other users' pending rows for it. They are used only by
+  `memberEmails` (issue import matching), never for sign-in or in GraphQL.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

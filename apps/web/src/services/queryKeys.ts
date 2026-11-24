@@ -102,6 +102,7 @@ export const qk = {
   // person has authorized, and the application a consent page shows.
   oauthApps: ['oauthApps'] as const,
   oauthAuthorized: ['oauthAuthorized'] as const,
+  accountEmails: ['accountEmails'] as const,
   oauthClient: (clientId: string) => ['oauthClient', clientId] as const,
   // The signed-in user's interface preferences (timezone, theme, issue open mode,
   // start page). Read app-wide, not just on the preferences page.

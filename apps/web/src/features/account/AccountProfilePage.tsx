@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSession } from '@/lib/auth-client';
 import SectionPageView from '@/components/common/page/SectionPageView';
 import AccountProfileAvatar from './components/profile/AccountProfileAvatar';
+import AccountProfileEmails from './components/profile/AccountProfileEmails';
 import AccountProfileNameForm from './components/profile/AccountProfileNameForm';
 import AccountSection from './components/AccountSection';
 
@@ -31,6 +32,15 @@ export default function AccountProfilePage() {
           </AccountSection>
           <AccountSection title="Name">
             <AccountProfileNameForm />
+          </AccountSection>
+          <AccountSection
+            title="Email addresses"
+            description="Extra addresses you have used elsewhere, such as on GitHub or GitLab. They are used only to match you when issues are imported; you sign in with your sign-in address. Each one needs to be confirmed."
+          >
+            {/* It reads the confirmation link's result from the URL. */}
+            <Suspense fallback={null}>
+              <AccountProfileEmails />
+            </Suspense>
           </AccountSection>
         </>
       )}

@@ -34,6 +34,13 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   the person can see (Linear's stop signal; the schema lets no API client send it).
 //   Same Origin rule.
 //
+// - GET  /instance/account/emails and POST /instance/account/emails/{add, remove}
+//   signed in: the person's extra email addresses, used only to match people in an
+//   issue import (apps/api src/accounts/emails.ts). Same Origin rule for the POSTs.
+// - GET  /instance/account/emails/confirm?token=  public: the link mailed to an added
+//   address; confirms it and redirects to the web's profile page with
+//   `emailConfirmed=1` or `emailConfirmError=<message>`.
+//
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
 //
@@ -72,6 +79,15 @@ export interface WorkflowsHandlers {
   delete(headers: Headers, body: unknown): Promise<object>;
 }
 
+// A person's extra email addresses. Each handler checks the caller itself; confirm
+// takes the link's token, which is its only credential.
+export interface AccountEmailsHandlers {
+  list(headers: Headers): Promise<object>;
+  add(headers: Headers, body: unknown): Promise<object>;
+  remove(headers: Headers, body: unknown): Promise<object>;
+  confirm(token: unknown): Promise<{ email: string }>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -79,6 +95,7 @@ export interface InstanceHandlers {
   oauthApps: OAuthAppsHandlers;
   agentSessionStop(headers: Headers, body: unknown): Promise<{ success: boolean }>;
   workflows: WorkflowsHandlers;
+  accountEmails: AccountEmailsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -136,6 +153,12 @@ const workflowsWrite = (
   trusted: string[],
   call: (h: WorkflowsHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.workflows, headers, body));
+
+const accountEmailsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: AccountEmailsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.accountEmails, headers, body));
 
 const requiredClientId = (body: unknown): string => {
   const clientId = (body as { clientId?: unknown } | undefined)?.clientId;
@@ -221,6 +244,36 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/workflows/delete',
         options.trustedOrigins,
         (h, headers, body) => h.delete(headers, body),
+      ),
+      instanceAccountEmails: createAuthEndpoint(
+        '/instance/account/emails',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(await run((h) => h.accountEmails.list(ctx.headers ?? new Headers()))),
+      ),
+      instanceAccountEmailAdd: accountEmailsWrite(
+        '/instance/account/emails/add',
+        options.trustedOrigins,
+        (h, headers, body) => h.add(headers, body),
+      ),
+      instanceAccountEmailRemove: accountEmailsWrite(
+        '/instance/account/emails/remove',
+        options.trustedOrigins,
+        (h, headers, body) => h.remove(headers, body),
+      ),
+      instanceAccountEmailConfirm: createAuthEndpoint(
+        '/instance/account/emails/confirm',
+        { method: 'GET' },
+        async (ctx) => {
+          const profile = `${options.trustedOrigins[0]}/settings/account/profile`;
+          try {
+            await run((h) => h.accountEmails.confirm(ctx.query?.token));
+          } catch (err) {
+            const message = err instanceof APIError ? err.message : 'The link could not be used';
+            throw ctx.redirect(`${profile}?emailConfirmError=${encodeURIComponent(message)}`);
+          }
+          throw ctx.redirect(`${profile}?emailConfirmed=1`);
+        },
       ),
       instanceOAuthUninstall: createAuthEndpoint(
         '/instance/oauth-uninstall',

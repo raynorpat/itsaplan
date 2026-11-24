@@ -19,7 +19,11 @@ it), and `POST agent-session-stop` `{ sessionId }` (anyone who can see the sessi
 issue; Linear's stop signal, which no API client may send), and a team's workflow
 automation rules (`GET workflows?teamId=`, `GET workflow?id=`, `POST workflows/{create,
 update, enable, reorder, archive, unarchive, delete}`; Linear's schema has no operation
-for them; the rules run in the API's issue writes, `apps/api/src/workflows/engine.ts`). All but the first need the
+for them; the rules run in the API's issue writes, `apps/api/src/workflows/engine.ts`).
+A person's extra email addresses (`GET account/emails`, `POST account/emails/{add,
+remove}`, and the public `GET account/emails/confirm?token=` the confirmation mail links
+to, which redirects to the web's profile page) are used only to match people in an
+issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email`. All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

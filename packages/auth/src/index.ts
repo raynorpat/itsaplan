@@ -561,6 +561,7 @@ export {
   emailConfigWarnings,
   signInOptions,
 } from './instance';
+export { sendAuthEmail } from './mail';
 export { provideInstanceHandlers } from './instance-plugin';
 export type { InstanceHandlers, TeamOwnerChange } from './instance-plugin';
 export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';
@@ -578,4 +579,8 @@ export {
 } from './oauth';
 export type { OAuthScope, OAuthGrant } from './oauth';
 export { APP_ACTOR_SCOPE, APP_ROLE, uninstallApplication } from './oauth-install';
-export type { OAuthAppsHandlers, WorkflowsHandlers } from './instance-plugin';
+export type {
+  AccountEmailsHandlers,
+  OAuthAppsHandlers,
+  WorkflowsHandlers,
+} from './instance-plugin';

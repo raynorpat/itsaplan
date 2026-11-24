@@ -134,6 +134,34 @@ export const userPreference = pgTable('user_preference', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// A user's extra email addresses, used only to match people during an issue import
+// (apps/api src/accounts/emails.ts); sign-in uses `user.email` alone. `email` is
+// lowercased. An address counts once confirmed (`verified_at`) through the link mailed
+// to it; until then `token_hash` is the SHA-256 of the link's token. A confirmed
+// address belongs to one user; pending ones may be claimed by several, and confirming
+// one removes the others' pending rows.
+export const userEmail = pgTable(
+  'user_email',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    tokenHash: text('token_hash'),
+    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('user_email_user_email_uq').on(t.userId, t.email),
+    uniqueIndex('user_email_verified_uq')
+      .on(t.email)
+      .where(sql`${t.verifiedAt} IS NOT NULL`),
+    uniqueIndex('user_email_token_uq').on(t.tokenHash),
+  ],
+);
+
 // Team membership (Linear's TeamMembership). Members of a private team are the only
 // users who see it; a public team is open to the workspace's owners, admins and
 // members, and joining it adds it to their teams. `owner` marks a team owner, who

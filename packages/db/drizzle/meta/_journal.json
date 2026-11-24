@@ -302,6 +302,13 @@
       "when": 1795534689944,
       "tag": "0042_blue_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795537342414,
+      "tag": "0043_funny_sentinels",
+      "breakpoints": true
     }
   ]
 }
