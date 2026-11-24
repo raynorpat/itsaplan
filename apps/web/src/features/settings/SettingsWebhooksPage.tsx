@@ -11,7 +11,7 @@ import SettingsWebhooks from './components/webhooks/SettingsWebhooks';
 
 const section = settingsSection('webhooks');
 
-// The Webhooks settings page (/team/:teamKey/settings/webhooks).
+// The Webhooks settings page (/settings/teams/:teamKey/webhooks).
 export default function SettingsWebhooksPage() {
   const { team } = useShell();
   const [addNew, setAddNew] = useState(false);

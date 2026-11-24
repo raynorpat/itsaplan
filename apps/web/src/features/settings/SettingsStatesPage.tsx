@@ -10,7 +10,7 @@ import StatesToolbar from './components/states/StatesToolbar';
 
 const section = settingsSection('states');
 
-// The States settings page (/team/:teamKey/settings/states).
+// The States settings page (/settings/teams/:teamKey/states).
 export default function SettingsStatesPage() {
   const { team } = useShell();
   if (!team) return null;

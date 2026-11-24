@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
@@ -10,7 +11,9 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
+import SidebarTeamBadge from '@/components/layout/SidebarTeamBadge';
 
 // Whether a team entry is the current page. Issues covers the team root, its saved
 // views and its issue pages; Projects is the projects list filtered to the team.
@@ -28,7 +31,9 @@ function isActive(key: string, href: string, pathname: string, teamKey: string, 
 }
 
 // One team in "Your teams": the team's name folds open to its Issues, Cycles and
-// Projects. A team opens by default when the current page belongs to it.
+// Projects. A team opens when the current page comes to belong to it, and stays as
+// the user left it otherwise. With the sidebar collapsed to icons the sub-items are
+// hidden, so the team's badge links to its issues instead.
 export default function SidebarTeamSection({
   section,
   current,
@@ -39,15 +44,32 @@ export default function SidebarTeamSection({
   query: string;
 }) {
   const pathname = usePathname();
+  const { state, isMobile } = useSidebar();
   const { team, items } = section;
+  const [open, setOpen] = useState(current);
+  useEffect(() => {
+    if (current) setOpen(true);
+  }, [current]);
+
+  if (state === 'collapsed' && !isMobile) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={current} tooltip={team.name}>
+          <Link href={teamPath(team.key)}>
+            <SidebarTeamBadge teamKey={team.key} />
+            <span className="truncate">{team.name}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
   return (
-    <Collapsible asChild defaultOpen={current} className="group/collapsible">
+    <Collapsible asChild open={open} onOpenChange={setOpen} className="group/collapsible">
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={team.name}>
-            <span className="flex size-5 shrink-0 items-center justify-center rounded bg-sidebar-accent text-[10px] font-semibold">
-              {team.key.slice(0, 2)}
-            </span>
+            <SidebarTeamBadge teamKey={team.key} />
             <span className="truncate">{team.name}</span>
             <ChevronRight className="ml-auto size-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
           </SidebarMenuButton>

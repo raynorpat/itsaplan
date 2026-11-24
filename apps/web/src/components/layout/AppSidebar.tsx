@@ -40,7 +40,7 @@ export default function AppSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem className="flex items-center gap-1">
+          <SidebarMenuItem className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
             <WorkspaceMenu onNewTeam={onNewTeam} />
             <SidebarQuickActions
               onOpenCommand={onOpenCommand}

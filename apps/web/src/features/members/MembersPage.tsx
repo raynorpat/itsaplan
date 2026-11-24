@@ -6,7 +6,7 @@ import SectionPageView from '@/components/common/page/SectionPageView';
 import MemberAddForm from './components/members/MemberAddForm';
 import MembersList from './components/members/MembersList';
 
-// The Members page (/team/:teamKey/members): who is in the team. Any member of a
+// The Members page (/settings/teams/:teamKey/members): who is in the team. Any member of a
 // public team adds people from the workspace; a private team's managers do. New
 // people are invited from the workspace Members page.
 export default function MembersPage() {

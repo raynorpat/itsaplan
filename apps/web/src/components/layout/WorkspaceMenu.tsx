@@ -9,6 +9,8 @@ import { useAppVersionQuery } from '@/services/version.service';
 import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { settingsHomePath, workspaceMembersPath } from '@/utils/paths';
 import ItsAPlanMark from '@/components/brand/ItsAPlanMark';
+import AppIcon from '@/components/common/AppIcon';
+import Avatar from '@/components/common/Avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,8 +22,9 @@ import {
 import { SidebarMenuButton } from '@/components/ui/sidebar';
 import WorkspaceMenuTheme from '@/components/layout/WorkspaceMenuTheme';
 
-// The workspace menu at the top of the sidebar, as Linear's: Settings, inviting
-// people, a new team, the theme, sign out and the running version.
+// The workspace menu at the top of the sidebar, as Linear's: the workspace's logo and
+// name, then the signed-in person, Settings, inviting people (not for guests), a new
+// team, the theme, sign out and the running version.
 export default function WorkspaceMenu({ onNewTeam }: { onNewTeam: () => void }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -29,6 +32,7 @@ export default function WorkspaceMenu({ onNewTeam }: { onNewTeam: () => void }) 
   // Guests see only their account settings, so the menu offers them no invite.
   const { data: workspace } = useViewerWorkspaceQuery();
   const workspaceRole = workspace?.workspaceRole ?? null;
+  const organization = workspace?.organization;
   // The session can already be cached when React hydrates while the server
   // rendered without it; reading it after mount keeps the first render identical.
   const [mounted, setMounted] = useState(false);
@@ -45,15 +49,27 @@ export default function WorkspaceMenu({ onNewTeam }: { onNewTeam: () => void }) 
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton className="w-auto min-w-0 flex-1 data-[state=open]:bg-sidebar-accent">
-          <ItsAPlanMark className="size-5 shrink-0" />
-          <span className="truncate font-medium">It&apos;s a Plan</span>
+          {organization ? (
+            <AppIcon
+              name={organization.name}
+              iconUrl={organization.logoUrl}
+              className="size-5 rounded text-[9px]"
+            />
+          ) : (
+            <ItsAPlanMark className="size-5 shrink-0" />
+          )}
+          <span className="truncate font-medium">{organization?.name ?? "It's a Plan"}</span>
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
         {user && (
-          <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
-            {user.email}
+          <DropdownMenuLabel className="flex items-center gap-2 font-normal">
+            <Avatar name={user.name || user.email} image={user.image} className="size-6" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm">{user.name || user.email}</span>
+              <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+            </span>
           </DropdownMenuLabel>
         )}
         <DropdownMenuItem asChild>

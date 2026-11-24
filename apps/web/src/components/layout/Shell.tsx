@@ -11,6 +11,7 @@ import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import { useShellTeam } from '@/hooks/useShellTeam';
 import { useShellRoute } from '@/hooks/useShellRoute';
 import { useTeamRouteSync } from '@/hooks/useTeamRouteSync';
+import { useRememberAppPath } from '@/hooks/useLastAppPath';
 import {
   teamPath,
   issuePath,
@@ -39,10 +40,10 @@ import ShellOverlays from '@/components/layout/ShellOverlays';
 import { useTeamsQuery } from '@/services/teams.service';
 import { useAccountPreferencesQuery } from '@/services/preferences.service';
 
-// The layout for /team/:teamKey and its children (the work items view and the
-// settings pages). It owns the team data, the view editor and the
-// team-level overlays, renders the sidebar + header chrome, and passes the
-// team state to the active child through React context (see lib/shellContext).
+// The app's layout for every signed-in page (team pages, the workspace areas and the
+// Settings area). It owns the team data, the view editor and the team-level
+// overlays, renders the sidebar and header, and passes the team state to the page
+// through React context (see context/shellContext).
 export default function Shell({
   children,
   defaultSidebarOpen = true,
@@ -53,8 +54,9 @@ export default function Shell({
   const router = useRouter();
   const route = useShellRoute();
   const { routeIssueSeq } = route;
-  // The Projects area is above the teams; it shows the team its URL names, or the
-  // last team the user had open (else the first), so the sidebar stays populated.
+  // A workspace route takes the team its URL names, else the last team the user had
+  // open (else the first): Projects and Initiatives read it, and the new-issue dialog
+  // needs one on every page.
   const { data: teamList } = useTeamsQuery();
   const { data: prefs } = useAccountPreferencesQuery();
   const fallbackKey =
@@ -84,6 +86,7 @@ export default function Shell({
   const issueQuery = useIssueBySeqQuery(teamKey, routeIssueSeq);
 
   useTeamRouteSync({ teams, teamsLoaded, teamKey, redirect: !route.workspace });
+  useRememberAppPath();
   // The sidebar, switcher and team shortcuts list the teams the user joined; the
   // route guard above accepts every team they can see.
   const joinedTeams = teams.filter((t) => t.role != null);
@@ -151,7 +154,9 @@ export default function Shell({
       <SidebarProvider defaultOpen={defaultSidebarOpen} className="h-svh overflow-hidden">
         <AppSidebar
           teams={teams}
-          currentTeamKey={teamKey}
+          // The team the page belongs to: on a workspace route only the one its URL
+          // names, not the fallback team the Shell loads for the new-issue dialog.
+          currentTeamKey={route.workspace ? route.teamKey : teamKey}
           onNewTeam={() => overlays.setShowNewTeam(true)}
           onOpenCommand={() => overlays.setShowCommand(true)}
           onNewIssue={openNewIssue}

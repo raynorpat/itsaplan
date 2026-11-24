@@ -18,10 +18,26 @@ const FILTERS: Record<Exclude<MyIssuesTab, 'activity'>, Record<string, unknown>>
   subscribed: { subscribers: { some: ME } },
 };
 
-// Activity is every issue the viewer is involved in, newest change first.
-export function myIssuesFilter(tab: MyIssuesTab): Record<string, unknown> {
-  if (tab === 'activity') return { or: [FILTERS.assigned, FILTERS.created, FILTERS.subscribed] };
-  return FILTERS[tab];
+const OPEN = { state: { type: { nin: ['completed', 'canceled'] } } };
+
+// The tab's filter. Activity is every issue the viewer is involved in. Without
+// `includeCompleted`, completed and canceled issues are left out.
+export function myIssuesFilter(
+  tab: MyIssuesTab,
+  includeCompleted: boolean,
+): Record<string, unknown> {
+  const base =
+    tab === 'activity'
+      ? { or: [FILTERS.assigned, FILTERS.created, FILTERS.subscribed] }
+      : FILTERS[tab];
+  return includeCompleted ? base : { and: [base, OPEN] };
+}
+
+// Whether a tab first shows completed and canceled issues. Assigned and Subscribed
+// show them under their own status groups; Created and Activity, which build up over
+// time, start with the open issues only.
+export function defaultIncludeCompleted(tab: MyIssuesTab): boolean {
+  return tab === 'assigned' || tab === 'subscribed';
 }
 
 // The status groups in Linear's list order. Issues from different teams have

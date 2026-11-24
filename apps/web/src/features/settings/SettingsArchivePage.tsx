@@ -12,7 +12,7 @@ import { useAutoArchiveForm } from './hooks/useAutoArchiveForm';
 
 const section = settingsSection('archive');
 
-// The Archive settings page (/team/:teamKey/settings/archive). Shows the
+// The Archive settings page (/settings/teams/:teamKey/archive). Shows the
 // auto-archive thresholds; Save lives in the page header.
 export default function SettingsArchivePage() {
   const { team } = useShell();

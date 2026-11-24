@@ -14,7 +14,7 @@ import { useVisibilityToggle } from './hooks/useVisibilityToggle';
 
 const section = settingsSection('general');
 
-// The General settings page (/team/:teamKey/settings/general). Edits the
+// The General settings page (/settings/teams/:teamKey/general). Edits the
 // team name and description; the key is shown read-only. Save lives in the page
 // header.
 export default function SettingsGeneralPage() {

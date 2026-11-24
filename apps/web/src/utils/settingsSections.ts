@@ -6,7 +6,7 @@ import type { AccessArea } from '@/hooks/usePermissions';
 export type SettingsGroup = 'general' | 'configuration' | 'automation';
 
 // The team settings sections, each mounted as its own page at
-// /team/:teamKey/settings/:section. The slug is the route param; the tab
+// /settings/teams/:teamKey/:section. The slug is the route param; the tab
 // components live in features/settings/components and take { team }. `resource`
 // is the permission resource that gates the section: read to view it, and the
 // create/edit/delete actions gate the controls inside. `group` places it in the

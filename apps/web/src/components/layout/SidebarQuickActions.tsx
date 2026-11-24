@@ -3,7 +3,8 @@ import { useHotkeyLabel } from '@/context/useHotkeys';
 import { Button } from '@/components/ui/button';
 
 // The search and new-issue buttons beside the workspace menu, as in Linear's
-// sidebar. Search opens the command menu.
+// sidebar. Search opens the command menu. With the sidebar collapsed to icons they
+// stack under the workspace menu.
 export default function SidebarQuickActions({
   onOpenCommand,
   onNewIssue,
@@ -16,7 +17,7 @@ export default function SidebarQuickActions({
   const paletteKey = useHotkeyLabel('palette.toggle');
   const newIssueKey = useHotkeyLabel('issue.new');
   return (
-    <div className="flex shrink-0 items-center gap-0.5 group-data-[collapsible=icon]:hidden">
+    <div className="flex shrink-0 items-center gap-0.5 group-data-[collapsible=icon]:flex-col">
       <Button
         variant="ghost"
         size="icon"

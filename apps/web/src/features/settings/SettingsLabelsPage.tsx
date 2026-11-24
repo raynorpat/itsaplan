@@ -11,7 +11,7 @@ import SettingsLabels from './components/labels/SettingsLabels';
 
 const section = settingsSection('labels');
 
-// The Labels settings page (/team/:teamKey/settings/labels).
+// The Labels settings page (/settings/teams/:teamKey/labels).
 export default function SettingsLabelsPage() {
   const { team } = useShell();
   if (!team) return null;
