@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 // A droppable section wrapper (group / sub-group header), highlighted while a
 // drag is over it.
-export function TableDropZone({
+export function ListDropZone({
   id,
   onDrop,
   disabled,

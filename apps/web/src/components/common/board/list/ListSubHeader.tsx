@@ -1,11 +1,11 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type IssueGroup } from '@/utils/team';
 import { GroupDot } from '@/components/common/board/shared/GroupDot';
-import { TableDropZone } from './TableDropZone';
+import { ListDropZone } from './ListDropZone';
 
 // A sub-group header row (only present when sub-grouped). A drop onto it appends
 // to the sub-group's bucket.
-export function TableSubHeader({
+export function ListSubHeader({
   sub,
   count,
   collapsed,
@@ -21,10 +21,10 @@ export function TableSubHeader({
   onToggle: () => void;
 }) {
   return (
-    <TableDropZone
+    <ListDropZone
       id={dropId}
       onDrop={onDrop}
-      className="flex items-center bg-muted/20 py-1 pr-4 pl-9"
+      className="flex items-center bg-muted/20 py-1 pr-4 pl-10"
     >
       <button
         type="button"
@@ -36,6 +36,6 @@ export function TableSubHeader({
         {sub.name}
         <span className="text-muted-foreground/70">{count}</span>
       </button>
-    </TableDropZone>
+    </ListDropZone>
   );
 }

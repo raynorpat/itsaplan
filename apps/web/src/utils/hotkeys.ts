@@ -12,7 +12,7 @@ export type HotkeyId =
   | 'team.switch'
   | 'sidebar.toggle'
   | 'view.kanban'
-  | 'view.table'
+  | 'view.list'
   | 'view.timeline'
   | 'view.calendar'
   | 'issue.new'
@@ -82,7 +82,7 @@ export const HOTKEYS: HotkeyDef[] = [
     scope: 'global',
   },
   { id: 'view.kanban', label: 'Board layout', group: 'Issues', combo: '1', scope: 'app' },
-  { id: 'view.table', label: 'Table layout', group: 'Issues', combo: '2', scope: 'app' },
+  { id: 'view.list', label: 'List layout', group: 'Issues', combo: '2', scope: 'app' },
   { id: 'view.timeline', label: 'Timeline layout', group: 'Issues', combo: '3', scope: 'app' },
   { id: 'view.calendar', label: 'Calendar layout', group: 'Issues', combo: '4', scope: 'app' },
   {

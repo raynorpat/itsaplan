@@ -1,31 +1,22 @@
 import Link from 'next/link';
-import type { StateType } from '@/types/team';
 import { issuePath } from '@/utils/paths';
-import { PriorityIcon, StateIcon } from '@/components/common/issue/IssueIcons';
-import Avatar from '@/components/common/Avatar';
+import { listRowProperties } from '@/utils/list';
+import { defaultViewSettings } from '@/utils/viewSettings';
+import { ListRowContent } from '@/components/common/board/list/ListRowContent';
 import type { MyIssue } from '../services/myIssues.service';
+import { myIssueRow } from '../utils/myIssues';
 
-// One issue as a single dense line, as in Linear's list: priority, identifier,
-// status, title, then the assignee and the date of the last change.
+// The fields My issues shows: the List layout's defaults.
+const PROPERTIES = listRowProperties(defaultViewSettings('list').properties, true);
+
+// One issue as a row of the shared list, linking to the issue.
 export default function MyIssuesRow({ issue }: { issue: MyIssue }) {
   return (
     <Link
       href={issuePath(issue.teamKey, issue.number)}
-      className="flex h-10 items-center gap-3 px-6 text-sm hover:bg-accent"
+      className="block border-b border-border/50 hover:bg-accent/40"
     >
-      <PriorityIcon priority={issue.priority} className="shrink-0 text-muted-foreground" />
-      <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">
-        {issue.identifier}
-      </span>
-      <StateIcon stateType={issue.state.type as StateType} color={issue.state.color} />
-      <span className="min-w-0 flex-1 truncate">{issue.title}</span>
-      {issue.assignee && <Avatar name={issue.assignee.name} image={issue.assignee.avatarUrl} />}
-      <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">
-        {new Date(issue.updatedAt).toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-        })}
-      </span>
+      <ListRowContent data={myIssueRow(issue)} properties={PROPERTIES} />
     </Link>
   );
 }

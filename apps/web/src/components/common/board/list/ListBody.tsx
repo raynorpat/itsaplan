@@ -1,29 +1,33 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { toast } from 'sonner';
 import type { Issue, IssuePatch } from '@/types/issue';
-import {
-  buildGroups,
-  buildMaps,
-  positionAt,
-  sortIssues,
-  type WorkItemsViewProps,
-} from '@/utils/team';
+import { buildGroups, buildMaps, sortIssues, type WorkItemsViewProps } from '@/utils/team';
 import { cyclesVisible } from '@/utils/cycles';
+import {
+  buildListItems,
+  collapsedKey,
+  listDropPatch,
+  listRowProperties,
+  rangeIds,
+  type FlatItem,
+} from '@/utils/list';
 import { useDndSensors } from '@/lib/dnd';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
 import { preferPrefix, sortedOrderMessage, type DropData } from '@/utils/dnd';
-import { buildTableItems, collapsedKey, resolveColumns, type FlatItem } from '@/utils/table';
-import { TableColumnHeader } from './TableColumnHeader';
-import { TableSectionHeader } from './TableSectionHeader';
-import { TableSubHeader } from './TableSubHeader';
-import { TableRow } from './TableRow';
+import { useSelection } from '@/context/useSelection';
+import { ListSectionHeader } from './ListSectionHeader';
+import { ListSubHeader } from './ListSubHeader';
+import { ListRow } from './ListRow';
 
-const tableCollision = preferPrefix('row:');
+const listCollision = preferPrefix('row:');
 
-export default function TableView({
+// The list's rows: section headers and issue rows flattened into one array and
+// virtualised in a single scroll container, so a long backlog renders only the
+// rows near the viewport.
+export function ListBody({
   team,
   settings,
   onOpenIssue,
@@ -31,7 +35,10 @@ export default function TableView({
   readOnly,
 }: WorkItemsViewProps) {
   const updateIssue = useUpdateIssue(team.team.key);
+  const selection = useSelection();
   const [activeId, setActiveId] = useState<string | null>(null);
+  // The last row clicked with selection, the start of a shift-click range.
+  const anchor = useRef<string | null>(null);
   const sensors = useDndSensors(readOnly);
   const collapsed = usePersistedSet(collapsedKey(team.team.id, settings.group, settings.subgroup));
 
@@ -41,25 +48,25 @@ export default function TableView({
   const groups = buildGroups(team, settings.group);
   const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
   const maps = buildMaps(team);
+  const properties = listRowProperties(settings.properties, cyclesVisible(team));
 
-  // A cycle column left in the settings shows only while the team's cycles are on.
-  const { columns, gridTemplate, minWidth } = resolveColumns(
-    cyclesVisible(team) ? settings.properties : settings.properties.filter((p) => p !== 'cycle'),
-  );
-
-  const items = buildTableItems({
+  const items = buildListItems({
     groups,
     subGroups,
     sorted,
     settings,
     collapsed: collapsed.values,
   });
+  const order = useMemo(
+    () => items.flatMap((it) => (it.kind === 'row' ? [it.issue.id] : [])),
+    [items],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => 36,
     overscan: 12,
     getItemKey: (index) => {
       const it = items[index];
@@ -70,9 +77,9 @@ export default function TableView({
   });
 
   // Reordering inside a section only holds when the view is ordered manually: with
-  // any other sort field the row snaps back to where the sort puts it. A drop that
-  // would only reorder is refused and explained; a drop into another section still
-  // goes through, since it changes the grouping field rather than the order.
+  // any other sort the row snaps back to where the sort puts it. A drop that would
+  // only reorder is refused and explained; a drop into another section still goes
+  // through, since it changes the grouping field rather than the order.
   const manualOrder = settings.sort.field === 'manual';
 
   function moveIssue(issueId: string, assign: IssuePatch | null, bucket: Issue[], index: number) {
@@ -80,8 +87,13 @@ export default function TableView({
       toast.info(sortedOrderMessage(settings.sort.field));
       return;
     }
-    const position = positionAt(bucket, index);
-    updateIssue.mutate({ id: issueId, patch: assign ? { ...assign, position } : { position } });
+    updateIssue.mutate({ id: issueId, patch: listDropPatch(assign, bucket, index) });
+  }
+
+  function select(id: string, range: boolean) {
+    if (range) selection.add(rangeIds(order, anchor.current, id));
+    else selection.toggle(id);
+    anchor.current = id;
   }
 
   function handleDragEnd(e: DragEndEvent) {
@@ -100,7 +112,7 @@ export default function TableView({
         // is only a drop target while the group is collapsed and they are hidden.
         const isCollapsed = collapsed.values.has(item.group.key);
         return (
-          <TableSectionHeader
+          <ListSectionHeader
             group={item.group}
             count={item.count}
             collapsed={isCollapsed}
@@ -118,7 +130,7 @@ export default function TableView({
       }
       case 'subheader':
         return (
-          <TableSubHeader
+          <ListSubHeader
             sub={item.sub}
             count={item.count}
             collapsed={collapsed.values.has(item.dropKey)}
@@ -129,17 +141,19 @@ export default function TableView({
         );
       case 'row':
         return (
-          <TableRow
+          <ListRow
             team={team}
             issue={item.issue}
-            orderedColumns={columns}
             maps={maps}
-            showId={settings.properties.includes('id')}
+            properties={properties}
             indented={subgrouped}
-            gridTemplate={gridTemplate}
+            selected={selection.isSelected(item.issue.id)}
+            selecting={selection.isSelecting}
             dropDisabled={!manualOrder && grouped}
             onDrop={(draggedId) => moveIssue(draggedId, item.assign, item.bucket, item.index)}
-            onClick={() => onOpenIssue(item.issue.id)}
+            onOpen={() => onOpenIssue(item.issue.id)}
+            onSelect={(range) => select(item.issue.id, range)}
+            readOnly={readOnly}
           />
         );
     }
@@ -148,22 +162,13 @@ export default function TableView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={tableCollision}
+      collisionDetection={listCollision}
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >
       <div ref={scrollRef} className="h-full overflow-y-auto">
-        <TableColumnHeader columns={columns} gridTemplate={gridTemplate} minWidth={minWidth} />
-
-        <div
-          style={{
-            height: virtualizer.getTotalSize(),
-            position: 'relative',
-            width: '100%',
-            minWidth,
-          }}
-        >
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualizer.getVirtualItems().map((vi) => (
             <div
               key={vi.key}

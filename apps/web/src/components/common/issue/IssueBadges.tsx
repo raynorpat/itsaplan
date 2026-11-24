@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { priorityLabel } from '@/utils/fieldOptions';
 
 // Small issue display badges shared by the team card (KanbanBoard) and the
-// table cells (TableView) so both render the same pill/icon/avatar.
+// list rows (ListView) so both render the same pill/icon/avatar.
 
 // Outline pill styling shared by the label and date badges.
 const PILL = 'text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]';

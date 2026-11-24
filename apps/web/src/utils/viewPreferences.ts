@@ -14,7 +14,7 @@ import type { SortField, WorkItemsView } from '@/utils/viewTypes';
 
 const LAYOUT: Record<WorkItemsView, string> = {
   kanban: 'board',
-  table: 'list',
+  list: 'list',
   timeline: 'timeline',
   calendar: 'calendar',
 };

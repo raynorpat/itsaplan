@@ -12,7 +12,9 @@ const MyIssuesPage = graphql(`
         number
         title
         priority
+        createdAt
         updatedAt
+        dueDate
         team {
           key
         }
@@ -25,6 +27,24 @@ const MyIssuesPage = graphql(`
           name
           avatarUrl
         }
+        delegate {
+          name
+          avatarUrl
+        }
+        labels {
+          nodes {
+            id
+            name
+            color
+          }
+        }
+        project {
+          name
+        }
+        cycle {
+          number
+          name
+        }
       }
       pageInfo {
         hasNextPage
@@ -34,20 +54,30 @@ const MyIssuesPage = graphql(`
   }
 `);
 
+type Person = { name: string; avatarUrl: string | null };
+
 export type MyIssue = {
   id: string;
   identifier: string;
   number: number;
   title: string;
   priority: number;
+  createdAt: string;
   updatedAt: string;
+  dueDate: string | null;
   teamKey: string;
   state: { name: string; type: string; color: string };
-  assignee: { name: string; avatarUrl: string | null } | null;
+  assignee: Person | null;
+  delegate: Person | null;
+  labels: { id: string; name: string; color: string }[];
+  project: { name: string } | null;
+  cycle: { number: number; name: string | null } | null;
 };
 
 // Issues per page; more load on request.
 const PAGE_SIZE = 50;
+
+type NodePerson = { name: string; avatarUrl?: string | null } | null;
 
 type MyIssueNode = {
   id: string;
@@ -55,11 +85,20 @@ type MyIssueNode = {
   number: number;
   title: string;
   priority: number;
+  createdAt: string;
   updatedAt: string;
+  dueDate?: string | null;
   team: { key: string };
   state: { name: string; type: string; color: string };
-  assignee: { name: string; avatarUrl?: string | null } | null;
+  assignee: NodePerson;
+  delegate?: NodePerson;
+  labels: { nodes: { id: string; name: string; color: string }[] };
+  project?: { name: string } | null;
+  cycle?: { number: number; name?: string | null } | null;
 };
+
+const person = (p: NodePerson | undefined): Person | null =>
+  p ? { name: p.name, avatarUrl: p.avatarUrl ?? null } : null;
 
 function toMyIssue(n: MyIssueNode): MyIssue {
   return {
@@ -68,12 +107,16 @@ function toMyIssue(n: MyIssueNode): MyIssue {
     number: n.number,
     title: n.title,
     priority: n.priority,
+    createdAt: n.createdAt,
     updatedAt: n.updatedAt,
+    dueDate: n.dueDate ?? null,
     teamKey: n.team.key,
     state: n.state,
-    assignee: n.assignee
-      ? { name: n.assignee.name, avatarUrl: n.assignee.avatarUrl ?? null }
-      : null,
+    assignee: person(n.assignee),
+    delegate: person(n.delegate),
+    labels: n.labels.nodes,
+    project: n.project ?? null,
+    cycle: n.cycle ? { number: n.cycle.number, name: n.cycle.name ?? null } : null,
   };
 }
 

@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
-import type { WorkItemsView } from '@/utils/viewTypes';
+import { toLayout, type WorkItemsView } from '@/utils/viewTypes';
 import { normalizeViewSettings, type ViewSettings } from '@/utils/viewSettings';
 import { EMPTY_FILTER_SET, type FilterSet } from '@/utils/filters';
 
 // Display settings for an issue board without saved views (a project's or a
 // cycle's issues), persisted in localStorage under `storeKey`, one entry per `id`.
-// Filters stay transient in state. Layout (kanban/table) and its display settings
+// Filters stay transient in state. Layout (list/board) and its display settings
 // are stored together so a reload restores them.
 
 type Stored = { layout?: WorkItemsView } & Partial<ViewSettings>;
@@ -29,7 +29,7 @@ function writeStore(storeKey: string, store: Store) {
 export function useLocalBoardSettings(storeKey: string, id: string) {
   const [state, setState] = useState<{ view: WorkItemsView; settings: ViewSettings }>(() => {
     const stored = readStore(storeKey)[id];
-    const view: WorkItemsView = stored?.layout ?? 'kanban';
+    const view: WorkItemsView = toLayout(stored?.layout) ?? 'list';
     return { view, settings: normalizeViewSettings(stored, view) };
   });
   const [filters, setFilters] = useState<FilterSet>(EMPTY_FILTER_SET);

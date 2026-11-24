@@ -14,7 +14,7 @@ import ViewIconPicker from '@/components/layout/ViewIconPicker';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
 import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
-import TableView from '@/components/common/board/table/TableView';
+import ListView from '@/components/common/board/list/ListView';
 import TimelineView from '@/components/common/board/timeline/TimelineView';
 import CalendarView from '@/components/common/board/calendar/CalendarView';
 
@@ -88,8 +88,8 @@ export default function WorkItemsPage() {
 
   function renderView() {
     switch (editor.view) {
-      case 'table':
-        return <TableView {...viewProps} />;
+      case 'list':
+        return <ListView {...viewProps} />;
       case 'timeline':
         return (
           <TimelineView

@@ -1,3 +1,9 @@
+import type { StateType } from '@/types/team';
+import { cycleLabel } from '@/utils/cycles';
+import { isDueOverdue } from '@/utils/dates';
+import type { ListRowData } from '@/components/common/board/list/ListRowContent';
+import type { MyIssue } from '../services/myIssues.service';
+
 // Linear's "My issues" tabs and the IssueFilter each one asks for.
 export type MyIssuesTab = 'assigned' | 'created' | 'subscribed' | 'activity';
 
@@ -51,4 +57,27 @@ export function groupByStateType<T extends { state: { type: string } }>(
     type,
     issues: issues.filter((i) => i.state.type === type),
   })).filter((g) => g.issues.length > 0);
+}
+
+// A My issues issue as a row of the shared list. The identifier (KEY-N) names the
+// issue's team, so lists that span teams need no separate team column.
+export function myIssueRow(issue: MyIssue): ListRowData {
+  const type = issue.state.type as StateType;
+  const avatar = (p: MyIssue['assignee']) => (p ? { name: p.name, image: p.avatarUrl } : null);
+  return {
+    priority: issue.priority,
+    identifier: issue.identifier,
+    title: issue.title,
+    state: { type, color: issue.state.color, name: issue.state.name },
+    labels: issue.labels,
+    project: issue.project?.name ?? null,
+    cycle: issue.cycle ? cycleLabel(issue.cycle) : null,
+    dueDate: issue.dueDate
+      ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, type) }
+      : null,
+    assignee: avatar(issue.assignee),
+    delegate: avatar(issue.delegate),
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
+  };
 }

@@ -8,7 +8,7 @@ import { goSequenceStep, type GoTarget } from '@/utils/goSequence';
 // The layout hotkeys, paired with the view each one opens.
 const VIEW_HOTKEYS: [HotkeyId, WorkItemsView][] = [
   ['view.kanban', 'kanban'],
-  ['view.table', 'table'],
+  ['view.list', 'list'],
   ['view.timeline', 'timeline'],
   ['view.calendar', 'calendar'],
 ];

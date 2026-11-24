@@ -4,15 +4,15 @@
 // shows only the controls that apply to the active view. Missing fields fall
 // back to per-view defaults, so the store grows new options without a migration.
 
-import { SORT_FIELDS, type Sort, type WorkItemsView } from '@/utils/viewTypes';
+import { SORT_FIELDS, toLayout, type Sort, type WorkItemsView } from '@/utils/viewTypes';
 
-// Field the Team columns / Table sections group by. 'none' is a single flat
-// list (Table only). Team always groups by something. `subgroup` (below) adds a
-// second level: Team swimlanes / Table sub-sections, and may be 'none'.
+// Field the Board columns / List sections group by. 'none' is a single flat
+// list (List only). The Board always groups by something. `subgroup` (below) adds
+// a second level: Board swimlanes / List sub-sections, and may be 'none'.
 export type GroupField =
   'none' | 'status' | 'assignee' | 'delegate' | 'priority' | 'project' | 'cycle';
 
-// Issue properties that can be shown on a Team card or as a Table column.
+// Issue properties that can be shown on a Board card or a List row.
 // 'id' is the issue identifier; 'status' the state; the rest map to issue
 // fields directly.
 export type DisplayProperty =
@@ -30,9 +30,7 @@ export type DisplayProperty =
 
 export type PropertyKey = DisplayProperty;
 
-// Every display property, in the canonical order they render (left to right on a
-// card, and as Table columns after the title). Used to render the property
-// toggles and to keep column order stable regardless of toggle order.
+// Every display property, in the order the Display menu lists its toggles.
 export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'id', label: 'ID' },
   { value: 'status', label: 'State' },
@@ -61,7 +59,7 @@ export type WeekStart = 0 | 1;
 export interface ViewSettings {
   sort: Sort;
   group: GroupField;
-  // Second grouping level: Team swimlanes (rows) / Table sub-sections. 'none'
+  // Second grouping level: Board swimlanes (rows) / List sub-sections. 'none'
   // disables it. Kept distinct from `group`; the Display panel never offers the
   // primary field here, and normalizeViewSettings forces it back to 'none' if it
   // ever equals `group`.
@@ -103,8 +101,18 @@ const COMMON: Omit<ViewSettings, 'group' | 'subgroup' | 'properties' | 'sort'> =
 // The properties shown by default per view; the Timeline and Calendar lay issues
 // out by date and show none.
 const DEFAULT_PROPERTIES: Record<WorkItemsView, DisplayProperty[]> = {
+  list: [
+    'priority',
+    'id',
+    'status',
+    'labels',
+    'project',
+    'cycle',
+    'dueDate',
+    'assignee',
+    'created',
+  ],
   kanban: ['id', 'status', 'priority', 'dueDate', 'labels', 'assignee', 'created', 'updated'],
-  table: ['priority', 'labels', 'dueDate', 'assignee'],
   timeline: [],
   calendar: [],
 };
@@ -147,20 +155,25 @@ function normalizeSort(sort: unknown): Sort | null {
 const STORE_KEY = 'planner_view_settings';
 type Store = Record<string, Partial<Record<WorkItemsView, Partial<ViewSettings>>>>;
 
+// Moves settings stored under a former layout name ('board', 'table') to the
+// layout that replaced it. When both exist, the current name's settings win.
+export function migrateStore(store: Store): Store {
+  for (const perView of Object.values(store)) {
+    const legacy = perView as Record<string, Partial<ViewSettings> | undefined>;
+    for (const old of ['board', 'table']) {
+      const current = toLayout(old)!;
+      if (legacy[old] && !legacy[current]) legacy[current] = legacy[old];
+      delete legacy[old];
+    }
+  }
+  return store;
+}
+
 function readStore(): Store {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null');
     if (!parsed || typeof parsed !== 'object') return {};
-    const store = parsed as Store;
-    // Migrate the kanban layout's stored settings from its former key 'board'.
-    for (const perView of Object.values(store)) {
-      const legacy = perView as Record<string, Partial<ViewSettings> | undefined>;
-      if (legacy.board && !legacy.kanban) {
-        legacy.kanban = legacy.board;
-        delete legacy.board;
-      }
-    }
-    return store;
+    return migrateStore(parsed as Store);
   } catch {
     return {};
   }
@@ -196,8 +209,7 @@ export function normalizeViewSettings(
     group,
     subgroup: rawSubgroup !== 'none' && rawSubgroup !== group ? rawSubgroup : 'none',
     showEmptyGroups: typeof s.showEmptyGroups === 'boolean' ? s.showEmptyGroups : d.showEmptyGroups,
-    // Stored order is preserved as-is (it is the Table column order, reorderable
-    // by drag); only unknown entries are dropped.
+    // Stored order is preserved as-is; only unknown entries are dropped.
     properties: Array.isArray(s.properties)
       ? (s.properties as unknown[]).filter(
           (p): p is PropertyKey =>
@@ -249,16 +261,12 @@ export interface SavedViewDisplay extends ViewSettings {
   layout: WorkItemsView;
 }
 
-const LAYOUTS: WorkItemsView[] = ['kanban', 'table', 'timeline', 'calendar'];
-
 // Normalizes a saved view's display blob (arbitrary JSON from the DB) into a
 // SavedViewDisplay, picking the layout first so the settings fall back to that
-// layout's defaults.
+// layout's defaults. A former Table view opens as a List with the same settings.
 export function normalizeSavedDisplay(blob: unknown): SavedViewDisplay {
   const b = (blob && typeof blob === 'object' ? blob : {}) as Partial<SavedViewDisplay>;
-  const layout: WorkItemsView = LAYOUTS.includes(b.layout as WorkItemsView)
-    ? (b.layout as WorkItemsView)
-    : 'kanban';
+  const layout: WorkItemsView = toLayout(b.layout) ?? 'list';
   return { layout, ...normalizeViewSettings(b, layout) };
 }
 

@@ -1,4 +1,4 @@
-import { CalendarDays, Columns3, GanttChart, Table2, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Columns3, GanttChart, Rows3, type LucideIcon } from 'lucide-react';
 import type { HotkeyId } from '@/utils/hotkeys';
 
 // Shared view-domain types used by both team.ts (sorting) and viewSettings.ts
@@ -7,7 +7,7 @@ import type { HotkeyId } from '@/utils/hotkeys';
 
 // Global ordering preference (see App). 'manual' keeps the drag-and-drop order
 // the API returns (by position); every other field sorts client-side. Applied
-// by the list-like views (Kanban, Table); the date-laid-out Timeline and Calendar
+// by the list-like views (List, Board); the date-laid-out Timeline and Calendar
 // ignore it.
 export type SortField =
   | 'manual'
@@ -25,16 +25,27 @@ export interface Sort {
   dir: 'asc' | 'desc';
 }
 
-// The team's four display modes. Which mode is active is a global preference
-// (see App); each mode's settings are stored per team (see viewSettings).
-export type WorkItemsView = 'kanban' | 'table' | 'timeline' | 'calendar';
+// The team's display modes: Linear's List and Board, plus Timeline and Calendar.
+// Which mode is active is a global preference (see useViewEditor); each mode's
+// settings are stored per team (see viewSettings).
+export type WorkItemsView = 'list' | 'kanban' | 'timeline' | 'calendar';
+
+const LAYOUT_NAMES: readonly WorkItemsView[] = ['list', 'kanban', 'timeline', 'calendar'];
+
+// Reads a stored layout name, including the former 'table' (now the list) and
+// 'board' (now 'kanban'); anything else is null.
+export function toLayout(raw: unknown): WorkItemsView | null {
+  if (raw === 'table') return 'list';
+  if (raw === 'board') return 'kanban';
+  return LAYOUT_NAMES.includes(raw as WorkItemsView) ? (raw as WorkItemsView) : null;
+}
 
 // Each layout names its hotkey id rather than a key, so the switcher, the global
 // key layer and the command palette all read the same binding (see lib/hotkeys).
 export const VIEWS: { value: WorkItemsView; label: string; icon: LucideIcon; hotkey: HotkeyId }[] =
   [
-    { value: 'kanban', label: 'Kanban', icon: Columns3, hotkey: 'view.kanban' },
-    { value: 'table', label: 'Table', icon: Table2, hotkey: 'view.table' },
+    { value: 'list', label: 'List', icon: Rows3, hotkey: 'view.list' },
+    { value: 'kanban', label: 'Board', icon: Columns3, hotkey: 'view.kanban' },
     { value: 'timeline', label: 'Timeline', icon: GanttChart, hotkey: 'view.timeline' },
     { value: 'calendar', label: 'Calendar', icon: CalendarDays, hotkey: 'view.calendar' },
   ];

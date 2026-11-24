@@ -9,7 +9,7 @@ import DisplaySettingsSelect from '@/components/layout/DisplaySettingsSelect';
 
 // Views that lay issues out as a list honor ordering; the date-laid-out
 // Timeline and Calendar ignore it.
-const ORDERING_VIEWS: WorkItemsView[] = ['kanban', 'table'];
+const ORDERING_VIEWS: WorkItemsView[] = ['kanban', 'list'];
 
 // Grouping options. Team always groups by something, so it drops 'none'.
 const GROUP_OPTIONS: { value: GroupField; label: string }[] = [
@@ -46,8 +46,8 @@ export default function DisplayGroupingRows({
     view === 'kanban' || view === 'timeline' ? options.filter((o) => o.value !== 'none') : options;
   // The sub-group never offers the field already used by the primary group.
   const subgroupOptions = options.filter((o) => o.value !== settings.group);
-  const showsGrouping = view === 'kanban' || view === 'table' || view === 'timeline';
-  const showsSubgrouping = (view === 'kanban' || view === 'table') && settings.group !== 'none';
+  const showsGrouping = view === 'kanban' || view === 'list' || view === 'timeline';
+  const showsSubgrouping = (view === 'kanban' || view === 'list') && settings.group !== 'none';
 
   return (
     <>

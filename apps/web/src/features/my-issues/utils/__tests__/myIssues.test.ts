@@ -4,6 +4,7 @@ import {
   defaultIncludeCompleted,
   groupByStateType,
   MY_ISSUES_TABS,
+  myIssueRow,
   myIssuesFilter,
 } from '@/features/my-issues/utils/myIssues';
 
@@ -68,5 +69,41 @@ describe('groupByStateType', () => {
         ['completed', ['a']],
       ],
     );
+  });
+});
+
+describe('myIssueRow', () => {
+  const base = {
+    id: 'i1',
+    identifier: 'ENG-14',
+    number: 14,
+    title: 'Add tables',
+    priority: 2,
+    createdAt: '2026-11-20T00:00:00Z',
+    updatedAt: '2026-11-24T00:00:00Z',
+    teamKey: 'ENG',
+    state: { name: 'Done', type: 'completed', color: '#0f0' },
+    assignee: { name: 'Pat', avatarUrl: null },
+    delegate: null,
+    labels: [{ id: 'l1', name: 'Bug', color: '#f00' }],
+    project: { name: 'Mobile' },
+    cycle: { number: 3, name: null },
+    dueDate: '2020-01-01',
+  };
+
+  it('fills the shared list row, with the team in the identifier', () => {
+    const row = myIssueRow(base);
+    assert.equal(row.identifier, 'ENG-14');
+    assert.deepEqual(row.state, { type: 'completed', color: '#0f0', name: 'Done' });
+    assert.deepEqual(row.labels, [{ id: 'l1', name: 'Bug', color: '#f00' }]);
+    assert.equal(row.project, 'Mobile');
+    assert.equal(row.cycle, 'Cycle 3');
+    assert.deepEqual(row.assignee, { name: 'Pat', image: null });
+  });
+
+  it('never marks a finished issue overdue', () => {
+    assert.deepEqual(myIssueRow(base).dueDate, { date: '2020-01-01', overdue: false });
+    const open = myIssueRow({ ...base, state: { ...base.state, type: 'started' } });
+    assert.equal(open.dueDate?.overdue, true);
   });
 });

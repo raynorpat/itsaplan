@@ -9,7 +9,7 @@ import { cycleSafeSettings } from '@/utils/viewSettings';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
 import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
-import TableView from '@/components/common/board/table/TableView';
+import ListView from '@/components/common/board/list/ListView';
 import TimelineView from '@/components/common/board/timeline/TimelineView';
 import CalendarView from '@/components/common/board/calendar/CalendarView';
 
@@ -41,8 +41,8 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
 
   let view;
   switch (board.view) {
-    case 'table':
-      view = <TableView {...viewProps} />;
+    case 'list':
+      view = <ListView {...viewProps} />;
       break;
     case 'timeline':
       view = <TimelineView {...viewProps} />;

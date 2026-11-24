@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { View } from '@/types/team';
-import type { WorkItemsView } from '@/utils/viewTypes';
+import { toLayout, type WorkItemsView } from '@/utils/viewTypes';
 import { useCreateView, useDeleteView, useUpdateView } from '@/services/views.service';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import {
@@ -11,7 +11,7 @@ import {
   type ViewSettings,
 } from '@/utils/viewSettings';
 
-// Which layout (team/table/timeline/calendar) the All tab shows is a global
+// Which layout (list/board/timeline/calendar) the All tab shows is a global
 // preference. The settings of each layout are stored per team in
 // lib/viewSettings.
 const VIEW_KEY = 'planner_view';
@@ -19,11 +19,8 @@ const VIEW_KEY = 'planner_view';
 function loadView(): WorkItemsView {
   // Runs in a useState initializer, which also executes during server render —
   // there is no localStorage there, so fall back to the default layout.
-  if (typeof window === 'undefined') return 'kanban';
-  const raw = localStorage.getItem(VIEW_KEY);
-  return raw === 'kanban' || raw === 'table' || raw === 'timeline' || raw === 'calendar'
-    ? raw
-    : 'kanban';
+  if (typeof window === 'undefined') return 'list';
+  return toLayout(localStorage.getItem(VIEW_KEY)) ?? 'list';
 }
 
 // The conditions of a saved view followed by the ad-hoc ones, re-keyed so the two

@@ -1,22 +1,63 @@
 import type { Issue, IssuePatch } from '@/types/issue';
-import { groupIssues, mergeAssign, nestIssues, type IssueGroup } from '@/utils/team';
-import { type ViewSettings, type DisplayProperty, type PropertyKey } from '@/utils/viewSettings';
+import { groupIssues, mergeAssign, nestIssues, positionAt, type IssueGroup } from '@/utils/team';
+import { type ViewSettings, type DisplayProperty } from '@/utils/viewSettings';
 
-// The grid columns after the (always-present) title cell. 'id' is not here — the
-// identifier renders inside the title cell.
-export type TableColumn = Exclude<DisplayProperty, 'id'>;
-export const COLUMN_META: Record<TableColumn, { label: string; width: string }> = {
-  status: { label: 'State', width: '130px' },
-  priority: { label: 'Priority', width: '88px' },
-  assignee: { label: '', width: '56px' },
-  delegate: { label: '', width: '56px' },
-  project: { label: 'Project', width: 'minmax(140px,220px)' },
-  cycle: { label: 'Cycle', width: 'minmax(96px,140px)' },
-  labels: { label: 'Labels', width: 'minmax(120px,220px)' },
-  dueDate: { label: 'Due', width: '96px' },
-  created: { label: 'Created', width: '96px' },
-  updated: { label: 'Updated', width: '96px' },
-};
+// The List layout: one dense line per issue under group headers, as in Linear.
+
+// The fields that sit on the right of a list row, in Linear's order. Priority, ID
+// and status lead the row before the title.
+export type ListField = Exclude<DisplayProperty, 'priority' | 'id' | 'status'>;
+const TRAILING_ORDER: ListField[] = [
+  'labels',
+  'project',
+  'cycle',
+  'dueDate',
+  'delegate',
+  'assignee',
+  'created',
+  'updated',
+];
+
+export interface ListRowProperties {
+  leading: { priority: boolean; id: boolean; status: boolean };
+  trailing: ListField[];
+}
+
+// Which properties a row shows, from the Display settings. The right-hand fields
+// keep Linear's order whatever order they were switched on in. The cycle shows
+// only while the team's cycles are on.
+export function listRowProperties(
+  properties: DisplayProperty[],
+  cyclesOn: boolean,
+): ListRowProperties {
+  const on = new Set(properties);
+  return {
+    leading: { priority: on.has('priority'), id: on.has('id'), status: on.has('status') },
+    trailing: TRAILING_ORDER.filter((f) => on.has(f) && (cyclesOn || f !== 'cycle')),
+  };
+}
+
+// The patch a drop applies: the target group's reassignment (if any) plus the
+// position at the drop index within that group's issues.
+export function listDropPatch(
+  assign: IssuePatch | null,
+  bucket: Issue[],
+  index: number,
+): IssuePatch {
+  const position = positionAt(bucket, index);
+  return assign ? { ...assign, position } : { position };
+}
+
+// The ids a shift-click selects: every row from the anchor (the last row clicked)
+// to the clicked one, in list order. Without an anchor on the list, just the
+// clicked row.
+export function rangeIds(order: string[], anchor: string | null, target: string): string[] {
+  const from = anchor == null ? -1 : order.indexOf(anchor);
+  const to = order.indexOf(target);
+  if (from === -1 || to === -1) return [target];
+  const [a, b] = from <= to ? [from, to] : [to, from];
+  return order.slice(a, b + 1);
+}
 
 // Collapsed sections are a per-team, per-grouping client-only preference,
 // persisted so it survives reloads (same pattern as the team's hidden groups).
@@ -65,10 +106,10 @@ export type FlatItem =
       dropKey: string;
     };
 
-// Flatten the (optionally two-level) grouping into the virtualized item list. A
+// Flatten the (optionally two-level) grouping into the virtualized list. A
 // row's drop `assign` and `bucket` come from the cell it sits in, so the
 // virtualizer render stays a plain lookup-free map.
-export function buildTableItems({
+export function buildListItems({
   groups,
   subGroups,
   sorted,
@@ -157,56 +198,4 @@ export function buildTableItems({
   }
 
   return items;
-}
-
-// Title column: flexible but capped, so it does not stretch across the whole
-// table when few columns are shown; leftover width stays to the right.
-const TITLE_COLUMN_WIDTH = 'minmax(220px,520px)';
-
-// A resolved Table column. The order follows settings.properties (reorderable in
-// the Display panel).
-export type OrderedColumn = { kind: 'builtin'; col: TableColumn };
-export const columnKey = (c: OrderedColumn) => c.col;
-function columnWidth(c: OrderedColumn): string {
-  return COLUMN_META[c.col].width;
-}
-
-// Floor width of a grid track: the fixed value, or the lower bound of a minmax().
-function trackFloor(w: string): number {
-  const minmax = w.match(/minmax\(\s*(\d+)px/);
-  return (minmax ? Number(minmax[1]) : parseInt(w, 10)) || 0;
-}
-
-// Minimum outer width (px) the table needs for every track to sit at its floor:
-// the row's horizontal padding (px-4) + the inter-column gaps (gap-3) + each
-// track's floor. Applied as a min-width so a narrow (phone) viewport scrolls
-// horizontally and the group headers/rows stretch to the content width instead
-// of clipping their background at the viewport edge. On desktop it is smaller
-// than the viewport, so width:100% wins and nothing changes.
-const ROW_PADDING = 32; // px-4 both sides
-const COLUMN_GAP = 12; // gap-3
-function minTableWidth(columns: OrderedColumn[]): number {
-  const tracks =
-    trackFloor(TITLE_COLUMN_WIDTH) +
-    columns.reduce((sum, c) => sum + trackFloor(columnWidth(c)), 0);
-  return ROW_PADDING + COLUMN_GAP * columns.length + tracks;
-}
-
-// The table layout derived from the display settings: the ordered columns (each
-// enabled property except 'id', which lives in the title cell, in
-// settings.properties order), the CSS grid template and the scroll min-width.
-interface TableLayout {
-  columns: OrderedColumn[];
-  gridTemplate: string;
-  minWidth: number;
-}
-
-export function resolveColumns(properties: PropertyKey[]): TableLayout {
-  const builtins = new Set<string>(Object.keys(COLUMN_META));
-  const columns: OrderedColumn[] = properties.flatMap((p): OrderedColumn[] =>
-    builtins.has(p) ? [{ kind: 'builtin', col: p as TableColumn }] : [],
-  );
-  const gridTemplate = [TITLE_COLUMN_WIDTH, ...columns.map(columnWidth)].join(' ');
-  const minWidth = minTableWidth(columns);
-  return { columns, gridTemplate, minWidth };
 }

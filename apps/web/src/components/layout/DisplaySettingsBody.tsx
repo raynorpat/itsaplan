@@ -35,13 +35,8 @@ export default function DisplaySettingsBody({
 
       {view === 'calendar' && <DisplayCalendarRows settings={settings} onChange={set} />}
 
-      {(view === 'kanban' || view === 'table') && (
-        <DisplayPropertiesSection
-          view={view}
-          settings={settings}
-          onChange={set}
-          cyclesOn={cyclesOn}
-        />
+      {(view === 'kanban' || view === 'list') && (
+        <DisplayPropertiesSection settings={settings} onChange={set} cyclesOn={cyclesOn} />
       )}
     </div>
   );
