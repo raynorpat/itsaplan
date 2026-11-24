@@ -74,12 +74,30 @@ export async function gqlRequest<Result, Variables>(
     ? [variables?: Variables]
     : [variables: Variables]
 ): Promise<Result> {
+  return gqlSend(document, variables ?? {}, false);
+}
+
+// gqlRequest with Fetch's keepalive, for a save sent while the page is hidden or
+// unloading: the browser completes the request after the page is gone.
+export function gqlRequestKeepalive<Result, Variables>(
+  document: TadaDocumentNode<Result, Variables>,
+  variables: Variables,
+): Promise<Result> {
+  return gqlSend(document, variables, true);
+}
+
+async function gqlSend<Result, Variables>(
+  document: TadaDocumentNode<Result, Variables>,
+  variables: Variables | Record<string, never>,
+  keepalive: boolean,
+): Promise<Result> {
   const res = await fetch(`${API_URL}/graphql`, {
     method: 'POST',
     credentials: 'include',
     cache: 'no-store',
+    keepalive,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: print(document), variables: variables ?? {} }),
+    body: JSON.stringify({ query: print(document), variables }),
   });
   const body = (await res.json().catch(() => null)) as GraphQLResponse<Result> | null;
   const error = body?.errors?.[0];

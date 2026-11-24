@@ -26,5 +26,15 @@ export function useListBoardSettings(viewType: 'project' | 'cycle') {
     [update, view],
   );
 
-  return { view, settings, changeView, changeSettings, filters, setFilters, ready: prefs.ready };
+  return {
+    view,
+    settings,
+    changeView,
+    changeSettings,
+    filters,
+    setFilters,
+    ready: prefs.ready,
+    error: prefs.error,
+    retry: prefs.retry,
+  };
 }

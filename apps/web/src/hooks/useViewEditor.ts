@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type { View } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
-import { useCreateView, useDeleteView, useUpdateView } from '@/services/views.service';
+import { qk } from '@/services/queryKeys';
+import {
+  saveViewCollapse,
+  useCreateView,
+  useDeleteView,
+  useUpdateView,
+} from '@/services/views.service';
+import { createPreferenceSync, type PreferenceSync } from '@/utils/listPreferences';
+import { collapseChanged, withCollapse } from '@/utils/viewPreferences';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import {
   defaultViewSettings,
@@ -27,6 +37,37 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
   return { layout: view, ...settings };
 }
 
+function splitDisplay({ layout, ...rest }: SavedViewDisplay) {
+  return { view: layout, settings: rest as ViewSettings };
+}
+
+type CollapseSave = { viewId: string; display: SavedViewDisplay };
+
+// Sends the viewer's collapse on a saved view, one save in flight at a time.
+function useViewCollapseSync(teamKey: string | null) {
+  const qc = useQueryClient();
+  const sync = useRef<PreferenceSync<CollapseSave> | null>(null);
+  const viewOfPending = useRef<string | null>(null);
+  if (sync.current == null) {
+    sync.current = createPreferenceSync<CollapseSave>({
+      save: ({ viewId, display }) => saveViewCollapse(viewId, display),
+      delayMs: 300,
+      onSaved: () => {
+        if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
+      },
+      onFailed: (err) =>
+        toast.error(err instanceof Error ? err.message : 'The collapsed groups were not saved'),
+    });
+  }
+  useEffect(() => () => sync.current?.flush(), []);
+  return (viewId: string, display: SavedViewDisplay) => {
+    // A pending save for another view goes out first rather than being replaced.
+    if (viewOfPending.current !== viewId) sync.current?.flush();
+    viewOfPending.current = viewId;
+    sync.current?.push({ viewId, display });
+  };
+}
+
 // The saved-views and display/filter editing for one team. The active view is
 // controlled: it comes from the caller (the route param) and selecting a view
 // calls onSelectView to navigate. This hook owns the live layout, its display
@@ -34,9 +75,10 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
 // selection's display whenever the active view (or team) changes.
 //
 // Filters and display settings are live, transient state: changing them filters
-// the current screen and never writes to a saved view. On the All tab the layout
-// and its settings are the viewer's All issues display, saved on the server and
-// shared by every team. A view is
+// the current screen and never writes to a saved view. On the All tab (not editing)
+// the layout and its settings are the viewer's All issues display, saved on the
+// server and shared by every team. On a saved view the viewer's collapsed groups and
+// swimlanes are saved as their own preferences for it. A view is
 // written only from the edit bar, which is opened explicitly by Edit view (update
 // the active view) or New view (create one from the live state).
 //
@@ -51,8 +93,11 @@ export function useViewEditor(
   onSelectView: (id: string | null) => void,
 ) {
   const allIssues = useListPreferences('allIssues');
-  const [view, setView] = useState<WorkItemsView>('list');
-  const [settings, setSettings] = useState<ViewSettings>(() => defaultViewSettings('list'));
+  const saveCollapse = useViewCollapseSync(teamKey);
+  // The live display of a saved view or a draft; the All tab outside a draft shows
+  // the viewer's All issues display instead (onAll below).
+  const [liveView, setView] = useState<WorkItemsView>('list');
+  const [liveSettings, setSettings] = useState<ViewSettings>(() => defaultViewSettings('list'));
   const [filters, setFilters] = useState<FilterSet>(EMPTY_FILTER_SET);
   // editing is true while the name/Cancel/Save bar is shown. draftName/draftIcon
   // back the name input and icon picker in the bar.
@@ -69,6 +114,11 @@ export function useViewEditor(
 
   const activeView =
     activeViewId != null ? (views.find((v) => v.id === activeViewId) ?? null) : null;
+
+  const onAll = activeViewId == null && !editing;
+  const allDisplay = useMemo(() => splitDisplay(allIssues.display), [allIssues.display]);
+  const view = onAll ? allDisplay.view : liveView;
+  const settings = onAll ? allDisplay.settings : liveSettings;
 
   // What actually filters the screen: the active view's own conditions plus the
   // ad-hoc ones. While editing, the row already holds the view's conditions.
@@ -97,13 +147,6 @@ export function useViewEditor(
     setFilters(forEdit ? mergeFilters(v.filters, EMPTY_FILTER_SET) : EMPTY_FILTER_SET);
     applyDisplay(v.display);
   }
-
-  // The All issues display arrives after the first render and changes back when a
-  // save fails; the All tab follows it unless a draft is being edited there.
-  useEffect(() => {
-    if (activeViewId == null && !editing && allIssues.ready) applyDisplay(allIssues.display);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allIssues.display, allIssues.ready]);
 
   // Apply the selection's display whenever the routed view or the team changes,
   // or once the selected view's data arrives. loadedRef keys on team+view so an
@@ -140,6 +183,8 @@ export function useViewEditor(
   // (not updates).
   function beginNewView() {
     setFilters(mergeFilters(activeView?.filters, filters));
+    // On the All tab the draft starts from the viewer's All issues display.
+    if (activeViewId == null) applyDisplay(allIssues.display);
     if (activeViewId != null) {
       openEditNext.current = true;
       keepLiveNext.current = true;
@@ -148,19 +193,23 @@ export function useViewEditor(
     beginEdit(null);
   }
 
+  // One display serves every layout, as in Linear; Timeline and Calendar ignore the
+  // options they do not use. On the All tab (not editing) it is the viewer's All
+  // issues display; on a saved view or a draft the change is live until an explicit
+  // Save, except a saved view's collapse, which is the viewer's own.
   function changeView(next: WorkItemsView) {
-    setView(next);
-    // One display serves every layout, as in Linear; Timeline and Calendar ignore the
-    // options they do not use. On the All tab (not editing) it is the viewer's All
-    // issues display; on a saved view or a draft the change is live only.
-    if (activeViewId == null && !editing) allIssues.update({ ...settings, layout: next });
+    if (onAll) allIssues.update({ ...settings, layout: next });
+    else setView(next);
   }
 
   function changeSettings(next: ViewSettings) {
+    if (onAll) {
+      allIssues.update({ layout: view, ...next });
+      return;
+    }
     setSettings(next);
-    // On the All tab (not editing) the settings are the viewer's All issues
-    // display; everywhere else they stay live until an explicit Save.
-    if (activeViewId == null && !editing) allIssues.update({ layout: view, ...next });
+    if (activeViewId != null && !editing && collapseChanged(settings, next))
+      saveCollapse(activeViewId, { layout: view, ...next });
   }
 
   function toggleFilters() {
@@ -182,9 +231,12 @@ export function useViewEditor(
     const name = draftName.trim();
     const display = toDisplay(view, settings);
     if (activeView) {
+      // The view is saved for everyone with its shared collapse; the editor's own
+      // stays their personal preference.
+      const shared = withCollapse(display, activeView.sharedCollapse);
       await updateView.mutateAsync({
         id: activeView.id,
-        input: { name: name || activeView.name, icon: draftIcon, filters, display },
+        input: { name: name || activeView.name, icon: draftIcon, filters, display: shared },
       });
       setFilters(EMPTY_FILTER_SET);
       setEditing(false);
@@ -221,8 +273,10 @@ export function useViewEditor(
     view,
     settings,
     // False on the All tab until the viewer's display is loaded, so the list does
-    // not first render with the defaults.
+    // not first render with the defaults; error is set when it failed to load.
     ready: activeViewId != null || allIssues.ready,
+    error: activeViewId == null ? allIssues.error : null,
+    retry: allIssues.retry,
     filters,
     effectiveFilters,
     // The filter row is open on request, while editing, or while an ad-hoc filter

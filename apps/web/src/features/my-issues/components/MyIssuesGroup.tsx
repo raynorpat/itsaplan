@@ -25,6 +25,7 @@ export default function MyIssuesGroup({
           key: group.key,
           name: group.name,
           stateType: group.stateType,
+          priority: group.priority,
           color: group.color,
           assign: null,
         }}

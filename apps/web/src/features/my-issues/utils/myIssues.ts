@@ -70,13 +70,15 @@ const TYPE_LABELS: Record<string, string> = {
 interface GroupableIssue {
   state: { type: string; color?: string };
   priority: number;
-  project: { name: string } | null;
+  project: { id: string; name: string } | null;
 }
 
 export interface MyIssuesGroupData<T> {
   key: string;
   name: string;
   stateType?: StateType;
+  // Priority groups, for the priority icon.
+  priority?: number;
   color?: string;
   issues: T[];
 }
@@ -110,22 +112,57 @@ export function groupMyIssues<T extends GroupableIssue>(
         [...PRIORITY_ORDER, 0].map((p) => ({
           key: `p${p}`,
           name: priorityLabel(p),
+          priority: p,
           issues: issues.filter((i) => i.priority === p),
         })),
       );
     case 'project': {
-      const names = [...new Set(issues.flatMap((i) => (i.project ? [i.project.name] : [])))].sort(
-        (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }),
+      // Keyed by id: projects of different teams may share a name.
+      const projects = new Map<string, string>();
+      for (const i of issues) if (i.project) projects.set(i.project.id, i.project.name);
+      const ordered = [...projects.entries()].sort((a, b) =>
+        a[1].localeCompare(b[1], undefined, { sensitivity: 'base' }),
       );
       return nonEmpty(
-        [...names, ''].map((name) => ({
-          key: `project:${name}`,
-          name: name || 'No project',
-          issues: issues.filter((i) => (i.project?.name ?? '') === name),
+        [...ordered, ['', 'No project'] as const].map(([id, name]) => ({
+          key: `project:${id}`,
+          name,
+          issues: issues.filter((i) => (i.project?.id ?? '') === id),
         })),
       );
     }
   }
+}
+
+// The most issues My issues loads to order or group the whole set.
+export const MY_ISSUES_CAP = 1000;
+
+// How My issues loads its issues. The server returns them by the time of the last
+// change, so that order (and the Activity tab) pages on request; any other ordering
+// or a grouping needs the whole set, as Linear orders and groups it, loaded up to
+// MY_ISSUES_CAP.
+export function myIssuesLoadMode(
+  tab: MyIssuesTab,
+  display: { sort: Sort; group: GroupField },
+): 'paged' | 'all' {
+  if (tab === 'activity') return 'paged';
+  const { field, dir } = myIssuesSort(display.sort);
+  const serverOrder = field === 'updated' && dir === 'desc';
+  return serverOrder && myIssuesGrouping(display.group) === 'none' ? 'paged' : 'all';
+}
+
+// Whether to load the next page now: always for the whole set, and while paging
+// when no loaded issue is shown (all filtered out by the Completed issues window or
+// Show sub-issues), so the list never reads "No issues" while more exist.
+export function shouldLoadMore(s: {
+  mode: 'paged' | 'all';
+  hasNextPage: boolean;
+  fetching: boolean;
+  loaded: number;
+  visible: number;
+}): boolean {
+  if (!s.hasNextPage || s.fetching || s.loaded >= MY_ISSUES_CAP) return false;
+  return s.mode === 'all' || s.visible === 0;
 }
 
 // The ordering My issues applies. Its issues span teams, which have no shared manual

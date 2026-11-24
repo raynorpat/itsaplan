@@ -13,7 +13,7 @@ export function ListGroupHeader({
   onAddIssue,
   controls,
 }: {
-  group: Pick<IssueGroup, 'name' | 'color' | 'stateType' | 'key' | 'assign'>;
+  group: Pick<IssueGroup, 'name' | 'color' | 'stateType' | 'priority' | 'key' | 'assign'>;
   count: number;
   collapsed: boolean;
   onToggle: () => void;

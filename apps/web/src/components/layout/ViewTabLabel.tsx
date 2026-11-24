@@ -5,7 +5,7 @@ import { ViewIcon } from '@/utils/viewIcons';
 export default function ViewTabLabel({ view }: { view: View }) {
   return (
     <>
-      <ViewIcon name={view.icon} className="size-3.5" />
+      <ViewIcon name={view.icon} layout={view.display.layout} className="size-3.5" />
       {view.name}
     </>
   );

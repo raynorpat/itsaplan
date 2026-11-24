@@ -7,6 +7,8 @@ import {
   Bug,
   Calendar,
   CheckCircle,
+  Columns3,
+  GanttChart,
   Clock,
   Flag,
   Inbox,
@@ -18,6 +20,7 @@ import {
   User,
   type LucideIcon,
 } from 'lucide-react';
+import type { WorkItemsView } from './viewTypes';
 
 export const VIEW_ICONS: Record<string, LucideIcon> = {
   list: List,
@@ -37,9 +40,29 @@ export const VIEW_ICONS: Record<string, LucideIcon> = {
 
 export const VIEW_ICON_NAMES = Object.keys(VIEW_ICONS);
 
-// Renders a view's icon, falling back to the generic list icon for an unknown or
-// null name.
-export function ViewIcon({ name, className }: { name: string | null; className?: string }) {
-  const Icon = (name && VIEW_ICONS[name]) || List;
+// The icon of a view with no chosen icon (or one no longer offered): its layout's.
+const LAYOUT_ICONS: Record<WorkItemsView, LucideIcon> = {
+  list: List,
+  kanban: Columns3,
+  timeline: GanttChart,
+  calendar: Calendar,
+};
+
+export function viewIconFor(name: string | null, layout: WorkItemsView): LucideIcon {
+  return (name && VIEW_ICONS[name]) || LAYOUT_ICONS[layout];
+}
+
+// Renders a view's icon; without a chosen one, its layout's (the list icon when the
+// layout is not given).
+export function ViewIcon({
+  name,
+  layout = 'list',
+  className,
+}: {
+  name: string | null;
+  layout?: WorkItemsView;
+  className?: string;
+}) {
+  const Icon = viewIconFor(name, layout);
   return <Icon className={className} />;
 }

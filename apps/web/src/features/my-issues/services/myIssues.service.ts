@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { gqlRequest, graphql } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { myIssuesFilter, type MyIssuesTab } from '../utils/myIssues';
@@ -44,6 +44,7 @@ const MyIssuesPage = graphql(`
           }
         }
         project {
+          id
           name
         }
         cycle {
@@ -78,12 +79,13 @@ export type MyIssue = {
   assignee: Person | null;
   delegate: Person | null;
   labels: { id: string; name: string; color: string }[];
-  project: { name: string } | null;
+  project: { id: string; name: string } | null;
   cycle: { number: number; name: string | null } | null;
 };
 
-// Issues per page; more load on request.
-const PAGE_SIZE = 50;
+// Issues per page: 50 when paging on request, the API's 250 when the whole set is
+// loaded (myIssuesLoadMode).
+const PAGE_SIZE = { paged: 50, all: 250 } as const;
 
 type NodePerson = { name: string; avatarUrl?: string | null } | null;
 
@@ -104,7 +106,7 @@ type MyIssueNode = {
   assignee: NodePerson;
   delegate?: NodePerson;
   labels: { nodes: { id: string; name: string; color: string }[] };
-  project?: { name: string } | null;
+  project?: { id: string; name: string } | null;
   cycle?: { number: number; name?: string | null } | null;
 };
 
@@ -135,21 +137,23 @@ function toMyIssue(n: MyIssueNode): MyIssue {
 }
 
 // The viewer's issues for one tab across every team they can see, newest change
-// first, one page at a time. Registered in qk so every issue write refreshes it
-// (ISSUE_DEPENDENT_KEYS).
-export function useMyIssues(tab: MyIssuesTab, includeCompleted: boolean) {
+// first, a page at a time. Registered in qk so every issue write refreshes it
+// (ISSUE_DEPENDENT_KEYS). The previous issues stay shown while a changed display
+// loads a different set.
+export function useMyIssues(tab: MyIssuesTab, includeCompleted: boolean, mode: 'paged' | 'all') {
   const query = useInfiniteQuery({
-    queryKey: qk.myIssues(tab, includeCompleted),
+    queryKey: qk.myIssues(tab, includeCompleted, mode),
     queryFn: async ({ pageParam }) => {
       const data = await gqlRequest(MyIssuesPage, {
         filter: myIssuesFilter(tab, includeCompleted),
         after: pageParam,
-        first: PAGE_SIZE,
+        first: PAGE_SIZE[mode],
       });
       return data.issues;
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => (last.pageInfo.hasNextPage ? last.pageInfo.endCursor : null),
+    placeholderData: keepPreviousData,
   });
   const issues = (query.data?.pages ?? []).flatMap((p) => p.nodes.map(toMyIssue));
   return { ...query, issues };

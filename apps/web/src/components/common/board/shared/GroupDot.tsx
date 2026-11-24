@@ -1,8 +1,8 @@
 import { DEFAULT_COLOR, type IssueGroup } from '@/utils/team';
-import { StateIcon } from '@/components/common/issue/IssueIcons';
+import { PriorityIcon, StateIcon } from '@/components/common/issue/IssueIcons';
 
-// The leading marker for a group header: a status icon for status groups,
-// otherwise a colored dot. Shared by the board columns/swimlanes and the table
+// The leading marker for a group header: a status icon for status groups, the
+// priority icon for priority groups, otherwise a colored dot. Shared by the board columns/swimlanes and the table
 // sections.
 export function GroupDot({ group }: { group: IssueGroup }) {
   if (group.stateType)
@@ -13,6 +13,8 @@ export function GroupDot({ group }: { group: IssueGroup }) {
         className="size-3.5"
       />
     );
+  if (group.priority != null)
+    return <PriorityIcon priority={group.priority} className="size-3.5 text-muted-foreground" />;
   return (
     <span
       className="inline-block h-2.5 w-2.5 rounded-full border"

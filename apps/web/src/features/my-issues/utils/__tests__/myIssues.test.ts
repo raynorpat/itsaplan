@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   groupMyIssues,
+  MY_ISSUES_CAP,
   MY_ISSUES_TABS,
+  myIssuesLoadMode,
+  shouldLoadMore,
   myIssueRow,
   myIssuesFilter,
   myIssuesGrouping,
@@ -50,7 +53,7 @@ describe('groupMyIssues', () => {
   const issue = (
     id: string,
     type: string,
-    extra: { priority?: number; project?: { name: string } | null } = {},
+    extra: { priority?: number; project?: { id: string; name: string } | null } = {},
   ) => ({
     id,
     state: { type, color: '#000' },
@@ -95,21 +98,41 @@ describe('groupMyIssues', () => {
     assert.equal(groups[2]!.name, 'No priority');
   });
 
-  it('groups by project name, issues without a project last', () => {
+  it('groups by project, by name, issues without a project last', () => {
     const groups = groupMyIssues(
       [
         issue('a', 'started'),
-        issue('b', 'started', { project: { name: 'Web' } }),
-        issue('c', 'started', { project: { name: 'Mobile' } }),
+        issue('b', 'started', { project: { id: 'w', name: 'Web' } }),
+        issue('c', 'started', { project: { id: 'm', name: 'Mobile' } }),
       ],
       'project',
     );
     assert.deepEqual(keys(groups), [
-      ['project:Mobile', ['c']],
-      ['project:Web', ['b']],
+      ['project:m', ['c']],
+      ['project:w', ['b']],
       ['project:', ['a']],
     ]);
+    assert.equal(groups[0]!.name, 'Mobile');
     assert.equal(groups[2]!.name, 'No project');
+  });
+
+  it('keeps two projects with the same name apart', () => {
+    const groups = groupMyIssues(
+      [
+        issue('a', 'started', { project: { id: 'p1', name: 'Launch' } }),
+        issue('b', 'started', { project: { id: 'p2', name: 'Launch' } }),
+      ],
+      'project',
+    );
+    assert.deepEqual(keys(groups), [
+      ['project:p1', ['a']],
+      ['project:p2', ['b']],
+    ]);
+  });
+
+  it('marks priority groups with their priority, for the priority icon', () => {
+    const groups = groupMyIssues([issue('a', 'started', { priority: 2 })], 'priority');
+    assert.equal(groups[0]!.priority, 2);
   });
 
   it('puts every issue in one group without grouping', () => {
@@ -246,7 +269,7 @@ describe('myIssueRow', () => {
     assignee: { name: 'Pat', avatarUrl: null },
     delegate: null,
     labels: [{ id: 'l1', name: 'Bug', color: '#f00' }],
-    project: { name: 'Mobile' },
+    project: { id: 'm', name: 'Mobile' },
     cycle: { number: 3, name: null },
     dueDate: '2020-01-01',
   };
@@ -265,5 +288,40 @@ describe('myIssueRow', () => {
     assert.deepEqual(myIssueRow(base).dueDate, { date: '2020-01-01', overdue: false });
     const open = myIssueRow({ ...base, state: { ...base.state, type: 'started' } });
     assert.equal(open.dueDate?.overdue, true);
+  });
+});
+
+describe('loading My issues', () => {
+  const updated = { field: 'updated' as const, dir: 'desc' as const };
+
+  it('pages by the time of the last change, the order the server returns', () => {
+    assert.equal(myIssuesLoadMode('assigned', { sort: updated, group: 'none' }), 'paged');
+    assert.equal(myIssuesLoadMode('activity', { sort: updated, group: 'priority' }), 'paged');
+  });
+
+  it('loads the whole set for an ordering or grouping the server cannot do', () => {
+    assert.equal(
+      myIssuesLoadMode('assigned', { sort: { field: 'priority', dir: 'asc' }, group: 'none' }),
+      'all',
+    );
+    assert.equal(myIssuesLoadMode('assigned', { sort: updated, group: 'status' }), 'all');
+  });
+
+  const base = { hasNextPage: true, fetching: false, loaded: 50, visible: 10 };
+
+  it('keeps loading the whole set up to the cap', () => {
+    assert.equal(shouldLoadMore({ ...base, mode: 'all' }), true);
+    assert.equal(shouldLoadMore({ ...base, mode: 'all', loaded: MY_ISSUES_CAP }), false);
+    assert.equal(shouldLoadMore({ ...base, mode: 'all', fetching: true }), false);
+    assert.equal(shouldLoadMore({ ...base, mode: 'all', hasNextPage: false }), false);
+  });
+
+  it('pages on request, but loads on while nothing loaded is shown', () => {
+    assert.equal(shouldLoadMore({ ...base, mode: 'paged' }), false);
+    assert.equal(shouldLoadMore({ ...base, mode: 'paged', visible: 0 }), true);
+    assert.equal(
+      shouldLoadMore({ ...base, mode: 'paged', visible: 0, loaded: MY_ISSUES_CAP }),
+      false,
+    );
   });
 });

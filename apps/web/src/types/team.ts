@@ -80,7 +80,12 @@ export interface View {
   name: string;
   icon: string | null;
   filters: FilterSet;
+  // What the viewer sees: the view's shared display with their own collapsed groups
+  // and swimlanes over it.
   display: SavedViewDisplay;
+  // The view's shared collapsed groups and swimlanes, written back when the view is
+  // saved so one viewer's collapse is not saved for everyone.
+  sharedCollapse: Pick<SavedViewDisplay, 'collapsedGroups' | 'collapsedSwimlanes'>;
   createdAt: string;
   updatedAt: string;
   // A shared view is visible to everyone who sees its team; a personal one to its

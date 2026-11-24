@@ -151,3 +151,11 @@ describe('cycles turned off', () => {
     assert.equal(cycleSafeSettings(settings, 'kanban', true).group, 'cycle');
   });
 });
+
+describe('priority groups', () => {
+  it('carry their priority, so headers show the priority icon', () => {
+    const groups = buildGroups(team(true, []), 'priority');
+    assert.equal(groups.find((g) => g.key === 'p1')?.priority, 1);
+    assert.equal(groups.find((g) => g.key === 'p-none')?.priority, 0);
+  });
+});

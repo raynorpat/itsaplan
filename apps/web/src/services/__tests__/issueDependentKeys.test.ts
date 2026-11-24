@@ -9,8 +9,8 @@ const covers = (key: readonly unknown[]) =>
 describe('ISSUE_DEPENDENT_KEYS', () => {
   it('refreshes every My issues tab after an issue write', () => {
     for (const tab of ['assigned', 'created', 'subscribed', 'activity'] as const) {
-      assert.equal(covers(qk.myIssues(tab, false)), true, tab);
-      assert.equal(covers(qk.myIssues(tab, true)), true, tab);
+      assert.equal(covers(qk.myIssues(tab, false, 'paged')), true, tab);
+      assert.equal(covers(qk.myIssues(tab, true, 'all')), true, tab);
     }
   });
 

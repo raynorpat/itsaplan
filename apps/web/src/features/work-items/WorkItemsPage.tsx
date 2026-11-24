@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { PreferencesError } from '@/components/common/page/PreferencesError';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
@@ -53,6 +54,7 @@ export default function WorkItemsPage() {
 
   useNewViewFromUrl(shownTeam != null, can('views', 'create'), editor.beginNewView);
 
+  if (editor.error) return <PreferencesError message={editor.error} onRetry={editor.retry} />;
   if (!team || !filteredTeam || !shownTeam || !editor.ready) return null;
 
   // Saving persists the view: editing an existing one is a views edit, a brand-new

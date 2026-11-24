@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
 import { useListBoardSettings } from '@/hooks/useListBoardSettings';
+import { PreferencesError } from '@/components/common/page/PreferencesError';
 import { applyFilters } from '@/utils/filters';
 import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import FilterBar from '@/components/layout/FilterBar';
@@ -46,6 +47,7 @@ export default function CycleIssuesBoard({
 
   // Rendered once the stored display is loaded, so the list does not first show the
   // defaults.
+  if (board.error) return <PreferencesError message={board.error} onRetry={board.retry} />;
   if (!team || !viewTeam || !board.ready) return null;
 
   const viewProps = {

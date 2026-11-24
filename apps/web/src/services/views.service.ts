@@ -5,7 +5,11 @@ import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import type { FilterSet } from '@/utils/filters';
 import { filterSetToIssueFilter, issueFilterToFilterSet } from '@/utils/viewFilters';
-import { displayToPreferences, preferencesToDisplay } from '@/utils/viewPreferences';
+import {
+  collapsePreferences,
+  displayToPreferences,
+  preferencesToDisplay,
+} from '@/utils/viewPreferences';
 import type { SavedViewDisplay } from '@/utils/viewSettings';
 
 // Saved views on Linear's CustomView: the filter is the view's filterData (through the
@@ -73,6 +77,12 @@ const CustomViewFields = graphql(
       viewPreferencesValues {
         ...ViewPreferenceFields
       }
+      organizationViewPreferences {
+        preferences {
+          hiddenGroupsList
+          hiddenRows
+        }
+      }
     }
   `,
   [ViewPreferenceFields],
@@ -121,7 +131,8 @@ const DeleteView = graphql(`
   }
 `);
 
-// Creates the view's organization preferences, or replaces them when they exist.
+// Creates the view's organization or user preferences, or replaces them when they
+// exist.
 const SaveViewPreferences = graphql(`
   mutation SaveViewPreferences($input: ViewPreferencesCreateInput!) {
     viewPreferencesCreate(input: $input) {
@@ -141,7 +152,11 @@ function toView(v: {
   team?: { id: string; key: string; name: string } | null;
   owner?: { id: string; displayName: string; avatarUrl?: string | null } | null;
   viewPreferencesValues?: FragmentOf<typeof ViewPreferenceFields> | null;
+  organizationViewPreferences?: {
+    preferences: { hiddenGroupsList?: string[] | null; hiddenRows?: string[] | null };
+  } | null;
 }): View {
+  const shared = v.organizationViewPreferences?.preferences;
   return {
     id: v.id,
     teamId: v.team?.id ?? '',
@@ -157,6 +172,10 @@ function toView(v: {
       : null,
     filters: issueFilterToFilterSet(v.filterData),
     display: preferencesToDisplay(readFragment(ViewPreferenceFields, v.viewPreferencesValues)),
+    sharedCollapse: {
+      collapsedGroups: shared?.hiddenGroupsList ?? [],
+      collapsedSwimlanes: shared?.hiddenRows ?? [],
+    },
   };
 }
 
@@ -186,6 +205,22 @@ async function saveDisplay(customViewId: string, display: SavedViewDisplay | und
       viewType: 'customView',
       customViewId,
       preferences: { ...displayToPreferences(display) },
+    },
+  });
+}
+
+// The viewer's own collapsed groups and swimlanes on a saved view (their user
+// preferences for it, over the view's shared ones).
+export async function saveViewCollapse(
+  customViewId: string,
+  collapse: Pick<SavedViewDisplay, 'collapsedGroups' | 'collapsedSwimlanes'>,
+): Promise<void> {
+  await gqlRequest(SaveViewPreferences, {
+    input: {
+      type: 'user',
+      viewType: 'customView',
+      customViewId,
+      preferences: { ...collapsePreferences(collapse) },
     },
   });
 }

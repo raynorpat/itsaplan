@@ -11,7 +11,15 @@ import { listRowProperties, toggledKeys } from '@/utils/list';
 import { issuePath } from '@/utils/paths';
 import type { ViewSettings } from '@/utils/viewSettings';
 import { useMyIssues } from '../services/myIssues.service';
-import { groupMyIssues, myIssuesGrouping, sortMyIssues, type MyIssuesTab } from '../utils/myIssues';
+import {
+  groupMyIssues,
+  MY_ISSUES_CAP,
+  myIssuesGrouping,
+  myIssuesLoadMode,
+  shouldLoadMore,
+  sortMyIssues,
+  type MyIssuesTab,
+} from '../utils/myIssues';
 import MyIssuesGroup from './MyIssuesGroup';
 import MyIssuesRow from './MyIssuesRow';
 
@@ -23,8 +31,10 @@ const EMPTY: Record<MyIssuesTab, string> = {
 };
 
 // The tab's issues in the viewer's display: grouped and ordered as chosen, except
-// Activity, which is one list by the time of the last change. Issues load a page at
-// a time; the Completed issues window and Show sub-issues apply to the loaded ones.
+// Activity, which is one list by the time of the last change. Ordered by the last
+// change and ungrouped, issues load a page at a time on request; any other ordering
+// or a grouping loads the whole set (up to MY_ISSUES_CAP) so it is ordered as one.
+// The Completed issues window and Show sub-issues apply to the loaded issues.
 // J / K / Enter move through and open them as on a team's list; there is no
 // selection, since bulk edits work on one team's issues and these span teams.
 export default function MyIssuesList({
@@ -37,15 +47,28 @@ export default function MyIssuesList({
   onSettingsChange: (settings: ViewSettings) => void;
 }) {
   const router = useRouter();
+  const { completedIssues, showSubIssues, sort, group, collapsedGroups } = settings;
+  const mode = myIssuesLoadMode(tab, { sort, group });
   const { issues, isPending, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useMyIssues(
     tab,
-    settings.completedIssues !== 'none',
+    completedIssues !== 'none',
+    mode,
   );
-  const { completedIssues, showSubIssues, sort, group, collapsedGroups } = settings;
   const shown = useMemo(
     () => visibleIssues(issues, { completedIssues, showSubIssues }, new Date()),
     [issues, completedIssues, showSubIssues],
   );
+  const loadMore = shouldLoadMore({
+    mode,
+    hasNextPage,
+    fetching: isFetchingNextPage,
+    loaded: issues.length,
+    visible: shown.length,
+  });
+  useEffect(() => {
+    if (loadMore) void fetchNextPage();
+  }, [loadMore, fetchNextPage]);
+  const capped = hasNextPage && issues.length >= MY_ISSUES_CAP;
   const groups = useMemo(
     () => groupMyIssues(sortMyIssues(shown, sort), myIssuesGrouping(group)),
     [shown, sort, group],
@@ -77,6 +100,8 @@ export default function MyIssuesList({
 
   if (isPending) return null;
   if (error) return <p className="p-6 text-sm text-destructive">{error.message}</p>;
+  // Still loading: the whole set, or pages whose issues are all filtered out.
+  if (shown.length === 0 && hasNextPage && !capped) return null;
   if (shown.length === 0) return <EmptyState title="No issues" description={EMPTY[tab]} />;
   return (
     <div data-list-root role="list" aria-label="Issues" className="overflow-y-auto">
@@ -104,7 +129,12 @@ export default function MyIssuesList({
               }
             />
           ))}
-      {hasNextPage && (
+      {capped && (
+        <p className="p-3 text-center text-xs text-muted-foreground">
+          Showing the first {MY_ISSUES_CAP.toLocaleString('en-US')} issues.
+        </p>
+      )}
+      {hasNextPage && mode === 'paged' && !capped && (
         <div className="flex justify-center p-3">
           <Button
             variant="ghost"

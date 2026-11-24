@@ -1,4 +1,4 @@
-import { graphql, gqlRequest, readFragment } from '@/lib/graphql';
+import { graphql, gqlRequest, gqlRequestKeepalive, readFragment } from '@/lib/graphql';
 import type { ListViewType } from '@/utils/listPreferences';
 import type { ViewPreferenceValues } from '@/utils/viewPreferences';
 import { ViewPreferenceFields } from './views.service';
@@ -36,11 +36,13 @@ export async function fetchListPreferences(
   return record ? readFragment(ViewPreferenceFields, record.preferences) : null;
 }
 
+// keepalive: the page is being hidden or closed (see gqlRequestKeepalive).
 export async function saveListPreferences(
   viewType: ListViewType,
   preferences: ViewPreferenceValues,
+  keepalive = false,
 ): Promise<void> {
-  await gqlRequest(SaveListPreferences, {
-    input: { type: 'user', viewType, preferences: { ...preferences } },
-  });
+  const variables = { input: { type: 'user' as const, viewType, preferences: { ...preferences } } };
+  if (keepalive) await gqlRequestKeepalive(SaveListPreferences, variables);
+  else await gqlRequest(SaveListPreferences, variables);
 }

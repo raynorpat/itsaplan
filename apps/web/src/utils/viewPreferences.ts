@@ -139,3 +139,32 @@ export function preferencesToDisplay(p: ViewPreferenceValues | null | undefined)
   };
   return normalizeSavedDisplay(blob);
 }
+
+type Collapse = Pick<SavedViewDisplay, 'collapsedGroups' | 'collapsedSwimlanes'>;
+
+// A saved view's collapsed groups and swimlanes are personal, as in Linear: each
+// viewer's are stored as their own preferences for the view (only these two keys,
+// over the view's shared ones).
+export function collapsePreferences(d: Collapse): ViewPreferenceValues {
+  return { hiddenGroupsList: d.collapsedGroups, hiddenRows: d.collapsedSwimlanes };
+}
+
+// The display with the given collapse in place of its own: a saved view is written
+// for everyone with its shared collapse, not the editor's personal one.
+export function withCollapse<T extends Collapse>(d: T, collapse: Collapse): T {
+  return {
+    ...d,
+    collapsedGroups: collapse.collapsedGroups,
+    collapsedSwimlanes: collapse.collapsedSwimlanes,
+  };
+}
+
+const sameKeys = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((k, i) => k === b[i]);
+
+export function collapseChanged<T extends Collapse>(a: T, b: T): boolean {
+  return (
+    !sameKeys(a.collapsedGroups, b.collapsedGroups) ||
+    !sameKeys(a.collapsedSwimlanes, b.collapsedSwimlanes)
+  );
+}

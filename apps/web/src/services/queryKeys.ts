@@ -113,8 +113,8 @@ export const qk = {
   // The viewer's workspace role and the workspace's name and logo (the sidebar chrome).
   viewerWorkspace: ['viewerWorkspace'] as const,
   // My issues: one tab, with or without completed and canceled issues.
-  myIssues: (tab: string, includeCompleted: boolean) =>
-    ['myIssues', tab, includeCompleted] as const,
+  myIssues: (tab: string, includeCompleted: boolean, mode: string) =>
+    ['myIssues', tab, includeCompleted, mode] as const,
   anyMyIssues: ['myIssues'] as const,
 };
 

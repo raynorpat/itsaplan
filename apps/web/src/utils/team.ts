@@ -158,6 +158,7 @@ export interface IssueGroup {
   name: string;
   color?: string;
   stateType?: StateType; // status groups, for the state icon
+  priority?: number; // priority groups, for the priority icon
   assign: IssuePatch | null;
 }
 
@@ -197,9 +198,10 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
         ...PRIORITIES.map((p) => ({
           key: `p${p.value}`,
           name: p.label,
+          priority: p.value,
           assign: { priority: p.value },
         })),
-        { key: 'p-none', name: 'No priority', assign: { priority: 0 } },
+        { key: 'p-none', name: 'No priority', priority: 0, assign: { priority: 0 } },
       ];
     case 'project': {
       // Lanes come from the projects the loaded issues are linked to (each issue

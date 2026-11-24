@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { displayToPreferences, preferencesToDisplay } from '../viewPreferences';
+import {
+  collapseChanged,
+  collapsePreferences,
+  displayToPreferences,
+  preferencesToDisplay,
+  withCollapse,
+} from '../viewPreferences';
 import { normalizeSavedDisplay, type SavedViewDisplay } from '../viewSettings';
 
 const display: SavedViewDisplay = {
@@ -93,5 +99,30 @@ describe('view preferences: completed issues and sub-issues', () => {
     const back = preferencesToDisplay({ layout: 'list', showCompletedIssues: 'currentCycle' });
     assert.equal(back.completedIssues, 'all');
     assert.equal(back.showSubIssues, true);
+  });
+});
+
+describe('personal collapse on a saved view', () => {
+  const base = normalizeSavedDisplay({ layout: 'list' });
+
+  it("stores only the viewer's collapsed groups and swimlanes", () => {
+    assert.deepEqual(
+      collapsePreferences({ ...base, collapsedGroups: ['s1'], collapsedSwimlanes: ['a2'] }),
+      { hiddenGroupsList: ['s1'], hiddenRows: ['a2'] },
+    );
+  });
+
+  it("puts the view's shared collapse back before the view is saved for everyone", () => {
+    const mine = { ...base, collapsedGroups: ['mine'], collapsedSwimlanes: ['row'] };
+    const out = withCollapse(mine, { collapsedGroups: ['shared'], collapsedSwimlanes: [] });
+    assert.deepEqual(out.collapsedGroups, ['shared']);
+    assert.deepEqual(out.collapsedSwimlanes, []);
+    assert.equal(out.layout, mine.layout);
+  });
+
+  it('tells a collapse change from any other display change', () => {
+    assert.equal(collapseChanged(base, { ...base, collapsedGroups: ['s1'] }), true);
+    assert.equal(collapseChanged(base, { ...base, collapsedSwimlanes: ['a'] }), true);
+    assert.equal(collapseChanged(base, { ...base, group: 'priority' }), false);
   });
 });
