@@ -43,8 +43,16 @@ describe('parseShellRoute', () => {
     assert.equal(parse('/team/ENG').onBoard, true);
   });
 
-  it('needs no team on the inbox, My issues and the account and workspace settings', () => {
+  it('reads the feedback pages as a workspace area', () => {
+    const r = parse('/feedback/people/abc');
+    assert.equal(r.workspace, true);
+    assert.equal(r.sub, 'feedback');
+  });
+
+  it('needs no team on the inbox, My issues, feedback and the account and workspace settings', () => {
     for (const path of [
+      '/feedback/people',
+      '/feedback/people/abc',
       '/inbox',
       '/my-issues',
       '/my-issues/created',

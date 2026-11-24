@@ -23,11 +23,16 @@ describe('sidebarModel', () => {
     );
     assert.deepEqual(
       model.workspace.map((i) => i.key),
-      ['projects', 'views', 'initiatives'],
+      ['projects', 'views', 'initiatives', 'feedback'],
     );
   });
 
-  it('hides Initiatives from guests', () => {
+  it('links Feedback to the People page', () => {
+    const model = sidebarModel({ workspaceRole: 'member', teams: [] });
+    assert.equal(model.workspace.find((i) => i.key === 'feedback')?.href, '/feedback/people');
+  });
+
+  it('hides Initiatives and Feedback from guests', () => {
     const model = sidebarModel({ workspaceRole: 'guest', teams: [team('ENG')] });
     assert.deepEqual(
       model.workspace.map((i) => i.key),

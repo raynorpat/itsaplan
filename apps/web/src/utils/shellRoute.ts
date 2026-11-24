@@ -22,7 +22,7 @@ export type ShellRoute = {
 
 // Every path that is not under /team/<key> or /settings is one of these areas. The
 // workspace Views page reads no team (needsTeam false).
-const WORKSPACE_AREAS = ['projects', 'initiatives', 'inbox', 'my-issues', 'views'];
+const WORKSPACE_AREAS = ['projects', 'initiatives', 'inbox', 'my-issues', 'views', 'feedback'];
 // The workspace areas whose pages read the Shell's team.
 const TEAM_AREAS = ['projects', 'initiatives'];
 

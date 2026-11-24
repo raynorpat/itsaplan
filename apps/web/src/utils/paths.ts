@@ -105,6 +105,10 @@ export const startPagePath = (key: string, startPage: StartPage) => {
 
 // The Manage teams page in the account settings: every team the user can see, to
 // join, leave or delete.
+// The people who gave feedback (requesters), and one person's page.
+export const feedbackPeoplePath = () => '/feedback/people';
+export const feedbackPersonPath = (id: string) => `/feedback/people/${encodeURIComponent(id)}`;
+
 export const manageTeamsPath = () => '/settings/account/teams';
 export const workspaceMembersPath = () => '/settings/workspace/members';
 

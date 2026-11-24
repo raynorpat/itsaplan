@@ -1,5 +1,13 @@
 import { usePathname, useSearchParams } from 'next/navigation';
-import { CircleUserRound, Inbox, Layers, Milestone, Target, type LucideIcon } from 'lucide-react';
+import {
+  CircleUserRound,
+  Inbox,
+  Layers,
+  MessageSquareQuote,
+  Milestone,
+  Target,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Team } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useInboxUnread } from '@/services/notifications.service';
@@ -20,6 +28,7 @@ const ICONS: Record<string, LucideIcon> = {
   projects: Target,
   views: Layers,
   initiatives: Milestone,
+  feedback: MessageSquareQuote,
 };
 
 // The main sidebar body, workspace-first as in Linear: Inbox and My issues, the

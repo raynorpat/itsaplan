@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDownNarrowWide, ArrowUpNarrowWide, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SORT_FIELDS, type SortField } from '@/utils/viewTypes';
+import { SORT_FIELDS, sortForField, type SortField } from '@/utils/viewTypes';
 import type { ViewSettings } from '@/utils/viewSettings';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -77,7 +77,7 @@ export default function MyIssuesDisplay({
                 </Button>
                 <DisplaySettingsSelect
                   value={sort.field}
-                  onChange={(v) => set({ sort: { ...sort, field: v as SortField } })}
+                  onChange={(v) => set({ sort: sortForField(v as SortField) })}
                   options={ORDER_OPTIONS}
                 />
               </DisplaySettingsRow>

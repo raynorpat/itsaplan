@@ -1,8 +1,10 @@
 import type { Team } from '@/types/team';
 import type { WorkspaceRole } from '@/types/workspace';
 import { canSeeInitiatives } from '@/utils/workspaceRoles';
+import { canSeeFeedback } from '@/utils/feedback';
 import {
   cyclesPath,
+  feedbackPeoplePath,
   inboxPath,
   initiativesPath,
   myIssuesPath,
@@ -45,6 +47,9 @@ export function sidebarModel({
   ];
   if (canSeeInitiatives(workspaceRole)) {
     workspace.push({ key: 'initiatives', label: 'Initiatives', href: initiativesPath() });
+  }
+  if (canSeeFeedback(workspaceRole)) {
+    workspace.push({ key: 'feedback', label: 'Feedback', href: feedbackPeoplePath() });
   }
   return {
     top: [

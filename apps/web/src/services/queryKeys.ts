@@ -98,6 +98,10 @@ export const qk = {
   anyFeedback: ['feedback'] as const,
   anyProjectFeedback: ['feedback', 'project'] as const,
   requesterSearch: (q: string) => ['requesters', 'search', q] as const,
+  // The People pages: the list (by search) and one person.
+  requesterList: (q: string) => ['requesters', 'list', q] as const,
+  requester: (id: string) => ['requesters', 'person', id] as const,
+  anyRequesters: ['requesters'] as const,
   // Feedback summaries per issue: a team board's, and an Insights panel's scope.
   teamRequests: (teamKey: string) => ['requests', 'team', teamKey] as const,
   insightsRequests: (viewKey: string, scope: string) =>

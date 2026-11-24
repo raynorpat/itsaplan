@@ -1,5 +1,5 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
-import { SORT_FIELDS, type SortField, type WorkItemsView } from '@/utils/viewTypes';
+import { SORT_FIELDS, sortForField, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import { withoutCycleOptions } from '@/utils/cycles';
 import { requestOptions } from '@/utils/requests';
@@ -93,7 +93,7 @@ export default function DisplayGroupingRows({
           </Button>
           <DisplaySettingsSelect
             value={settings.sort.field}
-            onChange={(v) => onChange({ sort: { ...settings.sort, field: v as SortField } })}
+            onChange={(v) => onChange({ sort: sortForField(v as SortField) })}
             options={requestOptions(SORT_FIELDS, requestsOn)}
           />
         </DisplaySettingsRow>

@@ -26,6 +26,13 @@ export interface Sort {
   dir: 'asc' | 'desc';
 }
 
+// The order an ordering starts in when it is picked, as in Linear: the most requested,
+// newest created and most recently updated first; everything else ascending.
+export function sortForField(field: SortField): Sort {
+  const desc = field === 'requests' || field === 'created' || field === 'updated';
+  return { field, dir: desc ? 'desc' : 'asc' };
+}
+
 // The team's display modes: Linear's List and Board, plus Timeline and Calendar.
 // Which mode is active is a global preference (see useViewEditor); each mode's
 // settings are stored per team (see viewSettings).
