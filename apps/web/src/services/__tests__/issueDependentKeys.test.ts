@@ -26,4 +26,9 @@ describe('ISSUE_DEPENDENT_KEYS', () => {
   it('refreshes every project’s feedback (an issue can move between projects)', () => {
     assert.equal(covers(qk.projectFeedback('any-project')), true);
   });
+
+  it('refreshes request counts (an issue can move between teams or be deleted)', () => {
+    assert.equal(covers(qk.teamRequests('ENG')), true);
+    assert.equal(covers(qk.insightsRequests('view', '{}')), true);
+  });
 });

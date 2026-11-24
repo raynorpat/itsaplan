@@ -22,6 +22,7 @@ export type InsightIssue = Pick<
   | 'completedAt'
   | 'canceledAt'
   | 'createdAt'
+  | 'requests'
 >;
 
 // Names the panel shows for the ids on an issue.

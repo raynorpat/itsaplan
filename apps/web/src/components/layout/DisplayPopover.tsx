@@ -14,6 +14,7 @@ export default function DisplayPopover({
   settings,
   onSettingsChange,
   cyclesOn,
+  requestsOn,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
@@ -21,6 +22,8 @@ export default function DisplayPopover({
   onSettingsChange: (settings: ViewSettings) => void;
   // Whether the team's cycles are on; the cycle grouping and property show only then.
   cyclesOn: boolean;
+  // Whether the list has feedback counts (not for guests); Requests shows only then.
+  requestsOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -44,6 +47,7 @@ export default function DisplayPopover({
           settings={settings}
           onSettingsChange={onSettingsChange}
           cyclesOn={cyclesOn}
+          requestsOn={requestsOn}
         />
       </PopoverContent>
     </Popover>

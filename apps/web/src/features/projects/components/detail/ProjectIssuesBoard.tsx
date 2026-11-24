@@ -86,6 +86,7 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
             settings={settings}
             onSettingsChange={board.changeSettings}
             cyclesOn={cyclesVisible(team)}
+            requestsOn={team.viewer.workspaceRole !== 'guest'}
           />
         </div>
       </div>

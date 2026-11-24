@@ -5,6 +5,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useTeamsQuery } from '@/services/teams.service';
 import { fetchSubscribedIssueIds, useBoardIssues, useTeamScaffold } from '@/services/board.service';
 import { useViewsQuery } from '@/services/views.service';
+import { useTeamRequests } from '@/services/feedback.service';
 import { qk } from '@/services/queryKeys';
 import { ApiError } from '@/lib/graphql';
 import { useSession } from '@/lib/auth-client';
@@ -15,6 +16,7 @@ import {
   subscriberSetKey,
 } from '@/utils/filters';
 import { viewPath } from '@/utils/paths';
+import { withRequests } from '@/utils/requests';
 import { useViewEditor } from '@/hooks/useViewEditor';
 
 function errorMessage(error: unknown): string | null {
@@ -45,15 +47,19 @@ export function useShellTeam(
   const boardKey = withBoard ? teamKey : null;
   const boardIssuesQuery = useBoardIssues(boardKey);
   const scaffold = teamQuery.data ?? null;
+  // The board's feedback counts (Requests property, filter, ordering); guests read
+  // no feedback, so theirs are never asked for.
+  const readsRequests = scaffold != null && scaffold.viewer.workspaceRole !== 'guest';
+  const requestsQuery = useTeamRequests(boardKey, readsRequests);
   const team = useMemo(
     () =>
       scaffold
         ? {
             ...scaffold,
-            issues: boardIssuesQuery.data ?? [],
+            issues: withRequests(boardIssuesQuery.data ?? [], requestsQuery.data),
           }
         : null,
-    [scaffold, boardIssuesQuery.data],
+    [scaffold, boardIssuesQuery.data, requestsQuery.data],
   );
 
   const viewsQuery = useViewsQuery(boardKey);

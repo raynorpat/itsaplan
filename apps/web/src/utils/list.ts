@@ -14,6 +14,7 @@ import {
 // and status lead the row before the title.
 export type ListField = Exclude<DisplayProperty, 'priority' | 'id' | 'status'>;
 const TRAILING_ORDER: ListField[] = [
+  'requests',
   'labels',
   'project',
   'cycle',

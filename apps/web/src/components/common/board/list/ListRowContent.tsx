@@ -1,3 +1,4 @@
+import type { Issue } from '@/types/issue';
 import type { StateType } from '@/types/team';
 import type { ListField, ListRowProperties } from '@/utils/list';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ export interface ListRowData {
   delegate: { name: string; image: string | null } | null;
   createdAt: string;
   updatedAt: string;
+  requests: Pick<Issue, 'requests'>;
 }
 
 // One issue as a single dense line, as in Linear's list: priority, identifier,

@@ -40,6 +40,7 @@ const ORDERING: Record<SortField, string> = {
   dueDate: 'dueDate',
   created: 'createdAt',
   updated: 'updatedAt',
+  requests: 'customerCount',
 };
 
 // Linear's field toggle for each property. The delegate has none; it is saved by its
@@ -52,6 +53,7 @@ const FIELD: Partial<Record<PropertyKey, string>> = {
   project: 'fieldProject',
   cycle: 'fieldCycle',
   labels: 'fieldLabels',
+  requests: 'fieldCustomerCount',
   dueDate: 'fieldDueDate',
   created: 'fieldDateCreated',
   updated: 'fieldDateUpdated',
@@ -83,6 +85,7 @@ export interface ViewPreferenceValues {
   fieldProject?: boolean | null;
   fieldCycle?: boolean | null;
   fieldLabels?: boolean | null;
+  fieldCustomerCount?: boolean | null;
   fieldDueDate?: boolean | null;
   fieldDateCreated?: boolean | null;
   fieldDateUpdated?: boolean | null;

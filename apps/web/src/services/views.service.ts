@@ -48,6 +48,7 @@ export const ViewPreferenceFields = graphql(`
     fieldProject
     fieldCycle
     fieldLabels
+    fieldCustomerCount
     fieldDueDate
     fieldDateCreated
     fieldDateUpdated

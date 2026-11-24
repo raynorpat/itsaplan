@@ -46,6 +46,17 @@ export interface Issue {
   // is active. Set by the archive action or the worker's auto-archive sweep.
   archivedAt: string | null;
   labelIds: string[];
+  // The feedback on the issue (utils/requests.ts), set for members once the team's
+  // feedback has loaded; absent for guests and before it loads.
+  requests?: RequestSummary;
+}
+
+// An issue's feedback: how many items, the distinct people asking, and those who
+// marked a request important (Linear's customerCount / customerImportantCount).
+export interface RequestSummary {
+  count: number;
+  requesterIds: string[];
+  importantRequesterIds: string[];
 }
 
 export interface Attachment {

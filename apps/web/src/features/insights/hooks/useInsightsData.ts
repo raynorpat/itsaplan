@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { qk } from '@/services/queryKeys';
+import { fetchRequestSummaries } from '@/services/feedback.service';
+import { withRequests } from '@/utils/requests';
 import type { IssueFilter } from '@/utils/viewFilters';
 import { fetchCompletedIssues, fetchOpenIssues } from '../services/insightsIssues.service';
 import { mergeInsightIssues, periodStart, withinPeriod } from '../utils/data';
@@ -23,6 +25,7 @@ export function useInsightsData({
   periodMonths,
   showSubIssues,
   fetchOpen = false,
+  readsRequests = false,
 }: {
   enabled: boolean;
   viewKey: string;
@@ -34,6 +37,9 @@ export function useInsightsData({
   periodMonths: number;
   showSubIssues: boolean;
   fetchOpen?: boolean;
+  // Whether the viewer reads feedback (not a guest): the scope's feedback counts are
+  // then fetched for the Requests and Requesters measures.
+  readsRequests?: boolean;
 }) {
   const sinceKey = periodStart(periodMonths, new Date()).toISOString();
   const since = useMemo(() => new Date(sinceKey), [sinceKey]);
@@ -52,13 +58,23 @@ export function useInsightsData({
     staleTime: 60_000,
   });
 
+  const requests = useQuery({
+    queryKey: qk.insightsRequests(viewKey, scopeKey),
+    queryFn: () => fetchRequestSummaries(scope),
+    enabled: enabled && readsRequests,
+    staleTime: 60_000,
+  });
+
   const issues = useMemo(
     () =>
-      mergeInsightIssues(
-        withinPeriod(mergeInsightIssues(viewIssues, open.data?.issues ?? []), since),
-        completed.data?.issues ?? [],
+      withRequests(
+        mergeInsightIssues(
+          withinPeriod(mergeInsightIssues(viewIssues, open.data?.issues ?? []), since),
+          completed.data?.issues ?? [],
+        ),
+        requests.data,
       ),
-    [viewIssues, open.data, completed.data, since],
+    [viewIssues, open.data, completed.data, since, requests.data],
   );
   const context = useMemo(
     () =>

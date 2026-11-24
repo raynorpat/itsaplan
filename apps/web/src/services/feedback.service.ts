@@ -7,6 +7,10 @@ import { gqlRequest, graphql, readFragment, type ResultOf } from '@/lib/graphql'
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 import type { FeedbackItem, FeedbackRequester } from '@/utils/feedback';
+import { fetchAllPages } from '@/utils/fetchAllPages';
+import { summarizeNeeds } from '@/utils/requests';
+import type { IssueFilter } from '@/utils/viewFilters';
+import type { RequestSummary } from '@/types/issue';
 
 const FeedbackFields = graphql(`
   fragment FeedbackFields on CustomerNeed {
@@ -202,6 +206,7 @@ function useRefreshFeedback() {
       void qc.invalidateQueries({ queryKey: qk.attachments(id) });
     }
     void qc.invalidateQueries({ queryKey: qk.anyProjectFeedback });
+    void qc.invalidateQueries({ queryKey: qk.anyRequests });
   };
 }
 
@@ -263,5 +268,64 @@ export function useDeleteFeedback(issueId: string) {
   return useMutation({
     mutationFn: (id: string) => gqlRequest(FeedbackDelete, { id }),
     onSettled: () => refresh([issueId]),
+  });
+}
+
+const RequestRefsPage = graphql(`
+  query RequestRefs($filter: CustomerNeedFilter, $after: String, $first: Int) {
+    customerNeeds(filter: $filter, first: $first, after: $after) {
+      nodes {
+        priority
+        issue {
+          id
+        }
+        attachment {
+          externalUserCreator {
+            id
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+// The feedback summaries of the issues matching `issueFilter` (utils/requests.ts),
+// from the feedback items alone: one paged list instead of a field on every issue.
+export async function fetchRequestSummaries(
+  issueFilter: IssueFilter,
+): Promise<Map<string, RequestSummary>> {
+  const nodes = await fetchAllPages(async (after, first) => {
+    const data = await gqlRequest(RequestRefsPage, {
+      filter: { issue: issueFilter },
+      after,
+      first,
+    });
+    return data.customerNeeds;
+  });
+  return summarizeNeeds(
+    nodes.flatMap((n) =>
+      n.issue
+        ? [
+            {
+              issueId: n.issue.id,
+              priority: n.priority,
+              requesterId: n.attachment?.externalUserCreator?.id ?? null,
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
+// A team's feedback summaries for its board. Off for guests, who read no feedback.
+export function useTeamRequests(teamKey: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.teamRequests(teamKey ?? ''),
+    queryFn: () => fetchRequestSummaries({ team: { key: { eq: teamKey } } }),
+    enabled: enabled && teamKey != null,
   });
 }

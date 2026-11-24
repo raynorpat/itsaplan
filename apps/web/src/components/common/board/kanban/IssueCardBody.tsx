@@ -1,4 +1,6 @@
 import { CalendarClock, CalendarPlus, History, RefreshCcw, Target } from 'lucide-react';
+import { RequestsBadge } from '@/components/common/issue/RequestsBadge';
+import { requesterCount } from '@/utils/requests';
 import type { Issue } from '@/types/issue';
 import { type Maps } from '@/utils/team';
 import { cycleLabel } from '@/utils/cycles';
@@ -46,6 +48,7 @@ export function IssueCardBody({
     (has('project') && project) ||
     (has('cycle') && cycle) ||
     (has('labels') && issue.labelIds.length > 0) ||
+    (has('requests') && requesterCount(issue) > 0) ||
     has('created') ||
     has('updated');
 
@@ -114,6 +117,7 @@ export function IssueCardBody({
               <span className="truncate">{cycleLabel(cycle)}</span>
             </Badge>
           )}
+          {has('requests') && <RequestsBadge issue={issue} />}
           {has('labels') &&
             issue.labelIds.map((id) => {
               const label = maps.labelById.get(id);

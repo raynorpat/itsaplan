@@ -251,5 +251,7 @@ export function myIssueRow(issue: MyIssue): ListRowData {
     delegate: avatar(issue.delegate),
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
+    // My issues spans teams and loads no feedback counts.
+    requests: {},
   };
 }

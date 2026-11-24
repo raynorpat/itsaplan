@@ -2,6 +2,8 @@ import type { TeamDetail } from '@/types/team';
 import { PRIORITY_OPTIONS, STATE_TYPE_OPTIONS } from '@/utils/fieldOptions';
 import { cycleLabel, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import {
+  REQUESTS_ANY,
+  REQUESTS_IMPORTANT,
   SUBSCRIBER_ME,
   type FilterCondition,
   type FilterOperator,
@@ -101,6 +103,20 @@ export function buildFieldSpecs(team: TeamDetail): FieldSpec[] {
       kind: 'set',
       options: team.labels.map((l) => ({ value: l.id, label: l.name, color: l.color })),
     },
+    // Feedback (people asking); members only, since guests read no feedback.
+    ...(team.viewer.workspaceRole !== 'guest'
+      ? [
+          {
+            field: 'requests',
+            label: 'Requests',
+            kind: 'set' as const,
+            options: [
+              { value: REQUESTS_ANY, label: 'Has requests' },
+              { value: REQUESTS_IMPORTANT, label: 'Important' },
+            ],
+          },
+        ]
+      : []),
     { field: 'dueDate', label: 'Due date', kind: 'date' },
     { field: 'created', label: 'Created', kind: 'date' },
     { field: 'updated', label: 'Updated', kind: 'date' },

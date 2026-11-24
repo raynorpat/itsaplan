@@ -6,6 +6,7 @@
 import type { TeamDetail, StateType } from '@/types/team';
 import type { Issue } from '@/types/issue';
 import { cyclesVisible } from '@/utils/cycles';
+import { importantRequesterCount, requesterCount } from '@/utils/requests';
 
 // The fields a condition can target. A stored condition on any other field (one
 // that is no longer offered) constrains nothing.
@@ -18,6 +19,7 @@ export type BuiltinFilterField =
   | 'cycle' // cycle id, or null for "no cycle"
   | 'labels' // label ids (a issue has any/none of the chosen ones)
   | 'subscribers' // subscriber user ids, or 'me' for the viewer
+  | 'requests' // 'any' (someone asked) or 'important' (someone marked it important)
   | 'dueDate'
   | 'created'
   | 'updated';
@@ -99,6 +101,12 @@ function builtinSetValues(
       return [issue.cycleId];
     case 'labels':
       return issue.labelIds.length ? issue.labelIds : [null];
+    case 'requests': {
+      const values: FilterValue[] = [];
+      if (requesterCount(issue) > 0) values.push(REQUESTS_ANY);
+      if (importantRequesterCount(issue) > 0) values.push(REQUESTS_IMPORTANT);
+      return values.length ? values : [null];
+    }
     default:
       return [];
   }
@@ -133,7 +141,12 @@ const SET_FIELDS: BuiltinFilterField[] = [
   'cycle',
   'labels',
   'subscribers',
+  'requests',
 ];
+
+// The values of a requests condition.
+export const REQUESTS_ANY = 'any';
+export const REQUESTS_IMPORTANT = 'important';
 
 // The value a subscribers condition stores for the viewer, so a saved view filters
 // "subscribed by me" for whoever opens it.

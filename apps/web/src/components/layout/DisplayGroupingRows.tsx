@@ -2,6 +2,7 @@ import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import { SORT_FIELDS, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import { withoutCycleOptions } from '@/utils/cycles';
+import { requestOptions } from '@/utils/requests';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
@@ -30,11 +31,14 @@ export default function DisplayGroupingRows({
   settings,
   onChange,
   cyclesOn,
+  requestsOn,
 }: {
   view: WorkItemsView;
   settings: ViewSettings;
   onChange: (patch: Partial<ViewSettings>) => void;
   cyclesOn: boolean;
+  // Whether the list has feedback counts; ordering by Requests shows only then.
+  requestsOn: boolean;
 }) {
   // Changing the primary group clears a sub-group that would now duplicate it.
   const setGroup = (group: GroupField) =>
@@ -90,7 +94,7 @@ export default function DisplayGroupingRows({
           <DisplaySettingsSelect
             value={settings.sort.field}
             onChange={(v) => onChange({ sort: { ...settings.sort, field: v as SortField } })}
-            options={SORT_FIELDS}
+            options={requestOptions(SORT_FIELDS, requestsOn)}
           />
         </DisplaySettingsRow>
       )}

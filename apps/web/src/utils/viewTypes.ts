@@ -18,7 +18,8 @@ export type SortField =
   | 'assignee'
   | 'dueDate'
   | 'created'
-  | 'updated';
+  | 'updated'
+  | 'requests';
 
 export interface Sort {
   field: SortField;
@@ -61,4 +62,5 @@ export const SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'dueDate', label: 'Due date' },
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },
+  { value: 'requests', label: 'Requests' },
 ];

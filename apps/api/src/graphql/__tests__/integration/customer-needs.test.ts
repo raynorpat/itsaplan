@@ -15,6 +15,7 @@ import {
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import { countStatements } from '../../../__tests__/helpers/statements';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { createRequesterAttachment } from '../../../feedback/store';
 
@@ -346,5 +347,32 @@ describe('graphql customer needs (feedback)', () => {
       creatorId: owner.userId,
     });
     expect(events[1]!.updatedFrom).toMatchObject({ body: 'v1', issueId: a.id });
+  });
+
+  it("lists a team's feedback with a bounded number of statements", async () => {
+    const { owner, a, jane, sam } = await setup();
+    const add = async (n: number) => {
+      for (let i = 0; i < n; i++) {
+        const person = i % 2 === 0 ? jane : sam;
+        const { attachmentId } = await createRequesterAttachment(
+          a.id,
+          person.id,
+          'team',
+          owner.userId,
+        );
+        await createNeed(owner, { issueId: a.id, attachmentId, body: `quote ${i}` });
+      }
+    };
+    const query = `query { customerNeeds(first: 250, filter: { issue: { team: { key: { eq: "MKT" } } } }) {
+      nodes { priority issue { id } attachment { externalUserCreator { id } } } } }`;
+    const run = async () => {
+      const res = await gql(headers(owner), query);
+      expect(res.body.errors).toBeUndefined();
+    };
+    await add(3);
+    const few = await countStatements(run);
+    await add(12);
+    const many = await countStatements(run);
+    expect(many).toBe(few);
   });
 });

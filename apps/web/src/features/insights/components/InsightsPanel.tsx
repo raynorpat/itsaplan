@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import type { FilterCondition } from '@/utils/filters';
 import type { IssueFilter } from '@/utils/viewFilters';
+import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { useInsightsData } from '../hooks/useInsightsData';
 import { INSIGHTS_ISSUE_LIMIT } from '../services/insightsIssues.service';
 import { breakdown, isTimeMeasure } from '../utils/measures';
@@ -47,8 +48,10 @@ export default function InsightsPanel({
   onSliceFilter?: (condition: FilterCondition) => void;
   onOpenIssue: (issueId: string) => void;
 }) {
+  const workspaceRole = useViewerWorkspaceQuery().data?.workspaceRole;
   const data = useInsightsData({
     enabled: true,
+    readsRequests: workspaceRole != null && workspaceRole !== 'guest',
     viewKey,
     scope,
     viewIssues,
@@ -58,7 +61,8 @@ export default function InsightsPanel({
     fetchOpen,
   });
   const hasEstimates = data.issues.some((i) => (i.estimate ?? 0) > 0);
-  const shown = effectiveSettings(settings, { hasEstimates, spansTeams });
+  const hasRequests = data.issues.some((i) => i.requests != null);
+  const shown = effectiveSettings(settings, { hasEstimates, hasRequests, spansTeams });
   const measureLabel = MEASURE_LABELS[shown.measure];
 
   const content = useMemo(() => {
@@ -98,7 +102,7 @@ export default function InsightsPanel({
     >
       <InsightsControls
         settings={shown}
-        measures={measureOptions({ hasEstimates })}
+        measures={measureOptions({ hasEstimates, hasRequests })}
         fields={sliceOptions({ spansTeams })}
         onChange={onChange}
         onClose={() => onChange({ open: false })}

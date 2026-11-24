@@ -3,6 +3,7 @@
 // and avatar helpers live in lib/dates and lib/avatar.
 
 import type { Assignee, TeamDetail, Column, Cycle, Label, StateType } from '@/types/team';
+import { requesterCount } from '@/utils/requests';
 import type { Issue, IssuePatch, NewIssueInput } from '@/types/issue';
 import { PRIORITIES } from '@/utils/fieldOptions';
 import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
@@ -79,7 +80,10 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
   const dir = sort.dir === 'desc' ? -1 : 1;
 
   const numericField =
-    sort.field === 'identifier' || sort.field === 'status' || sort.field === 'priority';
+    sort.field === 'identifier' ||
+    sort.field === 'status' ||
+    sort.field === 'priority' ||
+    sort.field === 'requests';
 
   const numKey = (t: Issue): number => {
     switch (sort.field) {
@@ -89,6 +93,8 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
         return columnIndex.get(t.stateId) ?? Number.POSITIVE_INFINITY;
       case 'priority':
         return t.priority === 0 ? 5 : t.priority;
+      case 'requests':
+        return requesterCount(t);
       default:
         return 0;
     }

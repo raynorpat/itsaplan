@@ -13,6 +13,8 @@ import type { SliceField } from './slices';
 export const MEASURE_LABELS: Record<Measure, string> = {
   count: 'Issue count',
   points: 'Estimate points',
+  requests: 'Requests',
+  requesters: 'Requesters',
   cycleTime: 'Cycle time',
   leadTime: 'Lead time',
   age: 'Issue age',
@@ -47,9 +49,19 @@ export function formatDays(days: number): string {
   return `${Math.round(days)} d`;
 }
 
-// The measures a view offers: points only when its issues have estimates.
-export function measureOptions({ hasEstimates }: { hasEstimates: boolean }): Measure[] {
-  return MEASURES.filter((m) => m !== 'points' || hasEstimates);
+// The measures a view offers: points only when its issues have estimates; requests
+// and requesters only when its issues carry their feedback (members, not guests).
+export function measureOptions({
+  hasEstimates,
+  hasRequests,
+}: {
+  hasEstimates: boolean;
+  hasRequests: boolean;
+}): Measure[] {
+  return MEASURES.filter(
+    (m) =>
+      (m !== 'points' || hasEstimates) && ((m !== 'requests' && m !== 'requesters') || hasRequests),
+  );
 }
 
 // The fields a view slices by: team only where the view spans teams.
@@ -61,7 +73,7 @@ export function sliceOptions({ spansTeams }: { spansTeams: boolean }): SliceFiel
 // not offer falls back to the default, and a segment equal to the slice is dropped.
 export function effectiveSettings(
   settings: InsightsSettings,
-  opts: { hasEstimates: boolean; spansTeams: boolean },
+  opts: { hasEstimates: boolean; hasRequests: boolean; spansTeams: boolean },
 ): InsightsSettings {
   const measures = measureOptions(opts);
   const fields = sliceOptions(opts);

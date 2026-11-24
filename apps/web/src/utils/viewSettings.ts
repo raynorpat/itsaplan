@@ -25,6 +25,7 @@ export type DisplayProperty =
   | 'project'
   | 'cycle'
   | 'labels'
+  | 'requests'
   | 'dueDate'
   | 'created'
   | 'updated';
@@ -41,6 +42,7 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'project', label: 'Project' },
   { value: 'cycle', label: 'Cycle' },
   { value: 'labels', label: 'Labels' },
+  { value: 'requests', label: 'Requests' },
   { value: 'dueDate', label: 'Due date' },
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },

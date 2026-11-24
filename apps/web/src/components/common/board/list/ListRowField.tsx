@@ -7,12 +7,15 @@ import {
   DelegateAvatar,
   LabelBadge,
 } from '@/components/common/issue/IssueBadges';
+import { RequestsBadge } from '@/components/common/issue/RequestsBadge';
 import type { ListRowData } from './ListRowContent';
 
 // One right-hand field of a list row. Empty fields render nothing except the
 // avatar slots, which keep their width so avatars line up down the list.
 export function ListRowField({ field, data }: { field: ListField; data: ListRowData }) {
   switch (field) {
+    case 'requests':
+      return <RequestsBadge issue={data.requests} />;
     case 'labels':
       return data.labels.length > 0 ? (
         <span className="hidden max-w-[260px] shrink-0 items-center gap-1 overflow-hidden md:flex">

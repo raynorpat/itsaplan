@@ -98,6 +98,11 @@ export const qk = {
   anyFeedback: ['feedback'] as const,
   anyProjectFeedback: ['feedback', 'project'] as const,
   requesterSearch: (q: string) => ['requesters', 'search', q] as const,
+  // Feedback summaries per issue: a team board's, and an Insights panel's scope.
+  teamRequests: (teamKey: string) => ['requests', 'team', teamKey] as const,
+  insightsRequests: (viewKey: string, scope: string) =>
+    ['requests', 'insights', viewKey, scope] as const,
+  anyRequests: ['requests'] as const,
   // The viewer's notifications for the whole workspace (the inbox and its badge).
   notifications: () => ['notifications'] as const,
   // The signed-in user's WebAuthn passkeys (account security page).
@@ -148,4 +153,5 @@ export const ISSUE_DEPENDENT_KEYS: readonly (readonly unknown[])[] = [
   qk.anyMyIssues,
   qk.anyIssueFamily,
   qk.anyProjectFeedback,
+  qk.anyRequests,
 ];

@@ -102,6 +102,7 @@ export default function CycleIssuesBoard({
             settings={board.settings}
             onSettingsChange={board.changeSettings}
             cyclesOn
+            requestsOn={team.viewer.workspaceRole !== 'guest'}
           />
         </div>
       </div>

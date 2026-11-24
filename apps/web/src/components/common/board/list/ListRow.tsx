@@ -41,6 +41,7 @@ function rowData(issue: Issue, maps: Maps): ListRowData {
     delegate: person(issue.delegateUserId),
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
+    requests: { requests: issue.requests },
   };
 }
 

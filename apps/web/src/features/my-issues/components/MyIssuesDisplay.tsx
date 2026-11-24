@@ -19,7 +19,8 @@ const GROUP_OPTIONS: { value: MyIssuesGroup; label: string }[] = [
 ];
 
 // Its issues span teams, which share no manual order.
-const ORDER_OPTIONS = SORT_FIELDS.filter((f) => f.value !== 'manual');
+// It loads no feedback counts, so it offers no Requests ordering.
+const ORDER_OPTIONS = SORT_FIELDS.filter((f) => f.value !== 'manual' && f.value !== 'requests');
 
 // Linear's Display menu for My issues: grouping and ordering (the Activity tab lists
 // by the newest change and ignores both), which issues show, and the row properties.
@@ -83,7 +84,12 @@ export default function MyIssuesDisplay({
             </>
           )}
           <DisplayIssueRows settings={settings} onChange={set} />
-          <DisplayPropertiesSection settings={settings} onChange={set} cyclesOn />
+          <DisplayPropertiesSection
+            settings={settings}
+            onChange={set}
+            cyclesOn
+            requestsOn={false}
+          />
         </div>
       </PopoverContent>
     </Popover>

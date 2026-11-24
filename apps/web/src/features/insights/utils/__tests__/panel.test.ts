@@ -25,8 +25,8 @@ describe('formatDays', () => {
 
 describe('measure and slice options', () => {
   it('offers points only when the issues have estimates', () => {
-    assert.ok(!measureOptions({ hasEstimates: false }).includes('points'));
-    assert.ok(measureOptions({ hasEstimates: true }).includes('points'));
+    assert.ok(!measureOptions({ hasEstimates: false, hasRequests: false }).includes('points'));
+    assert.ok(measureOptions({ hasEstimates: true, hasRequests: false }).includes('points'));
   });
   it('offers team only where the view spans teams', () => {
     assert.ok(!sliceOptions({ spansTeams: false }).includes('team'));
@@ -35,7 +35,7 @@ describe('measure and slice options', () => {
   it('falls back to defaults for options the view does not offer', () => {
     const s = effectiveSettings(
       { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'points', slice: 'team', segment: 'team' },
-      { hasEstimates: false, spansTeams: false },
+      { hasEstimates: false, hasRequests: false, spansTeams: false },
     );
     assert.equal(s.measure, 'count');
     assert.equal(s.slice, 'status');
@@ -44,7 +44,7 @@ describe('measure and slice options', () => {
   it('drops a segment equal to the slice', () => {
     const s = effectiveSettings(
       { ...DEFAULT_INSIGHTS_SETTINGS, slice: 'assignee', segment: 'assignee' },
-      { hasEstimates: true, spansTeams: true },
+      { hasEstimates: true, hasRequests: false, spansTeams: true },
     );
     assert.equal(s.segment, null);
   });

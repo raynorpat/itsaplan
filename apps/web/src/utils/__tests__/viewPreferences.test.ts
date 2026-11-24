@@ -45,6 +45,7 @@ describe('view preferences', () => {
       fieldProject: false,
       fieldCycle: false,
       fieldLabels: true,
+      fieldCustomerCount: false,
       fieldDueDate: false,
       fieldDateCreated: false,
       fieldDateUpdated: false,

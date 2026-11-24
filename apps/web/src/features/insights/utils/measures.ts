@@ -15,6 +15,8 @@ function daysBetween(from: string, to: number): number {
 // - count: 1;
 // - points: the estimate, an unestimated issue counting 1 (the project progress rule;
 //   the panel offers points only when the issues have estimates);
+// - requests: the issue's feedback items; requesters: the distinct people asking
+//   (a slice's total counts each person once, see total);
 // - cycleTime: days from start to completion (completed issues with a start);
 // - leadTime: days from creation to completion (completed issues);
 // - age: days from creation to `now` (open issues: neither completed nor canceled).
@@ -24,6 +26,10 @@ export function measureValue(issue: InsightIssue, measure: Measure, now: Date): 
       return 1;
     case 'points':
       return issue.estimate ?? 1;
+    case 'requests':
+      return issue.requests?.count ?? 0;
+    case 'requesters':
+      return issue.requests?.requesterIds.length ?? 0;
     case 'cycleTime':
       if (!issue.startedAt || !issue.completedAt) return null;
       return daysBetween(issue.startedAt, new Date(issue.completedAt).getTime());
@@ -53,6 +59,9 @@ export interface BreakdownRow {
 }
 
 function total(issues: InsightIssue[], measure: Measure, now: Date): number {
+  // A person asking on several issues of a slice counts once.
+  if (measure === 'requesters')
+    return new Set(issues.flatMap((i) => i.requests?.requesterIds ?? [])).size;
   return issues.reduce((n, i) => n + (measureValue(i, measure, now) ?? 0), 0);
 }
 

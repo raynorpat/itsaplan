@@ -7,7 +7,14 @@
 // condition, in order; an empty set becomes {}. Reading back recognises exactly the
 // shapes written here; anything else is dropped.
 
-import { SUBSCRIBER_ME, type FilterCondition, type FilterSet, type FilterValue } from './filters';
+import {
+  REQUESTS_ANY,
+  REQUESTS_IMPORTANT,
+  SUBSCRIBER_ME,
+  type FilterCondition,
+  type FilterSet,
+  type FilterValue,
+} from './filters';
 
 export type IssueFilter = Record<string, unknown>;
 
@@ -100,6 +107,18 @@ function conditionToElement(c: FilterCondition): Element | null {
       if (hasNull) return any;
       return null;
     }
+    return null;
+  }
+
+  // Requests: Linear's customerCount (people asking) and customerImportantCount.
+  // "Any or important" is "any", since important feedback has someone asking.
+  if (field === 'requests') {
+    const any = values.includes(REQUESTS_ANY);
+    const important = values.includes(REQUESTS_IMPORTANT);
+    if (!any && !important) return null;
+    const key = any ? 'customerCount' : 'customerImportantCount';
+    if (op === 'is') return { [key]: { gt: 0 } };
+    if (op === 'is_not') return { [key]: { eq: 0 } };
     return null;
   }
 
@@ -293,6 +312,14 @@ function elementToCondition(element: unknown): Partial | null {
   if (key === 'labels') return labelsElement(value);
 
   if (key === 'subscribers') return subscribersElement(value);
+
+  if ((key === 'customerCount' || key === 'customerImportantCount') && isObject(value)) {
+    const inner = only(value);
+    const values = [key === 'customerCount' ? REQUESTS_ANY : REQUESTS_IMPORTANT];
+    if (inner?.[0] === 'gt' && inner[1] === 0) return { field: 'requests', op: 'is', values };
+    if (inner?.[0] === 'eq' && inner[1] === 0) return { field: 'requests', op: 'is_not', values };
+    return null;
+  }
 
   const dateField = Object.entries(DATE_KEYS).find(([, k]) => k === key)?.[0];
   if (dateField && isObject(value)) {

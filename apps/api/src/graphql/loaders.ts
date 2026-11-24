@@ -1,7 +1,9 @@
 import DataLoader from 'dataloader';
 import {
+  attachment,
   cycle,
   db,
+  externalUser,
   issue,
   issueLabel,
   label,
@@ -15,6 +17,8 @@ import {
 } from '@repo/db';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { sessionsOfComments } from '../agents/store';
+import { mapAttachment } from '../attachments/store';
+import { readsFeedback } from '../feedback/access';
 import { mapCycle } from '../cycles/store';
 import { projectsInTeams } from '../projects/access';
 import { getProjectsByIds } from '../projects/store';
@@ -78,7 +82,32 @@ function createLoaders(ctx: GraphQLContext) {
     return byId(rows, keys);
   });
 
+  let feedbackReader: Promise<boolean> | null = null;
+
   return {
+    // Whether the viewer reads feedback and requesters (feedback/access.ts), asked once.
+    readsFeedback: () => (feedbackReader ??= readsFeedback(viewerId)),
+    attachment: new DataLoader(async (keys: readonly string[]) =>
+      byId(
+        (
+          await db
+            .select()
+            .from(attachment)
+            .where(inArray(attachment.id, [...keys]))
+        ).map(mapAttachment),
+        keys,
+      ),
+    ),
+    // Requesters by id, without following merges (the resolver follows them).
+    externalUser: new DataLoader(async (keys: readonly string[]) =>
+      byId(
+        await db
+          .select()
+          .from(externalUser)
+          .where(inArray(externalUser.id, [...keys])),
+        keys,
+      ),
+    ),
     // A project's progress histories (projects/progress.ts), built on first need.
     // Callers pass ids of projects the viewer already sees.
     projectHistory: new DataLoader(async (keys: readonly string[]) => {

@@ -150,6 +150,7 @@ export default function WorkItemsPage() {
     settings,
     onSettingsChange: changeSettings,
     cyclesOn: cyclesVisible(team),
+    requestsOn: team.viewer.workspaceRole !== 'guest',
   };
 
   return (

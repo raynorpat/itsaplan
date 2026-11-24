@@ -1,7 +1,6 @@
 import { trustedOrigins } from '@repo/auth';
 import { customerNeed, db, externalUser } from '@repo/db';
 import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
-import { getAttachment } from '../../attachments/store';
 import { assertFeedbackWrite, readsFeedback, visibleNeedsSql } from '../../feedback/access';
 import {
   createNeed,
@@ -18,7 +17,8 @@ import { gqlError } from '../errors';
 import { needFilterSql } from '../customer-need-filter';
 import { getOrganization } from './organization';
 import { toAttachment } from './attachment';
-import { findIssue, issueById, userFor } from './issue';
+import { findIssue, toIssue, userFor } from './issue';
+import { loaders } from '../loaders';
 import { dateTimeInput, guard, lastSyncId, onlySupported } from './mutations';
 
 // Linear's CustomerNeed as feedback on issues, and ExternalUser as its requester (the
@@ -97,12 +97,14 @@ function bodyInput(value: unknown): string | null | undefined {
 }
 
 // The requester (ExternalUser) a merged requester now points at, as Linear's type.
-async function externalUserById(id: string | null) {
-  if (!id) return null;
-  const [row] = await db.select().from(externalUser).where(eq(externalUser.id, id));
-  if (!row) return null;
-  if (row.mergedIntoId && row.mergedIntoId !== row.id) return externalUserById(row.mergedIntoId);
-  return toExternalUser(row);
+async function externalUserById(ctx: GraphQLContext, id: string | null) {
+  const seen = new Set<string>();
+  let row = id ? await loaders(ctx).externalUser.load(id) : null;
+  while (row?.mergedIntoId && row.mergedIntoId !== row.id && !seen.has(row.id)) {
+    seen.add(row.id);
+    row = await loaders(ctx).externalUser.load(row.mergedIntoId);
+  }
+  return row ? toExternalUser(row) : null;
 }
 
 const toExternalUser = (row: typeof externalUser.$inferSelect) => ({
@@ -135,10 +137,13 @@ export const customerNeedResolvers = {
       listNeeds(eq(customerNeed.issueId, i.id), args, ctx),
   },
   CustomerNeed: {
-    issue: (n: GraphQLNeed) => issueById(n.issueId),
-    attachment: async (n: GraphQLNeed) => {
+    issue: async (n: GraphQLNeed, _: unknown, ctx: GraphQLContext) => {
+      const row = await loaders(ctx).issue.load(n.issueId);
+      return row ? toIssue(row) : null;
+    },
+    attachment: async (n: GraphQLNeed, _: unknown, ctx: GraphQLContext) => {
       if (!n.attachmentId) return null;
-      const row = await getAttachment(n.attachmentId);
+      const row = await loaders(ctx).attachment.load(n.attachmentId);
       return row ? toAttachment(row) : null;
     },
     creator: (n: GraphQLNeed, _: unknown, ctx: GraphQLContext) => userFor(ctx, n.creatorId),
@@ -150,8 +155,8 @@ export const customerNeedResolvers = {
       _: unknown,
       ctx: GraphQLContext,
     ) => {
-      if (!a.externalUserCreatorId || !(await readsFeedback(ctx.user.id))) return null;
-      return externalUserById(a.externalUserCreatorId);
+      if (!a.externalUserCreatorId || !(await loaders(ctx).readsFeedback())) return null;
+      return externalUserById(ctx, a.externalUserCreatorId);
     },
   },
   ExternalUser: {

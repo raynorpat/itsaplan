@@ -5,6 +5,7 @@ import { breakdown, measureValue } from '../measures';
 import { sliceIssues, sliceFilter } from '../slices';
 import { timeRows, timeStats } from '../stats';
 import { weeklyCreatedCompleted } from '../overTime';
+import { measureOptions } from '../panel';
 import {
   DEFAULT_INSIGHTS_SETTINGS,
   insightsStorageKey,
@@ -215,6 +216,47 @@ describe('breakdown', () => {
         ['Done', 1],
       ],
     );
+  });
+});
+
+describe('request measures', () => {
+  const req = (ids: string[], important: string[] = [], count = ids.length) => ({
+    count,
+    requesterIds: [...new Set(ids)],
+    importantRequesterIds: important,
+  });
+
+  it('counts feedback items and distinct people per slice', () => {
+    const issues = [
+      // Two feedback items from one person: 2 requests, 1 requester.
+      issue({ id: '1', stateId: 's-todo', requests: req(['jane', 'jane'], [], 2) }),
+      issue({ id: '2', stateId: 's-todo', requests: req(['jane', 'sam']) }),
+      issue({ id: '3', stateId: 's-done' }),
+    ];
+    const requests = breakdown(issues, { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'requests' }, ctx);
+    assert.deepEqual(
+      requests.map((r) => [r.label, r.value]),
+      [
+        ['Todo', 4],
+        ['Done', 0],
+      ],
+    );
+    const people = breakdown(issues, { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'requesters' }, ctx);
+    assert.deepEqual(
+      people.map((r) => [r.label, r.value]),
+      [
+        ['Todo', 2],
+        ['Done', 0],
+      ],
+    );
+    assert.equal(measureValue(issues[0]!, 'requests', new Date()), 2);
+    assert.equal(measureValue(issues[0]!, 'requesters', new Date()), 1);
+  });
+
+  it('offers the request measures only when the issues carry requests', () => {
+    assert.ok(!measureOptions({ hasEstimates: false, hasRequests: false }).includes('requests'));
+    const withRequests = measureOptions({ hasEstimates: false, hasRequests: true });
+    assert.ok(withRequests.includes('requests') && withRequests.includes('requesters'));
   });
 });
 
