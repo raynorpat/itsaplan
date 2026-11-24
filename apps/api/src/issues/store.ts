@@ -650,12 +650,14 @@ async function emitIssue(
 }
 
 // Original dates of an imported issue (Linear's IssueCreateInput createdAt /
-// completedAt). `closedAt` is the import's close time of a canceled issue; GraphQL
-// never sets it.
+// completedAt). `closedAt` is the import's close time of a canceled issue and `link`
+// the import's link back to the source issue, written in the issue's own transaction
+// so an issue an import created always carries it; GraphQL sets neither.
 export interface IssueImportDates {
   createdAt?: Date;
   completedAt?: Date;
   closedAt?: Date;
+  link?: { url: string; title: string; metadata: Record<string, unknown> };
 }
 
 // Linear's rules for the import dates: each in the past, completedAt only with
@@ -748,15 +750,28 @@ export async function createIssue(
         ...(dates.createdAt ? { createdAt: dates.createdAt, updatedAt: dates.createdAt } : {}),
       })
       .returning({ id: issue.id });
+    if (dates.link)
+      await tx.insert(attachment).values({
+        issueId: row.id,
+        url: dates.link.url,
+        title: dates.link.title,
+        metadata: dates.link.metadata,
+        creatorUserId: actorUserId ?? null,
+      });
     return row.id;
   });
 
   const [createdEntry] = await recordActivity(issueId, [{ action: 'created' }], actorUserId);
-  // An imported issue's creation entry reads as of its original date.
-  if (dates.createdAt && createdEntry)
+  // An imported issue's creation entry reads as of its original date and names the
+  // import (Linear's IssueHistory.issueImport).
+  const importId = currentImport();
+  if ((dates.createdAt || importId) && createdEntry)
     await db
       .update(issueActivity)
-      .set({ createdAt: dates.createdAt })
+      .set({
+        ...(dates.createdAt ? { createdAt: dates.createdAt } : {}),
+        ...(importId ? { issueImportId: importId } : {}),
+      })
       .where(eq(issueActivity.id, createdEntry.id));
   // Linear subscribes the creator and the assignee of a new issue.
   await subscribe(

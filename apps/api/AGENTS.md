@@ -202,6 +202,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   account's sign-in address or another user's confirmed one is refused, and confirming
   one removes other users' pending rows for it. They are used only by
   `memberEmails` (issue import matching), never for sign-in or in GraphQL.
+- **Issue imports** (`imports/`, Linear's `IssueImport`): an `issue_import` row per
+  job (status `inProgress` → `inProcess` → `complete` / `error`; never a token). The
+  engine (`engine.ts`) creates the destination team's issues, labels (matched by name,
+  missing ones created), comments ("**Name** on GitHub wrote:") and a link back to each
+  source issue inside `runAsImport`. The link is written in the issue's own
+  transaction with `metadata.imported: false`, set true once the comments are in; a
+  rerun skips an issue whose link is complete and rebuilds a half-written one, so an
+  interrupted import run again duplicates nothing. The issue's `created` history entry
+  names the import (`issue_activity.issue_import_id`, `IssueHistory.issueImport`). On
+  startup (`index.ts`) imports left running end as `error`.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

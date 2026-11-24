@@ -15,6 +15,7 @@ import { ORIGIN } from '../../../__tests__/helpers/oauth';
 import { upsertLinkAttachment } from '../../../attachments/store';
 import { createComment } from '../../../comments/store';
 import { createIssue } from '../../../issues/store';
+import { createImport } from '../../../imports/store';
 import { createLabel } from '../../../labels/store';
 import { getTeamByKey } from '../../../teams/store';
 import { currentImport, runAsImport } from '../../workflow-context';
@@ -73,7 +74,15 @@ describe('import context', () => {
 
   it('writes no notification or webhook and runs no rule, but keeps history and subscribers', async () => {
     const s = await setup();
-    const issueId = await runAsImport('imp-1', async () => {
+    // The history link is a foreign key, so the writes run under a real import job.
+    const job = await createImport({
+      service: 'github',
+      teamId: s.team.id,
+      creatorId: s.owner.userId,
+      displayName: 'acme/app',
+      serviceMetadata: {},
+    });
+    const issueId = await runAsImport(job.id, async () => {
       const label = await createLabel({
         teamId: s.team.id,
         name: 'Imported',
