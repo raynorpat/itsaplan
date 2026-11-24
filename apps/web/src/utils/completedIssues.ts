@@ -17,12 +17,18 @@ interface ClosableIssue {
   completedAt: string | null;
   canceledAt: string | null;
   parentId: string | null;
+  stateId?: string;
 }
 
 export function visibleIssues<T extends ClosableIssue>(
   issues: T[],
   options: { completedIssues: CompletedWindow; showSubIssues: boolean },
   now: Date,
+  // The team's completed and canceled states. An issue in one of them with no
+  // completion or cancel time (imported or older data) counts as closed at an
+  // unknown time: shown under All, hidden under None and the past-week / month
+  // windows.
+  closedStateIds?: ReadonlySet<string>,
 ): T[] {
   const { completedIssues, showSubIssues } = options;
   if (completedIssues === 'all' && showSubIssues) return issues;
@@ -33,8 +39,18 @@ export function visibleIssues<T extends ClosableIssue>(
   return issues.filter((issue) => {
     if (!showSubIssues && issue.parentId) return false;
     const closedAt = issue.completedAt ?? issue.canceledAt;
-    if (!closedAt || completedIssues === 'all') return true;
+    if (completedIssues === 'all') return true;
+    if (!closedAt) return !(issue.stateId != null && closedStateIds?.has(issue.stateId));
     if (completedIssues === 'none') return false;
     return new Date(closedAt).getTime() >= (since ?? 0);
   });
+}
+
+// The ids of a team's completed and canceled states, for visibleIssues.
+export function closedStateIds(states: { id: string; stateType: string }[]): ReadonlySet<string> {
+  return new Set(
+    states
+      .filter((s) => s.stateType === 'completed' || s.stateType === 'canceled')
+      .map((s) => s.id),
+  );
 }

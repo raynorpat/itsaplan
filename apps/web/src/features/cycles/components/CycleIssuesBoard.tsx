@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
 import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
 import { applyFilters } from '@/utils/filters';
-import { visibleIssues } from '@/utils/completedIssues';
+import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
 import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
@@ -32,7 +32,12 @@ export default function CycleIssuesBoard({
     return {
       ...team,
       issues: applyFilters(
-        visibleIssues(cycleIssues(team.issues, cycleId), board.settings, new Date()),
+        visibleIssues(
+          cycleIssues(team.issues, cycleId),
+          board.settings,
+          new Date(),
+          closedStateIds(team.states),
+        ),
         board.filters,
         team,
       ),

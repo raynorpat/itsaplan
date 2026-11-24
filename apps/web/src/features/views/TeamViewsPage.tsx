@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
@@ -18,9 +19,12 @@ export default function TeamViewsPage() {
   const { can } = usePermissions();
   const teamKey = team?.team.key ?? null;
   const views = useViewsQuery(teamKey);
+  const list = useMemo(
+    () => [...(views.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [views.data],
+  );
   if (!teamKey) return null;
 
-  const list = [...(views.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const newView = can('views', 'create') && (
     <Button size="sm" variant="outline" asChild>
       <Link href={newViewPath(teamKey)}>

@@ -6,7 +6,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
 import { cyclesVisible } from '@/utils/cycles';
 import { cycleSafeSettings, type ViewSettings } from '@/utils/viewSettings';
-import { visibleIssues } from '@/utils/completedIssues';
+import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,12 @@ export default function WorkItemsPage() {
     () =>
       filteredTeam && {
         ...filteredTeam,
-        issues: visibleIssues(filteredTeam.issues, editor.settings, new Date()),
+        issues: visibleIssues(
+          filteredTeam.issues,
+          editor.settings,
+          new Date(),
+          closedStateIds(filteredTeam.states),
+        ),
       },
     [filteredTeam, editor.settings],
   );

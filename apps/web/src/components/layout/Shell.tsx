@@ -211,8 +211,8 @@ export default function Shell({
           currentIssueId={currentIssueId}
           onViewChange={editor.changeView}
           onNewIssue={openNewIssue}
-          // Handled by the kanban board's selection provider (mounted only on the
-          // board); the constant matches BOARD_SELECT_ALL_EVENT in useSelection.
+          // Handled by the selection provider the List and the Board mount; the
+          // constant matches BOARD_SELECT_ALL_EVENT in useSelection.
           onSelectAll={() => window.dispatchEvent(new Event('board:select-all'))}
           onNewTeam={() => overlays.setShowNewTeam(true)}
           onSelectTeam={(key) => router.push(teamPath(key))}

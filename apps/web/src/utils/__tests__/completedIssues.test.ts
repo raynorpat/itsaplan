@@ -66,3 +66,30 @@ describe('completed issues window', () => {
     );
   });
 });
+
+describe('visibleIssues: closed state without a timestamp', () => {
+  const closed = new Set(['done-state']);
+  const legacy = [
+    { ...row('legacy-done'), stateId: 'done-state' },
+    { ...row('open-2'), stateId: 'todo-state' },
+  ];
+
+  it('hides an issue in a closed state under None and the windows, even with no timestamp', () => {
+    const opts = (completedIssues: 'none' | 'week' | 'all') => ({
+      completedIssues,
+      showSubIssues: true,
+    });
+    assert.deepEqual(
+      visibleIssues(legacy, opts('none'), now, closed).map((i) => i.id),
+      ['open-2'],
+    );
+    assert.deepEqual(
+      visibleIssues(legacy, opts('week'), now, closed).map((i) => i.id),
+      ['open-2'],
+    );
+    assert.deepEqual(
+      visibleIssues(legacy, opts('all'), now, closed).map((i) => i.id),
+      ['legacy-done', 'open-2'],
+    );
+  });
+});

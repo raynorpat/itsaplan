@@ -131,13 +131,20 @@ export const DEFAULT_COMBOS = Object.fromEntries(
 // Lays a set of overrides over a resolved map. Ids the app does not know are
 // ignored, so a stale override left by a removed command cannot shadow a current
 // binding.
+// Ids that were renamed, so a binding the user stored under the former id still
+// applies. The Table layout became the List layout.
+const RENAMED_IDS: Record<string, string> = { 'view.table': 'view.list' };
+
 export function applyOverrides(
   base: HotkeyCombos,
   overrides: Record<string, string>,
 ): HotkeyCombos {
   const next = { ...base };
-  for (const [id, combo] of Object.entries(overrides)) {
-    if (id in next) next[id as HotkeyId] = combo;
+  for (const [stored, combo] of Object.entries(overrides)) {
+    const id = RENAMED_IDS[stored] ?? stored;
+    if (id === stored || !(id in overrides)) {
+      if (id in next) next[id as HotkeyId] = combo;
+    }
   }
   return next;
 }

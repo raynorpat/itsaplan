@@ -1,7 +1,11 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { EmptyState } from '@/components/common/page/EmptyState';
 import { Button } from '@/components/ui/button';
+import { useListKeyboard } from '@/hooks/useListKeyboard';
+import { issuePath } from '@/utils/paths';
 import { useMyIssues } from '../services/myIssues.service';
 import { groupByStateType, type MyIssuesTab } from '../utils/myIssues';
 import MyIssuesGroup from './MyIssuesGroup';
@@ -15,7 +19,9 @@ const EMPTY: Record<MyIssuesTab, string> = {
 };
 
 // The tab's issues: grouped by status, except Activity, which is one list by the
-// time of the last change. Issues load a page at a time.
+// time of the last change. Issues load a page at a time. J / K / Enter move through
+// and open them as on a team's list; there is no selection, since bulk edits work on
+// one team's issues and these span teams.
 export default function MyIssuesList({
   tab,
   includeCompleted,
@@ -23,19 +29,54 @@ export default function MyIssuesList({
   tab: MyIssuesTab;
   includeCompleted: boolean;
 }) {
+  const router = useRouter();
   const { issues, isPending, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useMyIssues(
     tab,
     includeCompleted,
   );
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const groups = useMemo(() => groupByStateType(issues), [issues]);
+  const order = useMemo(
+    () =>
+      tab === 'activity'
+        ? issues.map((i) => i.id)
+        : groups.flatMap((g) => (collapsed.has(g.type) ? [] : g.issues.map((i) => i.id))),
+    [tab, issues, groups, collapsed],
+  );
+  const { focused } = useListKeyboard({
+    order,
+    onOpen: (id) => {
+      const issue = issues.find((i) => i.id === id);
+      if (issue) router.push(issuePath(issue.teamKey, issue.number));
+    },
+    onFocusMove: (id) =>
+      document.querySelector(`[data-issue-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }),
+  });
+
   if (isPending) return null;
   if (error) return <p className="p-6 text-sm text-destructive">{error.message}</p>;
   if (issues.length === 0) return <EmptyState title="No issues" description={EMPTY[tab]} />;
   return (
-    <div className="overflow-y-auto">
+    <div data-list-root role="list" aria-label="Issues" className="overflow-y-auto">
       {tab === 'activity'
-        ? issues.map((issue) => <MyIssuesRow key={issue.id} issue={issue} />)
-        : groupByStateType(issues).map((g) => (
-            <MyIssuesGroup key={g.type} type={g.type} issues={g.issues} />
+        ? issues.map((issue) => (
+            <MyIssuesRow key={issue.id} issue={issue} focused={focused === issue.id} />
+          ))
+        : groups.map((g) => (
+            <MyIssuesGroup
+              key={g.type}
+              type={g.type}
+              issues={g.issues}
+              focused={focused}
+              collapsed={collapsed.has(g.type)}
+              onToggle={() =>
+                setCollapsed((prev) => {
+                  const next = new Set(prev);
+                  if (!next.delete(g.type)) next.add(g.type);
+                  return next;
+                })
+              }
+            />
           ))}
       {hasNextPage && (
         <div className="flex justify-center p-3">

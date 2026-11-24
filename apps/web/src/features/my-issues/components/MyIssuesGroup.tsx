@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { StateType } from '@/types/team';
 import { ListGroupHeader } from '@/components/common/board/list/ListGroupHeader';
 import type { MyIssue } from '../services/myIssues.service';
@@ -14,8 +13,19 @@ const LABELS: Record<string, string> = {
 };
 
 // A status group of the shared list: its header (collapsible) and its rows.
-export default function MyIssuesGroup({ type, issues }: { type: string; issues: MyIssue[] }) {
-  const [collapsed, setCollapsed] = useState(false);
+export default function MyIssuesGroup({
+  type,
+  issues,
+  focused,
+  collapsed,
+  onToggle,
+}: {
+  type: string;
+  issues: MyIssue[];
+  focused: string | null;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   return (
     <section>
       <ListGroupHeader
@@ -28,9 +38,12 @@ export default function MyIssuesGroup({ type, issues }: { type: string; issues: 
         }}
         count={issues.length}
         collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
+        onToggle={onToggle}
       />
-      {!collapsed && issues.map((issue) => <MyIssuesRow key={issue.id} issue={issue} />)}
+      {!collapsed &&
+        issues.map((issue) => (
+          <MyIssuesRow key={issue.id} issue={issue} focused={focused === issue.id} />
+        ))}
     </section>
   );
 }

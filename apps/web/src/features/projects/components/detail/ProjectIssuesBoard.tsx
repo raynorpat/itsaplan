@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
 import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
 import { applyFilters } from '@/utils/filters';
-import { visibleIssues } from '@/utils/completedIssues';
+import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import { cyclesVisible } from '@/utils/cycles';
 import { cycleSafeSettings } from '@/utils/viewSettings';
 import FilterBar from '@/components/layout/FilterBar';
@@ -25,7 +25,7 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
   const viewTeam = useMemo(() => {
     if (!team) return null;
     const issues = team.issues.filter((i) => i.project?.id === projectId);
-    const shown = visibleIssues(issues, board.settings, new Date());
+    const shown = visibleIssues(issues, board.settings, new Date(), closedStateIds(team.states));
     return { ...team, issues: applyFilters(shown, board.filters, team) };
   }, [team, projectId, board.filters, board.settings]);
 
