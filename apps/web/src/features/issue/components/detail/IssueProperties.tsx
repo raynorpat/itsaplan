@@ -17,10 +17,10 @@ import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
 
 // One property in Linear's flat list: the control alone (its pill shows the icon and the
-// value); the property's name is its accessible label and hover title.
+// value); the property's name is its accessible label.
 function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={label} title={label} className="min-w-0">
+    <div role="group" aria-label={label} className="min-w-0">
       {children}
     </div>
   );

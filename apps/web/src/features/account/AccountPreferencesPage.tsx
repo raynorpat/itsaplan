@@ -4,7 +4,6 @@ import { useState } from 'react';
 import type {
   AccountPreferencesPatch,
   IssueOpenMode,
-  IssueStatsView,
   StartPage,
   ThemePreference,
 } from '@/services/preferences.service';
@@ -14,7 +13,6 @@ import {
   PREFERENCE_DEFAULTS,
 } from '@/services/preferences.service';
 import SectionPageView from '@/components/common/page/SectionPageView';
-import { Switch } from '@/components/ui/switch';
 import AccountPreferenceRow from './components/preferences/AccountPreferenceRow';
 import AccountPreferenceSelect from './components/preferences/AccountPreferenceSelect';
 import AccountPreferencesSection from './components/preferences/AccountPreferencesSection';
@@ -31,11 +29,6 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 const ISSUE_OPEN_OPTIONS: { value: IssueOpenMode; label: string }[] = [
   { value: 'panel', label: 'Side panel' },
   { value: 'page', label: 'Full page' },
-];
-
-const ISSUE_STATS_VIEW_OPTIONS: { value: IssueStatsView; label: string }[] = [
-  { value: 'compact', label: 'Compact bar' },
-  { value: 'timeline', label: 'Timeline' },
 ];
 
 const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
@@ -115,33 +108,6 @@ export default function AccountPreferencesPage() {
             value={prefs.startPage}
             options={START_PAGE_OPTIONS}
             onChange={(startPage) => save({ startPage })}
-            disabled={disabled}
-          />
-        </AccountPreferenceRow>
-      </AccountPreferencesSection>
-
-      <AccountPreferencesSection
-        title="Issue stats"
-        description="The section above an issue's activity that shows how long it spent in each status. Switching it while an issue is open does not change these."
-      >
-        <AccountPreferenceRow
-          label="Show stats"
-          description="Whether the section starts expanded when you open an issue."
-        >
-          <Switch
-            checked={prefs.issueStatsOpen}
-            onCheckedChange={(issueStatsOpen) => save({ issueStatsOpen })}
-            disabled={disabled}
-          />
-        </AccountPreferenceRow>
-        <AccountPreferenceRow
-          label="Show as"
-          description="Compact is one bar with a share per status; Timeline gives each status its own lane on a time axis."
-        >
-          <AccountPreferenceSelect
-            value={prefs.issueStatsView}
-            options={ISSUE_STATS_VIEW_OPTIONS}
-            onChange={(issueStatsView) => save({ issueStatsView })}
             disabled={disabled}
           />
         </AccountPreferenceRow>

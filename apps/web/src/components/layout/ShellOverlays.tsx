@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import type { TeamDetail } from '@/types/team';
 import { issuePath, teamPath } from '@/utils/paths';
@@ -24,6 +25,16 @@ export default function ShellOverlays({
   const router = useRouter();
   // The list behind the panel is keyed by this page's path (see useListKeyboard).
   const pathname = usePathname();
+
+  // A link inside the panel (a sub-issue, the parent, a relation) opens another page;
+  // the panel closes instead of staying over it.
+  const { setOpenIssueId } = overlays;
+  const shownPath = useRef(pathname);
+  useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    setOpenIssueId(null);
+  }, [pathname, setOpenIssueId]);
 
   return (
     <>

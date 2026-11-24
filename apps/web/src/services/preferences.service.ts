@@ -14,8 +14,6 @@ export const PREFERENCE_DEFAULTS: AccountPreferences = {
   theme: 'system',
   issueOpenMode: 'page',
   startPage: 'work-items',
-  issueStatsOpen: true,
-  issueStatsView: 'compact',
   lastTeamId: null,
   hotkeys: {},
 };
@@ -125,18 +123,11 @@ export type IssueOpenMode = 'panel' | 'page';
 
 export type StartPage = 'inbox' | 'work-items' | 'projects';
 
-export type IssueStatsView = 'compact' | 'timeline';
-
 export interface AccountPreferences {
   timezone: string;
   theme: ThemePreference;
   issueOpenMode: IssueOpenMode;
   startPage: StartPage;
-  // How the status stats section of an issue starts out: expanded or collapsed, and
-  // in the compact bar or the full timeline. Switching it on an issue is not saved —
-  // it lasts as long as that issue stays open.
-  issueStatsOpen: boolean;
-  issueStatsView: IssueStatsView;
   lastTeamId: string | null;
   // The keyboard shortcuts this user rebound, as { commandId: combo }. Only the
   // changed ones; the rest are the built-in bindings (see lib/hotkeys).

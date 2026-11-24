@@ -215,6 +215,11 @@ export function ListBody({
         onMouseLeave={() => {
           hoveredRef.current = null;
         }}
+        // Scrolling moves rows under a still pointer without a mouseover; the next
+        // mouse move sets the hovered row again.
+        onScroll={() => {
+          hoveredRef.current = null;
+        }}
       >
         <div
           id={listId}

@@ -11,8 +11,9 @@ import {
 import IssueRelationPicker from './IssueRelationPicker';
 
 // The issue's relations as compact rows, in Linear's group order: blocked by,
-// blocks, related, duplicate of, duplicated by; each row names its kind. Adding and removing are offered only to someone who
-// can edit the issue; the API enforces the same rule.
+// blocks, related, duplicate of, duplicated by; each row names its kind. Adding and
+// removing are offered only to someone who can edit the issue; the API enforces the
+// same rule.
 export default function IssueRelations({
   issueId,
   teamKey,

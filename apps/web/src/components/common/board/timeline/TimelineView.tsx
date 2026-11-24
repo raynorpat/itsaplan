@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { clearListOrder } from '@/utils/issueNavigation';
 import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/team';
 import { useTimelineDrag } from '@/hooks/useTimelineDrag';
 import { buildTimeline, LABEL_W, SCALE_DAY_W } from '@/utils/timeline';
@@ -31,6 +32,9 @@ export default function TimelineView({
         return next;
       });
     });
+  // The timeline has no row order for the issue page's previous / next; a list
+  // shown before it must not supply one.
+  useEffect(() => clearListOrder(), []);
   const DAY_W = SCALE_DAY_W[settings.timelineScale];
   const maps = buildMaps(team);
   const scrollRef = useRef<HTMLDivElement>(null);

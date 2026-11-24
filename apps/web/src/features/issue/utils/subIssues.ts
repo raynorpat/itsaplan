@@ -34,3 +34,8 @@ export function parentCandidates<T extends { id: string }>(
   const excluded = new Set([issueId, ...childIds]);
   return results.filter((r) => !excluded.has(r.id));
 }
+
+// Sub-issues oldest first, as Linear lists them: a new sub-issue appears at the bottom.
+export function sortSubIssues<T extends { createdAt: string }>(children: T[]): T[] {
+  return [...children].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}

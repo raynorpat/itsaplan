@@ -72,9 +72,10 @@ function onDragStart(e: DragEvent<HTMLElement>, a: Attachment) {
 
 // Links and attachments for one issue, one compact row each under the description
 // as in Linear: uploaded files (preview, download, insert into the description,
-// delete) and links (add, rename, delete). Hidden for a reader when there are none. onInsert hands a file back to the parent, which embeds it into the
-// description via the live editor. Add, rename and delete are offered only to
-// someone who can edit the issue.
+// delete) and links (add, rename, delete). Hidden for a reader when there are none.
+// onInsert hands a file back to the parent, which embeds it into the description
+// via the live editor. Add, rename and delete are offered only to someone who can
+// edit the issue.
 export default function IssueAttachmentsPanel({
   issueId,
   canEdit,

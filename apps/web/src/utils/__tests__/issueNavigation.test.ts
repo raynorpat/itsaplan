@@ -7,6 +7,7 @@ import {
   pageNavKey,
   readListOrder,
   rememberListOrder,
+  stepFrom,
 } from '@/utils/issueNavigation';
 import { issuePath } from '@/utils/paths';
 import { DEFAULT_COMBOS } from '@/utils/hotkeys';
@@ -80,5 +81,29 @@ describe('pageNavKey', () => {
       null,
     );
     assert.equal(pageNavKey(key('x'), DEFAULT_COMBOS), null);
+  });
+});
+
+describe('stepFrom', () => {
+  const d = { id: 'd', identifier: 'ENG-4' };
+  const snapshot = [a, b, c, d];
+
+  it('uses the live list while the issue is in it', () => {
+    assert.equal(stepFrom([a, b, c], snapshot, 'b', 1), c);
+    assert.equal(stepFrom([a, b, c], snapshot, 'b', -1), a);
+  });
+
+  it("steps from the issue's old place once it left the live list", () => {
+    assert.equal(stepFrom([a, c, d], snapshot, 'b', 1), c);
+    assert.equal(stepFrom([a, c, d], snapshot, 'b', -1), a);
+  });
+
+  it('skips snapshot neighbours that left the live list too', () => {
+    assert.equal(stepFrom([a, d], snapshot, 'b', 1), d);
+  });
+
+  it('is null at the end and for an issue in neither list', () => {
+    assert.equal(stepFrom([a, b], [a, b], 'b', 1), null);
+    assert.equal(stepFrom([a, b], [a, b], 'x', 1), null);
   });
 });

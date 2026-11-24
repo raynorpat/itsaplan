@@ -55,11 +55,10 @@ export default function IssueActionsMenu({
     hasParent: issue.parentId != null,
   });
 
+  const showError = (err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed');
+
   function removeParent() {
-    updateIssue.mutate(
-      { id: issue.id, patch: { parentId: null } },
-      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') },
-    );
+    updateIssue.mutate({ id: issue.id, patch: { parentId: null } }, { onError: showError });
   }
 
   async function copyPrompt() {
@@ -85,12 +84,12 @@ export default function IssueActionsMenu({
       </DropdownMenuItem>
     ),
     archive: (
-      <DropdownMenuItem onSelect={() => archiveIssue.mutate(issue.id)}>
+      <DropdownMenuItem onSelect={() => archiveIssue.mutate(issue.id, { onError: showError })}>
         <Archive className="size-3.5" /> Archive
       </DropdownMenuItem>
     ),
     restore: (
-      <DropdownMenuItem onSelect={() => restoreIssue.mutate(issue.id)}>
+      <DropdownMenuItem onSelect={() => restoreIssue.mutate(issue.id, { onError: showError })}>
         <ArchiveRestore className="size-3.5" /> Restore
       </DropdownMenuItem>
     ),

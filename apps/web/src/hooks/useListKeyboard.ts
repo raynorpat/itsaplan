@@ -30,11 +30,16 @@ export function useListKeyboard({
   const listKey = usePathname();
   const combos = useHotkeyCombos();
   const [raw, setRaw] = useState<string | null>(null);
+  // True while this list writes its own focus, so its focus listener below skips
+  // the echo instead of scrolling to the row a second time.
+  const ownWrite = useRef(false);
 
   const setFocused = useCallback(
     (id: string | null) => {
       setRaw(id);
+      ownWrite.current = true;
       rememberListFocus(listKey, id);
+      ownWrite.current = false;
     },
     [listKey],
   );
@@ -54,7 +59,7 @@ export function useListKeyboard({
   useEffect(
     () =>
       subscribeListFocus((key, id) => {
-        if (key !== listKey || id === latest.current.focused) return;
+        if (ownWrite.current || key !== listKey || id === latest.current.focused) return;
         setRaw(id);
         if (id != null) latest.current.onFocusMove?.(id);
       }),

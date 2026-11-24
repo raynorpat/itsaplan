@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -22,7 +22,7 @@ import { SelectAllToggle } from './SelectAllToggle';
 import { CardOverlay } from './CardOverlay';
 import { SwimlaneCell } from './SwimlaneCell';
 import { boardCollision, boardOrder, COLUMN_WIDTH, collapsedSwimlanesKey } from '@/utils/kanban';
-import { rememberListOrder } from '@/utils/issueNavigation';
+import { useRememberListOrder } from '@/hooks/useRememberListOrder';
 import { sortedOrderMessage } from '@/utils/dnd';
 
 // One flattened swimlane block: its header, then a row of columns.
@@ -93,7 +93,7 @@ export default function SwimlaneBoard({
       ? []
       : boardOrder(row.cells.map((c) => ({ key: c.column.key, issues: c.issues }))),
   );
-  useEffect(() => rememberListOrder(order));
+  useRememberListOrder(order);
 
   // Every visible issue id per column, across swimlanes — the target of a column
   // header's select-all.

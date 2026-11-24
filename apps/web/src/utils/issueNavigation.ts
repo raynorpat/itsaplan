@@ -46,6 +46,27 @@ export function adjacentIssue(
   };
 }
 
+// The next (dir 1) or previous (dir -1) issue from `id`. While the issue is in the
+// live list its neighbours there; once it has left (set to Done with completed
+// issues hidden, archived) the nearest issue around its place in `snapshot`, an
+// earlier order that contained it, that is still in the live list.
+export function stepFrom(
+  live: ListOrderEntry[],
+  snapshot: ListOrderEntry[],
+  id: string,
+  dir: 1 | -1,
+): ListOrderEntry | null {
+  const at = adjacentIssue(live, id);
+  if (at) return dir === 1 ? at.next : at.prev;
+  const index = snapshot.findIndex((e) => e.id === id);
+  if (index < 0) return null;
+  const liveIds = new Set(live.map((e) => e.id));
+  for (let i = index + dir; i >= 0 && i < snapshot.length; i += dir) {
+    if (liveIds.has(snapshot[i].id)) return snapshot[i];
+  }
+  return null;
+}
+
 // "ENG-12" → the page of issue 12 in team ENG.
 export function issuePathFromIdentifier(identifier: string): string {
   const cut = identifier.lastIndexOf('-');

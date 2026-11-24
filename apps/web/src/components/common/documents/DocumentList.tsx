@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import type { Assignee } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { type DocumentParent } from '@/utils/documentParent';
@@ -38,7 +38,8 @@ export default function DocumentList({
     <section className={heading ? 'mt-6' : undefined}>
       <div className="mb-2 flex items-center justify-between">
         {heading ? (
-          <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <FileText className="size-3.5" />
             Documents
           </h3>
         ) : (

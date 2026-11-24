@@ -218,6 +218,7 @@ const IssueFamilyQuery = graphql(`
           id
           identifier
           title
+          createdAt
           priority
           state {
             id
@@ -240,6 +241,7 @@ export interface SubIssue {
   id: string;
   identifier: string;
   title: string;
+  createdAt: string;
   priority: number;
   state: { id: string; name: string; type: string; color: string };
   assignee: { id: string; name: string; avatarUrl: string | null } | null;

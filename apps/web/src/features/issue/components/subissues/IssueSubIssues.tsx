@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ListTree, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,7 +7,7 @@ import Avatar from '@/components/common/Avatar';
 import { PriorityIcon, StateIcon } from '@/components/common/issue/IssueIcons';
 import { useCreateIssue, useSubIssuesQuery } from '@/services/issues.service';
 import { issuePathFromIdentifier } from '@/utils/issueNavigation';
-import { subIssueInput, subIssueProgress } from '../../utils/subIssues';
+import { sortSubIssues, subIssueInput, subIssueProgress } from '../../utils/subIssues';
 
 // The issue's sub-issues, as in Linear: a "Sub-issues 2/5" header, one compact row per
 // sub-issue opening its page, and an inline "+ Add sub-issue" for someone who can edit
@@ -21,7 +21,8 @@ export default function IssueSubIssues({
   issueId: string;
   canEdit: boolean;
 }) {
-  const children = useSubIssuesQuery(issueId).data?.children ?? [];
+  const family = useSubIssuesQuery(issueId).data;
+  const children = useMemo(() => sortSubIssues(family?.children ?? []), [family]);
   const createIssue = useCreateIssue();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -32,7 +33,8 @@ export default function IssueSubIssues({
 
   function submit() {
     const input = subIssueInput(title, team, issueId);
-    if (!input) return;
+    // A second Enter while the first create is saving would add the sub-issue twice.
+    if (!input || createIssue.isPending) return;
     createIssue.mutate(
       { teamKey: team.team.key, input },
       {
@@ -49,7 +51,7 @@ export default function IssueSubIssues({
           <ListTree className="size-3.5" />
           Sub-issues
           {total > 0 && (
-            <span className="tabular-nums">
+            <span className="tabular-nums" aria-label={`${done} of ${total} done`}>
               {done}/{total}
             </span>
           )}

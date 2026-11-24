@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parentCandidates, subIssueInput, subIssueProgress } from '../subIssues';
+import { parentCandidates, sortSubIssues, subIssueInput, subIssueProgress } from '../subIssues';
 
 describe('subIssueProgress', () => {
   it('counts completed and canceled children as done', () => {
@@ -41,6 +41,20 @@ describe('parentCandidates', () => {
     assert.deepEqual(
       parentCandidates([{ id: 'a' }, { id: 'self' }, { id: 'c1' }], 'self', ['c1']),
       [{ id: 'a' }],
+    );
+  });
+});
+
+describe('sortSubIssues', () => {
+  it('lists sub-issues oldest first, so a new one appears at the bottom', () => {
+    const rows = [
+      { id: 'new', createdAt: '2026-11-24T10:00:00Z' },
+      { id: 'old', createdAt: '2026-11-20T10:00:00Z' },
+      { id: 'mid', createdAt: '2026-11-22T10:00:00Z' },
+    ];
+    assert.deepEqual(
+      sortSubIssues(rows).map((r) => r.id),
+      ['old', 'mid', 'new'],
     );
   });
 });

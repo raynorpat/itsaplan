@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { clearListOrder } from '@/utils/issueNavigation';
 import { isSameDay, isSameMonth, startOfMonth } from 'date-fns';
 import {
   DndContext,
@@ -27,6 +28,9 @@ export default function CalendarView({
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useDndSensors(readOnly);
+  // The calendar has no row order for the issue page's previous / next; a list
+  // shown before it must not supply one.
+  useEffect(() => clearListOrder(), []);
 
   const dateField = settings.calendarDateField;
   const today = new Date();
