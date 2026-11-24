@@ -62,7 +62,7 @@ export default function DisplayGroupingRows({
       )}
 
       {showsSubgrouping && (
-        <DisplaySettingsRow label={view === 'kanban' ? 'Swimlanes' : 'Sub-grouping'}>
+        <DisplaySettingsRow label={view === 'kanban' ? 'Rows' : 'Sub-grouping'}>
           <DisplaySettingsSelect
             value={settings.subgroup}
             onChange={(v) => onChange({ subgroup: v as GroupField })}

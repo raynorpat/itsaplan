@@ -80,7 +80,7 @@ export function BoardCard({
         className={cn(
           // select-none so a Shift/Cmd-click toggles selection without the browser
           // also starting a native text selection across cards.
-          'kanban-card cursor-grab rounded-md p-3 select-none sm:touch-none',
+          'kanban-card cursor-grab rounded-md px-3 py-2.5 select-none sm:touch-none',
           isDragging && 'opacity-40',
           // Selected cards read as a primary-tinted fill, like Linear — no border,
           // no checkbox (see .kanban-card-selected in globals.css).

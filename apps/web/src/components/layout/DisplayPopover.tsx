@@ -37,7 +37,7 @@ export default function DisplayPopover({
           <SlidersHorizontal className="size-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="max-h-[70vh] w-80 overflow-y-auto p-3">
+      <PopoverContent align="end" className="max-h-[70vh] w-[22rem] overflow-y-auto p-3">
         <DisplaySettingsBody
           view={view}
           onViewChange={onViewChange}

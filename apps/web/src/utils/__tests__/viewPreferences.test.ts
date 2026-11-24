@@ -12,6 +12,8 @@ const display: SavedViewDisplay = {
   properties: ['labels', 'delegate', 'id'],
   timelineScale: 'quarter',
   hiddenGroups: ['a1'],
+  completedIssues: 'week',
+  showSubIssues: false,
 };
 
 describe('view preferences', () => {
@@ -26,6 +28,8 @@ describe('view preferences', () => {
       hiddenColumns: ['a1'],
       columnOrderList: ['labels', 'delegate', 'id'],
       timelineZoomScale: 3,
+      showCompletedIssues: 'week',
+      showSubIssues: false,
       fieldId: true,
       fieldStatus: false,
       fieldPriority: false,
@@ -63,5 +67,29 @@ describe('view preferences', () => {
     assert.equal(prefs.issueGrouping, 'cycle');
     assert.equal(prefs.fieldCycle, true);
     assert.deepEqual(preferencesToDisplay(prefs), byCycle);
+  });
+});
+
+describe('view preferences: completed issues and sub-issues', () => {
+  it("saves Linear's showCompletedIssues and showSubIssues", () => {
+    const prefs = displayToPreferences(display);
+    assert.equal(prefs.showCompletedIssues, 'week');
+    assert.equal(prefs.showSubIssues, false);
+  });
+
+  it('reads them back', () => {
+    const back = preferencesToDisplay({
+      layout: 'list',
+      showCompletedIssues: 'month',
+      showSubIssues: false,
+    });
+    assert.equal(back.completedIssues, 'month');
+    assert.equal(back.showSubIssues, false);
+  });
+
+  it('reads an unknown completed-issues value as "all" and a missing sub-issue toggle as on', () => {
+    const back = preferencesToDisplay({ layout: 'list', showCompletedIssues: 'currentCycle' });
+    assert.equal(back.completedIssues, 'all');
+    assert.equal(back.showSubIssues, true);
   });
 });

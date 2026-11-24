@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
 import { cyclesVisible } from '@/utils/cycles';
 import { cycleSafeSettings, type ViewSettings } from '@/utils/viewSettings';
+import { visibleIssues } from '@/utils/completedIssues';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ViewTabs from '@/components/layout/ViewTabs';
+import PageHeaderPortal from '@/components/layout/PageHeaderPortal';
 import ViewIconPicker from '@/components/layout/ViewIconPicker';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
@@ -34,7 +36,16 @@ export default function WorkItemsPage() {
     groups: new Set(),
   });
 
-  if (!team || !filteredTeam) return null;
+  const shownTeam = useMemo(
+    () =>
+      filteredTeam && {
+        ...filteredTeam,
+        issues: visibleIssues(filteredTeam.issues, editor.settings, new Date()),
+      },
+    [filteredTeam, editor.settings],
+  );
+
+  if (!team || !filteredTeam || !shownTeam) return null;
 
   // Saving persists the view: editing an existing one is a views edit, a brand-new
   // one is a views create. Filtering/display stay available to everyone (transient,
@@ -44,8 +55,8 @@ export default function WorkItemsPage() {
   const settings = cycleSafeSettings(editor.settings, editor.view, cyclesVisible(team));
   const changeSettings = (next: ViewSettings) => editor.changeSettings(next);
 
-  const timelineGroups = buildGroups(filteredTeam, settings.group);
-  const timelineIssuesByGroup = groupIssues(timelineGroups, filteredTeam.issues, settings.group);
+  const timelineGroups = buildGroups(shownTeam, settings.group);
+  const timelineIssuesByGroup = groupIssues(timelineGroups, shownTeam.issues, settings.group);
   const visibleTimelineGroupKeys = timelineGroups
     .filter(
       (group) =>
@@ -79,7 +90,7 @@ export default function WorkItemsPage() {
   };
 
   const viewProps = {
-    team: filteredTeam,
+    team: shownTeam,
     settings,
     onSettingsChange: changeSettings,
     onOpenIssue,
@@ -115,16 +126,18 @@ export default function WorkItemsPage() {
 
   return (
     <>
-      <ViewTabs
-        views={views}
-        activeViewId={editor.activeViewId}
-        onSelect={editor.selectView}
-        onNewView={editor.beginNewView}
-        onEdit={editor.beginEditView}
-        onDelete={(v) => void editor.deleteView(v)}
-        onToggleFilter={editor.toggleFilters}
-        displayControl={<DisplayPopover {...displayProps} />}
-      />
+      <PageHeaderPortal>
+        <ViewTabs
+          views={views}
+          activeViewId={editor.activeViewId}
+          onSelect={editor.selectView}
+          onNewView={editor.beginNewView}
+          onEdit={editor.beginEditView}
+          onDelete={(v) => void editor.deleteView(v)}
+          onToggleFilter={editor.toggleFilters}
+          displayControl={<DisplayPopover {...displayProps} />}
+        />
+      </PageHeaderPortal>
 
       {/* The filter row applies to the current screen only; it never writes to a
           view. The edit bar above it (icon picker + name input + Cancel/Save)

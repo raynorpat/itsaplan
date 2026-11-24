@@ -71,6 +71,8 @@ export interface ViewPreferenceValues {
   hiddenColumns?: readonly string[] | null;
   columnOrderList?: readonly string[] | null;
   timelineZoomScale?: number | null;
+  showCompletedIssues?: string | null;
+  showSubIssues?: boolean | null;
   fieldId?: boolean | null;
   fieldStatus?: boolean | null;
   fieldPriority?: boolean | null;
@@ -97,6 +99,8 @@ export function displayToPreferences(d: SavedViewDisplay): ViewPreferenceValues 
     hiddenColumns: d.hiddenGroups,
     columnOrderList: d.properties,
     timelineZoomScale: ZOOM[d.timelineScale],
+    showCompletedIssues: d.completedIssues,
+    showSubIssues: d.showSubIssues,
   };
   for (const [property, field] of Object.entries(FIELD))
     prefs[field] = d.properties.includes(property as PropertyKey);
@@ -122,6 +126,9 @@ export function preferencesToDisplay(p: ViewPreferenceValues | null | undefined)
     properties: prefs.columnOrderList ? properties : undefined,
     timelineScale:
       prefs.timelineZoomScale == null ? undefined : invert(ZOOM).get(prefs.timelineZoomScale),
+    // Linear's other windows (day, currentCycle) are not offered here and read as all.
+    completedIssues: prefs.showCompletedIssues ?? undefined,
+    showSubIssues: prefs.showSubIssues ?? undefined,
   };
   return normalizeSavedDisplay(blob);
 }

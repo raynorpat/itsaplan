@@ -40,6 +40,8 @@ const CustomViewFields = graphql(`
       hiddenColumns
       columnOrderList
       timelineZoomScale
+      showCompletedIssues
+      showSubIssues
       fieldId
       fieldStatus
       fieldPriority

@@ -5,6 +5,7 @@
 // back to per-view defaults, so the store grows new options without a migration.
 
 import { SORT_FIELDS, toLayout, type Sort, type WorkItemsView } from '@/utils/viewTypes';
+import { COMPLETED_WINDOWS, type CompletedWindow } from '@/utils/completedIssues';
 
 // Field the Board columns / List sections group by. 'none' is a single flat
 // list (List only). The Board always groups by something. `subgroup` (below) adds
@@ -83,6 +84,10 @@ export interface ViewSettings {
   // hiddenGroups, empty for every other layout, and part of the display so each
   // saved view keeps its own collapsed set.
   collapsedGroups: string[];
+  // Which completed / canceled issues show (Linear's showCompletedIssues).
+  completedIssues: CompletedWindow;
+  // Whether sub-issues show (Linear's showSubIssues).
+  showSubIssues: boolean;
 }
 
 const DEFAULT_SORT: Sort = { field: 'manual', dir: 'asc' };
@@ -96,6 +101,8 @@ const COMMON: Omit<ViewSettings, 'group' | 'subgroup' | 'properties' | 'sort'> =
   weekStart: 0,
   hiddenGroups: [],
   collapsedGroups: [],
+  completedIssues: 'all',
+  showSubIssues: true,
 };
 
 // The properties shown by default per view; the Timeline and Calendar lay issues
@@ -112,7 +119,7 @@ const DEFAULT_PROPERTIES: Record<WorkItemsView, DisplayProperty[]> = {
     'assignee',
     'created',
   ],
-  kanban: ['id', 'status', 'priority', 'dueDate', 'labels', 'assignee', 'created', 'updated'],
+  kanban: ['id', 'status', 'priority', 'dueDate', 'labels', 'assignee'],
   timeline: [],
   calendar: [],
 };
@@ -231,6 +238,10 @@ export function normalizeViewSettings(
     collapsedGroups: Array.isArray(s.collapsedGroups)
       ? (s.collapsedGroups as unknown[]).filter((x): x is string => typeof x === 'string')
       : d.collapsedGroups,
+    completedIssues: COMPLETED_WINDOWS.some((w) => w.value === s.completedIssues)
+      ? (s.completedIssues as CompletedWindow)
+      : d.completedIssues,
+    showSubIssues: typeof s.showSubIssues === 'boolean' ? s.showSubIssues : d.showSubIssues,
   };
 }
 

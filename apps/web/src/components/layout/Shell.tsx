@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIssueBySeqQuery } from '@/services/issues.service';
 import { useAccountPreferences } from '@/services/preferences.service';
@@ -33,6 +33,7 @@ import { ShellCtx, type ShellContext } from '@/context/shellContext';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/AppSidebar';
 import AppHeader from '@/components/layout/AppHeader';
+import { PageHeaderSlotCtx } from '@/context/pageHeaderSlot';
 import CommandLayer from '@/components/layout/CommandLayer';
 import ShellBody from '@/components/layout/ShellBody';
 import ShellHeaderTitle from '@/components/layout/ShellHeaderTitle';
@@ -52,6 +53,8 @@ export default function Shell({
   defaultSidebarOpen?: boolean;
 }) {
   const router = useRouter();
+  // The page header's slot element, where pages render their header controls.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const route = useShellRoute();
   const { routeIssueSeq } = route;
   // A workspace route takes the team its URL names, else the last team the user had
@@ -164,6 +167,7 @@ export default function Shell({
         />
         <SidebarInset className="min-w-0">
           <AppHeader
+            slotRef={setHeaderSlot}
             title={
               <ShellHeaderTitle
                 route={route}
@@ -180,18 +184,20 @@ export default function Shell({
           )}
 
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ShellBody
-              state={shellBodyState({
-                forbidden,
-                needsTeam: route.needsTeam,
-                hasTeam: !!team,
-                hasError: !!errorMsg,
-                teamsLoaded,
-                teamCount: joinedTeams.length,
-              })}
-            >
-              {children}
-            </ShellBody>
+            <PageHeaderSlotCtx.Provider value={headerSlot}>
+              <ShellBody
+                state={shellBodyState({
+                  forbidden,
+                  needsTeam: route.needsTeam,
+                  hasTeam: !!team,
+                  hasError: !!errorMsg,
+                  teamsLoaded,
+                  teamCount: joinedTeams.length,
+                })}
+              >
+                {children}
+              </ShellBody>
+            </PageHeaderSlotCtx.Provider>
           </div>
         </SidebarInset>
 

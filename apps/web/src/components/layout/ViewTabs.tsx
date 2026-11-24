@@ -6,8 +6,9 @@ import AllViewTab from '@/components/layout/AllViewTab';
 import MobileViewSwitcher from '@/components/layout/MobileViewSwitcher';
 import SavedViewTab from '@/components/layout/SavedViewTab';
 
-// The row of saved-view tabs above a team, plus a New view button and, on the
-// right, the filter and display toggles. The leading "All" tab is implicit and
+// The saved-view tabs of a team's issues, plus a New view button and, on the
+// right, the filter and display toggles. Rendered in the page header line (see
+// PageHeaderPortal), as in Linear. The leading "All" tab is implicit and
 // has no filters; it cannot be deleted. Saved tabs are in creation order. The filter
 // toggle
 // shows the filter row, which filters the current screen only; onEdit opens the
@@ -36,7 +37,7 @@ export default function ViewTabs({
   const canEditView = can('views', 'edit');
   const canDeleteView = can('views', 'delete');
   return (
-    <div className="flex items-center gap-1 border-b px-2 py-1.5 sm:px-3">
+    <div className="flex min-w-0 flex-1 items-center gap-1">
       {/* Mobile: views collapse into a dropdown. */}
       <div className="flex min-w-0 flex-1 items-center sm:hidden">
         <MobileViewSwitcher
