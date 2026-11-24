@@ -23,7 +23,8 @@ export type HotkeyId =
   | 'list.next'
   | 'list.prev'
   | 'list.select'
-  | 'list.open';
+  | 'list.open'
+  | 'list.peek';
 
 // `scope` decides when the binding is live. A 'global' one fires even while the
 // user types or an overlay is open; an 'app' one is suppressed then, because its
@@ -120,6 +121,15 @@ export const HOTKEYS: HotkeyDef[] = [
     scope: 'app',
     fixed: true,
   },
+  // Space cannot be recorded as a new binding either.
+  {
+    id: 'list.peek',
+    label: 'Peek the issue',
+    group: 'List',
+    combo: 'space',
+    scope: 'app',
+    fixed: true,
+  },
 ];
 
 export type HotkeyCombos = Record<HotkeyId, string>;
@@ -178,7 +188,9 @@ function matchesParsed(e: KeyEventLike, c: ParsedCombo): boolean {
 
 export function matchesCombo(e: KeyEventLike, combo: string): boolean {
   const c = parseCombo(combo);
-  return matchesParsed(e, c) && e.key.toLowerCase() === c.key;
+  // The Space bar reports its key as ' '; a combination names it 'space'.
+  const key = e.key === ' ' ? 'space' : e.key.toLowerCase();
+  return matchesParsed(e, c) && key === c.key;
 }
 
 // The digit 1–9 a positional combination was pressed with, or null. Used by the
@@ -225,6 +237,12 @@ export function blocksShortcuts(target: EventTarget | null): boolean {
   return typeof el?.closest === 'function' && el.closest(LAYER_ROLES) != null;
 }
 
+function comboKeyLabel(key: string): string {
+  if (key === 'digit') return '1–9';
+  if (key === 'space') return 'Space';
+  return key.toUpperCase();
+}
+
 // The combination as shown in the UI: ⌘K on macOS, Ctrl+K elsewhere.
 export function formatCombo(combo: string, isMac: boolean): string {
   const c = parseCombo(combo);
@@ -232,6 +250,6 @@ export function formatCombo(combo: string, isMac: boolean): string {
   if (c.mod) out.push(isMac ? '⌘' : 'Ctrl');
   if (c.shift) out.push(isMac ? '⇧' : 'Shift');
   if (c.alt) out.push(isMac ? '⌥' : 'Alt');
-  out.push(c.key === 'digit' ? '1–9' : c.key.toUpperCase());
+  out.push(comboKeyLabel(c.key));
   return isMac ? out.join('') : out.join('+');
 }

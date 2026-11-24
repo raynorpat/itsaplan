@@ -102,6 +102,7 @@ export default function WorkItemsPage() {
     settings,
     onSettingsChange: changeSettings,
     onOpenIssue,
+    onPeekIssue: (id: string) => onOpenIssue(id, 'panel'),
     onAddIssue,
   };
 

@@ -216,7 +216,7 @@ export function moveFocus(order: string[], current: string | null, step: 1 | -1)
   return order[Math.min(order.length - 1, Math.max(0, at + step))]!;
 }
 
-export type ListKeyAction = 'next' | 'prev' | 'select' | 'open' | 'clear';
+export type ListKeyAction = 'next' | 'prev' | 'select' | 'open' | 'peek' | 'clear';
 
 // True when a list key may act on this target: the page itself (nothing focused) or
 // the list container. A focused button, link, row or other control keeps its own keys,
@@ -241,5 +241,25 @@ export function listKeyAction(
   if (matchesCombo(e, combos['list.prev'])) return 'prev';
   if (matchesCombo(e, combos['list.select'])) return 'select';
   if (matchesCombo(e, combos['list.open'])) return 'open';
+  if (matchesCombo(e, combos['list.peek'])) return 'peek';
+  return null;
+}
+
+// The peek panel's keys: J / K show the next / previous issue of the list and Space
+// or Escape closes the panel, as in Linear. Never while typing in the panel (title,
+// description, comment box), inside a dialog or menu, or for a key another layer has
+// already handled; Space on a focused button or link stays the button's.
+export function peekKeyAction(
+  e: KeyEventLike & { target: EventTarget | null; defaultPrevented?: boolean },
+  combos: HotkeyCombos,
+): 'next' | 'prev' | 'close' | null {
+  if (e.defaultPrevented || blocksShortcuts(e.target)) return null;
+  if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) return 'close';
+  if (matchesCombo(e, combos['list.next'])) return 'next';
+  if (matchesCombo(e, combos['list.prev'])) return 'prev';
+  if (matchesCombo(e, combos['list.peek'])) {
+    const tag = (e.target as Element | null)?.tagName;
+    return tag === 'BUTTON' || tag === 'A' ? null : 'close';
+  }
   return null;
 }

@@ -37,6 +37,7 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
     settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
+    onPeekIssue: (id: string) => onOpenIssue(id, 'panel'),
     onAddIssue: (defaults: Parameters<typeof onAddIssue>[0]) =>
       onAddIssue({ projectId, ...defaults }),
   };

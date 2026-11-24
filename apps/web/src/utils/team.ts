@@ -30,6 +30,9 @@ export interface WorkItemsViewProps {
   // starts an edit (saved on Save), on the All tab it writes localStorage.
   onSettingsChange: (settings: ViewSettings) => void;
   onOpenIssue: (id: string) => void;
+  // Opens the issue in the side panel over the view (Space, Linear's peek). Absent
+  // where the view has no peek.
+  onPeekIssue?: (id: string) => void;
   // Absent where the board offers no new issue (a past cycle's page).
   onAddIssue?: (defaults: NewIssueDefaults) => void;
   // When true the view is a public read-only share: dragging, adding issues and

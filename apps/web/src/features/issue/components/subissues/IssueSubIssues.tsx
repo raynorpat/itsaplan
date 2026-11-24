@@ -103,7 +103,9 @@ export default function IssueSubIssues({
           placeholder="Sub-issue title"
           className="mt-1 h-8 w-full rounded-md border bg-transparent px-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
           value={title}
-          disabled={createIssue.isPending}
+          // readOnly, not disabled: a disabled input loses focus, and the next
+          // Escape would then leave the issue instead of closing the input.
+          readOnly={createIssue.isPending}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
 import type { TeamDetail } from '@/types/team';
 import type { IssueDetail as IssueDetailRow } from '@/types/issue';
@@ -6,14 +6,20 @@ import IssueDetailContent from './IssueDetailContent';
 import IssueActionsMenu from '../actions/IssueActionsMenu';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
 import { Button } from '@/components/ui/button';
+import { useHotkeyCombos } from '@/context/useHotkeys';
+import { peekKeyAction } from '@/utils/list';
+import { adjacentIssue, readListOrder } from '@/utils/issueNavigation';
 
-// The issue detail as a right-hand side panel over the team. Expand opens the
-// same issue as a full page; the shared body lives in IssueDetailContent.
+// The issue detail as a right-hand side panel over the team (Linear's peek). Expand
+// opens the same issue as a full page; the shared body lives in IssueDetailContent.
+// J / K show the next / previous issue of the list it was opened from (`onNavigate`),
+// Space and Escape close it.
 export default function IssueDetail({
   team,
   issueId,
   onClose,
   onExpand,
+  onNavigate,
 }: {
   team: TeamDetail;
   issueId: string;
@@ -21,10 +27,35 @@ export default function IssueDetail({
   // Passed the issue's team-scoped number so the host can open the page URL
   // (/team/KEY/issue/42); null while the issue is still loading.
   onExpand: (sequenceNumber: number | null) => void;
+  onNavigate: (issueId: string) => void;
 }) {
   const [issue, setIssue] = useState<IssueDetailRow | null>(null);
+  const combos = useHotkeyCombos();
 
   useExitOnEscape(onClose);
+
+  const latest = useRef({ issueId, onClose, onNavigate });
+  latest.current = { issueId, onClose, onNavigate };
+  useEffect(() => {
+    // In the capture phase, so the key is marked handled before the list behind the
+    // panel sees it and moves its own focus a second time.
+    const onKey = (e: KeyboardEvent) => {
+      const action = peekKeyAction(e, combos);
+      // Escape is left to useExitOnEscape, which lets an open popover close first.
+      if (action == null || e.key === 'Escape') return;
+      e.preventDefault();
+      const k = latest.current;
+      if (action === 'close') {
+        k.onClose();
+        return;
+      }
+      const at = adjacentIssue(readListOrder(), k.issueId);
+      const target = action === 'next' ? at?.next : at?.prev;
+      if (target) k.onNavigate(target.id);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [combos]);
 
   return (
     <div

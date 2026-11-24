@@ -12,7 +12,7 @@ import { qk } from '@/services/queryKeys';
 export const PREFERENCE_DEFAULTS: AccountPreferences = {
   timezone: 'UTC',
   theme: 'system',
-  issueOpenMode: 'panel',
+  issueOpenMode: 'page',
   startPage: 'work-items',
   issueStatsOpen: true,
   issueStatsView: 'compact',

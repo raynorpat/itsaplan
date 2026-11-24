@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useHotkeyCombos } from '@/context/useHotkeys';
 import { listKeyAction, moveFocus } from '@/utils/list';
-import { readListFocus, rememberListFocus } from '@/utils/listFocus';
+import { readListFocus, rememberListFocus, subscribeListFocus } from '@/utils/listFocus';
 
 // The list's keyboard, as in Linear: J / K move the focused row, X selects it, Enter
-// opens it and Escape clears the focus. The focus is kept per page (the list's path),
+// opens it, Space peeks it (the focused row, else the row under the pointer, read from
+// `hoveredRef`) and Escape clears the focus. The focus is kept per page (the list's path),
 // so it is still there after opening an issue as a page or in the panel and coming
 // back. `order` is the visible rows top to bottom; a focused row that leaves it
 // (collapsed, filtered out) drops the focus. `onFocusMove` brings a row into view.
@@ -15,11 +16,15 @@ export function useListKeyboard({
   order,
   onOpen,
   onSelect,
+  onPeek,
+  hoveredRef,
   onFocusMove,
 }: {
   order: string[];
   onOpen: (id: string) => void;
   onSelect?: (id: string) => void;
+  onPeek?: (id: string) => void;
+  hoveredRef?: { current: string | null };
   onFocusMove?: (id: string) => void;
 }) {
   const listKey = usePathname();
@@ -34,8 +39,8 @@ export function useListKeyboard({
     [listKey],
   );
 
-  const latest = useRef({ order, focused: raw, onOpen, onSelect, onFocusMove, setFocused });
-  latest.current = { order, focused: raw, onOpen, onSelect, onFocusMove, setFocused };
+  const latest = useRef({ order, focused: raw, onOpen, onSelect, onPeek, onFocusMove, setFocused });
+  latest.current = { order, focused: raw, onOpen, onSelect, onPeek, onFocusMove, setFocused };
 
   // Restored after mount, not in the state initializer: the server render has no
   // focused row, and a client-only first value would not match its markup.
@@ -44,6 +49,17 @@ export function useListKeyboard({
     setRaw(restored);
     if (restored != null) latest.current.onFocusMove?.(restored);
   }, [listKey]);
+
+  // The peek panel moves this list's focus with J / K; the highlighted row follows.
+  useEffect(
+    () =>
+      subscribeListFocus((key, id) => {
+        if (key !== listKey || id === latest.current.focused) return;
+        setRaw(id);
+        if (id != null) latest.current.onFocusMove?.(id);
+      }),
+    [listKey],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,6 +81,14 @@ export function useListKeyboard({
         if (next != null) k.onFocusMove?.(next);
         return;
       }
+      if (action === 'peek') {
+        const id = k.focused ?? hoveredRef?.current ?? null;
+        if (!k.onPeek || id == null || !k.order.includes(id)) return;
+        e.preventDefault();
+        k.setFocused(id);
+        k.onPeek(id);
+        return;
+      }
       if (k.focused == null || !k.order.includes(k.focused)) return;
       if (action === 'select') {
         if (!k.onSelect) return;
@@ -77,7 +101,7 @@ export function useListKeyboard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [combos]);
+  }, [combos, hoveredRef]);
 
   const focused = raw != null && order.includes(raw) ? raw : null;
   return { focused, setFocused };

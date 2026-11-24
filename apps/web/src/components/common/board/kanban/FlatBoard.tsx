@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { ChevronDown, Eye } from 'lucide-react';
@@ -11,7 +12,8 @@ import {
 } from '@/utils/team';
 import { useBoardDnd } from '@/hooks/useBoardDnd';
 import { useSelection } from '@/context/useSelection';
-import { boardCollision } from '@/utils/kanban';
+import { boardCollision, boardOrder } from '@/utils/kanban';
+import { rememberListOrder } from '@/utils/issueNavigation';
 import { sortedOrderMessage } from '@/utils/dnd';
 import { Button } from '@/components/ui/button';
 import { GroupDot } from '@/components/common/board/shared/GroupDot';
@@ -72,6 +74,14 @@ export default function FlatBoard({
   const visibleGroups = baseGroups.filter((g) => !hiddenSet.has(g.key));
   const hiddenGroups = baseGroups.filter((g) => hiddenSet.has(g.key));
   const groupNoun = settings.group === 'status' ? 'columns' : 'groups';
+
+  // The issue page and the peek panel move through the board's cards (previous /
+  // next) in reading order.
+  const order = boardOrder(
+    visibleGroups.map((g) => ({ key: g.key, issues: issuesByGroup.get(g.key) ?? [] })),
+    collapsedSet,
+  );
+  useEffect(() => rememberListOrder(order));
 
   // Reordering inside a column only holds when the view is ordered manually: with
   // any other sort field the card would snap back to where the sort puts it. A drop

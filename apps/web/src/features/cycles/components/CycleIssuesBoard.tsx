@@ -51,6 +51,7 @@ export default function CycleIssuesBoard({
     settings: board.settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
+    onPeekIssue: (id: string) => onOpenIssue(id, 'panel'),
     // Like Linear, issues are added only to the current and upcoming cycles.
     onAddIssue: canAdd
       ? (defaults: Parameters<typeof onAddIssue>[0]) => onAddIssue({ cycleId, ...defaults })

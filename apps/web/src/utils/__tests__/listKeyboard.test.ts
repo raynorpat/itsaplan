@@ -47,6 +47,11 @@ const key = (k: string, t: EventTarget = target('BODY'), mods: Partial<KeyboardE
 });
 
 describe('listKeyAction', () => {
+  it('maps Space on the page to peek, not on a focused button', () => {
+    assert.equal(listKeyAction(key(' '), DEFAULT_COMBOS), 'peek');
+    assert.equal(listKeyAction(key(' ', target('BUTTON')), DEFAULT_COMBOS), null);
+  });
+
   it('maps J, K, X and Enter on the page', () => {
     assert.equal(listKeyAction(key('j'), DEFAULT_COMBOS), 'next');
     assert.equal(listKeyAction(key('k'), DEFAULT_COMBOS), 'prev');

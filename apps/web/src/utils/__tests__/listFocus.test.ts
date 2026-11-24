@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import { clearListFocus, readListFocus, rememberListFocus } from '@/utils/listFocus';
+import {
+  clearListFocus,
+  readListFocus,
+  rememberListFocus,
+  subscribeListFocus,
+} from '@/utils/listFocus';
 
 describe('list focus store', () => {
   beforeEach(() => clearListFocus());
@@ -16,5 +21,14 @@ describe('list focus store', () => {
     rememberListFocus('team-a', 'issue-1');
     rememberListFocus('team-a', null);
     assert.equal(readListFocus('team-a'), null);
+  });
+
+  it('tells a mounted list when another surface (the peek panel) moves its focus', () => {
+    const seen: [string, string | null][] = [];
+    const stop = subscribeListFocus((list, id) => seen.push([list, id]));
+    rememberListFocus('team-a', 'issue-2');
+    stop();
+    rememberListFocus('team-a', 'issue-3');
+    assert.deepEqual(seen, [['team-a', 'issue-2']]);
   });
 });

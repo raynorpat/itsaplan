@@ -1,12 +1,13 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { TeamDetail } from '@/types/team';
 import { issuePath, teamPath } from '@/utils/paths';
 import type { useOverlays } from '@/hooks/useOverlays';
 import NewTeamModal from '@/components/layout/NewTeamModal';
 import NewIssueModal from '@/features/issue/components/create/NewIssueModal';
 import IssueDetail from '@/features/issue/components/detail/IssueDetail';
+import { rememberListFocus } from '@/utils/listFocus';
 
 // The team-level overlays the Shell mounts above its content: the new-team
 // modal, the new-issue modal and the issue detail panel.
@@ -21,6 +22,8 @@ export default function ShellOverlays({
   overlays: ReturnType<typeof useOverlays>;
 }) {
   const router = useRouter();
+  // The list behind the panel is keyed by this page's path (see useListKeyboard).
+  const pathname = usePathname();
 
   return (
     <>
@@ -48,6 +51,10 @@ export default function ShellOverlays({
           team={team}
           issueId={overlays.openIssueId}
           onClose={() => overlays.setOpenIssueId(null)}
+          onNavigate={(id) => {
+            overlays.setOpenIssueId(id);
+            rememberListFocus(pathname, id);
+          }}
           onExpand={(seq) => {
             // Prefer the number the panel loaded; fall back to the board issue.
             const n =

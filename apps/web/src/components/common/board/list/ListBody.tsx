@@ -33,6 +33,7 @@ export function ListBody({
   team,
   settings,
   onOpenIssue,
+  onPeekIssue,
   onAddIssue,
   readOnly,
 }: WorkItemsViewProps) {
@@ -88,10 +89,16 @@ export function ListBody({
     },
   });
 
-  // J / K / X / Enter / Escape, with the focused row kept across opening an issue.
+  // The row under the pointer, peeked by Space when no row has the keyboard focus.
+  const hoveredRef = useRef<string | null>(null);
+
+  // J / K / X / Enter / Space / Escape, with the focused row kept across opening an
+  // issue.
   const { focused, setFocused } = useListKeyboard({
     order,
     onOpen: onOpenIssue,
+    onPeek: onPeekIssue,
+    hoveredRef,
     onSelect: readOnly ? undefined : (id) => selection.toggle(id),
     onFocusMove: (id) => {
       const index = items.findIndex((it) => it.kind === 'row' && it.issue.id === id);
@@ -197,7 +204,18 @@ export function ListBody({
       onDragEnd={handleDragEnd}
     >
       {/* data-list-root: the list keys act while it (or nothing) has DOM focus. */}
-      <div ref={scrollRef} data-list-root className="h-full overflow-y-auto">
+      <div
+        ref={scrollRef}
+        data-list-root
+        className="h-full overflow-y-auto"
+        onMouseOver={(e) => {
+          const row = (e.target as Element).closest('[data-issue-id]');
+          hoveredRef.current = row?.getAttribute('data-issue-id') ?? null;
+        }}
+        onMouseLeave={() => {
+          hoveredRef.current = null;
+        }}
+      >
         <div
           id={listId}
           role="list"
