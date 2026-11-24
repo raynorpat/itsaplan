@@ -9,8 +9,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
   REST data API. Besides GraphQL the app serves better-auth (`/api/auth/*`), MCP
   (`/mcp`, `/mcp/readonly`), Linear's OAuth paths and discovery documents
   (`oauth/routes.ts`), the health check (`GET /`), the file routes (`PUT /uploads/:token`,
-  `GET /uploads/:id/raw`, `GET /avatars/:id/raw`, `GET /attachments/:publicId/raw`) and
-  the worker's internal routes (`/internal/*`, the `x-worker-token` secret).
+  `GET /uploads/:id/raw`, `GET /avatars/:id/raw`, `GET /attachments/:publicId/raw`),
+  the worker's internal routes (`/internal/*`, the `x-worker-token` secret) and the
+  portal's visitor routes (`/portal/*`, see Portal visitors).
 - Feature-based: one folder per domain with a `store.ts` (Drizzle service) that the
   GraphQL resolvers, MCP (through GraphQL), the instance plugin handlers and the
   internal routes call. Cross-cutting code in `shared/`. See `src/` for the current set.
@@ -132,6 +133,22 @@ Rules and invariants for this package below; read the code for the walkthrough.
   ago are not shown). A board cannot target a private team. Owners and admins manage
   boards through `/api/auth/instance/portal/*` (`portal/admin.ts`); a board with
   suggestions gets the suggestion team's "Portal" label unless another is chosen.
+- **Portal visitors** (`portal/session.ts`, `portal/routes.ts`): people outside the
+  workspace use the boards through the API's own `/portal/*` routes, not better-auth.
+  A visitor asks for a link on a board (`POST /portal/auth/link`, always `{ ok: true }`;
+  mailed only when the address may read the board and its requester is not blocked;
+  logged as `[portal] sign-in link for` when no mail provider sends it; 5 per address
+  and 20 per client IP an hour, `portal/rate-limit.ts`, in memory per process). The
+  link opens the web's confirm page; its button posts the token (`/portal/auth/confirm`,
+  once, 15 minutes, stored hashed), which creates the requester on first sign-in (400
+  `name required` without a name, the token left usable) and sets the
+  `portal_session` cookie (HttpOnly, SameSite=Lax, Path=/portal, 30 days, stored
+  hashed in `portal_session`). The cookie is read only by `/portal/*`, and a
+  better-auth session or API key means nothing there. A visitor changes only their
+  `displayName` (the team's `name` stays). Restricted board access
+  (`portal/access.ts`) is checked on every request; blocking a requester
+  (`/api/auth/instance/portal/block`, owners and admins) ends their sessions and stops
+  their links. Every `/portal/*` POST needs an `Origin` in `trustedOrigins` (403).
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

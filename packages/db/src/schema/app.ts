@@ -958,6 +958,42 @@ export const portalBoard = pgTable(
   ],
 );
 
+// A portal sign-in link sent to `email` from a board's sign-in form. Only the SHA-256
+// of the token is stored; a token works once (`used_at`) until `expires_at`.
+export const portalSignInToken = pgTable(
+  'portal_sign_in_token',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tokenHash: text('token_hash').notNull(),
+    email: text('email').notNull(),
+    boardId: uuid('board_id').references(() => portalBoard.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('portal_sign_in_token_hash_uq').on(t.tokenHash)],
+);
+
+// A visitor's portal session (cookie `portal_session`), separate from better-auth: it
+// belongs to a requester and is accepted only by the /portal/* routes. Only the
+// SHA-256 of the cookie value is stored.
+export const portalSession = pgTable(
+  'portal_session',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tokenHash: text('token_hash').notNull(),
+    externalUserId: uuid('external_user_id')
+      .notNull()
+      .references(() => externalUser.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('portal_session_token_hash_uq').on(t.tokenHash),
+    index('portal_session_external_user_idx').on(t.externalUserId),
+  ],
+);
+
 // Change log of issues and projects. Each row belongs to exactly one owner: an
 // issue (issue_id) or a project (project_id) — enforced by owner_check. A row
 // records one change: action/subject/from_text/to_text. actor_user_id is the

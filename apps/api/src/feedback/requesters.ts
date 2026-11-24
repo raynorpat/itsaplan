@@ -28,6 +28,8 @@ export interface RequesterDto {
   createdAt: string;
   feedbackCount: number;
   lastFeedbackAt: string | null;
+  // Blocked from the portal: no portal sign-in, sessions ended.
+  portalBlocked: boolean;
 }
 
 const PAGE = 50;
@@ -67,7 +69,7 @@ const resolveRequester = activeRequester;
 
 // The active requester an email leads to: its owner, or (for a merged requester's
 // email) the one it was merged into.
-async function requesterByEmail(email: string) {
+export async function requesterByEmail(email: string) {
   const [active] = await db
     .select()
     .from(externalUser)
@@ -124,6 +126,7 @@ function toDto(
     createdAt: iso(row.createdAt),
     feedbackCount: stats?.count ?? 0,
     lastFeedbackAt: stats?.last ?? null,
+    portalBlocked: row.portalBlockedAt != null,
   };
 }
 

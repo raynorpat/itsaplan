@@ -351,6 +351,13 @@
       "when": 1795558461178,
       "tag": "0049_mushy_fixer",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795558838161,
+      "tag": "0050_superb_the_professor",
+      "breakpoints": true
     }
   ]
 }

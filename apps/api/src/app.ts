@@ -13,6 +13,7 @@ import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
 import { internalProjectRoutes } from './projects/internal-routes';
 import { registerInstanceHandlers } from './instance/handlers';
+import { portalRoutes } from './portal/routes';
 // Registers the AgentSessionEvent webhook on the agent session events.
 import './agents/webhook';
 // Registers the workflow automation engine with the issues store.
@@ -23,7 +24,8 @@ import './workflows/engine';
 //
 // The data API is /graphql. Besides it the app serves better-auth (/api/auth/*), MCP,
 // Linear's OAuth paths, the health check, the file routes (signed upload PUT and the
-// public raw file GETs) and the worker's internal routes.
+// public raw file GETs), the worker's internal routes and the portal's routes for
+// visitors outside the workspace (/portal/*, their own session).
 // The better-auth instance endpoints (/api/auth/instance/*) run the API's session and
 // access rules through these handlers.
 registerInstanceHandlers();
@@ -49,7 +51,8 @@ export const app = new Elysia()
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
   .use(internalProjectRoutes)
-  .use(internalUploadRoutes);
+  .use(internalUploadRoutes)
+  .use(portalRoutes);
 
 // MCP endpoints (POST /mcp, POST /mcp/readonly). Its tools run GraphQL in process as
 // the caller (mcp/graphql.ts).

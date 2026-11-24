@@ -137,6 +137,8 @@ export interface PortalHandlers {
   updateBoard(headers: Headers, body: unknown): Promise<object>;
   deleteBoard(headers: Headers, body: unknown): Promise<object>;
   issueBoards(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  // Blocks or unblocks a requester from the portal (owners and admins).
+  block(headers: Headers, body: unknown): Promise<object>;
 }
 
 export interface InstanceHandlers {
@@ -379,6 +381,11 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/portal/boards/delete',
         options.trustedOrigins,
         (h, headers, body) => h.deleteBoard(headers, body),
+      ),
+      instancePortalBlock: portalWrite(
+        '/instance/portal/block',
+        options.trustedOrigins,
+        (h, headers, body) => h.block(headers, body),
       ),
       instancePortalIssueBoards: createAuthEndpoint(
         '/instance/portal/issue-boards',

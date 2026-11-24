@@ -5,6 +5,7 @@ import { createLabel } from '../labels/store';
 import { assertWorkspaceRole, canSeeTeam, workspaceRole } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
 import { boardIssueIds, boardsShowingIssue, type BoardRow } from './boards';
+import { setPortalBlocked } from './session';
 
 // The instance plugin's portal endpoints (/api/auth/instance/portal/*): owners and
 // admins manage the boards; members read which boards show an issue. Linear's schema
@@ -301,6 +302,12 @@ export const portalHandlers: PortalHandlers = {
     await admin(headers);
     const board = await findBoard(fields(body).id);
     await db.delete(portalBoard).where(eq(portalBoard.id, board.id));
+    return { success: true };
+  },
+  block: async (headers, body) => {
+    await admin(headers);
+    const input = fields(body);
+    await setPortalBlocked(input.requesterId, input.blocked);
     return { success: true };
   },
   issueBoards: async (headers, query) => {
