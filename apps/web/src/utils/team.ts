@@ -160,6 +160,8 @@ export interface IssueGroup {
   color?: string;
   stateType?: StateType; // status groups, for the state icon
   priority?: number; // priority groups, for the priority icon
+  // A project in the trash: its issues are listed, but nothing is added to it.
+  deleted?: boolean;
   assign: IssuePatch | null;
 }
 
@@ -208,12 +210,22 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
       // Lanes come from the projects the loaded issues are linked to (each issue
       // carries its project). Projects with no issue on the board get no lane;
       // the full list is fetched on demand only where a picker needs it.
-      const seen = new Map<string, string>();
+      // A project in the trash still groups its issues but is no drop target: the
+      // API refuses to put an issue in it.
+      const seen = new Map<string, { name: string; deleted: boolean }>();
       for (const issue of team.issues)
-        if (issue.project) seen.set(issue.project.id, projectDisplayName(issue.project));
+        if (issue.project)
+          seen.set(issue.project.id, {
+            name: projectDisplayName(issue.project),
+            deleted: issue.project.deleted,
+          });
       const options = [...seen.entries()]
-        .sort((a, b) => a[1].localeCompare(b[1]))
-        .map(([id, title]) => ({ key: `i${id}`, name: title, assign: { projectId: id } }));
+        .sort((a, b) => a[1].name.localeCompare(b[1].name))
+        .map(([id, p]) => ({
+          key: `i${id}`,
+          name: p.name,
+          ...(p.deleted ? { deleted: true, assign: null } : { assign: { projectId: id } }),
+        }));
       return [...options, { key: 'i-none', name: 'No project', assign: { projectId: null } }];
     }
     case 'cycle': {
@@ -308,6 +320,12 @@ export function nestIssues(
 // group's assign combined with the sub-group's assign. Either may be null (the
 // 'none' group / a Table with no sub-grouping), in which case only the other
 // applies; both null means the cell is not a drop target.
+// A cell in a deleted project's group is never a drop target.
+export function cellAssign(group: IssueGroup, sub: IssueGroup): IssuePatch | null {
+  if (group.deleted || sub.deleted) return null;
+  return mergeAssign(group.assign, sub.assign);
+}
+
 export function mergeAssign(a: IssuePatch | null, b: IssuePatch | null): IssuePatch | null {
   if (!a) return b;
   if (!b) return a;

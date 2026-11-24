@@ -9,6 +9,7 @@ import {
 } from '../shared/access';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
 import { assertAllowedTo } from '../organization/store';
+import { shownNameSql } from '../shared/user-name';
 
 // Workspace invites (Linear's organization invites). An invite gives an address the
 // role it will have and the teams it will join; the better-auth user-create hook
@@ -40,7 +41,7 @@ const columns = {
   createdAt: workspaceInvite.createdAt,
   expiresAt: workspaceInvite.expiresAt,
   invitedByUserId: workspaceInvite.invitedByUserId,
-  invitedByName: user.name,
+  invitedByName: shownNameSql,
 };
 
 function mapInvite(r: {
@@ -132,7 +133,7 @@ export async function getInviteDetailsByToken(token: string): Promise<{
       email: workspaceInvite.email,
       role: workspaceInvite.role,
       createdAt: workspaceInvite.createdAt,
-      invitedByName: user.name,
+      invitedByName: shownNameSql,
     })
     .from(workspaceInvite)
     .leftJoin(user, eq(user.id, workspaceInvite.invitedByUserId))

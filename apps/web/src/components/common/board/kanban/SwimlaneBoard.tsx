@@ -7,7 +7,7 @@ import type { Issue } from '@/types/issue';
 import {
   buildGroups,
   buildMaps,
-  mergeAssign,
+  cellAssign,
   nestIssues,
   positionAt,
   sortIssues,
@@ -135,7 +135,7 @@ export default function SwimlaneBoard({
     issueId: string,
     position: number,
   ) {
-    const assign = mergeAssign(column.assign, swimlane.assign);
+    const assign = cellAssign(column, swimlane);
     if (!assign) return;
     if (!manualOrder && cellIssues.some((i) => i.id === issueId)) {
       toast.info(sortedOrderMessage(settings.sort.field));

@@ -3,6 +3,7 @@ import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { APP_ROLE } from '@repo/auth';
 import { atLeast, workspaceRole, type WorkspaceRole } from '../shared/access';
 import { HttpError, iso } from '../shared/lib';
+import { shownNameSql } from '../shared/user-name';
 
 // Workspace users and their administration: role changes and suspension (Linear's
 // way to remove someone). Admins act on members and guests; owners on anyone; only
@@ -22,7 +23,7 @@ export async function listWorkspaceUsers(): Promise<WorkspaceUserRow[]> {
   const rows = await db
     .select({
       userId: user.id,
-      name: user.name,
+      name: shownNameSql,
       email: user.email,
       image: user.image,
       role: user.workspaceRole,
@@ -32,7 +33,7 @@ export async function listWorkspaceUsers(): Promise<WorkspaceUserRow[]> {
     .from(user)
     // App users are not workspace members (Linear lists apps separately).
     .where(ne(user.workspaceRole, APP_ROLE))
-    .orderBy(asc(user.name));
+    .orderBy(asc(shownNameSql));
   return rows.map((r) => ({
     ...r,
     role: r.role as WorkspaceRole,

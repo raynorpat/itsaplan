@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   deletedProjects,
+  emptyTabText,
   isDeletedProject,
   projectBannerText,
   sortProjects,
@@ -108,5 +109,21 @@ describe('projectBannerText', () => {
 
   it('shows nothing for an active project', () => {
     assert.equal(projectBannerText({ archivedAt: null, trashed: null }), null);
+  });
+});
+
+describe('emptyTabText', () => {
+  it('explains the Deleted tab', () => {
+    assert.deepEqual(emptyTabText('Deleted'), {
+      title: 'No deleted projects',
+      description: 'Deleted projects stay here for 30 days, then they are deleted for good.',
+    });
+  });
+
+  it('explains a status tab', () => {
+    assert.deepEqual(emptyTabText('Started'), {
+      title: 'No started projects',
+      description: 'Projects move between tabs as their status changes.',
+    });
   });
 });

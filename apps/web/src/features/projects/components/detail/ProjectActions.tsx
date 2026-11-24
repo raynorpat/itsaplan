@@ -39,21 +39,15 @@ export default function ProjectActions({
   const canDelete = can('projects', 'delete') && project.archivedAt == null;
   if (!canEdit && !canDelete) return null;
 
+  // A failed delete throws to ConfirmDialog, which keeps the dialog open for a retry;
+  // the global mutation handler shows the error.
   const remove = async () => {
-    try {
-      await del.mutateAsync(project.id);
-    } catch (err) {
-      toast.error((err as Error).message || 'Could not delete the project.');
-      return;
-    }
+    await del.mutateAsync(project.id);
     toast.success('Project moved to the trash.', {
       action: canEdit
         ? {
             label: 'Undo',
-            onClick: () =>
-              restore.mutate(project.id, {
-                onError: (err) => toast.error(err.message || 'Could not restore the project.'),
-              }),
+            onClick: () => restore.mutate(project.id),
           }
         : undefined,
     });

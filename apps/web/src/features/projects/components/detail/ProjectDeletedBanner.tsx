@@ -25,7 +25,6 @@ export default function ProjectDeletedBanner({
   const onRestore = () =>
     restore.mutate(project.id, {
       onSuccess: () => toast.success('Project restored.'),
-      onError: (err) => toast.error(err.message || 'Could not restore the project.'),
     });
 
   return (

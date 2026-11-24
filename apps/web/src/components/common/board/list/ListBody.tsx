@@ -156,8 +156,9 @@ export function ListBody({
             onToggle={() => toggleCollapsed(item.group.key)}
             controls={listId}
             onAddIssue={
-              onAddIssue &&
-              (() => onAddIssue({ stateId: team.states[0]?.id ?? '', ...item.group.assign }))
+              onAddIssue && !item.group.deleted
+                ? () => onAddIssue({ stateId: team.states[0]?.id ?? '', ...item.group.assign })
+                : undefined
             }
             readOnly={readOnly}
           />

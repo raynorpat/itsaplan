@@ -502,14 +502,23 @@ async function assertMilestone(
     throw new HttpError(400, "The milestone must belong to the issue's project");
 }
 
-// Enforces that the project includes the issue's team. Throws 400 otherwise.
+// Enforces that the project includes the issue's team and is not deleted (in the
+// trash) or archived. `current` is the issue's project before the change: keeping an
+// issue in a project that was deleted since is allowed. Throws 400 otherwise.
 export async function assertProject(
   teamId: string,
   projectId: string | null | undefined,
+  current: string | null = null,
 ): Promise<void> {
   if (projectId == null) return;
   if (!(await projectTeamIds(projectId)).includes(teamId))
     throw new HttpError(400, "The project must include the issue's team");
+  if (projectId === current) return;
+  const [row] = await db
+    .select({ archivedAt: project.archivedAt })
+    .from(project)
+    .where(eq(project.id, projectId));
+  if (row?.archivedAt) throw new HttpError(400, 'The project is deleted or archived');
 }
 
 // Enforces that a column belongs to the issue's team and is not archived —
@@ -758,7 +767,7 @@ async function checkPatch(
   patch: IssuePatch,
 ): Promise<StateType | null> {
   await assertAssignments(before.teamId, patch);
-  await assertProject(before.teamId, patch.projectId);
+  await assertProject(before.teamId, patch.projectId, before.projectId);
   await assertCycleOfTeam(before.teamId, patch.cycleId);
   const projectAfter = patch.projectId !== undefined ? patch.projectId : before.projectId;
   await assertMilestone(projectAfter, patch.projectMilestoneId);

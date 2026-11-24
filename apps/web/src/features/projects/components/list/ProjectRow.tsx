@@ -8,6 +8,7 @@ import { formatShortDate } from '@/utils/dates';
 import { AssigneeAvatar } from '@/components/common/issue/IssueBadges';
 import { PriorityIcon } from '@/components/common/issue/IssueIcons';
 import { colorDot } from '@/components/common/fields/colorDot';
+import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { STATUS_META } from '@/utils/projectMeta';
 import HealthBadge from '@/components/common/updates/HealthBadge';
@@ -19,10 +20,13 @@ export default function ProjectRow({
   project,
   teamKey,
   owner,
+  onRestore,
 }: {
   project: Project;
   teamKey: string;
   owner: Assignee | null;
+  // A deleted project's row: Restore takes the place of the health.
+  onRestore?: () => void;
 }) {
   const router = useRouter();
   const href = projectPath(teamKey, project.id);
@@ -80,7 +84,20 @@ export default function ProjectRow({
       </TableCell>
 
       <TableCell className="px-3 py-2.5 align-middle">
-        <HealthBadge health={project.health} />
+        {onRestore ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestore();
+            }}
+          >
+            Restore
+          </Button>
+        ) : (
+          <HealthBadge health={project.health} />
+        )}
       </TableCell>
     </TableRow>
   );

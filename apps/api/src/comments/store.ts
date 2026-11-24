@@ -31,6 +31,7 @@ import { assertInitiativeAccess, visibleInitiativesSql } from '../initiatives/ac
 import { getInitiative, initiativeUrl } from '../initiatives/store';
 import { assertDocumentParentAccess, visibleDocumentsSql } from '../documents/access';
 import { documentPageUrl, documentParent, documentTeamIds, getDocument } from '../documents/store';
+import { shownNameSql } from '../shared/user-name';
 
 // Comments (Linear's Comment) on an issue, a project, a project update, an
 // initiative update or a document. A reply belongs to the thread of a root comment:
@@ -176,7 +177,7 @@ export async function commentTeamIds(c: CommentRow): Promise<string[]> {
 
 async function userName(id: string | null): Promise<string | null> {
   if (!id) return null;
-  const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
+  const [row] = await db.select({ name: shownNameSql }).from(user).where(eq(user.id, id));
   return row?.name ?? null;
 }
 

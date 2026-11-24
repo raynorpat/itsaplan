@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createIssue, createTeam, gqlData, type As } from '../../../__tests__/helpers/graphql';
+import {
+  createIssue,
+  createTeam,
+  createWebhook,
+  gqlData,
+  type As,
+} from '../../../__tests__/helpers/graphql';
+import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 import { gql } from '../../../__tests__/helpers/linear';
 import { purgeTrashedProjects } from '../../store';
 
@@ -132,5 +139,71 @@ describe('project trash', () => {
     await run(owner, 'projectArchive', id);
     expect(await purgeTrashedProjects(new Date(Date.now() + 365 * DAY_MS))).toBe(0);
     expect((await readProject(owner, id)).body.errors).toBeUndefined();
+  });
+  it('refuses to put an issue in a trashed or archived project', async () => {
+    const { owner, teamId, stateId } = await setup();
+    const trashed = await newProject(owner, teamId);
+    const archived = await newProject(owner, teamId);
+    await run(owner, 'projectDelete', trashed);
+    await run(owner, 'projectArchive', archived);
+    for (const projectId of [trashed, archived]) {
+      const created = await gql(
+        { cookie: owner.cookie },
+        `mutation ($input: IssueCreateInput!) { issueCreate(input: $input) { success } }`,
+        { input: { teamId, stateId, title: 'x', projectId } },
+      );
+      expect(created.body.errors?.[0]?.message).toContain('deleted or archived');
+      const issue = await createIssue(owner, { teamId, stateId });
+      const updated = await gql(
+        { cookie: owner.cookie },
+        `mutation ($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
+        { id: issue.id, input: { projectId } },
+      );
+      expect(updated.body.errors?.[0]?.message).toContain('deleted or archived');
+    }
+  });
+
+  it('lets an issue already in a trashed project be edited', async () => {
+    const { owner, teamId, stateId } = await setup();
+    const id = await newProject(owner, teamId);
+    const issue = await createIssue(owner, { teamId, stateId, projectId: id });
+    await run(owner, 'projectDelete', id);
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation ($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
+      { id: issue.id, input: { title: 'Renamed', projectId: id } },
+    );
+    expect(res.body.errors).toBeUndefined();
+  });
+
+  it('records the project removal on issues and sends an Issue update when purging', async () => {
+    const { owner, teamId, stateId } = await setup();
+    const hook = await createWebhook(owner, {
+      url: 'https://example.com/hook',
+      resourceTypes: ['Issue'],
+      teamId: 'MKT',
+    });
+    const id = await newProject(owner, teamId);
+    const issue = await createIssue(owner, { teamId, stateId, projectId: id });
+    await run(owner, 'projectDelete', id);
+    await purgeTrashedProjects(new Date(Date.now() + 31 * DAY_MS));
+    const history = await gqlData(
+      owner,
+      `query ($id: String!) { issue(id: $id) { history { nodes { actorId fromProjectId toProjectId } } } }`,
+      { id: issue.id },
+    );
+    const entry = history.issue.history.nodes.find(
+      (n: { fromProjectId: string | null }) => n.fromProjectId === id,
+    );
+    expect(entry).toBeTruthy();
+    expect(entry.toProjectId).toBeNull();
+    expect(entry.actorId).toBeNull();
+    const sent = (await webhookDeliveries(hook.id)).data!.items.map(
+      (d) =>
+        d.payload as { action: string; type: string; data: { id: string; projectId: unknown } },
+    );
+    const update = sent.find((p) => p.type === 'Issue' && p.action === 'update');
+    expect(update?.data.id).toBe(issue.id);
+    expect(update?.data.projectId).toBeNull();
   });
 });

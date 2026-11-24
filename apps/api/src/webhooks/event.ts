@@ -4,6 +4,7 @@ import { db, team, user, webhook, webhookDelivery } from '@repo/db';
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getOrganization } from '../graphql/resolvers/organization';
 import type { WebhookResourceType } from './store';
+import { shownNameSql } from '../shared/user-name';
 
 // Queues Linear-format webhook deliveries (https://linear.app/developers/webhooks).
 // Called by the stores right after a change, with the entity's webhook data
@@ -42,7 +43,7 @@ function workflowActor(userId: string | null) {
 async function actorFor(userId: string | null) {
   if (!userId) return null;
   const [row] = await db
-    .select({ id: user.id, name: user.name, email: user.email })
+    .select({ id: user.id, name: shownNameSql, email: user.email })
     .from(user)
     .where(eq(user.id, userId));
   return row ? { id: row.id, type: 'user', name: row.name, email: row.email } : null;

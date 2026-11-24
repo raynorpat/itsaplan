@@ -5,6 +5,7 @@ import { enqueueOutbound } from './outbound';
 import { subscribe, subscriberIds } from './subscriptions';
 import { visibleTeamIds } from '../shared/access';
 import { currentWorkflow } from '../shared/workflow-context';
+import { shownNameSql } from '../shared/user-name';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
 // about an issue they are involved in. Comment and status-change notifications go to
@@ -37,7 +38,7 @@ async function keepTeamMembers(teamId: string, ids: string[]): Promise<Set<strin
 
 async function actorName(id: string | null): Promise<string | null> {
   if (id == null) return null;
-  const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
+  const rows = await db.select({ name: shownNameSql }).from(user).where(eq(user.id, id));
   return rows[0]?.name ?? null;
 }
 
@@ -70,7 +71,7 @@ async function insertNotifications(all: NewNotificationRow[]): Promise<void> {
   // Queue notification email for members who want it. Best-effort:
   // a delivery failure must not break the inbox insert or the domain mutation.
   try {
-    await enqueueOutbound(rows, name);
+    await enqueueOutbound(rows, name, workflowDefinitionId != null);
   } catch (err) {
     console.error('[notifications] outbound enqueue failed:', err);
   }

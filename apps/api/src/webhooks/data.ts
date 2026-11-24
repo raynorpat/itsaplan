@@ -25,6 +25,7 @@ import { getInitiativeUpdate, latestInitiativeUpdate } from '../initiatives/upda
 import { documentUrl, getDocument } from '../documents/store';
 import { attachmentUrl, type AttachmentRow } from '../attachments/store';
 import { subscriberIds } from '../notifications/subscriptions';
+import { shownNameSql } from '../shared/user-name';
 
 // The `data` of a webhook payload per resource type: the GraphQL mapper's output
 // with the relation ids and small nested objects Linear puts in webhook data.
@@ -51,7 +52,7 @@ export async function issueData(issueId: string): Promise<WebhookData | null> {
   const assignee = assigneeUserId
     ? ((
         await db
-          .select({ id: user.id, name: user.name, email: user.email })
+          .select({ id: user.id, name: shownNameSql, email: user.email })
           .from(user)
           .where(eq(user.id, assigneeUserId))
       )[0] ?? null)

@@ -1,5 +1,6 @@
 import { db, issueActivity, user } from '@repo/db';
 import { eq } from 'drizzle-orm';
+import { shownNameSql } from '../shared/user-name';
 
 // recordActivity writes project-level change-log entries (kind 'activity',
 // project_id set). The project mutation functions call it.
@@ -17,7 +18,7 @@ export interface ActivityInput {
 
 async function userName(id: string | null): Promise<string | null> {
   if (id == null) return null;
-  const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
+  const rows = await db.select({ name: shownNameSql }).from(user).where(eq(user.id, id));
   return rows[0]?.name ?? null;
 }
 

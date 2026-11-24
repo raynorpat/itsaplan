@@ -69,9 +69,17 @@ function emailPayload(
 // issue event. All rows in `notifications` share the same issue and actor (both call
 // sites operate on a single issue). No-op when no instance email provider is
 // configured or no member wants any of the event types present.
+// The actor as an email names it: a workflow is marked as one ("Triage bot
+// (workflow)"), as the inbox shows it; no name reads "Someone".
+export function emailActor(name: string | null, workflow: boolean): string {
+  if (!name) return 'Someone';
+  return workflow ? `${name} (workflow)` : name;
+}
+
 export async function enqueueOutbound(
   notifications: NewNotificationRow[],
   actorName: string | null,
+  byWorkflow = false,
 ): Promise<void> {
   if (notifications.length === 0) return;
   const teamId = notifications[0].teamId;
@@ -91,7 +99,7 @@ export async function enqueueOutbound(
 
   const ref = issueRef(teamRow.key, issueRow.seq);
   const url = issueUrl(teamRow.key, issueRow.seq);
-  const actor = actorName ?? 'Someone';
+  const actor = emailActor(actorName, byWorkflow);
 
   const userIds = [...new Set(notifications.map((n) => n.userId))];
   const [users, prefsByUser] = await Promise.all([

@@ -253,6 +253,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   that includes their team; a team with issues in a project cannot be removed from it.
   Project statuses are six seeded rows (`project_status`, ids in
   `packages/db/src/project-statuses.ts`); `resetDb` keeps them.
+- **Project trash** (`projects/store.ts`): `projectDelete` archives the project and
+  sets `trashed`, as Linear does; `projectUnarchive` restores an archived or trashed
+  project with its members, milestones, updates and initiative links. An issue cannot
+  be put in an archived or trashed project, but one already in it keeps it. The
+  worker calls `/internal/projects/purge`, which deletes projects trashed more than
+  `PROJECT_TRASH_DAYS` (30) days ago; a project only archived through `projectArchive`
+  is never purged. A purged project's issues lose the project and its milestone, each
+  with a system history entry and an Issue update event.
 
 ## Security
 

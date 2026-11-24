@@ -16,6 +16,7 @@ import { getOrganization } from '../graphql/resolvers/organization';
 import { issueData } from '../webhooks/data';
 import { onAgentSessionEvent, type AgentSessionEvent } from './events';
 import { appSeesSessionIssue, endUnreachableSession, getSession, type SessionRow } from './store';
+import { shownNameSql } from '../shared/user-name';
 
 // Linear's AgentSessionEvent webhook (the SDL's AgentSessionEventWebhookPayload): sent
 // to the webhook of the application whose app user owns the session, whatever resource
@@ -46,7 +47,7 @@ async function appWebhook(appUserId: string) {
 async function userChild(id: string | null): Promise<Data | null> {
   if (!id) return null;
   const [row] = await db
-    .select({ id: user.id, name: user.name, email: user.email, image: user.image })
+    .select({ id: user.id, name: shownNameSql, email: user.email, image: user.image })
     .from(user)
     .where(eq(user.id, id));
   if (!row) return null;

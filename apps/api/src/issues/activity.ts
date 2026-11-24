@@ -12,6 +12,7 @@ import {
 } from '@repo/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { notifyIssueChange } from '../notifications/store';
+import { shownNameSql } from '../shared/user-name';
 
 // recordActivity writes an issue's change-log entries (issue_activity, kind
 // 'activity'); the issue mutation functions call it. The GraphQL history reads them.
@@ -112,7 +113,7 @@ async function issueIdentifier(id: string | null): Promise<string | null> {
 }
 async function userName(id: string | null): Promise<string | null> {
   if (id == null) return null;
-  const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
+  const rows = await db.select({ name: shownNameSql }).from(user).where(eq(user.id, id));
   return rows[0]?.name ?? null;
 }
 // Name snapshots for a set of labels in one query, resolved at change time so a log

@@ -3,6 +3,7 @@ import { db, oauthInstallation } from '@repo/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { SessionUser } from '../context';
 import type { GraphQLContext } from '../context';
+import { shownName } from '../../shared/user-name';
 
 // The fields of better-auth's user row that Linear's User maps from.
 export interface UserSource {
@@ -29,12 +30,6 @@ function initials(name: string): string {
 
 // A Linear User object for a user row, as seen by the viewer. Fields without a
 // counterpart here resolve to their neutral value (see schema.ts).
-// A magic-link sign-up has no name; like Linear, the account is then named after its
-// email's local part until the person sets one.
-function shownName(user: Pick<UserSource, 'name' | 'email'>): string {
-  return user.name.trim() || user.email.split('@')[0]!;
-}
-
 export function toGraphQLUser(user: UserSource, viewerId: string) {
   const name = shownName(user);
   return {

@@ -15,6 +15,7 @@ import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
 import { UUID_RE } from '../../shared/lib';
+import { shownNameSql } from '../../shared/user-name';
 
 // Linear's Team is a team. Owners, admins and members see every public team and
 // their private teams; guests see their teams (shared/access.ts).
@@ -85,8 +86,8 @@ export function visibleUsers(viewerId: string): SQL {
 
 export const userFilter: FieldHandlers = {
   id: (v, p) => compareId(user.id, v, p),
-  name: (v, p) => compare(user.name, v, p),
-  displayName: (v, p) => compare(user.name, v, p),
+  name: (v, p) => compare(shownNameSql, v, p),
+  displayName: (v, p) => compare(shownNameSql, v, p),
   email: (v, p) => compare(user.email, v, p),
   // Linear's `app`: whether the user is an app user (an installed OAuth application).
   app: (v, p) => {

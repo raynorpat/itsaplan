@@ -1,5 +1,5 @@
 import type { Issue, IssuePatch } from '@/types/issue';
-import { groupIssues, mergeAssign, nestIssues, positionAt, type IssueGroup } from '@/utils/team';
+import { groupIssues, cellAssign, nestIssues, positionAt, type IssueGroup } from '@/utils/team';
 import { type ViewSettings, type DisplayProperty } from '@/utils/viewSettings';
 import {
   blocksShortcuts,
@@ -184,7 +184,7 @@ export function buildListItems({
         const issues = inner.get(sg.key) ?? [];
         if (!settings.showEmptyGroups && issues.length === 0) continue;
         const key = subKey(group.key, sg.key);
-        const assign = mergeAssign(group.assign, sg.assign);
+        const assign = cellAssign(group, sg);
         items.push({
           kind: 'subheader',
           sub: sg,

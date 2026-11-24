@@ -4,6 +4,7 @@ import type { TeamDetail } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/page/EmptyState';
+import { emptyTabText } from '../../utils/projectList';
 import ProjectRow from './ProjectRow';
 
 // Columns in table order. A `sort` key marks the column as sortable (in the
@@ -27,6 +28,7 @@ export default function ProjectsList({
   sort,
   dir,
   onSort,
+  onRestore,
 }: {
   projects: Project[];
   team: TeamDetail;
@@ -39,23 +41,15 @@ export default function ProjectsList({
   sort: ProjectSort | undefined;
   dir: 'asc' | 'desc' | undefined;
   onSort: (key: ProjectSort) => void;
+  // The Deleted tab: each row offers Restore (for those who may edit projects).
+  onRestore?: (projectId: string) => void;
 }) {
   const ownerById = new Map(team.assignees.map((a) => [a.userId, a]));
 
   if (isLoading) return <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>;
 
   if (projects.length === 0) {
-    if (statusLabel)
-      return (
-        <EmptyState
-          title={`No ${statusLabel.toLowerCase()} projects`}
-          description={
-            statusLabel === 'Archived'
-              ? 'Archived projects are listed here until they are unarchived.'
-              : 'Projects move between tabs as their status changes.'
-          }
-        />
-      );
+    if (statusLabel) return <EmptyState {...emptyTabText(statusLabel)} />;
     return (
       <EmptyState
         title="No projects yet"
@@ -114,6 +108,7 @@ export default function ProjectsList({
               project={it}
               teamKey={team.team.key}
               owner={it.leadUserId ? (ownerById.get(it.leadUserId) ?? null) : null}
+              onRestore={onRestore && (() => onRestore(it.id))}
             />
           ))}
         </TableBody>

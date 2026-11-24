@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search } from 'lucide-react';
+import { toast } from 'sonner';
 import { useShell } from '@/context/shellContext';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -25,6 +26,7 @@ import {
   useProjectStatusCounts,
   useProjectsList,
 } from './services/projectsList.service';
+import { useRestoreProject } from '@/services/projects.service';
 import { sortProjects } from './utils/projectList';
 
 // One tab per lifecycle status, except the terminal statuses share a "Completed"
@@ -92,6 +94,7 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
     !isDeleted,
   );
   const deleted = useDeletedProjects({ teamKey: filterKey, search }, isDeleted);
+  const restore = useRestoreProject(teamKey ?? '');
   const counts = useProjectStatusCounts(filterKey).data;
 
   // The browser sorts loaded rows only, so a sort loads the remaining pages.
@@ -179,6 +182,11 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
         sort={sort}
         dir={dir}
         onSort={changeSort}
+        onRestore={
+          isDeleted && can('projects', 'edit')
+            ? (id) => restore.mutate(id, { onSuccess: () => toast.success('Project restored.') })
+            : undefined
+        }
       />
 
       {!isDeleted && query.hasNextPage && !sort && (

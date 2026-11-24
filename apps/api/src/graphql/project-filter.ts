@@ -14,6 +14,7 @@ import { gqlError } from './errors';
 import { teamFilter } from './resolvers/team';
 import { initiativeFilterSql } from './initiative-filter';
 import { initiativesVisibleThrough } from '../initiatives/access';
+import { shownNameSql } from '../shared/user-name';
 
 // ProjectFilter as SQL over the project table. Supported: id, name, slugId,
 // status (id, name, type), lead (id, name, email, isMe, null), priority,
@@ -61,7 +62,7 @@ export function projectFilterSql(
         rest,
         {
           id: (x, q) => compareId(user.id, x, q),
-          name: (x, q) => compare(user.name, x, q),
+          name: (x, q) => compare(shownNameSql, x, q),
           email: (x, q) => compare(user.email, x, q),
           isMe: (x) =>
             (x as { eq?: boolean }).eq ? eq(user.id, viewerId) : not(eq(user.id, viewerId)),

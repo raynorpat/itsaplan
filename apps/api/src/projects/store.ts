@@ -21,9 +21,11 @@ import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
 import { latestHealthFor, type UpdateHealth } from './updates';
 import { recordActivity, logProjectUpdate, type ProjectSnapshot } from './activity';
-import { emitEvent, type WebhookAction } from '../webhooks/event';
-import { initiativeData, projectData, type WebhookData } from '../webhooks/data';
+import { recordActivity as recordIssueActivity } from '../issues/activity';
+import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
+import { initiativeData, issueData, projectData, type WebhookData } from '../webhooks/data';
 import { sendInitiativeEvent } from '../initiatives/store';
+import { shownNameSql } from '../shared/user-name';
 
 // Data access for projects (Linear's Project): a body of work linked to teams
 // through project_team. Issues link to a project through issue.project_id.
@@ -288,7 +290,7 @@ async function assertProjectMembers(
     ),
   );
   const rows = await db
-    .select({ id: user.id, name: user.name, ok: sql<boolean>`${canSee}` })
+    .select({ id: user.id, name: shownNameSql, ok: sql<boolean>`${canSee}` })
     .from(user)
     .where(inArray(user.id, ids));
   const allowed = new Set(rows.filter((r) => r.ok).map((r) => r.id));
@@ -578,12 +580,28 @@ export async function purgeTrashedProjects(now: Date): Promise<number> {
   return due.length;
 }
 
-// Linked issues keep existing (issue.project_id is set null by the FK); the
-// project's own activity rows, team links and label links cascade.
-// Deleting a project removes its initiative links (cascade); each initiative it was
-// linked to gets an Initiative update.
+// Linked issues keep existing: each loses the project (and its milestone), gets a
+// system history entry and an Issue update event. The project's own activity rows,
+// team links and label links cascade. Deleting a project removes its initiative
+// links (cascade); each initiative it was linked to gets an Initiative update.
 async function deleteProject(id: string, actorUserId: string | null): Promise<void> {
   const beforeData = await projectData(id);
+  const [named] = await db.select({ name: project.name }).from(project).where(eq(project.id, id));
+  const linked = await db
+    .select({ id: issue.id, teamId: issue.teamId })
+    .from(issue)
+    .where(eq(issue.projectId, id));
+  const issuesBefore = await Promise.all(
+    linked.map(async (i) => ({
+      ...i,
+      before: (await isWatched('Issue', [i.teamId])) ? await issueData(i.id) : null,
+    })),
+  );
+  if (linked.length)
+    await db
+      .update(issue)
+      .set({ projectId: null, projectMilestoneId: null, updatedAt: sql`now()` })
+      .where(eq(issue.projectId, id));
   const links = await db
     .select({ initiativeId: initiativeToProject.initiativeId })
     .from(initiativeToProject)
@@ -592,6 +610,24 @@ async function deleteProject(id: string, actorUserId: string | null): Promise<vo
     links.map(async (l) => [l.initiativeId, await initiativeData(l.initiativeId)] as const),
   );
   await db.delete(project).where(eq(project.id, id));
+  for (const i of issuesBefore) {
+    await recordIssueActivity(
+      i.id,
+      [{ action: 'project', fromText: named?.name ?? null, fromId: id, toId: null }],
+      actorUserId,
+    );
+    if (!i.before) continue;
+    const after = await issueData(i.id);
+    if (after)
+      await emitEvent({
+        type: 'Issue',
+        action: 'update',
+        teamIds: [i.teamId],
+        actorUserId,
+        data: after,
+        before: i.before,
+      });
+  }
   await emitProject('remove', beforeData, actorUserId);
   for (const [initiativeId, before] of initiativesBefore)
     await sendInitiativeEvent('update', initiativeId, actorUserId, before);

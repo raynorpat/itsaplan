@@ -82,6 +82,17 @@ export function deletedProjects<T extends { archivedAt: string | null }>(project
 // Days a trashed project stays restorable; the API's PROJECT_TRASH_DAYS.
 const TRASH_DAYS = 30;
 
+// The empty state of a filtered tab: a status tab or the Deleted tab.
+export function emptyTabText(label: string): { title: string; description: string } {
+  return {
+    title: `No ${label.toLowerCase()} projects`,
+    description:
+      label === 'Deleted'
+        ? `Deleted projects stay here for ${TRASH_DAYS} days, then they are deleted for good.`
+        : 'Projects move between tabs as their status changes.',
+  };
+}
+
 const dayFormat = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',

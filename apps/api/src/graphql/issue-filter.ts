@@ -28,6 +28,7 @@ import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
 import { attachmentCollectionSql } from './attachment-filter';
 import { labelCollectionSql } from './label-collection-filter';
+import { shownNameSql } from '../shared/user-name';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
 // description, priority, estimate, createdAt, updatedAt, completedAt, dueDate,
@@ -44,7 +45,7 @@ import { labelCollectionSql } from './label-collection-filter';
 function userHandlers(viewerId: string): FieldHandlers {
   return {
     id: (v, p) => compareId(user.id, v, p),
-    name: (v, p) => compare(user.name, v, p),
+    name: (v, p) => compare(shownNameSql, v, p),
     email: (v, p) => compare(user.email, v, p),
     isMe: (v, p) => {
       const { eq: me, ...other } = v as Record<string, unknown>;
