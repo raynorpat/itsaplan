@@ -137,9 +137,10 @@ describe('progressHeader', () => {
 });
 
 describe('progressPercent', () => {
-  it('rounds to a whole percent', () => {
+  it('rounds down to a whole percent, as the cycle pages do', () => {
     assert.equal(progressPercent(0), 0);
-    assert.equal(progressPercent(0.4286), 43);
+    assert.equal(progressPercent(0.006), 0);
+    assert.equal(progressPercent(0.4286), 42);
     assert.equal(progressPercent(1), 100);
   });
 

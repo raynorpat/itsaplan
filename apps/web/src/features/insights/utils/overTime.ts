@@ -1,3 +1,4 @@
+import { periodStart } from './data';
 import type { InsightIssue } from './slices';
 
 const DAY_MS = 86_400_000;
@@ -25,9 +26,7 @@ export function weeklyCreatedCompleted(
   periodMonths: number,
   now: Date,
 ): WeekCount[] {
-  const from = new Date(now);
-  from.setUTCMonth(from.getUTCMonth() - periodMonths);
-  const first = mondayOf(from.getTime());
+  const first = mondayOf(periodStart(periodMonths, now).getTime());
   const last = mondayOf(now.getTime());
   const weeks = new Map<number, WeekCount>();
   for (let t = first; t <= last; t += 7 * DAY_MS) {

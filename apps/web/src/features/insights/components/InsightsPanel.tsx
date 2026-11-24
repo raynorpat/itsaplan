@@ -27,6 +27,7 @@ export default function InsightsPanel({
   scope,
   viewIssues,
   baseContext,
+  showSubIssues,
   spansTeams = false,
   fetchOpen = false,
   onSliceFilter,
@@ -38,6 +39,8 @@ export default function InsightsPanel({
   scope: IssueFilter;
   viewIssues: InsightIssue[];
   baseContext: InsightsContext;
+  // The view's "Show sub-issues" display setting, applied to the fetched issues too.
+  showSubIssues: boolean;
   spansTeams?: boolean;
   fetchOpen?: boolean;
   // Narrows the view to a clicked slice; omitted where the view has no filter.
@@ -51,6 +54,7 @@ export default function InsightsPanel({
     viewIssues,
     baseContext,
     periodMonths: settings.periodMonths,
+    showSubIssues,
     fetchOpen,
   });
   const hasEstimates = data.issues.some((i) => (i.estimate ?? 0) > 0);
@@ -69,6 +73,7 @@ export default function InsightsPanel({
         <TimeChart
           result={timeRows(data.issues, shown.measure, shown.slice, data.context)}
           slice={shown.slice}
+          states={data.context.states}
           measureLabel={measureLabel}
           onSliceFilter={onSliceFilter}
           onOpenIssue={onOpenIssue}
@@ -79,6 +84,7 @@ export default function InsightsPanel({
         rows={breakdown(data.issues, shown, data.context)}
         slice={shown.slice}
         segment={shown.segment}
+        states={data.context.states}
         unit={measureLabel}
         onSliceFilter={onSliceFilter}
       />

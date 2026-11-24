@@ -26,12 +26,25 @@ export type InsightIssue = Pick<
 
 // Names the panel shows for the ids on an issue.
 export interface InsightsContext {
-  states: ReadonlyMap<string, { name: string; type: string; position: number }>;
+  states: ReadonlyMap<string, InsightsState>;
   users: ReadonlyMap<string, string>;
   labels: ReadonlyMap<string, string>;
   cycles: ReadonlyMap<string, string>;
   teams: ReadonlyMap<string, string>;
+  // A view spanning teams (My issues) shows one status slice per state name, since
+  // each team has its own "In Progress".
+  groupStatesByName?: boolean;
 }
+
+export interface InsightsState {
+  name: string;
+  type: string;
+  position: number;
+  color?: string;
+}
+
+// The key of a status slice grouped by name (InsightsContext.groupStatesByName).
+const STATE_NAME_PREFIX = 'name:';
 
 export type SliceField =
   'status' | 'assignee' | 'priority' | 'label' | 'project' | 'cycle' | 'creator' | 'team';
@@ -57,10 +70,12 @@ const NONE_LABEL: Record<SliceField, string> = {
 };
 
 // The slice keys of one issue for a field: one key, or one per label.
-function keysOf(issue: InsightIssue, field: SliceField): string[] {
+function keysOf(issue: InsightIssue, field: SliceField, ctx: InsightsContext): string[] {
   switch (field) {
-    case 'status':
-      return [issue.stateId];
+    case 'status': {
+      const name = ctx.states.get(issue.stateId)?.name;
+      return [ctx.groupStatesByName && name ? STATE_NAME_PREFIX + name : issue.stateId];
+    }
     case 'assignee':
       return [issue.assigneeUserId ?? NONE];
     case 'priority':
@@ -82,7 +97,9 @@ function labelOf(field: SliceField, key: string, sample: InsightIssue, ctx: Insi
   if (key === NONE) return NONE_LABEL[field];
   switch (field) {
     case 'status':
-      return ctx.states.get(key)?.name ?? NONE_LABEL.status;
+      return key.startsWith(STATE_NAME_PREFIX)
+        ? key.slice(STATE_NAME_PREFIX.length)
+        : (ctx.states.get(key)?.name ?? NONE_LABEL.status);
     case 'assignee':
     case 'creator':
       return ctx.users.get(key) ?? 'Unknown user';
@@ -101,10 +118,21 @@ function labelOf(field: SliceField, key: string, sample: InsightIssue, ctx: Insi
   }
 }
 
+// The state a status slice stands for (the first of that name when grouped by name).
+export function statusOf(
+  key: string,
+  states: ReadonlyMap<string, InsightsState>,
+): InsightsState | undefined {
+  if (!key.startsWith(STATE_NAME_PREFIX)) return states.get(key);
+  const name = key.slice(STATE_NAME_PREFIX.length);
+  return [...states.values()].find((s) => s.name === name);
+}
+
 // The rank of a slice in its natural order: workflow position for status, Urgent to
 // Low then No priority for priority, the name for the rest; the "none" slice last.
 function rank(field: SliceField, slice: Slice, ctx: InsightsContext): number | string {
-  if (field === 'status') return ctx.states.get(slice.key)?.position ?? Number.MAX_SAFE_INTEGER;
+  if (field === 'status')
+    return statusOf(slice.key, ctx.states)?.position ?? Number.MAX_SAFE_INTEGER;
   if (field === 'priority') {
     const i = PRIORITY_ORDER.indexOf(Number(slice.key) as (typeof PRIORITY_ORDER)[number]);
     return i === -1 ? PRIORITY_ORDER.length : i;
@@ -121,7 +149,7 @@ export function sliceIssues(
 ): Slice[] {
   const byKey = new Map<string, Slice>();
   for (const issue of issues) {
-    for (const key of keysOf(issue, field)) {
+    for (const key of keysOf(issue, field, ctx)) {
       let slice = byKey.get(key);
       if (!slice) {
         slice = { key, label: labelOf(field, key, issue, ctx), issues: [] };
@@ -151,7 +179,8 @@ export function sliceFilter(field: SliceField, key: string): FilterCondition | n
   });
   switch (field) {
     case 'status':
-      return condition('status', [key]);
+      // A status grouped by name stands for several teams' states.
+      return key.startsWith(STATE_NAME_PREFIX) ? null : condition('status', [key]);
     case 'assignee':
       return condition('assignee', [value]);
     case 'priority':

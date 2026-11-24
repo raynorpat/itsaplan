@@ -60,10 +60,13 @@ export default function WorkItemsPage() {
 
   useNewViewFromUrl(shownTeam != null, can('views', 'create'), editor.beginNewView);
 
+  const teamId = team?.team.id ?? '';
   const insightsKey = insightsViewKey(
     editor.activeViewId
       ? { kind: 'view', viewId: editor.activeViewId }
-      : { kind: 'allIssues', teamId: team?.team.id ?? '' },
+      : editor.editing
+        ? { kind: 'newView', teamId }
+        : { kind: 'allIssues', teamId },
   );
   const insights = useInsightsSettings(insightsKey);
   const insightsContext = useMemo(() => (team ? contextFromTeam(team) : EMPTY_CONTEXT), [team]);
@@ -222,6 +225,7 @@ export default function WorkItemsPage() {
           scope={insightsScope({ team: { id: { eq: team.team.id } } }, editor.effectiveFilters)}
           viewIssues={shownTeam.issues}
           baseContext={insightsContext}
+          showSubIssues={editor.settings.showSubIssues}
           onSliceFilter={(c) => editor.changeFilters(withSliceFilter(editor.filters, c))}
           onOpenIssue={onOpenIssue}
         />

@@ -1,6 +1,5 @@
 import type { InsightsSettings, Measure } from './settings';
 import { sliceIssues, type InsightIssue, type InsightsContext } from './slices';
-import { timeStats } from './stats';
 
 const DAY_MS = 86_400_000;
 
@@ -57,18 +56,10 @@ function total(issues: InsightIssue[], measure: Measure, now: Date): number {
   return issues.reduce((n, i) => n + (measureValue(i, measure, now) ?? 0), 0);
 }
 
-// The value of a group of issues: the sum for count and points, the median for a time
-// measure (0 when no issue has a value).
-function groupValue(issues: InsightIssue[], measure: Measure, now: Date): number {
-  if (!isTimeMeasure(measure)) return total(issues, measure, now);
-  const values = issues
-    .map((i) => measureValue(i, measure, now))
-    .filter((v): v is number => v != null);
-  return timeStats(values)?.median ?? 0;
-}
-
-// The panel's bars: one row per slice in its natural order, split by the segment
-// field when one is set.
+// The panel's bars for count or points (time measures go to timeRows): one row per
+// slice in its natural order, split by the segment field when one is set. Every row
+// lists the same segments, in the segment field's natural order, with 0 where the
+// row has none, so the stack and legend order is the same for all rows.
 export function breakdown(
   issues: InsightIssue[],
   settings: Pick<InsightsSettings, 'measure' | 'slice' | 'segment'>,
@@ -76,21 +67,23 @@ export function breakdown(
   now: Date = new Date(),
 ): BreakdownRow[] {
   const { measure, slice, segment } = settings;
-  const all = isTimeMeasure(measure) ? 0 : total(issues, measure, now);
+  const all = total(issues, measure, now);
+  const order = segment ? sliceIssues(issues, segment, ctx) : [];
   return sliceIssues(issues, slice, ctx).map((s) => {
-    const value = groupValue(s.issues, measure, now);
+    const value = total(s.issues, measure, now);
+    const inRow = segment
+      ? new Map(sliceIssues(s.issues, segment, ctx).map((g) => [g.key, g.issues]))
+      : new Map<string, InsightIssue[]>();
     return {
       key: s.key,
       label: s.label,
       value,
       share: all > 0 ? value / all : 0,
-      segments: segment
-        ? sliceIssues(s.issues, segment, ctx).map((g) => ({
-            key: g.key,
-            label: g.label,
-            value: groupValue(g.issues, measure, now),
-          }))
-        : [],
+      segments: order.map((g) => ({
+        key: g.key,
+        label: g.label,
+        value: total(inRow.get(g.key) ?? [], measure, now),
+      })),
     };
   });
 }

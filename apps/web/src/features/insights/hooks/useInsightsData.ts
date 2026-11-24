@@ -5,12 +5,13 @@ import { useQuery } from '@tanstack/react-query';
 import { qk } from '@/services/queryKeys';
 import type { IssueFilter } from '@/utils/viewFilters';
 import { fetchCompletedIssues, fetchOpenIssues } from '../services/insightsIssues.service';
-import { mergeInsightIssues, periodStart } from '../utils/data';
+import { mergeInsightIssues, periodStart, withinPeriod } from '../utils/data';
 import { EMPTY_CONTEXT, mergeContext } from '../utils/context';
 import type { InsightIssue, InsightsContext } from '../utils/slices';
 
-// The issues an Insights panel reads: the view's own issues (after its filters) plus
-// the view's issues completed in the period. A view whose list does not hold its open
+// The issues an Insights panel reads: the view's own issues (after its filters) that
+// are open or closed in the period, plus the view's issues completed in the period
+// (without sub-issues when the view hides them). A view whose list does not hold its open
 // issues in the panel's form (My issues) has them fetched too (`fetchOpen`). Nothing is
 // fetched unless `enabled` (the panel is open).
 export function useInsightsData({
@@ -20,6 +21,7 @@ export function useInsightsData({
   viewIssues,
   baseContext,
   periodMonths,
+  showSubIssues,
   fetchOpen = false,
 }: {
   enabled: boolean;
@@ -30,21 +32,22 @@ export function useInsightsData({
   viewIssues: InsightIssue[];
   baseContext: InsightsContext;
   periodMonths: number;
+  showSubIssues: boolean;
   fetchOpen?: boolean;
 }) {
-  const since = periodStart(periodMonths, new Date());
-  const sinceKey = since.toISOString();
+  const sinceKey = periodStart(periodMonths, new Date()).toISOString();
+  const since = useMemo(() => new Date(sinceKey), [sinceKey]);
   const scopeKey = JSON.stringify(scope);
 
   const completed = useQuery({
-    queryKey: qk.insightsCompleted(viewKey, scopeKey, sinceKey),
-    queryFn: () => fetchCompletedIssues(scope, since),
+    queryKey: qk.insightsCompleted(viewKey, scopeKey, `${sinceKey}:${showSubIssues}`),
+    queryFn: () => fetchCompletedIssues(scope, since, showSubIssues),
     enabled,
     staleTime: 60_000,
   });
   const open = useQuery({
-    queryKey: qk.insightsCompleted(viewKey, scopeKey, 'open'),
-    queryFn: () => fetchOpenIssues(scope),
+    queryKey: qk.insightsOpen(viewKey, `${scopeKey}:${showSubIssues}`),
+    queryFn: () => fetchOpenIssues(scope, showSubIssues),
     enabled: enabled && fetchOpen,
     staleTime: 60_000,
   });
@@ -52,10 +55,10 @@ export function useInsightsData({
   const issues = useMemo(
     () =>
       mergeInsightIssues(
-        mergeInsightIssues(viewIssues, open.data?.issues ?? []),
+        withinPeriod(mergeInsightIssues(viewIssues, open.data?.issues ?? []), since),
         completed.data?.issues ?? [],
       ),
-    [viewIssues, open.data, completed.data],
+    [viewIssues, open.data, completed.data, since],
   );
   const context = useMemo(
     () =>

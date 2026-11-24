@@ -95,9 +95,16 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
           viewKey={insightsKey}
           settings={insights.settings}
           onChange={insights.update}
-          scope={insightsScope({ project: { id: { eq: projectId } } }, board.filters)}
+          // The board shows the project's issues of this team only.
+          scope={insightsScope(
+            {
+              and: [{ project: { id: { eq: projectId } } }, { team: { id: { eq: team.team.id } } }],
+            },
+            board.filters,
+          )}
           viewIssues={viewTeam.issues}
           baseContext={insightsContext}
+          showSubIssues={settings.showSubIssues}
           onSliceFilter={(c) => board.setFilters(withSliceFilter(board.filters, c))}
           onOpenIssue={onOpenIssue}
         />

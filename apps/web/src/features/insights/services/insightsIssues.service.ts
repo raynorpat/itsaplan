@@ -2,6 +2,7 @@ import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphq
 import { fetchPagesUpTo } from '@/utils/fetchAllPages';
 import type { IssueFilter } from '@/utils/viewFilters';
 import { cycleLabel } from '@/utils/cycles';
+import { completedIssuesFilter } from '../utils/data';
 import type { InsightIssue, InsightsContext } from '../utils/slices';
 
 // The issues an Insights panel fetches, with only the fields it reads and the names
@@ -30,6 +31,7 @@ const InsightIssueFields = graphql(`
       name
       type
       position
+      color
     }
     assignee {
       id
@@ -61,7 +63,13 @@ const InsightIssueFields = graphql(`
 const InsightIssuesPage = graphql(
   `
     query InsightIssues($filter: IssueFilter, $after: String, $first: Int) {
-      issues(filter: $filter, first: $first, after: $after, includeArchived: true) {
+      issues(
+        filter: $filter
+        first: $first
+        after: $after
+        includeArchived: true
+        orderBy: updatedAt
+      ) {
         nodes {
           ...InsightIssueFields
         }
@@ -83,7 +91,7 @@ export interface InsightsFetch {
 }
 
 function emptyNames(): {
-  states: Map<string, { name: string; type: string; position: number }>;
+  states: Map<string, { name: string; type: string; position: number; color?: string }>;
   users: Map<string, string>;
   labels: Map<string, string>;
   cycles: Map<string, string>;
@@ -111,6 +119,7 @@ async function fetchInsightIssues(filter: IssueFilter, limit: number): Promise<I
       name: n.state.name,
       type: n.state.type,
       position: n.state.position,
+      color: n.state.color,
     });
     if (n.assignee) names.users.set(n.assignee.id, n.assignee.displayName);
     if (n.creator) names.users.set(n.creator.id, n.creator.displayName);
@@ -141,19 +150,33 @@ async function fetchInsightIssues(filter: IssueFilter, limit: number): Promise<I
 }
 
 // The issues of a view (`scope`, Linear's IssueFilter for the view) completed since
-// `since`, at most INSIGHTS_ISSUE_LIMIT.
-export function fetchCompletedIssues(scope: IssueFilter, since: Date): Promise<InsightsFetch> {
+// `since`, at most INSIGHTS_ISSUE_LIMIT. Pages come most recently updated first (the
+// API's closest order to "most recently completed"), so the cap drops the oldest.
+export function fetchCompletedIssues(
+  scope: IssueFilter,
+  since: Date,
+  showSubIssues: boolean,
+): Promise<InsightsFetch> {
   return fetchInsightIssues(
-    { and: [scope, { completedAt: { gte: since.toISOString() } }] },
+    completedIssuesFilter(scope, since, showSubIssues),
     INSIGHTS_ISSUE_LIMIT,
   );
 }
 
 // The open issues of a view whose list does not hold them in a form the panel reads
 // (My issues), at most INSIGHTS_ISSUE_LIMIT.
-export function fetchOpenIssues(scope: IssueFilter): Promise<InsightsFetch> {
+export function fetchOpenIssues(
+  scope: IssueFilter,
+  showSubIssues: boolean,
+): Promise<InsightsFetch> {
   return fetchInsightIssues(
-    { and: [scope, { state: { type: { nin: ['completed', 'canceled'] } } }] },
+    {
+      and: [
+        scope,
+        { state: { type: { nin: ['completed', 'canceled'] } } },
+        ...(showSubIssues ? [] : [{ parent: { null: true } }]),
+      ],
+    },
     INSIGHTS_ISSUE_LIMIT,
   );
 }

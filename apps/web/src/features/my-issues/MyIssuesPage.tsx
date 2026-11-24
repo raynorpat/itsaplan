@@ -20,6 +20,8 @@ import type { InsightIssue } from '@/features/insights/utils/slices';
 // My issues' rows are not in the panel's form, so the panel fetches the tab's open
 // issues itself.
 const NO_VIEW_ISSUES: InsightIssue[] = [];
+// My issues spans teams: one status slice per state name.
+const MY_ISSUES_CONTEXT = { ...EMPTY_CONTEXT, groupStatesByName: true };
 
 // Linear's "My issues" (/my-issues): the viewer's issues across every team, in four
 // tabs. The Display menu is the viewer's My issues display, kept on the server and
@@ -59,7 +61,8 @@ export default function MyIssuesPage({ tab }: { tab: MyIssuesTab }) {
           onChange={insights.update}
           scope={myIssuesFilter(tab, true)}
           viewIssues={NO_VIEW_ISSUES}
-          baseContext={EMPTY_CONTEXT}
+          baseContext={MY_ISSUES_CONTEXT}
+          showSubIssues={settings.showSubIssues}
           spansTeams
           fetchOpen
           onOpenIssue={(id) => router.push(`/issue/${id}`)}

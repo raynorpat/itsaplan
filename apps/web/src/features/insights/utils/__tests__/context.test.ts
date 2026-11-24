@@ -7,14 +7,19 @@ describe('insights context', () => {
   it('reads names from the team', () => {
     const team = {
       team: { id: 't', name: 'Engineering' },
-      states: [{ id: 's', name: 'Todo', stateType: 'unstarted', position: 2 }],
+      states: [{ id: 's', name: 'Todo', stateType: 'unstarted', position: 2, color: '#888' }],
       assignees: [{ userId: 'u', name: 'Pat' }],
       mentionCandidates: [{ userId: 'a', name: 'Bot' }],
       labels: [{ id: 'l', name: 'Bug' }],
       teamCycles: [{ id: 'c', number: 3, name: null }],
     } as unknown as TeamDetail;
     const ctx = contextFromTeam(team);
-    assert.deepEqual(ctx.states.get('s'), { name: 'Todo', type: 'unstarted', position: 2 });
+    assert.deepEqual(ctx.states.get('s'), {
+      name: 'Todo',
+      type: 'unstarted',
+      position: 2,
+      color: '#888',
+    });
     assert.equal(ctx.users.get('u'), 'Pat');
     assert.equal(ctx.users.get('a'), 'Bot');
     assert.equal(ctx.labels.get('l'), 'Bug');

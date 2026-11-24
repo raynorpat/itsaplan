@@ -114,6 +114,7 @@ export default function CycleIssuesBoard({
           scope={insightsScope({ cycle: { id: { eq: cycleId } } }, board.filters)}
           viewIssues={viewTeam.issues}
           baseContext={insightsContext}
+          showSubIssues={board.settings.showSubIssues}
           onSliceFilter={(c) => board.setFilters(withSliceFilter(board.filters, c))}
           onOpenIssue={onOpenIssue}
         />

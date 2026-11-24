@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Bar, BarChart, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, XAxis, YAxis } from 'recharts';
 import {
   ChartContainer,
   ChartLegend,
@@ -12,33 +12,35 @@ import {
 } from '@/components/ui/chart';
 import type { FilterCondition } from '@/utils/filters';
 import type { BreakdownRow } from '../utils/measures';
-import { sliceFilter, type SliceField } from '../utils/slices';
+import { sliceFilter, type InsightsState, type SliceField } from '../utils/slices';
 import { sliceColor } from '../utils/palette';
 
 const VALUE = 'value';
 
 // Count or points per slice as horizontal bars, stacked by segment, and a table of
-// the same rows. The chart is a picture; the table carries the figures for screen
-// readers, and its slice names narrow the view when clicked (Linear's click-through).
+// the same rows. The chart is a picture; the table carries the figures (with each
+// segment's value) for screen readers, and its slice names narrow the view when
+// clicked (Linear's click-through).
 export default function BreakdownChart({
   rows,
   slice,
   segment,
+  states,
   unit,
   onSliceFilter,
 }: {
   rows: BreakdownRow[];
   slice: SliceField;
   segment: SliceField | null;
+  states: ReadonlyMap<string, InsightsState>;
   unit: string;
   onSliceFilter?: (condition: FilterCondition) => void;
 }) {
-  const segments = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of rows)
-      for (const s of r.segments) if (!seen.has(s.key)) seen.set(s.key, s.label);
-    return [...seen].map(([key, label]) => ({ key, label }));
-  }, [rows]);
+  // Every row lists the same segments in their natural order (measures.ts).
+  const segments = useMemo(
+    () => (rows[0]?.segments ?? []).map(({ key, label }) => ({ key, label })),
+    [rows],
+  );
 
   const config: ChartConfig = useMemo(() => {
     if (segments.length === 0 || !segment)
@@ -46,10 +48,10 @@ export default function BreakdownChart({
     return Object.fromEntries(
       segments.map((s, i) => [
         `seg_${i}`,
-        { label: s.label, color: sliceColor(segment, s.key, i) },
+        { label: s.label, color: sliceColor(segment, s.key, i, states) },
       ]),
     );
-  }, [segments, segment, unit]);
+  }, [segments, segment, unit, states]);
 
   const data = rows.map((r) => {
     const entry: Record<string, string | number> = { label: r.label, [VALUE]: r.value };
@@ -84,12 +86,19 @@ export default function BreakdownChart({
           <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
           {segments.length > 0 && <ChartLegend content={<ChartLegendContent />} />}
           {segments.length === 0 ? (
-            <Bar
-              dataKey={VALUE}
-              fill={`var(--color-${VALUE})`}
-              radius={3}
-              isAnimationActive={false}
-            />
+            <Bar dataKey={VALUE} radius={3} maxBarSize={20} isAnimationActive={false}>
+              {/* Status and priority bars take the slice's own colour. */}
+              {rows.map((r, i) => (
+                <Cell
+                  key={r.key}
+                  fill={
+                    slice === 'status' || slice === 'priority'
+                      ? sliceColor(slice, r.key, i, states)
+                      : `var(--color-${VALUE})`
+                  }
+                />
+              ))}
+            </Bar>
           ) : (
             segments.map((_, i) => (
               <Bar
@@ -113,10 +122,10 @@ export default function BreakdownChart({
             <th scope="col" className="py-1 text-left font-normal">
               {slice[0]!.toUpperCase() + slice.slice(1)}
             </th>
-            <th scope="col" className="py-1 text-right font-normal">
+            <th scope="col" className="py-1 pl-3 text-right font-normal whitespace-nowrap">
               {unit}
             </th>
-            <th scope="col" className="py-1 text-right font-normal">
+            <th scope="col" className="py-1 pl-3 text-right font-normal whitespace-nowrap">
               Share
             </th>
           </tr>
@@ -139,9 +148,19 @@ export default function BreakdownChart({
                   ) : (
                     r.label
                   )}
+                  {segments.length > 0 && (
+                    <span className="block text-xs text-muted-foreground">
+                      {r.segments
+                        .filter((g) => g.value > 0)
+                        .map((g) => `${g.label} ${Math.round(g.value * 10) / 10}`)
+                        .join(', ')}
+                    </span>
+                  )}
                 </th>
-                <td className="py-1 text-right tabular-nums">{Math.round(r.value * 10) / 10}</td>
-                <td className="py-1 text-right text-muted-foreground tabular-nums">
+                <td className="py-1 text-right align-top tabular-nums">
+                  {Math.round(r.value * 10) / 10}
+                </td>
+                <td className="py-1 text-right align-top text-muted-foreground tabular-nums">
                   {Math.round(r.share * 100)}%
                 </td>
               </tr>

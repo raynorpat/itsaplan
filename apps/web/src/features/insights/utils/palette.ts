@@ -1,8 +1,11 @@
-import type { SliceField } from './slices';
+import { statusOf, type InsightsState, type SliceField } from './slices';
 
-// The colours the panel tells slices and segments apart with. Priority uses the fixed
-// priority hues; other fields cycle a small hue palette (DESIGN.md: widgets use their
-// own palette for categorical series); the "none" slice is muted.
+// The colours the panel tells slices and segments apart with (DESIGN.md: categorical
+// series use the widget's own hue palette, entity series the entity's own colour).
+// Priority gets its own ramp of well-separated hues, since the field's priority tokens
+// (urgent and high are both orange-red) cannot be told apart side by side in a stacked
+// bar; a status uses its state's colour; the "none" slice (and No priority) is a light
+// neutral that no hue is confused with.
 const HUES = [
   'oklch(0.62 0.17 255)',
   'oklch(0.70 0.15 160)',
@@ -15,16 +18,23 @@ const HUES = [
 ];
 
 const PRIORITY: Record<string, string> = {
-  '1': 'var(--priority-urgent)',
-  '2': 'var(--priority-high)',
-  '3': 'var(--priority-medium)',
-  '4': 'var(--priority-low)',
+  '1': 'oklch(0.58 0.22 27)',
+  '2': 'oklch(0.74 0.17 60)',
+  '3': 'oklch(0.85 0.16 98)',
+  '4': 'oklch(0.60 0.13 255)',
 };
 
-const MUTED = 'var(--muted-foreground)';
+const NONE_COLOR = 'oklch(0.80 0.01 260)';
 
-export function sliceColor(field: SliceField, key: string, index: number): string {
-  if (key === 'none') return MUTED;
-  if (field === 'priority') return PRIORITY[key] ?? MUTED;
+export function sliceColor(
+  field: SliceField,
+  key: string,
+  index: number,
+  states?: ReadonlyMap<string, InsightsState>,
+): string {
+  if (key === 'none') return NONE_COLOR;
+  if (field === 'priority') return PRIORITY[key] ?? NONE_COLOR;
+  const color = field === 'status' && states ? statusOf(key, states)?.color : undefined;
+  if (color) return color;
   return HUES[index % HUES.length]!;
 }

@@ -5,7 +5,13 @@ import { breakdown, measureValue } from '../measures';
 import { sliceIssues, sliceFilter } from '../slices';
 import { timeRows, timeStats } from '../stats';
 import { weeklyCreatedCompleted } from '../overTime';
-import { DEFAULT_INSIGHTS_SETTINGS, insightsViewKey, parseInsightsSettings } from '../settings';
+import {
+  DEFAULT_INSIGHTS_SETTINGS,
+  insightsStorageKey,
+  insightsViewKey,
+  parseInsightsSettings,
+  settingsForKey,
+} from '../settings';
 
 const ctx: InsightsContext = {
   states: new Map([
@@ -138,6 +144,56 @@ describe('breakdown', () => {
       [
         ['Urgent', 2],
         ['High', 1],
+        ['No priority', 0],
+      ],
+    );
+  });
+
+  it('gives every row the segments in their natural order, with zeros', () => {
+    const rows = breakdown(
+      [
+        issue({ id: '1', assigneeUserId: 'u-pat', priority: 4 }),
+        issue({ id: '2', assigneeUserId: 'u-sam', priority: 1 }),
+        issue({ id: '3', assigneeUserId: 'u-sam', priority: 4 }),
+      ],
+      { ...DEFAULT_INSIGHTS_SETTINGS, slice: 'assignee', segment: 'priority' },
+      ctx,
+    );
+    for (const r of rows)
+      assert.deepEqual(
+        r.segments.map((s) => s.label),
+        ['Urgent', 'Low'],
+      );
+    assert.deepEqual(
+      rows[0]!.segments.map((s) => s.value),
+      [0, 1],
+    );
+  });
+
+  it('groups statuses of several teams by name when the context asks for it', () => {
+    const multi: InsightsContext = {
+      ...ctx,
+      states: new Map([
+        ['a-todo', { name: 'Todo', type: 'unstarted', position: 1 }],
+        ['b-todo', { name: 'Todo', type: 'unstarted', position: 1 }],
+        ['a-done', { name: 'Done', type: 'completed', position: 3 }],
+      ]),
+      groupStatesByName: true,
+    };
+    const slices = sliceIssues(
+      [
+        issue({ id: '1', stateId: 'a-todo' }),
+        issue({ id: '2', stateId: 'b-todo' }),
+        issue({ id: '3', stateId: 'a-done' }),
+      ],
+      'status',
+      multi,
+    );
+    assert.deepEqual(
+      slices.map((s) => [s.label, s.issues.length]),
+      [
+        ['Todo', 2],
+        ['Done', 1],
       ],
     );
   });
@@ -260,6 +316,12 @@ describe('over time', () => {
     assert.deepEqual(byWeek['2026-11-02'], [1, 0]);
     assert.deepEqual(byWeek['2026-11-09'], [0, 0]);
   });
+
+  it('starts a one-month period on the last day of a shorter month', () => {
+    const weeks = weeklyCreatedCompleted([], 1, new Date('2026-03-31T12:00:00.000Z'));
+    // Feb 28 2026 is a Saturday: its week starts on Monday Feb 23.
+    assert.equal(weeks[0]!.weekStart, '2026-02-23');
+  });
 });
 
 describe('settings', () => {
@@ -311,6 +373,24 @@ describe('settings', () => {
     assert.equal(insightsViewKey({ kind: 'cycle', cycleId: 'c1' }), 'cycle:c1');
     assert.equal(insightsViewKey({ kind: 'myIssues' }), 'myIssues');
     assert.equal(insightsViewKey({ kind: 'view', viewId: 'v1' }), 'view:v1');
+    assert.equal(insightsViewKey({ kind: 'newView', teamId: 't1' }), 'newView:t1');
+  });
+
+  it("stores each user's settings apart", () => {
+    assert.notEqual(insightsStorageKey('u1', 'myIssues'), insightsStorageKey('u2', 'myIssues'));
+  });
+
+  it("never applies one view's settings to another view", () => {
+    const shown = { key: 'view:a', settings: { ...DEFAULT_INSIGHTS_SETTINGS, open: true } };
+    // A change made while the state still holds view a is applied to view b's own.
+    assert.deepEqual(
+      settingsForKey(shown, 'view:b', () => DEFAULT_INSIGHTS_SETTINGS),
+      DEFAULT_INSIGHTS_SETTINGS,
+    );
+    assert.deepEqual(
+      settingsForKey(shown, 'view:a', () => DEFAULT_INSIGHTS_SETTINGS),
+      shown.settings,
+    );
   });
 });
 

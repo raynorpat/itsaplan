@@ -6,7 +6,7 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/
 import { formatShortDate } from '@/utils/dates';
 import type { FilterCondition } from '@/utils/filters';
 import type { TimeRowsResult } from '../utils/stats';
-import { sliceFilter, type SliceField } from '../utils/slices';
+import { sliceFilter, type InsightsState, type SliceField } from '../utils/slices';
 import { formatDays } from '../utils/panel';
 import { sliceColor } from '../utils/palette';
 
@@ -16,12 +16,14 @@ import { sliceColor } from '../utils/palette';
 export default function TimeChart({
   result,
   slice,
+  states,
   measureLabel,
   onSliceFilter,
   onOpenIssue,
 }: {
   result: TimeRowsResult;
   slice: SliceField;
+  states: ReadonlyMap<string, InsightsState>;
   measureLabel: string;
   onSliceFilter?: (condition: FilterCondition) => void;
   onOpenIssue: (issueId: string) => void;
@@ -31,10 +33,10 @@ export default function TimeChart({
       Object.fromEntries(
         result.rows.map((r, i) => [
           `row_${i}`,
-          { label: r.label, color: sliceColor(slice, r.key, i) },
+          { label: r.label, color: sliceColor(slice, r.key, i, states) },
         ]),
       ),
-    [result.rows, slice],
+    [result.rows, slice, states],
   );
 
   if (!result.all) {
@@ -135,7 +137,7 @@ export default function TimeChart({
                 <th scope="row" className="py-1 text-left font-normal">
                   <span
                     className="mr-1.5 inline-block size-2 rounded-full align-middle"
-                    style={{ background: sliceColor(slice, r.key, i) }}
+                    style={{ background: sliceColor(slice, r.key, i, states) }}
                     aria-hidden
                   />
                   {condition ? (

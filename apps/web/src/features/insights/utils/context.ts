@@ -6,7 +6,10 @@ import type { InsightsContext } from './slices';
 export function contextFromTeam(team: TeamDetail): InsightsContext {
   return {
     states: new Map(
-      team.states.map((s) => [s.id, { name: s.name, type: s.stateType, position: s.position }]),
+      team.states.map((s) => [
+        s.id,
+        { name: s.name, type: s.stateType, position: s.position, color: s.color },
+      ]),
     ),
     users: new Map(
       [...team.mentionCandidates, ...team.assignees].map((a) => [a.userId, a.name] as const),

@@ -73,7 +73,9 @@ export type InsightsView =
   | { kind: 'project'; projectId: string }
   | { kind: 'cycle'; cycleId: string }
   | { kind: 'myIssues' }
-  | { kind: 'view'; viewId: string };
+  | { kind: 'view'; viewId: string }
+  // A view being created, before it has an id.
+  | { kind: 'newView'; teamId: string };
 
 // The key a view's settings are stored under: the list kind and its team, project or
 // cycle, or the saved view's id.
@@ -89,24 +91,47 @@ export function insightsViewKey(view: InsightsView): string {
       return 'myIssues';
     case 'view':
       return `view:${view.viewId}`;
+    case 'newView':
+      return `newView:${view.teamId}`;
   }
+}
+
+// The storage key of one user's settings for a view, so people sharing a browser keep
+// their own.
+export function insightsStorageKey(userId: string, viewKey: string): string {
+  return `${STORAGE_PREFIX}${userId}.${viewKey}`;
+}
+
+// The settings a view shows: those held for it, else its stored ones. Held settings
+// belong to the view they were read for, so a change made right after switching
+// views is applied to the new view's settings, never the previous view's.
+export function settingsForKey(
+  held: { key: string | null; settings: InsightsSettings },
+  viewKey: string,
+  read: (viewKey: string) => InsightsSettings,
+): InsightsSettings {
+  return held.key === viewKey ? held.settings : read(viewKey);
 }
 
 const STORAGE_PREFIX = 'itsaplan.insights.';
 
-export function readInsightsSettings(viewKey: string): InsightsSettings {
-  if (typeof window === 'undefined') return DEFAULT_INSIGHTS_SETTINGS;
+export function readInsightsSettings(userId: string | null, viewKey: string): InsightsSettings {
+  if (typeof window === 'undefined' || userId == null) return DEFAULT_INSIGHTS_SETTINGS;
   try {
-    return parseInsightsSettings(window.localStorage.getItem(STORAGE_PREFIX + viewKey));
+    return parseInsightsSettings(window.localStorage.getItem(insightsStorageKey(userId, viewKey)));
   } catch {
     return DEFAULT_INSIGHTS_SETTINGS;
   }
 }
 
-export function writeInsightsSettings(viewKey: string, settings: InsightsSettings): void {
-  if (typeof window === 'undefined') return;
+export function writeInsightsSettings(
+  userId: string | null,
+  viewKey: string,
+  settings: InsightsSettings,
+): void {
+  if (typeof window === 'undefined' || userId == null) return;
   try {
-    window.localStorage.setItem(STORAGE_PREFIX + viewKey, JSON.stringify(settings));
+    window.localStorage.setItem(insightsStorageKey(userId, viewKey), JSON.stringify(settings));
   } catch {
     // Storage may be unavailable (private mode); the settings then last for the page.
   }
