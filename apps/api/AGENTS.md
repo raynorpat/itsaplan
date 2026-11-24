@@ -165,17 +165,26 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `updateIssue`: a created rule when the new issue matches, an updated rule when the
   issue did not match before the change and matches after it (one filter query over
   all the team's enabled rules before the write and one after; a batch update loads
-  the rules once, `withRuleCache`). Each matching rule, in `sortOrder`, applies its
-  field and label changes as one `updateIssue` and then its comments, inside
+  the rules once, `withRuleCache`; `issueUpdate` reads the "before" ahead of its
+  subscriber change). Each matching rule, in `RULE_ORDER` (sortOrder, then creation,
+  then id), applies its field and label changes as one `updateIssue` and then its
+  comments; after a rule has run, a later rule runs only if the issue still matches
+  it. The changes are made inside
   `runAsWorkflow` (`shared/workflow-context.ts`): those writes have no user actor,
   carry the rule in `issue_activity.workflow_definition_id` and
   `comment.workflow_definition_id` (GraphQL `botActor` `{ type: workflow }`), send
   their own webhook event with the workflow as `actor`, and run no rules. System
   writes (cycle rollover and cycle archive, the duplicate cancel, the restore move)
   run inside `withoutWorkflows`. An action that no longer passes the issue checks is
-  skipped and recorded in `stats.lastError`; `stats.runs` and `last_executed_at`
-  count each run. A delegation a rule makes credits the agent session to the rule's
-  owner. Rules are best effort: a failure is logged and never fails the change.
+  skipped and recorded in `stats.lastError`, the error of the most recent run (a
+  clean run clears it); `stats.runs` and `last_executed_at` count each run. A
+  delegation a rule makes credits the agent session to the rule's owner. Rules are
+  best effort: a failure is logged and never fails the change. A rule's comment
+  subscribes no one for the workflow; the members it mentions are subscribed as for
+  any mention. A team has at most 50 rules, and a rule's conditions at most 8 KB and
+  8 levels of nested objects (every enabled rule is checked on each issue write in
+  its team). Deleting a rule leaves its comments and history entries with neither a
+  user nor a `botActor`, like those of a removed user.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is
@@ -271,7 +280,8 @@ directly). Helpers in `src/__tests__/helpers/`: `signUpTestUser()` →
 members), `resetDb()`; `graphql.ts` (`gqlData(as, query, vars)`, `signUpAs(role)` and
 setup helpers: `createTeam`, `addMember`, `createIssue`, `createComment`,
 `createProject`, …, which take a team key or id), `linear.ts` (a `LinearClient` on a
-local port, `createApiKey`), `mcp.ts`, `oauth.ts`.
+local port, `createApiKey`), `mcp.ts`, `oauth.ts`, `statements.ts` (`countStatements`, for
+tests that bound a request's SQL statements).
 
 **Rules.**
 

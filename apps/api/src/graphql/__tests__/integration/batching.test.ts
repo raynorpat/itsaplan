@@ -1,30 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { db } from '@repo/db';
+import { describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { addMember, createTeam, teamView } from '../../../__tests__/helpers/graphql';
+import { countStatements } from '../../../__tests__/helpers/statements';
 
 // Per-row fields of a list resolve through request-scoped loaders, so a list query
 // makes the same number of SQL statements for 5 rows as for 50.
-
-type Client = { unsafe: (...args: unknown[]) => unknown };
-const client = db.$client as unknown as Client;
-const original = client.unsafe;
-let statements = 0;
-
-function startCounting() {
-  statements = 0;
-  client.unsafe = function (this: unknown, ...args: unknown[]) {
-    statements += 1;
-    return original.apply(this, args);
-  } as Client['unsafe'];
-}
-
-function stopCounting(): number {
-  client.unsafe = original;
-  return statements;
-}
 
 async function setup(count: number) {
   const owner = await signUpTestUser({ name: 'Owner' });
@@ -120,10 +102,13 @@ async function measure(count: number) {
     [HISTORY, { id: parentId }],
     [COMMENTS, { id: parentId }],
   ] as const) {
-    startCounting();
-    const res = await gql({ cookie }, query, variables);
-    counts.push(stopCounting());
-    expect(res.body.errors).toBeUndefined();
+    let res: Awaited<ReturnType<typeof gql>> | undefined;
+    counts.push(
+      await countStatements(async () => {
+        res = await gql({ cookie }, query, variables);
+      }),
+    );
+    expect(res!.body.errors).toBeUndefined();
   }
   return counts;
 }
@@ -147,23 +132,17 @@ async function measureNotifications(count: number) {
     );
     expect(res.body.errors).toBeUndefined();
   }
-  startCounting();
-  const res = await gql({ cookie: member.cookie }, NOTIFICATIONS);
-  const n = stopCounting();
-  expect(res.body.errors).toBeUndefined();
-  const nodes = (res.body.data as { notifications: { nodes: unknown[] } }).notifications.nodes;
+  let res: Awaited<ReturnType<typeof gql>> | undefined;
+  const n = await countStatements(async () => {
+    res = await gql({ cookie: member.cookie }, NOTIFICATIONS);
+  });
+  expect(res!.body.errors).toBeUndefined();
+  const nodes = (res!.body.data as { notifications: { nodes: unknown[] } }).notifications.nodes;
   expect(nodes).toHaveLength(count);
   return n;
 }
 
 describe('graphql batching', () => {
-  beforeEach(() => {
-    client.unsafe = original;
-  });
-  afterEach(() => {
-    client.unsafe = original;
-  });
-
   it('makes a bounded number of statements for issue lists, history and comments', async () => {
     const small = await measure(5);
     const large = await measure(50);

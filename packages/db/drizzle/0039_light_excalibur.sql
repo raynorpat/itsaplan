@@ -1,0 +1,2 @@
+ALTER TABLE "workflow_definition" ADD CONSTRAINT "workflow_definition_activation_mode_check" CHECK (("workflow_definition"."trigger" = 'entityUpdated' AND "workflow_definition"."activation_mode" = 'conditionsStartedMatching')
+        OR ("workflow_definition"."trigger" = 'entityCreated' AND "workflow_definition"."activation_mode" IS NULL));

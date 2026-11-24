@@ -2,7 +2,7 @@ import { db, workflowDefinition } from '@repo/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { assertMayCreate, assertMayEdit, assertMayManageAccess, assertSeesTeam } from './access';
-import { validateRule, type RuleFields, type RuleInput } from './validate';
+import { MAX_RULES_PER_TEAM, validateRule, type RuleFields, type RuleInput } from './validate';
 
 // Team automation rules (Linear's WorkflowDefinition): their storage and management.
 // The instance plugin handlers (instance/handlers.ts) call these with the signed-in
@@ -26,6 +26,13 @@ export interface WorkflowRow extends RuleFields {
 }
 
 type Row = typeof workflowDefinition.$inferSelect;
+
+// The order rules are listed and run in: sortOrder, then creation, then id.
+export const RULE_ORDER = [
+  asc(workflowDefinition.sortOrder),
+  asc(workflowDefinition.createdAt),
+  asc(workflowDefinition.id),
+] as const;
 
 export function mapWorkflow(row: Row): WorkflowRow {
   return {
@@ -107,7 +114,7 @@ export async function listWorkflows(
         includeArchived ? undefined : isNull(workflowDefinition.archivedAt),
       ),
     )
-    .orderBy(asc(workflowDefinition.sortOrder), asc(workflowDefinition.createdAt));
+    .orderBy(...RULE_ORDER);
   return rows.map(mapWorkflow);
 }
 
@@ -122,9 +129,14 @@ export async function createWorkflow(input: RuleInput, userId: string): Promise<
   await assertSeesTeam(teamId, userId);
   await assertMayCreate(teamId, userId);
   const [last] = await db
-    .select({ max: sql<number | null>`max(${workflowDefinition.sortOrder})` })
+    .select({
+      max: sql<number | null>`max(${workflowDefinition.sortOrder})`,
+      count: sql<number>`count(*)::int`,
+    })
     .from(workflowDefinition)
     .where(eq(workflowDefinition.teamId, teamId));
+  if (num(last?.count) >= MAX_RULES_PER_TEAM)
+    throw new HttpError(400, `A team has at most ${MAX_RULES_PER_TEAM} workflows`);
   const fields = await validateRule(input, null, userId, num(last?.max) + 1000);
   const [row] = await db
     .insert(workflowDefinition)

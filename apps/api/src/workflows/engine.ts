@@ -1,5 +1,5 @@
 import { db, issue, issueLabel, workflowDefinition } from '@repo/db';
-import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { createComment } from '../comments/store';
 import { issueFilterSql } from '../graphql/issue-filter';
 import {
@@ -9,16 +9,17 @@ import {
   type IssuePatch,
 } from '../issues/store';
 import { ruleCache, runAsWorkflow } from '../shared/workflow-context';
-import { mapWorkflow, type WorkflowRow } from './store';
+import { mapWorkflow, RULE_ORDER, type WorkflowRow } from './store';
 import type { WorkflowAction } from './validate';
 
 // Runs a team's automation rules after a person's issue change (registered with the
 // issues store through setIssueRuleHook). A created rule runs when a new issue
 // matches its conditions; an updated rule when an edit makes an issue match that did
-// not before. Each matching rule, in sortOrder, applies its changes as one issue
-// update attributed to the rule, then adds its comments. A rule's own changes run no
-// rules (runAsWorkflow). An action that no longer fits is skipped and recorded in the
-// rule's stats; nothing here fails the person's change.
+// not before. Each matching rule, in order (RULE_ORDER), applies its changes as one
+// issue update attributed to the rule, then adds its comments; a later rule runs only
+// if the issue still matches it after the earlier rules' changes. A rule's own
+// changes run no rules (runAsWorkflow). An action that no longer fits is skipped and
+// recorded in the rule's stats; nothing here fails the person's change.
 
 // Stands in for a rule without an owner where a condition reads "me".
 const NO_USER = '00000000-0000-0000-0000-000000000000';
@@ -37,7 +38,7 @@ async function loadRules(teamId: string): Promise<WorkflowRow[]> {
         isNull(workflowDefinition.archivedAt),
       ),
     )
-    .orderBy(asc(workflowDefinition.sortOrder), asc(workflowDefinition.id));
+    .orderBy(...RULE_ORDER);
   const rules = rows.map(mapWorkflow);
   cache?.set(teamId, rules);
   return rules;
@@ -128,20 +129,22 @@ async function labelSet(
   }
 }
 
-// Counts the run and records its error, if any, in one statement so concurrent runs
-// of the same rule all count.
+// Counts the run and records its error, or clears the last one after a clean run, in
+// one statement so concurrent runs of the same rule all count. `stats.lastError` is
+// the error of the most recent run, if it had one.
 async function recordRun(ruleId: string, errors: string[]): Promise<void> {
-  const patch = errors.length ? { lastError: errors.join('; ') } : {};
+  const error = errors.length ? { lastError: errors.join('; ') } : {};
   await db
     .update(workflowDefinition)
     .set({
-      stats: sql`(coalesce(${workflowDefinition.stats}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)
+      stats: sql`((coalesce(${workflowDefinition.stats}, '{}'::jsonb) - 'lastError') || ${JSON.stringify(error)}::jsonb)
         || jsonb_build_object('runs', coalesce((${workflowDefinition.stats} ->> 'runs')::int, 0) + 1)`,
       lastExecutedAt: sql`now()`,
     })
     .where(eq(workflowDefinition.id, ruleId));
 }
 
+// Runs one rule on the issue. Never throws: an error is logged and recorded.
 async function runRule(rule: WorkflowRow, issueId: string): Promise<void> {
   const errors: string[] = [];
   try {
@@ -163,11 +166,24 @@ async function runRule(rule: WorkflowRow, issueId: string): Promise<void> {
     errors.push(message(err));
   }
   if (errors.length) console.error(`[workflows] rule ${rule.id} on ${issueId}:`, errors.join('; '));
-  await recordRun(rule.id, errors);
+  try {
+    await recordRun(rule.id, errors);
+  } catch (err) {
+    console.error(`[workflows] recording rule ${rule.id} failed:`, err);
+  }
 }
 
-async function runRules(issueId: string, rules: WorkflowRow[]): Promise<void> {
-  for (const rule of rules) await runRule(rule, issueId);
+// Runs the rules that matched, in order. After a rule has run, each later rule is
+// checked against the issue again before it runs, so a rule whose conditions an
+// earlier rule's change broke does not run. Returns whether any rule ran.
+async function runRules(issueId: string, rules: WorkflowRow[]): Promise<boolean> {
+  let ran = false;
+  for (const rule of rules) {
+    if (ran && !(await matching(issueId, [rule])).has(rule.id)) continue;
+    await runRule(rule, issueId);
+    ran = true;
+  }
+  return ran;
 }
 
 interface UpdateState {
@@ -184,16 +200,16 @@ setIssueRuleHook({
   async afterUpdate(state, issueId) {
     const { rules, matchedBefore } = state as UpdateState;
     const after = await matching(issueId, rules);
-    await runRules(
+    return runRules(
       issueId,
       rules.filter((r) => after.has(r.id) && !matchedBefore.has(r.id)),
     );
   },
   async afterCreate(issueId, teamId) {
     const rules = (await loadRules(teamId)).filter((r) => r.trigger === 'entityCreated');
-    if (rules.length === 0) return;
+    if (rules.length === 0) return false;
     const matched = await matching(issueId, rules);
-    await runRules(
+    return runRules(
       issueId,
       rules.filter((r) => matched.has(r.id)),
     );

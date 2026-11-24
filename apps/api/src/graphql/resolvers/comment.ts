@@ -1,6 +1,6 @@
-import { workflowBotActor } from './workflow-definition';
 import { comment, db, projectUpdate } from '@repo/db';
 import { and, count, eq, type SQL } from 'drizzle-orm';
+import { loaders } from '../loaders';
 import {
   assertParentAccess,
   commentParent,
@@ -183,7 +183,8 @@ export const commentResolvers = {
       return row ? toComment(row) : null;
     },
     user: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => userFor(ctx, c.userId),
-    botActor: (c: GraphQLComment) => workflowBotActor(c.workflowDefinitionId),
+    botActor: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
+      c.workflowDefinitionId ? loaders(ctx).workflowBot.load(c.workflowDefinitionId) : null,
     resolvingUser: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       userFor(ctx, c.resolvingUserId),
     issue: (c: GraphQLComment) => (c.issueId ? issueById(c.issueId) : null),

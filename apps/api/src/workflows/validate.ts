@@ -51,9 +51,15 @@ export interface RuleFields {
 // What a create or update request may carry; unknown keys are ignored.
 export type RuleInput = Partial<Record<keyof RuleFields, unknown>>;
 
+// Every enabled rule of a team is checked on each issue write in it, so a rule's size
+// and a team's rule count are bounded.
+export const MAX_RULES_PER_TEAM = 50;
 const MAX_ACTIONS = 20;
+const MAX_LABELS = 20;
 const MAX_NAME = 255;
 const MAX_COMMENT = 50_000;
+const MAX_CONDITIONS_BYTES = 8 * 1024;
+const MAX_CONDITIONS_DEPTH = 8;
 
 const bad = (message: string): never => {
   throw new HttpError(400, message);
@@ -75,7 +81,15 @@ const optionalId = (value: unknown, field: string): string | null =>
 
 function ids(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0) return bad(`${field} must list ids`);
+  if (value.length > MAX_LABELS) return bad(`${field} lists at most ${MAX_LABELS} ids`);
   return [...new Set(value.map((v) => id(v, field)))];
+}
+
+// How deep objects nest in a JSON value (arrays add no level).
+function objectDepth(value: unknown): number {
+  if (Array.isArray(value)) return Math.max(0, ...value.map(objectDepth));
+  if (value === null || typeof value !== 'object') return 0;
+  return 1 + Math.max(0, ...Object.values(value).map(objectDepth));
 }
 
 // A plain JSON copy (GraphQL-free input objects, no prototypes).
@@ -87,6 +101,10 @@ function validateConditions(value: unknown, ownerId: string | null): Record<stri
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     return bad('conditions must be an issue filter');
   const conditions = copy(value as Record<string, unknown>);
+  if (JSON.stringify(conditions).length > MAX_CONDITIONS_BYTES)
+    return bad(`conditions must be at most ${MAX_CONDITIONS_BYTES} bytes`);
+  if (objectDepth(conditions) > MAX_CONDITIONS_DEPTH)
+    return bad(`conditions nest at most ${MAX_CONDITIONS_DEPTH} levels`);
   try {
     issueFilterSql(conditions, ownerId ?? '00000000-0000-0000-0000-000000000000');
   } catch (err) {

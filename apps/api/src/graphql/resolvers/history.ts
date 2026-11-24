@@ -1,4 +1,3 @@
-import { workflowBotActor } from './workflow-definition';
 import { db, issue, issueActivity, team, workflowState } from '@repo/db';
 import { and, asc, eq, getTableColumns } from 'drizzle-orm';
 import { canSeeTeam } from '../../shared/access';
@@ -228,7 +227,8 @@ export const historyResolvers = {
   IssueHistory: {
     issue: (h: GraphQLIssueHistory) => issueById(h.issueId as string),
     actor: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => userOrNull(h.actorId, ctx),
-    botActor: (h: GraphQLIssueHistory) => workflowBotActor(h.workflowDefinitionId),
+    botActor: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      h.workflowDefinitionId ? loaders(ctx).workflowBot.load(h.workflowDefinitionId) : null,
     fromState: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       stateOrNull(h.fromStateId, ctx),
     toState: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>

@@ -97,8 +97,8 @@ below.
   notified like anyone else (for example when a rule assigns them). For delegation,
   the rule's owner is the agent session's creator (stage 6.2 needs a person there).
 - A workflow's comment has no user author: `comment` gains a workflow id column and
-  `Comment.botActor` resolves to the workflow; no one is subscribed by it, and its
-  mentions notify as a workflow comment. Nobody can edit it; team managers and admins
+  `Comment.botActor` resolves to the workflow; the workflow subscribes no one, and
+  the members it mentions are subscribed and notified as for any mention. Nobody can edit it; team managers and admins
   can delete it (builder's call).
 - `lastExecutedAt` and `stats.runs` are updated on each run.
 
@@ -112,6 +112,9 @@ below.
   `workspaceAdmins` — admins and owners; `owner` — the rule's owner and admins. The
   default is `teamOwners`. Anyone who can see the team can list its rules. Guests and
   app users cannot edit rules.
+- A rule acts as its owner (`isMe`, the creator of the agent sessions it starts), so
+  the owner is always the rule's last author: its creator, then whoever changes its
+  conditions or actions. No one can make another person a rule's owner.
 
 ### GraphQL
 

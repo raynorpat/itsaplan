@@ -114,27 +114,28 @@ function assertTrustedOrigin(headers: Headers | undefined, trusted: string[]): v
     throw new APIError('FORBIDDEN', { message: 'This request must come from the app' });
 }
 
-// A cookie-checked POST that runs a registered OAuth application handler.
+// A cookie-checked POST that runs one of the registered handlers.
+const write = (
+  path: string,
+  trusted: string[],
+  call: (h: InstanceHandlers, headers: Headers, body: unknown) => Promise<object>,
+) =>
+  createAuthEndpoint(path, { method: 'POST' }, async (ctx) => {
+    assertTrustedOrigin(ctx.headers, trusted);
+    return ctx.json(await run((h) => call(h, ctx.headers ?? new Headers(), ctx.body)));
+  });
+
 const oauthAppsWrite = (
   path: string,
   trusted: string[],
   call: (h: OAuthAppsHandlers, headers: Headers, body: unknown) => Promise<object>,
-) =>
-  createAuthEndpoint(path, { method: 'POST' }, async (ctx) => {
-    assertTrustedOrigin(ctx.headers, trusted);
-    return ctx.json(await run((h) => call(h.oauthApps, ctx.headers ?? new Headers(), ctx.body)));
-  });
+) => write(path, trusted, (h, headers, body) => call(h.oauthApps, headers, body));
 
-// A cookie-checked POST that runs a registered workflow handler.
 const workflowsWrite = (
   path: string,
   trusted: string[],
   call: (h: WorkflowsHandlers, headers: Headers, body: unknown) => Promise<object>,
-) =>
-  createAuthEndpoint(path, { method: 'POST' }, async (ctx) => {
-    assertTrustedOrigin(ctx.headers, trusted);
-    return ctx.json(await run((h) => call(h.workflows, ctx.headers ?? new Headers(), ctx.body)));
-  });
+) => write(path, trusted, (h, headers, body) => call(h.workflows, headers, body));
 
 const requiredClientId = (body: unknown): string => {
   const clientId = (body as { clientId?: unknown } | undefined)?.clientId;

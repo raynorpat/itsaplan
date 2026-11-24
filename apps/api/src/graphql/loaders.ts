@@ -23,6 +23,7 @@ import { visibleTeamIdList } from '../shared/access';
 import type { GraphQLContext } from './context';
 import { visibleLabels } from './resolvers/issue-label';
 import { visibleUsers } from './resolvers/team';
+import { workflowBotActors } from './resolvers/workflow-definition';
 
 // Request-scoped loaders for the fields a list resolves once per row (an issue's
 // state, team, users, labels, project, milestone, cycle, parent; a comment's or a
@@ -148,6 +149,8 @@ function createLoaders(ctx: GraphQLContext) {
         keys,
       ),
     ),
+    // The workflow that made a history entry or a comment, as Linear's ActorBot.
+    workflowBot: new DataLoader((keys: readonly string[]) => workflowBotActors(keys)),
     // Linear's Comment.agentSession for each comment (agents/store.ts).
     sessionOfComment: new DataLoader((keys: readonly string[]) =>
       sessionsOfComments(keys, viewerId),

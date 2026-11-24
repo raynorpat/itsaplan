@@ -838,6 +838,12 @@ export const workflowDefinition = pgTable(
       'workflow_definition_edit_access_check',
       sql`${t.editAccess} IN ('everyone', 'teamOwners', 'workspaceAdmins', 'owner')`,
     ),
+    // An update rule runs when the issue starts matching; a create rule has no mode.
+    check(
+      'workflow_definition_activation_mode_check',
+      sql`(${t.trigger} = 'entityUpdated' AND ${t.activationMode} = 'conditionsStartedMatching')
+        OR (${t.trigger} = 'entityCreated' AND ${t.activationMode} IS NULL)`,
+    ),
     index('workflow_definition_team_idx').on(t.teamId, t.sortOrder),
   ],
 );

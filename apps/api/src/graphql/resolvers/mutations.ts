@@ -6,6 +6,7 @@ import {
   createIssue,
   deleteIssue,
   restoreIssue,
+  rulesBefore,
   updateIssue,
   validateIssuePatch,
   type IssuePatch,
@@ -258,14 +259,18 @@ export const mutationResolvers = {
         // subscriberIds replaces the subscribers before the update, so the update's
         // own triggers (a new assignee) subscribe on top of the new list.
         // The rest of the input is validated first, so a failing update changes nothing.
+        // The automation rules' "before" is read ahead of the subscriber change, so a
+        // rule on subscribers sees the issue as it was before this whole update.
+        let rules: { rules?: unknown } = {};
         if (input.subscriberIds !== undefined) {
           const subscriberIds = subscriberIdsInput(input.subscriberIds);
           if ((await nonMembers(row.id, subscriberIds)).length)
             throw gqlError('INVALID_INPUT', 'input.subscriberIds must be members of the team');
           await validateIssuePatch(row.id, toPatch(input), labelIds);
+          rules = { rules: await rulesBefore(row.id, row.teamId) };
           await replaceSubscribers(row.id, subscriberIds);
         }
-        await updateIssue(row.id, toPatch(input), ctx.user.id, { labelIds });
+        await updateIssue(row.id, toPatch(input), ctx.user.id, { labelIds, ...rules });
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(row.id) };
       }),
 

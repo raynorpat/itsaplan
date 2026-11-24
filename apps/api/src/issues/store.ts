@@ -580,8 +580,9 @@ async function issueLabelIds(issueId: string): Promise<string[]> {
 // rules. Workflow writes and system writes (workflowsSkipped) run no rules.
 export interface IssueRuleHook {
   before(issueId: string, teamId: string): Promise<unknown>;
-  afterUpdate(state: unknown, issueId: string): Promise<void>;
-  afterCreate(issueId: string, teamId: string): Promise<void>;
+  // Whether a rule ran (and so changed the issue).
+  afterUpdate(state: unknown, issueId: string): Promise<boolean>;
+  afterCreate(issueId: string, teamId: string): Promise<boolean>;
 }
 
 let ruleHook: IssueRuleHook | null = null;
@@ -591,8 +592,10 @@ export function setIssueRuleHook(hook: IssueRuleHook | null): void {
 }
 
 // The rule state ahead of an update, or null when rules do not apply. A failure is
-// logged and runs no rules; it never fails the person's change.
-async function rulesBefore(issueId: string, teamId: string): Promise<unknown> {
+// logged and runs no rules; it never fails the person's change. A caller that writes
+// part of the change before calling updateIssue (issueUpdate's subscribers) reads it
+// first and passes it as `opts.rules`.
+export async function rulesBefore(issueId: string, teamId: string): Promise<unknown> {
   if (!ruleHook || workflowsSkipped()) return null;
   try {
     return await ruleHook.before(issueId, teamId);
@@ -720,8 +723,11 @@ export async function createIssue(
   }
   if (ruleHook && !workflowsSkipped()) {
     const hook = ruleHook;
-    await bestEffort('workflow rules', () => hook.afterCreate(issueId, team.id));
-    return (await getIssue(issueId)) ?? created;
+    let ran = false;
+    await bestEffort('workflow rules', async () => {
+      ran = await hook.afterCreate(issueId, team.id);
+    });
+    if (ran) return (await getIssue(issueId)) ?? created;
   }
   return created;
 }
@@ -779,7 +785,7 @@ export async function updateIssue(
   id: string,
   patch: IssuePatch,
   actorUserId?: string | null,
-  opts: { labelIds?: string[]; before?: WebhookData | null } = {},
+  opts: { labelIds?: string[]; before?: WebhookData | null; rules?: unknown } = {},
 ): Promise<IssueRow | null> {
   const before = await loadSnapshot(id);
   if (!before) return null;
@@ -798,7 +804,7 @@ export async function updateIssue(
   if (opts.labelIds)
     await assertLabelsApplicable(before.teamId, opts.labelIds, await issueLabelIds(id));
   const beforeData = opts.before ?? (await watchedIssueData(id, before.teamId));
-  const rules = await rulesBefore(id, before.teamId);
+  const rules = 'rules' in opts ? opts.rules : await rulesBefore(id, before.teamId);
 
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;
@@ -848,8 +854,11 @@ export async function updateIssue(
   }
   if (after && rules && ruleHook) {
     const hook = ruleHook;
-    await bestEffort('workflow rules', () => hook.afterUpdate(rules, id));
-    return (await getIssue(id)) ?? after;
+    let ran = false;
+    await bestEffort('workflow rules', async () => {
+      ran = await hook.afterUpdate(rules, id);
+    });
+    if (ran) return (await getIssue(id)) ?? after;
   }
   return after;
 }

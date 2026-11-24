@@ -306,6 +306,29 @@ describe('workflow rules', () => {
     expect(byOwner.workflow.ownerId).toBe(s.owner.userId);
   });
 
+  it('caps the rules of a team and the size of a rule', async () => {
+    const s = await setup();
+    const deep = (depth: number): Json =>
+      depth === 0 ? { priority: { eq: 1 } } : { and: [deep(depth - 1)] };
+    const refused = async (extra: Json) => (await create(s.owner, rule(s, extra))).status;
+    expect(await refused({ conditions: deep(8) })).toBe(400);
+    expect(await refused({ conditions: deep(6) })).toBe(200);
+    const long = Array.from({ length: 300 }, (_, i) => ({
+      title: { neq: `t${i}-${'x'.repeat(20)}` },
+    }));
+    expect(await refused({ conditions: { and: long } })).toBe(400);
+    const labels = [];
+    for (let i = 0; i < 21; i++)
+      labels.push((await createLabel(s.owner, { name: `l${i}`, teamId: s.teamId })).id);
+    expect(await refused({ activities: [{ type: 'addLabels', labelIds: labels }] })).toBe(400);
+    expect(
+      await refused({ activities: [{ type: 'addLabels', labelIds: labels.slice(0, 20) }] }),
+    ).toBe(200);
+    // Two rules exist; fill the team up to 50, then one more is refused.
+    for (let i = 2; i < 50; i++) await ok(await create(s.owner, rule(s, { name: `r${i}` })));
+    expect(await refused({ name: 'one too many' })).toBe(400);
+  });
+
   it('refuses a guest, even on a rule everyone may edit', async () => {
     const s = await setup();
     const guest = await signUpAs('guest', { name: 'Gus' });

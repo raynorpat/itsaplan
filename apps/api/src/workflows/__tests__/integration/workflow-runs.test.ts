@@ -16,6 +16,7 @@ import {
   updateIssue,
 } from '../../../__tests__/helpers/graphql';
 import { bearer, createClient, install, ORIGIN } from '../../../__tests__/helpers/oauth';
+import { countStatements } from '../../../__tests__/helpers/statements';
 
 // The run engine of the team automation rules: when a rule runs, what it changes, and
 // how its changes are attributed to the workflow.
@@ -370,6 +371,119 @@ describe('workflow runs', () => {
     expect((await issueDetail(s.owner, issue.id)).priority).not.toBe(1);
   });
 
+  it('does not run a rule whose conditions an earlier rule in the same change broke', async () => {
+    const s = await setup();
+    await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Start urgent',
+      trigger: 'entityUpdated',
+      sortOrder: 1,
+      conditions: { priority: { eq: 1 } },
+      activities: [{ type: 'setState', stateId: s.states.started }],
+    });
+    const triage = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Triage urgent backlog',
+      trigger: 'entityUpdated',
+      sortOrder: 2,
+      conditions: { and: [{ priority: { eq: 1 } }, { state: { type: { eq: 'backlog' } } }] },
+      activities: [{ type: 'setAssignee', userId: s.member.userId }],
+    });
+    const issue = await createIssue(s.owner, {
+      teamId: s.teamId,
+      priority: 3,
+      stateId: s.states.backlog,
+    });
+    await updateIssue(s.owner, issue.id, { priority: 1 });
+    const detail = await issueDetail(s.owner, issue.id);
+    expect(detail.state.id).toBe(s.states.started);
+    expect(detail.assignee).toBeNull();
+    expect((await ruleRow(triage.id)).stats.runs).toBe(0);
+  });
+
+  it('starts matching on subscribers set in the same update as other fields', async () => {
+    const s = await setup();
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Watched by Ann',
+      trigger: 'entityUpdated',
+      conditions: { subscribers: { some: { id: { eq: s.member.userId } } } },
+      activities: [{ type: 'setPriority', priority: 1 }],
+    });
+    const issue = await createIssue(s.owner, { teamId: s.teamId, priority: 4 });
+    await updateIssue(s.owner, issue.id, {
+      title: 'Watched',
+      subscriberIds: [s.owner.userId, s.member.userId],
+    });
+    expect((await issueDetail(s.owner, issue.id)).priority).toBe(1);
+    expect((await ruleRow(rule.id)).stats.runs).toBe(1);
+  });
+
+  it('starts matching on a label added in the same update', async () => {
+    const s = await setup();
+    const label = await createLabel(s.owner, { name: 'urgent', teamId: s.teamId });
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Prioritise urgent',
+      trigger: 'entityUpdated',
+      conditions: { labels: { some: { id: { eq: label.id } } } },
+      activities: [{ type: 'setPriority', priority: 1 }],
+    });
+    const issue = await createIssue(s.owner, { teamId: s.teamId, priority: 4 });
+    await updateIssue(s.owner, issue.id, { labelIds: [label.id] });
+    expect((await issueDetail(s.owner, issue.id)).priority).toBe(1);
+    expect((await ruleRow(rule.id)).stats.runs).toBe(1);
+  });
+
+  it('clears the recorded error once a rule runs cleanly again', async () => {
+    const s = await setup();
+    const label = await createLabel(s.owner, { name: 'flaky', teamId: s.teamId });
+    const rule = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Label new',
+      trigger: 'entityCreated',
+      activities: [{ type: 'addLabels', labelIds: [label.id] }],
+    });
+    const retire = `mutation ($id: String!) { issueLabelRetire(id: $id) { success } }`;
+    const restore = `mutation ($id: String!) { issueLabelRestore(id: $id) { success } }`;
+    await gqlData(s.owner, retire, { id: label.id });
+    await createIssue(s.member, { teamId: s.teamId });
+    expect(typeof (await ruleRow(rule.id)).stats.lastError).toBe('string');
+    await gqlData(s.owner, restore, { id: label.id });
+    await createIssue(s.member, { teamId: s.teamId });
+    const stats = (await ruleRow(rule.id)).stats;
+    expect(stats.runs).toBe(2);
+    expect(stats.lastError).toBeUndefined();
+  });
+
+  it('records a failing rule and still runs the rules after it', async () => {
+    const s = await setup();
+    const label = await createLabel(s.owner, { name: 'gone', teamId: s.teamId });
+    const failing = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Label',
+      trigger: 'entityCreated',
+      sortOrder: 1,
+      activities: [{ type: 'addLabels', labelIds: [label.id] }],
+    });
+    const next = await createRule(s.owner, {
+      teamId: s.teamId,
+      name: 'Prioritise',
+      trigger: 'entityCreated',
+      sortOrder: 2,
+      activities: [{ type: 'setPriority', priority: 2 }],
+    });
+    await gqlData(s.owner, `mutation ($id: String!) { issueLabelRetire(id: $id) { success } }`, {
+      id: label.id,
+    });
+    const issue = await createIssue(s.member, { teamId: s.teamId, priority: 4 });
+    expect((await issueDetail(s.owner, issue.id)).priority).toBe(2);
+    const failed = (await ruleRow(failing.id)).stats;
+    expect(failed.runs).toBe(1);
+    expect(typeof failed.lastError).toBe('string');
+    expect((await ruleRow(next.id)).stats.runs).toBe(1);
+  });
+
   it('does not run disabled or archived rules', async () => {
     const s = await setup();
     const disabled = await createRule(s.owner, {
@@ -393,10 +507,7 @@ describe('workflow runs', () => {
 });
 
 describe('workflow run cost', () => {
-  type Client = { unsafe: (...args: unknown[]) => unknown };
-  const client = db.$client as unknown as Client;
-
-  it("loads a team's rules once for a batch update", async () => {
+  it("loads a team's rules once for a batch update and costs the same per issue", async () => {
     const s = await setup();
     await createRule(s.owner, {
       teamId: s.teamId,
@@ -408,23 +519,18 @@ describe('workflow run cost', () => {
     });
     const ids: string[] = [];
     for (let i = 0; i < 10; i++) ids.push((await createIssue(s.owner, { teamId: s.teamId })).id);
-
-    const original = client.unsafe;
-    let ruleLoads = 0;
-    client.unsafe = function (this: unknown, ...args: unknown[]) {
-      const text = String(args[0] ?? '').toLowerCase();
-      if (text.includes('from "workflow_definition"')) ruleLoads += 1;
-      return original.apply(this, args);
-    } as Client['unsafe'];
-    try {
-      await gqlData(
+    const batch = (issues: string[], priority: number) => () =>
+      gqlData(
         s.owner,
-        `mutation ($ids: [UUID!]!) { issueBatchUpdate(ids: $ids, input: { priority: 3 }) { success } }`,
-        { ids },
+        `mutation ($ids: [UUID!]!, $p: Int!) { issueBatchUpdate(ids: $ids, input: { priority: $p }) { success } }`,
+        { ids: issues, p: priority },
       );
-    } finally {
-      client.unsafe = original;
-    }
-    expect(ruleLoads).toBe(1);
+
+    expect(await countStatements(batch(ids, 3), 'from "workflow_definition"')).toBe(1);
+    // Five more issues cost five times what one more issue does.
+    const five = await countStatements(batch(ids.slice(0, 5), 2));
+    const ten = await countStatements(batch(ids, 1));
+    const six = await countStatements(batch(ids.slice(0, 6), 4));
+    expect(ten - five).toBe(5 * (six - five));
   });
 });
