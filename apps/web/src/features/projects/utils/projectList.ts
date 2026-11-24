@@ -63,3 +63,12 @@ export function sortProjects<T extends SortableProject>(
     })
     .map((x) => x.p);
 }
+
+// The Archived tab: the archived projects among those listed with includeArchived,
+// most recently archived first. ProjectFilter has no archivedAt field, so the API
+// lists archived and active projects together.
+export function archivedProjects<T extends { archivedAt: string | null }>(projects: T[]): T[] {
+  return projects
+    .filter((p) => p.archivedAt != null)
+    .sort((a, b) => b.archivedAt!.localeCompare(a.archivedAt!));
+}

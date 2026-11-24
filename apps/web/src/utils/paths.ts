@@ -54,7 +54,15 @@ export const projectsPath = (key?: string | null) => withTeam('/projects', key);
 // The status tabs of the projects list are routes of their own, so a reload or a
 // shared link reopens the tab the user was on. "All" is the tab at the list path;
 // the page and the sorting stay in the query string.
-const PROJECTS_TABS = ['all', 'backlog', 'planned', 'started', 'paused', 'completed'] as const;
+const PROJECTS_TABS = [
+  'all',
+  'backlog',
+  'planned',
+  'started',
+  'paused',
+  'completed',
+  'archived',
+] as const;
 
 export type ProjectsTab = (typeof PROJECTS_TABS)[number];
 

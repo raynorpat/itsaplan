@@ -66,7 +66,7 @@ export const qk = {
   // Cycles: a team's cycle lists ("open" is the current and upcoming ones, "past"
   // the paged past ones), one cycle by team and number, and a past cycle's archived
   // issues. Issue writes change a cycle's progress, so they invalidate the prefixes.
-  cycles: (teamId: string, list: 'open' | 'past') => ['cycles', teamId, list] as const,
+  cycles: (teamId: string, list: 'open' | 'past' | 'archived') => ['cycles', teamId, list] as const,
   cycle: (teamId: string, number: number) => ['cycle', teamId, number] as const,
   cycleArchivedIssues: (cycleId: string) => ['cycle', 'archived-issues', cycleId] as const,
   anyCycle: ['cycle'] as const,

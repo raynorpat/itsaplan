@@ -49,7 +49,11 @@ export default function ProjectsList({
       return (
         <EmptyState
           title={`No ${statusLabel.toLowerCase()} projects`}
-          description="Projects move between tabs as their status changes."
+          description={
+            statusLabel === 'Archived'
+              ? 'Archived projects are listed here until they are unarchived.'
+              : 'Projects move between tabs as their status changes.'
+          }
         />
       );
     return (

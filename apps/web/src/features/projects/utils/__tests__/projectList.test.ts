@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { sortProjects, sumStatusCounts } from '../projectList';
+import { archivedProjects, sortProjects, sumStatusCounts } from '../projectList';
 
 // The projects list over GraphQL: the status tab counts and the sort.
 
@@ -60,6 +60,20 @@ describe('sortProjects', () => {
     assert.deepEqual(
       sortProjects(rows, 'lead', 'asc', lead).map((p) => p.id),
       ['c', 'a', 'b'],
+    );
+  });
+});
+
+describe('archivedProjects', () => {
+  it('keeps the archived projects, most recently archived first', () => {
+    const rows = [
+      { id: 'a', archivedAt: null },
+      { id: 'b', archivedAt: '2026-11-01T00:00:00.000Z' },
+      { id: 'c', archivedAt: '2026-11-10T00:00:00.000Z' },
+    ];
+    assert.deepEqual(
+      archivedProjects(rows).map((p) => p.id),
+      ['c', 'b'],
     );
   });
 });

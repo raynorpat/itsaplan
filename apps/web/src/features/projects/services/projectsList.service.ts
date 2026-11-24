@@ -1,18 +1,18 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { Project, ProjectCounts, ProjectStatus } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
-import { fetchProjectsPage } from '@/services/projects.service';
+import { fetchProjectsPage, ProjectFields, toProject } from '@/services/projects.service';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 import { appendPage } from '@/utils/appendPage';
-import { sumStatusCounts } from '../utils/projectList';
+import { archivedProjects, sumStatusCounts } from '../utils/projectList';
 
 const PAGE_SIZE = 25;
 
 // The projects list: pages of 25 in the server's order (newest first), each "Load
 // more" appended by cursor. appendPage drops a row a later page repeats.
-export function useProjectsList(filters: ProjectListFilters) {
+export function useProjectsList(filters: ProjectListFilters, enabled = true) {
   const query = useInfiniteQuery({
     queryKey: qk.projects(filters.teamKey ?? '', {
       list: true,
@@ -22,6 +22,7 @@ export function useProjectsList(filters: ProjectListFilters) {
     queryFn: ({ pageParam }) => fetchProjectsPage(filters, PAGE_SIZE, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.endCursor,
+    enabled,
   });
   const items: Project[] = (query.data?.pages ?? []).reduce<Project[]>(
     (all, page) => appendPage(all, page.items),
@@ -74,5 +75,46 @@ export function useProjectStatusCounts(teamKey: string | null) {
       const counts = await Promise.all(STATUSES.map((status) => countProjects(teamKey, status)));
       return sumStatusCounts(Object.fromEntries(STATUSES.map((s, i) => [s, counts[i]])));
     },
+  });
+}
+
+const ArchivedProjectsQuery = graphql(
+  `
+    query ArchivedProjects($filter: ProjectFilter, $first: Int!, $after: String) {
+      projects(filter: $filter, first: $first, after: $after, includeArchived: true) {
+        nodes {
+          ...ProjectFields
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  `,
+  [ProjectFields],
+);
+
+// The Archived tab: every archived project of the team filter, matching the search.
+// ProjectFilter has no archivedAt field, so all projects are listed with
+// includeArchived and the archived ones kept.
+export function useArchivedProjects(
+  filters: { teamKey: string | null; search?: string },
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: qk.projects(filters.teamKey ?? '', { archived: true, search: filters.search }),
+    queryFn: async () => {
+      const nodes = await fetchAllPages(async (after, first) => {
+        const data = await gqlRequest(ArchivedProjectsQuery, {
+          filter: toProjectFilter(filters),
+          first,
+          after,
+        });
+        return data.projects;
+      });
+      return archivedProjects(nodes.map(toProject));
+    },
+    enabled,
   });
 }

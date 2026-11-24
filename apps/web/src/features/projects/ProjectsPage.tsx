@@ -20,7 +20,11 @@ import ProjectsList from './components/list/ProjectsList';
 import CreateProjectDialog from './components/list/CreateProjectDialog';
 import ProjectTabCount from './components/list/ProjectTabCount';
 import ProjectTeamFilter from './components/list/ProjectTeamFilter';
-import { useProjectStatusCounts, useProjectsList } from './services/projectsList.service';
+import {
+  useArchivedProjects,
+  useProjectStatusCounts,
+  useProjectsList,
+} from './services/projectsList.service';
 import { sortProjects } from './utils/projectList';
 
 // One tab per lifecycle status, except the terminal statuses share a "Completed"
@@ -32,6 +36,7 @@ const TABS: { value: ProjectsTab; label: string; statuses: ProjectStatus[] | und
   { value: 'started', label: 'In Progress', statuses: ['started'] },
   { value: 'paused', label: 'Paused', statuses: ['paused'] },
   { value: 'completed', label: 'Completed', statuses: ['completed', 'canceled'] },
+  { value: 'archived', label: 'Archived', statuses: undefined },
 ];
 
 // The "Completed" tab groups the two terminal statuses, so its count sums them.
@@ -50,6 +55,8 @@ function tabCount(counts: ProjectCounts | undefined, tab: ProjectsTab): number |
       return counts.paused;
     case 'completed':
       return counts.completed + counts.canceled;
+    case 'archived':
+      return undefined;
   }
 }
 
@@ -79,7 +86,12 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
   const dir = sort ? sortDir : undefined;
 
-  const query = useProjectsList({ teamKey: filterKey, statuses: activeTab.statuses, search });
+  const isArchived = tab === 'archived';
+  const query = useProjectsList(
+    { teamKey: filterKey, statuses: activeTab.statuses, search },
+    !isArchived,
+  );
+  const archived = useArchivedProjects({ teamKey: filterKey, search }, isArchived);
   const counts = useProjectStatusCounts(filterKey).data;
 
   // The browser sorts loaded rows only, so a sort loads the remaining pages.
@@ -91,8 +103,11 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   if (!team) return null;
 
   const leadNames = new Map(team.assignees.map((a) => [a.userId, a.name]));
-  const items = sortProjects(query.items, sort, sortDir, (id) =>
-    id ? (leadNames.get(id) ?? '') : '',
+  const items = sortProjects(
+    isArchived ? (archived.data ?? []) : query.items,
+    sort,
+    sortDir,
+    (id) => (id ? (leadNames.get(id) ?? '') : ''),
   );
 
   const tabPath = projectsTabPath(filterKey, tab);
@@ -160,16 +175,16 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
       <ProjectsList
         projects={items}
         team={team}
-        isLoading={query.isLoading}
+        isLoading={isArchived ? archived.isLoading : query.isLoading}
         canCreate={can('projects', 'create')}
         onCreate={() => setCreating(true)}
-        statusLabel={activeTab.statuses ? activeTab.label : undefined}
+        statusLabel={activeTab.statuses || isArchived ? activeTab.label : undefined}
         sort={sort}
         dir={dir}
         onSort={changeSort}
       />
 
-      {query.hasNextPage && !sort && (
+      {!isArchived && query.hasNextPage && !sort && (
         <div className="flex justify-center px-4 py-3">
           <Button
             size="sm"

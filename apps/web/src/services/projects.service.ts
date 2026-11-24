@@ -297,6 +297,22 @@ const ProjectDeleteMutation = graphql(`
   }
 `);
 
+const ProjectArchiveMutation = graphql(`
+  mutation ProjectArchive($id: String!) {
+    projectArchive(id: $id) {
+      success
+    }
+  }
+`);
+
+const ProjectUnarchiveMutation = graphql(`
+  mutation ProjectUnarchive($id: String!) {
+    projectUnarchive(id: $id) {
+      success
+    }
+  }
+`);
+
 export type { ProjectChange };
 
 // The Linear input for a change, with the status's id looked up when it changes.
@@ -373,6 +389,24 @@ export function useDeleteProject(teamKey: string) {
     onSuccess: (_data, id) => {
       invalidateProject(qc, id, teamKey);
       void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+      void qc.invalidateQueries({ queryKey: qk.initiatives });
+      void qc.invalidateQueries({ queryKey: ['initiative'] });
+    },
+  });
+}
+
+// Archives or unarchives a project. An archived project leaves the lists and the
+// project pickers (the API lists it only with includeArchived) and appears under the
+// projects list's Archived tab; its page stays reachable.
+export function useSetProjectArchived(teamKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
+      if (archived) await gqlRequest(ProjectArchiveMutation, { id });
+      else await gqlRequest(ProjectUnarchiveMutation, { id });
+    },
+    onSuccess: (_data, { id }) => {
+      invalidateProject(qc, id, teamKey);
       void qc.invalidateQueries({ queryKey: qk.initiatives });
       void qc.invalidateQueries({ queryKey: ['initiative'] });
     },

@@ -34,6 +34,11 @@ export default function CycleHeader({
     <header className="flex flex-col gap-3 border-b px-6 py-4">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold">{cycleLabel(cycle)}</h1>
+        {cycle.archivedAt && (
+          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            Archived
+          </span>
+        )}
         <CycleDates startsAt={cycle.startsAt} endsAt={cycle.endsAt} />
         <Button
           size="icon-sm"
