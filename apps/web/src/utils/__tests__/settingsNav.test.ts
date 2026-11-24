@@ -39,6 +39,7 @@ describe('settingsNav', () => {
         'general',
         'members',
         'applications',
+        'import',
         'mcp',
         'labels',
         'project-labels',

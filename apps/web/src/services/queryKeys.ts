@@ -101,6 +101,10 @@ export const qk = {
   // The workspace's OAuth applications (admins), the applications the signed-in
   // person has authorized, and the application a consent page shows.
   oauthApps: ['oauthApps'] as const,
+  imports: ['imports'] as const,
+  importPeople: (id: string) => ['imports', 'people', id] as const,
+  githubImport: ['githubImport'] as const,
+  githubImportRepositories: ['githubImport', 'repositories'] as const,
   oauthAuthorized: ['oauthAuthorized'] as const,
   accountEmails: ['accountEmails'] as const,
   oauthClient: (clientId: string) => ['oauthClient', clientId] as const,
