@@ -1,6 +1,12 @@
 import type { Label as LabelRow, LabelGroup } from '@/types/team';
 import SettingsConfirmDeleteDialog from '../crud/SettingsConfirmDeleteDialog';
 
+function deleteLabelMessage(issueCount: number | undefined): string {
+  if (issueCount === undefined) return 'It will be removed from every issue that has it.';
+  if (issueCount === 0) return 'No issues use this label.';
+  return `This label is on ${issueCount} issue${issueCount === 1 ? '' : 's'} and will be removed from ${issueCount === 1 ? 'it' : 'them'}.`;
+}
+
 export function SettingsLabelDeleteDialog({
   label,
   issueCount,
@@ -8,7 +14,8 @@ export function SettingsLabelDeleteDialog({
   onConfirm,
 }: {
   label: LabelRow;
-  issueCount: number;
+  // Unknown for a workspace label (no team's issues are loaded on its page).
+  issueCount: number | undefined;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }) {
@@ -16,14 +23,7 @@ export function SettingsLabelDeleteDialog({
     <SettingsConfirmDeleteDialog
       title={`Delete label "${label.name}"`}
       confirmLabel="Delete label"
-      message={
-        <>
-          {issueCount > 0
-            ? `This label is on ${issueCount} issue${issueCount === 1 ? '' : 's'} and will be removed from ${issueCount === 1 ? 'it' : 'them'}.`
-            : 'No issues use this label.'}{' '}
-          This cannot be undone.
-        </>
-      }
+      message={<>{deleteLabelMessage(issueCount)} This cannot be undone.</>}
       onClose={onClose}
       onConfirm={onConfirm}
     />

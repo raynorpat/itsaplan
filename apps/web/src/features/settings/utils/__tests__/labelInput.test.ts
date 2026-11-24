@@ -26,6 +26,23 @@ describe('labelCreateInput', () => {
   });
 });
 
+describe('workspace labels (no team)', () => {
+  it('creates a workspace label without teamId', () => {
+    assert.deepEqual(labelCreateInput(null, { name: 'Bug', color: '#f00', groupId }), {
+      name: 'Bug',
+      color: '#f00',
+      parentId: groupId,
+    });
+  });
+
+  it('creates a workspace group without teamId', () => {
+    assert.deepEqual(labelGroupCreateInput(null, { name: 'Area' }), {
+      name: 'Area',
+      isGroup: true,
+    });
+  });
+});
+
 describe('labelGroupCreateInput', () => {
   it('creates a group label', () => {
     assert.deepEqual(labelGroupCreateInput(teamId, { name: 'Type', color: '#0f0' }), {

@@ -32,7 +32,12 @@ export default function SettingsLabelsPage() {
     >
       <SettingsResourceProvider resource={section.resource}>
         <RequirePermission resource={section.resource} action="read">
-          <SettingsLabels team={team} />
+          <SettingsLabels
+            teamKey={team.team.key}
+            labels={teamOwnLabels(team.labels)}
+            groups={teamOwnGroups(team.labelGroups)}
+            issueCount={(labelId) => team.issues.filter((t) => t.labelIds.includes(labelId)).length}
+          />
         </RequirePermission>
       </SettingsResourceProvider>
     </SectionPageView>

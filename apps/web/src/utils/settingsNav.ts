@@ -34,6 +34,7 @@ const WORKSPACE: [string, string, boolean][] = [
   ['members', 'Members', false],
   ['applications', 'Applications', true],
   ['mcp', 'MCP', false],
+  ['labels', 'Labels', false],
   ['project-labels', 'Project labels', false],
 ];
 

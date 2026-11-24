@@ -62,6 +62,8 @@ export const qk = {
   projectUpdates: (id: string) => ['projectUpdates', id] as const,
   projectDocuments: (id: string) => ['projectDocuments', id] as const,
   projectLabels: ['projectLabels'] as const,
+  // The workspace labels and groups (labels without a team), retired ones included.
+  workspaceLabels: ['workspaceLabels'] as const,
   // Prefix keys: issue mutations invalidate every project query without
   // knowing the id (see ISSUE_DEPENDENT_KEYS below).
   anyProject: ['project'] as const,

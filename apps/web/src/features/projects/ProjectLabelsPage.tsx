@@ -1,6 +1,6 @@
 'use client';
 
-import { useCanManageProjectLabels } from './services/projectLabels.service';
+import { useCanManageLabels } from '@/hooks/useCanManageLabels';
 import ProjectLabelsList from './components/labels/ProjectLabelsList';
 import ProjectLabelCreateForm from './components/labels/ProjectLabelCreateForm';
 
@@ -8,7 +8,7 @@ import ProjectLabelCreateForm from './components/labels/ProjectLabelCreateForm';
 // and delete, for someone with the organization's label-management role. Label
 // groups are managed over the API.
 export default function ProjectLabelsPage() {
-  const canManage = useCanManageProjectLabels();
+  const canManage = useCanManageLabels();
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
       <div>

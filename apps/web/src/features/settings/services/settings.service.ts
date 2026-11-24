@@ -6,7 +6,7 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { Issue } from '@/types/issue';
-import type { LabelGroup, StateType, TeamScaffold } from '@/types/team';
+import type { Label, LabelGroup, StateType, TeamScaffold } from '@/types/team';
 import type { NotificationPreferences } from '@/features/settings/utils/notificationPreferences';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { DEFAULT_COLOR } from '@/utils/team';
@@ -25,6 +25,7 @@ import {
 import { fetchTeamScaffold } from '@/services/board.service';
 import { useInvalidateTeam } from '@/services/teams.service';
 import { qk } from '@/services/queryKeys';
+import { fetchAllPages } from '@/utils/fetchAllPages';
 
 // A mutation whose success invalidates the team scaffold (and dependent lists).
 // Shared by every structural write below.
@@ -38,9 +39,34 @@ function useTeamMutation<TArgs, TResult>(
   return useMutation({ mutationFn, onSettled: () => invalidate() });
 }
 
+// A label write. A team label refreshes its team like any structural write. A
+// workspace label (null team) is part of every team's labels, so it refreshes the
+// workspace labels list, every team scaffold and board, and any open issue.
+function useLabelMutation<TArgs, TResult>(
+  teamKey: string | null,
+  mutationFn: (args: TArgs) => Promise<TResult>,
+) {
+  const qc = useQueryClient();
+  const invalidateTeam = useInvalidateTeam(teamKey);
+  return useMutation({
+    mutationFn,
+    onSettled: () => {
+      if (teamKey) {
+        invalidateTeam();
+        return;
+      }
+      void qc.invalidateQueries({ queryKey: qk.workspaceLabels });
+      void qc.invalidateQueries({ queryKey: ['workItems'] });
+      void qc.invalidateQueries({ queryKey: ['boardIssues'] });
+      void qc.invalidateQueries({ queryKey: qk.anyIssue });
+    },
+  });
+}
+
 // The team's id, which label inputs require (the team key is accepted elsewhere). It
 // comes from the team scaffold, which every settings page has loaded.
-async function teamIdOf(qc: QueryClient, teamKey: string): Promise<string> {
+async function teamIdOf(qc: QueryClient, teamKey: string | null): Promise<string | null> {
+  if (teamKey == null) return null;
   const scaffold = await qc.ensureQueryData<TeamScaffold>({
     queryKey: qk.team(teamKey),
     queryFn: () => fetchTeamScaffold(teamKey),
@@ -191,21 +217,21 @@ const LabelDelete = graphql(`
   }
 `);
 
-export function useCreateLabel(teamKey: string) {
+export function useCreateLabel(teamKey: string | null) {
   const qc = useQueryClient();
-  return useTeamMutation(teamKey, async (fields: LabelFields & { name: string }) =>
+  return useLabelMutation(teamKey, async (fields: LabelFields & { name: string }) =>
     gqlRequest(LabelCreate, { input: labelCreateInput(await teamIdOf(qc, teamKey), fields) }),
   );
 }
 
-export function useUpdateLabel(teamKey: string) {
-  return useTeamMutation(teamKey, ({ id, patch }: { id: string; patch: LabelFields }) =>
+export function useUpdateLabel(teamKey: string | null) {
+  return useLabelMutation(teamKey, ({ id, patch }: { id: string; patch: LabelFields }) =>
     gqlRequest(LabelUpdate, { id, input: labelUpdateInput(patch) }),
   );
 }
 
-export function useDeleteLabel(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelDelete, { id }));
+export function useDeleteLabel(teamKey: string | null) {
+  return useLabelMutation(teamKey, (id: string) => gqlRequest(LabelDelete, { id }));
 }
 
 // Retiring keeps the label on the issues that carry it and hides it from the pickers;
@@ -226,19 +252,19 @@ const LabelRestore = graphql(`
   }
 `);
 
-export function useRetireLabel(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelRetire, { id }));
+export function useRetireLabel(teamKey: string | null) {
+  return useLabelMutation(teamKey, (id: string) => gqlRequest(LabelRetire, { id }));
 }
 
-export function useRestoreLabel(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelRestore, { id }));
+export function useRestoreLabel(teamKey: string | null) {
+  return useLabelMutation(teamKey, (id: string) => gqlRequest(LabelRestore, { id }));
 }
 
 // A label group is a label with isGroup. The created group is returned so the labels
 // import can place new labels in it.
-export function useCreateLabelGroup(teamKey: string) {
+export function useCreateLabelGroup(teamKey: string | null) {
   const qc = useQueryClient();
-  return useTeamMutation(
+  return useLabelMutation(
     teamKey,
     async (fields: { name: string; color?: string }): Promise<LabelGroup> => {
       const data = await gqlRequest(LabelCreate, {
@@ -250,8 +276,8 @@ export function useCreateLabelGroup(teamKey: string) {
   );
 }
 
-export function useUpdateLabelGroup(teamKey: string) {
-  return useTeamMutation(
+export function useUpdateLabelGroup(teamKey: string | null) {
+  return useLabelMutation(
     teamKey,
     ({ id, patch }: { id: string; patch: { name?: string; color?: string } }) =>
       gqlRequest(LabelUpdate, { id, input: labelUpdateInput(patch) }),
@@ -259,8 +285,64 @@ export function useUpdateLabelGroup(teamKey: string) {
 }
 
 // Deleting a group ungroups its labels (the API's rule).
-export function useDeleteLabelGroup(teamKey: string) {
-  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelDelete, { id }));
+export function useDeleteLabelGroup(teamKey: string | null) {
+  return useLabelMutation(teamKey, (id: string) => gqlRequest(LabelDelete, { id }));
+}
+
+// The workspace labels and groups: labels without a team, retired ones included (the
+// API serves a retired label as archived), sorted by name.
+const WorkspaceLabelsPage = graphql(`
+  query SettingsWorkspaceLabels($after: String, $first: Int) {
+    issueLabels(
+      filter: { team: { null: true } }
+      includeArchived: true
+      first: $first
+      after: $after
+    ) {
+      nodes {
+        id
+        name
+        color
+        isGroup
+        archivedAt
+        parent {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+export function useWorkspaceLabels() {
+  return useQuery({
+    queryKey: qk.workspaceLabels,
+    queryFn: async (): Promise<{ labels: Label[]; groups: LabelGroup[] }> => {
+      const nodes = await fetchAllPages(async (after, first) => {
+        const { issueLabels } = await gqlRequest(WorkspaceLabelsPage, { after, first });
+        return issueLabels;
+      });
+      const labels: Label[] = [];
+      const groups: LabelGroup[] = [];
+      for (const l of nodes) {
+        if (l.isGroup) groups.push({ id: l.id, teamId: null, name: l.name, color: l.color });
+        else
+          labels.push({
+            id: l.id,
+            teamId: null,
+            groupId: l.parent?.id ?? null,
+            name: l.name,
+            color: l.color,
+            retiredAt: l.archivedAt ?? null,
+          });
+      }
+      const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+      return { labels: labels.sort(byName), groups: groups.sort(byName) };
+    },
+  });
 }
 
 // --- Auto-archive ------------------------------------------------------------------

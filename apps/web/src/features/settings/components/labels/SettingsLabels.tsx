@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { splitLabels, teamOwnGroups, teamOwnLabels } from '@/utils/labels';
+import { splitLabels } from '@/utils/labels';
 import { DndContext, DragOverlay, type DragEndEvent } from '@dnd-kit/core';
-import type { Label as LabelRow, LabelGroup, TeamDetail } from '@/types/team';
+import type { Label as LabelRow, LabelGroup } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { colorDot } from '@/components/common/fields/colorDot';
@@ -29,12 +29,22 @@ import { SettingsLabelsAddMenu } from './SettingsLabelsAddMenu';
 // A tree of labels: each group is a collapsible node holding its labels, and
 // ungrouped labels sit directly at the root alongside the groups. A group's header
 // adds labels into that group; the "Add" action below the list adds a group or an
-// ungrouped label. Labels drag between groups and the root.
-export default function SettingsLabels({ team }: { team: TeamDetail }) {
-  const teamKey = team.team.key;
+// ungrouped label. Labels drag between groups and the root. A team's page passes its
+// own labels and `teamKey`; the workspace page passes the labels without a team and a
+// null `teamKey`. `issueCount` is known only for a team (its loaded issues).
+export default function SettingsLabels({
+  teamKey,
+  labels: allLabels,
+  groups: ownGroups,
+  issueCount,
+}: {
+  teamKey: string | null;
+  labels: LabelRow[];
+  groups: LabelGroup[];
+  issueCount?: (labelId: string) => number;
+}) {
   // Retired labels are listed apart, under the groups, with Restore.
-  const { active: ownLabels, retired: retiredLabels } = splitLabels(teamOwnLabels(team.labels));
-  const ownGroups = teamOwnGroups(team.labelGroups);
+  const { active: ownLabels, retired: retiredLabels } = splitLabels(allLabels);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // The open label add/edit form, and the open group add/edit form. At most one is
   // set at a time (opening either closes the other).
@@ -65,11 +75,8 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
   const retireLabel = useRetireLabel(teamKey);
   const restoreLabel = useRestoreLabel(teamKey);
 
-  const issueCount = (labelId: string) =>
-    team.issues.filter((t) => t.labelIds.includes(labelId)).length;
   // Deleting a group affects its retired labels too, so they count.
-  const labelCount = (groupId: string) =>
-    teamOwnLabels(team.labels).filter((l) => l.groupId === groupId).length;
+  const labelCount = (groupId: string) => allLabels.filter((l) => l.groupId === groupId).length;
   const hasGroups = ownGroups.length > 0;
   const activeLabel = activeId != null ? ownLabels.find((l) => l.id === activeId) : null;
   const ungroupedLabels = ownLabels.filter((l) => l.groupId == null);
@@ -181,7 +188,7 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
         </div>
       );
     }
-    const count = issueCount(l.id);
+    const count = issueCount?.(l.id) ?? 0;
     return (
       <SettingsDraggableLabelRow
         key={l.id}
@@ -293,7 +300,7 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
       {deletingLabel && (
         <SettingsLabelDeleteDialog
           label={deletingLabel}
-          issueCount={issueCount(deletingLabel.id)}
+          issueCount={issueCount?.(deletingLabel.id)}
           onClose={() => setDeletingLabel(null)}
           onConfirm={async () => {
             await deleteLabel.mutateAsync(deletingLabel.id);

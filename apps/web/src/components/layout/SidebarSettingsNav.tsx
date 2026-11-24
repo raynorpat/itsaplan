@@ -6,6 +6,7 @@ import {
   Server,
   Settings2,
   SquareStack,
+  Tag,
   Tags,
   Users,
   type LucideIcon,
@@ -33,6 +34,7 @@ const ICONS: Record<string, LucideIcon> = {
   members: Users,
   applications: AppWindow,
   mcp: Server,
+  labels: Tag,
   'project-labels': Tags,
 };
 

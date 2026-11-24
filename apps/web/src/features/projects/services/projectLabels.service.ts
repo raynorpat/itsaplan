@@ -5,8 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
-import { usePermissions } from '@/hooks/usePermissions';
-import { canManageProjectLabels } from '../utils/projectLabels';
 
 const ProjectLabelsQuery = graphql(`
   query ProjectLabels($first: Int!, $after: String) {
@@ -25,15 +23,6 @@ const ProjectLabelsQuery = graphql(`
         hasNextPage
         endCursor
       }
-    }
-  }
-`);
-
-const LabelManagementQuery = graphql(`
-  query ProjectLabelManagement {
-    organization {
-      id
-      securitySettings
     }
   }
 `);
@@ -83,21 +72,6 @@ export function useProjectLabelsQuery() {
       return nodes.map(({ parent, ...l }) => ({ ...l, parentId: parent?.id ?? null }));
     },
   });
-}
-
-// The organization's labelManagementRole against the viewer's workspace role.
-export function useCanManageProjectLabels() {
-  const { workspaceRole } = usePermissions();
-  const settings = useQuery({
-    queryKey: ['projectLabelManagement'],
-    queryFn: async () => {
-      const { organization } = await gqlRequest(LabelManagementQuery);
-      const role = (organization.securitySettings as { labelManagementRole?: unknown })
-        .labelManagementRole;
-      return typeof role === 'string' ? role : undefined;
-    },
-  });
-  return canManageProjectLabels(workspaceRole, settings.data);
 }
 
 // Creates, updates or deletes a project label, then refreshes the label list.
