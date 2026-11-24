@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import {
   type FlatItem,
 } from '@/utils/list';
 import { useListKeyboard } from '@/hooks/useListKeyboard';
+import { rememberListOrder } from '@/utils/issueNavigation';
 import { useDndSensors } from '@/lib/dnd';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
@@ -48,7 +49,7 @@ export function ListBody({
   const subgrouped = grouped && settings.subgroup !== 'none';
   // Everything derived from the issues and the Display settings, computed only when
   // they change, not on every key press, selection change or drag.
-  const { items, order, maps, properties } = useMemo(() => {
+  const { items, rows, maps, properties } = useMemo(() => {
     const sorted = sortIssues(team.issues, settings.sort, team);
     const groups = buildGroups(team, settings.group);
     const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
@@ -61,11 +62,17 @@ export function ListBody({
     });
     return {
       items,
-      order: items.flatMap((it) => (it.kind === 'row' ? [it.issue.id] : [])),
+      rows: items.flatMap((it) =>
+        it.kind === 'row' ? [{ id: it.issue.id, identifier: it.issue.identifier }] : [],
+      ),
       maps: buildMaps(team),
       properties: listRowProperties(settings.properties, cyclesVisible(team)),
     };
   }, [team, settings, subgrouped, collapsed.values]);
+
+  const order = useMemo(() => rows.map((r) => r.id), [rows]);
+  // The issue page and the peek panel move through this list's rows (previous / next).
+  useEffect(() => rememberListOrder(rows), [rows]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({

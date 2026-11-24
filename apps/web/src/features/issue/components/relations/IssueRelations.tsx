@@ -2,19 +2,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Link2, X } from 'lucide-react';
 import { RELATION_KIND_LABEL } from '../../utils/relations';
-import { issuePath } from '@/utils/paths';
+import { issuePathFromIdentifier } from '@/utils/issueNavigation';
 import {
   useCreateRelation,
   useDeleteRelation,
   useIssueRelationsQuery,
 } from '../../services/relations.service';
 import IssueRelationPicker from './IssueRelationPicker';
-
-// "MKT-42" → the issue page path.
-function pathOf(identifier: string): string {
-  const cut = identifier.lastIndexOf('-');
-  return issuePath(identifier.slice(0, cut), Number(identifier.slice(cut + 1)));
-}
 
 // The issue's relations as compact rows, in Linear's group order: blocked by,
 // blocks, related, duplicate of, duplicated by; each row names its kind. Adding and removing are offered only to someone who
@@ -71,7 +65,7 @@ export default function IssueRelations({
                   {RELATION_KIND_LABEL[g.kind]}
                 </span>
                 <Link
-                  href={pathOf(it.issue.identifier)}
+                  href={issuePathFromIdentifier(it.issue.identifier)}
                   className="flex min-w-0 flex-1 items-center gap-2"
                 >
                   <span className="shrink-0 text-xs text-muted-foreground">

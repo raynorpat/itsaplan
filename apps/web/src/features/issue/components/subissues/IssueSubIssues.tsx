@@ -6,14 +6,8 @@ import type { StateType, TeamDetail } from '@/types/team';
 import Avatar from '@/components/common/Avatar';
 import { PriorityIcon, StateIcon } from '@/components/common/issue/IssueIcons';
 import { useCreateIssue, useSubIssuesQuery } from '@/services/issues.service';
-import { issuePath } from '@/utils/paths';
+import { issuePathFromIdentifier } from '@/utils/issueNavigation';
 import { subIssueInput, subIssueProgress } from '../../utils/subIssues';
-
-// "MKT-42" → the issue page path.
-function pathOf(identifier: string): string {
-  const cut = identifier.lastIndexOf('-');
-  return issuePath(identifier.slice(0, cut), Number(identifier.slice(cut + 1)));
-}
 
 // The issue's sub-issues, as in Linear: a "Sub-issues 2/5" header, one compact row per
 // sub-issue opening its page, and an inline "+ Add sub-issue" for someone who can edit
@@ -77,7 +71,7 @@ export default function IssueSubIssues({
           {children.map((c) => (
             <li key={c.id}>
               <Link
-                href={pathOf(c.identifier)}
+                href={issuePathFromIdentifier(c.identifier)}
                 className="flex h-8 items-center gap-2 rounded-md px-1.5 text-sm hover:bg-accent/50"
               >
                 <PriorityIcon priority={c.priority} className="shrink-0" />

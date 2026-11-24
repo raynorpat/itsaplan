@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EmptyState } from '@/components/common/page/EmptyState';
 import { Button } from '@/components/ui/button';
 import { useListKeyboard } from '@/hooks/useListKeyboard';
+import { rememberListOrder } from '@/utils/issueNavigation';
 import { issuePath } from '@/utils/paths';
 import { useMyIssues } from '../services/myIssues.service';
 import { groupByStateType, type MyIssuesTab } from '../utils/myIssues';
@@ -36,13 +37,17 @@ export default function MyIssuesList({
   );
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const groups = useMemo(() => groupByStateType(issues), [issues]);
-  const order = useMemo(
+  const rows = useMemo(
     () =>
-      tab === 'activity'
-        ? issues.map((i) => i.id)
-        : groups.flatMap((g) => (collapsed.has(g.type) ? [] : g.issues.map((i) => i.id))),
+      (tab === 'activity'
+        ? issues
+        : groups.flatMap((g) => (collapsed.has(g.type) ? [] : g.issues))
+      ).map((i) => ({ id: i.id, identifier: i.identifier })),
     [tab, issues, groups, collapsed],
   );
+  const order = useMemo(() => rows.map((r) => r.id), [rows]);
+  // The issue page moves through these rows (previous / next).
+  useEffect(() => rememberListOrder(rows), [rows]);
   const { focused } = useListKeyboard({
     order,
     onOpen: (id) => {

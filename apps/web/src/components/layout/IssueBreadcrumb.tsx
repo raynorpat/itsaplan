@@ -1,13 +1,8 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { issuePath, teamPath } from '@/utils/paths';
+import { teamPath } from '@/utils/paths';
+import { issuePathFromIdentifier } from '@/utils/issueNavigation';
 import { useSubIssuesQuery } from '@/services/issues.service';
-
-// "MKT-42" → the issue page path.
-function pathOf(identifier: string): string {
-  const cut = identifier.lastIndexOf('-');
-  return issuePath(identifier.slice(0, cut), Number(identifier.slice(cut + 1)));
-}
 
 // The header title on an issue page: team name › parent identifier (for a
 // sub-issue) › issue identifier.
@@ -35,7 +30,7 @@ export default function IssueBreadcrumb({
       {parent && (
         <>
           <Link
-            href={pathOf(parent.identifier)}
+            href={issuePathFromIdentifier(parent.identifier)}
             title={parent.title}
             className="shrink-0 text-muted-foreground hover:text-foreground"
           >
