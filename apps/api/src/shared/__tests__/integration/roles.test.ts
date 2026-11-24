@@ -1,36 +1,32 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { db, teamMember } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import {
+  addMember,
+  createIssue,
+  createTeam,
+  makePrivate,
+  signUpAs,
+} from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
-import { setWorkspaceRole, type WorkspaceRole } from '../../access';
 
 // Linear's access model: workspace roles (owner, admin, member, guest), public and
 // private teams, and team owners. Owners, admins and members see and work in every
 // public team and their private teams; guests only their teams. Team management
 // needs a team owner or a workspace admin, or any member when the team has no owner.
 
-async function user(role: WorkspaceRole): Promise<TestUser & { api: Api }> {
-  const u = await signUpTestUser();
-  await setWorkspaceRole(u.userId, role);
-  return { ...u, api: authedApi(u.cookie) };
-}
-
-async function addToTeam(owner: Api, teamKey: string, who: TestUser) {
-  await owner.teams({ teamKey: teamKey }).members.post({ userId: who.userId });
-}
+const code = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
+  res.body.errors?.[0]?.extensions?.code;
+const readIssue = (who: TestUser, id: string) =>
+  gql({ cookie: who.cookie }, `{ issue(id: "${id}") { id } }`);
 
 async function setup() {
   const o = await signUpTestUser({ name: 'Owner' });
-  const owner = authedApi(o.cookie);
-  await owner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = (await owner.teams({ teamKey: 'MKT' }).get()).data!;
-  const stateId = view.states[0]!.id;
-  const issue = (await owner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task' }))
-    .data!;
-  return { o, owner, stateId, issueId: issue.id, teamId: view.team.id };
+  const teamId = (await createTeam(o, { key: 'MKT', name: 'Marketing' })).team.id;
+  const issue = await createIssue(o, { teamId, title: 'Task' });
+  return { o, teamId, issueId: issue.id };
 }
 
 describe('workspace roles and team visibility', () => {
@@ -40,66 +36,78 @@ describe('workspace roles and team visibility', () => {
 
   it('members work in public teams without joining', async () => {
     const { issueId } = await setup();
-    const member = await user('member');
-    expect((await member.api.issues({ issueId }).get()).status).toBe(200);
-    const comment = await member.api.issues({ issueId }).comments.post({ body: 'Hi' } as never);
-    expect(comment.status).toBe(201);
+    const member = await signUpAs('member');
+    expect((await readIssue(member, issueId)).body.errors).toBeUndefined();
+    const comment = await gql(
+      { cookie: member.cookie },
+      `mutation { commentCreate(input: { issueId: "${issueId}", body: "Hi" }) { success } }`,
+    );
+    expect(comment.body.errors).toBeUndefined();
   });
 
   it('private teams are members only, even for admins', async () => {
-    const { owner, issueId } = await setup();
-    await owner.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' } as never);
-    const admin = await user('admin');
-    expect((await admin.api.issues({ issueId }).get()).status).toBe(404);
-    expect((await admin.api.issues({ issueId }).feed.get({ query: {} })).status).toBe(404);
+    const { o, issueId } = await setup();
+    await makePrivate(o, 'MKT');
+    const admin = await signUpAs('admin');
+    expect(code(await readIssue(admin, issueId))).toBe('ENTITY_NOT_FOUND');
     const doc = await gql(
       { cookie: admin.cookie },
       `{ issue(id: "${issueId}") { id } documents { nodes { id } } }`,
     );
-    expect(doc.body.errors?.[0]?.extensions?.code).toBe('ENTITY_NOT_FOUND');
-    await addToTeam(owner, 'MKT', admin);
-    expect((await admin.api.issues({ issueId }).get()).status).toBe(200);
+    expect(code(doc)).toBe('ENTITY_NOT_FOUND');
+    await addMember(o, 'MKT', admin.userId);
+    expect((await readIssue(admin, issueId)).body.errors).toBeUndefined();
   });
 
   it('guests see only their teams', async () => {
-    const { owner, issueId } = await setup();
-    await owner.teams.post({ key: 'OPS', name: 'Operations' });
-    const guest = await user('guest');
-    await addToTeam(owner, 'OPS', guest);
-    expect((await guest.api.issues({ issueId }).get()).status).toBe(404);
-    expect((await guest.api.teams({ teamKey: 'MKT' }).get()).status).toBe(404);
-    expect((await guest.api.teams({ teamKey: 'OPS' }).get()).status).toBe(200);
-    const teams = (await guest.api.teams.get({ query: {} })).data!.map((t) => t.key);
-    expect(teams).toEqual(['OPS']);
+    const { o, issueId } = await setup();
+    await createTeam(o, { key: 'OPS', name: 'Operations' });
+    const guest = await signUpAs('guest');
+    await addMember(o, 'OPS', guest.userId);
+    expect(code(await readIssue(guest, issueId))).toBe('ENTITY_NOT_FOUND');
+    expect(code(await gql({ cookie: guest.cookie }, '{ team(id: "MKT") { id } }'))).toBe(
+      'ENTITY_NOT_FOUND',
+    );
+    expect((await gql({ cookie: guest.cookie }, '{ team(id: "OPS") { id } }')).body.errors).toBe(
+      undefined,
+    );
+    const teams = await gql({ cookie: guest.cookie }, '{ teams { nodes { key } } }');
+    expect(teams.body.data).toEqual({ teams: { nodes: [{ key: 'OPS' }] } });
   });
 
   it('team management needs a team owner or an admin', async () => {
-    const { o, owner, teamId } = await setup();
-    const member = await user('member');
-    await addToTeam(owner, 'MKT', member);
-    const create = (api: Api, name: string) =>
-      api.teams({ teamKey: 'MKT' }).states.post({ name, stateType: 'started' } as never);
-    expect((await create(member.api, 'Review')).status).toBe(403);
-    const admin = await user('admin');
-    expect((await create(admin.api, 'QA')).status).toBe(201);
+    const { o, teamId } = await setup();
+    const member = await signUpAs('member');
+    await addMember(o, 'MKT', member.userId);
+    const create = (who: TestUser, name: string) =>
+      gql(
+        { cookie: who.cookie },
+        `mutation { workflowStateCreate(input: { teamId: "${teamId}", name: "${name}", type: "started", color: "#000000" }) { success } }`,
+      );
+    expect(code(await create(member, 'Review'))).toBe('FORBIDDEN');
+    const admin = await signUpAs('admin');
+    expect((await create(admin, 'QA')).body.errors).toBeUndefined();
     await db
       .update(teamMember)
       .set({ owner: false })
       .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, o.userId)));
-    expect((await create(member.api, 'Review')).status).toBe(201);
+    expect((await create(member, 'Review')).body.errors).toBeUndefined();
   });
 
   it('workspace actions follow the role table', async () => {
-    await setup();
-    const guest = await user('guest');
-    expect((await guest.api.teams.post({ key: 'GST', name: 'Guests' })).status).toBe(403);
-    const member = await user('member');
-    const hook = (api: Api) =>
-      api
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Issue'] });
-    expect((await hook(member.api)).status).toBe(403);
-    const admin = await user('admin');
-    expect((await hook(admin.api)).status).toBe(201);
+    const { teamId } = await setup();
+    const guest = await signUpAs('guest');
+    const team = await gql(
+      { cookie: guest.cookie },
+      'mutation { teamCreate(input: { key: "GST", name: "Guests" }) { success } }',
+    );
+    expect(code(team)).toBe('FORBIDDEN');
+    const hook = (who: TestUser) =>
+      gql(
+        { cookie: who.cookie },
+        `mutation { webhookCreate(input: { url: "https://example.com/h", resourceTypes: ["Issue"], teamId: "${teamId}" }) { success } }`,
+      );
+    expect(code(await hook(await signUpAs('member')))).toBe('FORBIDDEN');
+    expect((await hook(await signUpAs('admin'))).body.errors).toBeUndefined();
   });
 });

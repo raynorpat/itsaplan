@@ -22,6 +22,14 @@ describe('graphql endpoint', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects an invalid session cookie with 401', async () => {
+    const res = await gql(
+      { cookie: 'better-auth.session_token=not-a-real-token' },
+      '{ viewer { id } }',
+    );
+    expect(res.status).toBe(401);
+  });
+
   it('resolves the viewer through the Linear SDK with a raw API key', async () => {
     const user = await signUpTestUser({ name: 'Ada' });
     const viewer = await linearClient(await createApiKey(user.cookie)).viewer;

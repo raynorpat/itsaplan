@@ -1,32 +1,32 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import {
+  createIssue,
+  createTeam,
+  gqlData,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
+import { gql } from '../../../__tests__/helpers/linear';
 
-// Full integration flow: a real session against the real (test) database.
-// Requires the test DB to be up and migrated:
-//   cp .env.test.example .env.test
-//   bun run db:migrate:test
-// See apps/api/AGENTS.md "Tests" for the setup.
-//
-// The teams feature owns five routes: list, create, copy, the full work-items
-// view, and delete. createTeam seeds five default columns (one per state type)
-// and a default "Member" role; it seeds no issue types or assignees.
+// Teams over GraphQL: teamCreate (key rules, seeded states), the teams list,
+// teamUpdate, team(id), teamDelete and the auto-archive setting. Visibility by role
+// is in shared/__tests__/integration/roles.test.ts.
 
-// createTeam seeds one column per state type; a new team always has these
-// five and nothing else.
-const DEFAULT_COLUMN_NAMES = ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'];
+const DEFAULT_STATE_NAMES = ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'];
 
-// Registers a user and returns a Treaty client acting as them.
-async function signUpClient() {
-  const user = await signUpTestUser();
-  return { user, api: authedApi(user.cookie) };
-}
-
-async function viewOf(client: Api, teamKey: string) {
-  return client.teams({ teamKey }).get();
-}
+const code = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
+  res.body.errors?.[0]?.extensions?.code;
+const create = (who: TestUser, input: string) =>
+  gql(
+    { cookie: who.cookie },
+    `mutation { teamCreate(input: ${input}) { success team { id key name description } } }`,
+  );
+const teamKeys = async (who: TestUser) =>
+  (await gqlData(who, '{ teams { nodes { key } } }')).teams.nodes.map(
+    (t: { key: string }) => t.key,
+  );
 
 describe('teams', () => {
   beforeEach(async () => {
@@ -34,259 +34,156 @@ describe('teams', () => {
   });
 
   describe('create', () => {
-    it('stores the key uppercased', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams.post({ key: 'ops', name: 'Operations' });
-      expect(res.status).toBe(201);
-      expect(res.data!.key).toBe('OPS');
+    it('stores the key uppercased and seeds the five default states', async () => {
+      const owner = await signUpTestUser();
+      const res = await create(owner, '{ key: "ops", name: "Operations" }');
+      expect(res.body.errors).toBeUndefined();
+      expect((res.body.data as { teamCreate: { team: { key: string } } }).teamCreate.team.key).toBe(
+        'OPS',
+      );
+      expect((await teamView(owner, 'OPS')).states.map((s) => s.name)).toEqual(DEFAULT_STATE_NAMES);
     });
 
-    it('rejects a key that is not letters and digits starting with a letter', async () => {
-      const { api } = await signUpClient();
-      for (const key of ['A-B', '1AB', 'A B']) {
-        expect((await api.teams.post({ key, name: 'X' })).status).toBe(400);
-      }
-    });
-
-    it('creates a team and lists it for its owner', async () => {
-      const { api } = await signUpClient();
-
-      const created = await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      expect(created.status).toBe(201);
-      expect(created.data).toMatchObject({ key: 'MKT', name: 'Marketing', description: '' });
-      expect(typeof created.data?.id).toBe('string');
-
-      const list = await api.teams.get();
-      expect(list.status).toBe(200);
-      expect(list.data).toHaveLength(1);
-      // The list reports the caller's role in each team; the creator is owner.
-      expect(list.data?.[0]).toMatchObject({ key: 'MKT', name: 'Marketing', role: 'owner' });
-    });
-
-    it('stores a provided description', async () => {
-      const { api } = await signUpClient();
-      const created = await api.teams.post({
-        key: 'MKT',
-        name: 'Marketing',
-        description: 'Growth work',
+    it('stores the name and description and makes the creator a team owner', async () => {
+      const owner = await signUpTestUser();
+      const res = await create(
+        owner,
+        '{ key: "MKT", name: "Marketing", description: "Growth work" }',
+      );
+      expect(res.body.data).toMatchObject({
+        teamCreate: { team: { key: 'MKT', name: 'Marketing', description: 'Growth work' } },
       });
-      expect(created.data).toMatchObject({ description: 'Growth work' });
+      expect((await teamView(owner, 'MKT')).members).toEqual([
+        { id: expect.any(String), owner: true, userId: owner.userId },
+      ]);
     });
 
-    it('seeds the five default columns', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.status).toBe(200);
-      expect(view.data?.states.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
+    it('rejects a malformed or empty key and an empty name', async () => {
+      const owner = await signUpTestUser();
+      for (const key of ['A-B', '1AB', 'A B', ''])
+        expect(code(await create(owner, `{ key: "${key}", name: "X" }`))).toBe('INVALID_INPUT');
+      expect(code(await create(owner, '{ key: "MKT", name: "" }'))).toBe('INVALID_INPUT');
+      expect(await teamKeys(owner)).toEqual([]);
     });
 
-    it('rejects an empty key', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams.post({ key: '', name: 'Marketing' });
-      expect(res.status).toBe(400);
-    });
-
-    it('rejects an empty name', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams.post({ key: 'MKT', name: '' });
-      expect(res.status).toBe(400);
-    });
-
-    it('rejects a missing name', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams.post({ key: 'MKT' } as unknown as {
-        key: string;
-        name: string;
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it('rejects a duplicate key with 409', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const dup = await api.teams.post({ key: 'MKT', name: 'Marketing Two' });
-      expect(dup.status).toBe(409);
-    });
-
-    it('requires a session', async () => {
-      // The anonymous client carries no cookie, so the session gate rejects it.
-      const anon = authedApi('');
-      const res = await anon.teams.post({ key: 'MKT', name: 'Marketing' });
-      expect(res.status).toBe(401);
+    it('rejects a duplicate key with CONFLICT', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      expect(code(await create(owner, '{ key: "MKT", name: "Marketing Two" }'))).toBe('CONFLICT');
     });
   });
 
   describe('list', () => {
-    it('returns only the teams the user is a member of, ordered by key', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'OPS', name: 'Operations' });
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const list = await api.teams.get();
-      expect(list.status).toBe(200);
-      expect(list.data?.map((p) => p.key)).toEqual(['MKT', 'OPS']);
+    it('lists the teams ordered by key', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'OPS', name: 'Operations' });
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      expect(await teamKeys(owner)).toEqual(['MKT', 'OPS']);
     });
 
-    it('does not show a team to a non-member', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpWithRole('guest');
-      const list = await outsider.api.teams.get();
-      expect(list.status).toBe(200);
-      expect(list.data).toHaveLength(0);
+    it('lists public teams a member has not joined, without management', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const other = await signUpAs('member');
+      expect(await teamKeys(other)).toEqual(['MKT']);
+      expect((await teamView(other, 'MKT')).members.map((m) => m.userId)).not.toContain(
+        other.userId,
+      );
+      const rename = await gql(
+        { cookie: other.cookie },
+        'mutation { teamUpdate(id: "MKT", input: { name: "Hijacked" }) { success } }',
+      );
+      expect(code(rename)).toBe('FORBIDDEN');
     });
 
-    it('lists public teams the caller has not joined, with a null role', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-      const other = await signUpClient();
+    it('does not show a team to a guest outside it', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      expect(await teamKeys(await signUpAs('guest'))).toEqual([]);
+    });
+  });
 
-      const list = await other.api.teams.get();
-      expect(list.data?.map((t) => ({ key: t.key, role: t.role, canManage: t.canManage }))).toEqual(
-        [{ key: 'MKT', role: null, canManage: false }],
+  describe('update and read', () => {
+    it("updates an owner's team name and description, leaving the key", async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const res = await gql(
+        { cookie: owner.cookie },
+        'mutation { teamUpdate(id: "MKT", input: { name: "Growth", description: "Growth work" }) { success } }',
+      );
+      expect(res.body.errors).toBeUndefined();
+      const team = await gqlData(owner, '{ team(id: "MKT") { key name description } }');
+      expect(team.team).toEqual({ key: 'MKT', name: 'Growth', description: 'Growth work' });
+    });
+
+    it('answers an unknown team, or one a guest is not in, with ENTITY_NOT_FOUND', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      expect(code(await gql({ cookie: owner.cookie }, '{ team(id: "NOPE") { id } }'))).toBe(
+        'ENTITY_NOT_FOUND',
+      );
+      const guest = await signUpAs('guest');
+      expect(code(await gql({ cookie: guest.cookie }, '{ team(id: "MKT") { id } }'))).toBe(
+        'ENTITY_NOT_FOUND',
       );
     });
   });
 
-  describe('update', () => {
-    it("updates an owner's team name and description, leaving the key", async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api
-        .teams({ teamKey: 'MKT' })
-        .patch({ name: 'Growth', description: 'Growth work' });
-      expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({ key: 'MKT', name: 'Growth', description: 'Growth work' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.data?.team).toMatchObject({
-        key: 'MKT',
-        name: 'Growth',
-        description: 'Growth work',
-      });
-    });
-
-    it('denies a member who does not manage the team', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api.teams({ teamKey: 'MKT' }).patch({ name: 'Hijacked' });
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe('view', () => {
-    it('returns the full work-items view for a member', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const view = await viewOf(api, 'MKT');
-      expect(view.status).toBe(200);
-      expect(view.data?.team).toMatchObject({ key: 'MKT', name: 'Marketing' });
-      expect(view.data?.states.map((c) => c.name)).toEqual(DEFAULT_COLUMN_NAMES);
-      // An owner's viewer reports the team owner role and management.
-      expect(view.data?.viewer).toMatchObject({
-        role: 'owner',
-        workspaceRole: 'owner',
-        canManage: true,
-      });
-    });
-
-    it('returns 404 for an unknown team', async () => {
-      const { api } = await signUpClient();
-      const res = await viewOf(api, 'NOPE');
-      expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpWithRole('guest');
-      const res = await viewOf(outsider.api, 'MKT');
-      expect(res.status).toBe(404);
-    });
-  });
-
   describe('delete', () => {
-    it('deletes a team and its scoped entities for an owner', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-      const backlog = (await viewOf(api, 'MKT')).data!.states.find((c) => c.name === 'Backlog')!;
-      await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: backlog.id, title: 'Task' });
-
-      const del = await api.teams({ teamKey: 'MKT' }).delete();
-      expect(del.status).toBe(204);
-
-      // The team and everything under it are gone: the view 404s and the list
-      // is empty.
-      expect((await viewOf(api, 'MKT')).status).toBe(404);
-      expect((await api.teams.get()).data).toHaveLength(0);
+    it('deletes a team and its issues for an owner', async () => {
+      const owner = await signUpTestUser();
+      const { team } = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const issue = await createIssue(owner, { teamId: team.id, title: 'Task' });
+      const res = await gql(
+        { cookie: owner.cookie },
+        `mutation { teamDelete(id: "${team.id}") { success } }`,
+      );
+      expect(res.body.errors).toBeUndefined();
+      expect(await teamKeys(owner)).toEqual([]);
+      expect(code(await gql({ cookie: owner.cookie }, `{ issue(id: "${issue.id}") { id } }`))).toBe(
+        'ENTITY_NOT_FOUND',
+      );
     });
 
-    it('returns 404 for an unknown team', async () => {
-      const { api } = await signUpClient();
-      const res = await api.teams({ teamKey: 'NOPE' }).delete();
-      expect(res.status).toBe(404);
-    });
-
-    it('denies a non-member with 403', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpWithRole('guest');
-      const res = await outsider.api.teams({ teamKey: 'MKT' }).delete();
-      expect(res.status).toBe(404);
+    it('refuses an unknown team, a guest and a member who does not manage it', async () => {
+      const owner = await signUpTestUser();
+      const { team } = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const del = (who: TestUser, id: string) =>
+        gql({ cookie: who.cookie }, `mutation { teamDelete(id: "${id}") { success } }`);
+      expect(code(await del(owner, crypto.randomUUID()))).toBe('ENTITY_NOT_FOUND');
+      expect(code(await del(await signUpAs('guest'), team.id))).toBe('ENTITY_NOT_FOUND');
+      expect(code(await del(await signUpAs('member'), team.id))).toBe('FORBIDDEN');
+      expect(await teamKeys(owner)).toEqual(['MKT']);
     });
   });
 
-  describe('settings', () => {
-    it("defaults a new team to Linear's six-month auto-archive period", async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const res = await api.teams({ teamKey: 'MKT' }).settings.get();
-      expect(res.status).toBe(200);
-      expect(res.data).toMatchObject({ autoArchivePeriod: 6 });
+  describe('auto-archive', () => {
+    it("defaults a new team to Linear's six-month period, turns off with 0 and refuses other values", async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const period = async () =>
+        (await gqlData(owner, '{ team(id: "MKT") { autoArchivePeriod } }')).team.autoArchivePeriod;
+      expect(await period()).toBe(6);
+      const set = (value: number) =>
+        gql(
+          { cookie: owner.cookie },
+          `mutation { teamUpdate(id: "MKT", input: { autoArchivePeriod: ${value} }) { success } }`,
+        );
+      expect((await set(0)).body.errors).toBeUndefined();
+      expect(await period()).toBe(0);
+      expect(code(await set(2))).toBe('INVALID_INPUT');
+      expect(await period()).toBe(0);
     });
 
-    it('lets an owner set and read back the auto-archive period', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const patch = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 3 });
-      expect(patch.status).toBe(200);
-      expect(patch.data?.autoArchivePeriod).toBe(3);
-
-      const get = await api.teams({ teamKey: 'MKT' }).settings.get();
-      expect(get.data?.autoArchivePeriod).toBe(3);
-    });
-
-    it('turns auto-archive off with 0 and refuses other values', async () => {
-      const { api } = await signUpClient();
-      await api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const off = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 0 });
-      expect(off.data?.autoArchivePeriod).toBe(0);
-      const odd = await api.teams({ teamKey: 'MKT' }).settings.patch({ autoArchivePeriod: 2 });
-      expect(odd.status).toBe(400);
-    });
-
-    it('denies writing settings to a non-owner (owner-only)', async () => {
-      const owner = await signUpClient();
-      await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-
-      const outsider = await signUpClient();
-      const res = await outsider.api
-        .teams({ teamKey: 'MKT' })
-        .settings.patch({ autoArchivePeriod: 3 });
-      expect(res.status).toBe(403);
+    it('refuses the setting to a member who does not manage the team', async () => {
+      const owner = await signUpTestUser();
+      await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+      const member = await signUpAs('member');
+      const res = await gql(
+        { cookie: member.cookie },
+        'mutation { teamUpdate(id: "MKT", input: { autoArchivePeriod: 3 }) { success } }',
+      );
+      expect(code(res)).toBe('FORBIDDEN');
     });
   });
 });

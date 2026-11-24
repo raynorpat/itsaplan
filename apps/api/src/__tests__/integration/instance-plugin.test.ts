@@ -3,7 +3,8 @@ import { provideInstanceHandlers } from '@repo/auth';
 import { app } from '../../app';
 import { registerInstanceHandlers } from '../../instance/handlers';
 import { authedApi } from '../helpers/app';
-import { signUpTestUser } from '../helpers/auth';
+import { signUpTestUser, type TestUser } from '../helpers/auth';
+import { addMember, createTeam, teamView } from '../helpers/graphql';
 import { resetDb } from '../helpers/db';
 import { signUpWithRole } from '../helpers/roles';
 import { oauthAppsHandlers } from '../../oauth/apps';
@@ -29,17 +30,16 @@ function call(path: string, init: { cookie?: string; body?: unknown } = {}) {
 
 async function setupTeam() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  const teamId = (await createTeam(owner, { key: 'MKT', name: 'Marketing' })).team.id;
   const member = await signUpWithRole('member', { name: 'Ann' });
-  await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId, owner: false });
-  return { owner, asOwner, teamId, member };
+  await addMember(owner, teamId, member.userId);
+  return { owner, asOwner: owner, teamId, member };
 }
 
-const roleOf = async (asOwner: ReturnType<typeof authedApi>, userId: string) =>
-  (await asOwner.teams({ teamKey: 'MKT' }).members.get()).data?.find((m) => m.userId === userId)
-    ?.role;
+const roleOf = async (asOwner: TestUser, userId: string) => {
+  const found = (await teamView(asOwner, 'MKT')).members.find((m) => m.userId === userId);
+  return found ? (found.owner ? 'owner' : 'member') : undefined;
+};
 
 describe('instance plugin', () => {
   beforeEach(async () => {
@@ -91,7 +91,7 @@ describe('instance plugin', () => {
   it('refuses the owner change to a non-manager, a guest, oneself and without a session', async () => {
     const { owner, asOwner, teamId, member } = await setupTeam();
     const other = await signUpWithRole('member', { name: 'Ben' });
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: other.userId, owner: false });
+    await addMember(owner, teamId, other.userId);
 
     // A plain member of a team that has an owner does not manage it.
     const byMember = await call('team-owner', {

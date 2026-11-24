@@ -1,250 +1,152 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { db, teamMember, user } from '@repo/db';
+import { and, eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import {
+  addMember,
+  createTeam,
+  gqlData,
+  makePrivate,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
+import { gql } from '../../../__tests__/helpers/linear';
+import { createClient, install } from '../../../__tests__/helpers/oauth';
 
-// Integration coverage for the members feature: listing a team's members, making a
-// member a team owner (team managers only), and removing a member or leaving the
-// team. New members join through invites, so the tests add a second member by
-// creating and accepting an invite. Real sessions against the real (test)
-// database. See apps/api/AGENTS.md "Tests" for setup.
+// Team members over GraphQL: listing a team's memberships, removing a member or
+// leaving the team (teamMembershipDelete), and app users, whose memberships only
+// their install manages. Making a member a team owner is the instance plugin's
+// (instance-plugin.test.ts).
 
-type Actor = { user: TestUser; api: ReturnType<typeof authedApi> };
+const code = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
+  res.body.errors?.[0]?.extensions?.code;
 
-// Creates a team MKT owned by a fresh user and returns a Treaty client acting as
-// that owner. The first user in a reset DB is the workspace owner.
-async function setupOwner(): Promise<Actor> {
-  const user = await signUpTestUser();
-  const api = authedApi(user.cookie);
-  await api.teams.post({ key: 'MKT', name: 'Marketing' });
-  return { user, api };
+async function setupOwner() {
+  const owner = await signUpTestUser();
+  const teamId = (await createTeam(owner, { key: 'MKT', name: 'Marketing' })).team.id;
+  return { owner, teamId };
 }
 
-// Adds a fresh workspace member to MKT as a team owner or member by inviting them
-// and accepting on their behalf.
-async function addMember(owner: Actor, role: 'owner' | 'member' = 'member'): Promise<Actor> {
-  const user = await signUpTestUser();
-  await owner.api
-    .teams({ teamKey: 'MKT' })
-    .members.post({ userId: user.userId, owner: role === 'owner' });
-  const api = authedApi(user.cookie);
-  return { user, api };
+// Adds a fresh workspace member to MKT and returns them with their membership id.
+async function joinMkt(owner: TestUser) {
+  const member = await signUpTestUser();
+  const membershipId = await addMember(owner, 'MKT', member.userId);
+  return { member, membershipId };
 }
 
-describe('members', () => {
+const remove = (who: TestUser, membershipId: string) =>
+  gql(
+    { cookie: who.cookie },
+    `mutation { teamMembershipDelete(id: "${membershipId}") { success } }`,
+  );
+const memberIds = async (who: TestUser) =>
+  (await teamView(who, 'MKT')).members.map((m) => m.userId);
+const seesTeam = async (who: TestUser) =>
+  !(await gql({ cookie: who.cookie }, '{ team(id: "MKT") { id } }')).body.errors;
+
+describe('team members', () => {
   beforeEach(async () => {
     await resetDb();
   });
 
-  describe('list — GET /teams/:teamKey/members', () => {
-    it('lists the owner alone on a fresh team', async () => {
-      const owner = await setupOwner();
-
-      const res = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-
-      expect(res.status).toBe(200);
-      expect(res.data).toHaveLength(1);
-      expect(res.data?.[0]).toMatchObject({
-        userId: owner.user.userId,
-        email: owner.user.email,
-        role: 'owner',
-      });
-    });
-
-    it('lists an added member, ordered by join time, for any member', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-
-      const res = await member.api.teams({ teamKey: 'MKT' }).members.get();
-
-      expect(res.status).toBe(200);
-      expect(res.data?.map((m) => m.userId)).toEqual([owner.user.userId, member.user.userId]);
-      expect(res.data?.find((m) => m.userId === member.user.userId)).toMatchObject({
-        role: 'member',
-      });
-    });
-
-    it('hides a private team from a non-member with 404', async () => {
-      const owner = await setupOwner();
-      await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
-      const outsider = authedApi((await signUpTestUser()).cookie);
-
-      const res = await outsider.teams({ teamKey: 'MKT' }).members.get();
-      expect(res.status).toBe(404);
-    });
+  it('lists the owner alone on a fresh team, as a team owner', async () => {
+    const { owner } = await setupOwner();
+    expect((await teamView(owner, 'MKT')).members).toEqual([
+      { id: expect.any(String), owner: true, userId: owner.userId },
+    ]);
   });
 
-  describe('team owner — PATCH /teams/:teamKey/members/:userId', () => {
-    it('promotes a member to team owner', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: member.user.userId })
-        .patch({ role: 'owner' });
-      expect(res.status).toBe(204);
-
-      const list = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-      const row = list.data?.find((m) => m.userId === member.user.userId);
-      expect(row).toMatchObject({ role: 'owner' });
-    });
-
-    it('demotes a team owner to member', async () => {
-      const owner = await setupOwner();
-      const other = await addMember(owner, 'owner');
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: other.user.userId })
-        .patch({ role: 'member' });
-      expect(res.status).toBe(204);
-
-      const list = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-      expect(list.data?.find((m) => m.userId === other.user.userId)).toMatchObject({
-        role: 'member',
-      });
-    });
-
-    it('returns 404 for a userId that is not a member', async () => {
-      const owner = await setupOwner();
-      const stranger = await signUpTestUser();
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: stranger.userId })
-        .patch({ role: 'member' });
-      expect(res.status).toBe(404);
-    });
-
-    it('refuses to change your own role with 400', async () => {
-      const owner = await setupOwner();
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: owner.user.userId })
-        .patch({ role: 'member' });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 400 when role is missing from the body', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: member.user.userId })
-        // @ts-expect-error — role is required
-        .patch({});
-      expect(res.status).toBe(400);
-    });
-
-    it('denies a member who does not manage the team with 403', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-      const other = await addMember(owner);
-
-      const res = await member.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: other.user.userId })
-        .patch({ role: 'owner' });
-      expect(res.status).toBe(403);
-    });
+  it('lists an added member to any member', async () => {
+    const { owner } = await setupOwner();
+    const { member } = await joinMkt(owner);
+    const members = (await teamView(member, 'MKT')).members;
+    expect(members.map((m) => m.userId).sort()).toEqual([owner.userId, member.userId].sort());
+    expect(members.find((m) => m.userId === member.userId)?.owner).toBe(false);
   });
 
-  describe('remove — DELETE /teams/:teamKey/members/:userId', () => {
-    it('lets an owner remove a member, revoking their access to a private team', async () => {
-      const owner = await setupOwner();
-      await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
-      const member = await addMember(owner);
+  it('hides a private team from a non-member', async () => {
+    const { owner } = await setupOwner();
+    await makePrivate(owner, 'MKT');
+    const outsider = await signUpTestUser();
+    const res = await gql(
+      { cookie: outsider.cookie },
+      '{ team(id: "MKT") { memberships { nodes { id } } } }',
+    );
+    expect(code(res)).toBe('ENTITY_NOT_FOUND');
+  });
 
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: member.user.userId })
-        .delete();
-      expect(res.status).toBe(204);
+  it('lets an owner remove a member, revoking their access to a private team', async () => {
+    const { owner } = await setupOwner();
+    await makePrivate(owner, 'MKT');
+    const { member, membershipId } = await joinMkt(owner);
+    expect((await remove(owner, membershipId)).body.errors).toBeUndefined();
+    expect(await memberIds(owner)).toEqual([owner.userId]);
+    expect(await seesTeam(member)).toBe(false);
+  });
 
-      const list = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-      expect(list.data?.map((m) => m.userId)).toEqual([owner.user.userId]);
+  it('lets a member leave the team', async () => {
+    const { owner } = await setupOwner();
+    await makePrivate(owner, 'MKT');
+    const { member, membershipId } = await joinMkt(owner);
+    expect((await remove(member, membershipId)).body.errors).toBeUndefined();
+    expect(await seesTeam(member)).toBe(false);
+  });
 
-      // The removed member can no longer reach the team.
-      const gone = await member.api.teams({ teamKey: 'MKT' }).get();
-      expect(gone.status).toBe(404);
-    });
+  it('refuses a member or an outsider removing another member', async () => {
+    const { owner } = await setupOwner();
+    const { member: a } = await joinMkt(owner);
+    const { member: b, membershipId } = await joinMkt(owner);
+    expect(code(await remove(a, membershipId))).toBe('FORBIDDEN');
+    const outsider = await signUpTestUser();
+    expect(code(await remove(outsider, membershipId))).toBe('FORBIDDEN');
+    expect(await memberIds(owner)).toContain(b.userId);
+  });
 
-    it('lets a member remove themselves (leave the team)', async () => {
-      const owner = await setupOwner();
-      await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
-      const member = await addMember(owner);
+  it('answers an unknown membership with ENTITY_NOT_FOUND', async () => {
+    const { owner } = await setupOwner();
+    expect(code(await remove(owner, crypto.randomUUID()))).toBe('ENTITY_NOT_FOUND');
+  });
 
-      const res = await member.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: member.user.userId })
-        .delete();
-      expect(res.status).toBe(204);
+  it('lets the last team owner leave; the members then manage the team', async () => {
+    const { owner, teamId } = await setupOwner();
+    const { member } = await joinMkt(owner);
+    const own = (await teamView(owner, 'MKT')).members.find((m) => m.userId === owner.userId)!;
+    expect((await remove(owner, own.id)).body.errors).toBeUndefined();
+    const created = await gql(
+      { cookie: member.cookie },
+      `mutation { workflowStateCreate(input: { teamId: "${teamId}", name: "Review", type: "started", color: "#000000" }) { success } }`,
+    );
+    expect(created.body.errors).toBeUndefined();
+  });
 
-      const gone = await member.api.teams({ teamKey: 'MKT' }).get();
-      expect(gone.status).toBe(404);
-    });
-
-    it('denies a member removing another member with 403', async () => {
-      const owner = await setupOwner();
-      const a = await addMember(owner);
-      const b = await addMember(owner);
-
-      const res = await a.api.teams({ teamKey: 'MKT' }).members({ userId: b.user.userId }).delete();
-      expect(res.status).toBe(403);
-
-      // b is still a member.
-      const list = await owner.api.teams({ teamKey: 'MKT' }).members.get();
-      expect(list.data?.map((m) => m.userId)).toContain(b.user.userId);
-    });
-
-    it('returns 404 when the userId is not a member', async () => {
-      const owner = await setupOwner();
-      const stranger = await signUpTestUser();
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: stranger.userId })
-        .delete();
-      expect(res.status).toBe(404);
-    });
-
-    it('lets the last team owner leave; the members then manage the team', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: owner.user.userId })
-        .delete();
-      expect(res.status).toBe(204);
-      const view = await member.api.teams({ teamKey: 'MKT' }).get();
-      expect(view.data?.viewer.canManage).toBe(true);
-    });
-
-    it('lets an owner leave when another owner remains', async () => {
-      const owner = await setupOwner();
-      await addMember(owner, 'owner');
-
-      const res = await owner.api
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: owner.user.userId })
-        .delete();
-      expect(res.status).toBe(204);
-    });
-
-    it('denies a non-member of a public team with 403', async () => {
-      const owner = await setupOwner();
-      const member = await addMember(owner);
-      const outsider = authedApi((await signUpTestUser()).cookie);
-
-      const res = await outsider
-        .teams({ teamKey: 'MKT' })
-        .members({ userId: member.user.userId })
-        .delete();
-      expect(res.status).toBe(403);
-    });
+  it("refuses removing or changing an app user's membership; only its install manages it", async () => {
+    const { owner, teamId } = await setupOwner();
+    const client = await createClient(owner.cookie, { clientCredentials: true });
+    await install(owner.cookie, client, { teamIds: [teamId], publicTeams: false });
+    const [row] = await db
+      .select({ id: teamMember.id, userId: teamMember.userId })
+      .from(teamMember)
+      .innerJoin(user, eq(user.id, teamMember.userId))
+      .where(and(eq(teamMember.teamId, teamId), eq(user.workspaceRole, 'app')));
+    expect(row).toBeTruthy();
+    const admin = await signUpTestUser();
+    await gqlData(
+      owner,
+      `mutation { userChangeRole(id: "${admin.userId}", role: admin) { success } }`,
+    );
+    const { member } = await joinMkt(owner);
+    for (const who of [owner, admin, member]) {
+      expect((await remove(who, row!.id)).body.errors?.length).toBeGreaterThan(0);
+    }
+    const update = await gql(
+      { cookie: owner.cookie },
+      `mutation { teamMembershipUpdate(id: "${row!.id}", input: { sortOrder: 1 }) { success } }`,
+    );
+    expect(update.body.errors?.length).toBeGreaterThan(0);
+    const still = await db
+      .select({ owner: teamMember.owner })
+      .from(teamMember)
+      .where(eq(teamMember.id, row!.id));
+    expect(still).toEqual([{ owner: false }]);
   });
 });

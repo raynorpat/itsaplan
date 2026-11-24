@@ -195,4 +195,38 @@ describe('graphql labels', () => {
     );
     expect(JSON.stringify(onIssue.body.data)).toContain('Old');
   });
+  it("applies a workspace label to issues of two teams and refuses another team's label", async () => {
+    const { owner, teamId, client } = await setup();
+    await createTeam(owner, { key: 'OPS', name: 'Operations' });
+    const opsId = (await teamView(owner, 'OPS')).team.id;
+    const ws = (await (await client.createIssueLabel({ name: 'Security' })).issueLabel)!;
+    const opsLabel = (await (
+      await client.createIssueLabel({ name: 'ops', teamId: opsId })
+    ).issueLabel)!;
+    for (const id of [teamId, opsId]) {
+      const issue = (await (await client.createIssue({ teamId: id, title: 'x' })).issue)!;
+      await client.updateIssue(issue.id, { labelIds: [ws.id] });
+      expect((await client.issue(issue.id)).labelIds).toEqual([ws.id]);
+    }
+    const mktIssue = (await (await client.createIssue({ teamId, title: 'y' })).issue)!;
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { issueUpdate(id: "${mktIssue.id}", input: { labelIds: ["${opsLabel.id}"] }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+    expect((await client.issue(mktIssue.id)).labelIds).toEqual([]);
+  });
+
+  it('keeps a retired label on its issue through other edits', async () => {
+    const { teamId, client } = await setup();
+    const old = (await (await client.createIssueLabel({ name: 'old', teamId })).issueLabel)!;
+    const issue = (await (
+      await client.createIssue({ teamId, title: 'x', labelIds: [old.id] })
+    ).issue)!;
+    await client.issueLabelRetire(old.id);
+    await client.updateIssue(issue.id, { title: 'still labelled', labelIds: [old.id] });
+    const after = await client.issue(issue.id);
+    expect(after.title).toBe('still labelled');
+    expect(after.labelIds).toEqual([old.id]);
+  });
 });

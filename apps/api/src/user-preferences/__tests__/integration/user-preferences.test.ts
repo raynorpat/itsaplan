@@ -1,46 +1,54 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { api, authedApi } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { gqlData } from '../../../__tests__/helpers/graphql';
+import { gql } from '../../../__tests__/helpers/linear';
 
-// The account time zone is self-scoped: a user only ever reads and writes their own
-// row, so there is no team or permission wiring to cover. A read before any write
-// returns UTC instead of failing. The other interface preferences are kept in the
-// browser.
+// The account time zone (Linear's User.timezone) is self-scoped: a user reads and
+// writes only their own. A read before any write returns UTC.
 
-describe('user preferences', () => {
+const timezoneOf = async (who: TestUser) =>
+  (await gqlData(who, '{ viewer { timezone } }')).viewer.timezone as string;
+
+const setTimezone = (who: TestUser, timezone: string) =>
+  gql(
+    { cookie: who.cookie },
+    `mutation ($id: String!, $tz: String) { userUpdate(id: $id, input: { timezone: $tz }) { success } }`,
+    { id: who.userId, tz: timezone },
+  );
+
+describe('account time zone', () => {
   beforeEach(resetDb);
 
   it('returns UTC when nothing was saved', async () => {
-    const u = await signUpTestUser();
-    const res = await authedApi(u.cookie).account.preferences.get();
-    expect(res.status).toBe(200);
-    expect(res.data).toEqual({ timezone: 'UTC' });
+    expect(await timezoneOf(await signUpTestUser())).toBe('UTC');
   });
 
   it('saves the time zone and reads it back', async () => {
-    const client = authedApi((await signUpTestUser()).cookie);
-    const res = await client.account.preferences.patch({ timezone: 'Europe/Berlin' });
-    expect(res.status).toBe(200);
-    expect(res.data).toEqual({ timezone: 'Europe/Berlin' });
-    expect((await client.account.preferences.get()).data).toEqual({ timezone: 'Europe/Berlin' });
+    const u = await signUpTestUser();
+    const res = await setTimezone(u, 'Europe/Berlin');
+    expect(res.body.errors).toBeUndefined();
+    expect(await timezoneOf(u)).toBe('Europe/Berlin');
   });
 
   it('rejects an unknown timezone', async () => {
-    const client = authedApi((await signUpTestUser()).cookie);
-    const res = await client.account.preferences.patch({ timezone: 'Mars/Olympus' });
-    expect(res.status).toBe(400);
+    const u = await signUpTestUser();
+    const res = await setTimezone(u, 'Mars/Olympus');
+    expect(res.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
+    expect(await timezoneOf(u)).toBe('UTC');
   });
 
-  it('keeps each user on their own time zone', async () => {
-    const a = authedApi((await signUpTestUser()).cookie);
-    const b = authedApi((await signUpTestUser()).cookie);
-    await a.account.preferences.patch({ timezone: 'Asia/Tokyo' });
-    expect((await b.account.preferences.get()).data).toEqual({ timezone: 'UTC' });
-  });
-
-  it('rejects a request without a session', async () => {
-    expect((await api.account.preferences.get()).status).toBe(401);
-    expect((await api.account.preferences.patch({ timezone: 'UTC' })).status).toBe(401);
+  it("keeps each user on their own time zone and refuses changing someone else's", async () => {
+    const a = await signUpTestUser();
+    const b = await signUpTestUser();
+    await setTimezone(a, 'Asia/Tokyo');
+    expect(await timezoneOf(b)).toBe('UTC');
+    const other = await gql(
+      { cookie: b.cookie },
+      `mutation ($id: String!) { userUpdate(id: $id, input: { timezone: "Europe/Paris" }) { success } }`,
+      { id: a.userId },
+    );
+    expect(other.body.errors?.length).toBeGreaterThan(0);
+    expect(await timezoneOf(a)).toBe('Asia/Tokyo');
   });
 });

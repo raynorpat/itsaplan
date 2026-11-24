@@ -5,6 +5,7 @@ import { eq, like } from 'drizzle-orm';
 import { app } from '../../app';
 import { requestMagicLink, signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
+import { gqlData } from '../helpers/graphql';
 
 // Sign-in gaps found in review: the Google return leg and account linking follow the
 // allowed sign-in services; a magic-link request does not wait for the mail provider;
@@ -44,11 +45,10 @@ describe('sign-in review fixes', () => {
     process.env.GOOGLE_CLIENT_ID = 'id';
     process.env.GOOGLE_CLIENT_SECRET = 'secret';
     const owner = await signUpTestUser();
-    await call('/organization', {
-      method: 'PATCH',
-      cookie: owner.cookie,
-      body: { allowedAuthServices: ['email'] },
-    });
+    await gqlData(
+      owner,
+      'mutation { organizationUpdate(input: { authSettings: { allowedAuthServices: ["email"] } }) { success } }',
+    );
     const callback = await call('/api/auth/callback/google?code=x&state=y');
     expect(callback.status).toBe(403);
     const link = await call('/api/auth/link-social', {
@@ -139,11 +139,10 @@ describe('sign-in review fixes', () => {
   it('redirects a refused magic link to the error page', async () => {
     const owner = await signUpTestUser();
     const web = process.env.APP_URL!.split(',')[0]!;
-    await call('/invites', {
-      method: 'POST',
-      cookie: owner.cookie,
-      body: { email: 'late@x.test', role: 'member' },
-    });
+    await gqlData(
+      owner,
+      'mutation { organizationInviteCreate(input: { email: "late@x.test", role: user }) { success } }',
+    );
     const token = await requestMagicLink('late@x.test');
     expect(token).not.toBeNull();
     // The invite is revoked after the link went out.

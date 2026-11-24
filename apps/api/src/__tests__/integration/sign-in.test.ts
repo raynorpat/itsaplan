@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { db, user, verification } from '@repo/db';
 import { eq, like } from 'drizzle-orm';
 import { app } from '../../app';
-import { authedApi } from '../helpers/app';
+import { createTeam, gqlData } from '../helpers/graphql';
 import { requestMagicLink, signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 
@@ -47,16 +47,13 @@ describe('passwordless sign-in', () => {
 
   it('creates an invited account from its magic link', async () => {
     const owner = await signUpTestUser();
-    const asOwner = authedApi(owner.cookie);
-    await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-    const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!.team.id;
+    const ops = (await createTeam(owner, { key: 'OPS', name: 'Operations' })).team.id;
     process.env.APPROVED_EMAIL_DOMAINS = '';
-    const invited = await asOwner.invites.post({
-      email: 'g@x.test',
-      role: 'guest',
-      teamIds: [ops],
-    });
-    expect(invited.status).toBe(201);
+    await gqlData(
+      owner,
+      `mutation ($input: OrganizationInviteCreateInput!) { organizationInviteCreate(input: $input) { success } }`,
+      { input: { email: 'g@x.test', role: 'guest', teamIds: [ops] } },
+    );
     expect((await auth('/sign-in/magic-link', { email: 'g@x.test' })).status).toBe(200);
     const res = await useLink('g@x.test');
     const cookie = cookieOf(res);
@@ -66,9 +63,10 @@ describe('passwordless sign-in', () => {
       .from(user)
       .where(eq(user.email, 'g@x.test'));
     expect(row?.role).toBe('guest');
-    const teams = (await authedApi(cookie).teams.get()).data!;
-    expect(teams.map((t) => t.key)).toEqual(['OPS']);
-    expect((await asOwner.invites.get()).data).toHaveLength(0);
+    const teams = await gqlData({ cookie }, '{ teams { nodes { key } } }');
+    expect(teams.teams.nodes.map((t: { key: string }) => t.key)).toEqual(['OPS']);
+    const invites = await gqlData(owner, '{ organizationInvites { nodes { id } } }');
+    expect(invites.organizationInvites.nodes).toHaveLength(0);
   });
 
   it('joins an approved domain as a member', async () => {
