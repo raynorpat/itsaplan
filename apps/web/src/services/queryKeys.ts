@@ -22,6 +22,9 @@ export const qk = {
   allViews: () => ['allViews'] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
+  // A team's workflow automation rules, archived ones included (team settings →
+  // Automations).
+  automations: (teamId: string) => ['automations', teamId] as const,
   // A team's members (the Members section), and the workspace's users and pending
   // invites (the workspace Members page).
   members: (teamKey: string) => ['members', teamKey] as const,

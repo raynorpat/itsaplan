@@ -1,4 +1,13 @@
-import { Archive, Columns3, Info, type LucideIcon, RefreshCcw, Tags, Webhook } from 'lucide-react';
+import {
+  Archive,
+  Columns3,
+  Info,
+  type LucideIcon,
+  RefreshCcw,
+  Tags,
+  Webhook,
+  Workflow,
+} from 'lucide-react';
 import type { AccessArea } from '@/hooks/usePermissions';
 
 // The sidebar group a section is listed under: the team-level general settings,
@@ -60,6 +69,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Archive,
     resource: 'work_items',
     group: 'configuration',
+  },
+  {
+    slug: 'automations',
+    label: 'Automations',
+    description: 'Rules that change issues when they are created or start matching conditions.',
+    icon: Workflow,
+    resource: 'work_items',
+    group: 'automation',
   },
   {
     slug: 'webhooks',
