@@ -1,3 +1,4 @@
+import { workflowBotActor } from './workflow-definition';
 import { comment, db, projectUpdate } from '@repo/db';
 import { and, count, eq, type SQL } from 'drizzle-orm';
 import {
@@ -45,6 +46,7 @@ export function toComment(row: CommentRow, parentUrl = '') {
     documentContentId: row.documentId,
     parentId: row.parentId,
     userId: row.userId,
+    workflowDefinitionId: row.workflowDefinitionId,
     resolvingUserId: row.resolvingUserId,
     resolvingCommentId: row.resolvingCommentId,
     url: parentUrl ? `${parentUrl}#comment-${row.id}` : '',
@@ -181,6 +183,7 @@ export const commentResolvers = {
       return row ? toComment(row) : null;
     },
     user: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => userFor(ctx, c.userId),
+    botActor: (c: GraphQLComment) => workflowBotActor(c.workflowDefinitionId),
     resolvingUser: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       userFor(ctx, c.resolvingUserId),
     issue: (c: GraphQLComment) => (c.issueId ? issueById(c.issueId) : null),

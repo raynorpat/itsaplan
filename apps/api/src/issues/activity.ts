@@ -1,3 +1,4 @@
+import { currentWorkflow } from '../shared/workflow-context';
 import { cycle, db, issue, issueActivity, user, workflowState, label, project } from '@repo/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { notifyIssueChange } from '../notifications/store';
@@ -43,6 +44,8 @@ async function insertActivity(
 ): Promise<{ id: string; action: string | null }[]> {
   if (!entries.length) return [];
   const resolvedActorId = actorUserId ?? null;
+  // A workflow's change: the entry carries the rule.
+  const workflow = currentWorkflow();
   const actorName = await userName(resolvedActorId);
   return executor
     .insert(issueActivity)
@@ -51,6 +54,7 @@ async function insertActivity(
         issueId,
         actorUserId: resolvedActorId,
         actorName,
+        workflowDefinitionId: workflow?.id ?? null,
         action: event.action,
         subject: event.subject ?? null,
         fromText: event.fromText ?? null,

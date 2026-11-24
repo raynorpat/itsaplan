@@ -1,3 +1,4 @@
+import { withoutWorkflows } from '../shared/workflow-context';
 import { cycle, db, issue, team, workflowState } from '@repo/db';
 import { and, asc, eq, gt, isNull, lt, lte, notInArray, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
@@ -415,7 +416,9 @@ export async function closeCycle(
   const target =
     (await cycleContaining(closed.teamId, now)) ?? (await nextUpcomingCycle(closed.teamId, now));
   if (target && target.id !== cycleId)
-    for (const { id } of unfinished) await updateIssue(id, { cycleId: target.id }, actorUserId);
+    // Rollover is a system change: it runs no automation rules.
+    for (const { id } of unfinished)
+      await withoutWorkflows(() => updateIssue(id, { cycleId: target.id }, actorUserId));
   await sendCycleEvent('update', closed, actorUserId, before);
   return closed;
 }
@@ -522,7 +525,8 @@ export async function archiveCycle(id: string, actorUserId: string | null, now: 
     throw new HttpError(400, 'The active cycle cannot be archived');
   if (isFuture) {
     const members = await db.select({ id: issue.id }).from(issue).where(eq(issue.cycleId, id));
-    for (const m of members) await updateIssue(m.id, { cycleId: null }, actorUserId);
+    for (const m of members)
+      await withoutWorkflows(() => updateIssue(m.id, { cycleId: null }, actorUserId));
   }
   const [row] = await db
     .update(cycle)

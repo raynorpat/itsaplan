@@ -157,8 +157,22 @@ Rules and invariants for this package below; read the code for the walkthrough.
   one, and changing a rule's edit access or owner, needs a team manager; otherwise
   `editAccess` decides (`everyone`, `teamOwners`, `workspaceAdmins`, `owner`); admins
   and owners change any rule, guests and app users none (`workflows/access.ts`).
-  `issue_activity` and `comment` carry the workflow (`workflow_definition_id`) for
-  changes a rule makes.
+  The run engine (`workflows/engine.ts`, registered with the issues store through
+  `setIssueRuleHook` from `app.ts`) runs after a person's `createIssue` /
+  `updateIssue`: a created rule when the new issue matches, an updated rule when the
+  issue did not match before the change and matches after it (one filter query over
+  all the team's enabled rules before the write and one after; a batch update loads
+  the rules once, `withRuleCache`). Each matching rule, in `sortOrder`, applies its
+  field and label changes as one `updateIssue` and then its comments, inside
+  `runAsWorkflow` (`shared/workflow-context.ts`): those writes have no user actor,
+  carry the rule in `issue_activity.workflow_definition_id` and
+  `comment.workflow_definition_id` (GraphQL `botActor` `{ type: workflow }`), send
+  their own webhook event with the workflow as `actor`, and run no rules. System
+  writes (cycle rollover and cycle archive, the duplicate cancel, the restore move)
+  run inside `withoutWorkflows`. An action that no longer passes the issue checks is
+  skipped and recorded in `stats.lastError`; `stats.runs` and `last_executed_at`
+  count each run. A delegation a rule makes credits the agent session to the rule's
+  owner. Rules are best effort: a failure is logged and never fails the change.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

@@ -1,3 +1,4 @@
+import { withRuleCache } from '../../shared/workflow-context';
 import { db, issueLabel, workflowState } from '@repo/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
@@ -282,7 +283,7 @@ export const mutationResolvers = {
         assertIssueInput(input);
         if (ids.length < 1 || ids.length > 50)
           throw gqlError('INVALID_INPUT', 'ids must hold between 1 and 50 issues');
-        const rows = [];
+        const rows: Awaited<ReturnType<typeof findIssue>>[] = [];
         for (const id of ids) {
           const row = await findIssue(id, ctx.user.id);
           await assertTeamAccess(row.teamId, ctx.user, 'see');
@@ -297,8 +298,13 @@ export const mutationResolvers = {
           labelIdsByIssue.set(row.id, labelIds);
           await validateIssuePatch(row.id, patch, labelIds);
         }
-        for (const row of rows)
-          await updateIssue(row.id, patch, ctx.user.id, { labelIds: labelIdsByIssue.get(row.id) });
+        // One load of the team's automation rules for the whole batch.
+        await withRuleCache(async () => {
+          for (const row of rows)
+            await updateIssue(row.id, patch, ctx.user.id, {
+              labelIds: labelIdsByIssue.get(row.id),
+            });
+        });
         const issues = [];
         for (const row of rows) issues.push(await issueById(row.id));
         return { success: true, lastSyncId: lastSyncId(), issues };

@@ -14,6 +14,8 @@ import { internalCycleRoutes } from './cycles/internal-routes';
 import { registerInstanceHandlers } from './instance/handlers';
 // Registers the AgentSessionEvent webhook on the agent session events.
 import './agents/webhook';
+// Registers the workflow automation engine with the issues store.
+import './workflows/engine';
 
 // The assembled Elysia app, without `.listen()`. `index.ts` imports this and binds
 // the port; tests import it and call `app.handle` in memory (no network).

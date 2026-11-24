@@ -1,3 +1,4 @@
+import { currentWorkflow } from '../shared/workflow-context';
 import {
   comment,
   db,
@@ -53,6 +54,8 @@ export interface CommentRow {
   parentId: string | null;
   userId: string | null;
   userName: string | null;
+  // The workflow automation that wrote the comment, for a comment with no user.
+  workflowDefinitionId: string | null;
   body: string;
   editedAt: string | null;
   resolvedAt: string | null;
@@ -73,6 +76,7 @@ export function mapComment(row: typeof comment.$inferSelect): CommentRow {
     parentId: row.parentId,
     userId: row.userId,
     userName: row.userName,
+    workflowDefinitionId: row.workflowDefinitionId,
     body: row.body,
     editedAt: row.editedAt ? iso(row.editedAt) : null,
     resolvedAt: row.resolvedAt ? iso(row.resolvedAt) : null,
@@ -209,6 +213,8 @@ export async function createComment(input: {
       parentId: rootId,
       userId: input.actorUserId,
       userName: await userName(input.actorUserId),
+      // A workflow's comment: written by the rule, with no user author.
+      workflowDefinitionId: input.actorUserId ? null : (currentWorkflow()?.id ?? null),
       body: input.body,
     })
     .returning();

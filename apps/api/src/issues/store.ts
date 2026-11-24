@@ -36,6 +36,7 @@ import {
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
 import { assertDelegate, bestEffort, issueDelegated } from '../agents/store';
+import { currentWorkflow, withoutWorkflows, workflowsSkipped } from '../shared/workflow-context';
 import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
@@ -352,7 +353,10 @@ export async function restoreIssue(
       .orderBy(workflowState.position)
       .limit(1);
     // One webhook update covers the restore and the move.
-    if (target) return updateIssue(id, { stateId: target.id }, actorUserId, { before: beforeData });
+    if (target)
+      return withoutWorkflows(() =>
+        updateIssue(id, { stateId: target.id }, actorUserId, { before: beforeData }),
+      );
   }
   await emitIssue('update', id, row.teamId, actorUserId, beforeData);
   return getIssue(id);
@@ -569,6 +573,40 @@ async function issueLabelIds(issueId: string): Promise<string[]> {
   return rows.map((r) => r.labelId);
 }
 
+// The workflow automation engine (workflows/engine.ts), registered at startup. It
+// imports this store to apply a rule's changes, so the store reaches it through this
+// hook instead of importing it. `before` runs ahead of a person's update and returns
+// what the engine needs to see which rules started matching; the after calls run the
+// rules. Workflow writes and system writes (workflowsSkipped) run no rules.
+export interface IssueRuleHook {
+  before(issueId: string, teamId: string): Promise<unknown>;
+  afterUpdate(state: unknown, issueId: string): Promise<void>;
+  afterCreate(issueId: string, teamId: string): Promise<void>;
+}
+
+let ruleHook: IssueRuleHook | null = null;
+
+export function setIssueRuleHook(hook: IssueRuleHook | null): void {
+  ruleHook = hook;
+}
+
+// The rule state ahead of an update, or null when rules do not apply. A failure is
+// logged and runs no rules; it never fails the person's change.
+async function rulesBefore(issueId: string, teamId: string): Promise<unknown> {
+  if (!ruleHook || workflowsSkipped()) return null;
+  try {
+    return await ruleHook.before(issueId, teamId);
+  } catch (err) {
+    console.error('[workflows] matching rules failed:', err);
+    return null;
+  }
+}
+
+// Who a delegation's agent session is credited to: the person, or for a workflow's
+// change the rule's owner.
+const sessionCreator = (actorUserId: string | null | undefined) =>
+  actorUserId ?? currentWorkflow()?.ownerId ?? null;
+
 // Sends an Issue webhook event with the issue's current data. `before` is the
 // issue's data before the change, for an update.
 async function emitIssue(
@@ -668,7 +706,7 @@ export async function createIssue(
   await emitIssue('create', issueId, team.id, actorUserId);
   if (created.delegateUserId)
     await bestEffort('delegation session', () =>
-      issueDelegated(issueId, created.delegateUserId!, actorUserId ?? null),
+      issueDelegated(issueId, created.delegateUserId!, sessionCreator(actorUserId)),
     );
   // An issue created already assigned to a member notifies them, the same as
   // assigning one later does.
@@ -679,6 +717,11 @@ export async function createIssue(
       actorUserId: actorUserId ?? null,
       assignedUserId: created.assigneeUserId,
     });
+  }
+  if (ruleHook && !workflowsSkipped()) {
+    const hook = ruleHook;
+    await bestEffort('workflow rules', () => hook.afterCreate(issueId, team.id));
+    return (await getIssue(issueId)) ?? created;
   }
   return created;
 }
@@ -755,6 +798,7 @@ export async function updateIssue(
   if (opts.labelIds)
     await assertLabelsApplicable(before.teamId, opts.labelIds, await issueLabelIds(id));
   const beforeData = opts.before ?? (await watchedIssueData(id, before.teamId));
+  const rules = await rulesBefore(id, before.teamId);
 
   const set: Partial<typeof issue.$inferInsert> = {};
   if (patch.stateId !== undefined) set.stateId = patch.stateId;
@@ -799,8 +843,13 @@ export async function updateIssue(
       await emitIssue('update', id, after.teamId, actorUserId, beforeData);
     if (after.delegateUserId && after.delegateUserId !== before.delegateUserId)
       await bestEffort('delegation session', () =>
-        issueDelegated(id, after.delegateUserId!, actorUserId ?? null),
+        issueDelegated(id, after.delegateUserId!, sessionCreator(actorUserId)),
       );
+  }
+  if (after && rules && ruleHook) {
+    const hook = ruleHook;
+    await bestEffort('workflow rules', () => hook.afterUpdate(rules, id));
+    return (await getIssue(id)) ?? after;
   }
   return after;
 }

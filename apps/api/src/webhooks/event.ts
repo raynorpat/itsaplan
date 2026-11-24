@@ -1,3 +1,4 @@
+import { currentWorkflow } from '../shared/workflow-context';
 import { randomUUID } from 'node:crypto';
 import { db, team, user, webhook, webhookDelivery } from '@repo/db';
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
@@ -29,6 +30,13 @@ export function updatedFrom(before: Data, after: Data): Data {
   }
   out.updatedAt = before.updatedAt ?? null;
   return out;
+}
+
+// A change a workflow automation made without a user: the workflow is the actor.
+function workflowActor(userId: string | null) {
+  const workflow = currentWorkflow();
+  if (userId || !workflow) return null;
+  return { id: workflow.id, type: 'workflow', name: workflow.name };
 }
 
 async function actorFor(userId: string | null) {
@@ -147,7 +155,7 @@ export async function emitEvent(input: {
   const base = {
     action: input.action,
     type: input.type,
-    actor: await actorFor(input.actorUserId),
+    actor: workflowActor(input.actorUserId) ?? (await actorFor(input.actorUserId)),
     createdAt: new Date().toISOString(),
     data: input.data,
     ...(changes ? { updatedFrom: changes } : {}),

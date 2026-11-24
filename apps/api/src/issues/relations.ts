@@ -1,3 +1,4 @@
+import { withoutWorkflows } from '../shared/workflow-context';
 import { db, issue, issueRelation, team, workflowState } from '@repo/db';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
@@ -144,7 +145,9 @@ async function closeDuplicate(issueId: string, actorUserId: string | null): Prom
     )
     .orderBy(sql`lower(${workflowState.name}) <> 'duplicate'`, asc(workflowState.position))
     .limit(1);
-  if (target) await updateIssue(issueId, { stateId: target.id }, actorUserId);
+  // A system change: it runs no automation rules.
+  if (target)
+    await withoutWorkflows(() => updateIssue(issueId, { stateId: target.id }, actorUserId));
 }
 
 // A unique violation is the pair index (a concurrent relation between the same
