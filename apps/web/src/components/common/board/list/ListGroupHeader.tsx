@@ -11,12 +11,15 @@ export function ListGroupHeader({
   collapsed,
   onToggle,
   onAddIssue,
+  controls,
 }: {
   group: Pick<IssueGroup, 'name' | 'color' | 'stateType' | 'key' | 'assign'>;
   count: number;
   collapsed: boolean;
   onToggle: () => void;
   onAddIssue?: () => void;
+  // The id of the list the group's rows sit in, for assistive tech.
+  controls?: string;
 }) {
   return (
     <div className="group/header flex h-9 items-center justify-between bg-muted/40 pr-3 pl-4">
@@ -24,6 +27,7 @@ export function ListGroupHeader({
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
+        aria-controls={controls}
         className="flex items-center gap-2 text-sm font-medium text-foreground"
       >
         {collapsed ? (

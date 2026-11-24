@@ -12,6 +12,7 @@ export function ListSubHeader({
   dropId,
   onDrop,
   onToggle,
+  controls,
 }: {
   sub: IssueGroup;
   count: number;
@@ -19,6 +20,7 @@ export function ListSubHeader({
   dropId: string;
   onDrop: (issueId: string) => void;
   onToggle: () => void;
+  controls?: string;
 }) {
   return (
     <ListDropZone
@@ -28,6 +30,7 @@ export function ListSubHeader({
     >
       <button
         type="button"
+        aria-controls={controls}
         onClick={onToggle}
         className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
       >

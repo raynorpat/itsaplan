@@ -15,6 +15,7 @@ export function ListSectionHeader({
   onToggle,
   onAddIssue,
   readOnly,
+  controls,
 }: {
   group: IssueGroup;
   count: number;
@@ -26,6 +27,7 @@ export function ListSectionHeader({
   onAddIssue?: () => void;
   // In a read-only share the add affordance is hidden.
   readOnly?: boolean;
+  controls?: string;
 }) {
   const { can } = usePermissions();
   const canCreateIssue = can('work_items', 'create') && !readOnly && onAddIssue != null;
@@ -37,6 +39,7 @@ export function ListSectionHeader({
         collapsed={collapsed}
         onToggle={onToggle}
         onAddIssue={canCreateIssue ? onAddIssue : undefined}
+        controls={controls}
       />
     </ListDropZone>
   );

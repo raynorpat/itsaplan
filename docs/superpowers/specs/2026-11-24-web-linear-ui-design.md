@@ -85,4 +85,6 @@ order of the work.
 - **Keyboard in the list:** J / K move, X selects, Enter opens; existing shortcuts
   stay.
 - **My issues** uses the same List, with the team on each row.
+- A view or board with no stored layout opens as List, Linear's default layout,
+  including views saved before display preferences existed or by another client.
 

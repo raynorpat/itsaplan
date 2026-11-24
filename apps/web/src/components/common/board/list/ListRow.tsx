@@ -125,12 +125,18 @@ export function ListRow({
         {...listeners}
         data-issue-id={issue.id}
         data-focused={focused || undefined}
+        aria-current={focused || undefined}
+        aria-pressed={selecting ? selected : undefined}
         onPointerDown={(e) => {
           pressedAt.current = { x: e.clientX, y: e.clientY };
           listeners?.onPointerDown?.(e);
         }}
         onClick={(e) => {
           if (!isClick(e)) return;
+          // A click leaves DOM focus on the row (it is a drag handle), where Enter
+          // and Space start a keyboard drag; handing focus back to the page keeps
+          // the list's J / K / X / Enter working after a click.
+          e.currentTarget.blur();
           if (!readOnly && (selecting || e.shiftKey || e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             onSelect(e.shiftKey);

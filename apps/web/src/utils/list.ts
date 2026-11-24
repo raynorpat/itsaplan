@@ -216,15 +216,27 @@ export function moveFocus(order: string[], current: string | null, step: 1 | -1)
   return order[Math.min(order.length - 1, Math.max(0, at + step))]!;
 }
 
-export type ListKeyAction = 'next' | 'prev' | 'select' | 'open';
+export type ListKeyAction = 'next' | 'prev' | 'select' | 'open' | 'clear';
+
+// True when a list key may act on this target: the page itself (nothing focused) or
+// the list container. A focused button, link, row or other control keeps its own keys,
+// so Enter on the Filter button does not also open the focused issue.
+function isListKeyTarget(target: EventTarget | null): boolean {
+  const el = target as Element | null;
+  if (!el || el.tagName === 'BODY' || el.tagName === 'HTML') return true;
+  return typeof el.hasAttribute === 'function' && el.hasAttribute('data-list-root');
+}
 
 // The list command a key press stands for, or null. The keys are plain keys, so they
-// never fire while the user types or has a dialog or menu open.
+// never fire while the user types or has a dialog or menu open, and Escape clears the
+// focus only when no other layer (a panel, a dialog, a popover) handled it first.
 export function listKeyAction(
-  e: KeyEventLike & { target: EventTarget | null },
+  e: KeyEventLike & { target: EventTarget | null; defaultPrevented?: boolean },
   combos: HotkeyCombos,
 ): ListKeyAction | null {
-  if (blocksShortcuts(e.target)) return null;
+  if (e.defaultPrevented) return null;
+  if (blocksShortcuts(e.target) || !isListKeyTarget(e.target)) return null;
+  if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) return 'clear';
   if (matchesCombo(e, combos['list.next'])) return 'next';
   if (matchesCombo(e, combos['list.prev'])) return 'prev';
   if (matchesCombo(e, combos['list.select'])) return 'select';

@@ -12,6 +12,8 @@ export function useExitOnEscape(onExit: () => void) {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
+      // Marked handled, so a list behind the surface keeps its focused row.
+      e.preventDefault();
       onExitRef.current();
     }
     window.addEventListener('keydown', onKeyDown);
