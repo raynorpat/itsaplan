@@ -5,11 +5,12 @@ import { oauthAppsHandlers } from '../oauth/apps';
 import { getStorageSettings } from '../settings/storage';
 import { getAppVersion } from '../settings/version';
 import { HttpError, UUID_RE } from '../shared/lib';
+import { workflowsHandlers } from '../workflows/handlers';
 
 // The API's side of the better-auth instance endpoints (packages/auth
 // src/instance-plugin.ts): the app version, the upload limits, the team owner change
-// (team managers only), and the management of the workspace's OAuth applications
-// (oauth/apps.ts).
+// (team managers only), the management of the workspace's OAuth applications
+// (oauth/apps.ts) and of teams' workflow rules (workflows/handlers.ts).
 
 async function signedInUser(headers: Headers) {
   const session = await getActiveSession(headers);
@@ -52,5 +53,6 @@ export function registerInstanceHandlers(): void {
       await stopSession(sessionId, user.id);
       return { success: true };
     },
+    workflows: workflowsHandlers,
   });
 }

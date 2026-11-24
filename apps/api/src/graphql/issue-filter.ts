@@ -35,7 +35,7 @@ import { labelCollectionSql } from './label-collection-filter';
 // email, isMe, null), parent (id, null), project, projectMilestone, cycle,
 // hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
 // hasRelatedRelations, attachments, labels and subscribers (some, every, length and their
-// fields), and / or.
+// fields), sourceMetadata (null, workflowDefinitionId), and / or.
 // Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
@@ -175,6 +175,22 @@ function relationFilters(viewerId: string): FieldHandlers {
   };
 }
 
+// IssueFilter.sourceMetadata (SourceMetadataComparator): how the issue was created.
+// Every issue here is created by a person or a token (no integration, intake source or
+// creating workflow), so `null: true` matches every issue and the creating workflow's
+// id is null for all of them.
+function sourceMetadataFilter(value: unknown, path: string): SQL {
+  const { null: isNullFilter, workflowDefinitionId, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length)
+    throw gqlError('INVALID_INPUT', `Filter ${path}.${Object.keys(rest)[0]} is not supported`);
+  const parts: SQL[] = [];
+  if (isNullFilter !== undefined && isNullFilter !== null)
+    parts.push(isNullFilter ? sql`true` : sql`false`);
+  if (workflowDefinitionId !== undefined && workflowDefinitionId !== null)
+    parts.push(compareId(sql`NULL::uuid`, workflowDefinitionId, `${path}.workflowDefinitionId`));
+  return and(...parts) ?? sql`true`;
+}
+
 export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefined {
   const handlers: FieldHandlers = {
     ...relationFilters(viewerId),
@@ -211,6 +227,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     attachments: attachmentCollectionSql,
     labels: labelCollectionSql,
     subscribers: subscribersFilter(viewerId),
+    sourceMetadata: sourceMetadataFilter,
     project: (v, p) =>
       nullableRef(
         issue.projectId,

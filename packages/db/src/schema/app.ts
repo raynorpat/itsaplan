@@ -786,6 +786,62 @@ export const attachment = pgTable(
 // author, taken from the session user (a member). actor_name
 // is a snapshot so an entry still reads correctly after that user is renamed or
 // deleted. Comments are stored in `comment`.
+// A team automation rule (Linear's WorkflowDefinition, apps/api src/workflows): when an
+// issue of the team is created (trigger entityCreated) or starts matching `conditions`
+// on an update (entityUpdated with activation_mode conditionsStartedMatching), the
+// `activities` are applied. `conditions` is Linear's IssueFilter; `activities` is a
+// list of { type, ... } actions; both are validated by the API on save. `stats` is
+// { runs, lastError? }. edit_access decides who may change the rule.
+export const workflowDefinition = pgTable(
+  'workflow_definition',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id')
+      .notNull()
+      .unique()
+      .default(sql`substr(md5(gen_random_uuid()::text), 1, 12)`),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => team.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    icon: text('icon'),
+    color: text('color'),
+    type: text('type').notNull().default('automation'),
+    triggerType: text('trigger_type').notNull().default('issue'),
+    trigger: text('trigger').notNull(),
+    activationMode: text('activation_mode'),
+    conditions: jsonb('conditions').notNull().default({}),
+    activities: jsonb('activities').notNull().default([]),
+    enabled: boolean('enabled').notNull().default(true),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    editAccess: text('edit_access').notNull().default('teamOwners'),
+    ownerUserId: uuid('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    updatedByUserId: uuid('updated_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    lastExecutedAt: timestamp('last_executed_at', { withTimezone: true }),
+    stats: jsonb('stats').notNull().default({ runs: 0 }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('workflow_definition_type_check', sql`${t.type} = 'automation'`),
+    check('workflow_definition_trigger_type_check', sql`${t.triggerType} = 'issue'`),
+    check(
+      'workflow_definition_trigger_check',
+      sql`${t.trigger} IN ('entityCreated', 'entityUpdated')`,
+    ),
+    check(
+      'workflow_definition_edit_access_check',
+      sql`${t.editAccess} IN ('everyone', 'teamOwners', 'workspaceAdmins', 'owner')`,
+    ),
+    index('workflow_definition_team_idx').on(t.teamId, t.sortOrder),
+  ],
+);
+
 export const issueActivity = pgTable(
   'issue_activity',
   {
@@ -800,6 +856,10 @@ export const issueActivity = pgTable(
       onDelete: 'set null',
     }),
     actorName: text('actor_name'),
+    // The workflow that made the change (no user actor then); null for a person's.
+    workflowDefinitionId: uuid('workflow_definition_id').references(() => workflowDefinition.id, {
+      onDelete: 'set null',
+    }),
     action: text('action'),
     subject: text('subject'),
     fromText: text('from_text'),
@@ -880,6 +940,10 @@ export const comment = pgTable(
     parentId: uuid('parent_id').references((): AnyPgColumn => comment.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
     userName: text('user_name'),
+    // The workflow that posted the comment (no user author then).
+    workflowDefinitionId: uuid('workflow_definition_id').references(() => workflowDefinition.id, {
+      onDelete: 'set null',
+    }),
     body: text('body').notNull(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),

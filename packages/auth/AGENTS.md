@@ -16,7 +16,10 @@ A better-auth plugin serves what Linear's GraphQL schema has no place for, under
 `GET upload-limits` (signed in), and `POST team-owner` `{ teamId, userId, owner }`
 (team managers; Linear's schema exposes `TeamMembership.owner` but no input that sets
 it), and `POST agent-session-stop` `{ sessionId }` (anyone who can see the session's
-issue; Linear's stop signal, which no API client may send). All but the first need the
+issue; Linear's stop signal, which no API client may send), and a team's workflow
+automation rules (`GET workflows?teamId=`, `GET workflow?id=`, `POST workflows/{create,
+update, enable, reorder, archive, unarchive, delete}`; Linear's schema has no operation
+for them). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

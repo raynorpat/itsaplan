@@ -25,6 +25,11 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - GET  /instance/oauth-authorized and POST /instance/oauth-authorized/revoke
 //   { clientId }  signed in: the applications the person has authorized to act as
 //   themselves, and revoking one (oauth-authorized.ts). Same Origin rule.
+// - GET  /instance/workflows?teamId=&includeArchived=true, GET /instance/workflow?id=
+//   and POST /instance/workflows/{create, update, enable, reorder, archive, unarchive,
+//   delete}  signed in: a team's automation rules (Linear's WorkflowDefinition, whose
+//   management Linear's schema does not include; apps/api src/workflows). Who may list
+//   and change them is the API's rule. Same Origin rule for the POSTs.
 // - POST /instance/agent-session-stop { sessionId }  signed in: stops an agent session
 //   the person can see (Linear's stop signal; the schema lets no API client send it).
 //   Same Origin rule.
@@ -54,12 +59,26 @@ export interface OAuthAppsHandlers {
   archive(headers: Headers, body: unknown): Promise<object>;
 }
 
+// A team's workflow automation rules. Each handler checks the caller itself.
+export interface WorkflowsHandlers {
+  list(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  get(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  create(headers: Headers, body: unknown): Promise<object>;
+  update(headers: Headers, body: unknown): Promise<object>;
+  enable(headers: Headers, body: unknown): Promise<object>;
+  reorder(headers: Headers, body: unknown): Promise<object>;
+  archive(headers: Headers, body: unknown): Promise<object>;
+  unarchive(headers: Headers, body: unknown): Promise<object>;
+  delete(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
   setTeamOwner(headers: Headers, body: unknown): Promise<TeamOwnerChange>;
   oauthApps: OAuthAppsHandlers;
   agentSessionStop(headers: Headers, body: unknown): Promise<{ success: boolean }>;
+  workflows: WorkflowsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -106,6 +125,17 @@ const oauthAppsWrite = (
     return ctx.json(await run((h) => call(h.oauthApps, ctx.headers ?? new Headers(), ctx.body)));
   });
 
+// A cookie-checked POST that runs a registered workflow handler.
+const workflowsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: WorkflowsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) =>
+  createAuthEndpoint(path, { method: 'POST' }, async (ctx) => {
+    assertTrustedOrigin(ctx.headers, trusted);
+    return ctx.json(await run((h) => call(h.workflows, ctx.headers ?? new Headers(), ctx.body)));
+  });
+
 const requiredClientId = (body: unknown): string => {
   const clientId = (body as { clientId?: unknown } | undefined)?.clientId;
   if (typeof clientId !== 'string' || !clientId)
@@ -147,6 +177,49 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
             await run((h) => h.agentSessionStop(ctx.headers ?? new Headers(), ctx.body)),
           );
         },
+      ),
+      instanceWorkflows: createAuthEndpoint('/instance/workflows', { method: 'GET' }, async (ctx) =>
+        ctx.json(
+          await run((h) => h.workflows.list(ctx.headers ?? new Headers(), { ...ctx.query })),
+        ),
+      ),
+      instanceWorkflow: createAuthEndpoint('/instance/workflow', { method: 'GET' }, async (ctx) =>
+        ctx.json(await run((h) => h.workflows.get(ctx.headers ?? new Headers(), { ...ctx.query }))),
+      ),
+      instanceWorkflowCreate: workflowsWrite(
+        '/instance/workflows/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.create(headers, body),
+      ),
+      instanceWorkflowUpdate: workflowsWrite(
+        '/instance/workflows/update',
+        options.trustedOrigins,
+        (h, headers, body) => h.update(headers, body),
+      ),
+      instanceWorkflowEnable: workflowsWrite(
+        '/instance/workflows/enable',
+        options.trustedOrigins,
+        (h, headers, body) => h.enable(headers, body),
+      ),
+      instanceWorkflowReorder: workflowsWrite(
+        '/instance/workflows/reorder',
+        options.trustedOrigins,
+        (h, headers, body) => h.reorder(headers, body),
+      ),
+      instanceWorkflowArchive: workflowsWrite(
+        '/instance/workflows/archive',
+        options.trustedOrigins,
+        (h, headers, body) => h.archive(headers, body),
+      ),
+      instanceWorkflowUnarchive: workflowsWrite(
+        '/instance/workflows/unarchive',
+        options.trustedOrigins,
+        (h, headers, body) => h.unarchive(headers, body),
+      ),
+      instanceWorkflowDelete: workflowsWrite(
+        '/instance/workflows/delete',
+        options.trustedOrigins,
+        (h, headers, body) => h.delete(headers, body),
       ),
       instanceOAuthUninstall: createAuthEndpoint(
         '/instance/oauth-uninstall',

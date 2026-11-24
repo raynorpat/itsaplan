@@ -578,4 +578,4 @@ export {
 } from './oauth';
 export type { OAuthScope, OAuthGrant } from './oauth';
 export { APP_ACTOR_SCOPE, APP_ROLE, uninstallApplication } from './oauth-install';
-export type { OAuthAppsHandlers } from './instance-plugin';
+export type { OAuthAppsHandlers, WorkflowsHandlers } from './instance-plugin';

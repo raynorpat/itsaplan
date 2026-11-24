@@ -144,6 +144,21 @@ Rules and invariants for this package below; read the code for the walkthrough.
   ends the turn. Session side effects of a comment or a delegation are best effort.
   Uninstalling the application ends its open sessions as `stale` and marks its
   webhook's pending deliveries failed.
+- **Workflow automations** (`workflows/`, Linear's `WorkflowDefinition`): a team's
+  rules, managed through the instance plugin (`/api/auth/instance/workflows*`,
+  `workflows/handlers.ts`) since Linear's schema has no operation for them. Only
+  `type` automation, `triggerType` issue, `trigger` entityCreated or entityUpdated
+  (with `activationMode` conditionsStartedMatching, which needs non-empty conditions).
+  `conditions` is Linear's `IssueFilter` (checked with `issueFilterSql`; `isMe` is the
+  rule's owner); `activities` is a list of actions (`setState`, `setAssignee`,
+  `setPriority`, `addLabels`, `removeLabels`, `setProject`, `setCycle`, `setDelegate`,
+  `addComment`), each checked on save to stay within the rule's team
+  (`workflows/validate.ts`). Anyone who can see the team lists its rules; creating
+  one, and changing a rule's edit access or owner, needs a team manager; otherwise
+  `editAccess` decides (`everyone`, `teamOwners`, `workspaceAdmins`, `owner`); admins
+  and owners change any rule, guests and app users none (`workflows/access.ts`).
+  `issue_activity` and `comment` carry the workflow (`workflow_definition_id`) for
+  changes a rule makes.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

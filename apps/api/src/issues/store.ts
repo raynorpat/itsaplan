@@ -471,7 +471,7 @@ export interface NewIssueInput {
 // Enforces that the assignee is a team member and the delegate an installed agent
 // (assertDelegate). Only checks the fields present in the patch, and only when set
 // to a non-null value (clearing a field is always allowed). Throws 400 otherwise.
-async function assertAssignments(
+export async function assertAssignments(
   teamId: string,
   patch: { assigneeUserId?: string | null; delegateUserId?: string | null },
 ): Promise<void> {
@@ -497,7 +497,10 @@ async function assertMilestone(
 }
 
 // Enforces that the project includes the issue's team. Throws 400 otherwise.
-async function assertProject(teamId: string, projectId: string | null | undefined): Promise<void> {
+export async function assertProject(
+  teamId: string,
+  projectId: string | null | undefined,
+): Promise<void> {
   if (projectId == null) return;
   if (!(await projectTeamIds(projectId)).includes(teamId))
     throw new HttpError(400, "The project must include the issue's team");
@@ -507,7 +510,7 @@ async function assertProject(teamId: string, projectId: string | null | undefine
 // issue.state_id only requires the column to exist somewhere, so an issue could
 // otherwise sit on another team's board. Throws 400 otherwise. Returns the
 // column's state type, or null when no column is given.
-async function assertColumn(
+export async function assertColumn(
   teamId: string,
   stateId: string | undefined,
 ): Promise<StateType | null> {

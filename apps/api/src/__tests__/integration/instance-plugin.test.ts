@@ -8,6 +8,7 @@ import { resetDb } from '../helpers/db';
 import { getStorageSettings } from '../../settings/storage';
 import { getAppVersion } from '../../settings/version';
 import { oauthAppsHandlers } from '../../oauth/apps';
+import { workflowsHandlers } from '../../workflows/handlers';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
 // sign-in options (public), the app version and upload limits (signed in), and the
@@ -147,6 +148,7 @@ describe('instance plugin errors and origin checks', () => {
       },
       oauthApps: oauthAppsHandlers,
       agentSessionStop: async () => ({ success: true }),
+      workflows: workflowsHandlers,
     });
     try {
       const res = await call('version');
