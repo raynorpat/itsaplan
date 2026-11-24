@@ -8,6 +8,7 @@ import {
   archiveIssue,
   createIssue,
   createTeam,
+  gqlData,
   removeMember,
   statesByType,
   teamView,
@@ -114,6 +115,20 @@ describe('graphql issue queries', () => {
       filter: { or: [{ priority: { eq: 4 } }, { state: { type: { eq: 'started' } } }] },
     });
     expect(either.nodes.map((i) => i.id).sort()).toEqual([mine.id, low.id].sort());
+  });
+
+  it('filters by creator isMe', async () => {
+    const { owner, col } = await setup();
+    const other = await signUpTestUser({ name: 'Other' });
+    await addMember(owner, 'MKT', other.userId);
+    const mine = await create(owner, col.backlog);
+    await create(other, col.backlog);
+
+    const data = await gqlData<{ issues: { nodes: { id: string }[] } }>(
+      owner,
+      '{ issues(filter: { creator: { isMe: { eq: true } } }) { nodes { id } } }',
+    );
+    expect(data.issues.nodes.map((i) => i.id)).toEqual([mine.id]);
   });
 
   it('rejects a filter key that is not supported, naming it', async () => {
