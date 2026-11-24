@@ -23,6 +23,10 @@ export const qk = {
   // The viewer's display preferences for one list kind (allIssues, project, cycle,
   // myIssues).
   listPreferences: (viewType: string) => ['listPreferences', viewType] as const,
+  // The completed issues an Insights panel reads for a view and period, keyed by the
+  // view's settings key, its filter and the period's first day.
+  insightsCompleted: (viewKey: string, filter: string, since: string) =>
+    ['insightsCompleted', viewKey, filter, since] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   // A team's workflow automation rules, archived ones included (team settings →

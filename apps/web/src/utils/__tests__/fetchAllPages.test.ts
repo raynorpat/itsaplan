@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { fetchAllPages } from '../fetchAllPages';
+import { fetchAllPages, fetchPagesUpTo } from '../fetchAllPages';
 
 // Loading a whole list from a GraphQL connection: every page in order, following
 // endCursor, stopping when hasNextPage is false.
@@ -30,5 +30,41 @@ describe('fetchAllPages', () => {
     }, 10);
     assert.deepEqual(all, ['x']);
     assert.equal(calls, 1);
+  });
+});
+
+describe('fetchPagesUpTo', () => {
+  const page = (from: number, size: number, more: boolean) => ({
+    nodes: Array.from({ length: size }, (_, i) => from + i),
+    pageInfo: { hasNextPage: more, endCursor: more ? `c${from + size}` : null },
+  });
+
+  it('stops at the limit and reports that more items exist', async () => {
+    const sizes: number[] = [];
+    const result = await fetchPagesUpTo(
+      async (after, first) => {
+        sizes.push(first);
+        const from = after ? Number(after.slice(1)) : 0;
+        return page(from, first, true);
+      },
+      5,
+      2,
+    );
+    assert.deepEqual(result.nodes, [0, 1, 2, 3, 4]);
+    assert.equal(result.capped, true);
+    assert.deepEqual(sizes, [2, 2, 1]);
+  });
+
+  it('returns everything when the list ends before the limit', async () => {
+    const result = await fetchPagesUpTo(
+      async (after, first) => {
+        const from = after ? Number(after.slice(1)) : 0;
+        return page(from, first, from + first < 3);
+      },
+      5,
+      2,
+    );
+    assert.deepEqual(result.nodes, [0, 1, 2, 3]);
+    assert.equal(result.capped, false);
   });
 });
