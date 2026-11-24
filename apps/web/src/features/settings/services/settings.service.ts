@@ -322,6 +322,8 @@ export function useUpdateTeamCycles(teamKey: string, teamId: string) {
       // scaffold and the cycles pages list them.
       void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
       void qc.invalidateQueries({ queryKey: qk.anyCycles });
+      // The sidebar shows a team's Cycles entry from the teams list.
+      void qc.invalidateQueries({ queryKey: qk.teams });
       void qc.invalidateQueries({ queryKey: qk.anyCycle });
     },
   });

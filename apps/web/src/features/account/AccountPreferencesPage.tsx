@@ -39,7 +39,7 @@ const ISSUE_STATS_VIEW_OPTIONS: { value: IssueStatsView; label: string }[] = [
 ];
 
 const START_PAGE_OPTIONS: { value: StartPage; label: string }[] = [
-  { value: 'work-items', label: 'Work items' },
+  { value: 'work-items', label: 'Issues' },
   { value: 'inbox', label: 'Inbox' },
   { value: 'projects', label: 'Projects' },
 ];

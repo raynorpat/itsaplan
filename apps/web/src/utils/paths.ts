@@ -14,6 +14,9 @@ export const settingsPath = (key: string, section: string) =>
 // The workspace inbox: one for every team, as in Linear.
 export const inboxPath = () => '/inbox';
 
+// The viewer's own issues across every team, as Linear's "My issues".
+export const myIssuesPath = () => '/my-issues';
+
 // The member's own notification preferences (which events are sent by email). A
 // main-nav Configuration destination, open to any member.
 export const notificationsPath = (key: string) => `${teamPath(key)}/notifications`;

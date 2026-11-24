@@ -18,6 +18,9 @@ export interface Team {
   // Whether the caller manages the team (team owner, workspace admin or owner, or
   // any member of a team without owners). Only on the /teams list.
   canManage?: boolean;
+  // Whether the team runs cycles. Only on the /teams list; the sidebar shows the
+  // team's Cycles entry from it.
+  cyclesEnabled?: boolean;
 }
 
 export type TeamVisibility = 'public' | 'private';

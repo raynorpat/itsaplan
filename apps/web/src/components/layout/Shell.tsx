@@ -132,10 +132,12 @@ export default function Shell({
     <ShellCtx.Provider value={context}>
       <SidebarProvider defaultOpen={defaultSidebarOpen} className="h-svh overflow-hidden">
         <AppSidebar
-          teams={joinedTeams}
+          teams={teams}
           currentTeamKey={teamKey}
-          onSelectTeam={(key) => router.push(teamPath(key))}
           onNewTeam={() => overlays.setShowNewTeam(true)}
+          onOpenCommand={() => overlays.setShowCommand(true)}
+          onNewIssue={openNewIssue}
+          canCreateIssue={canCreateIssue}
         />
         <SidebarInset className="min-w-0">
           <AppHeader
@@ -146,9 +148,6 @@ export default function Shell({
                 issueIdentifier={issueQuery.data?.identifier ?? null}
               />
             }
-            hasTeam={!!team}
-            onOpenCommand={() => overlays.setShowCommand(true)}
-            onNewIssue={openNewIssue}
           />
 
           {errorMsg && !forbidden && (

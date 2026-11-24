@@ -23,6 +23,7 @@ const TeamsPage = graphql(`
         description
         visibility
         createdAt
+        cyclesEnabled
       }
       pageInfo {
         hasNextPage
@@ -79,6 +80,7 @@ type TeamNode = {
   description?: string | null;
   visibility: string;
   createdAt: string;
+  cyclesEnabled?: boolean;
 };
 
 function toTeam(node: TeamNode): Team {
@@ -89,6 +91,7 @@ function toTeam(node: TeamNode): Team {
     description: node.description ?? '',
     visibility: node.visibility === 'private' ? 'private' : 'public',
     createdAt: node.createdAt,
+    cyclesEnabled: node.cyclesEnabled ?? false,
   };
 }
 

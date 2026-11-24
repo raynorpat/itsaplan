@@ -1,120 +1,64 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { AppWindow, Server, Settings2 } from 'lucide-react';
 import type { Team } from '@/types/team';
-import { useSession } from '@/lib/auth-client';
-import { mcpServerPath, workspaceApplicationsPath, workspaceSettingsPath } from '@/utils/paths';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
-import TeamSwitcher from '@/components/layout/TeamSwitcher';
-import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarMainNav from '@/components/layout/SidebarMainNav';
+import SidebarQuickActions from '@/components/layout/SidebarQuickActions';
 import SidebarSettingsNav from '@/components/layout/SidebarSettingsNav';
-import SidebarBrandFooter from '@/components/brand/SidebarBrandFooter';
-import { isWorkspaceAdmin, toWorkspaceRole } from '@/utils/workspaceRoles';
+import WorkspaceMenu from '@/components/layout/WorkspaceMenu';
 
-// The app sidebar. It has two modes driven by the route: the main work
-// navigation, and the team settings navigation reached through the "Team
-// settings" entry. The team switcher header and the footer (API docs, MCP
-// server, brand mark) are shared by both modes. Team deletion lives on the
-// standalone Manage teams page, not here.
+// The app sidebar, workspace-first as in Linear: the workspace menu with search and
+// new-issue buttons on top, then the main navigation. On a team settings page the
+// body switches to the settings navigation.
 export default function AppSidebar({
   teams,
   currentTeamKey,
-  onSelectTeam,
   onNewTeam,
+  onOpenCommand,
+  onNewIssue,
+  canCreateIssue,
 }: {
   teams: Team[];
   currentTeamKey: string | null;
-  onSelectTeam: (key: string) => void;
   onNewTeam: () => void;
+  onOpenCommand: () => void;
+  onNewIssue: () => void;
+  canCreateIssue: boolean;
 }) {
-  const pathname = usePathname();
-  const disabled = !currentTeamKey;
-
-  const { data: session } = useSession();
-  // The session store can already be filled by the time React hydrates, while the
-  // server rendered without it. Reading it only after mount keeps the server and
-  // the first client render identical, so the workspace settings entry does not
-  // break hydration.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isAdmin = mounted && isWorkspaceAdmin(toWorkspaceRole(session?.user.workspaceRole));
-
   // Settings mode is on whenever the route matches one of the settings nav items.
-  // Members is not in those groups, so it keeps the main sidebar.
   const settingsNav = useSettingsNavGroups(currentTeamKey);
   const settingsMode = settingsNav.groups.some((g) => g.items.some((i) => i.active));
-  const onMcp = pathname.endsWith('/mcp');
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <TeamSwitcher
-          teams={teams}
-          currentTeamKey={currentTeamKey}
-          onSelectTeam={onSelectTeam}
-          onNewTeam={onNewTeam}
-        />
+        <SidebarMenu>
+          <SidebarMenuItem className="flex items-center gap-1">
+            <WorkspaceMenu teamKey={currentTeamKey} onNewTeam={onNewTeam} />
+            <SidebarQuickActions
+              onOpenCommand={onOpenCommand}
+              onNewIssue={onNewIssue}
+              canCreateIssue={canCreateIssue}
+            />
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
         {settingsMode ? (
           <SidebarSettingsNav teamKey={currentTeamKey} />
         ) : (
-          <SidebarMainNav teamKey={currentTeamKey} />
+          <SidebarMainNav teams={teams} teamKey={currentTeamKey} />
         )}
       </SidebarContent>
-
-      <SidebarFooter>
-        {!settingsMode && (
-          <>
-            <SidebarMenu>
-              <SidebarNavItem
-                href={currentTeamKey ? mcpServerPath(currentTeamKey) : '#'}
-                icon={Server}
-                label="MCP Server"
-                active={onMcp}
-                disabled={disabled}
-              />
-              {/* Workspace settings, for owners and admins. The API enforces the
-                  same, so hiding it here is about noise, not access. */}
-              {isAdmin && (
-                <SidebarNavItem
-                  href={workspaceSettingsPath()}
-                  icon={Settings2}
-                  label="Workspace settings"
-                  active={pathname.startsWith(workspaceSettingsPath())}
-                  disabled={false}
-                />
-              )}
-              {isAdmin && (
-                <SidebarNavItem
-                  href={workspaceApplicationsPath()}
-                  icon={AppWindow}
-                  label="OAuth applications"
-                  active={pathname.startsWith(workspaceApplicationsPath())}
-                  disabled={false}
-                />
-              )}
-            </SidebarMenu>
-
-            <SidebarSeparator />
-          </>
-        )}
-
-        <SidebarBrandFooter />
-      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
