@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  defaultIncludeCompleted,
-  groupByStateType,
+  groupMyIssues,
   MY_ISSUES_TABS,
   myIssueRow,
   myIssuesFilter,
+  myIssuesGrouping,
+  myIssuesSort,
+  sortMyIssues,
 } from '@/features/my-issues/utils/myIssues';
 
 describe('myIssuesFilter', () => {
@@ -36,13 +38,6 @@ describe('myIssuesFilter', () => {
     });
   });
 
-  it('shows Created and Activity without completed issues at first', () => {
-    assert.deepEqual(
-      MY_ISSUES_TABS.map((t) => defaultIncludeCompleted(t.id)),
-      [true, false, true, false],
-    );
-  });
-
   it('lists the four tabs in Linear order', () => {
     assert.deepEqual(
       MY_ISSUES_TABS.map((t) => t.id),
@@ -51,24 +46,186 @@ describe('myIssuesFilter', () => {
   });
 });
 
-describe('groupByStateType', () => {
-  const issue = (id: string, type: string) => ({ id, state: { type } });
+describe('groupMyIssues', () => {
+  const issue = (
+    id: string,
+    type: string,
+    extra: { priority?: number; project?: { name: string } | null } = {},
+  ) => ({
+    id,
+    state: { type, color: '#000' },
+    priority: extra.priority ?? 0,
+    project: extra.project ?? null,
+  });
+  const keys = (groups: { key: string; issues: { id: string }[] }[]) =>
+    groups.map((g) => [g.key, g.issues.map((i) => i.id)]);
 
-  it('groups by status type in workflow order and drops empty groups', () => {
-    const groups = groupByStateType([
-      issue('a', 'completed'),
-      issue('b', 'started'),
-      issue('c', 'backlog'),
-      issue('d', 'started'),
-    ]);
-    assert.deepEqual(
-      groups.map((g) => [g.type, g.issues.map((i) => i.id)]),
+  it('groups by status type in workflow order across teams and drops empty groups', () => {
+    const groups = groupMyIssues(
       [
-        ['started', ['b', 'd']],
-        ['backlog', ['c']],
-        ['completed', ['a']],
+        issue('a', 'completed'),
+        issue('b', 'started'),
+        issue('c', 'backlog'),
+        issue('d', 'started'),
       ],
+      'status',
     );
+    assert.deepEqual(keys(groups), [
+      ['started', ['b', 'd']],
+      ['backlog', ['c']],
+      ['completed', ['a']],
+    ]);
+    assert.equal(groups[0]!.name, 'In Progress');
+  });
+
+  it('groups by priority, most urgent first and no priority last', () => {
+    const groups = groupMyIssues(
+      [
+        issue('a', 'started', { priority: 0 }),
+        issue('b', 'started', { priority: 3 }),
+        issue('c', 'started', { priority: 1 }),
+      ],
+      'priority',
+    );
+    assert.deepEqual(keys(groups), [
+      ['p1', ['c']],
+      ['p3', ['b']],
+      ['p0', ['a']],
+    ]);
+    assert.equal(groups[2]!.name, 'No priority');
+  });
+
+  it('groups by project name, issues without a project last', () => {
+    const groups = groupMyIssues(
+      [
+        issue('a', 'started'),
+        issue('b', 'started', { project: { name: 'Web' } }),
+        issue('c', 'started', { project: { name: 'Mobile' } }),
+      ],
+      'project',
+    );
+    assert.deepEqual(keys(groups), [
+      ['project:Mobile', ['c']],
+      ['project:Web', ['b']],
+      ['project:', ['a']],
+    ]);
+    assert.equal(groups[2]!.name, 'No project');
+  });
+
+  it('puts every issue in one group without grouping', () => {
+    assert.deepEqual(keys(groupMyIssues([issue('a', 'started'), issue('b', 'done')], 'none')), [
+      ['all', ['a', 'b']],
+    ]);
+  });
+});
+
+describe('myIssuesGrouping', () => {
+  it('keeps the groupings My issues offers and falls back to status', () => {
+    assert.equal(myIssuesGrouping('priority'), 'priority');
+    assert.equal(myIssuesGrouping('none'), 'none');
+    assert.equal(myIssuesGrouping('assignee'), 'status');
+    assert.equal(myIssuesGrouping('cycle'), 'status');
+  });
+});
+
+describe('sortMyIssues', () => {
+  const issue = (
+    id: string,
+    fields: Partial<{
+      title: string;
+      identifier: string;
+      priority: number;
+      dueDate: string | null;
+      updatedAt: string;
+      createdAt: string;
+      state: { type: string };
+      assignee: { name: string } | null;
+    }>,
+  ) => ({
+    id,
+    title: 'x',
+    identifier: 'ENG-1',
+    priority: 0,
+    dueDate: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    state: { type: 'started' },
+    assignee: null,
+    ...fields,
+  });
+  const ids = (list: { id: string }[]) => list.map((i) => i.id);
+
+  it('reads the default (manual) order as the newest change first', () => {
+    assert.deepEqual(myIssuesSort({ field: 'manual', dir: 'asc' }), {
+      field: 'updated',
+      dir: 'desc',
+    });
+    assert.deepEqual(myIssuesSort({ field: 'priority', dir: 'asc' }), {
+      field: 'priority',
+      dir: 'asc',
+    });
+  });
+
+  it('orders by priority with no priority last', () => {
+    const list = [
+      issue('none', { priority: 0 }),
+      issue('low', { priority: 4 }),
+      issue('urgent', { priority: 1 }),
+    ];
+    assert.deepEqual(ids(sortMyIssues(list, { field: 'priority', dir: 'asc' })), [
+      'urgent',
+      'low',
+      'none',
+    ]);
+  });
+
+  it('keeps missing due dates last in both directions', () => {
+    const list = [
+      issue('none', {}),
+      issue('late', { dueDate: '2026-12-01' }),
+      issue('soon', { dueDate: '2026-11-01' }),
+    ];
+    assert.deepEqual(ids(sortMyIssues(list, { field: 'dueDate', dir: 'asc' })), [
+      'soon',
+      'late',
+      'none',
+    ]);
+    assert.deepEqual(ids(sortMyIssues(list, { field: 'dueDate', dir: 'desc' })), [
+      'late',
+      'soon',
+      'none',
+    ]);
+  });
+
+  it('orders by status type in workflow order and by identifier across teams', () => {
+    const list = [
+      issue('done', { state: { type: 'completed' } }),
+      issue('todo', { state: { type: 'unstarted' } }),
+      issue('doing', { state: { type: 'started' } }),
+    ];
+    assert.deepEqual(ids(sortMyIssues(list, { field: 'status', dir: 'asc' })), [
+      'doing',
+      'todo',
+      'done',
+    ]);
+    const byId = [
+      issue('e10', { identifier: 'ENG-10' }),
+      issue('d2', { identifier: 'DES-2' }),
+      issue('e9', { identifier: 'ENG-9' }),
+    ];
+    assert.deepEqual(ids(sortMyIssues(byId, { field: 'identifier', dir: 'asc' })), [
+      'd2',
+      'e9',
+      'e10',
+    ]);
+  });
+
+  it('orders by the newest change first for the default order', () => {
+    const list = [
+      issue('old', { updatedAt: '2026-01-01T00:00:00Z' }),
+      issue('new', { updatedAt: '2026-03-01T00:00:00Z' }),
+    ];
+    assert.deepEqual(ids(sortMyIssues(list, { field: 'manual', dir: 'asc' })), ['new', 'old']);
   });
 });
 
@@ -81,6 +238,9 @@ describe('myIssueRow', () => {
     priority: 2,
     createdAt: '2026-11-20T00:00:00Z',
     updatedAt: '2026-11-24T00:00:00Z',
+    completedAt: null,
+    canceledAt: null,
+    parentId: null,
     teamKey: 'ENG',
     state: { name: 'Done', type: 'completed', color: '#0f0' },
     assignee: { name: 'Pat', avatarUrl: null },

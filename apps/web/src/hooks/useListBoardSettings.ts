@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import type { ViewSettings } from '@/utils/viewSettings';
-import { switchLayout } from '@/utils/listPreferences';
 import { EMPTY_FILTER_SET, type FilterSet } from '@/utils/filters';
 import { useListPreferences } from './useListPreferences';
 
@@ -19,8 +18,8 @@ export function useListBoardSettings(viewType: 'project' | 'cycle') {
 
   const { update } = prefs;
   const changeView = useCallback(
-    (next: WorkItemsView) => update({ layout: next, ...switchLayout(settings, view, next) }),
-    [update, settings, view],
+    (next: WorkItemsView) => update({ ...settings, layout: next }),
+    [update, settings],
   );
   const changeSettings = useCallback(
     (next: ViewSettings) => update({ layout: view, ...next }),

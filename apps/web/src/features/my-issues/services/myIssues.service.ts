@@ -14,7 +14,12 @@ const MyIssuesPage = graphql(`
         priority
         createdAt
         updatedAt
+        completedAt
+        canceledAt
         dueDate
+        parent {
+          id
+        }
         team {
           key
         }
@@ -64,6 +69,9 @@ export type MyIssue = {
   priority: number;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
+  canceledAt: string | null;
+  parentId: string | null;
   dueDate: string | null;
   teamKey: string;
   state: { name: string; type: string; color: string };
@@ -87,6 +95,9 @@ type MyIssueNode = {
   priority: number;
   createdAt: string;
   updatedAt: string;
+  completedAt?: string | null;
+  canceledAt?: string | null;
+  parent?: { id: string } | null;
   dueDate?: string | null;
   team: { key: string };
   state: { name: string; type: string; color: string };
@@ -109,6 +120,9 @@ function toMyIssue(n: MyIssueNode): MyIssue {
     priority: n.priority,
     createdAt: n.createdAt,
     updatedAt: n.updatedAt,
+    completedAt: n.completedAt ?? null,
+    canceledAt: n.canceledAt ?? null,
+    parentId: n.parent?.id ?? null,
     dueDate: n.dueDate ?? null,
     teamKey: n.team.key,
     state: n.state,

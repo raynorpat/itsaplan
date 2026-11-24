@@ -1,6 +1,9 @@
 import type { StateType } from '@/types/team';
 import { cycleLabel } from '@/utils/cycles';
 import { isDueOverdue } from '@/utils/dates';
+import { PRIORITY_ORDER, priorityLabel } from '@/utils/fieldOptions';
+import type { GroupField } from '@/utils/viewSettings';
+import type { Sort } from '@/utils/viewTypes';
 import type { ListRowData } from '@/components/common/board/list/ListRowContent';
 import type { MyIssue } from '../services/myIssues.service';
 
@@ -39,24 +42,148 @@ export function myIssuesFilter(
   return includeCompleted ? base : { and: [base, OPEN] };
 }
 
-// Whether a tab first shows completed and canceled issues. Assigned and Subscribed
-// show them under their own status groups; Created and Activity, which build up over
-// time, start with the open issues only.
-export function defaultIncludeCompleted(tab: MyIssuesTab): boolean {
-  return tab === 'assigned' || tab === 'subscribed';
+// The groupings My issues offers. Its issues span teams, so it groups only by what
+// every team shares: the status type, the priority and the project.
+export const MY_ISSUES_GROUPS = ['none', 'status', 'priority', 'project'] as const;
+export type MyIssuesGroup = (typeof MY_ISSUES_GROUPS)[number];
+
+// The stored grouping as one My issues offers; any other falls back to status.
+export function myIssuesGrouping(group: GroupField): MyIssuesGroup {
+  return (MY_ISSUES_GROUPS as readonly string[]).includes(group)
+    ? (group as MyIssuesGroup)
+    : 'status';
 }
 
 // The status groups in Linear's list order. Issues from different teams have
 // different states, so they are grouped by the state's type.
 const TYPE_ORDER = ['triage', 'started', 'unstarted', 'backlog', 'completed', 'canceled'];
 
-export function groupByStateType<T extends { state: { type: string } }>(
+const TYPE_LABELS: Record<string, string> = {
+  triage: 'Triage',
+  started: 'In Progress',
+  unstarted: 'Todo',
+  backlog: 'Backlog',
+  completed: 'Done',
+  canceled: 'Canceled',
+};
+
+interface GroupableIssue {
+  state: { type: string; color?: string };
+  priority: number;
+  project: { name: string } | null;
+}
+
+export interface MyIssuesGroupData<T> {
+  key: string;
+  name: string;
+  stateType?: StateType;
+  color?: string;
+  issues: T[];
+}
+
+// The issues in groups for the chosen grouping, empty groups left out: status types
+// in workflow order, priorities most urgent first with no priority last, projects
+// by name with no project last, or one group of every issue ('all').
+export function groupMyIssues<T extends GroupableIssue>(
   issues: T[],
-): { type: string; issues: T[] }[] {
-  return TYPE_ORDER.map((type) => ({
-    type,
-    issues: issues.filter((i) => i.state.type === type),
-  })).filter((g) => g.issues.length > 0);
+  group: MyIssuesGroup,
+): MyIssuesGroupData<T>[] {
+  const nonEmpty = (groups: MyIssuesGroupData<T>[]) => groups.filter((g) => g.issues.length > 0);
+  switch (group) {
+    case 'none':
+      return [{ key: 'all', name: 'All issues', issues }];
+    case 'status':
+      return nonEmpty(
+        TYPE_ORDER.map((type) => {
+          const members = issues.filter((i) => i.state.type === type);
+          return {
+            key: type,
+            name: TYPE_LABELS[type] ?? type,
+            stateType: type as StateType,
+            color: members[0]?.state.color,
+            issues: members,
+          };
+        }),
+      );
+    case 'priority':
+      return nonEmpty(
+        [...PRIORITY_ORDER, 0].map((p) => ({
+          key: `p${p}`,
+          name: priorityLabel(p),
+          issues: issues.filter((i) => i.priority === p),
+        })),
+      );
+    case 'project': {
+      const names = [...new Set(issues.flatMap((i) => (i.project ? [i.project.name] : [])))].sort(
+        (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }),
+      );
+      return nonEmpty(
+        [...names, ''].map((name) => ({
+          key: `project:${name}`,
+          name: name || 'No project',
+          issues: issues.filter((i) => (i.project?.name ?? '') === name),
+        })),
+      );
+    }
+  }
+}
+
+// The ordering My issues applies. Its issues span teams, which have no shared manual
+// order, so the default (manual) reads as the newest change first.
+export function myIssuesSort(sort: Sort): Sort {
+  return sort.field === 'manual' ? { field: 'updated', dir: 'desc' } : sort;
+}
+
+interface SortableIssue {
+  title: string;
+  identifier: string;
+  priority: number;
+  dueDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  state: { type: string };
+  assignee: { name: string } | null;
+}
+
+// Returns a new array in the chosen order. Missing values (no due date, no assignee)
+// sort last in both directions, as on a team's list; ties keep the loaded order.
+export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): T[] {
+  const { field, dir } = myIssuesSort(sort);
+  const sign = dir === 'desc' ? -1 : 1;
+  const key = (i: T): number | string | null => {
+    switch (field) {
+      case 'title':
+        return i.title;
+      case 'identifier':
+        return i.identifier;
+      case 'status': {
+        const index = TYPE_ORDER.indexOf(i.state.type);
+        return index === -1 ? TYPE_ORDER.length : index;
+      }
+      case 'priority':
+        return i.priority === 0 ? 5 : i.priority;
+      case 'assignee':
+        return i.assignee?.name ?? null;
+      case 'dueDate':
+        return i.dueDate;
+      case 'created':
+        return i.createdAt;
+      default:
+        return i.updatedAt;
+    }
+  };
+  return [...issues].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka === kb) return 0;
+    if (ka == null || ka === '') return 1;
+    if (kb == null || kb === '') return -1;
+    const cmp =
+      typeof ka === 'number' && typeof kb === 'number'
+        ? ka - kb
+        : String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
+    return cmp * sign;
+  });
 }
 
 // A My issues issue as a row of the shared list. The identifier (KEY-N) names the

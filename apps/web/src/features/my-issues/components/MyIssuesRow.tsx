@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { issuePath } from '@/utils/paths';
-import { listRowProperties } from '@/utils/list';
-import { defaultViewSettings } from '@/utils/viewSettings';
+import type { ListRowProperties } from '@/utils/list';
 import { ListRowContent } from '@/components/common/board/list/ListRowContent';
 import type { MyIssue } from '../services/myIssues.service';
 import { myIssueRow } from '../utils/myIssues';
 
-// The fields My issues shows: the List layout's defaults.
-const PROPERTIES = listRowProperties(defaultViewSettings('list').properties, true);
-
 // One issue as a row of the shared list, linking to the issue.
-export default function MyIssuesRow({ issue, focused }: { issue: MyIssue; focused: boolean }) {
+export default function MyIssuesRow({
+  issue,
+  focused,
+  properties,
+}: {
+  issue: MyIssue;
+  focused: boolean;
+  properties: ListRowProperties;
+}) {
   return (
     <Link
       href={issuePath(issue.teamKey, issue.number)}
@@ -22,7 +26,7 @@ export default function MyIssuesRow({ issue, focused }: { issue: MyIssue; focuse
         focused && 'bg-accent/60',
       )}
     >
-      <ListRowContent data={myIssueRow(issue)} properties={PROPERTIES} />
+      <ListRowContent data={myIssueRow(issue)} properties={properties} />
     </Link>
   );
 }

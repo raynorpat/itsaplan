@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createDebouncedSaver, switchLayout, toDisplay, toStored } from '../listPreferences';
-import { defaultViewSettings, normalizeSavedDisplay } from '../viewSettings';
+import { createDebouncedSaver, toDisplay, toStored } from '../listPreferences';
+import { normalizeSavedDisplay } from '../viewSettings';
 
 describe('list preferences', () => {
   it('opens a list never changed with the defaults: List, grouped by status', () => {
@@ -22,6 +22,19 @@ describe('list preferences', () => {
     assert.deepEqual(d, toDisplay(null));
   });
 
+  it('keeps the grouping and ordering of a Timeline display, so List finds them again', () => {
+    const d = {
+      ...toDisplay(null),
+      layout: 'timeline' as const,
+      group: 'priority' as const,
+      sort: { field: 'dueDate' as const, dir: 'desc' as const },
+    };
+    const back = toDisplay(toStored(d));
+    assert.equal(back.layout, 'timeline');
+    assert.equal(back.group, 'priority');
+    assert.deepEqual(back.sort, { field: 'dueDate', dir: 'desc' });
+  });
+
   it('keeps collapsed groups and swimlanes through a save and read', () => {
     const d = {
       ...toDisplay(null),
@@ -35,41 +48,6 @@ describe('list preferences', () => {
 
   it('does not store the week start (a browser preference)', () => {
     assert.equal('weekStart' in toStored(toDisplay(null)), false);
-  });
-});
-
-describe('switchLayout', () => {
-  it('keeps every setting between List and Board', () => {
-    const s = {
-      ...defaultViewSettings('list'),
-      group: 'priority' as const,
-      properties: ['id' as const],
-    };
-    assert.deepEqual(switchLayout(s, 'list', 'kanban'), s);
-  });
-
-  it('starts Timeline and Calendar from their defaults, keeping completed and sub-issue filters', () => {
-    const s = {
-      ...defaultViewSettings('list'),
-      completedIssues: 'week' as const,
-      showSubIssues: false,
-      group: 'priority' as const,
-    };
-    const t = switchLayout(s, 'list', 'timeline');
-    assert.deepEqual(t, {
-      ...defaultViewSettings('timeline'),
-      completedIssues: 'week',
-      showSubIssues: false,
-      weekStart: t.weekStart,
-    });
-  });
-
-  it('starts List from its defaults when coming from Timeline', () => {
-    const fromTimeline = defaultViewSettings('timeline');
-    assert.deepEqual(
-      switchLayout(fromTimeline, 'timeline', 'list').properties,
-      defaultViewSettings('list').properties,
-    );
   });
 });
 

@@ -1,25 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import { defaultIncludeCompleted, type MyIssuesTab } from './utils/myIssues';
+import { useMemo } from 'react';
+import { useListPreferences } from '@/hooks/useListPreferences';
+import type { ViewSettings } from '@/utils/viewSettings';
+import type { MyIssuesTab } from './utils/myIssues';
 import MyIssuesTabs from './components/MyIssuesTabs';
 import MyIssuesList from './components/MyIssuesList';
+import MyIssuesDisplay from './components/MyIssuesDisplay';
 
-// Linear's "My issues" (/my-issues): the viewer's issues across every team, in
-// four tabs. Each tab keeps its own completed-issues setting, starting from its
-// default; the tabs share this component when switching between them.
+// Linear's "My issues" (/my-issues): the viewer's issues across every team, in four
+// tabs. The Display menu is the viewer's My issues display, kept on the server and
+// shared by the four tabs.
 export default function MyIssuesPage({ tab }: { tab: MyIssuesTab }) {
-  const [chosen, setChosen] = useState<Partial<Record<MyIssuesTab, boolean>>>({});
-  const includeCompleted = chosen[tab] ?? defaultIncludeCompleted(tab);
-  const setIncludeCompleted = (value: boolean) => setChosen((c) => ({ ...c, [tab]: value }));
+  const prefs = useListPreferences('myIssues');
+  const settings = useMemo(() => {
+    const { layout: _layout, ...rest } = prefs.display;
+    return rest as ViewSettings;
+  }, [prefs.display]);
+  const { update } = prefs;
+  const setSettings = (next: ViewSettings) => update({ ...next, layout: 'list' });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <MyIssuesTabs
-        active={tab}
-        includeCompleted={includeCompleted}
-        onIncludeCompletedChange={setIncludeCompleted}
-      />
-      <MyIssuesList tab={tab} includeCompleted={includeCompleted} />
+      <MyIssuesTabs active={tab}>
+        <MyIssuesDisplay settings={settings} onChange={setSettings} activity={tab === 'activity'} />
+      </MyIssuesTabs>
+      {prefs.ready && <MyIssuesList tab={tab} settings={settings} onSettingsChange={setSettings} />}
     </div>
   );
 }

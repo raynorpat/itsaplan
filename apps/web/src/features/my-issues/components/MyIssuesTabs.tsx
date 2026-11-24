@@ -1,19 +1,17 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { myIssuesPath } from '@/utils/paths';
-import { Button } from '@/components/ui/button';
 import { MY_ISSUES_TABS, type MyIssuesTab } from '../utils/myIssues';
 
-// The tab row under the header. Each tab is a route of its own; the button on the
-// right shows or hides completed and canceled issues.
+// The tab row under the header. Each tab is a route of its own; `children` (the
+// Display menu) sits on the right.
 export default function MyIssuesTabs({
   active,
-  includeCompleted,
-  onIncludeCompletedChange,
+  children,
 }: {
   active: MyIssuesTab;
-  includeCompleted: boolean;
-  onIncludeCompletedChange: (value: boolean) => void;
+  children: ReactNode;
 }) {
   return (
     <nav className="flex h-11 items-center gap-1 border-b px-4">
@@ -29,15 +27,7 @@ export default function MyIssuesTabs({
           {tab.label}
         </Link>
       ))}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="ml-auto text-muted-foreground"
-        aria-pressed={includeCompleted}
-        onClick={() => onIncludeCompletedChange(!includeCompleted)}
-      >
-        {includeCompleted ? 'Hide completed' : 'Show completed'}
-      </Button>
+      {children}
     </nav>
   );
 }

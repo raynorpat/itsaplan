@@ -8,7 +8,6 @@ import {
   type SavedViewDisplay,
   type ViewSettings,
 } from '@/utils/viewSettings';
-import { switchLayout } from '@/utils/listPreferences';
 import { useListPreferences } from './useListPreferences';
 
 // The conditions of a saved view followed by the ad-hoc ones, re-keyed so the two
@@ -151,17 +150,10 @@ export function useViewEditor(
 
   function changeView(next: WorkItemsView) {
     setView(next);
-    if (activeViewId == null && !editing) {
-      // On the All tab (not editing), the layout and its settings are the viewer's
-      // All issues display.
-      const nextSettings = switchLayout(settings, view, next);
-      setSettings(nextSettings);
-      allIssues.update({ layout: next, ...nextSettings });
-    } else {
-      // A saved view or a draft: the layout change is live only; start the new
-      // layout from its defaults.
-      setSettings(defaultViewSettings(next));
-    }
+    // One display serves every layout, as in Linear; Timeline and Calendar ignore the
+    // options they do not use. On the All tab (not editing) it is the viewer's All
+    // issues display; on a saved view or a draft the change is live only.
+    if (activeViewId == null && !editing) allIssues.update({ ...settings, layout: next });
   }
 
   function changeSettings(next: ViewSettings) {

@@ -1,48 +1,45 @@
-import type { StateType } from '@/types/team';
 import { ListGroupHeader } from '@/components/common/board/list/ListGroupHeader';
+import type { ListRowProperties } from '@/utils/list';
 import type { MyIssue } from '../services/myIssues.service';
+import type { MyIssuesGroupData } from '../utils/myIssues';
 import MyIssuesRow from './MyIssuesRow';
 
-const LABELS: Record<string, string> = {
-  triage: 'Triage',
-  started: 'In Progress',
-  unstarted: 'Todo',
-  backlog: 'Backlog',
-  completed: 'Done',
-  canceled: 'Canceled',
-};
-
-// A status group of the shared list: its header (collapsible) and its rows.
+// A group of the shared list: its header (collapsible) and its rows.
 export default function MyIssuesGroup({
-  type,
-  issues,
+  group,
   focused,
   collapsed,
   onToggle,
+  properties,
 }: {
-  type: string;
-  issues: MyIssue[];
+  group: MyIssuesGroupData<MyIssue>;
   focused: string | null;
   collapsed: boolean;
   onToggle: () => void;
+  properties: ListRowProperties;
 }) {
   return (
     <section>
       <ListGroupHeader
         group={{
-          key: type,
-          name: LABELS[type] ?? type,
-          stateType: type as StateType,
-          color: issues[0]?.state.color,
+          key: group.key,
+          name: group.name,
+          stateType: group.stateType,
+          color: group.color,
           assign: null,
         }}
-        count={issues.length}
+        count={group.issues.length}
         collapsed={collapsed}
         onToggle={onToggle}
       />
       {!collapsed &&
-        issues.map((issue) => (
-          <MyIssuesRow key={issue.id} issue={issue} focused={focused === issue.id} />
+        group.issues.map((issue) => (
+          <MyIssuesRow
+            key={issue.id}
+            issue={issue}
+            focused={focused === issue.id}
+            properties={properties}
+          />
         ))}
     </section>
   );

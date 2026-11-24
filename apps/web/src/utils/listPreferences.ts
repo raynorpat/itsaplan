@@ -3,8 +3,7 @@ import {
   preferencesToDisplay,
   type ViewPreferenceValues,
 } from './viewPreferences';
-import { defaultViewSettings, type SavedViewDisplay, type ViewSettings } from './viewSettings';
-import type { WorkItemsView } from './viewTypes';
+import type { SavedViewDisplay } from './viewSettings';
 
 // The list kinds whose display is one personal record per user on the server
 // (Linear's view types). A setting applies to every list of its kind: every team's
@@ -21,26 +20,6 @@ export function toDisplay(stored: ViewPreferenceValues | null | undefined): Save
 // preference and is not part of it.
 export function toStored(display: SavedViewDisplay): ViewPreferenceValues {
   return displayToPreferences(display);
-}
-
-const SHARED: WorkItemsView[] = ['list', 'kanban'];
-
-// The settings after switching layout. List and Board share every setting, as in
-// Linear; Timeline and Calendar lay issues out by date, so switching to or from them
-// starts from the new layout's defaults and keeps only which completed issues and
-// sub-issues show.
-export function switchLayout(
-  settings: ViewSettings,
-  from: WorkItemsView,
-  to: WorkItemsView,
-): ViewSettings {
-  if (SHARED.includes(from) && SHARED.includes(to)) return settings;
-  return {
-    ...defaultViewSettings(to),
-    completedIssues: settings.completedIssues,
-    showSubIssues: settings.showSubIssues,
-    weekStart: settings.weekStart,
-  };
 }
 
 export interface DebouncedSaver<T> {
