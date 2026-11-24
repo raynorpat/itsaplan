@@ -45,6 +45,9 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   owners: issue imports from GitLab, Gitea and Forgejo with a pasted access token
 //   (apps/api src/imports/handlers.ts), which Linear's schema has no import for. The
 //   token is used by the fetch and never stored. Same Origin rule for the POSTs.
+//   GET /instance/imports/github and /instance/imports/github/repositories and POST
+//   /instance/imports/github/disconnect: the GitHub Import App connection the GitHub
+//   imports read through (Linear's GraphQL mutations start and process those).
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -94,7 +97,9 @@ export interface AccountEmailsHandlers {
 }
 
 // Issue imports from GitLab, Gitea and Forgejo (Linear's schema imports GitHub only,
-// through its GitHub Import App). Each handler checks the caller itself.
+// through its GitHub Import App), and what the Import page reads that Linear's schema
+// has no query for: imports, the people step, the GitHub connection and its
+// repositories. Each handler checks the caller itself.
 export interface ImportsHandlers {
   list(headers: Headers): Promise<object>;
   get(headers: Headers, query: Record<string, unknown>): Promise<object>;
@@ -102,6 +107,9 @@ export interface ImportsHandlers {
   start(headers: Headers, body: unknown): Promise<object>;
   people(headers: Headers, query: Record<string, unknown>): Promise<object>;
   process(headers: Headers, body: unknown): Promise<object>;
+  github(headers: Headers): Promise<object>;
+  githubRepositories(headers: Headers): Promise<object>;
+  githubDisconnect(headers: Headers, body: unknown): Promise<object>;
 }
 
 export interface InstanceHandlers {
@@ -326,6 +334,22 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/imports/process',
         options.trustedOrigins,
         (h, headers, body) => h.process(headers, body),
+      ),
+      instanceImportGithub: createAuthEndpoint(
+        '/instance/imports/github',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.imports.github(ctx.headers ?? new Headers()))),
+      ),
+      instanceImportGithubRepositories: createAuthEndpoint(
+        '/instance/imports/github/repositories',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(await run((h) => h.imports.githubRepositories(ctx.headers ?? new Headers()))),
+      ),
+      instanceImportGithubDisconnect: importsWrite(
+        '/instance/imports/github/disconnect',
+        options.trustedOrigins,
+        (h, headers, body) => h.githubDisconnect(headers, body),
       ),
       instanceOAuthUninstall: createAuthEndpoint(
         '/instance/oauth-uninstall',

@@ -220,6 +220,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   ends; the fetched data waits in memory for the people matching, then
   `processImport` runs. One running import per team. A team the import creates gets
   the matched members.
+  GitHub imports follow Linear's model: the workspace connects this instance's GitHub
+  Import App (`integrationGithubImportConnect(code, installationId)`; the OAuth code
+  confirms the person can access the installation, then their token is dropped) as the
+  one `integration` row of service `githubImport` (the installation id, never a
+  token), `issueImportCreateGithub` fetches the chosen repositories and
+  `issueImportProcess` takes the people matching as `mapping.people`
+  (`imports/github.ts`, `graphql/resolvers/issue-import.ts`). Installation tokens are
+  minted from the app's key (`GITHUB_IMPORT_*`, `docs/github-import-setup.md`) and kept
+  in memory until they expire. The fetch, people step and processing are shared by
+  every source (`imports/flow.ts`); the Import page reads imports, the people step and
+  the GitHub connection and repositories through `/api/auth/instance/imports*`, since
+  Linear's schema has no query for them.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

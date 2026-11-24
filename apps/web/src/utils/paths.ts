@@ -118,3 +118,4 @@ export const workspaceSettingsPath = () => '/settings/workspace/general';
 // The workspace's OAuth applications (Linear's Settings → API → OAuth applications),
 // for owners and admins.
 export const workspaceApplicationsPath = () => '/settings/workspace/applications';
+export const workspaceImportPath = () => '/settings/workspace/import';

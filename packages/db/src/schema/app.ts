@@ -906,6 +906,22 @@ export const issueImport = pgTable('issue_import', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// A workspace integration (Linear's Integration). Only `githubImport` is used: the
+// GitHub Import App installation that GitHub issue imports read through
+// (apps/api/src/imports/github.ts). `installation_id` is GitHub's installation id; no
+// GitHub token is stored (installation tokens are minted from the app's key on use).
+// One row per service.
+export const integration = pgTable('integration', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  service: text('service').notNull().unique(),
+  installationId: text('installation_id').notNull(),
+  creatorId: uuid('creator_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const issueActivity = pgTable(
   'issue_activity',
   {

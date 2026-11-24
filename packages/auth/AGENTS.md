@@ -27,7 +27,10 @@ issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email
 imports from GitLab, Gitea and Forgejo (`GET imports`, `GET import?id=`, `GET
 import/people?id=`, `POST imports/{repositories, start, process}`; owners and admins)
 take a pasted access token that the API uses for the fetch and never stores
-(`apps/api/src/imports/handlers.ts`); Linear's schema imports GitHub only. All but the first need the
+(`apps/api/src/imports/handlers.ts`); Linear's schema imports GitHub only, through
+its mutations, and the Import page reads the GitHub connection and its repositories
+here (`GET imports/github`, `GET imports/github/repositories`, `POST
+imports/github/disconnect`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

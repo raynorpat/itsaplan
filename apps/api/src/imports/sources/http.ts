@@ -51,17 +51,43 @@ function redact(text: string, token: string): string {
 }
 
 // GET a JSON resource with the source's auth headers. Answers the parsed body and
-// the response headers (for paging).
-export async function getJson<T>(
+// the response headers (for paging). `secret` is redacted from any error.
+export function getJson<T>(
   url: string,
   headers: Record<string, string>,
+  secret: string,
+): Promise<{ data: T; headers: Headers }> {
+  return requestJson<T>('GET', url, headers, undefined, secret);
+}
+
+// POST a JSON body (GitHub's token endpoints).
+export function postJson<T>(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  secret: string,
+): Promise<{ data: T; headers: Headers }> {
+  return requestJson<T>('POST', url, headers, body, secret);
+}
+
+async function requestJson<T>(
+  method: 'GET' | 'POST',
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
   token: string,
 ): Promise<{ data: T; headers: Headers }> {
   for (let attempt = 0; ; attempt += 1) {
     let res: Response;
     try {
       res = await fetch(url, {
-        headers: { accept: 'application/json', ...headers },
+        method,
+        headers: {
+          accept: 'application/json',
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...headers,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
         redirect: 'manual',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
