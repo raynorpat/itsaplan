@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { bearer, createClient, install, uninstall } from '../../../__tests__/helpers/oauth';
 import { issueDelegated } from '../../../agents/store';
+import { createTeam, makePrivate } from '../../../__tests__/helpers/graphql';
 
 // Linear's agent API: an issue delegated to an app user, or an app user @-mentioned
 // in a comment, starts an agent session; the app publishes activities to its own
@@ -137,12 +137,11 @@ const mention = (userId: string, text: string) => `@[Agent](user:${userId}) ${te
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const member = await signUpTestUser({ name: 'Member' });
-  const api = authedApi(owner.cookie);
-  await api.teams.post({ key: 'ENG', name: 'Engineering' });
-  await api.teams.post({ key: 'SEC', name: 'Security' });
-  await api.teams({ teamKey: 'SEC' }).patch({ visibility: 'private' });
-  await api.teams.post({ key: 'PRV', name: 'Private' });
-  await api.teams({ teamKey: 'PRV' }).patch({ visibility: 'private' });
+  await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+  await createTeam(owner, { key: 'SEC', name: 'Security' });
+  await makePrivate(owner, 'SEC');
+  await createTeam(owner, { key: 'PRV', name: 'Private' });
+  await makePrivate(owner, 'PRV');
   const sec = await teamId(owner, 'SEC');
   // Robot: assignable and mentionable, sees the public teams and SEC.
   const robot = await installApp(owner, 'Robot', 'read,write,app:assignable,app:mentionable', [
@@ -187,7 +186,7 @@ describe('agent sessions', () => {
 
   it('refuses an uninstalled application as delegate', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    await authedApi(owner.cookie).teams.post({ key: 'ENG', name: 'Engineering' });
+    await createTeam(owner, { key: 'ENG', name: 'Engineering' });
     const client = await createClient(owner.cookie, { name: 'Gone' });
     const tokens = await install(owner.cookie, client, { scope: 'read,write,app:assignable' });
     const me = await gql(bearer(tokens.access_token), VIEWER);

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { auth } from '@repo/auth';
 import { app } from '../../app';
-import { authedApi } from '../helpers/app';
 import { requestMagicLink, signUpTestUser, type TestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
@@ -21,7 +20,7 @@ import {
   uninstall,
   type TokenSet,
 } from '../helpers/oauth';
-import { signUpWithRole } from '../helpers/roles';
+import { createTeam, makePrivate, signUpAs } from '../helpers/graphql';
 
 // Installing an OAuth application with `actor=app` (Linear's app actor): only workspace
 // admins and owners install; the install creates one app user per application, which
@@ -66,11 +65,10 @@ async function teamId(owner: TestUser, key: string): Promise<string> {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const api = authedApi(owner.cookie);
-  await api.teams.post({ key: 'MKT', name: 'Marketing' });
-  await api.teams.post({ key: 'ENG', name: 'Engineering' });
-  await api.teams.post({ key: 'SEC', name: 'Security' });
-  await api.teams({ teamKey: 'SEC' }).patch({ visibility: 'private' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+  await createTeam(owner, { key: 'SEC', name: 'Security' });
+  await makePrivate(owner, 'SEC');
   const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
   return { owner, client };
 }
@@ -94,7 +92,7 @@ describe('oauth actor=app installs', () => {
 
   it('refuses an install by someone who is not a workspace admin or owner', async () => {
     const { client } = await setup();
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     const { challenge } = pkce();
     const consent = await consentAsApp(member.cookie, client, challenge);
     expect(consent.status).toBe(403);
@@ -160,11 +158,6 @@ describe('oauth actor=app installs', () => {
       input: { teamId: eng, userId: appUser },
     });
     expect(code(added)).toBe('INVALID_INPUT');
-    const api = authedApi(owner.cookie);
-    const restAdd = await api.teams({ teamKey: 'ENG' }).members.post({ userId: appUser });
-    expect(restAdd.status).toBe(400);
-    const restRemove = await api.teams({ teamKey: 'MKT' }).members({ userId: appUser }).delete();
-    expect(restRemove.status).toBe(400);
     // The app user cannot join a team itself.
     const joined = await gql(bearer(tokens.access_token), MEMBERSHIP_CREATE, {
       input: { teamId: mkt, userId: appUser },
@@ -314,7 +307,7 @@ describe('oauth actor=app installs', () => {
     const appUserId = (await viewer(installed.access_token)).id;
 
     // A member may not uninstall.
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     expect((await uninstall(member.cookie, client)).status).toBe(403);
 
     expect((await uninstall(owner.cookie, client)).status).toBe(200);

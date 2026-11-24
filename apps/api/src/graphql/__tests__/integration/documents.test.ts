@@ -1,10 +1,18 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  addMember,
+  createIssue,
+  createProject,
+  createTeam,
+  createWebhook,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Documents over the Linear API: CRUD, the trash, archived parents, visibility,
 // filters, unsupported input and the Document webhook.
@@ -16,17 +24,15 @@ const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
-  const project = (await asOwner.projects.post({ teamIds: [mkt.team.id], name: 'Site' })).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  const mkt = await teamView(owner, 'MKT');
+  const ops = await teamView(owner, 'OPS');
+  const project = await createProject(owner, { teamIds: [mkt.team.id], name: 'Site' });
   const stateId = ops.states.find((s) => s.stateType === 'unstarted')!.id;
-  const issue = (await asOwner.teams({ teamKey: 'OPS' }).issues.post({ stateId, title: 'Bug' }))
-    .data!;
+  const issue = await createIssue(owner, { teamId: 'OPS', stateId, title: 'Bug' });
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, client, project, issue, mkt: mkt.team.id, ops: ops.team.id };
+  return { owner, client, project, issue, mkt: mkt.team.id, ops: ops.team.id };
 }
 
 const titles = async (cookie: string, query: string) => {
@@ -78,9 +84,9 @@ describe('graphql documents', () => {
   });
 
   it('hides documents of archived projects unless includeArchived', async () => {
-    const { asOwner, client, project } = await setup();
+    const { client, project } = await setup();
     await client.createDocument({ title: 'Spec', projectId: project.id });
-    await asOwner.projects({ projectId: project.id }).archive.post();
+    await client.archiveProject(project.id);
     expect((await client.documents()).nodes).toHaveLength(0);
     expect((await client.documents({ includeArchived: true })).nodes).toHaveLength(1);
   });
@@ -90,7 +96,7 @@ describe('graphql documents', () => {
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
-    const outsider = await signUpWithRole('guest');
+    const outsider = await signUpAs('guest');
     const res = await gql({ cookie: outsider.cookie }, `{ document(id: "${doc.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     const list = await gql({ cookie: outsider.cookie }, '{ documents { nodes { id } } }');
@@ -137,12 +143,12 @@ describe('graphql documents', () => {
   });
 
   it('sends a Document webhook on documentCreate', async () => {
-    const { asOwner, client, project } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
-    ).data!;
+    const { owner, client, project } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Document'],
+    });
     await client.createDocument({ title: 'Spec', projectId: project.id });
     const items = (await webhookDeliveries(hook.id)).data!.items;
     expect(items.map((d) => (d.payload as { type: string; action: string }).action)).toEqual([
@@ -151,13 +157,13 @@ describe('graphql documents', () => {
   });
 
   it('hides project documents and their comments from a non-member of a private team', async () => {
-    const { asOwner, client, project } = await setup();
+    const { owner, client, project } = await setup();
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
     await client.createComment({ documentContentId: doc.id, body: 'Note' });
-    await makePrivate(asOwner, 'MKT');
-    const user = await signUpWithRole('member');
+    await makePrivate(owner, 'MKT');
+    const user = await signUpAs('member');
     const one = await gql({ cookie: user.cookie }, `{ document(id: "${doc.id}") { id } }`);
     expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
     const lists = await gql(
@@ -168,9 +174,9 @@ describe('graphql documents', () => {
   });
 
   it('needs to see the new parent to move a document', async () => {
-    const { asOwner, client, project, issue } = await setup();
-    const guest = await signUpWithRole('guest');
-    await addToTeam(asOwner, 'MKT', guest);
+    const { owner, client, project, issue } = await setup();
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'MKT', guest.userId);
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;
@@ -212,12 +218,12 @@ describe('graphql documents', () => {
   });
 
   it('leaves a trashed document unchanged when it is deleted again', async () => {
-    const { asOwner, client, project } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Document'] })
-    ).data!;
+    const { owner, client, project } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Document'],
+    });
     const doc = (await (
       await client.createDocument({ title: 'Spec', projectId: project.id })
     ).document)!;

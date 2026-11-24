@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { addMember, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Webhook management over the Linear API, with the same access rules as REST.
 
@@ -13,11 +13,10 @@ const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const teamId = (await teamView(owner, 'MKT')).team.id;
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, teamId, client };
+  return { owner, teamId, client };
 }
 
 describe('graphql webhooks', () => {
@@ -53,7 +52,7 @@ describe('graphql webhooks', () => {
     });
 
     const other = await signUpTestUser();
-    await authedApi(other.cookie).teams.post({ key: 'OPS', name: 'Operations' });
+    await createTeam(other, { key: 'OPS', name: 'Operations' });
     const denied = await gql(
       { cookie: other.cookie },
       'mutation { webhookCreate(input: { url: "https://example.com/all", allPublicTeams: true, resourceTypes: ["Project"] }) { success } }',
@@ -96,14 +95,14 @@ describe('graphql webhooks', () => {
   });
 
   it("hides a team's webhooks from a workspace member", async () => {
-    const { asOwner, teamId, client } = await setup();
+    const { owner, teamId, client } = await setup();
     await client.createWebhook({
       url: 'https://example.com/hook',
       teamId,
       resourceTypes: ['Issue'],
     });
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const res = await gql({ cookie: member.cookie }, '{ webhooks { nodes { id } } }');
     expect(res.body.data).toEqual({ webhooks: { nodes: [] } });
   });

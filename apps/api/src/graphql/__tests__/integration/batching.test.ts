@@ -3,8 +3,7 @@ import { db } from '@repo/db';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { authedApi } from '../../../__tests__/helpers/app';
-import { addToTeam } from '../../../__tests__/helpers/roles';
+import { addMember, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Per-row fields of a list resolve through request-scoped loaders, so a list query
 // makes the same number of SQL statements for 5 rows as for 50.
@@ -137,10 +136,9 @@ async function measureNotifications(count: number) {
   await resetDb();
   const owner = await signUpTestUser({ name: 'Owner' });
   const member = await signUpTestUser({ name: 'Member' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await addToTeam(asOwner, 'MKT', member);
-  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await addMember(owner, 'MKT', member.userId);
+  const teamId = (await teamView(owner, 'MKT')).team.id;
   for (let i = 0; i < count; i++) {
     const res = await gql(
       { cookie: owner.cookie },

@@ -17,7 +17,7 @@ import {
   tokenRequest,
   type OAuthClient,
 } from '../helpers/oauth';
-import { signUpWithRole } from '../helpers/roles';
+import { signUpAs } from '../helpers/graphql';
 
 // Managing OAuth applications (admins and owners, /api/auth/instance/oauth-apps*), the
 // applications a user has authorized (/api/auth/instance/oauth-authorized*), and what
@@ -78,7 +78,7 @@ describe('oauth application management', () => {
   });
 
   it('lets only workspace admins and owners manage applications', async () => {
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     const client = await createClient(owner.cookie);
     const create = await authPost('/instance/oauth-apps/create', member.cookie, {
       name: 'Nope',
@@ -171,7 +171,7 @@ describe('oauth application management', () => {
     expect(listed.map((a) => a.clientId)).toEqual([created.application.clientId]);
 
     // Another admin manages it too.
-    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const admin = await signUpAs('admin', { name: 'Admin' });
     expect((await listApps(admin.cookie)).length).toBe(1);
   });
 
@@ -302,7 +302,7 @@ describe('authorized applications', () => {
 
   it("lists and revokes the user's own authorizations only", async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     const client = await createClient(owner.cookie, { name: 'Robot' });
 
     const mine = await obtainTokens(member.cookie, client, 'read,write');
@@ -356,7 +356,7 @@ describe('an installed application when its installer changes', () => {
 
   it('keeps working after the installer is suspended or demoted', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const admin = await signUpAs('admin', { name: 'Admin' });
     const client = await createClient(admin.cookie, { clientCredentials: true });
     const installed = await install(admin.cookie, client);
     const appUserId = (
@@ -407,7 +407,7 @@ describe('the application shown on the consent page', () => {
 
   it('shows a signed-in person the application, and nothing to anyone else', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     const client = await createClient(owner.cookie, {
       name: 'Robot',
       description: 'Ships things',

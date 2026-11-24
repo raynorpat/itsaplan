@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
-import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
+import {
+  addMember,
+  createTeam,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Linear's roles over GraphQL: role fields on users, team visibility, role changes
 // and suspension, team memberships, organization invites and private teams.
@@ -17,19 +22,16 @@ const data = <T>(res: { body: Body }) => res.body.data as T;
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  await asOwner.teams.post({ key: 'SEC', name: 'Security' });
-  await makePrivate(asOwner, 'SEC');
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  await createTeam(owner, { key: 'SEC', name: 'Security' });
+  await makePrivate(owner, 'SEC');
   const ids = Object.fromEntries(
     await Promise.all(
-      ['MKT', 'OPS', 'SEC'].map(
-        async (k) => [k, (await asOwner.teams({ teamKey: k }).get()).data!.team.id] as const,
-      ),
+      ['MKT', 'OPS', 'SEC'].map(async (k) => [k, (await teamView(owner, k)).team.id] as const),
     ),
   );
-  return { owner, asOwner, ids };
+  return { owner, ids };
 }
 
 const teamKeys = async (cookie: string) =>
@@ -46,9 +48,9 @@ describe('graphql roles', () => {
 
   it('exposes roles on users', async () => {
     const { owner } = await setup();
-    const admin = await signUpWithRole('admin');
-    const guest = await signUpWithRole('guest');
-    const member = await signUpWithRole('member');
+    const admin = await signUpAs('admin');
+    const guest = await signUpAs('guest');
+    const member = await signUpAs('member');
     const viewer = async (cookie: string) =>
       data<{ viewer: Record<string, boolean> }>(
         await gql({ cookie }, '{ viewer { admin owner guest active } }'),
@@ -80,10 +82,10 @@ describe('graphql roles', () => {
   });
 
   it('teams follow visibility', async () => {
-    const { asOwner, ids } = await setup();
-    const member = await signUpWithRole('member');
-    const guest = await signUpWithRole('guest');
-    await addToTeam(asOwner, 'OPS', guest);
+    const { owner, ids } = await setup();
+    const member = await signUpAs('member');
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'OPS', guest.userId);
     expect(await teamKeys(member.cookie)).toEqual(['MKT', 'OPS']);
     expect(await teamKeys(guest.cookie)).toEqual(['OPS']);
     const hidden = await gql({ cookie: member.cookie }, `{ team(id: "${ids.SEC}") { id } }`);
@@ -99,8 +101,8 @@ describe('graphql roles', () => {
 
   it('userChangeRole, userSuspend, userUnsuspend', async () => {
     const { owner } = await setup();
-    const admin = await signUpWithRole('admin');
-    const member = await signUpWithRole('member');
+    const admin = await signUpAs('admin');
+    const member = await signUpAs('member');
     const change = (cookie: string, id: string, role: string) =>
       gql({ cookie }, `mutation { userChangeRole(id: "${id}", role: ${role}) { success } }`);
     expect(code(await change(admin.cookie, member.userId, 'owner'))).toBe('FORBIDDEN');
@@ -124,10 +126,10 @@ describe('graphql roles', () => {
   });
 
   it('team memberships', async () => {
-    const { owner, asOwner, ids } = await setup();
-    const member = await signUpWithRole('member');
-    const other = await signUpWithRole('member');
-    await addToTeam(asOwner, 'MKT', member);
+    const { owner, ids } = await setup();
+    const member = await signUpAs('member');
+    const other = await signUpAs('member');
+    await addMember(owner, 'MKT', member.userId);
     const created = await gql(
       { cookie: member.cookie },
       `mutation { teamMembershipCreate(input: { teamId: "${ids.MKT}", userId: "${other.userId}" }) { success teamMembership { id owner user { id } team { key } } } }`,
@@ -180,7 +182,7 @@ describe('graphql roles', () => {
 
   it('organization invites', async () => {
     const { owner, ids } = await setup();
-    const member = await signUpWithRole('member');
+    const member = await signUpAs('member');
     const created = await gql(
       { cookie: owner.cookie },
       `mutation { organizationInviteCreate(input: { email: "g@example.com", role: guest, teamIds: ["${ids.OPS}"] }) { success organizationInvite { id email role inviter { id } } } }`,
@@ -217,7 +219,7 @@ describe('graphql roles', () => {
   });
 
   it('teamCreate makes the creator a team owner; teamUpdate makes it private', async () => {
-    const member = await signUpWithRole('member');
+    const member = await signUpAs('member');
     const client = linearClient(await createApiKey(member.cookie));
     const team = (await (await client.createTeam({ name: 'Design', key: 'DSN' })).team)!;
     expect(team).toMatchObject({ key: 'DSN', private: false });
@@ -240,7 +242,7 @@ describe('graphql roles', () => {
     ).team;
     expect(res).toMatchObject({ visibility: 'private', private: true });
     expect(res.memberships.nodes).toEqual([{ owner: true, user: { id: member.userId } }]);
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     const guestCreate = await gql(
       { cookie: guest.cookie },
       'mutation { teamCreate(input: { name: "G", key: "GST" }) { success } }',
@@ -250,7 +252,7 @@ describe('graphql roles', () => {
 
   it('lets a member join a public team they are not in', async () => {
     const { ids } = await setup();
-    const member = await signUpWithRole('member');
+    const member = await signUpAs('member');
     const joined = await gql(
       { cookie: member.cookie },
       `mutation { teamMembershipCreate(input: { teamId: "${ids.OPS}", userId: "${member.userId}" }) { success teamMembership { owner user { id } } } }`,
@@ -265,8 +267,8 @@ describe('graphql roles', () => {
 
   it('lets an admin add themselves to a private team', async () => {
     const { ids } = await setup();
-    const admin = await signUpWithRole('admin');
-    const member = await signUpWithRole('member');
+    const admin = await signUpAs('admin');
+    const member = await signUpAs('member');
     const create = (cookie: string, userId: string) =>
       gql(
         { cookie },
@@ -281,7 +283,7 @@ describe('graphql roles', () => {
 
   it('keeps project labels from guests', async () => {
     await setup();
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     const res = await gql({ cookie: guest.cookie }, '{ projectLabels { nodes { id } } }');
     expect(res.body.errors?.[0]?.extensions?.code).toBe('FORBIDDEN');
   });

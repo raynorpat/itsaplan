@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { db, webhook } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { app } from '../../../app';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
@@ -15,6 +14,7 @@ import {
   type OAuthClient,
 } from '../../../__tests__/helpers/oauth';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import { createTeam, makePrivate } from '../../../__tests__/helpers/graphql';
 
 // Linear's agent session events: a session's app receives an `AgentSessionEvent`
 // webhook when the session starts (`created`) and when a person writes to it
@@ -150,10 +150,9 @@ const stop = (cookie: string, sessionId: string) =>
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const member = await signUpTestUser({ name: 'Member' });
-  const api = authedApi(owner.cookie);
-  await api.teams.post({ key: 'ENG', name: 'Engineering' });
-  await api.teams.post({ key: 'PRV', name: 'Private' });
-  await api.teams({ teamKey: 'PRV' }).patch({ visibility: 'private' });
+  await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+  await createTeam(owner, { key: 'PRV', name: 'Private' });
+  await makePrivate(owner, 'PRV');
   const robot = await installAgent(owner, 'Robot');
   return { owner, member, robot };
 }
@@ -430,7 +429,7 @@ describe('agent session webhooks', () => {
     const [session] = await sessions(robot.headers);
     const before = (await events(robot)).length;
 
-    await authedApi(owner.cookie).teams({ teamKey: 'ENG' }).patch({ visibility: 'private' });
+    await makePrivate(owner, 'ENG');
 
     await comment(
       { cookie: owner.cookie },

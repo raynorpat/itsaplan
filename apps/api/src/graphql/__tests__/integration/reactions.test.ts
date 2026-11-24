@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createUpdate } from '../../../projects/updates';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  addMember,
+  createIssue,
+  createProject,
+  createTeam,
+  createWebhook,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Emoji reactions on issues, comments and project updates: one per user and exact
 // emoji, removed only by the user who added it.
@@ -15,21 +23,20 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const issue = (
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .issues.post({ stateId: mkt.states[0].id, title: 'Task' })
-  ).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const mkt = await teamView(owner, 'MKT');
+  const issue = await createIssue(owner, {
+    teamId: 'MKT',
+    stateId: mkt.states[0]!.id,
+    title: 'Task',
+  });
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, mkt, issue, client };
+  return { owner, mkt, issue, client };
 }
 
-async function addMember(asOwner: Api) {
+async function joinTeam(owner: TestUser) {
   const member = await signUpTestUser({ name: 'Member' });
-  await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+  await addMember(owner, 'MKT', member.userId);
   return member;
 }
 
@@ -39,11 +46,11 @@ describe('graphql reactions', () => {
   });
 
   it('reacts to an issue, a comment and a project update', async () => {
-    const { owner, asOwner, mkt, issue, client } = await setup();
+    const { owner, mkt, issue, client } = await setup();
     const comment = (await (
       await client.createComment({ issueId: issue.id, body: 'hi' })
     ).comment)!;
-    const project = (await asOwner.projects.post({ name: 'P', teamIds: [mkt.team.id] })).data!;
+    const project = await createProject(owner, { name: 'P', teamIds: [mkt.team.id] });
     const update = await createUpdate(project.id, owner.userId, { body: 'u', health: 'onTrack' });
     for (const parent of [
       { issueId: issue.id },
@@ -65,14 +72,14 @@ describe('graphql reactions', () => {
   });
 
   it('allows one reaction per user and emoji, and others may use the same emoji', async () => {
-    const { owner, asOwner, issue, client } = await setup();
+    const { owner, issue, client } = await setup();
     await client.createReaction({ emoji: '+1', issueId: issue.id });
     const again = await gql(
       { cookie: owner.cookie },
       `mutation { reactionCreate(input: { emoji: "+1", issueId: "${issue.id}" }) { success } }`,
     );
     expect(errorCode(again)).toBe('CONFLICT');
-    const member = await addMember(asOwner);
+    const member = await joinTeam(owner);
     const theirs = await gql(
       { cookie: member.cookie },
       `mutation { reactionCreate(input: { emoji: "+1", issueId: "${issue.id}" }) { success } }`,
@@ -87,9 +94,9 @@ describe('graphql reactions', () => {
   });
 
   it("refuses to remove another user's reaction", async () => {
-    const { asOwner, issue, client } = await setup();
+    const { owner, issue, client } = await setup();
     const r = (await (await client.createReaction({ emoji: '🎉', issueId: issue.id })).reaction)!;
-    const member = await addMember(asOwner);
+    const member = await joinTeam(owner);
     const res = await gql(
       { cookie: member.cookie },
       `mutation { reactionDelete(id: "${r.id}") { success } }`,
@@ -99,11 +106,11 @@ describe('graphql reactions', () => {
   });
 
   it('refuses a reaction on a project update the viewer cannot see', async () => {
-    const { owner, asOwner, mkt } = await setup();
-    const project = (await asOwner.projects.post({ name: 'P', teamIds: [mkt.team.id] })).data!;
+    const { owner, mkt } = await setup();
+    const project = await createProject(owner, { name: 'P', teamIds: [mkt.team.id] });
     const update = await createUpdate(project.id, owner.userId, { body: 'u', health: 'onTrack' });
-    await makePrivate(asOwner, 'MKT');
-    const member = await signUpWithRole('member');
+    await makePrivate(owner, 'MKT');
+    const member = await signUpAs('member');
     const res = await gql(
       { cookie: member.cookie },
       `mutation { reactionCreate(input: { emoji: "x", projectUpdateId: "${update.id}" }) { success } }`,
@@ -121,12 +128,12 @@ describe('graphql reactions', () => {
   });
 
   it('sends Reaction webhooks', async () => {
-    const { asOwner, issue, client } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Reaction'] })
-    ).data!;
+    const { owner, issue, client } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Reaction'],
+    });
     const r = (await (await client.createReaction({ emoji: '👀', issueId: issue.id })).reaction)!;
     await client.deleteReaction(r.id);
     const items = (await webhookDeliveries(hook.id))

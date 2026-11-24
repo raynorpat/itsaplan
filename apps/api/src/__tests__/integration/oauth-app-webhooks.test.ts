@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { db, webhook } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { authedApi } from '../helpers/app';
 import { signUpTestUser, type TestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
 import { REDIRECT_URI, authPost, install, obtainTokens, type OAuthClient } from '../helpers/oauth';
-import { signUpWithRole } from '../helpers/roles';
 import { webhookDeliveries } from '../helpers/webhooks';
+import { createTeam, makePrivate, signUpAs } from '../helpers/graphql';
 
 // An OAuth application's webhook (Linear's application webhooks): it receives the
 // resource types it subscribes to, for the teams its app user can reach when it is
@@ -77,11 +76,10 @@ describe('oauth application webhooks', () => {
   beforeEach(async () => {
     await resetDb();
     owner = await signUpTestUser({ name: 'Owner' });
-    const api = authedApi(owner.cookie);
-    await api.teams.post({ key: 'MKT', name: 'Marketing' });
-    await api.teams.post({ key: 'ENG', name: 'Engineering' });
-    await api.teams.post({ key: 'SEC', name: 'Security' });
-    await api.teams({ teamKey: 'SEC' }).patch({ visibility: 'private' });
+    await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+    await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+    await createTeam(owner, { key: 'SEC', name: 'Security' });
+    await makePrivate(owner, 'SEC');
   });
 
   it('sends nothing for an application nobody has authorized', async () => {
@@ -114,7 +112,7 @@ describe('oauth application webhooks', () => {
 
   it('covers the public teams when people only authorized it as themselves', async () => {
     const hooked = await createAppWithWebhook(owner.cookie);
-    const member = await signUpWithRole('member', { name: 'Member' });
+    const member = await signUpAs('member', { name: 'Member' });
     await obtainTokens(member.cookie, hooked.client, 'read');
     await createIssue(owner, 'ENG', 'Public');
     await createIssue(owner, 'SEC', 'Private');
@@ -144,10 +142,5 @@ describe('oauth application webhooks', () => {
     expect((listed.body.data?.webhooks as { nodes: { id: string }[] }).nodes).toEqual([]);
     const one = await gql({ cookie: owner.cookie }, WEBHOOK, { id: hooked.webhookId });
     expect(one.body.errors?.[0]?.extensions?.code).toBe('ENTITY_NOT_FOUND');
-    const api = authedApi(owner.cookie);
-    const allTeams = await api.webhooks.get();
-    expect((allTeams.data as unknown as { id: string }[]).map((w) => w.id)).not.toContain(
-      hooked.webhookId,
-    );
   });
 });

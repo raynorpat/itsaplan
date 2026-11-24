@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import { addMember, createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
 // Linear's Organization over GraphQL: organization and organizationUpdate, the
 // security settings that set who may create teams, manage labels and invite, and the
@@ -21,8 +21,8 @@ describe('graphql organization', () => {
 
   it('reads and updates the organization', async () => {
     await signUpTestUser();
-    const admin = await signUpWithRole('admin');
-    const member = await signUpWithRole('member');
+    const admin = await signUpAs('admin');
+    const member = await signUpAs('member');
     const update = await gql(
       as(admin.cookie),
       `mutation { organizationUpdate(input: { name: "Acme", urlKey: "acme", logoUrl: "https://e.com/l.png", allowedFileUploadContentTypes: ["image/*"] }) { success organization { name urlKey } } }`,
@@ -50,8 +50,8 @@ describe('graphql organization', () => {
 
   it('maps the security settings onto who may create teams, invite and manage labels', async () => {
     const owner = await signUpTestUser();
-    const admin = await signUpWithRole('admin');
-    const member = await signUpWithRole('member');
+    const admin = await signUpAs('admin');
+    const member = await signUpAs('member');
     const set = await gql(
       as(owner.cookie),
       'mutation { organizationUpdate(input: { securitySettings: { teamCreationRole: admin, invitationsRole: admin, labelManagementRole: owner } }) { success } }',
@@ -71,8 +71,7 @@ describe('graphql organization', () => {
       'mutation { teamCreate(input: { name: "Ops", key: "OPS" }) { success } }',
     );
     expect(errorCode(teamCreate)).toBe('FORBIDDEN');
-    expect((await member.api.teams.post({ key: 'OPZ', name: 'Opz' })).status).toBe(403);
-    expect((await admin.api.teams.post({ key: 'ADM', name: 'Admins' })).status).toBe(201);
+    expect((await createTeam(admin, { key: 'ADM', name: 'Admins' })).team.key).toBe('ADM');
     const invite = await gql(
       as(member.cookie),
       'mutation { organizationInviteCreate(input: { email: "x@example.com", role: guest }) { success } }',
@@ -104,13 +103,10 @@ describe('graphql organization', () => {
 
   it("shows a guest only their teams' people and refuses their update", async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const stranger = await signUpWithRole('member', { name: 'Stranger' });
-    const guest = await signUpWithRole('guest', { name: 'Guest' });
-    const { authedApi } = await import('../../../__tests__/helpers/app');
-    const { addToTeam } = await import('../../../__tests__/helpers/roles');
-    const api = authedApi(owner.cookie);
-    await api.teams.post({ key: 'OPS', name: 'Ops' });
-    await addToTeam(api, 'OPS', guest);
+    const stranger = await signUpAs('member', { name: 'Stranger' });
+    const guest = await signUpAs('guest', { name: 'Guest' });
+    await createTeam(owner, { key: 'OPS', name: 'Ops' });
+    await addMember(owner, 'OPS', guest.userId);
     const res = await gql(as(guest.cookie), '{ organization { users { nodes { name } } } }');
     const names = (
       res.body.data as { organization: { users: { nodes: { name: string }[] } } }

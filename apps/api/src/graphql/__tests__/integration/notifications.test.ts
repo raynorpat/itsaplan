@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import {
+  addMember,
+  createComment,
+  createIssue,
+  createTeam,
+  gqlData,
+  makePrivate,
+  removeMember,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Notifications over the Linear API: the viewer's inbox as IssueNotifications with
 // Linear's type and category names, read / snooze / archive, bulk actions, the
@@ -13,29 +22,41 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
   res.body.errors?.[0]?.message ?? '';
 
-interface Member {
-  api: Api;
-  userId: string;
-  cookie: string;
-}
-
 async function setup() {
   const o = await signUpTestUser({ name: 'Owner' });
-  const owner: Member = { api: authedApi(o.cookie), userId: o.userId, cookie: o.cookie };
-  await owner.api.teams.post({ key: 'MKT', name: 'Marketing' });
-  const stateId = (await owner.api.teams({ teamKey: 'MKT' }).get()).data!.states[0]!.id;
+  const owner = o;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const stateId = (await teamView(owner, 'MKT')).states[0]!.id;
   const u = await signUpTestUser({ name: 'Bea' });
-  await owner.api.teams({ teamKey: 'MKT' }).members.post({ userId: u.userId });
-  const b: Member = { api: authedApi(u.cookie), userId: u.userId, cookie: u.cookie };
+  await addMember(owner, 'MKT', u.userId);
+  const b = u;
   const client = linearClient(await createApiKey(u.cookie));
   const newIssue = async (patch: Record<string, unknown> = {}) =>
-    (await owner.api.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Task', ...patch }))
-      .data!.id;
+    (await createIssue(owner, { teamId: 'MKT', stateId, title: 'Task', ...assignee(patch) })).id;
   return { owner, b, client, newIssue };
 }
 
-const comment = (m: Member, issueId: string, body: string) =>
-  m.api.issues({ issueId }).comments.post({ body } as never);
+// The REST name for the assignee, used by these tests, mapped to Linear's.
+const assignee = ({ assigneeUserId, ...rest }: Record<string, unknown>) => ({
+  ...rest,
+  ...(assigneeUserId ? { assigneeId: assigneeUserId } : {}),
+});
+
+const comment = (m: TestUser, issueId: string, body: string) => createComment(m, { issueId, body });
+
+// The user's notifications, newest first.
+const notificationsOf = async (m: TestUser): Promise<{ id: string }[]> =>
+  (await gqlData(m, '{ notifications { nodes { id } } }')).notifications.nodes;
+
+const markRead = (m: TestUser, id: string) =>
+  gqlData(
+    m,
+    `mutation ($id: String!, $at: DateTime!) { notificationUpdate(id: $id, input: { readAt: $at }) { success } }`,
+    {
+      id,
+      at: new Date().toISOString(),
+    },
+  );
 
 describe('graphql notifications', () => {
   beforeEach(async () => {
@@ -129,7 +150,7 @@ describe('graphql notifications', () => {
   it("hides other users' notifications", async () => {
     const { owner, b, newIssue } = await setup();
     await newIssue({ assigneeUserId: b.userId });
-    const [n] = (await b.api.notifications.get({ query: {} })).data!.items;
+    const [n] = await notificationsOf(b);
     for (const q of [
       `{ notification(id: "${n!.id}") { id } }`,
       `mutation { notificationUpdate(id: "${n!.id}", input: { readAt: "2026-01-01T00:00:00Z" }) { success } }`,
@@ -140,9 +161,10 @@ describe('graphql notifications', () => {
 
   it('omits notifications from teams the viewer left', async () => {
     const { owner, b, newIssue } = await setup();
-    await owner.api.teams({ teamKey: 'MKT' }).patch({ visibility: 'private' });
+    await makePrivate(owner, 'MKT');
     await newIssue({ assigneeUserId: b.userId });
-    await owner.api.teams({ teamKey: 'MKT' }).members({ userId: b.userId }).delete();
+    const membership = (await teamView(owner, 'MKT')).members.find((m) => m.userId === b.userId)!;
+    await removeMember(owner, membership.id);
     const res = await gql(
       { cookie: b.cookie },
       '{ notifications { nodes { id ... on IssueNotification { issue { id } } } } }',
@@ -156,7 +178,7 @@ describe('graphql notifications', () => {
   it('rejects unsupported input', async () => {
     const { b, newIssue } = await setup();
     await newIssue({ assigneeUserId: b.userId });
-    const [n] = (await b.api.notifications.get({ query: {} })).data!.items;
+    const [n] = await notificationsOf(b);
     const update = await gql(
       { cookie: b.cookie },
       `mutation { notificationUpdate(id: "${n!.id}", input: { projectUpdateId: "${n!.id}" }) { success } }`,
@@ -181,7 +203,7 @@ describe('graphql notifications', () => {
       ).notifications.nodes[0]!;
     const before = await read();
     await new Promise((r) => setTimeout(r, 5));
-    await b.api.notifications({ id: before.id }).read.post({ read: true });
+    await markRead(b, before.id);
     expect(new Date((await read()).updatedAt).getTime()).toBeGreaterThan(
       new Date(before.updatedAt).getTime(),
     );
@@ -191,8 +213,8 @@ describe('graphql notifications', () => {
     const { owner, b, newIssue } = await setup();
     const x = await newIssue({ assigneeUserId: b.userId });
     await comment(owner, x, 'on x');
-    const [first] = (await b.api.notifications.get({ query: {} })).data!.items;
-    await b.api.notifications({ id: first!.id }).read.post({ read: true });
+    const [first] = await notificationsOf(b);
+    await markRead(b, first!.id);
     const res = await gql(
       { cookie: b.cookie },
       `mutation { notificationMarkUnreadAll(input: { issueId: "${x}" }) { notifications { id } } }`,

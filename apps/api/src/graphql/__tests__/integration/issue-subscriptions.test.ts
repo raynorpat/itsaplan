@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { addMember, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Issue subscriptions over the Linear API: issueSubscribe / issueUnsubscribe,
 // Issue.subscribers, subscriberIds on create and update, and the subscribers filter.
@@ -12,12 +12,11 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 
 async function setup() {
   const o = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(o.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team;
+  await createTeam(o, { key: 'MKT', name: 'Marketing' });
+  const team = (await teamView(o, 'MKT')).team;
   const join = async (name: string) => {
     const u = await signUpTestUser({ name });
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: u.userId });
+    await addMember(o, 'MKT', u.userId);
     return u;
   };
   const b = await join('Bea');
@@ -126,9 +125,8 @@ describe('graphql issue subscriptions', () => {
     const issue = (await (
       await client.createIssue({ teamId, title: 'T', subscriberIds: [b.userId] })
     ).issue)!;
-    const asOwner = authedApi(owner.cookie);
     const reader = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: reader.userId });
+    await addMember(owner, 'MKT', reader.userId);
     const other = await gql(
       { cookie: reader.cookie },
       `mutation { issueUnsubscribe(id: "${issue.id}", userId: "${b.userId}") { success } }`,

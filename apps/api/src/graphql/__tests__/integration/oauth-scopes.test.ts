@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
 import { createClient, obtainTokens } from '../../../__tests__/helpers/oauth';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
 // An OAuth token carries Linear's scopes: queries need `read`; mutations need
 // `write`, except creating an issue (`issues:create`) and a comment
@@ -28,7 +27,7 @@ const CHANGE_ROLE = `mutation($id: String!, $role: UserRoleType!) {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
   const client = await createClient(owner.cookie);
   const created = await gql({ cookie: owner.cookie }, ISSUE_CREATE, {
     input: { teamId: 'MKT', title: 'First' },
@@ -79,6 +78,15 @@ describe('oauth scopes on graphql', () => {
     expect(code(comment)).toBe('FORBIDDEN');
   });
 
+  it('always grants read, as Linear does', async () => {
+    const { owner, client } = await setup();
+    const { access_token, scope } = await obtainTokens(owner.cookie, client, 'issues:create');
+    expect(scope.split(' ')).toContain('read');
+    const teams = await gql(bearer(access_token), '{ teams { nodes { key } } }');
+    expect(teams.body.errors).toBeUndefined();
+    expect((teams.body.data?.teams as { nodes: { key: string }[] }).nodes[0]!.key).toBe('MKT');
+  });
+
   it('lets comments:create create a comment', async () => {
     const { owner, client, issueId } = await setup();
     const { access_token } = await obtainTokens(owner.cookie, client, 'read,comments:create');
@@ -100,8 +108,8 @@ describe('oauth scopes on graphql', () => {
 
   it('needs the admin scope for an admin operation, and the rights too', async () => {
     const { owner, client } = await setup();
-    const member = await signUpWithRole('member', { name: 'Ann' });
-    const other = await signUpWithRole('member', { name: 'Ben' });
+    const member = await signUpAs('member', { name: 'Ann' });
+    const other = await signUpAs('member', { name: 'Ben' });
 
     const plain = await obtainTokens(owner.cookie, client, 'read,write');
     const refused = await gql(bearer(plain.access_token), CHANGE_ROLE, {

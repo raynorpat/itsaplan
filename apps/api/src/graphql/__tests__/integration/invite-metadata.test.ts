@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
+import { createTeam, signUpAs, teamView } from '../../../__tests__/helpers/graphql';
 
 // OrganizationInvite.metadata carries the invite's team ids for anyone who may list
 // invites, and the invite link's token only for the invite's sender and for admins
@@ -18,10 +17,10 @@ const CREATE = `mutation($input: OrganizationInviteCreateInput!) {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await authedApi(owner.cookie).teams({ teamKey: 'MKT' }).get()).data!.team.id;
-  const sender = await signUpWithRole('member', { name: 'Sender' });
-  const other = await signUpWithRole('member', { name: 'Other' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const teamId = (await teamView(owner, 'MKT')).team.id;
+  const sender = await signUpAs('member', { name: 'Sender' });
+  const other = await signUpAs('member', { name: 'Other' });
   return { owner, teamId, sender, other };
 }
 
@@ -52,7 +51,7 @@ describe('graphql invite metadata', () => {
     await gql({ cookie: sender.cookie }, CREATE, {
       input: { email: 'new@example.com', role: 'user', teamIds: [teamId] },
     });
-    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const admin = await signUpAs('admin', { name: 'Admin' });
 
     const bySender = await listed(sender.cookie, 'new@example.com');
     const byOwner = await listed(owner.cookie, 'new@example.com');

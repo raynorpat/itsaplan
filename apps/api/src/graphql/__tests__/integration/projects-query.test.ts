@@ -1,30 +1,38 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
+import { PROJECT_STATUSES } from '@repo/db';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { makePrivate } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createMilestone } from '../../../projects/milestones';
 import { createUpdate } from '../../../projects/updates';
+import {
+  type As,
+  addMember,
+  createIssue,
+  createProject,
+  createTeam,
+  makePrivate,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Linear projects over GraphQL: the SDK's Project fragment, lookups, teams
 // visibility, filters, and the project items (status, milestones, updates, labels).
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  const mkt = await teamView(owner, 'MKT');
+  const ops = await teamView(owner, 'OPS');
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, mkt, ops, client };
+  return { owner, mkt, ops, client };
 }
 
-function createProject(api: Api, teamIds: string[], body: Record<string, unknown> = {}) {
-  return api.projects
-    .post({ name: 'Launch', teamIds, ...body } as Parameters<typeof api.projects.post>[0])
-    .then((r) => r.data!);
+// A project, with a status given by its type ('started') rather than its id.
+function newProject(as: As, teamIds: string[], body: Record<string, unknown> = {}) {
+  const { status, ...rest } = body;
+  const statusId = status ? PROJECT_STATUSES.find((s) => s.type === status)!.id : undefined;
+  return createProject(as, { name: 'Launch', teamIds, ...rest, ...(statusId ? { statusId } : {}) });
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -36,8 +44,8 @@ describe('graphql project queries', () => {
   });
 
   it('returns the SDK project fragment by id and by slugId', async () => {
-    const { asOwner, mkt, client } = await setup();
-    const rest = await createProject(asOwner, [mkt.team.id], { priority: 2, status: 'started' });
+    const { owner, mkt, client } = await setup();
+    const rest = await newProject(owner, [mkt.team.id], { priority: 2, status: 'started' });
     const project = await client.project(rest.id);
     expect(project).toMatchObject({
       id: rest.id,
@@ -53,11 +61,11 @@ describe('graphql project queries', () => {
   });
 
   it("lists a project's accessible teams only", async () => {
-    const { asOwner, mkt, ops } = await setup();
-    await makePrivate(asOwner, 'OPS');
-    const rest = await createProject(asOwner, [mkt.team.id, ops.team.id]);
+    const { owner, mkt, ops } = await setup();
+    await makePrivate(owner, 'OPS');
+    const rest = await newProject(owner, [mkt.team.id, ops.team.id]);
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const memberClient = linearClient(await createApiKey(member.cookie));
 
     const seen = await (await memberClient.project(rest.id)).teams();
@@ -65,9 +73,9 @@ describe('graphql project queries', () => {
   });
 
   it("lists a team's projects and filters by status and team", async () => {
-    const { asOwner, mkt, ops, client } = await setup();
-    const a = await createProject(asOwner, [mkt.team.id], { name: 'A', status: 'started' });
-    await createProject(asOwner, [ops.team.id], { name: 'B' });
+    const { owner, mkt, ops, client } = await setup();
+    const a = await newProject(owner, [mkt.team.id], { name: 'A', status: 'started' });
+    await newProject(owner, [ops.team.id], { name: 'B' });
 
     const team = await client.team('MKT');
     expect((await team.projects()).nodes.map((p) => p.id)).toEqual([a.id]);
@@ -82,17 +90,16 @@ describe('graphql project queries', () => {
   });
 
   it("resolves an issue's project and milestone, and a project's issues", async () => {
-    const { asOwner, mkt, client } = await setup();
-    const rest = await createProject(asOwner, [mkt.team.id]);
+    const { owner, mkt, client } = await setup();
+    const rest = await newProject(owner, [mkt.team.id]);
     const milestone = await createMilestone(rest.id, { name: 'Beta' });
-    const issue = (
-      await asOwner.teams({ teamKey: 'MKT' }).issues.post({
-        stateId: mkt.states[0].id,
-        title: 'Task',
-        projectId: rest.id,
-        projectMilestoneId: milestone.id,
-      })
-    ).data!;
+    const issue = await createIssue(owner, {
+      teamId: 'MKT',
+      stateId: mkt.states[0].id,
+      title: 'Task',
+      projectId: rest.id,
+      projectMilestoneId: milestone.id,
+    });
 
     const got = await client.issue(issue.id);
     expect((await got.project)?.id).toBe(rest.id);
@@ -104,8 +111,8 @@ describe('graphql project queries', () => {
   });
 
   it('takes health from the latest update and lists updates', async () => {
-    const { owner, asOwner, mkt, client } = await setup();
-    const rest = await createProject(asOwner, [mkt.team.id]);
+    const { owner, mkt, client } = await setup();
+    const rest = await newProject(owner, [mkt.team.id]);
     await createUpdate(rest.id, owner.userId, { body: 'ok', health: 'onTrack' });
     await Bun.sleep(5);
     await createUpdate(rest.id, owner.userId, { body: 'late', health: 'offTrack' });
@@ -115,18 +122,18 @@ describe('graphql project queries', () => {
   });
 
   it('lists the six project statuses and the project labels', async () => {
-    const { asOwner, client } = await setup();
-    await asOwner['project-labels'].post({ name: 'Q3' });
+    const { client } = await setup();
+    await client.createProjectLabel({ name: 'Q3' });
     expect((await client.projectStatuses()).nodes).toHaveLength(6);
     expect((await client.projectLabels()).nodes.map((l) => l.name)).toEqual(['Q3']);
   });
 
   it('does not match a project on a team the viewer cannot access', async () => {
-    const { asOwner, mkt, ops } = await setup();
-    await createProject(asOwner, [mkt.team.id, ops.team.id]);
-    await makePrivate(asOwner, 'OPS');
+    const { owner, mkt, ops } = await setup();
+    await newProject(owner, [mkt.team.id, ops.team.id]);
+    await makePrivate(owner, 'OPS');
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const res = await gql(
       { cookie: member.cookie },
       '{ projects(filter: { accessibleTeams: { some: { key: { eq: "OPS" } } } }) { nodes { id } } }',
@@ -135,9 +142,9 @@ describe('graphql project queries', () => {
   });
 
   it('hides a project of a private team from a non-member', async () => {
-    const { asOwner, mkt } = await setup();
-    const rest = await createProject(asOwner, [mkt.team.id]);
-    await makePrivate(asOwner, 'MKT');
+    const { owner, mkt } = await setup();
+    const rest = await newProject(owner, [mkt.team.id]);
+    await makePrivate(owner, 'MKT');
     const outsider = await signUpTestUser();
     const res = await gql({ cookie: outsider.cookie }, `{ project(id: "${rest.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');

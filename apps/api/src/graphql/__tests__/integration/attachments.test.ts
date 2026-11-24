@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { createAttachment } from '../../../attachments/store';
+import { createIssue, createTeam, signUpAs, teamView } from '../../../__tests__/helpers/graphql';
 
 // Attachments over the Linear API: links and uploads, the upsert by URL, comments
 // from commentBody, visibility, deletes and input rules. Uploads are created through
@@ -17,16 +16,13 @@ const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const view = await teamView(owner, 'MKT');
   const stateId = view.states[0]!.id;
-  const issue = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Bug' }))
-    .data!;
-  const other = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Other' }))
-    .data!;
+  const issue = await createIssue(owner, { teamId: 'MKT', stateId, title: 'Bug' });
+  const other = await createIssue(owner, { teamId: 'MKT', stateId, title: 'Other' });
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, client, issueId: issue.id, otherId: other.id };
+  return { owner, client, issueId: issue.id, otherId: other.id };
 }
 
 const upload = (issueId: string) =>
@@ -132,7 +128,7 @@ describe('graphql attachments', () => {
     const { client, issueId } = await setup();
     const url = 'https://example.com/secret';
     const link = (await (await client.createAttachment({ issueId, title: 'S', url })).attachment)!;
-    const outsider = await signUpWithRole('guest');
+    const outsider = await signUpAs('guest');
     const one = await gql({ cookie: outsider.cookie }, `{ attachment(id: "${link.id}") { id } }`);
     expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
     const lists = await gql(
@@ -178,7 +174,7 @@ describe('graphql attachments', () => {
 
   it('needs to see the team to attach', async () => {
     const { issueId } = await setup();
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     const res = await gql(
       { cookie: guest.cookie },
       `mutation { attachmentCreate(input: { issueId: "${issueId}", title: "X", url: "https://e.com" }) { success } }`,
@@ -269,7 +265,7 @@ describe('graphql attachments', () => {
     const link = (await (
       await client.createAttachment({ issueId, title: 'S', url: 'https://e.com/s' })
     ).attachment)!;
-    const outsider = await signUpWithRole('guest');
+    const outsider = await signUpAs('guest');
     const res = await gql({ cookie: outsider.cookie }, `{ attachment(id: "${link.id}") { id } }`);
     expect(errorMessage(res)).toBe(`Attachment ${link.id} not found`);
   });

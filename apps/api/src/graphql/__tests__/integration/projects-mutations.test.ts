@@ -1,22 +1,26 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { makePrivate } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import {
+  addMember,
+  createIssue,
+  createTeam,
+  makePrivate,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Project, milestone, update and label mutations over the Linear API, through the
 // same store functions and permission checks as REST.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
-  const ops = (await asOwner.teams({ teamKey: 'OPS' }).get()).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  const mkt = await teamView(owner, 'MKT');
+  const ops = await teamView(owner, 'OPS');
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, mkt, ops, client };
+  return { owner, mkt, ops, client };
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -44,13 +48,13 @@ describe('graphql project mutations', () => {
   });
 
   it('keeps a team the viewer cannot see when replacing teamIds', async () => {
-    const { asOwner, mkt, ops, client } = await setup();
-    await makePrivate(asOwner, 'OPS');
+    const { owner, mkt, ops, client } = await setup();
+    await makePrivate(owner, 'OPS');
     const project = (await (
       await client.createProject({ name: 'Shared', teamIds: [mkt.team.id, ops.team.id] })
     ).project)!;
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const memberClient = linearClient(await createApiKey(member.cookie));
 
     await memberClient.updateProject(project.id, { teamIds: [mkt.team.id] });
@@ -59,13 +63,16 @@ describe('graphql project mutations', () => {
   });
 
   it('refuses to remove a team whose issues are in the project', async () => {
-    const { owner, asOwner, mkt, ops, client } = await setup();
+    const { owner, mkt, ops, client } = await setup();
     const project = (await (
       await client.createProject({ name: 'Shared', teamIds: [mkt.team.id, ops.team.id] })
     ).project)!;
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .issues.post({ stateId: mkt.states[0].id, title: 'x', projectId: project.id });
+    await createIssue(owner, {
+      teamId: 'MKT',
+      stateId: mkt.states[0]!.id,
+      title: 'x',
+      projectId: project.id,
+    });
     const res = await gql(
       { cookie: owner.cookie },
       `mutation { projectUpdate(id: "${project.id}", input: { teamIds: ["${ops.team.id}"] }) { success } }`,
@@ -102,7 +109,7 @@ describe('graphql project mutations', () => {
   });
 
   it('posts an update that sets the project health; only the author edits it', async () => {
-    const { asOwner, mkt, client } = await setup();
+    const { owner, mkt, client } = await setup();
     const project = (await (
       await client.createProject({ name: 'Launch', teamIds: [mkt.team.id] })
     ).project)!;
@@ -115,7 +122,7 @@ describe('graphql project mutations', () => {
     expect(String((await client.project(project.id)).health)).toBe('atRisk');
 
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const res = await gql(
       { cookie: member.cookie },
       `mutation { projectUpdateUpdate(id: "${update.id}", input: { body: "mine now" }) { success } }`,

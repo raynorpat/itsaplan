@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { db, fileUpload } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { app } from '../../../app';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { addToTeam, makePrivate } from '../../../__tests__/helpers/roles';
+import {
+  addMember,
+  createIssue,
+  createTeam,
+  makePrivate,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // The final review of the GraphQL gaps: single-use uploads, the upload URL as the
 // credential, the unused-upload cap, userUpdate writing nothing on an invalid input,
@@ -23,12 +28,11 @@ const codeOf = (res: { body: { errors?: { extensions?: { code?: unknown } }[] } 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const stateId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.states[0]!.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const stateId = (await teamView(owner, 'MKT')).states[0]!.id;
   const newIssue = async (title: string, teamKey = 'MKT', state = stateId) =>
-    (await asOwner.teams({ teamKey }).issues.post({ stateId: state, title })).data!;
-  return { owner, asOwner, stateId, newIssue };
+    createIssue(owner, { teamId: teamKey, stateId: state, title });
+  return { owner, stateId, newIssue };
 }
 
 async function requestUpload(who: TestUser, contentType: string, size: number) {
@@ -135,10 +139,10 @@ describe('graphql gaps review fixes', () => {
   });
 
   it('keeps a non-shared view to its owner', async () => {
-    const { owner, asOwner } = await setup();
+    const { owner } = await setup();
     const member = await signUpTestUser();
-    await addToTeam(asOwner, 'MKT', member);
-    const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+    await addMember(owner, 'MKT', member.userId);
+    const teamId = (await teamView(owner, 'MKT')).team.id;
     const created = await gql(
       { cookie: owner.cookie },
       `mutation { customViewCreate(input: { name: "Mine", teamId: "${teamId}", shared: false }) {
@@ -179,14 +183,14 @@ describe('graphql gaps review fixes', () => {
   });
 
   it('hides related issues the viewer cannot see in history', async () => {
-    const { owner, asOwner, newIssue } = await setup();
-    await asOwner.teams.post({ key: 'SEC', name: 'Security' });
-    await makePrivate(asOwner, 'SEC');
-    const secState = (await asOwner.teams({ teamKey: 'SEC' }).get()).data!.states[0]!.id;
+    const { owner, newIssue } = await setup();
+    await createTeam(owner, { key: 'SEC', name: 'Security' });
+    await makePrivate(owner, 'SEC');
+    const secState = (await teamView(owner, 'SEC')).states[0]!.id;
     const open = await newIssue('Open');
     const secret = await newIssue('Secret', 'SEC', secState);
     const member = await signUpTestUser();
-    await addToTeam(asOwner, 'MKT', member);
+    await addMember(owner, 'MKT', member.userId);
     const rel = await gql(
       { cookie: owner.cookie },
       `mutation { issueRelationCreate(input: { issueId: "${open.id}", relatedIssueId: "${secret.id}", type: blocks }) { success } }`,

@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { addToTeam, signUpWithRole } from '../../../__tests__/helpers/roles';
+import {
+  addMember,
+  createIssue,
+  createLabel,
+  createTeam,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Linear's CustomView over the saved team views: CRUD with Linear's filterData,
 // creator and owner, view preferences for the layout, visibility through the team,
@@ -16,12 +22,11 @@ type Data = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  const mkt = (await asOwner.teams.post({ key: 'MKT', name: 'Marketing' })).data!;
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
+  const mkt = (await createTeam(owner, { key: 'MKT', name: 'Marketing' })).team;
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
   const run = async (cookie: string, query: string, variables?: Record<string, unknown>) =>
     gql({ cookie }, query, variables);
-  return { owner, asOwner, mktId: mkt.id, run };
+  return { owner, mktId: mkt.id, run };
 }
 
 const CREATE = `mutation($input: CustomViewCreateInput!) {
@@ -146,12 +151,12 @@ describe('graphql custom views', () => {
   });
 
   it('hides views of teams the viewer cannot see', async () => {
-    const { owner, asOwner, mktId, run } = await setup();
+    const { owner, mktId, run } = await setup();
     const created = await run(owner.cookie, CREATE, { input: { name: 'Mine', teamId: mktId } });
     const viewId = (created.body.data as Data).customViewCreate.customView.id;
-    const guest = await signUpWithRole('guest');
+    const guest = await signUpAs('guest');
     const ops = await signUpTestUser();
-    await addToTeam(asOwner, 'OPS', guest);
+    await addMember(owner, 'OPS', guest.userId);
     void ops;
     for (const q of [
       `{ customView(id: "${viewId}") { id } }`,
@@ -170,14 +175,12 @@ describe('graphql custom views', () => {
   });
 
   it("lists a view's issues by its filter, labels included", async () => {
-    const { owner, asOwner, mktId, run } = await setup();
-    const view = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
+    const { owner, mktId, run } = await setup();
+    const view = await teamView(owner, 'MKT');
     const stateId = view.states[0]!.id;
-    const label = (await asOwner.teams({ teamKey: 'MKT' }).labels.post({ name: 'Bug' })).data!;
-    await asOwner
-      .teams({ teamKey: 'MKT' })
-      .issues.post({ stateId, title: 'Labelled', labelIds: [label.id] } as never);
-    await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'Plain' });
+    const label = await createLabel(owner, { teamId: 'MKT', name: 'Bug' });
+    await createIssue(owner, { teamId: 'MKT', stateId, title: 'Labelled', labelIds: [label.id] });
+    await createIssue(owner, { teamId: 'MKT', stateId, title: 'Plain' });
     const created = await run(owner.cookie, CREATE, {
       input: {
         name: 'Bugs',

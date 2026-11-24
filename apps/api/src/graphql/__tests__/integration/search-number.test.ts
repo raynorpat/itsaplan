@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
+import { createTeam } from '../../../__tests__/helpers/graphql';
 
 // searchIssues finds an issue by its number: a bare number ("2") or an identifier
 // ("MKT-2"), as Linear's search and the REST search do, next to the title and
@@ -14,9 +14,8 @@ const SEARCH = `query($term: String!, $teamId: String) {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const api = authedApi(owner.cookie);
-  await api.teams.post({ key: 'MKT', name: 'Marketing' });
-  await api.teams.post({ key: 'ENG', name: 'Engineering' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'ENG', name: 'Engineering' });
   const create = (teamKey: string, title: string) =>
     gql(
       { cookie: owner.cookie },

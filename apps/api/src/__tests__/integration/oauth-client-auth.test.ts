@@ -5,7 +5,6 @@ import { db } from '@repo/db';
 import * as schema from '@repo/db/schema';
 import { app } from '../../app';
 import { setWorkspaceRole } from '../../shared/access';
-import { authedApi } from '../helpers/app';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
@@ -21,7 +20,7 @@ import {
   tokenRequest,
   uninstall,
 } from '../helpers/oauth';
-import { addToTeam, signUpWithRole } from '../helpers/roles';
+import { addMember, createTeam, makePrivate, signUpAs } from '../helpers/graphql';
 
 // How the OAuth endpoints identify the client of a request, and the install checks
 // that depend on it: client credentials are read exactly as the OAuth plugin reads
@@ -52,7 +51,7 @@ describe('oauth client authentication', () => {
 
   it('reads client credentials the way the token endpoint does', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
+    await createTeam(owner, { key: 'MKT', name: 'Marketing' });
     const a = await createClient(owner.cookie, { name: 'A' });
     const b = await createClient(owner.cookie, { name: 'B', clientCredentials: true });
     await install(owner.cookie, a, { scope: 'read,write' });
@@ -103,7 +102,7 @@ describe('oauth client authentication', () => {
 
   it('checks the installer again when an install code is retried', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const admin = await signUpAs('admin', { name: 'Admin' });
     const client = await createClient(owner.cookie, { name: 'Robot' });
     const { verifier, challenge } = pkce();
     const consent = await consentAsApp(admin.cookie, client, challenge);
@@ -133,7 +132,7 @@ describe('oauth client authentication', () => {
 
   it('does not revive tokens of a previous install on reinstall', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
+    await createTeam(owner, { key: 'MKT', name: 'Marketing' });
     const client = await createClient(owner.cookie, { name: 'Robot' });
     const first = await install(owner.cookie, client);
     const appUserId = (
@@ -162,10 +161,9 @@ describe('oauth client authentication', () => {
 
   it('refuses a person adding an app user to a team they cannot manage with 403', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
-    const api = authedApi(owner.cookie);
-    await api.teams.post({ key: 'MKT', name: 'Marketing' });
-    await api.teams.post({ key: 'SEC', name: 'Security' });
-    await api.teams({ teamKey: 'SEC' }).patch({ visibility: 'private' });
+    await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+    await createTeam(owner, { key: 'SEC', name: 'Security' });
+    await makePrivate(owner, 'SEC');
     const client = await createClient(owner.cookie, { name: 'Robot' });
     const tokens = await install(owner.cookie, client);
     const appUserId = (
@@ -174,11 +172,19 @@ describe('oauth client authentication', () => {
       }
     ).id;
     // A member of the private team, who cannot add people to it: the refusal is the
-    // permission's (403), not a message that reveals the user is an app user.
-    const member = await signUpWithRole('member', { name: 'Member' });
-    await addToTeam(api, 'SEC', member);
-    const res = await member.api.teams({ teamKey: 'SEC' }).members.post({ userId: appUserId });
-    expect(res.status).toBe(403);
+    // permission's (FORBIDDEN), not a message that reveals the user is an app user.
+    const member = await signUpAs('member', { name: 'Member' });
+    await addMember(owner, 'SEC', member.userId);
+    const sec = (await gql({ cookie: owner.cookie }, '{ team(id: "SEC") { id } }')).body.data
+      ?.team as {
+      id: string;
+    };
+    const res = await gql(
+      { cookie: member.cookie },
+      'mutation ($input: TeamMembershipCreateInput!) { teamMembershipCreate(input: $input) { success } }',
+      { input: { teamId: sec.id, userId: appUserId } },
+    );
+    expect(res.body.errors?.[0]?.extensions?.code).toBe('FORBIDDEN');
   });
 
   it("uses the plugin's loopback rule for the issuer", () => {

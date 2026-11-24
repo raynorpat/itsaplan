@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addToTeam, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { db, user } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  addMember,
+  createTeam,
+  createWebhook,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Issue labels over the Linear API: workspace and team labels, groups, retire and
 // restore, and labels on issues through issueCreate / issueUpdate.
@@ -16,11 +21,10 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const teamId = (await teamView(owner, 'MKT')).team.id;
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, teamId, client };
+  return { owner, teamId, client };
 }
 
 describe('graphql labels', () => {
@@ -123,7 +127,7 @@ describe('graphql labels', () => {
 
   it('refuses a workspace label from a user in no team', async () => {
     await setup();
-    const loner = await signUpWithRole('guest');
+    const loner = await signUpAs('guest');
     const res = await gql(
       { cookie: loner.cookie },
       'mutation { issueLabelCreate(input: { name: "x" }) { success } }',
@@ -132,15 +136,17 @@ describe('graphql labels', () => {
   });
 
   it('sends a workspace label webhook to all-teams webhooks only', async () => {
-    const { asOwner, client } = await setup();
-    const teamHook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/t', resourceTypes: ['IssueLabel'] })
-    ).data!;
-    const allHook = (
-      await asOwner.webhooks.post({ url: 'https://example.com/a', resourceTypes: ['IssueLabel'] })
-    ).data!;
+    const { owner, client } = await setup();
+    const teamHook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/t',
+      resourceTypes: ['IssueLabel'],
+    });
+    const allHook = await createWebhook(owner, {
+      allPublicTeams: true,
+      url: 'https://example.com/a',
+      resourceTypes: ['IssueLabel'],
+    });
     await client.createIssueLabel({ name: 'Security' });
     expect((await webhookDeliveries(teamHook.id)).data!.items).toEqual([]);
     expect((await webhookDeliveries(allHook.id)).data!.items).toHaveLength(1);
@@ -154,16 +160,16 @@ describe('graphql labels', () => {
   });
 
   it('leaves retired labels out of label lists whoever retired them', async () => {
-    const { owner, asOwner, teamId, client } = await setup();
+    const { owner, teamId, client } = await setup();
     const ws = (await (await client.createIssueLabel({ name: 'Old' })).issueLabel)!;
     const issue = (await (
       await client.createIssue({ teamId, title: 'x', labelIds: [ws.id] })
     ).issue)!;
-    const admin = await signUpWithRole('admin', { name: 'Admin' });
+    const admin = await signUpAs('admin', { name: 'Admin' });
     const adminClient = linearClient(await createApiKey(admin.cookie));
     await adminClient.issueLabelRetire(ws.id);
-    const guest = await signUpWithRole('guest');
-    await addToTeam(asOwner, 'MKT', guest);
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'MKT', guest.userId);
     const names = async (cookie: string, includeArchived: boolean) =>
       (
         (

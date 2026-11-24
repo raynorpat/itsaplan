@@ -216,7 +216,8 @@ describe('MCP sign-in with OAuth', () => {
       (await callTool(issuesOnly, 'update_issue', { issueId, title: 'Changed' })).isError,
     ).toBe(true);
     expect((await callTool(issuesOnly, 'add_comment', { issueId, body: 'Hi' })).isError).toBe(true);
-    expect((await callTool(issuesOnly, 'list_teams')).isError).toBe(true);
+    // `read` is part of every grant (Linear), so the narrow token can still read.
+    expect((await callTool(issuesOnly, 'list_teams')).isError).toBeFalsy();
 
     // `write` includes reading, as on GraphQL.
     const writeOnly = await mcpClientToken(owner, 'write');

@@ -1,20 +1,18 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
+import { createIssue, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Bad input over GraphQL is a client error (INVALID_INPUT / ENTITY_NOT_FOUND),
 // never an internal error from a failed Postgres cast or constraint.
 
 async function setup() {
   const owner = await signUpTestUser();
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
-  const stateId = view.data!.states[0].id;
-  const issue = (await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'x' }))
-    .data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const view = await teamView(owner, 'MKT');
+  const stateId = view.states[0]!.id;
+  const issue = await createIssue(owner, { teamId: 'MKT', stateId, title: 'x' });
   const run = (query: string) => gql({ cookie: owner.cookie }, query);
   return { run, issue };
 }

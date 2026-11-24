@@ -1,24 +1,27 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  createTeam,
+  createWebhook,
+  gqlData,
+  signUpAs,
+  statesByType,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Issue and workflow state mutations over the Linear API. They go through the same
 // store functions as REST, so activity, webhooks and permissions match.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
-  const col: Record<string, string> = {};
-  for (const c of view.data!.states) col[c.stateType] ??= c.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const col = statesByType(await teamView(owner, 'MKT'));
   const client = linearClient(await createApiKey(owner.cookie));
   const team = await client.team('MKT');
-  return { owner, asOwner, col, client, teamId: team.id };
+  return { owner, col, client, teamId: team.id };
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -70,9 +73,8 @@ describe('graphql mutations', () => {
 
     it('rejects a state from another team', async () => {
       const { owner, teamId } = await setup();
-      const other = authedApi((await signUpTestUser()).cookie);
-      await other.teams.post({ key: 'OPS', name: 'Operations' });
-      const opsState = (await other.teams({ teamKey: 'OPS' }).get()).data!.states[0].id;
+      const other = await signUpTestUser();
+      const opsState = (await createTeam(other, { key: 'OPS', name: 'Operations' })).states[0]!.id;
       const res = await gql(
         { cookie: owner.cookie },
         `mutation { issueCreate(input: { teamId: "${teamId}", title: "x", stateId: "${opsState}" }) { success } }`,
@@ -92,7 +94,7 @@ describe('graphql mutations', () => {
 
     it('denies a guest outside the team', async () => {
       const { teamId } = await setup();
-      const member = await signUpWithRole('guest');
+      const member = await signUpAs('guest');
       const res = await gql(
         { cookie: member.cookie },
         `mutation { issueCreate(input: { teamId: "${teamId}", title: "x" }) { success } }`,
@@ -103,19 +105,27 @@ describe('graphql mutations', () => {
 
   describe('issueUpdate', () => {
     it('moves an issue with the same activity and webhook REST produces', async () => {
-      const { asOwner, client, teamId, col } = await setup();
-      const hook = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/hook', resourceTypes: ['Issue'] });
+      const { owner, client, teamId, col } = await setup();
+      const hook = await createWebhook(owner, {
+        teamId: 'MKT',
+        url: 'https://example.com/hook',
+        resourceTypes: ['Issue'],
+      });
       const issue = (await (await client.createIssue({ teamId, title: 'Move me' })).issue)!;
 
       const payload = await client.updateIssue(issue.id, { stateId: col.completed });
       const updated = (await payload.issue)!;
       expect(updated.completedAt).toBeTruthy();
 
-      const feed = await asOwner.issues({ issueId: issue.id }).feed.get();
-      expect(feed.data!.items.map((i) => i.action)).toContain('status');
-      const deliveries = await webhookDeliveries(hook.data!.id);
+      const history = await gqlData(
+        owner,
+        `query ($id: String!) { issue(id: $id) { history { nodes { toState { id } } } } }`,
+        { id: issue.id },
+      );
+      expect(
+        history.issue.history.nodes.map((h: { toState: { id: string } | null }) => h.toState?.id),
+      ).toContain(col.completed);
+      const deliveries = await webhookDeliveries(hook.id);
       const moved = deliveries.data!.items.find(
         (d) => (d.payload as { action: string }).action === 'update',
       );
@@ -127,7 +137,7 @@ describe('graphql mutations', () => {
     it('denies a guest outside the team', async () => {
       const { client, teamId } = await setup();
       const issue = (await (await client.createIssue({ teamId, title: 'x' })).issue)!;
-      const member = await signUpWithRole('guest');
+      const member = await signUpAs('guest');
       const res = await gql(
         { cookie: member.cookie },
         `mutation { issueUpdate(id: "${issue.id}", input: { title: "y" }) { success } }`,

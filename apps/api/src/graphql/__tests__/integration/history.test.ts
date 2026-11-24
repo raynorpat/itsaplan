@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { signUpWithRole } from '../../../__tests__/helpers/roles';
 import { gql } from '../../../__tests__/helpers/linear';
 import { db, issueActivity } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
+import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
 // Issue and project history over the Linear API: typed history fields resolved by
 // id, state spans, project history entries, the archivedAt filter, label batch
@@ -24,7 +23,7 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
   const d = await run(
     owner.cookie,
     '{ teams { nodes { id key states { nodes { id name type position } } } } }',
@@ -275,7 +274,7 @@ describe('graphql history', () => {
 
   it('deletes a team', async () => {
     const { owner, teamId } = await setup();
-    const member = await signUpWithRole('member');
+    const member = await signUpAs('member');
     const refused = await gql(
       { cookie: member.cookie },
       `mutation { teamDelete(id: "${teamId}") { success } }`,

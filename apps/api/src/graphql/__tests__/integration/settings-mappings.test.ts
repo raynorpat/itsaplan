@@ -2,11 +2,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { db, issue, notificationDelivery } from '@repo/db';
 import { eq, sql } from 'drizzle-orm';
 import { archiveStaleIssues } from '../../../../../worker/src/store';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { makePrivate } from '../../../__tests__/helpers/roles';
+import {
+  addMember,
+  createComment,
+  createIssue,
+  createProject,
+  createTeam,
+  gqlData,
+  makePrivate,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Linear's settings over GraphQL that replace this instance's own: the team's
 // auto-archive period, the workspace-wide notification categories, invite details
@@ -16,9 +24,9 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
   res.body.errors?.[0]?.extensions?.code;
 const as = (cookie: string) => ({ cookie });
 
-async function setupTeam(api: Api) {
-  await api.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = (await api.teams({ teamKey: 'MKT' }).get()).data!;
+async function setupTeam(owner: TestUser) {
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const view = await teamView(owner, 'MKT');
   const completed = view.states.find((s) => s.stateType === 'completed')!;
   const backlog = view.states[0]!;
   return { teamId: view.team.id, completedId: completed.id, backlogId: backlog.id };
@@ -36,8 +44,7 @@ describe('graphql settings mappings', () => {
 
   it('sets the auto-archive period in months and archives by it', async () => {
     const owner = await signUpTestUser();
-    const api = authedApi(owner.cookie);
-    const { teamId, completedId } = await setupTeam(api);
+    const { teamId, completedId } = await setupTeam(owner);
     const set = await gql(
       as(owner.cookie),
       `mutation { teamUpdate(id: "${teamId}", input: { autoArchivePeriod: 3 }) { success team { autoArchivePeriod autoClosePeriod } } }`,
@@ -57,12 +64,12 @@ describe('graphql settings mappings', () => {
     );
     expect(errorCode(close)).toBe('INVALID_INPUT');
 
-    const old = (
-      await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: completedId, title: 'Old' })
-    ).data!;
-    const recent = (
-      await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: completedId, title: 'Recent' })
-    ).data!;
+    const old = await createIssue(owner, { teamId: 'MKT', stateId: completedId, title: 'Old' });
+    const recent = await createIssue(owner, {
+      teamId: 'MKT',
+      stateId: completedId,
+      title: 'Recent',
+    });
     await db
       .update(issue)
       .set({
@@ -83,10 +90,9 @@ describe('graphql settings mappings', () => {
 
   it('keeps email notification preferences per category for the workspace', async () => {
     const owner = await signUpTestUser();
-    const api = authedApi(owner.cookie);
-    const { backlogId } = await setupTeam(api);
+    const { backlogId } = await setupTeam(owner);
     const member = await signUpTestUser();
-    await api.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const read = await gql(
       as(member.cookie),
       `{ userSettings { id notificationCategoryPreferences { assignments { email } mentions { email } commentsAndReplies { email } statusChanges { email } } } }`,
@@ -114,27 +120,29 @@ describe('graphql settings mappings', () => {
     expect(errorCode(unsupported)).toBe('INVALID_INPUT');
 
     // The member subscribes by commenting, then hears about the owner's comment.
-    const created = (
-      await api.teams({ teamKey: 'MKT' }).issues.post({ stateId: backlogId, title: 'T' })
-    ).data!;
-    await authedApi(member.cookie)
-      .issues({ issueId: created.id })
-      .comments.post({ body: 'first' } as never);
+    const created = await createIssue(owner, { teamId: 'MKT', stateId: backlogId, title: 'T' });
+    await createComment(member, { issueId: created.id, body: 'first' });
     process.env.SMTP_HOST = 'smtp.example.com';
     process.env.EMAIL_FROM = 'Plan <plan@example.com>';
-    await api.issues({ issueId: created.id }).comments.post({ body: 'reply' } as never);
+    await createComment(owner, { issueId: created.id, body: 'reply' });
     const rows = await db.select().from(notificationDelivery);
     expect(rows.map((r) => [r.channel, r.recipient])).toEqual([['email', member.email]]);
   });
 
   it('answers invite details by token without a login, and nothing else', async () => {
     const owner = await signUpTestUser({ name: 'Olivia' });
-    const api = authedApi(owner.cookie);
-    const { teamId } = await setupTeam(api);
-    await makePrivate(api, 'MKT');
-    const invite = (
-      await api.invites.post({ email: 'guest@example.com', role: 'guest', teamIds: [teamId] })
-    ).data!;
+    const { teamId } = await setupTeam(owner);
+    await makePrivate(owner, 'MKT');
+    const created = await gqlData(
+      owner,
+      `mutation ($input: OrganizationInviteCreateInput!) {
+        organizationInviteCreate(input: $input) { organizationInvite { id metadata } } }`,
+      { input: { email: 'guest@example.com', role: 'guest', teamIds: [teamId] } },
+    );
+    const invite = {
+      id: created.organizationInviteCreate.organizationInvite.id as string,
+      token: created.organizationInviteCreate.organizationInvite.metadata.token as string,
+    };
     const details = await gql(
       {},
       `{ organizationInviteDetails(id: "${invite.token}") { __typename ... on OrganizationInviteFullDetailsPayload { email role inviter organizationName status expired accepted allowedAuthServices organizationId } } }`,
@@ -180,13 +188,10 @@ describe('graphql settings mappings', () => {
 
   it('reports project progress and scope', async () => {
     const owner = await signUpTestUser();
-    const api = authedApi(owner.cookie);
-    const { teamId, backlogId, completedId } = await setupTeam(api);
-    const project = (await api.projects.post({ teamIds: [teamId], name: 'Launch' })).data!;
+    const { teamId, backlogId, completedId } = await setupTeam(owner);
+    const project = await createProject(owner, { teamIds: [teamId], name: 'Launch' });
     for (const stateId of [backlogId, backlogId, completedId])
-      await api
-        .teams({ teamKey: 'MKT' })
-        .issues.post({ stateId, title: 'T', projectId: project.id });
+      await createIssue(owner, { teamId: 'MKT', stateId, title: 'T', projectId: project.id });
     const res = await gql(
       as(owner.cookie),
       `{ project(id: "${project.id}") { progress scope scopeHistory completedScopeHistory issueCountHistory completedIssueCountHistory } }`,

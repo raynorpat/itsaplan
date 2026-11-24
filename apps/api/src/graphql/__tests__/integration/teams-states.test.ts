@@ -1,26 +1,31 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { setWorkspaceRole } from '../../../shared/access';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import {
+  addMember,
+  createIssue,
+  createState,
+  createTeam,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Teams (teams), users, and workflow states (columns) over the Linear API, and
 // the Relay pagination they share.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
   // A second team the owner is not a member of.
   const other = await signUpTestUser({ name: 'Other' });
-  await authedApi(other.cookie).teams.post({
+  await createTeam(other, {
     key: 'OPS',
     name: 'Operations',
     visibility: 'private',
   });
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, other, client };
+  return { owner, other, client };
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -53,11 +58,10 @@ describe('graphql teams, users and workflow states', () => {
     });
 
     it("counts the team's issues", async () => {
-      const { asOwner, client } = await setup();
-      const view = await asOwner.teams({ teamKey: 'MKT' }).get();
-      const stateId = view.data!.states[0].id;
-      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'a' });
-      await asOwner.teams({ teamKey: 'MKT' }).issues.post({ stateId, title: 'b' });
+      const { owner, client } = await setup();
+      const stateId = (await teamView(owner, 'MKT')).states[0]!.id;
+      await createIssue(owner, { teamId: 'MKT', stateId, title: 'a' });
+      await createIssue(owner, { teamId: 'MKT', stateId, title: 'b' });
       expect((await client.team('MKT')).issueCount).toBe(2);
     });
 
@@ -141,15 +145,13 @@ describe('graphql teams, users and workflow states', () => {
     });
 
     it('lists an archived state only with includeArchived', async () => {
-      const { asOwner, client } = await setup();
-      const review = await asOwner
-        .teams({ teamKey: 'MKT' })
-        .states.post({ name: 'Review', stateType: 'started' });
-      await asOwner.teams({ teamKey: 'MKT' }).states({ stateId: review.data!.id }).archive.post();
+      const { owner, client } = await setup();
+      const review = await createState(owner, { teamId: 'MKT', name: 'Review', type: 'started' });
+      await client.archiveWorkflowState(review.id);
       const active = await client.workflowStates();
-      expect(active.nodes.map((s) => s.id)).not.toContain(review.data!.id);
+      expect(active.nodes.map((s) => s.id)).not.toContain(review.id);
       const all = await client.workflowStates({ includeArchived: true });
-      expect(all.nodes.map((s) => s.id)).toContain(review.data!.id);
+      expect(all.nodes.map((s) => s.id)).toContain(review.id);
     });
 
     it('ignores a null in/nin comparator', async () => {
@@ -222,10 +224,10 @@ describe('graphql teams, users and workflow states', () => {
 
   describe('users', () => {
     it('lists every workspace user to a member, and only team mates to a guest', async () => {
-      const { owner, asOwner, other, client } = await setup();
+      const { owner, other, client } = await setup();
       const guest = await signUpTestUser({ name: 'Guest' });
       await setWorkspaceRole(guest.userId, 'guest');
-      await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: guest.userId });
+      await addMember(owner, 'MKT', guest.userId);
 
       const ids = (await client.users()).nodes.map((u) => u.id);
       expect(ids).toEqual(expect.arrayContaining([owner.userId, guest.userId, other.userId]));

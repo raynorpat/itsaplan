@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { app } from '../../app';
-import { authedApi } from '../helpers/app';
 import { signUpTestUser, type TestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
@@ -18,6 +17,7 @@ import {
   type OAuthClient,
   type TokenSet,
 } from '../helpers/oauth';
+import { createTeam } from '../helpers/graphql';
 
 // The grants of an `actor=app` install belong to the application's app user, not to
 // the admin who installed it: a refresh, with any scope, keeps acting as the app user,
@@ -29,9 +29,8 @@ const TEAM = 'query($id: String!) { team(id: $id) { id } }';
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const api = authedApi(owner.cookie);
-  await api.teams.post({ key: 'MKT', name: 'Marketing' });
-  await api.teams.post({ key: 'ENG', name: 'Engineering' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'ENG', name: 'Engineering' });
   const mkt = await gql({ cookie: owner.cookie }, TEAM, { id: 'MKT' });
   const client = await createClient(owner.cookie, { name: 'Robot' });
   return { owner, client, mktId: (mkt.body.data?.team as { id: string }).id };

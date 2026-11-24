@@ -1,28 +1,37 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi, type Api } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import {
+  type As,
+  addMember,
+  archiveIssue,
+  createIssue,
+  createTeam,
+  removeMember,
+  statesByType,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Reading issues over the Linear API: the SDK's full Issue fragment, lookups by
 // id and identifier, filters, archived issues, search, and access.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const view = await asOwner.teams({ teamKey: 'MKT' }).get();
-  const col: Record<string, string> = {};
-  for (const c of view.data!.states) col[c.stateType] ??= c.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const col = statesByType(await teamView(owner, 'MKT'));
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, col, client };
+  return { owner, col, client };
 }
 
-function create(api: Api, stateId: string, body: Record<string, unknown> = {}) {
-  return api
-    .teams({ teamKey: 'MKT' })
-    .issues.post({ stateId, title: 'Task', ...body })
-    .then((r) => r.data!);
+function create(as: As, stateId: string, body: Record<string, unknown> = {}) {
+  const { assigneeUserId, ...rest } = body;
+  return createIssue(as, {
+    teamId: 'MKT',
+    stateId,
+    ...rest,
+    ...(assigneeUserId ? { assigneeId: assigneeUserId } : {}),
+  });
 }
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
@@ -34,9 +43,9 @@ describe('graphql issue queries', () => {
   });
 
   it('returns the full SDK issue fragment matching REST', async () => {
-    const { asOwner, col, client } = await setup();
-    const parent = await create(asOwner, col.backlog, { title: 'Parent' });
-    const rest = await create(asOwner, col.started, {
+    const { owner, col, client } = await setup();
+    const parent = await create(owner, col.backlog, { title: 'Parent' });
+    const rest = await create(owner, col.started, {
       title: 'Ship docs',
       priority: 2,
       estimate: 3,
@@ -63,8 +72,8 @@ describe('graphql issue queries', () => {
   });
 
   it('reads an issue by identifier, case-insensitively', async () => {
-    const { asOwner, col, client } = await setup();
-    const rest = await create(asOwner, col.backlog);
+    const { owner, col, client } = await setup();
+    const rest = await create(owner, col.backlog);
     expect((await client.issue(rest.identifier)).id).toBe(rest.id);
     expect((await client.issue(rest.identifier.toLowerCase())).id).toBe(rest.id);
   });
@@ -78,14 +87,8 @@ describe('graphql issue queries', () => {
   it("hides another team's issue", async () => {
     const { owner } = await setup();
     const other = await signUpTestUser();
-    const asOther = authedApi(other.cookie);
-    await asOther.teams.post({ key: 'OPS', name: 'Operations', visibility: 'private' });
-    const opsView = await asOther.teams({ teamKey: 'OPS' }).get();
-    const hidden = (
-      await asOther
-        .teams({ teamKey: 'OPS' })
-        .issues.post({ stateId: opsView.data!.states[0].id, title: 'Secret' })
-    ).data!;
+    await createTeam(other, { key: 'OPS', name: 'Operations', visibility: 'private' });
+    const hidden = await createIssue(other, { teamId: 'OPS', title: 'Secret' });
     const res = await gql({ cookie: owner.cookie }, `{ issue(id: "${hidden.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     const list = await gql({ cookie: owner.cookie }, '{ issues { nodes { id } } }');
@@ -93,10 +96,10 @@ describe('graphql issue queries', () => {
   });
 
   it('filters by state type, assignee isMe, priority and or', async () => {
-    const { owner, asOwner, col, client } = await setup();
-    const mine = await create(asOwner, col.started, { assigneeUserId: owner.userId, priority: 1 });
-    const urgentBacklog = await create(asOwner, col.backlog, { priority: 1 });
-    const low = await create(asOwner, col.backlog, { priority: 4 });
+    const { owner, col, client } = await setup();
+    const mine = await create(owner, col.started, { assigneeUserId: owner.userId, priority: 1 });
+    const urgentBacklog = await create(owner, col.backlog, { priority: 1 });
+    const low = await create(owner, col.backlog, { priority: 4 });
 
     const started = await client.issues({ filter: { state: { type: { eq: 'started' } } } });
     expect(started.nodes.map((i) => i.id)).toEqual([mine.id]);
@@ -124,9 +127,9 @@ describe('graphql issue queries', () => {
   });
 
   it('lists an archived issue only with includeArchived', async () => {
-    const { asOwner, col, client } = await setup();
-    const issue = await create(asOwner, col.backlog);
-    await asOwner.issues({ issueId: issue.id }).archive.post();
+    const { owner, col, client } = await setup();
+    const issue = await create(owner, col.backlog);
+    await archiveIssue(owner, issue.id);
     expect((await client.issues()).nodes).toHaveLength(0);
     const all = await client.issues({ includeArchived: true });
     expect(all.nodes.map((i) => i.id)).toEqual([issue.id]);
@@ -134,9 +137,9 @@ describe('graphql issue queries', () => {
   });
 
   it("lists a team's, a state's, a parent's and a user's issues", async () => {
-    const { owner, asOwner, col, client } = await setup();
-    const parent = await create(asOwner, col.started, { assigneeUserId: owner.userId });
-    const child = await create(asOwner, col.backlog, { parentId: parent.id });
+    const { owner, col, client } = await setup();
+    const parent = await create(owner, col.started, { assigneeUserId: owner.userId });
+    const child = await create(owner, col.backlog, { parentId: parent.id });
 
     const team = await client.team('MKT');
     expect((await team.issues()).nodes).toHaveLength(2);
@@ -149,17 +152,17 @@ describe('graphql issue queries', () => {
   });
 
   it('finds issues by search term', async () => {
-    const { asOwner, col, client } = await setup();
-    const hit = await create(asOwner, col.backlog, { title: 'Fix login redirect' });
-    await create(asOwner, col.backlog, { title: 'Unrelated' });
+    const { owner, col, client } = await setup();
+    const hit = await create(owner, col.backlog, { title: 'Fix login redirect' });
+    await create(owner, col.backlog, { title: 'Unrelated' });
     const res = await client.searchIssues('login');
     expect(res.nodes.map((i) => i.id)).toEqual([hit.id]);
   });
 
   it('scopes a search to a team given by key and counts every match', async () => {
-    const { asOwner, col, client } = await setup();
-    await create(asOwner, col.backlog, { title: 'login one' });
-    await create(asOwner, col.backlog, { title: 'login two' });
+    const { owner, col, client } = await setup();
+    await create(owner, col.backlog, { title: 'login one' });
+    await create(owner, col.backlog, { title: 'login two' });
     const res = await client.searchIssues('login', { teamId: 'MKT', first: 1 });
     expect(res.nodes).toHaveLength(1);
     expect(res.totalCount).toBe(2);
@@ -168,13 +171,16 @@ describe('graphql issue queries', () => {
   });
 
   it('keeps the creator visible after they leave the team', async () => {
-    const { owner, asOwner, col } = await setup();
+    const { owner, col } = await setup();
     const member = await signUpTestUser({ name: 'Leaver' });
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
-    const created = await create(authedApi(member.cookie), col.backlog, {
+    await addMember(owner, 'MKT', member.userId);
+    const created = await create(member, col.backlog, {
       assigneeUserId: member.userId,
     });
-    await asOwner.teams({ teamKey: 'MKT' }).members({ userId: member.userId }).delete();
+    const membership = (await teamView(owner, 'MKT')).members.find(
+      (m) => m.userId === member.userId,
+    )!;
+    await removeMember(owner, membership.id);
 
     const res = await gql(
       { cookie: owner.cookie },

@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { InitiativeStatus, InitiativeUpdateHealthType, InitiativeVisibility } from '@linear/sdk';
-import { authedApi } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { linkProject } from '../../../initiatives/links';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  addMember,
+  createProject,
+  createTeam,
+  createWebhook,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Initiatives over the Linear API: CRUD, archive / trash, visibility by lead team,
 // filters, unsupported input, and the project side (Project.initiatives,
@@ -19,17 +26,16 @@ const errorMessage = (res: { body: { errors?: { message?: string }[] } }) =>
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'OPS', name: 'Operations' });
-  const teamId = async (key: string) => (await asOwner.teams({ teamKey: key }).get()).data!.team.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'OPS', name: 'Operations' });
+  const teamId = async (key: string) => (await teamView(owner, key)).team.id;
   const client = linearClient(await createApiKey(owner.cookie));
-  return { owner, asOwner, client, mkt: await teamId('MKT'), ops: await teamId('OPS') };
+  return { owner, client, mkt: await teamId('MKT'), ops: await teamId('OPS') };
 }
 
-async function memberOf(asOwner: ReturnType<typeof authedApi>, teamKey: string) {
+async function memberOf(owner: TestUser, teamKey: string) {
   const user = await signUpTestUser();
-  await asOwner.teams({ teamKey: teamKey }).members.post({ userId: user.userId });
+  await addMember(owner, teamKey, user.userId);
   return { user, client: linearClient(await createApiKey(user.cookie)) };
 }
 
@@ -65,20 +71,20 @@ describe('graphql initiatives', () => {
   });
 
   it('hides lead-team initiatives from non-members', async () => {
-    const { asOwner, client, mkt } = await setup();
-    await makePrivate(asOwner, 'MKT');
+    const { owner, client, mkt } = await setup();
+    await makePrivate(owner, 'MKT');
     const led = (await (await client.createInitiative({ name: 'L', leadTeamId: mkt })).initiative)!;
     expect(led.visibility).toBe(InitiativeVisibility.Private);
-    const ops = await memberOf(asOwner, 'OPS');
+    const ops = await memberOf(owner, 'OPS');
     const res = await gql({ cookie: ops.user.cookie }, `{ initiative(id: "${led.id}") { id } }`);
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
     expect((await ops.client.initiatives()).nodes).toHaveLength(0);
   });
 
   it('rejects a lead team the caller cannot see', async () => {
-    const { asOwner, mkt } = await setup();
-    await makePrivate(asOwner, 'MKT');
-    const ops = await memberOf(asOwner, 'OPS');
+    const { owner, mkt } = await setup();
+    await makePrivate(owner, 'MKT');
+    const ops = await memberOf(owner, 'OPS');
     const res = await gql(
       { cookie: ops.user.cookie },
       `mutation { initiativeCreate(input: { name: "X", leadTeamId: "${mkt}" }) { success } }`,
@@ -128,10 +134,10 @@ describe('graphql initiatives', () => {
   });
 
   it('lists initiatives on a project and filters projects by initiative', async () => {
-    const { owner, asOwner, client, mkt } = await setup();
+    const { owner, client, mkt } = await setup();
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
-    const site = (await asOwner.projects.post({ teamIds: [mkt], name: 'Site' })).data!;
-    await asOwner.projects.post({ teamIds: [mkt], name: 'Other' });
+    const site = await createProject(owner, { teamIds: [mkt], name: 'Site' });
+    await createProject(owner, { teamIds: [mkt], name: 'Other' });
     await linkProject({ initiativeId: a.id, projectId: site.id }, owner.userId);
     const project = await client.project(site.id);
     expect((await project.initiatives()).nodes.map((i) => i.id)).toEqual([a.id]);
@@ -143,11 +149,11 @@ describe('graphql initiatives', () => {
   });
 
   it('links projects and lists them through sub-initiatives', async () => {
-    const { asOwner, client, mkt } = await setup();
+    const { owner, client, mkt } = await setup();
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
     const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
-    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
-    const p2 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P2' })).data!;
+    const p1 = await createProject(owner, { teamIds: [mkt], name: 'P1' });
+    const p2 = await createProject(owner, { teamIds: [mkt], name: 'P2' });
     await client.createInitiativeToProject({ initiativeId: a.id, projectId: p1.id });
     await client.createInitiativeToProject({ initiativeId: b.id, projectId: p2.id });
     const relation = (await (
@@ -166,10 +172,10 @@ describe('graphql initiatives', () => {
   });
 
   it('rejects a duplicate link, a hidden project and a loop', async () => {
-    const { owner, asOwner, client, mkt } = await setup();
+    const { owner, client, mkt } = await setup();
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
     const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
-    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
+    const p1 = await createProject(owner, { teamIds: [mkt], name: 'P1' });
     await client.createInitiativeToProject({ initiativeId: a.id, projectId: p1.id });
     const link = (projectId: string) =>
       gql(
@@ -177,11 +183,10 @@ describe('graphql initiatives', () => {
         `mutation { initiativeToProjectCreate(input: { initiativeId: "${a.id}", projectId: "${projectId}" }) { success } }`,
       );
     expect(errorCode(await link(p1.id))).toBe('INVALID_INPUT');
-    const stranger = await signUpWithRole('member');
-    const asStranger = authedApi(stranger.cookie);
-    await asStranger.teams.post({ key: 'SEC', name: 'Secret', visibility: 'private' });
-    const sec = (await asStranger.teams({ teamKey: 'SEC' }).get()).data!.team.id;
-    const hidden = (await asStranger.projects.post({ teamIds: [sec], name: 'Hidden' })).data!;
+    const stranger = await signUpAs('member');
+    await createTeam(stranger, { key: 'SEC', name: 'Secret', visibility: 'private' });
+    const sec = (await teamView(stranger, 'SEC')).team.id;
+    const hidden = await createProject(stranger, { teamIds: [sec], name: 'Hidden' });
     expect(errorCode(await link(hidden.id))).toBe('ENTITY_NOT_FOUND');
     await client.createInitiativeRelation({ initiativeId: a.id, relatedInitiativeId: b.id });
     const loop = await gql(
@@ -250,13 +255,12 @@ describe('graphql initiatives', () => {
   });
 
   it('sends Initiative and InitiativeUpdate webhooks over GraphQL', async () => {
-    const { asOwner, client } = await setup();
-    const hook = (
-      await asOwner.webhooks.post({
-        url: 'https://example.com/h',
-        resourceTypes: ['Initiative', 'InitiativeUpdate'],
-      })
-    ).data!;
+    const { owner, client } = await setup();
+    const hook = await createWebhook(owner, {
+      allPublicTeams: true,
+      url: 'https://example.com/h',
+      resourceTypes: ['Initiative', 'InitiativeUpdate'],
+    });
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
     await client.createInitiativeUpdate({ initiativeId: a.id, body: 'ok' });
     const events = (await webhookDeliveries(hook.id))
@@ -267,13 +271,13 @@ describe('graphql initiatives', () => {
   });
 
   it('treats a missing value as not matching an every filter on initiatives', async () => {
-    const { owner, asOwner, client, mkt } = await setup();
+    const { owner, client, mkt } = await setup();
     const dated = (await (
       await client.createInitiative({ name: 'Dated', targetDate: '2026-12-01' })
     ).initiative)!;
     const undated = (await (await client.createInitiative({ name: 'Undated' })).initiative)!;
-    const p1 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P1' })).data!;
-    const p2 = (await asOwner.projects.post({ teamIds: [mkt], name: 'P2' })).data!;
+    const p1 = await createProject(owner, { teamIds: [mkt], name: 'P1' });
+    const p2 = await createProject(owner, { teamIds: [mkt], name: 'P2' });
     await linkProject({ initiativeId: dated.id, projectId: p1.id }, owner.userId);
     await linkProject({ initiativeId: dated.id, projectId: p2.id }, owner.userId);
     await linkProject({ initiativeId: undated.id, projectId: p2.id }, owner.userId);
@@ -300,11 +304,11 @@ describe('graphql initiatives', () => {
   });
 
   it('refuses moving an initiative to a team the caller cannot see', async () => {
-    const { asOwner, client } = await setup();
-    const ops = await memberOf(asOwner, 'OPS');
+    const { owner, client } = await setup();
+    const ops = await memberOf(owner, 'OPS');
     const created = (await (await ops.client.createInitiative({ name: 'W' })).initiative)!;
-    const mkt = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
-    await makePrivate(asOwner, 'MKT');
+    const mkt = (await teamView(owner, 'MKT')).team.id;
+    await makePrivate(owner, 'MKT');
     const res = await gql(
       { cookie: ops.user.cookie },
       `mutation { initiativeUpdate(id: "${created.id}", input: { leadTeamId: "${mkt}" }) { success } }`,
@@ -314,10 +318,10 @@ describe('graphql initiatives', () => {
   });
 
   it('hides archived initiatives from sub-initiatives and project lists', async () => {
-    const { owner, asOwner, client, mkt } = await setup();
+    const { owner, client, mkt } = await setup();
     const a = (await (await client.createInitiative({ name: 'A' })).initiative)!;
     const b = (await (await client.createInitiative({ name: 'B' })).initiative)!;
-    const site = (await asOwner.projects.post({ teamIds: [mkt], name: 'Site' })).data!;
+    const site = await createProject(owner, { teamIds: [mkt], name: 'Site' });
     await client.createInitiativeRelation({ initiativeId: a.id, relatedInitiativeId: b.id });
     await linkProject({ initiativeId: b.id, projectId: site.id }, owner.userId);
     await client.archiveInitiative(b.id);

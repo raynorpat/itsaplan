@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { IssueRelationType } from '@linear/sdk';
-import { authedApi } from '../../../__tests__/helpers/app';
-import { signUpTestUser } from '../../../__tests__/helpers/auth';
+import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { setWorkspaceRole } from '../../../shared/access';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
+import { addMember, createIssue, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Issue relations over the Linear API: CRUD, Issue.relations / inverseRelations,
 // the duplicate rule, visibility, the has*Relations filters, access errors.
@@ -14,27 +14,22 @@ const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  await asOwner.teams.post({ key: 'SEC', name: 'Secret', visibility: 'private' });
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await createTeam(owner, { key: 'SEC', name: 'Secret', visibility: 'private' });
   const client = linearClient(await createApiKey(owner.cookie));
-  const states = async (key: string) => (await asOwner.teams({ teamKey: key }).get()).data!.states;
+  const states = async (key: string) => (await teamView(owner, key)).states;
   const make = async (title: string, key = 'MKT') => {
     const stateId = (await states(key)).find((s) => s.stateType === 'unstarted')!.id;
-    return (await asOwner.teams({ teamKey: key }).issues.post({ stateId, title })).data!;
+    return await createIssue(owner, { teamId: key, stateId, title });
   };
-  return { owner, asOwner, client, make };
+  return { owner, client, make };
 }
 
 // A user with a workspace role added to a team. A guest sees only that team.
-async function memberOf(
-  asOwner: ReturnType<typeof authedApi>,
-  teamKey: string,
-  role: 'member' | 'guest' = 'member',
-) {
+async function memberOf(owner: TestUser, teamKey: string, role: 'member' | 'guest' = 'member') {
   const user = await signUpTestUser();
   await setWorkspaceRole(user.userId, role);
-  await asOwner.teams({ teamKey: teamKey }).members.post({ userId: user.userId });
+  await addMember(owner, teamKey, user.userId);
   return { user, client: linearClient(await createApiKey(user.cookie)) };
 }
 
@@ -87,7 +82,7 @@ describe('graphql issue relations', () => {
   });
 
   it('hides relations to issues the viewer cannot see', async () => {
-    const { owner, asOwner, client, make } = await setup();
+    const { owner, client, make } = await setup();
     const a = await make('A');
     const c = await make('C', 'SEC');
     await client.createIssueRelation({
@@ -95,7 +90,7 @@ describe('graphql issue relations', () => {
       relatedIssueId: c.id,
       type: IssueRelationType.Blocks,
     });
-    const member = await memberOf(asOwner, 'MKT');
+    const member = await memberOf(owner, 'MKT');
     expect((await (await member.client.issue(a.id)).relations()).nodes).toHaveLength(0);
     expect((await member.client.issueRelations()).nodes).toHaveLength(0);
     expect(await titles(member.user.cookie, '{ hasBlockingRelations: { eq: true } }')).toEqual([]);
@@ -125,7 +120,7 @@ describe('graphql issue relations', () => {
   });
 
   it('rejects similar, hidden issues and missing edit permission', async () => {
-    const { owner, asOwner, make } = await setup();
+    const { owner, make } = await setup();
     const [a, b] = [await make('A'), await make('B')];
     const create = (cookie: string, type: string) =>
       gql(
@@ -133,15 +128,15 @@ describe('graphql issue relations', () => {
         `mutation { issueRelationCreate(input: { issueId: "${a.id}", relatedIssueId: "${b.id}", type: ${type} }) { success } }`,
       );
     expect(errorCode(await create(owner.cookie, 'similar'))).toBe('INVALID_INPUT');
-    const outsider = await memberOf(asOwner, 'SEC', 'guest');
+    const outsider = await memberOf(owner, 'SEC', 'guest');
     expect(errorCode(await create(outsider.user.cookie, 'related'))).toBe('ENTITY_NOT_FOUND');
   });
 
   it("needs to see the duplicate issue's team to mark it a duplicate", async () => {
-    const { asOwner, client, make } = await setup();
+    const { owner, client, make } = await setup();
     const mktIssue = await make('M');
     const secIssue = await make('S', 'SEC');
-    const bob = await memberOf(asOwner, 'MKT');
+    const bob = await memberOf(owner, 'MKT');
     const res = await gql(
       { cookie: bob.user.cookie },
       `mutation { issueRelationCreate(input: { issueId: "${secIssue.id}", relatedIssueId: "${mktIssue.id}", type: duplicate }) { success } }`,
@@ -151,7 +146,7 @@ describe('graphql issue relations', () => {
   });
 
   it("does not reveal a hidden issue's id through a relation", async () => {
-    const { asOwner, client, make } = await setup();
+    const { owner, client, make } = await setup();
     const a = await make('A');
     const c = await make('C', 'SEC');
     const relation = (await (
@@ -161,7 +156,7 @@ describe('graphql issue relations', () => {
         type: IssueRelationType.Blocks,
       })
     ).issueRelation)!;
-    const member = await memberOf(asOwner, 'MKT');
+    const member = await memberOf(owner, 'MKT');
     expect((await (await member.client.issue(a.id)).inverseRelations()).nodes).toHaveLength(0);
     const res = await gql(
       { cookie: member.user.cookie },
@@ -172,7 +167,7 @@ describe('graphql issue relations', () => {
   });
 
   it('checks access on update and delete', async () => {
-    const { asOwner, client, make } = await setup();
+    const { owner, client, make } = await setup();
     const [a, b] = [await make('A'), await make('B')];
     const relation = (await (
       await client.createIssueRelation({
@@ -181,7 +176,7 @@ describe('graphql issue relations', () => {
         type: IssueRelationType.Related,
       })
     ).issueRelation)!;
-    const reader = await memberOf(asOwner, 'SEC', 'guest');
+    const reader = await memberOf(owner, 'SEC', 'guest');
     const update = await gql(
       { cookie: reader.user.cookie },
       `mutation { issueRelationUpdate(id: "${relation.id}", input: { type: "blocks" }) { success } }`,

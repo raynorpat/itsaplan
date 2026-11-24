@@ -55,6 +55,12 @@ export function normaliseScopes(raw: string | null | undefined): string[] {
   return [...new Set((raw ?? '').split(/[\s,]+/).filter(Boolean))];
 }
 
+// Linear's `read` "will always be present": every grant includes it, so a token
+// limited to `issues:create` or `comments:create` can still read what it writes to.
+export function withRead(scopes: string[]): string[] {
+  return scopes.includes('read') ? scopes : ['read', ...scopes];
+}
+
 // Where the browser goes for each step that needs a person: the web's sign-in page
 // (which resumes the authorization afterwards) and its consent page.
 export function oauthPages(appUrl: string) {
@@ -168,8 +174,10 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     // left as it is.
     if (ctx.request && !new URL(ctx.request.url).pathname.endsWith('/oauth2/authorize')) return;
     const query = (ctx.query ?? {}) as Record<string, unknown>;
-    const scopes = normaliseScopes(
-      typeof query.scope === 'string' ? query.scope : await defaultScope(query.client_id),
+    const scopes = withRead(
+      normaliseScopes(
+        typeof query.scope === 'string' ? query.scope : await defaultScope(query.client_id),
+      ),
     );
     // A refresh token is issued with `offline_access`, which the plugin also takes as
     // a demand for PKCE. Add it when the client uses PKCE; a confidential client that
@@ -215,7 +223,7 @@ export async function oauthBeforeHook(ctx: HookContext, trustedOrigins: string[]
     // A self-registered client sets nothing the admins' applications use.
     delete body.metadata;
     if (typeof body.scope === 'string') {
-      const scopes = normaliseScopes(body.scope);
+      const scopes = withRead(normaliseScopes(body.scope));
       if (!scopes.includes(OFFLINE)) scopes.push(OFFLINE);
       body.scope = scopes.join(' ');
     }
@@ -452,8 +460,8 @@ async function beforeClientCredentials(
   const installation = clientId ? await activeInstallation(clientId) : null;
   if (!installation) throw tokenError('invalid_grant', 'The application is not installed');
   const requested = normaliseScopes(typeof body.scope === 'string' ? body.scope : '');
-  const scopes = requested.length > 0 ? requested : installation.scopes;
-  const beyond = scopes.filter((s) => !installation.scopes.includes(s));
+  const scopes = withRead(requested.length > 0 ? requested : installation.scopes);
+  const beyond = scopes.filter((s) => s !== 'read' && !installation.scopes.includes(s));
   if (beyond.length > 0)
     throw tokenError('invalid_scope', `The installation does not grant ${beyond.join(', ')}`);
   body.scope = [...scopes, APP_ACTOR_SCOPE].join(' ');
@@ -593,7 +601,8 @@ export async function resolveOAuthAccessToken(token: string): Promise<OAuthGrant
     );
   if (!row || !row.expiresAt || row.expiresAt < new Date()) return null;
   if (row.refreshRevoked || row.clientDisabled) return null;
-  const scopes = (row.scopes ?? []).filter((s): s is OAuthScope =>
+  // Tokens issued before every grant carried `read` are read as having it.
+  const scopes = withRead(row.scopes ?? []).filter((s): s is OAuthScope =>
     (OAUTH_SCOPES as readonly string[]).includes(s),
   );
   // An install's tokens belong to its app user (client_credentials tokens have no

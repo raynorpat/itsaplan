@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { addToTeam, makePrivate, signUpWithRole } from '../../../__tests__/helpers/roles';
 import { setWorkspaceRole } from '../../../shared/access';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import {
+  addMember,
+  createTeam,
+  createWebhook,
+  makePrivate,
+  signUpAs,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Project members over the Linear API: set on create, replaced on update, limited to
 // users who can see the project, the lead not added automatically, and carried in
@@ -18,12 +24,11 @@ type Data = Record<string, { project?: { members: { nodes: { id: string }[] } } 
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.id;
-  const a = await signUpWithRole('member', { name: 'Ann' });
-  const b = await signUpWithRole('member', { name: 'Ben' });
-  return { owner, asOwner, teamId, a, b };
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const teamId = (await teamView(owner, 'MKT')).team.id;
+  const a = await signUpAs('member', { name: 'Ann' });
+  const b = await signUpAs('member', { name: 'Ben' });
+  return { owner, teamId, a, b };
 }
 
 const memberIds = (data: unknown, field: string) =>
@@ -57,10 +62,10 @@ describe('graphql project members', () => {
   });
 
   it('refuses a member who cannot see the project', async () => {
-    const { owner, asOwner, teamId, a } = await setup();
-    await makePrivate(asOwner, 'MKT');
-    const outsider = await signUpWithRole('member', { name: 'Out' });
-    await addToTeam(asOwner, 'MKT', a);
+    const { owner, teamId, a } = await setup();
+    await makePrivate(owner, 'MKT');
+    const outsider = await signUpAs('member', { name: 'Out' });
+    await addMember(owner, 'MKT', a.userId);
     const created = await gql(
       { cookie: owner.cookie },
       `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"], memberIds: ["${a.userId}"] }) { project { id } } }`,
@@ -93,12 +98,12 @@ describe('graphql project members', () => {
   });
 
   it('carries memberIds in the Project webhook payload', async () => {
-    const { owner, asOwner, teamId, a } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Project'] })
-    ).data!;
+    const { owner, teamId, a } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Project'],
+    });
     const created = await gql(
       { cookie: owner.cookie },
       `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"] }) { project { id } } }`,
@@ -130,7 +135,7 @@ describe('graphql project members', () => {
       `mutation { projectUpdate(id: "${id}", input: { memberIds: ["${a.userId}", "${b.userId}"] }) { project { members { nodes { id } } } } }`,
     );
     expect(kept.body.errors).toBeUndefined();
-    const outsider = await signUpWithRole('guest', { name: 'Olga Out' });
+    const outsider = await signUpAs('guest', { name: 'Olga Out' });
     const refused = await gql(
       { cookie: owner.cookie },
       `mutation { projectUpdate(id: "${id}", input: { memberIds: ["${a.userId}", "${outsider.userId}"] }) { success } }`,
@@ -149,11 +154,11 @@ describe('graphql project members', () => {
   });
 
   it('checks the members against the new teams before changing any', async () => {
-    const { owner, asOwner, teamId, a } = await setup();
-    await makePrivate(asOwner, 'MKT');
-    await asOwner.teams.post({ key: 'ENG', name: 'Engineering' });
-    const engId = (await asOwner.teams({ teamKey: 'ENG' }).get()).data!.team.id;
-    await makePrivate(asOwner, 'ENG');
+    const { owner, teamId, a } = await setup();
+    await makePrivate(owner, 'MKT');
+    await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+    const engId = (await teamView(owner, 'ENG')).team.id;
+    await makePrivate(owner, 'ENG');
     const created = await gql(
       { cookie: owner.cookie },
       `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"] }) { project { id } } }`,

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { listCycles } from '../../../cycles/store';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
+import { addMember, createTeam, createWebhook, teamView } from '../../../__tests__/helpers/graphql';
 
 // Cycles over the Linear API: team settings through teamUpdate, cycle CRUD,
 // closing by hand, archiving, progress, flags, the issue cycle filter, webhooks.
@@ -15,13 +15,12 @@ const DAY = 24 * 60 * 60 * 1000;
 
 async function setup(enable = true) {
   const owner = await signUpTestUser({ name: 'Owner' });
-  const asOwner = authedApi(owner.cookie);
-  await asOwner.teams.post({ key: 'MKT', name: 'Marketing' });
-  const team = (await asOwner.teams({ teamKey: 'MKT' }).get()).data!;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const team = await teamView(owner, 'MKT');
   const client = linearClient(await createApiKey(owner.cookie));
   if (enable) await client.updateTeam(team.team.id, { cyclesEnabled: true });
   const state = (type: string) => team.states.find((s) => s.stateType === type)!.id;
-  return { owner, asOwner, teamId: team.team.id, client, state };
+  return { owner, teamId: team.team.id, client, state };
 }
 
 describe('graphql cycles', () => {
@@ -30,7 +29,7 @@ describe('graphql cycles', () => {
   });
 
   it('enables cycles through teamUpdate and reads them back', async () => {
-    const { owner, asOwner, teamId, client } = await setup(false);
+    const { owner, teamId, client } = await setup(false);
     const updated = await (
       await client.updateTeam(teamId, { cyclesEnabled: true, cycleDuration: 1 })
     ).team;
@@ -45,7 +44,7 @@ describe('graphql cycles', () => {
     expect(errorCode(bad)).toBe('INVALID_INPUT');
     expect(bad.body.errors?.[0]?.message).toContain('timezone');
     const member = await signUpTestUser();
-    await asOwner.teams({ teamKey: 'MKT' }).members.post({ userId: member.userId });
+    await addMember(owner, 'MKT', member.userId);
     const denied = await gql(
       { cookie: member.cookie },
       `mutation { teamUpdate(id: "${teamId}", input: { cycleDuration: 3 }) { success } }`,
@@ -185,12 +184,12 @@ describe('graphql cycles', () => {
   });
 
   it('sends a Cycle webhook on cycleCreate', async () => {
-    const { asOwner, teamId, client } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Cycle'] })
-    ).data!;
+    const { owner, teamId, client } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Cycle'],
+    });
     const last = (await listCycles(teamId)).at(-1)!;
     const startsAt = new Date(new Date(last.endsAt).getTime() + 7 * DAY);
     await client.createCycle({ teamId, startsAt, endsAt: new Date(startsAt.getTime() + DAY) });
@@ -214,12 +213,12 @@ describe('graphql cycles', () => {
   });
 
   it("names the close snapshot like Linear's Cycle webhook payload", async () => {
-    const { asOwner, teamId, client } = await setup();
-    const hook = (
-      await asOwner
-        .teams({ teamKey: 'MKT' })
-        .webhooks.post({ url: 'https://example.com/h', resourceTypes: ['Cycle'] })
-    ).data!;
+    const { owner, teamId, client } = await setup();
+    const hook = await createWebhook(owner, {
+      teamId: 'MKT',
+      url: 'https://example.com/h',
+      resourceTypes: ['Cycle'],
+    });
     const [active] = await listCycles(teamId);
     await client.updateCycle(active!.id, { completedAt: new Date() });
     const data = (await webhookDeliveries(hook.id)).data!.items.map(
@@ -230,13 +229,13 @@ describe('graphql cycles', () => {
   });
 
   it('validates teamUpdate before writing anything', async () => {
-    const { owner, asOwner, teamId } = await setup();
+    const { owner, teamId } = await setup();
     const res = await gql(
       { cookie: owner.cookie },
       `mutation { teamUpdate(id: "${teamId}", input: { name: "Renamed", cycleDuration: 99 }) { success } }`,
     );
     expect(errorCode(res)).toBe('INVALID_INPUT');
-    expect((await asOwner.teams({ teamKey: 'MKT' }).get()).data!.team.name).toBe('Marketing');
+    expect((await teamView(owner, 'MKT')).team.name).toBe('Marketing');
     for (const name of ['""', 'null']) {
       const bad = await gql(
         { cookie: owner.cookie },

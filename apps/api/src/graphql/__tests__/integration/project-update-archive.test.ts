@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
-import { authedApi } from '../../../__tests__/helpers/app';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
+import { createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
 // Archiving a project update (Linear's projectUpdateArchive / Unarchive): an archived
 // update leaves the project's updates unless includeArchived, the project's health
@@ -15,8 +15,8 @@ type Project = {
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
-  await authedApi(owner.cookie).teams.post({ key: 'MKT', name: 'Marketing' });
-  const teamId = (await authedApi(owner.cookie).teams({ teamKey: 'MKT' }).get()).data!.team.id;
+  await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  const teamId = (await teamView(owner, 'MKT')).team.id;
   const run = (query: string) => gql({ cookie: owner.cookie }, query);
   const created = await run(
     `mutation { projectCreate(input: { name: "P", teamIds: ["${teamId}"] }) { project { id } } }`,
