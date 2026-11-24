@@ -115,3 +115,25 @@ order of the work.
   chosen mode, whose default becomes the full page (Linear's default). My issues has no
   peek (it spans teams and the panel belongs to one team); Space there does nothing.
 - **Inbox:** the detail pane uses the same layout.
+
+## Stage 4a: small missing features and parent history
+
+- **Cycles page:** "New cycle" dialog (name optional, start and end dates) through
+  `cycleCreate`; "Archive" in a past cycle's ⋯ menu through `cycleArchive`; a collapsible
+  "Archived" section. The API's refusals show as its message.
+- **Projects:** Archive / Unarchive in the project's ⋯ menu (`projectArchive` /
+  `projectUnarchive`); an archived project shows a banner with Unarchive; the projects
+  list has an "Archived" filter.
+- **Labels (team and workspace settings):** Retire in a label's menu
+  (`issueLabelRetire`); retired labels in a "Retired labels" section with Restore
+  (`issueLabelRestore`).
+- **Inbox:** "Unsnooze all" in the inbox ⋯ menu (`notificationUnsnoozeAll`); an archive
+  button on a row on hover and `E` on the focused row (`notificationArchive`).
+- **Actors:** a change or comment made by a workflow shows the workflow name with a
+  workflow icon ("… · via workflow Auto-close"), from `botActor`; an app user's change
+  or comment shows an "App" badge after the name (`User.app`), in issue activity,
+  comments and project activity.
+- **Parent history:** the API records parent changes in issue history and serves
+  `IssueHistory.fromParent` / `toParent` / `fromParentId` / `toParentId`; the activity
+  reads "set parent to ENG-3", "changed parent from ENG-3 to ENG-5", "removed parent
+  ENG-3".
