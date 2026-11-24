@@ -44,6 +44,11 @@ export const teamOwnGroups = (groups: LabelGroup[]) => groups.filter((g) => g.te
 export const applicableLabels = (labels: Label[]) =>
   teamOwnLabels(labels).filter((l) => !l.retiredAt);
 
+// The labels an issue's label picker lists: the applicable ones, plus a retired team
+// label the issue has, so it can be taken off. A retired label is never offered to add.
+export const pickerLabels = (labels: Label[], selected: string[]) =>
+  teamOwnLabels(labels).filter((l) => !l.retiredAt || selected.includes(l.id));
+
 // Labels settings: the active labels, and the retired ones listed apart with Restore.
 export function splitLabels<T extends { retiredAt?: string | null }>(
   labels: T[],

@@ -68,7 +68,8 @@ export function snoozedIds(list: Notification[], now: Date): string[] {
 export function inboxKeyAction(
   e: KeyEventLike & { target: EventTarget | null; defaultPrevented?: boolean },
   combos: HotkeyCombos,
+  overlayOpen = false,
 ): 'archive' | null {
-  if (e.defaultPrevented || blocksShortcuts(e.target)) return null;
+  if (overlayOpen || e.defaultPrevented || blocksShortcuts(e.target)) return null;
   return matchesCombo(e, combos['inbox.archive']) ? 'archive' : null;
 }

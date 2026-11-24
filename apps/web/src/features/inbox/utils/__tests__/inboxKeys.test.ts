@@ -27,6 +27,10 @@ describe('inboxKeyAction', () => {
       assert.equal(inboxKeyAction(key('e', t), DEFAULT_COMBOS), null);
   });
 
+  it('does nothing while a Shell overlay (palette, panel, new issue) is open', () => {
+    assert.equal(inboxKeyAction(key('e'), DEFAULT_COMBOS, true), null);
+  });
+
   it('ignores other keys, modified E and handled events', () => {
     assert.equal(inboxKeyAction(key('j'), DEFAULT_COMBOS), null);
     assert.equal(inboxKeyAction(key('e', target('BODY'), { metaKey: true }), DEFAULT_COMBOS), null);

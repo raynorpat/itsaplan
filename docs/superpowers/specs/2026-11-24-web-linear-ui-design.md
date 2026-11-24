@@ -118,9 +118,10 @@ order of the work.
 
 ## Stage 4a: small missing features and parent history
 
-- **Cycles page:** "New cycle" dialog (name optional, start and end dates) through
-  `cycleCreate`; "Archive" in a past cycle's ⋯ menu through `cycleArchive`; a collapsible
-  "Archived" section. The API's refusals show as its message.
+- **Cycles page:** cycles come only from the team's cycle settings, as in Linear (its
+  schema marks `cycleCreate` unsupported); "Archive" in a completed cycle's ⋯ menu
+  through `cycleArchive`; a collapsible "Archived" section. The API's refusals show as
+  its message.
 - **Projects:** Archive / Unarchive in the project's ⋯ menu (`projectArchive` /
   `projectUnarchive`); an archived project shows a banner with Unarchive; the projects
   list has an "Archived" filter.

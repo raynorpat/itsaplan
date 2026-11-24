@@ -150,6 +150,7 @@ export default function Shell({
     editor,
     onOpenIssue: openIssue,
     onAddIssue: overlays.setNewIssueDefaults,
+    overlayOpen: overlays.anyOpen,
   };
 
   return (

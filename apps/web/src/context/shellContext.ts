@@ -17,6 +17,9 @@ export type ShellContext = {
   // between the side panel and the issue page; pass it to force one of them.
   onOpenIssue: (id: string, mode?: IssueOpenMode) => void;
   onAddIssue: (defaults: NewIssueDefaults) => void;
+  // True while a Shell overlay (palette, issue panel, new issue, new team) is open;
+  // page-level shortcuts skip their keys then.
+  overlayOpen: boolean;
 };
 
 export const ShellCtx = createContext<ShellContext | null>(null);

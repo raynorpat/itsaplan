@@ -190,8 +190,8 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
         meta={count === 0 ? undefined : `${count} ${count === 1 ? 'issue' : 'issues'}`}
         onEdit={() => openLabelEdit(l)}
         onDelete={() => setDeletingLabel(l)}
-        onRetire={retired ? undefined : () => retireLabel.mutate(l.id)}
-        onRestore={retired ? () => restoreLabel.mutate(l.id) : undefined}
+        onRetire={retired ? undefined : () => !retireLabel.isPending && retireLabel.mutate(l.id)}
+        onRestore={retired ? () => !restoreLabel.isPending && restoreLabel.mutate(l.id) : undefined}
       />
     );
   }

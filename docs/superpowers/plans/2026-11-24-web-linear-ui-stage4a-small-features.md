@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The web exposes cycle create / archive, project archive, label retire / restore and the inbox's unsnooze-all and single archive; activity names workflows and apps; the API records parent changes.
+**Goal:** The web exposes cycle archive, project archive, label retire / restore and the inbox's unsnooze-all and single archive; activity names workflows and apps; the API records parent changes.
 
 **Architecture:** Task 1 is API (issue activity + history resolver) plus its feed line; Task 2 is the shared actor display; Tasks 3–4 are web screens on mutations the API already serves. Pure logic in feature `utils/` with tests.
 
@@ -51,17 +51,17 @@
 - [ ] **Step 4: Run** web tests and root checks — Expected: PASS.
 - [ ] **Step 5: Commit** `feat(web): workflow and app actors in activity and comments`
 
-### Task 3: Cycle create / archive and project archive
+### Task 3: Cycle archive and project archive
 
-**Files:** `features/cycles/` (New cycle dialog on the cycles page, ⋯ menu on past `CycleRow`s with Archive, collapsible "Archived" section from `team.cycles(includeArchived: true)` filtered to archived), `features/cycles/services/cycles.service.ts` (`cycleCreate`, `cycleArchive`), `features/projects/` (Archive / Unarchive in `ProjectActions`, archived banner in the project header, "Archived" filter on the list through `includeArchived` + `archivedAt` check), cache refresh of the cycles and projects queries.
+**Files:** `features/cycles/` (⋯ menu on completed `CycleRow`s with Archive, collapsible "Archived" section from `team.cycles(includeArchived: true)` filtered to archived), `features/cycles/services/cycles.service.ts` (`cycleArchive`), `features/projects/` (Archive / Unarchive in `ProjectActions`, archived banner in the project header, "Archived" filter on the list through `includeArchived` + `archivedAt` check), cache refresh of the cycles and projects queries.
 
-**Interfaces:** Produces `canArchiveCycle(cycle: { endsAt: string; archivedAt?: string | null }, now: Date): boolean` (true only when ended and not archived) and `newCycleInput(form: { name: string; startsAt: string; endsAt: string }, teamId: string): { teamId; startsAt; endsAt; name? } | { error: string }` (end after start; blank name omitted).
+**Interfaces:** Produces `canArchiveCycle(cycle: { completedAt: string | null; archivedAt?: string | null }): boolean` (true only when completed and not archived).
 
-- [ ] **Step 1: Failing tests** for both helpers (current / upcoming / past / archived cycles; end before start → error; blank name omitted).
+- [ ] **Step 1: Failing tests** for `canArchiveCycle` (current / upcoming / completed / archived cycles).
 - [ ] **Step 2: Run** — Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** web tests and root checks — Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): create and archive cycles, archive projects`
+- [ ] **Step 5: Commit** `feat(web): archive cycles and projects`
 
 ### Task 4: Label retire / restore, inbox actions, smoke check
 
@@ -72,5 +72,5 @@
 - [ ] **Step 1: Failing tests** for `splitLabels` and `inboxKeyAction`.
 - [ ] **Step 2: Run** — Expected: FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** web tests, root checks, full API suite; smoke check against the test DB (API 3100, web 3101, seed): create and archive a cycle, archive and unarchive a project, retire and restore a label, unsnooze all and archive one notification, set a parent (activity line), a workflow rule acting on an issue ("via workflow" line); headless Chrome screenshots of the cycles page, the archived project, labels settings, inbox, issue activity — Expected: PASS and the screenshots show each.
+- [ ] **Step 4: Run** web tests, root checks, full API suite; smoke check against the test DB (API 3100, web 3101, seed): archive a completed cycle, archive and unarchive a project, retire and restore a label, unsnooze all and archive one notification, set a parent (activity line), a workflow rule acting on an issue ("via workflow" line); headless Chrome screenshots of the cycles page, the archived project, labels settings, inbox, issue activity — Expected: PASS and the screenshots show each.
 - [ ] **Step 5: Commit** `feat(web): retire labels and inbox archive and unsnooze all`

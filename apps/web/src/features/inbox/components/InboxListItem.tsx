@@ -15,6 +15,7 @@ import { formatDurationShort } from '@/utils/dates';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useHotkeyLabel } from '@/context/useHotkeys';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,6 +111,7 @@ export default function InboxListItem({
   onArchive: () => void;
 }) {
   const [pickOpen, setPickOpen] = useState(false);
+  const archiveKey = useHotkeyLabel('inbox.archive');
   const Icon = TYPE_ICON[n.type];
   const unread = n.readAt == null;
   const snoozed = isSnoozed(n, new Date());
@@ -131,7 +133,11 @@ export default function InboxListItem({
           role="button"
           tabIndex={0}
           onClick={onSelect}
-          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
+          // Only the row's own keys: Enter on the archive or ⋯ button inside it must not
+          // also open the notification.
+          onKeyDown={(e) =>
+            e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && onSelect()
+          }
           className={cn(
             'group flex w-full items-start gap-3 border-b px-4 py-3 text-left transition-colors',
             selected ? 'bg-accent' : 'hover:bg-accent/50',
@@ -172,19 +178,21 @@ export default function InboxListItem({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-0.5">
-            <span className="text-xs text-muted-foreground group-hover:hidden">
+            <span className="text-xs text-muted-foreground group-focus-within:hidden group-hover:hidden">
               {formatDurationShort(n.createdAt)}
             </span>
-            {unread && <span className="size-2 rounded-full bg-primary group-hover:hidden" />}
+            {unread && (
+              <span className="size-2 rounded-full bg-primary group-focus-within:hidden group-hover:hidden" />
+            )}
             <Button
               variant="ghost"
               size="icon"
-              className="hidden size-6 group-hover:flex"
+              className="hidden size-6 group-focus-within:flex group-hover:flex"
               onClick={(e) => {
                 e.stopPropagation();
                 onArchive();
               }}
-              title="Archive (E)"
+              title={archiveKey ? `Archive (${archiveKey})` : 'Archive'}
               aria-label="Archive notification"
             >
               <Archive />
@@ -194,7 +202,7 @@ export default function InboxListItem({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hidden size-6 group-hover:flex data-[state=open]:flex"
+                  className="hidden size-6 group-focus-within:flex group-hover:flex data-[state=open]:flex"
                   onClick={(e) => e.stopPropagation()}
                   title="More"
                 >

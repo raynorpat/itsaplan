@@ -11,6 +11,7 @@ import IssueDetailContent from '@/features/issue/components/detail/IssueDetailCo
 import InboxToolbar from './InboxToolbar';
 import InboxSelectionBar from './InboxSelectionBar';
 import InboxList from './InboxList';
+import { useShell } from '@/context/shellContext';
 import { useInboxTeam } from '../hooks/useInboxTeam';
 import {
   DEFAULT_INBOX_FILTERS,
@@ -30,6 +31,7 @@ import {
 // The workspace inbox: the viewer's notifications from every team on the left, the
 // open notification's issue on the right.
 export default function InboxView() {
+  const { overlayOpen } = useShell();
   const [filters, setFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [selected, setSelected] = useState<Notification | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -74,12 +76,12 @@ export default function InboxView() {
   // E archives the open notification and opens the next one in the list, as Linear
   // does (the previous one when it was the last).
   const combos = useHotkeyCombos();
-  const latest = useRef({ selected, items, archive, onSelect });
-  latest.current = { selected, items, archive, onSelect };
+  const latest = useRef({ selected, items, archive, onSelect, overlayOpen });
+  latest.current = { selected, items, archive, onSelect, overlayOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (inboxKeyAction(e, combos) !== 'archive') return;
       const k = latest.current;
+      if (inboxKeyAction(e, combos, k.overlayOpen) !== 'archive') return;
       if (!k.selected) return;
       e.preventDefault();
       const at = k.items.findIndex((n) => n.id === k.selected!.id);

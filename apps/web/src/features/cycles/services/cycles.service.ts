@@ -5,7 +5,6 @@ import { IssueFields, toIssue } from '@/services/issues.service';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { mergeCyclePages, type CycleHistories } from '../utils/cyclePage';
-import type { NewCycleInput } from '../utils/cycleActions';
 
 // A cycle as the cycles page lists it.
 export interface CycleListItem {
@@ -251,14 +250,6 @@ export function useUpdateCycle(teamKey: string, teamId: string) {
   });
 }
 
-const CycleCreate = graphql(`
-  mutation CycleCreate($input: CycleCreateInput!) {
-    cycleCreate(input: $input) {
-      success
-    }
-  }
-`);
-
 const CycleArchive = graphql(`
   mutation CycleArchive($id: String!) {
     cycleArchive(id: $id) {
@@ -267,22 +258,12 @@ const CycleArchive = graphql(`
   }
 `);
 
-// A new or archived cycle changes the cycles page's lists and the scaffold's cycle
+// An archived cycle changes the cycles page's lists and the scaffold's cycle
 // list, which the pickers, board groups and the sidebar read.
 function invalidateCycles(qc: ReturnType<typeof useQueryClient>, teamKey: string) {
   void qc.invalidateQueries({ queryKey: qk.anyCycles });
   void qc.invalidateQueries({ queryKey: qk.anyCycle });
   void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
-}
-
-// Creates a cycle by hand (cycleCreate). The API refuses an overlap with another
-// cycle and a team with cycles off; the caller shows its message.
-export function useCreateCycle(teamKey: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: NewCycleInput) => gqlRequest(CycleCreate, { input }),
-    onSuccess: () => invalidateCycles(qc, teamKey),
-  });
 }
 
 // Archives a completed cycle (cycleArchive).

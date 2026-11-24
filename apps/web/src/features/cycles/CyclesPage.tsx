@@ -1,29 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { usePermissions } from '@/hooks/usePermissions';
 import { qk } from '@/services/queryKeys';
 import { cycleOptions, cyclesVisible } from '@/utils/cycles';
 import { Button } from '@/components/ui/button';
 import { useOpenCycles, usePastCycles, type CycleListItem } from './services/cycles.service';
 import { shownCyclePercent } from './utils/cyclePage';
 import CycleArchivedSection from './components/CycleArchivedSection';
-import CycleCreateDialog from './components/CycleCreateDialog';
 import CycleRow from './components/CycleRow';
 import CyclesOffNotice from './components/CyclesOffNotice';
 import CycleSection from './components/CycleSection';
 import { usePastCyclesFollowOpen } from './hooks/usePastCyclesFollowOpen';
 
 // A team's cycles: the current one, the upcoming ones soonest first, the past ones
-// newest first, a page at a time, then the archived ones (collapsed). Anyone who
-// works in the team may create a cycle or archive a completed one, as the API allows.
+// newest first, a page at a time, then the archived ones (collapsed). Cycles come from
+// the team's cycle settings; a completed one can be archived from its row.
 export default function CyclesPage() {
   const { team } = useShell();
-  const { can } = usePermissions();
-  const [creating, setCreating] = useState(false);
   const on = cyclesVisible(team);
   const teamId = on ? (team?.team.id ?? null) : null;
   const open = useOpenCycles(teamId);
@@ -47,12 +41,6 @@ export default function CyclesPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between px-6 py-4">
         <h1 className="text-lg font-semibold">Cycles</h1>
-        {can('work_items', 'create') && (
-          <Button size="sm" className="h-8 gap-1.5" onClick={() => setCreating(true)}>
-            <Plus className="size-3.5" />
-            New cycle
-          </Button>
-        )}
       </div>
       {open.isLoading ? (
         <p className="px-6 text-sm text-muted-foreground">Loading…</p>
@@ -93,13 +81,6 @@ export default function CyclesPage() {
           )}
           <CycleArchivedSection teamId={team.team.id} teamKey={teamKey} percentOf={percentOf} />
         </div>
-      )}
-      {creating && (
-        <CycleCreateDialog
-          teamKey={teamKey}
-          teamId={team.team.id}
-          onClose={() => setCreating(false)}
-        />
       )}
     </div>
   );
