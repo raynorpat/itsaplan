@@ -35,7 +35,7 @@ export default function FlatBoard({
 
   // Hidden columns live in the view's display (settings.hiddenGroups); toggling
   // one writes through onSettingsChange (a display edit on a saved view, saved on
-  // Save; immediate localStorage on the All tab).
+  // Save; saved to the viewer's display elsewhere).
   const hiddenSet = new Set(settings.hiddenGroups);
   const setHidden = (key: string, hide: boolean) =>
     onSettingsChange({

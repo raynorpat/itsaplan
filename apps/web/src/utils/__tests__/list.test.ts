@@ -2,14 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Issue } from '@/types/issue';
 import { positionAt, type IssueGroup } from '../team';
-import { buildListItems, listDropPatch, listRowProperties, rangeIds } from '../list';
+import { buildListItems, listDropPatch, listRowProperties, rangeIds, toggledKeys } from '../list';
 import { displayToPreferences, preferencesToDisplay } from '../viewPreferences';
-import {
-  defaultViewSettings,
-  migrateStore,
-  normalizeSavedDisplay,
-  normalizeViewSettings,
-} from '../viewSettings';
+import { defaultViewSettings, normalizeSavedDisplay, normalizeViewSettings } from '../viewSettings';
 import { toLayout } from '../viewTypes';
 
 const issue = (id: string, position: number, stateId = 's1') =>
@@ -34,18 +29,6 @@ describe('the table layout folds into the list', () => {
     assert.deepEqual(d.properties, ['labels', 'priority', 'id']);
     assert.equal(d.group, 'assignee');
     assert.deepEqual(d.sort, { field: 'created', dir: 'desc' });
-  });
-
-  it('moves stored per-team Table settings to the list', () => {
-    const store = migrateStore({ ENG: { table: { group: 'assignee' } } } as never);
-    assert.deepEqual(store, { ENG: { list: { group: 'assignee' } } });
-  });
-
-  it('keeps the list when a stored list setting already exists', () => {
-    const store = migrateStore({
-      ENG: { table: { group: 'assignee' }, list: { group: 'priority' } },
-    } as never);
-    assert.deepEqual(store, { ENG: { list: { group: 'priority' } } });
   });
 
   it('round-trips the list layout through Linear’s view preferences', () => {
@@ -129,5 +112,12 @@ describe('rangeIds', () => {
   it('selects only the clicked row without an anchor on the list', () => {
     assert.deepEqual(rangeIds(order, null, 'c'), ['c']);
     assert.deepEqual(rangeIds(order, 'gone', 'c'), ['c']);
+  });
+});
+
+describe('toggledKeys', () => {
+  it('adds a key that is not there and removes one that is', () => {
+    assert.deepEqual(toggledKeys(['a'], 'b'), ['a', 'b']);
+    assert.deepEqual(toggledKeys(['a', 'b'], 'a'), ['b']);
   });
 });

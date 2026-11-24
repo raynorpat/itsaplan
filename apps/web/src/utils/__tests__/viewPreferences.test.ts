@@ -26,6 +26,8 @@ describe('view preferences', () => {
       issueSubGrouping: 'priority',
       showEmptyGroups: false,
       hiddenColumns: ['a1'],
+      hiddenGroupsList: [],
+      hiddenRows: [],
       columnOrderList: ['labels', 'delegate', 'id'],
       timelineZoomScale: 3,
       showCompletedIssues: 'week',

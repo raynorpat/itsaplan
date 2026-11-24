@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
-import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
+import { useListBoardSettings } from '@/hooks/useListBoardSettings';
 import { applyFilters } from '@/utils/filters';
 import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import { cyclesVisible } from '@/utils/cycles';
@@ -20,7 +20,7 @@ import CalendarView from '@/components/common/board/calendar/CalendarView';
 // real issues and the live board refresh keeps it current.
 export default function ProjectIssuesBoard({ projectId }: { projectId: string }) {
   const { team, onOpenIssue, onAddIssue } = useShell();
-  const board = useLocalBoardSettings('planner_project_board_settings', projectId);
+  const board = useListBoardSettings('project');
 
   const viewTeam = useMemo(() => {
     if (!team) return null;
@@ -29,7 +29,9 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
     return { ...team, issues: applyFilters(shown, board.filters, team) };
   }, [team, projectId, board.filters, board.settings]);
 
-  if (!team || !viewTeam) return null;
+  // Rendered once the stored display is loaded, so the list does not first show the
+  // defaults.
+  if (!team || !viewTeam || !board.ready) return null;
   const settings = cycleSafeSettings(board.settings, board.view, cyclesVisible(team));
 
   const viewProps = {

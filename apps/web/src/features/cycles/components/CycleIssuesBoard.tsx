@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useShell } from '@/context/shellContext';
-import { useLocalBoardSettings } from '@/hooks/useLocalBoardSettings';
+import { useListBoardSettings } from '@/hooks/useListBoardSettings';
 import { applyFilters } from '@/utils/filters';
 import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import FilterBar from '@/components/layout/FilterBar';
@@ -25,7 +25,7 @@ export default function CycleIssuesBoard({
   canAdd: boolean;
 }) {
   const { team, onOpenIssue, onAddIssue } = useShell();
-  const board = useLocalBoardSettings('planner_cycle_board_settings', cycleId);
+  const board = useListBoardSettings('cycle');
 
   const viewTeam = useMemo(() => {
     if (!team) return null;
@@ -44,7 +44,9 @@ export default function CycleIssuesBoard({
     };
   }, [team, cycleId, board.filters, board.settings]);
 
-  if (!team || !viewTeam) return null;
+  // Rendered once the stored display is loaded, so the list does not first show the
+  // defaults.
+  if (!team || !viewTeam || !board.ready) return null;
 
   const viewProps = {
     team: viewTeam,

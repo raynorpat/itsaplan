@@ -25,9 +25,9 @@ export const DEFAULT_COLOR = '#6b7280';
 export interface WorkItemsViewProps {
   team: TeamDetail;
   settings: ViewSettings;
-  // Persist a settings change (used by the flat team to store hidden columns in
-  // the view's display). Routes through the view editor: on a saved view it
-  // starts an edit (saved on Save), on the All tab it writes localStorage.
+  // Persist a settings change (hidden and collapsed columns, collapsed list groups
+  // and swimlanes are part of the display). On a saved view it is a live change
+  // (saved on Save); elsewhere it is saved to the viewer's display for the list kind.
   onSettingsChange: (settings: ViewSettings) => void;
   onOpenIssue: (id: string) => void;
   // Opens the issue in the side panel over the view (Space, Linear's peek). Absent

@@ -84,6 +84,8 @@ export interface ViewSettings {
   // hiddenGroups, empty for every other layout, and part of the display so each
   // saved view keeps its own collapsed set.
   collapsedGroups: string[];
+  // Board swimlane keys collapsed to their header row (Linear's hiddenRows).
+  collapsedSwimlanes: string[];
   // Which completed / canceled issues show (Linear's showCompletedIssues).
   completedIssues: CompletedWindow;
   // Whether sub-issues show (Linear's showSubIssues).
@@ -101,6 +103,7 @@ const COMMON: Omit<ViewSettings, 'group' | 'subgroup' | 'properties' | 'sort'> =
   weekStart: 0,
   hiddenGroups: [],
   collapsedGroups: [],
+  collapsedSwimlanes: [],
   completedIssues: 'all',
   showSubIssues: true,
 };
@@ -157,42 +160,8 @@ function normalizeSort(sort: unknown): Sort | null {
   return null;
 }
 
-// localStorage holds a map of team key -> per-view settings, each stored as a
-// partial that is merged over the per-view defaults on read.
-const STORE_KEY = 'planner_view_settings';
-type Store = Record<string, Partial<Record<WorkItemsView, Partial<ViewSettings>>>>;
-
-// Moves settings stored under a former layout name ('board', 'table') to the
-// layout that replaced it. When both exist, the current name's settings win.
-export function migrateStore(store: Store): Store {
-  for (const perView of Object.values(store)) {
-    const legacy = perView as Record<string, Partial<ViewSettings> | undefined>;
-    for (const old of ['board', 'table']) {
-      const current = toLayout(old)!;
-      if (legacy[old] && !legacy[current]) legacy[current] = legacy[old];
-      delete legacy[old];
-    }
-  }
-  return store;
-}
-
-function readStore(): Store {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null');
-    if (!parsed || typeof parsed !== 'object') return {};
-    return migrateStore(parsed as Store);
-  } catch {
-    return {};
-  }
-}
-
-function writeStore(store: Store) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(store));
-}
-
 // Validates a stored partial against the per-view defaults, keeping only
-// recognized values. Shared by the localStorage store (getViewSettings) and by
-// saved views, whose display blob comes from the DB (see normalizeSavedDisplay).
+// recognized values (see normalizeSavedDisplay).
 export function normalizeViewSettings(
   s: Partial<ViewSettings> | null | undefined,
   view: WorkItemsView,
@@ -238,6 +207,9 @@ export function normalizeViewSettings(
     collapsedGroups: Array.isArray(s.collapsedGroups)
       ? (s.collapsedGroups as unknown[]).filter((x): x is string => typeof x === 'string')
       : d.collapsedGroups,
+    collapsedSwimlanes: Array.isArray(s.collapsedSwimlanes)
+      ? (s.collapsedSwimlanes as unknown[]).filter((x): x is string => typeof x === 'string')
+      : d.collapsedSwimlanes,
     completedIssues: COMPLETED_WINDOWS.some((w) => w.value === s.completedIssues)
       ? (s.completedIssues as CompletedWindow)
       : d.completedIssues,
@@ -260,12 +232,6 @@ export function cycleSafeSettings(
   return { ...settings, group, subgroup };
 }
 
-// Settings for one team+view, each field validated against the stored partial
-// and falling back to the per-view default.
-export function getViewSettings(teamKey: string, view: WorkItemsView): ViewSettings {
-  return normalizeViewSettings(readStore()[teamKey]?.[view], view);
-}
-
 // A saved view's display snapshot: which layout is active plus that layout's
 // settings. Stored in kanban_views.display and applied when the view is opened.
 export interface SavedViewDisplay extends ViewSettings {
@@ -279,13 +245,6 @@ export function normalizeSavedDisplay(blob: unknown): SavedViewDisplay {
   const b = (blob && typeof blob === 'object' ? blob : {}) as Partial<SavedViewDisplay>;
   const layout: WorkItemsView = toLayout(b.layout) ?? 'list';
   return { layout, ...normalizeViewSettings(b, layout) };
-}
-
-export function setViewSettings(teamKey: string, view: WorkItemsView, settings: ViewSettings) {
-  const store = readStore();
-  const team = store[teamKey] ?? (store[teamKey] = {});
-  team[view] = settings;
-  writeStore(store);
 }
 
 // The viewer's first day of the week, kept in this browser (0 Sunday, 1 Monday).

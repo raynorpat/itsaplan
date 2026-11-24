@@ -53,7 +53,7 @@ export default function WorkItemsPage() {
 
   useNewViewFromUrl(shownTeam != null, can('views', 'create'), editor.beginNewView);
 
-  if (!team || !filteredTeam || !shownTeam) return null;
+  if (!team || !filteredTeam || !shownTeam || !editor.ready) return null;
 
   // Saving persists the view: editing an existing one is a views edit, a brand-new
   // one is a views create. Filtering/display stay available to everyone (transient,

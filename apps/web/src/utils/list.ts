@@ -65,12 +65,10 @@ export function rangeIds(order: string[], anchor: string | null, target: string)
   return order.slice(a, b + 1);
 }
 
-// Collapsed sections are a per-team, per-grouping client-only preference,
-// persisted so it survives reloads (same pattern as the team's hidden groups).
-// The sub-grouping field is part of the key so a different sub-grouping keeps its
-// own collapse set.
-export function collapsedKey(teamId: string, group: string, subgroup: string): string {
-  return `kanban-table-collapsed:${teamId}:${group}:${subgroup}`;
+// The keys with `key` added, or removed when it is there (a group or swimlane
+// collapsed or expanded).
+export function toggledKeys(keys: string[], key: string): string[] {
+  return keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key];
 }
 
 // Collapse key for a sub-section: primary group key + sub-group key, so the same

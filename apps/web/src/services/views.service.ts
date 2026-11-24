@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { View } from '@/types/team';
-import { graphql, gqlRequest, readFragment } from '@/lib/graphql';
+import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import type { FilterSet } from '@/utils/filters';
@@ -20,50 +20,63 @@ export interface NewViewInput {
 
 export type ViewPatch = Partial<NewViewInput>;
 
-const CustomViewFields = graphql(`
-  fragment CustomViewFields on CustomView {
-    id
-    name
-    icon
-    createdAt
-    updatedAt
-    shared
-    filterData
-    team {
-      id
-      key
-      name
-    }
-    owner {
-      id
-      displayName
-      avatarUrl
-    }
-    viewPreferencesValues {
-      layout
-      viewOrdering
-      viewOrderingDirection
-      issueGrouping
-      issueSubGrouping
-      showEmptyGroups
-      hiddenColumns
-      columnOrderList
-      timelineZoomScale
-      showCompletedIssues
-      showSubIssues
-      fieldId
-      fieldStatus
-      fieldPriority
-      fieldAssignee
-      fieldProject
-      fieldCycle
-      fieldLabels
-      fieldDueDate
-      fieldDateCreated
-      fieldDateUpdated
-    }
+// The ViewPreferencesValues fields the web reads back (utils/viewPreferences.ts),
+// shared by saved views and the per-kind list preferences.
+export const ViewPreferenceFields = graphql(`
+  fragment ViewPreferenceFields on ViewPreferencesValues {
+    layout
+    viewOrdering
+    viewOrderingDirection
+    issueGrouping
+    issueSubGrouping
+    showEmptyGroups
+    hiddenColumns
+    hiddenGroupsList
+    hiddenRows
+    columnOrderList
+    timelineZoomScale
+    showCompletedIssues
+    showSubIssues
+    fieldId
+    fieldStatus
+    fieldPriority
+    fieldAssignee
+    fieldProject
+    fieldCycle
+    fieldLabels
+    fieldDueDate
+    fieldDateCreated
+    fieldDateUpdated
   }
 `);
+
+const CustomViewFields = graphql(
+  `
+    fragment CustomViewFields on CustomView {
+      id
+      name
+      icon
+      createdAt
+      updatedAt
+      shared
+      filterData
+      team {
+        id
+        key
+        name
+      }
+      owner {
+        id
+        displayName
+        avatarUrl
+      }
+      viewPreferencesValues {
+        ...ViewPreferenceFields
+      }
+    }
+  `,
+  [ViewPreferenceFields],
+);
 
 const CustomViewsPage = graphql(
   `
@@ -127,7 +140,7 @@ function toView(v: {
   filterData: unknown;
   team?: { id: string; key: string; name: string } | null;
   owner?: { id: string; displayName: string; avatarUrl?: string | null } | null;
-  viewPreferencesValues?: Parameters<typeof preferencesToDisplay>[0];
+  viewPreferencesValues?: FragmentOf<typeof ViewPreferenceFields> | null;
 }): View {
   return {
     id: v.id,
@@ -143,7 +156,7 @@ function toView(v: {
       ? { id: v.owner.id, name: v.owner.displayName, image: v.owner.avatarUrl ?? null }
       : null,
     filters: issueFilterToFilterSet(v.filterData),
-    display: preferencesToDisplay(v.viewPreferencesValues),
+    display: preferencesToDisplay(readFragment(ViewPreferenceFields, v.viewPreferencesValues)),
   };
 }
 

@@ -7,16 +7,15 @@ import { buildGroups, buildMaps, sortIssues, type WorkItemsViewProps } from '@/u
 import { cyclesVisible } from '@/utils/cycles';
 import {
   buildListItems,
-  collapsedKey,
   listDropPatch,
   listRowProperties,
   rangeIds,
   type FlatItem,
+  toggledKeys,
 } from '@/utils/list';
 import { useListKeyboard } from '@/hooks/useListKeyboard';
 import { rememberListOrder } from '@/utils/issueNavigation';
 import { useDndSensors } from '@/lib/dnd';
-import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
 import { preferPrefix, sortedOrderMessage, type DropData } from '@/utils/dnd';
 import { useSelection } from '@/context/useSelection';
@@ -32,6 +31,7 @@ const listCollision = preferPrefix('row:');
 export function ListBody({
   team,
   settings,
+  onSettingsChange,
   onOpenIssue,
   onPeekIssue,
   onAddIssue,
@@ -43,7 +43,11 @@ export function ListBody({
   // The last row clicked with selection, the start of a shift-click range.
   const anchor = useRef<string | null>(null);
   const sensors = useDndSensors(readOnly);
-  const collapsed = usePersistedSet(collapsedKey(team.team.id, settings.group, settings.subgroup));
+  // Collapsed groups and sub-sections are part of the display (Linear's
+  // hiddenGroupsList), keyed by the grouping field, so they are saved with it.
+  const collapsed = useMemo(() => new Set(settings.collapsedGroups), [settings.collapsedGroups]);
+  const toggleCollapsed = (key: string) =>
+    onSettingsChange({ ...settings, collapsedGroups: toggledKeys(settings.collapsedGroups, key) });
 
   const listId = useId();
   const grouped = settings.group !== 'none';
@@ -59,7 +63,7 @@ export function ListBody({
       subGroups,
       sorted,
       settings,
-      collapsed: collapsed.values,
+      collapsed,
     });
     return {
       items,
@@ -69,7 +73,7 @@ export function ListBody({
       maps: buildMaps(team),
       properties: listRowProperties(settings.properties, cyclesVisible(team)),
     };
-  }, [team, settings, subgrouped, collapsed.values]);
+  }, [team, settings, subgrouped, collapsed]);
 
   const order = useMemo(() => rows.map((r) => r.id), [rows]);
   // The issue page and the peek panel move through this list's rows (previous / next).
@@ -140,7 +144,7 @@ export function ListBody({
       case 'header': {
         // When sub-grouped, issues live under the sub-headers, so the group header
         // is only a drop target while the group is collapsed and they are hidden.
-        const isCollapsed = collapsed.values.has(item.group.key);
+        const isCollapsed = collapsed.has(item.group.key);
         return (
           <ListSectionHeader
             group={item.group}
@@ -149,7 +153,7 @@ export function ListBody({
             disabled={subgrouped && !isCollapsed}
             dropId={`sec:${item.dropKey}`}
             onDrop={(id) => moveIssue(id, item.assign, item.bucket, item.bucket.length)}
-            onToggle={() => collapsed.toggle(item.group.key)}
+            onToggle={() => toggleCollapsed(item.group.key)}
             controls={listId}
             onAddIssue={
               onAddIssue &&
@@ -164,10 +168,10 @@ export function ListBody({
           <ListSubHeader
             sub={item.sub}
             count={item.count}
-            collapsed={collapsed.values.has(item.dropKey)}
+            collapsed={collapsed.has(item.dropKey)}
             dropId={`sec:${item.dropKey}`}
             onDrop={(id) => moveIssue(id, item.assign, item.bucket, item.bucket.length)}
-            onToggle={() => collapsed.toggle(item.dropKey)}
+            onToggle={() => toggleCollapsed(item.dropKey)}
             controls={listId}
           />
         );

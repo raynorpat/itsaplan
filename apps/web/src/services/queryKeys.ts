@@ -20,6 +20,9 @@ export const qk = {
   views: (teamKey: string) => ['views', teamKey] as const,
   // Every saved view the viewer can see, across teams (the workspace Views page).
   allViews: () => ['allViews'] as const,
+  // The viewer's display preferences for one list kind (allIssues, project, cycle,
+  // myIssues).
+  listPreferences: (viewType: string) => ['listPreferences', viewType] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   // A team's workflow automation rules, archived ones included (team settings →

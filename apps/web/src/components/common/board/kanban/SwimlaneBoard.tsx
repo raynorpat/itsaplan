@@ -14,14 +14,14 @@ import {
   type WorkItemsViewProps,
   type IssueGroup,
 } from '@/utils/team';
-import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useBoardDnd } from '@/hooks/useBoardDnd';
 import { useSelection } from '@/context/useSelection';
 import { GroupDot } from '@/components/common/board/shared/GroupDot';
 import { SelectAllToggle } from './SelectAllToggle';
 import { CardOverlay } from './CardOverlay';
 import { SwimlaneCell } from './SwimlaneCell';
-import { boardCollision, boardOrder, COLUMN_WIDTH, collapsedSwimlanesKey } from '@/utils/kanban';
+import { boardCollision, boardOrder, COLUMN_WIDTH } from '@/utils/kanban';
+import { toggledKeys } from '@/utils/list';
 import { useRememberListOrder } from '@/hooks/useRememberListOrder';
 import { sortedOrderMessage } from '@/utils/dnd';
 
@@ -42,12 +42,19 @@ interface SwimlaneRow {
 export default function SwimlaneBoard({
   team,
   settings,
+  onSettingsChange,
   onOpenIssue,
   readOnly,
 }: WorkItemsViewProps) {
   const dnd = useBoardDnd(team.team.key, readOnly);
   const selection = useSelection();
-  const collapsed = usePersistedSet(collapsedSwimlanesKey(team.team.id, settings.subgroup));
+  // Collapsed swimlanes are part of the display (Linear's hiddenRows).
+  const collapsed = new Set(settings.collapsedSwimlanes);
+  const toggleSwimlane = (key: string) =>
+    onSettingsChange({
+      ...settings,
+      collapsedSwimlanes: toggledKeys(settings.collapsedSwimlanes, key),
+    });
 
   const maps = buildMaps(team);
   const columnGroups = buildGroups(team, settings.group);
@@ -89,7 +96,7 @@ export default function SwimlaneBoard({
   // The issue page and the peek panel move through the cards (previous / next):
   // swimlanes top to bottom, each in reading order; a collapsed swimlane shows none.
   const order = rows.flatMap((row) =>
-    collapsed.values.has(row.swimlane.key)
+    collapsed.has(row.swimlane.key)
       ? []
       : boardOrder(row.cells.map((c) => ({ key: c.column.key, issues: c.issues }))),
   );
@@ -181,7 +188,7 @@ export default function SwimlaneBoard({
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
             {virtualizer.getVirtualItems().map((vi) => {
               const row = rows[vi.index];
-              const isCollapsed = collapsed.values.has(row.swimlane.key);
+              const isCollapsed = collapsed.has(row.swimlane.key);
               return (
                 <div
                   key={vi.key}
@@ -199,7 +206,7 @@ export default function SwimlaneBoard({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      collapsed.toggle(row.swimlane.key);
+                      toggleSwimlane(row.swimlane.key);
                     }}
                     className="flex w-full items-center gap-2 bg-muted/30 px-4 py-1.5 text-sm font-medium text-foreground"
                   >

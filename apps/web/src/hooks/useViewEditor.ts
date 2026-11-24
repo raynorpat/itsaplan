@@ -1,27 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { View } from '@/types/team';
-import { toLayout, type WorkItemsView } from '@/utils/viewTypes';
+import type { WorkItemsView } from '@/utils/viewTypes';
 import { useCreateView, useDeleteView, useUpdateView } from '@/services/views.service';
 import { EMPTY_FILTER_SET, isActiveFilterSet, type FilterSet } from '@/utils/filters';
 import {
   defaultViewSettings,
-  getViewSettings,
-  setViewSettings,
   type SavedViewDisplay,
   type ViewSettings,
 } from '@/utils/viewSettings';
-
-// Which layout (list/board/timeline/calendar) the All tab shows is a global
-// preference. The settings of each layout are stored per team in
-// lib/viewSettings.
-const VIEW_KEY = 'planner_view';
-
-function loadView(): WorkItemsView {
-  // Runs in a useState initializer, which also executes during server render —
-  // there is no localStorage there, so fall back to the default layout.
-  if (typeof window === 'undefined') return 'list';
-  return toLayout(localStorage.getItem(VIEW_KEY)) ?? 'list';
-}
+import { switchLayout } from '@/utils/listPreferences';
+import { useListPreferences } from './useListPreferences';
 
 // The conditions of a saved view followed by the ad-hoc ones, re-keyed so the two
 // sources cannot collide on a condition id.
@@ -48,7 +36,8 @@ function toDisplay(view: WorkItemsView, settings: ViewSettings): SavedViewDispla
 //
 // Filters and display settings are live, transient state: changing them filters
 // the current screen and never writes to a saved view. On the All tab the layout
-// and its settings also persist to localStorage as the ad-hoc default. A view is
+// and its settings are the viewer's All issues display, saved on the server and
+// shared by every team. A view is
 // written only from the edit bar, which is opened explicitly by Edit view (update
 // the active view) or New view (create one from the live state).
 //
@@ -62,8 +51,9 @@ export function useViewEditor(
   activeViewId: string | null,
   onSelectView: (id: string | null) => void,
 ) {
-  const [view, setView] = useState<WorkItemsView>(loadView);
-  const [settings, setSettings] = useState<ViewSettings>(() => defaultViewSettings(loadView()));
+  const allIssues = useListPreferences('allIssues');
+  const [view, setView] = useState<WorkItemsView>('list');
+  const [settings, setSettings] = useState<ViewSettings>(() => defaultViewSettings('list'));
   const [filters, setFilters] = useState<FilterSet>(EMPTY_FILTER_SET);
   // editing is true while the name/Cancel/Save bar is shown. draftName/draftIcon
   // back the name input and icon picker in the bar.
@@ -88,25 +78,33 @@ export function useViewEditor(
     [editing, filters, activeView],
   );
 
+  function applyDisplay({ layout, ...rest }: SavedViewDisplay) {
+    setView(layout);
+    setSettings(rest);
+  }
+
   // Load the live layout/settings for a selection and drop the ad-hoc filters: the
-  // All tab restores the persisted global layout and its stored settings; a saved
-  // view uses its own stored display. forEdit loads the view's own conditions into
+  // All tab shows the viewer's All issues display; a saved view uses its own stored
+  // display. forEdit loads the view's own conditions into
   // the filter row, for the edit bar to change them.
   function loadSelection(id: string | null, forEdit = false) {
     if (id == null) {
       setFilters(EMPTY_FILTER_SET);
-      const allView = loadView();
-      setView(allView);
-      if (teamKey) setSettings(getViewSettings(teamKey, allView));
+      applyDisplay(allIssues.display);
       return;
     }
     const v = views.find((x) => x.id === id);
     if (!v) return;
     setFilters(forEdit ? mergeFilters(v.filters, EMPTY_FILTER_SET) : EMPTY_FILTER_SET);
-    setView(v.display.layout);
-    const { layout: _layout, ...s } = v.display;
-    setSettings(s);
+    applyDisplay(v.display);
   }
+
+  // The All issues display arrives after the first render and changes back when a
+  // save fails; the All tab follows it unless a draft is being edited there.
+  useEffect(() => {
+    if (activeViewId == null && !editing && allIssues.ready) applyDisplay(allIssues.display);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allIssues.display, allIssues.ready]);
 
   // Apply the selection's display whenever the routed view or the team changes,
   // or once the selected view's data arrives. loadedRef keys on team+view so an
@@ -154,10 +152,11 @@ export function useViewEditor(
   function changeView(next: WorkItemsView) {
     setView(next);
     if (activeViewId == null && !editing) {
-      // On the All tab (not editing), layout + its settings are the ad-hoc
-      // localStorage default.
-      localStorage.setItem(VIEW_KEY, next);
-      if (teamKey) setSettings(getViewSettings(teamKey, next));
+      // On the All tab (not editing), the layout and its settings are the viewer's
+      // All issues display.
+      const nextSettings = switchLayout(settings, view, next);
+      setSettings(nextSettings);
+      allIssues.update({ layout: next, ...nextSettings });
     } else {
       // A saved view or a draft: the layout change is live only; start the new
       // layout from its defaults.
@@ -167,9 +166,9 @@ export function useViewEditor(
 
   function changeSettings(next: ViewSettings) {
     setSettings(next);
-    // On the All tab (not editing) the settings are the ad-hoc localStorage
-    // default; everywhere else they stay live until an explicit Save.
-    if (activeViewId == null && !editing && teamKey) setViewSettings(teamKey, view, next);
+    // On the All tab (not editing) the settings are the viewer's All issues
+    // display; everywhere else they stay live until an explicit Save.
+    if (activeViewId == null && !editing) allIssues.update({ layout: view, ...next });
   }
 
   function toggleFilters() {
@@ -229,6 +228,9 @@ export function useViewEditor(
   return {
     view,
     settings,
+    // False on the All tab until the viewer's display is loaded, so the list does
+    // not first render with the defaults.
+    ready: activeViewId != null || allIssues.ready,
     filters,
     effectiveFilters,
     // The filter row is open on request, while editing, or while an ad-hoc filter

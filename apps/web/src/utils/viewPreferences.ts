@@ -7,10 +7,11 @@ import type {
 import { normalizeSavedDisplay } from '@/utils/viewSettings';
 import type { SortField, WorkItemsView } from '@/utils/viewTypes';
 
-// A saved view's display as Linear's view preferences (ViewPreferencesValues). Only
-// settings Linear has a preference for are saved with a view; the rest (collapsed
-// columns, the timeline's collapse-all, the week start) take their defaults when a
-// view is opened.
+// A display (a saved view's, or a list kind's personal one) as Linear's view
+// preferences (ViewPreferencesValues). Only settings Linear has a preference for are
+// saved; the rest (the timeline's collapse-all, the week start) take their defaults
+// when the display is read. Collapsed groups (list sections and board columns) are
+// Linear's hiddenGroupsList, collapsed swimlanes its hiddenRows.
 
 const LAYOUT: Record<WorkItemsView, string> = {
   kanban: 'board',
@@ -69,6 +70,8 @@ export interface ViewPreferenceValues {
   issueSubGrouping?: string | null;
   showEmptyGroups?: boolean | null;
   hiddenColumns?: readonly string[] | null;
+  hiddenGroupsList?: readonly string[] | null;
+  hiddenRows?: readonly string[] | null;
   columnOrderList?: readonly string[] | null;
   timelineZoomScale?: number | null;
   showCompletedIssues?: string | null;
@@ -97,6 +100,8 @@ export function displayToPreferences(d: SavedViewDisplay): ViewPreferenceValues 
     issueSubGrouping: GROUPING[d.subgroup],
     showEmptyGroups: d.showEmptyGroups,
     hiddenColumns: d.hiddenGroups,
+    hiddenGroupsList: d.collapsedGroups,
+    hiddenRows: d.collapsedSwimlanes,
     columnOrderList: d.properties,
     timelineZoomScale: ZOOM[d.timelineScale],
     showCompletedIssues: d.completedIssues,
@@ -123,6 +128,8 @@ export function preferencesToDisplay(p: ViewPreferenceValues | null | undefined)
     subgroup: from(GROUPING, prefs.issueSubGrouping),
     showEmptyGroups: prefs.showEmptyGroups ?? undefined,
     hiddenGroups: prefs.hiddenColumns ?? undefined,
+    collapsedGroups: prefs.hiddenGroupsList ?? undefined,
+    collapsedSwimlanes: prefs.hiddenRows ?? undefined,
     properties: prefs.columnOrderList ? properties : undefined,
     timelineScale:
       prefs.timelineZoomScale == null ? undefined : invert(ZOOM).get(prefs.timelineZoomScale),
