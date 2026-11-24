@@ -105,6 +105,8 @@ function checkViewInput(
   // Linear makes the creator the owner; nobody hands a view to someone else.
   if (input.ownerId != null && input.ownerId !== ctx.user.id)
     throw gqlError('INVALID_INPUT', "input.ownerId must be the viewer's own id");
+  if ('name' in input && (typeof input.name !== 'string' || !input.name.trim()))
+    throw gqlError('INVALID_INPUT', 'input.name must not be empty');
 }
 
 const viewPayload = (row: ViewRow) => ({

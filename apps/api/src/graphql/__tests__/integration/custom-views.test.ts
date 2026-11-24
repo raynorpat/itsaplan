@@ -168,6 +168,20 @@ describe('graphql custom views', () => {
     expect((list.body.data as Data).customViews.nodes).toEqual([]);
   });
 
+  it('rejects an empty name on create and update', async () => {
+    const { owner, mktId, run } = await setup();
+    expect(
+      errorCode(await run(owner.cookie, CREATE, { input: { name: ' ', teamId: mktId } })),
+    ).toBe('INVALID_INPUT');
+    const created = await run(owner.cookie, CREATE, { input: { name: 'V', teamId: mktId } });
+    const viewId = (created.body.data as Data).customViewCreate.customView.id;
+    const res = await run(
+      owner.cookie,
+      `mutation { customViewUpdate(id: "${viewId}", input: { name: "" }) { success } }`,
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+  });
+
   it('rejects a view without a team', async () => {
     const { owner, run } = await setup();
     const res = await run(owner.cookie, CREATE, { input: { name: 'Nowhere' } });
