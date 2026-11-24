@@ -66,3 +66,23 @@ Each stage gets its own plan, review, and before / after screenshots.
 
 Component layout, icons (Lucide, as today), animation, redirect mechanics, and the
 order of the work.
+
+## Stage 2: issue list and board
+
+- **List layout, the default:** one dense line per issue — priority icon, identifier,
+  status icon, title, then right-aligned labels, project, cycle, due date, assignee,
+  date; group headers with count, collapse and a + to add an issue to the group. The
+  Table layout folds into List: its columns become Display properties (each field on
+  or off on the row).
+- **Board cards:** identifier and assignee avatar, status and title, a properties row
+  (priority, labels, due date); no created / updated line.
+- **Header:** breadcrumb, view tabs, filter and Display on one header line.
+- **Display menu (Linear's):** Layout (List / Board), Grouping, Sub-grouping, Ordering,
+  Show sub-issues, Completed issues (all / past week / past month / none), Display
+  properties. Calendar and Timeline stay available as extra layouts.
+- **Views:** a team Views page listing the team's saved views and a workspace Views
+  page; "Views" entries in the sidebar (Workspace and each team).
+- **Keyboard in the list:** J / K move, X selects, Enter opens; existing shortcuts
+  stay.
+- **My issues** uses the same List, with the team on each row.
+
