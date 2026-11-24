@@ -15,20 +15,8 @@ import {
   PROJECT_STATUS_IDS,
   type ProjectStatusType,
 } from '@repo/db';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  ilike,
-  inArray,
-  isNull,
-  notInArray,
-  or,
-  sql,
-} from 'drizzle-orm';
-import { projectsInTeams, projectTeamIds } from './access';
+import { and, asc, eq, exists, inArray, notInArray, or, sql } from 'drizzle-orm';
+import { projectTeamIds } from './access';
 import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
 import { latestHealthFor, type UpdateHealth } from './updates';
@@ -212,93 +200,6 @@ async function enrich(
       healths.get(r.row.id) ?? null,
     ),
   );
-}
-
-// Sortable columns. progress and health are derived per row after the query, so
-// they are not sortable at the database level.
-export type ProjectSort = 'name' | 'priority' | 'targetDate' | 'lead';
-
-export interface ListProjectsOpts {
-  // Only projects of this team (it must be one of the readable teams).
-  teamId?: string;
-  includeArchived?: boolean;
-  statuses?: ProjectStatusType[];
-  search?: string;
-  sort?: ProjectSort;
-  dir?: 'asc' | 'desc';
-  limit?: number;
-  offset?: number;
-}
-
-export interface ProjectListPage {
-  items: ProjectRow[];
-  total: number;
-}
-
-// Priority sorts urgent (1) → low (4), with "no priority" (0) last.
-const PRIORITY_ORDER = sql`case when ${project.priority} = 0 then 5 else ${project.priority} end`;
-
-function orderExpr(sort: ProjectSort) {
-  switch (sort) {
-    case 'name':
-      return project.name;
-    case 'priority':
-      return PRIORITY_ORDER;
-    case 'targetDate':
-      return project.targetDate;
-    case 'lead':
-      // Sort by the lead's display name, not the opaque user id.
-      return sql`(select ${user.name} from ${user} where ${user.id} = ${project.leadUserId})`;
-  }
-}
-
-// The projects of the readable teams, narrowed to opts.teamId when given.
-function scope(readableTeamIds: string[], opts: { teamId?: string; includeArchived?: boolean }) {
-  const teams = opts.teamId ? readableTeamIds.filter((t) => t === opts.teamId) : readableTeamIds;
-  return and(
-    inArray(project.id, projectsInTeams(teams)),
-    opts.includeArchived ? undefined : isNull(project.archivedAt),
-  );
-}
-
-// The projects visible through readableTeamIds (the viewer's teams granting
-// projects.read), filtered, sorted and paged.
-export async function listProjects(
-  readableTeamIds: string[],
-  opts: ListProjectsOpts = {},
-): Promise<ProjectListPage> {
-  const conds = [scope(readableTeamIds, opts)];
-  if (opts.statuses && opts.statuses.length) {
-    conds.push(inArray(projectStatus.type, opts.statuses));
-  }
-  if (opts.search && opts.search.trim()) {
-    conds.push(ilike(project.name, `%${opts.search.trim()}%`));
-  }
-  const where = and(...conds);
-
-  // A chosen sort orders by that column (nulls last); the default is the manual
-  // sort order. Newest first (created_at, then id) breaks ties for a stable page order.
-  const orderBy = opts.sort
-    ? [
-        sql`${orderExpr(opts.sort)} ${opts.dir === 'desc' ? sql`desc` : sql`asc`} nulls last`,
-        desc(project.createdAt),
-        desc(project.id),
-      ]
-    : [asc(project.sortOrder), desc(project.createdAt), desc(project.id)];
-
-  const q = selectProjects()
-    .where(where)
-    .orderBy(...orderBy);
-  const rows =
-    opts.limit !== undefined ? await q.limit(opts.limit).offset(opts.offset ?? 0) : await q;
-
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)` })
-    .from(project)
-    .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-    .where(where);
-
-  return { items: await enrich(rows, readableTeamIds), total: Number(total) };
 }
 
 // Several projects in the order of `ids` (missing ones are skipped); `teams` lists

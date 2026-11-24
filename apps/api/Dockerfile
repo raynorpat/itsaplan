@@ -15,11 +15,14 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/auth/package.json ./packages/auth/
 COPY packages/mailer/package.json ./packages/mailer/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
-# --filter api installs only the api workspace and its dependency closure, so the
-# image excludes every other app's deps. INSTALL_FLAGS defaults to --production;
-# the test gate overrides it to "" so the api suite gets its devDeps (@linear/sdk).
+# INSTALL_FILTERS defaults to --filter api: only the api workspace and its
+# dependency closure, so the image excludes every other app's deps. INSTALL_FLAGS
+# defaults to --production. The test gate sets INSTALL_FLAGS to "" so the api suite
+# gets its devDeps (@linear/sdk), and adds --filter worker because one api test
+# runs the worker's auto-archive query.
+ARG INSTALL_FILTERS="--filter api"
 ARG INSTALL_FLAGS="--production"
-RUN bun install --frozen-lockfile --filter api $INSTALL_FLAGS
+RUN bun install --frozen-lockfile $INSTALL_FILTERS $INSTALL_FLAGS
 
 # 2) Final image. bun keeps some workspace deps in per-package node_modules
 # (packages/db/node_modules, apps/api/node_modules) rather than hoisting them to

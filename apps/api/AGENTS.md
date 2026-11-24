@@ -51,9 +51,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   the request.
 - **Comments are their own table** (`comment`, `comments/store.ts`) on an issue, a
   project, a project update, an initiative update or a document; replies are one level deep (a reply to a reply is
-  stored under the root). `issue_activity` holds the change log only. The feeds
-  (issue, range, team activity, project) read the `feed_entry` view, which unions both tables in
-  one row shape; write comments through `createComment`, never into the view.
+  stored under the root). `issue_activity` holds the change log only (GraphQL's
+  `Issue.history` / `Project.history`); write comments through `createComment`.
 - **Labels** (`labels/store.ts`): a label belongs to a team or to no team (a
   workspace label). A group is a label with `is_group`; it cannot be applied or
   nested. A retired label stays on its issues but cannot be newly applied. Check

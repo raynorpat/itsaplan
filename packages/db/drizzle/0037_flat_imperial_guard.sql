@@ -1,0 +1,1 @@
+DROP VIEW "public"."feed_entry";

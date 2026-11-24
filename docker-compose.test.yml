@@ -62,9 +62,11 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       # Empty install flags so the image keeps devDeps the test suite needs
-      # (@elysiajs/eden); production builds default to --production.
+      # (@linear/sdk); production builds default to --production. The worker's
+      # deps are installed too: one api test runs the worker's auto-archive query.
       args:
         INSTALL_FLAGS: ''
+        INSTALL_FILTERS: '--filter api --filter worker'
     depends_on:
       postgres-test:
         condition: service_healthy

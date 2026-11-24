@@ -253,6 +253,20 @@
       "when": 1795473522359,
       "tag": "0035_true_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795483533903,
+      "tag": "0036_read_on_oauth_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795483620662,
+      "tag": "0037_flat_imperial_guard",
+      "breakpoints": true
     }
   ]
 }

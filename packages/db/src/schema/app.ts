@@ -13,7 +13,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  pgView,
   primaryKey,
   real,
   text,
@@ -786,7 +785,7 @@ export const attachment = pgTable(
 // records one change: action/subject/from_text/to_text. actor_user_id is the
 // author, taken from the session user (a member). actor_name
 // is a snapshot so an entry still reads correctly after that user is renamed or
-// deleted. Comments are stored in `comment`; feed_entry merges the two.
+// deleted. Comments are stored in `comment`.
 export const issueActivity = pgTable(
   'issue_activity',
   {
@@ -944,40 +943,6 @@ export const reaction = pgTable(
     index('reaction_initiative_update_idx').on(t.initiativeUpdateId),
   ],
 );
-
-// The timeline of issues and projects: change-log rows and comments in one row
-// shape, for the feeds (issue, range, share, team activity, project). kind is
-// 'activity' or 'comment'; the columns a kind does not use are null.
-export const feedEntry = pgView('feed_entry', {
-  id: uuid('id').notNull(),
-  issueId: uuid('issue_id'),
-  projectId: uuid('project_id'),
-  projectUpdateId: uuid('project_update_id'),
-  initiativeUpdateId: uuid('initiative_update_id'),
-  documentId: uuid('document_id'),
-  kind: text('kind').notNull(),
-  actorUserId: uuid('actor_user_id'),
-  actorName: text('actor_name'),
-  body: text('body'),
-  action: text('action'),
-  subject: text('subject'),
-  fromText: text('from_text'),
-  toText: text('to_text'),
-  parentId: uuid('parent_id'),
-  editedAt: timestamp('edited_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-}).as(sql`
-  SELECT id, issue_id, project_id, NULL::uuid AS project_update_id,
-    NULL::uuid AS initiative_update_id, NULL::uuid AS document_id, 'activity' AS kind,
-    actor_user_id, actor_name, NULL::text AS body, action, subject, from_text, to_text,
-    NULL::uuid AS parent_id, NULL::timestamptz AS edited_at, created_at
-  FROM issue_activity
-  UNION ALL
-  SELECT id, issue_id, project_id, project_update_id, initiative_update_id, document_id,
-    'comment' AS kind,
-    user_id, user_name, body, NULL, NULL, NULL, NULL, parent_id, edited_at, created_at
-  FROM comment
-`);
 
 // Saved views (the tabs above a team's work items view). filters and display are jsonb
 // blobs owned by the UI; the server stores and returns them without inspecting

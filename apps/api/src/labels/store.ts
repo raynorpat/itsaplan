@@ -220,6 +220,3 @@ export async function assertLabelsApplicable(
       throw new HttpError(400, 'A retired label cannot be applied');
   }
 }
-
-// --- Label groups --------------------------------------------------------------
-// The REST label-group routes act on is_group labels of the team.
