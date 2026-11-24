@@ -17,6 +17,7 @@ import { issueData } from '../webhooks/data';
 import { onAgentSessionEvent, type AgentSessionEvent } from './events';
 import { appSeesSessionIssue, endUnreachableSession, getSession, type SessionRow } from './store';
 import { shownNameSql } from '../shared/user-name';
+import { currentImport } from '../shared/workflow-context';
 
 // Linear's AgentSessionEvent webhook (the SDL's AgentSessionEventWebhookPayload): sent
 // to the webhook of the application whose app user owns the session, whatever resource
@@ -194,6 +195,7 @@ async function promptContext(s: SessionRow, issue: Data | null): Promise<string>
 }
 
 export async function sendAgentSessionEvent(event: AgentSessionEvent): Promise<void> {
+  if (currentImport()) return;
   const session = await getSession(event.sessionId);
   if (!session) return;
   // An app that can no longer see the issue's team (its install was narrowed, the team

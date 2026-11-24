@@ -4,7 +4,7 @@ import { parseMentions } from '../shared/mentions';
 import { enqueueOutbound } from './outbound';
 import { subscribe, subscriberIds } from './subscriptions';
 import { visibleTeamIds } from '../shared/access';
-import { currentWorkflow } from '../shared/workflow-context';
+import { currentImport, currentWorkflow } from '../shared/workflow-context';
 import { shownNameSql } from '../shared/user-name';
 
 // Inbox notifications. A notification is one (recipient, event) row: a user is told
@@ -43,7 +43,8 @@ async function actorName(id: string | null): Promise<string | null> {
 }
 
 async function insertNotifications(all: NewNotificationRow[]): Promise<void> {
-  if (all.length === 0) return;
+  // An import notifies no one (shared/workflow-context.ts).
+  if (all.length === 0 || currentImport()) return;
   // A suspended user receives no notifications.
   const suspended = await db
     .select({ id: user.id })
@@ -192,7 +193,7 @@ export async function notifyAgentSession(input: {
   sessionId: string;
   activityId: string;
 }): Promise<void> {
-  if (!input.recipientId || input.recipientId === input.appUserId) return;
+  if (!input.recipientId || input.recipientId === input.appUserId || currentImport()) return;
   const [row] = await db
     .select({ teamId: issue.teamId })
     .from(issue)

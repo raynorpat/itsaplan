@@ -1,4 +1,4 @@
-import { currentWorkflow } from '../shared/workflow-context';
+import { currentImport, currentWorkflow } from '../shared/workflow-context';
 import {
   comment,
   db,
@@ -185,7 +185,8 @@ async function userName(id: string | null): Promise<string | null> {
 // same parent entity (400 otherwise), and a reply to a reply is stored under the
 // root. Sends the Comment webhook; an issue comment also notifies participants
 // (unless `notify` is false) and starts or prompts the agent sessions of the apps it
-// mentions.
+// mentions. `createdAt` is an imported comment's original date (Linear's
+// CommentCreateInput.createdAt), which must be in the past.
 export async function createComment(input: {
   parent: CommentParent;
   parentId?: string | null;
@@ -193,7 +194,10 @@ export async function createComment(input: {
   actorUserId: string | null;
   id?: string;
   notify?: boolean;
+  createdAt?: Date;
 }): Promise<CommentRow> {
+  if (input.createdAt && input.createdAt.getTime() > Date.now())
+    throw new HttpError(400, 'createdAt must be in the past');
   let rootId: string | null = null;
   if (input.parentId) {
     const replyTo = await getComment(input.parentId);
@@ -217,6 +221,7 @@ export async function createComment(input: {
       // A workflow's comment: written by the rule, with no user author.
       workflowDefinitionId: input.actorUserId ? null : (currentWorkflow()?.id ?? null),
       body: input.body,
+      ...(input.createdAt ? { createdAt: input.createdAt, updatedAt: input.createdAt } : {}),
     })
     .returning();
   const created = mapComment(row!);
@@ -231,7 +236,8 @@ export async function createComment(input: {
       actorUserId: input.actorUserId,
       data,
     });
-  if (created.issueId && teamIds[0]) {
+  // An imported comment notifies no one and starts no agent session.
+  if (created.issueId && teamIds[0] && !currentImport()) {
     if (input.notify !== false) await notifyComment(teamIds[0], created);
     await bestEffort('mention sessions', () => commentPosted(created, teamIds[0]!));
   }

@@ -1,4 +1,4 @@
-import { currentWorkflow } from '../shared/workflow-context';
+import { currentImport, currentWorkflow } from '../shared/workflow-context';
 import { randomUUID } from 'node:crypto';
 import { db, team, user, webhook, webhookDelivery } from '@repo/db';
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
@@ -131,6 +131,7 @@ async function matchingWebhooks(
 // Whether any enabled webhook receives `type` events of these teams. Lets a caller
 // skip building webhook data on an instance or team with no such webhook.
 export async function isWatched(type: WebhookResourceType, teamIds: string[]): Promise<boolean> {
+  if (currentImport()) return false;
   return (await matchingWebhooks(type, teamIds, 1)).length > 0;
 }
 
@@ -144,6 +145,8 @@ export async function emitEvent(input: {
   // The entity before the change, for an update.
   before?: Data;
 }): Promise<void> {
+  // An import is a system change and sends no webhook (shared/workflow-context.ts).
+  if (currentImport()) return;
   let changes: Data | undefined;
   if (input.action === 'update') {
     changes = updatedFrom(input.before ?? {}, input.data);

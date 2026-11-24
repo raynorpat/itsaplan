@@ -6,6 +6,7 @@ import {
   workflowState,
   attachment,
   project,
+  issueActivity,
 } from '@repo/db';
 import {
   and,
@@ -36,7 +37,12 @@ import {
 import { mapAttachment, type AttachmentRow } from '../attachments/store';
 import { notifyIssueChange } from '../notifications/store';
 import { assertDelegate, bestEffort, issueDelegated } from '../agents/store';
-import { currentWorkflow, withoutWorkflows, workflowsSkipped } from '../shared/workflow-context';
+import {
+  currentImport,
+  currentWorkflow,
+  withoutWorkflows,
+  workflowsSkipped,
+} from '../shared/workflow-context';
 import { subscribe } from '../notifications/subscriptions';
 import { emitEvent, isWatched } from '../webhooks/event';
 import { issueData, type WebhookData } from '../webhooks/data';
@@ -643,6 +649,44 @@ async function emitIssue(
   });
 }
 
+// Original dates of an imported issue (Linear's IssueCreateInput createdAt /
+// completedAt). `closedAt` is the import's close time of a canceled issue; GraphQL
+// never sets it.
+export interface IssueImportDates {
+  createdAt?: Date;
+  completedAt?: Date;
+  closedAt?: Date;
+}
+
+// Linear's rules for the import dates: each in the past, completedAt only with
+// createdAt, not before it, and only for a completed state; closedAt only for a
+// canceled state, not before createdAt.
+export function assertImportDates(
+  stateType: string,
+  dates: IssueImportDates,
+  now: Date = new Date(),
+): void {
+  const { createdAt, completedAt, closedAt } = dates;
+  for (const [name, d] of [
+    ['createdAt', createdAt],
+    ['completedAt', completedAt],
+    ['closedAt', closedAt],
+  ] as const)
+    if (d && d.getTime() > now.getTime()) throw new HttpError(400, `${name} must be in the past`);
+  if (completedAt) {
+    if (!createdAt) throw new HttpError(400, 'completedAt requires createdAt');
+    if (stateType !== 'completed')
+      throw new HttpError(400, 'completedAt requires a completed status');
+    if (completedAt.getTime() < createdAt.getTime())
+      throw new HttpError(400, 'completedAt must not be before createdAt');
+  }
+  if (closedAt) {
+    if (stateType !== 'canceled') throw new HttpError(400, 'closedAt requires a canceled status');
+    if (createdAt && closedAt.getTime() < createdAt.getTime())
+      throw new HttpError(400, 'closedAt must not be before createdAt');
+  }
+}
+
 // Atomic per-team sequence number (the "-42" in "MKT-42"): the UPDATE takes a
 // row lock on team, so concurrent createIssue calls for the same team never
 // hand out the same number.
@@ -650,12 +694,14 @@ export async function createIssue(
   team: TeamRow,
   input: NewIssueInput,
   actorUserId?: string | null,
+  dates: IssueImportDates = {},
 ): Promise<IssueRow> {
   await assertAssignments(team.id, input);
   await assertProject(team.id, input.projectId);
   await assertMilestone(input.projectId ?? null, input.projectMilestoneId);
   await assertCycleOfTeam(team.id, input.cycleId);
   const stateType = (await assertColumn(team.id, input.stateId))!;
+  assertImportDates(stateType, dates);
   const cycleId =
     (await autoAssignCycleId(team.id, stateType, null, input.cycleId, new Date())) ??
     input.cycleId ??
@@ -664,7 +710,7 @@ export async function createIssue(
   const timestamps = nextStatusTimestamps(
     { startedAt: null, completedAt: null, canceledAt: null },
     stateType,
-    new Date(),
+    dates.completedAt ?? dates.closedAt ?? new Date(),
   );
   // Also checked by setIssueLabels below, but here it fails before the issue exists.
   await assertLabelsApplicable(team.id, input.labelIds ?? []);
@@ -699,12 +745,19 @@ export async function createIssue(
         ...timestamps,
         dueDate: input.dueDate ?? null,
         position: input.position ?? Number(posRow.pos),
+        ...(dates.createdAt ? { createdAt: dates.createdAt, updatedAt: dates.createdAt } : {}),
       })
       .returning({ id: issue.id });
     return row.id;
   });
 
-  await recordActivity(issueId, [{ action: 'created' }], actorUserId);
+  const [createdEntry] = await recordActivity(issueId, [{ action: 'created' }], actorUserId);
+  // An imported issue's creation entry reads as of its original date.
+  if (dates.createdAt && createdEntry)
+    await db
+      .update(issueActivity)
+      .set({ createdAt: dates.createdAt })
+      .where(eq(issueActivity.id, createdEntry.id));
   // Linear subscribes the creator and the assignee of a new issue.
   await subscribe(
     issueId,
@@ -718,7 +771,7 @@ export async function createIssue(
     await setIssueLabels(team.id, issueId, input.labelIds, actorUserId, false);
   const created = (await getIssue(issueId))!;
   await emitIssue('create', issueId, team.id, actorUserId);
-  if (created.delegateUserId)
+  if (created.delegateUserId && !currentImport())
     await bestEffort('delegation session', () =>
       issueDelegated(issueId, created.delegateUserId!, sessionCreator(actorUserId)),
     );

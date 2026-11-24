@@ -73,6 +73,14 @@ const ISSUE_FIELDS = [
   'cycleId',
 ];
 
+// An optional DateTime input (Linear's import dates).
+export function dateTimeInput(value: unknown, path: string): Date | undefined {
+  if (value === undefined || value === null) return undefined;
+  const d = typeof value === 'string' ? new Date(value) : new Date(NaN);
+  if (Number.isNaN(d.getTime())) throw gqlError('INVALID_INPUT', `${path} must be a date`);
+  return d;
+}
+
 // Linear's subscriberIds: a list of user ids (null means none).
 function subscriberIdsInput(value: unknown): string[] {
   if (value == null) return [];
@@ -211,7 +219,11 @@ export const mutationResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['teamId', 'labelIds', 'subscriberIds', ...ISSUE_FIELDS], 'input');
+        onlySupported(
+          input,
+          ['teamId', 'labelIds', 'subscriberIds', 'createdAt', 'completedAt', ...ISSUE_FIELDS],
+          'input',
+        );
         if (!input.title) throw gqlError('INVALID_INPUT', 'input.title is required');
         assertIssueInput(input);
         const found = await findTeam(input.teamId, ctx.user.id);
@@ -241,6 +253,10 @@ export const mutationResolvers = {
             subscriberIds,
           },
           ctx.user.id,
+          {
+            createdAt: dateTimeInput(input.createdAt, 'input.createdAt'),
+            completedAt: dateTimeInput(input.completedAt, 'input.completedAt'),
+          },
         );
         return { success: true, lastSyncId: lastSyncId(), issue: await issueById(created.id) };
       }),

@@ -178,7 +178,11 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `comment.workflow_definition_id` (GraphQL `botActor` `{ type: workflow }`), send
   their own webhook event with the workflow as `actor`, and run no rules. System
   writes (cycle rollover and cycle archive, the duplicate cancel, the restore move)
-  run inside `withoutWorkflows`. An action that no longer passes the issue checks is
+  run inside `withoutWorkflows`. An issue import's writes run inside `runAsImport`:
+  no rule runs, no notification is written, no webhook or agent session event is sent
+  and no agent session starts; history entries and subscribers are kept. `issueCreate`
+  takes Linear's import dates (`createdAt`, and `completedAt` for a completed state)
+  and `commentCreate` `createdAt`, from any caller. An action that no longer passes the issue checks is
   skipped and recorded in `stats.lastError`, the error of the most recent run (a
   clean run clears it); `stats.runs` and `last_executed_at` count each run. A
   delegation a rule makes credits the agent session to the rule's owner. Rules are

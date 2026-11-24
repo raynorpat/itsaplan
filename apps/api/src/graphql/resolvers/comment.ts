@@ -22,7 +22,7 @@ import { paginate, type PageArgs } from '../connection';
 import { commentFilterSql } from '../comment-filter';
 import { gqlError } from '../errors';
 import { issueById, userFor } from './issue';
-import { guard, lastSyncId, onlySupported } from './mutations';
+import { dateTimeInput, guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toUpdate } from './project';
 import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
 import { toDocumentContent, visibleDocumentOrNull } from './document';
@@ -231,10 +231,12 @@ export const commentResolvers = {
             'documentContentId',
             'parentId',
             'id',
+            'createdAt',
           ],
           'input',
         );
         if (!input.body) throw gqlError('INVALID_INPUT', 'input.body is required');
+        const createdAt = dateTimeInput(input.createdAt, 'input.createdAt');
         const parent = parentOf(input);
         await assertParentAccess(parent, ctx.user);
         const created = await createComment({
@@ -243,6 +245,7 @@ export const commentResolvers = {
           body: input.body,
           actorUserId: ctx.user.id,
           id: input.id ?? undefined,
+          createdAt,
         });
         return payload(created);
       }),
