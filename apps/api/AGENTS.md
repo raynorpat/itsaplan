@@ -104,15 +104,20 @@ Rules and invariants for this package below; read the code for the walkthrough.
   cannot name one); `body` is the quote, `priority` 1 marks it important. Owners,
   admins and members who can see the issue's team read and write it; guests (and app
   users) see no feedback and no requester (`Issue.needs` empty, `customerNeed` not
-  found, `Attachment.externalUserCreator` null) and cannot write it, but get the
-  counts. `customerCount` / `customerImportantCount` (filter and `sort`) count the
+  found, feedback source attachments left out of every attachment read and of
+  `IssueFilter.attachments`, `feedbackAttachmentsVisibleSql`) and cannot write it, but
+  get the counts. A quote is at most 10,000 characters. `customerCount` / `customerImportantCount` (filter and `sort`) count the
   distinct requesters of an issue's active feedback (with important feedback);
   feedback without a requester is not a person. Moving feedback to another issue moves
-  its attachment; deleting it deletes the attachment unless kept; deleting the issue
-  deletes its feedback. Feedback notifies no one and runs no automation; the store
+  its attachment in the same transaction; deleting it deletes the attachment unless
+  kept; deleting its source attachment (`attachmentDelete`) deletes the feedback;
+  deleting the issue deletes its feedback and sends a `CustomerNeed` remove event for
+  each. Feedback notifies no one and runs no automation; the store
   sends `CustomerNeed` webhooks. Requesters are found, created, edited and merged
   through the instance plugin (`/api/auth/instance/requesters*`,
-  `feedback/requesters.ts`; owners, admins and members, merge for owners and admins), and
+  `feedback/requesters.ts`; owners, admins and members, merge for owners and admins; a
+  merge locks both people and is refused when either was merged meanwhile; renaming or
+  merging re-titles the source attachments with Attachment update events), and
   a member's feedback gets its source attachment from `/api/auth/instance/feedback/attachment`.
   Creating a requester with an email that a requester already has (or had before a
   merge) returns that requester. Merging A into B points A's feedback attachments at B

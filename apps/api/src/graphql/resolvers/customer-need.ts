@@ -6,6 +6,7 @@ import {
   createNeed,
   deleteNeed,
   mapNeed,
+  followMerges,
   setNeedArchived,
   updateNeed,
   type NeedRow,
@@ -98,12 +99,8 @@ function bodyInput(value: unknown): string | null | undefined {
 
 // The requester (ExternalUser) a merged requester now points at, as Linear's type.
 async function externalUserById(ctx: GraphQLContext, id: string | null) {
-  const seen = new Set<string>();
-  let row = id ? await loaders(ctx).externalUser.load(id) : null;
-  while (row?.mergedIntoId && row.mergedIntoId !== row.id && !seen.has(row.id)) {
-    seen.add(row.id);
-    row = await loaders(ctx).externalUser.load(row.mergedIntoId);
-  }
+  if (!id) return null;
+  const row = await followMerges(id, (next) => loaders(ctx).externalUser.load(next));
   return row ? toExternalUser(row) : null;
 }
 
@@ -129,8 +126,16 @@ export const customerNeedResolvers = {
       if (!args.id) throw gqlError('INVALID_INPUT', 'Argument id is required');
       return toNeed(await findNeed(args.id, ctx));
     },
+    // Without includeArchived, feedback on archived issues is left out too (the board's
+    // request counts read only active issues).
     customerNeeds: (_: unknown, args: ListArgs, ctx: GraphQLContext) =>
-      listNeeds(undefined, args, ctx),
+      listNeeds(
+        args.includeArchived
+          ? undefined
+          : sql`${customerNeed.issueId} IN (SELECT id FROM issue WHERE archived_at IS NULL)`,
+        args,
+        ctx,
+      ),
   },
   Issue: {
     needs: (i: { id: string }, args: ListArgs, ctx: GraphQLContext) =>

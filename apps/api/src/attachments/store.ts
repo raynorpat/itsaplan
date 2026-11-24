@@ -336,28 +336,65 @@ function feedbackUrl(issueId: string, attachmentId: string): string {
   return `${trustedOrigins[0]}/issue/${issueId}?feedback=${attachmentId}`;
 }
 
+type Executor = Pick<typeof db, 'update' | 'select'>;
+
 // Moves an attachment to another issue (a feedback item moved with its source). A
-// feedback attachment's link follows the issue.
-export async function moveAttachment(
+// feedback attachment's link follows the issue. `exec` lets a caller run the write in
+// its own transaction; it then sends the event with `announceAttachmentMove` after
+// the commit.
+export async function moveAttachmentRow(
+  exec: Executor,
   id: string,
   issueId: string,
-  actorUserId: string | null,
-): Promise<AttachmentRow | null> {
-  const current = await getAttachment(id);
-  if (!current || current.issueId === issueId) return current;
-  const [row] = await db
+): Promise<{ before: AttachmentRow; moved: AttachmentRow } | null> {
+  const [found] = await exec.select().from(attachment).where(eq(attachment.id, id));
+  if (!found || found.issueId === issueId) return null;
+  const before = mapAttachment(found);
+  const [row] = await exec
     .update(attachment)
     .set({
       issueId,
-      ...(current.sourceType === 'feedback' ? { url: feedbackUrl(issueId, id) } : {}),
+      ...(before.sourceType === 'feedback' ? { url: feedbackUrl(issueId, id) } : {}),
       updatedAt: sql`now()`,
     })
     .where(eq(attachment.id, id))
     .returning();
-  if (!row) return null;
-  const moved = mapAttachment(row);
-  await sendAttachmentEvent('update', moved, actorUserId, attachmentData(current));
-  return moved;
+  return row ? { before, moved: mapAttachment(row) } : null;
+}
+
+export async function announceAttachmentMove(
+  change: { before: AttachmentRow; moved: AttachmentRow },
+  actorUserId: string | null,
+): Promise<void> {
+  await sendAttachmentEvent('update', change.moved, actorUserId, attachmentData(change.before));
+}
+
+// Renames the feedback attachments of one requester (their title is the requester's
+// name), optionally pointing them at another requester first, with an Attachment
+// update event for each. `exec` is the caller's transaction; the events go out after
+// it commits, through the returned function.
+export async function retitleFeedbackAttachments(
+  exec: Executor,
+  fromRequesterId: string,
+  change: { title: string; externalUserCreatorId?: string },
+): Promise<(actorUserId: string | null) => Promise<void>> {
+  const before = await exec
+    .select()
+    .from(attachment)
+    .where(eq(attachment.externalUserCreatorId, fromRequesterId));
+  const rows = await exec
+    .update(attachment)
+    .set({ ...change, title: cleanTitle(change.title), updatedAt: sql`now()` })
+    .where(eq(attachment.externalUserCreatorId, fromRequesterId))
+    .returning();
+  const previous = new Map(before.map((r) => [r.id, mapAttachment(r)]));
+  return async (actorUserId) => {
+    for (const row of rows) {
+      const mapped = mapAttachment(row);
+      const was = previous.get(row.id);
+      await sendAttachmentEvent('update', mapped, actorUserId, was ? attachmentData(was) : null);
+    }
+  };
 }
 
 // The issue's uploaded files (links are served over GraphQL only).

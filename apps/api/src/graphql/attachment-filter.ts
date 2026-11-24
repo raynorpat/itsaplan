@@ -1,5 +1,6 @@
 import { attachment, db, issue } from '@repo/db';
-import { eq, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
+import { feedbackAttachmentsVisibleSql } from '../feedback/access';
 import { normalizeAttachmentUrl } from '../attachments/store';
 import { compare, compareId, filterSql, refFilter, type FieldHandlers } from './filter';
 
@@ -36,36 +37,39 @@ export function attachmentFilterSql(filter: unknown): SQL | undefined {
 
 // IssueFilter.attachments (AttachmentCollectionFilter) as SQL over the issue table:
 // `some` / `every` match the issue's attachments, `length` compares their count, and
-// the direct attachment fields mean "some attachment matches".
-const issuesWith = (match: SQL | undefined) =>
-  db
-    .select({ id: attachment.issueId })
-    .from(attachment)
-    .where(match ?? sql`true`);
+// the direct attachment fields mean "some attachment matches". Only attachments the
+// viewer may see count, so a guest cannot probe feedback attachments.
+export function attachmentCollectionFilter(viewerId: string) {
+  const visible = feedbackAttachmentsVisibleSql(viewerId);
+  const issuesWith = (match: SQL | undefined) =>
+    db
+      .select({ id: attachment.issueId })
+      .from(attachment)
+      .where(and(visible, match ?? sql`true`));
 
-const collectionHandlers: FieldHandlers = {
-  ...Object.fromEntries(
-    Object.entries(handlers).map(([key, handler]) => [
-      key,
-      (v: unknown, p: string) => inArray(issue.id, issuesWith(handler(v, p))),
-    ]),
-  ),
-  some: (v, p) => inArray(issue.id, issuesWith(filterSql(v, handlers, p))),
-  every: (v, p) => {
-    const match = filterSql(v, handlers, p);
-    // A NULL comparison is not a match, so it counts as a violation.
-    return match
-      ? notInArray(issue.id, issuesWith(sql`NOT COALESCE((${match}), false)`))
-      : sql`true`;
-  },
-  length: (v, p) =>
-    compare(
-      sql`(SELECT count(*) FROM ${attachment} WHERE ${eq(attachment.issueId, issue.id)})`,
-      v,
-      p,
+  const collectionHandlers: FieldHandlers = {
+    ...Object.fromEntries(
+      Object.entries(handlers).map(([key, handler]) => [
+        key,
+        (v: unknown, p: string) => inArray(issue.id, issuesWith(handler(v, p))),
+      ]),
     ),
-};
+    some: (v, p) => inArray(issue.id, issuesWith(filterSql(v, handlers, p))),
+    every: (v, p) => {
+      const match = filterSql(v, handlers, p);
+      // A NULL comparison is not a match, so it counts as a violation.
+      return match
+        ? notInArray(issue.id, issuesWith(sql`NOT COALESCE((${match}), false)`))
+        : sql`true`;
+    },
+    length: (v, p) =>
+      compare(
+        sql`(SELECT count(*) FROM ${attachment} WHERE ${eq(attachment.issueId, issue.id)} AND ${visible})`,
+        v,
+        p,
+      ),
+  };
 
-export function attachmentCollectionSql(value: unknown, path: string): SQL {
-  return filterSql(value, collectionHandlers, path) ?? sql`true`;
+  return (value: unknown, path: string): SQL =>
+    filterSql(value, collectionHandlers, path) ?? sql`true`;
 }

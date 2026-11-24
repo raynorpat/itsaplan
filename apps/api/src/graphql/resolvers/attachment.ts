@@ -22,6 +22,8 @@ import {
   uploadIdFromAssetUrl,
 } from '../../uploads/store';
 import { assertParentAccess, createComment } from '../../comments/store';
+import { feedbackAttachmentsVisibleSql, readsFeedback } from '../../feedback/access';
+import { deleteNeed, needOfAttachment } from '../../feedback/store';
 import { assertTeamAccess, type AuthUser, canSeeTeam, visibleTeamIds } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
@@ -65,13 +67,18 @@ async function assertIssueAccess(issueId: string, user: AuthUser, action: Action
   if (action !== 'read') await assertTeamAccess(row.teamId, user, 'see');
 }
 
-// SQL over `attachment`: attachments on issues of the teams the user can see.
+// SQL over `attachment`: attachments on issues of the teams the user can see, without
+// feedback source attachments for a user who does not read feedback (their title is
+// the requester's name).
 function visibleAttachmentsSql(userId: string): SQL {
   const memberTeams = visibleTeamIds(userId);
-  return inArray(
-    attachment.issueId,
-    db.select({ id: issue.id }).from(issue).where(inArray(issue.teamId, memberTeams)),
-  );
+  return and(
+    inArray(
+      attachment.issueId,
+      db.select({ id: issue.id }).from(issue).where(inArray(issue.teamId, memberTeams)),
+    ),
+    feedbackAttachmentsVisibleSql(userId),
+  )!;
 }
 
 const openOnly = sql`${attachment.issueId} IN (SELECT id FROM issue WHERE archived_at IS NULL)`;
@@ -121,6 +128,7 @@ async function findAttachment(idOrUrl: string, ctx: GraphQLContext): Promise<Att
     // A hidden attachment answers like a missing one.
     const notFound = () => gqlError('ENTITY_NOT_FOUND', `Attachment ${idOrUrl} not found`);
     if (!found) throw notFound();
+    if (found.sourceType === 'feedback' && !(await readsFeedback(ctx.user.id))) throw notFound();
     await assertIssueAccess(found.issueId, ctx.user, 'read').catch((err: { status?: number }) => {
       throw err.status === 404 ? notFound() : err;
     });
@@ -280,7 +288,10 @@ export const attachmentResolvers = {
       guard(async () => {
         const found = await findAttachment(id, ctx);
         await assertIssueAccess(found.issueId, ctx.user, 'delete');
-        await deleteAttachment(found.id, ctx.user.id);
+        // A feedback item's source attachment goes with its feedback.
+        const need = found.sourceType === 'feedback' ? await needOfAttachment(found.id) : null;
+        if (need) await deleteNeed(need.id, false, ctx.user.id);
+        else await deleteAttachment(found.id, ctx.user.id);
         return { success: true, lastSyncId: lastSyncId(), entityId: found.id };
       }),
   },

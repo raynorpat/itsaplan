@@ -248,4 +248,22 @@ describe('requesters', () => {
     });
     expect(hidden.status).toBe(404);
   });
+
+  it('keeps two opposite merges at the same time from pointing at each other', async () => {
+    const { owner } = await setup();
+    const a = await create(owner, { name: 'Ann', email: 'ann@x.com' });
+    const b = await create(owner, { name: 'Bea', email: 'bea@x.com' });
+    const results = await Promise.all([
+      call('requesters/merge', { as: owner, body: { fromId: a.id, intoId: b.id } }),
+      call('requesters/merge', { as: owner, body: { fromId: b.id, intoId: a.id } }),
+    ]);
+    const statuses = results.map((r) => r.status).sort();
+    expect(statuses[0]).toBe(200);
+    // Exactly one person is left active, and it resolves.
+    const people = await list(owner);
+    expect(people.map((p) => p.name).sort()).toHaveLength(1);
+    const left = people[0]!;
+    const page = await call('requester', { as: owner, query: { id: left.id } });
+    expect(page.status).toBe(200);
+  });
 });

@@ -255,12 +255,12 @@ describe('graphql customer needs (feedback)', () => {
       id: need.id,
     });
     expect(errorCode(one)).toBe('ENTITY_NOT_FOUND');
-    const att = await gqlData(
-      guest,
+    const att = await gql(
+      headers(guest),
       `query ($id: String!) { attachment(id: $id) { id externalUserCreator { id } } }`,
       { id: attachmentId },
     );
-    expect(att.attachment.externalUserCreator).toBeNull();
+    expect(errorCode(att)).toBe('ENTITY_NOT_FOUND');
     const counted = await gqlData(
       guest,
       '{ issues(filter: { customerCount: { gte: 1 } }) { nodes { id } } }',
@@ -276,6 +276,120 @@ describe('graphql customer needs (feedback)', () => {
       { input: { issueId: a.id, body: 'mine' } },
     );
     expect(errorCode(created)).toBe('FORBIDDEN');
+  });
+
+  it('hides feedback attachments from guests on every attachment path', async () => {
+    const { owner, a, jane } = await setup();
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'MKT', guest.userId);
+    const { attachmentId } = await createRequesterAttachment(a.id, jane.id, 'team', owner.userId);
+    await createNeed(owner, { issueId: a.id, attachmentId, body: 'secret quote' });
+    await gqlData(
+      owner,
+      `mutation ($input: AttachmentCreateInput!) { attachmentCreate(input: $input) { success } }`,
+      { input: { issueId: a.id, url: 'https://example.com/spec', title: 'Spec' } },
+    );
+    const feedbackUrl = (
+      await gqlData(owner, `query ($id: String!) { attachment(id: $id) { url } }`, {
+        id: attachmentId,
+      })
+    ).attachment.url as string;
+
+    const onIssue = await gqlData(
+      guest,
+      `query ($id: String!) { issue(id: $id) { attachments { nodes { title subtitle } } } }`,
+      { id: a.id },
+    );
+    expect(onIssue.issue.attachments.nodes).toEqual([{ title: 'Spec', subtitle: null }]);
+    const byId = await gql(headers(guest), `query ($id: String!) { attachment(id: $id) { id } }`, {
+      id: attachmentId,
+    });
+    expect(errorCode(byId)).toBe('ENTITY_NOT_FOUND');
+    const all = await gqlData(guest, '{ attachments { nodes { title } } }');
+    expect(all.attachments.nodes.map((n: { title: string }) => n.title)).toEqual(['Spec']);
+    const forUrl = await gqlData(
+      guest,
+      `query ($url: String!) { attachmentsForURL(url: $url) { nodes { id } } }`,
+      { url: feedbackUrl },
+    );
+    expect(forUrl.attachmentsForURL.nodes).toEqual([]);
+    const probe =
+      '{ issues(filter: { attachments: { title: { eq: "Jane Doe" } } }) { nodes { id } } }';
+    expect((await gqlData(guest, probe)).issues.nodes).toEqual([]);
+    expect((await gqlData(owner, probe)).issues.nodes).toEqual([{ id: a.id }]);
+    expect((await needsOf(owner, a.id))[0].attachment.title).toBe('Jane Doe');
+  });
+
+  it("refuses guests' writes to feedback attachments; a member's delete removes the feedback", async () => {
+    const { owner, a, jane } = await setup();
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'MKT', guest.userId);
+    const { attachmentId } = await createRequesterAttachment(a.id, jane.id, 'team', owner.userId);
+    await createNeed(owner, { issueId: a.id, attachmentId, body: 'quote' });
+    const del = await gql(
+      headers(guest),
+      `mutation ($id: String!) { attachmentDelete(id: $id) { success } }`,
+      { id: attachmentId },
+    );
+    expect(errorCode(del)).toBe('ENTITY_NOT_FOUND');
+    const upd = await gql(
+      headers(guest),
+      `mutation ($id: String!) { attachmentUpdate(id: $id, input: { title: "x" }) { success } }`,
+      { id: attachmentId },
+    );
+    expect(errorCode(upd)).toBe('ENTITY_NOT_FOUND');
+    expect(await needsOf(owner, a.id)).toHaveLength(1);
+
+    await gqlData(owner, `mutation ($id: String!) { attachmentDelete(id: $id) { success } }`, {
+      id: attachmentId,
+    });
+    expect(await needsOf(owner, a.id)).toEqual([]);
+  });
+
+  it('leaves feedback on archived issues out of customerNeeds unless includeArchived', async () => {
+    const { owner, a, b, jane } = await setup();
+    const one = await createRequesterAttachment(a.id, jane.id, 'team', owner.userId);
+    const two = await createRequesterAttachment(b.id, jane.id, 'team', owner.userId);
+    const onA = await createNeed(owner, { issueId: a.id, attachmentId: one.attachmentId });
+    const onB = await createNeed(owner, { issueId: b.id, attachmentId: two.attachmentId });
+    await gqlData(owner, `mutation ($id: String!) { issueArchive(id: $id) { success } }`, {
+      id: b.id,
+    });
+    const ids = async (q: string) =>
+      (await gqlData(owner, q)).customerNeeds.nodes.map((n: { id: string }) => n.id).sort();
+    expect(await ids('{ customerNeeds { nodes { id } } }')).toEqual([onA.id]);
+    expect(await ids('{ customerNeeds(includeArchived: true) { nodes { id } } }')).toEqual(
+      [onA.id, onB.id].sort(),
+    );
+  });
+
+  it('refuses a quote longer than 10,000 characters', async () => {
+    const { owner, a } = await setup();
+    const res = await gql(
+      headers(owner),
+      `mutation ($input: CustomerNeedCreateInput!) { customerNeedCreate(input: $input) { success } }`,
+      { input: { issueId: a.id, body: 'x'.repeat(10_001) } },
+    );
+    expect(errorCode(res)).toBe('INVALID_INPUT');
+  });
+
+  it('sends CustomerNeed remove events when the issue is deleted', async () => {
+    const { owner, a, jane } = await setup();
+    const hook = await createWebhook(owner, {
+      url: 'https://example.com/hook',
+      resourceTypes: ['CustomerNeed'],
+      teamId: 'MKT',
+    });
+    const { attachmentId } = await createRequesterAttachment(a.id, jane.id, 'team', owner.userId);
+    const need = await createNeed(owner, { issueId: a.id, attachmentId });
+    await gqlData(owner, `mutation ($id: String!) { issueDelete(id: $id) { success } }`, {
+      id: a.id,
+    });
+    const actions = (await webhookDeliveries(hook.id)).data.items.reverse().map((d) => {
+      const p = d.payload as { action: string; data: { id: string } };
+      return `${p.action}:${p.data.id}`;
+    });
+    expect(actions).toEqual([`create:${need.id}`, `remove:${need.id}`]);
   });
 
   it('sends no notification and runs no automation', async () => {

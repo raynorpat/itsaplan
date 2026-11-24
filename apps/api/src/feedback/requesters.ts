@@ -3,7 +3,8 @@ import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm
 import { atLeast, visibleTeamIds, workspaceRole, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { assertFeedbackWrite, readsFeedback } from './access';
-import { createRequesterAttachment } from './store';
+import { retitleFeedbackAttachments } from '../attachments/store';
+import { activeRequester, createRequesterAttachment } from './store';
 
 // Requesters (Linear's ExternalUser): people outside the workspace who give feedback.
 // Linear's schema has no mutation for them, so the web manages them through the
@@ -56,17 +57,7 @@ const isUniqueViolation = (err: unknown): boolean =>
   ((err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code) ===
   '23505';
 
-// The requester a row now stands for: itself, or the one it was merged into.
-async function resolveRequester(id: string) {
-  let current = id;
-  for (let i = 0; i < 5; i++) {
-    const [row] = await db.select().from(externalUser).where(eq(externalUser.id, current));
-    if (!row) return null;
-    if (!row.mergedIntoId) return row;
-    current = row.mergedIntoId;
-  }
-  return null;
-}
+const resolveRequester = activeRequester;
 
 // The active requester an email leads to: its owner, or (for a merged requester's
 // email) the one it was merged into.
@@ -176,7 +167,13 @@ export interface RequesterIssueFeedback {
     archivedAt: string | null;
     state: { name: string; type: string; color: string };
   };
-  feedback: { id: string; body: string | null; priority: number; createdAt: string }[];
+  feedback: {
+    id: string;
+    body: string | null;
+    priority: number;
+    createdAt: string;
+    archivedAt: string | null;
+  }[];
 }
 
 // One requester (following a merge) with their feedback on issues the user can see,
@@ -194,6 +191,7 @@ export async function getRequester(
       body: customerNeed.body,
       priority: customerNeed.priority,
       createdAt: customerNeed.createdAt,
+      needArchivedAt: customerNeed.archivedAt,
       issueId: issue.id,
       teamKey: team.key,
       number: issue.sequenceNumber,
@@ -236,6 +234,7 @@ export async function getRequester(
       body: r.body,
       priority: r.priority,
       createdAt: iso(r.createdAt),
+      archivedAt: r.needArchivedAt ? iso(r.needArchivedAt) : null,
     });
   }
   return { ...(await dtoOf(userId, row)), issues: [...byIssue.values()] };
@@ -292,18 +291,20 @@ export async function updateRequester(
   }
   if (Object.keys(patch).length === 0) return dtoOf(userId, row);
   try {
-    const [updated] = await db
-      .update(externalUser)
-      .set({ ...patch, updatedAt: sql`now()` })
-      .where(eq(externalUser.id, row.id))
-      .returning();
-    // The feedback attachments show the requester's name as their title.
-    if (patch.displayName)
-      await db
-        .update(attachment)
-        .set({ title: patch.displayName })
-        .where(eq(attachment.externalUserCreatorId, row.id));
-    return dtoOf(userId, updated!);
+    const { updated, announce } = await db.transaction(async (tx) => {
+      const [saved] = await tx
+        .update(externalUser)
+        .set({ ...patch, updatedAt: sql`now()` })
+        .where(eq(externalUser.id, row.id))
+        .returning();
+      // The feedback attachments show the requester's name as their title.
+      const sendEvents = patch.displayName
+        ? await retitleFeedbackAttachments(tx, row.id, { title: patch.displayName })
+        : null;
+      return { updated: saved!, announce: sendEvents };
+    });
+    if (announce) await announce(userId);
+    return dtoOf(userId, updated);
   } catch (err) {
     if (isUniqueViolation(err)) throw new HttpError(409, 'Another person has this email address');
     throw err;
@@ -326,11 +327,22 @@ export async function mergeRequesters(
   const into = await resolveRequester(intoId);
   if (!from || !into) throw new HttpError(404, 'Requester not found');
   if (from.id === into.id) throw new HttpError(400, 'A person cannot be merged into themselves');
-  const kept = await db.transaction(async (tx) => {
-    await tx
-      .update(attachment)
-      .set({ externalUserCreatorId: into.id, title: into.displayName })
-      .where(eq(attachment.externalUserCreatorId, from.id));
+  const { kept, announce } = await db.transaction(async (tx) => {
+    // Both rows are locked and re-read: a merge that ran meanwhile (B into A while
+    // this merges A into B) is seen here and this one is refused, so two people never
+    // end up pointing at each other.
+    const locked = await tx
+      .select()
+      .from(externalUser)
+      .where(inArray(externalUser.id, [from.id, into.id]))
+      .orderBy(asc(externalUser.id))
+      .for('update');
+    if (locked.length !== 2 || locked.some((r) => r.mergedIntoId))
+      throw new HttpError(409, 'One of these people was merged meanwhile; reload and try again');
+    const sendEvents = await retitleFeedbackAttachments(tx, from.id, {
+      title: into.displayName,
+      externalUserCreatorId: into.id,
+    });
     const takeEmail = !into.email && from.email;
     await tx
       .update(externalUser)
@@ -346,8 +358,9 @@ export async function mergeRequesters(
       .set({ ...(takeEmail ? { email: from.email } : {}), updatedAt: sql`now()` })
       .where(eq(externalUser.id, into.id))
       .returning();
-    return row!;
+    return { kept: row!, announce: sendEvents };
   });
+  await announce(user.id);
   return dtoOf(user.id, kept);
 }
 

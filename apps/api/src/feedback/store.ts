@@ -1,10 +1,11 @@
 import { attachment, customerNeed, db, externalUser, issue, user } from '@repo/db';
-import { and, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import {
+  announceAttachmentMove,
   createFeedbackAttachment,
   deleteAttachment,
   getAttachment,
-  moveAttachment,
+  moveAttachmentRow,
 } from '../attachments/store';
 import { HttpError, iso } from '../shared/lib';
 import { shownName } from '../shared/user-name';
@@ -74,18 +75,32 @@ async function sendNeedEvent(
 
 const SOURCE_SUBTITLE = { portal: 'Portal', form: 'Form' } as const;
 
-// The requester a merged requester now points at (merges never chain further than
-// the row they name, but follow a few steps in case).
-async function activeRequester(id: string) {
+type RequesterRow = typeof externalUser.$inferSelect;
+
+// The requester a row now stands for: itself, or the one it was merged into. A merge
+// re-points earlier merges, so the chain is one step; a few steps are followed in
+// case, and a loop answers null. `load` reads one row (directly or through a
+// request loader).
+export async function followMerges(
+  id: string,
+  load: (id: string) => Promise<RequesterRow | null | undefined>,
+): Promise<RequesterRow | null> {
   let current = id;
   for (let i = 0; i < 5; i++) {
-    const [row] = await db.select().from(externalUser).where(eq(externalUser.id, current));
+    const row = await load(current);
     if (!row) return null;
     if (!row.mergedIntoId) return row;
     current = row.mergedIntoId;
   }
   return null;
 }
+
+async function loadRequester(id: string): Promise<RequesterRow | null> {
+  const [row] = await db.select().from(externalUser).where(eq(externalUser.id, id));
+  return row ?? null;
+}
+
+export const activeRequester = (id: string) => followMerges(id, loadRequester);
 
 // Creates the source attachment that names a feedback item's requester, on the issue.
 // The caller checks the actor may add feedback there. `source` is where the feedback
@@ -129,15 +144,24 @@ export interface NeedInput {
   createdAt?: Date;
 }
 
+// Linear caps long text inputs; a quote longer than this is refused.
+export const MAX_FEEDBACK_BODY = 10_000;
+
 function checkPriority(priority: number | undefined): void {
   if (priority !== undefined && priority !== 0 && priority !== 1)
     throw new HttpError(400, 'priority must be 0 or 1');
+}
+
+function checkBody(body: string | null | undefined): void {
+  if (body != null && body.length > MAX_FEEDBACK_BODY)
+    throw new HttpError(400, `body must be at most ${MAX_FEEDBACK_BODY} characters`);
 }
 
 // Linear's customerNeedCreate on an issue. A source attachment must be on the same
 // issue and not already the source of another feedback item.
 export async function createNeed(input: NeedInput): Promise<NeedRow> {
   checkPriority(input.priority);
+  checkBody(input.body);
   if (input.createdAt && input.createdAt.getTime() > Date.now())
     throw new HttpError(400, 'createdAt must be in the past');
   if (input.attachmentId) {
@@ -179,22 +203,30 @@ export async function updateNeed(
   actorId: string | null,
 ): Promise<NeedRow> {
   checkPriority(patch.priority);
+  checkBody(patch.body);
   const current = await getNeed(id);
   if (!current) throw new HttpError(404, 'Feedback not found');
   const moving = patch.issueId !== undefined && patch.issueId !== current.issueId;
-  const [row] = await db
-    .update(customerNeed)
-    .set({
-      ...(patch.body !== undefined ? { body: patch.body } : {}),
-      ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
-      ...(moving ? { issueId: patch.issueId } : {}),
-      updatedAt: sql`now()`,
-    })
-    .where(eq(customerNeed.id, id))
-    .returning();
-  if (!row) throw new HttpError(404, 'Feedback not found');
-  if (moving && current.attachmentId)
-    await moveAttachment(current.attachmentId, patch.issueId!, actorId);
+  // The feedback and its source attachment move together or not at all.
+  const { row, attachmentMove } = await db.transaction(async (tx) => {
+    const [updatedRow] = await tx
+      .update(customerNeed)
+      .set({
+        ...(patch.body !== undefined ? { body: patch.body } : {}),
+        ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+        ...(moving ? { issueId: patch.issueId } : {}),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(customerNeed.id, id))
+      .returning();
+    if (!updatedRow) throw new HttpError(404, 'Feedback not found');
+    const move =
+      moving && current.attachmentId
+        ? await moveAttachmentRow(tx, current.attachmentId, patch.issueId!)
+        : null;
+    return { row: updatedRow, attachmentMove: move };
+  });
+  if (attachmentMove) await announceAttachmentMove(attachmentMove, actorId);
   const updated = mapNeed(row);
   const oldTeam = moving ? await teamOf(current.issueId) : null;
   await sendNeedEvent('update', updated, actorId, {
@@ -253,29 +285,26 @@ export function requesterCountSql(importantOnly = false): SQL<number> {
   )`;
 }
 
-// The same counts for a set of issues, for callers that read them in bulk.
-export async function requesterCounts(
-  issueIds: string[],
-): Promise<Map<string, { requesters: number; important: number }>> {
-  const out = new Map<string, { requesters: number; important: number }>();
-  for (const id of issueIds) out.set(id, { requesters: 0, important: 0 });
-  if (issueIds.length === 0) return out;
-  const rows = await db
-    .select({
-      issueId: customerNeed.issueId,
-      requesters: sql<number>`count(DISTINCT ${attachment.externalUserCreatorId})::int`,
-      important: sql<number>`count(DISTINCT ${attachment.externalUserCreatorId}) FILTER (WHERE ${customerNeed.priority} = 1)::int`,
-    })
+// The feedback on an issue, read before the issue is deleted (its feedback goes with
+// it), and the remove events sent once the delete has committed.
+export async function needsOnIssue(issueId: string): Promise<NeedRow[]> {
+  const rows = await db.select().from(customerNeed).where(eq(customerNeed.issueId, issueId));
+  return rows.map(mapNeed);
+}
+
+export async function announceNeedsRemoved(
+  rows: NeedRow[],
+  teamId: string,
+  actorId: string | null,
+): Promise<void> {
+  for (const row of rows) await sendNeedEvent('remove', row, actorId, { teamIds: [teamId] });
+}
+
+// The feedback item whose source is `attachmentId`, if any.
+export async function needOfAttachment(attachmentId: string): Promise<NeedRow | null> {
+  const [row] = await db
+    .select()
     .from(customerNeed)
-    .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
-    .where(
-      and(
-        inArray(customerNeed.issueId, issueIds),
-        isNull(customerNeed.archivedAt),
-        isNotNull(attachment.externalUserCreatorId),
-      ),
-    )
-    .groupBy(customerNeed.issueId);
-  for (const r of rows) out.set(r.issueId, { requesters: r.requesters, important: r.important });
-  return out;
+    .where(eq(customerNeed.attachmentId, attachmentId));
+  return row ? mapNeed(row) : null;
 }

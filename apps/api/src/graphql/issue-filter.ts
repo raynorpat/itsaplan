@@ -26,7 +26,7 @@ import { teamFilter, visibleTeamIds } from './resolvers/team';
 import { stateFilter } from './resolvers/workflow-state';
 import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
-import { attachmentCollectionSql } from './attachment-filter';
+import { attachmentCollectionFilter } from './attachment-filter';
 import { labelCollectionSql } from './label-collection-filter';
 import {
   customerCountFilter,
@@ -233,7 +233,7 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     delegate: userOn(issue.delegateUserId, viewerId),
     creator: userOn(issue.creatorUserId, viewerId),
     parent: parentFilter,
-    attachments: attachmentCollectionSql,
+    attachments: attachmentCollectionFilter(viewerId),
     labels: labelCollectionSql,
     subscribers: subscribersFilter(viewerId),
     sourceMetadata: sourceMetadataFilter,

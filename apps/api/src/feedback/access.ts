@@ -1,5 +1,5 @@
-import { customerNeed, db, issue } from '@repo/db';
-import { eq, inArray, type SQL } from 'drizzle-orm';
+import { attachment, customerNeed, db, issue, user } from '@repo/db';
+import { eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { canSeeTeam, visibleTeamIds, workspaceRole, type AuthUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
 
@@ -30,4 +30,13 @@ export async function assertFeedbackWrite(issueId: string, user: AuthUser): Prom
   if (!(await readsFeedback(user.id)))
     throw new HttpError(403, 'Guests cannot add or change feedback');
   return row.teamId;
+}
+
+// SQL over `attachment`: hides feedback source attachments (their title is the
+// requester's name) from a viewer who does not read feedback. Guests and app users have
+// another workspace role than owner, admin or member.
+export function feedbackAttachmentsVisibleSql(viewerId: string): SQL {
+  return sql`(${attachment.sourceType} IS DISTINCT FROM 'feedback' OR EXISTS (
+    SELECT 1 FROM ${user} WHERE ${user.id} = ${viewerId}
+      AND ${user.workspaceRole} IN ('owner', 'admin', 'member')))`;
 }

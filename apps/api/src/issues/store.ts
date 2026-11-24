@@ -51,6 +51,7 @@ import { assertCycleOfTeam, autoAssignCycleId } from '../cycles/store';
 
 import { getMembership } from '../members/store';
 import { isAppUser } from '../shared/access';
+import { announceNeedsRemoved, needsOnIssue } from '../feedback/store';
 
 // Data access for issues and their per-issue data (labels). The human identifier (e.g. "MKT-42") is the team key
 // plus the issue's team-scoped sequence number.
@@ -951,6 +952,8 @@ export async function deleteIssue(
   actorUserId?: string | null,
 ): Promise<AttachmentRow[] | null> {
   const beforeData = await watchedIssueData(issueId);
+  // The issue's feedback is deleted with it (cascade); its remove events go out after.
+  const needs = await needsOnIssue(issueId);
   const result = await db.transaction(async (tx) => {
     const rows = await tx
       .select({ teamId: issue.teamId, seq: issue.sequenceNumber, key: teamTable.key })
@@ -970,6 +973,7 @@ export async function deleteIssue(
     };
   });
   if (!result) return null;
+  await announceNeedsRemoved(needs, result.teamId, actorUserId ?? null);
   if (beforeData)
     await emitEvent({
       type: 'Issue',

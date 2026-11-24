@@ -273,7 +273,7 @@ describe('project progress', () => {
       expect(n.scopeHistory.at(-1)).toBe(n.scope);
       expect(n.issueCountHistory.at(-1)).toBe(6);
     }
-  });
+  }, 30_000); // Builds 30 projects through the API; slower than the 5 s default in a full run.
 
   it('splits long id lists into batches', () => {
     expect(batches([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
