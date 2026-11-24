@@ -328,6 +328,9 @@ export const project = pgTable(
       .unique()
       .default(sql`substr(md5(gen_random_uuid()::text), 1, 12)`),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // Set with archived_at by projectDelete (Linear's trash); the worker deletes a
+    // project 30 days after archived_at while it is set.
+    trashed: boolean('trashed'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

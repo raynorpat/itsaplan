@@ -15,7 +15,7 @@ import {
   PROJECT_STATUS_IDS,
   type ProjectStatusType,
 } from '@repo/db';
-import { and, asc, eq, exists, inArray, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { projectTeamIds } from './access';
 import { HttpError, iso, num, UUID_RE } from '../shared/lib';
 import { NON_GUEST_ROLES, type WorkspaceRole } from '../shared/access';
@@ -60,6 +60,8 @@ export interface ProjectRow {
   sortOrder: number;
   slugId: string;
   archivedAt: string | null;
+  // Linear's Project.trashed: true while the project is in the trash, else null.
+  trashed: boolean | null;
   createdAt: string;
   updatedAt: string;
   labelIds: string[];
@@ -168,6 +170,7 @@ function mapProject(
     sortOrder: num(row.sortOrder),
     slugId: row.slugId,
     archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
+    trashed: row.trashed,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     labelIds,
@@ -524,28 +527,62 @@ export async function setProjectTeams(
   if (sendEvent) await emitProject('update', await projectData(projectId), actorUserId, beforeData);
 }
 
-// Sets or clears archived_at. Archived projects are hidden from lists unless
-// includeArchived. Returns false when the project does not exist.
+// Archives a project or restores it. Restoring also takes it out of the trash.
+// Archived projects are hidden from lists unless includeArchived. Returns false when
+// the project does not exist.
 export async function setProjectArchived(
   id: string,
   archived: boolean,
   actorUserId: string | null,
 ): Promise<boolean> {
+  return setArchiveState(
+    id,
+    archived ? { archivedAt: sql`now()` } : { archivedAt: null, trashed: null },
+    actorUserId,
+  );
+}
+
+// Moves a project to the trash (Linear's projectDelete): archived and trashed. Its
+// issues keep their project link until the project is purged.
+export async function trashProject(id: string, actorUserId: string | null): Promise<boolean> {
+  return setArchiveState(id, { archivedAt: sql`now()`, trashed: true }, actorUserId);
+}
+
+async function setArchiveState(
+  id: string,
+  values: { archivedAt: SQL | null; trashed?: true | null },
+  actorUserId: string | null,
+): Promise<boolean> {
   const beforeData = await projectData(id);
   const rows = await db
     .update(project)
-    .set({ archivedAt: archived ? sql`now()` : null, updatedAt: sql`now()` })
+    .set({ ...values, updatedAt: sql`now()` })
     .where(eq(project.id, id))
     .returning({ id: project.id });
   if (rows.length) await emitProject('update', await projectData(id), actorUserId, beforeData);
   return rows.length > 0;
 }
 
+// Days a trashed project stays restorable before the worker deletes it.
+export const PROJECT_TRASH_DAYS = 30;
+
+// Deletes the projects trashed more than PROJECT_TRASH_DAYS before `now`. A project
+// that is only archived is never deleted. Returns how many were deleted.
+export async function purgeTrashedProjects(now: Date): Promise<number> {
+  const cutoff = new Date(now.getTime() - PROJECT_TRASH_DAYS * 24 * 60 * 60 * 1000);
+  const due = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.trashed, true), lt(project.archivedAt, cutoff)));
+  for (const { id } of due) await deleteProject(id, null);
+  return due.length;
+}
+
 // Linked issues keep existing (issue.project_id is set null by the FK); the
 // project's own activity rows, team links and label links cascade.
 // Deleting a project removes its initiative links (cascade); each initiative it was
 // linked to gets an Initiative update.
-export async function deleteProject(id: string, actorUserId: string | null): Promise<void> {
+async function deleteProject(id: string, actorUserId: string | null): Promise<void> {
   const beforeData = await projectData(id);
   const links = await db
     .select({ initiativeId: initiativeToProject.initiativeId })

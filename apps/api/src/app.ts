@@ -11,6 +11,7 @@ import { mountOAuth } from './oauth/routes';
 import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
+import { internalProjectRoutes } from './projects/internal-routes';
 import { registerInstanceHandlers } from './instance/handlers';
 // Registers the AgentSessionEvent webhook on the agent session events.
 import './agents/webhook';
@@ -47,6 +48,7 @@ export const app = new Elysia()
   .use(internalNotificationRoutes)
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
+  .use(internalProjectRoutes)
   .use(internalUploadRoutes);
 
 // MCP endpoints (POST /mcp, POST /mcp/readonly). Its tools run GraphQL in process as

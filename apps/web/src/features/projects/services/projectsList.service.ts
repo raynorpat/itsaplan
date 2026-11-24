@@ -6,7 +6,7 @@ import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 import { appendPage } from '@/utils/appendPage';
-import { archivedProjects, sumStatusCounts } from '../utils/projectList';
+import { deletedProjects, sumStatusCounts } from '../utils/projectList';
 
 const PAGE_SIZE = 25;
 
@@ -78,9 +78,9 @@ export function useProjectStatusCounts(teamKey: string | null) {
   });
 }
 
-const ArchivedProjectsQuery = graphql(
+const DeletedProjectsQuery = graphql(
   `
-    query ArchivedProjects($filter: ProjectFilter, $first: Int!, $after: String) {
+    query DeletedProjects($filter: ProjectFilter, $first: Int!, $after: String) {
       projects(filter: $filter, first: $first, after: $after, includeArchived: true) {
         nodes {
           ...ProjectFields
@@ -95,25 +95,25 @@ const ArchivedProjectsQuery = graphql(
   [ProjectFields],
 );
 
-// The Archived tab: every archived project of the team filter, matching the search.
-// ProjectFilter has no archivedAt field, so all projects are listed with
-// includeArchived and the archived ones kept.
-export function useArchivedProjects(
+// The Deleted tab: every trashed or archived project of the team filter, matching the
+// search. ProjectFilter has no archivedAt field, so all projects are listed with
+// includeArchived and the deleted ones kept.
+export function useDeletedProjects(
   filters: { teamKey: string | null; search?: string },
   enabled: boolean,
 ) {
   return useQuery({
-    queryKey: qk.projects(filters.teamKey ?? '', { archived: true, search: filters.search }),
+    queryKey: qk.projects(filters.teamKey ?? '', { deleted: true, search: filters.search }),
     queryFn: async () => {
       const nodes = await fetchAllPages(async (after, first) => {
-        const data = await gqlRequest(ArchivedProjectsQuery, {
+        const data = await gqlRequest(DeletedProjectsQuery, {
           filter: toProjectFilter(filters),
           first,
           after,
         });
         return data.projects;
       });
-      return archivedProjects(nodes.map(toProject));
+      return deletedProjects(nodes.map(toProject));
     },
     enabled,
   });

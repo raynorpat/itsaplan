@@ -143,8 +143,8 @@ describe('graphql project mutations', () => {
     expect((await client.deleteProjectLabel(label.id)).success).toBe(true);
   });
 
-  it('archives, unarchives and deletes a project', async () => {
-    const { owner, mkt, client } = await setup();
+  it('archives, unarchives, trashes and restores a project', async () => {
+    const { mkt, client } = await setup();
     const project = (await (
       await client.createProject({ name: 'Old', teamIds: [mkt.team.id] })
     ).project)!;
@@ -153,8 +153,11 @@ describe('graphql project mutations', () => {
     await client.unarchiveProject(project.id);
     expect((await client.project(project.id)).archivedAt).toBeFalsy();
     expect((await client.deleteProject(project.id)).success).toBe(true);
-    const res = await gql({ cookie: owner.cookie }, `{ project(id: "${project.id}") { id } }`);
-    expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
+    const trashed = await client.project(project.id);
+    expect(trashed.archivedAt).toBeTruthy();
+    expect(trashed.trashed).toBe(true);
+    await client.unarchiveProject(project.id);
+    expect((await client.project(project.id)).trashed).toBeFalsy();
   });
 
   it('validates the whole projectUpdate input before changing teams', async () => {

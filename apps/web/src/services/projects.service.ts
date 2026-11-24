@@ -29,6 +29,7 @@ export const ProjectFields = graphql(`
     createdAt
     updatedAt
     archivedAt
+    trashed
     labelIds
     health
     scope
@@ -71,6 +72,7 @@ export function toProject(data: FragmentOf<typeof ProjectFields>): Project {
     sortOrder: node.sortOrder,
     slugId: node.slugId,
     archivedAt: node.archivedAt ?? null,
+    trashed: node.trashed ?? null,
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     labelIds: node.labelIds,
@@ -297,14 +299,6 @@ const ProjectDeleteMutation = graphql(`
   }
 `);
 
-const ProjectArchiveMutation = graphql(`
-  mutation ProjectArchive($id: String!) {
-    projectArchive(id: $id) {
-      success
-    }
-  }
-`);
-
 const ProjectUnarchiveMutation = graphql(`
   mutation ProjectUnarchive($id: String!) {
     projectUnarchive(id: $id) {
@@ -380,35 +374,29 @@ export function useUpdateProject(teamKey?: string) {
   });
 }
 
-// Deleting a project unlinks its issues, so the team's board issues change too, and
-// removes it from the initiatives it was linked to.
+// Moves a project to the trash (Linear's projectDelete). It leaves the lists and the
+// project pickers (the API lists it only with includeArchived) and appears under the
+// projects list's Deleted tab; its issues keep their project until it is purged.
 export function useDeleteProject(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => gqlRequest(ProjectDeleteMutation, { id }),
-    onSuccess: (_data, id) => {
-      invalidateProject(qc, id, teamKey);
-      void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
-      void qc.invalidateQueries({ queryKey: qk.initiatives });
-      void qc.invalidateQueries({ queryKey: ['initiative'] });
-    },
+    onSuccess: (_data, id) => invalidateDeletedProject(qc, id, teamKey),
   });
 }
 
-// Archives or unarchives a project. An archived project leaves the lists and the
-// project pickers (the API lists it only with includeArchived) and appears under the
-// projects list's Archived tab; its page stays reachable.
-export function useSetProjectArchived(teamKey: string) {
+// Restores a trashed or archived project (Linear's projectUnarchive).
+export function useRestoreProject(teamKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
-      if (archived) await gqlRequest(ProjectArchiveMutation, { id });
-      else await gqlRequest(ProjectUnarchiveMutation, { id });
-    },
-    onSuccess: (_data, { id }) => {
-      invalidateProject(qc, id, teamKey);
-      void qc.invalidateQueries({ queryKey: qk.initiatives });
-      void qc.invalidateQueries({ queryKey: ['initiative'] });
-    },
+    mutationFn: (id: string) => gqlRequest(ProjectUnarchiveMutation, { id }),
+    onSuccess: (_data, id) => invalidateDeletedProject(qc, id, teamKey),
   });
+}
+
+function invalidateDeletedProject(qc: QueryClient, id: string, teamKey: string) {
+  invalidateProject(qc, id, teamKey);
+  void qc.invalidateQueries({ queryKey: qk.boardIssues(teamKey) });
+  void qc.invalidateQueries({ queryKey: qk.initiatives });
+  void qc.invalidateQueries({ queryKey: ['initiative'] });
 }

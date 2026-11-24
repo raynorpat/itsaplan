@@ -82,7 +82,11 @@ describe('routes', () => {
       '/internal/webhooks/issues-archived',
     ])
       expect([path, (await call('POST', path)).status]).not.toEqual([path, 404]);
-    for (const path of ['/internal/cycles/tick', '/internal/uploads/cleanup'])
+    for (const path of [
+      '/internal/cycles/tick',
+      '/internal/uploads/cleanup',
+      '/internal/projects/purge',
+    ])
       expect([path, (await call('POST', path)).status]).toEqual([path, 401]);
   });
 });

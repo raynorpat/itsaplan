@@ -10,6 +10,7 @@ import {
   teamView,
 } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { purgeTrashedProjects } from '../../../projects/store';
 import { visibleInitiativesSql } from '../../access';
 import { archiveInitiative, createInitiative } from '../../store';
 import {
@@ -205,7 +206,7 @@ describe('initiative links and relations', () => {
     ]);
   });
 
-  it('sends an Initiative update when a deleted project drops out', async () => {
+  it('sends an Initiative update when a purged project drops out', async () => {
     const { owner, asOwner, project, make } = await setup();
     const a = await make('A');
     await linkProject({ initiativeId: a.id, projectId: project.id }, owner.userId);
@@ -217,6 +218,8 @@ describe('initiative links and relations', () => {
     await gqlData(asOwner, `mutation ($id: String!) { projectDelete(id: $id) { success } }`, {
       id: project.id,
     });
+    expect((await webhookDeliveries(hook.id)).data!.items).toHaveLength(0);
+    await purgeTrashedProjects(new Date(Date.now() + 31 * 24 * 60 * 60 * 1000));
     const payloads = (await webhookDeliveries(hook.id)).data!.items.map(
       (d) => d.payload as { action: string; data: { id: string; projects: unknown[] } },
     );

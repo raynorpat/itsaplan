@@ -7,6 +7,7 @@ import {
   gqlData,
 } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
+import { purgeTrashedProjects } from '../../../projects/store';
 import { createApiKey, linearClient } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
@@ -109,12 +110,20 @@ describe('project webhooks', () => {
     });
   });
 
-  it('sends Project remove to the teams it had', async () => {
+  it('sends delete as a Project update with trashed, and remove when it is purged', async () => {
     const { asOwner, ids, hooks } = await setup();
     const project = await createProject(asOwner, [ids.MKT!, ids.OPS!]);
     await run(asOwner, `mutation ($id: String!) { projectDelete(id: $id) { success } }`, {
       id: project.id,
     });
+    for (const key of ['MKT', 'OPS']) {
+      const ps = await payloads(hooks[key]!);
+      expect(ps[ps.length - 1]).toMatchObject({
+        action: 'update',
+        data: { id: project.id, trashed: true },
+      });
+    }
+    await purgeTrashedProjects(new Date(Date.now() + 31 * 24 * 60 * 60 * 1000));
     for (const key of ['MKT', 'OPS']) {
       const ps = await payloads(hooks[key]!);
       expect(ps[ps.length - 1]).toMatchObject({ action: 'remove', data: { id: project.id } });

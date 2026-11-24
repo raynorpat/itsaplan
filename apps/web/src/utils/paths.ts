@@ -61,7 +61,7 @@ const PROJECTS_TABS = [
   'started',
   'paused',
   'completed',
-  'archived',
+  'deleted',
 ] as const;
 
 export type ProjectsTab = (typeof PROJECTS_TABS)[number];

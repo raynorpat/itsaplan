@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { archivedProjects, sortProjects, sumStatusCounts } from '../projectList';
+import {
+  deletedProjects,
+  isDeletedProject,
+  projectBannerText,
+  sortProjects,
+  sumStatusCounts,
+} from '../projectList';
 
 // The projects list over GraphQL: the status tab counts and the sort.
 
@@ -64,16 +70,43 @@ describe('sortProjects', () => {
   });
 });
 
-describe('archivedProjects', () => {
-  it('keeps the archived projects, most recently archived first', () => {
+describe('deletedProjects', () => {
+  it('keeps the trashed and archived projects, most recently removed first', () => {
     const rows = [
-      { id: 'a', archivedAt: null },
-      { id: 'b', archivedAt: '2026-11-01T00:00:00.000Z' },
-      { id: 'c', archivedAt: '2026-11-10T00:00:00.000Z' },
+      { id: 'a', archivedAt: null, trashed: null },
+      { id: 'b', archivedAt: '2026-11-01T00:00:00.000Z', trashed: null },
+      { id: 'c', archivedAt: '2026-11-10T00:00:00.000Z', trashed: true },
     ];
     assert.deepEqual(
-      archivedProjects(rows).map((p) => p.id),
+      deletedProjects(rows).map((p) => p.id),
       ['c', 'b'],
     );
+  });
+});
+
+describe('isDeletedProject', () => {
+  it('is true for a trashed or an archived project (both have archivedAt)', () => {
+    assert.equal(isDeletedProject({ archivedAt: null }), false);
+    assert.equal(isDeletedProject({ archivedAt: '2026-11-01T00:00:00.000Z' }), true);
+  });
+});
+
+describe('projectBannerText', () => {
+  it('names the trash and the day it is deleted for good', () => {
+    assert.equal(
+      projectBannerText({ archivedAt: '2026-11-01T10:00:00.000Z', trashed: true }),
+      'This project is in the trash. It will be deleted for good on Dec 1, 2026.',
+    );
+  });
+
+  it('says an archived project is archived', () => {
+    assert.equal(
+      projectBannerText({ archivedAt: '2026-11-01T10:00:00.000Z', trashed: null }),
+      'This project is archived.',
+    );
+  });
+
+  it('shows nothing for an active project', () => {
+    assert.equal(projectBannerText({ archivedAt: null, trashed: null }), null);
   });
 });

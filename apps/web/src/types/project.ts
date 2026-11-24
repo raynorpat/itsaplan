@@ -28,6 +28,8 @@ export interface Project {
   sortOrder: number;
   slugId: string;
   archivedAt: string | null;
+  // In the trash (deleted, restorable for 30 days); null otherwise.
+  trashed: boolean | null;
   createdAt: string;
   updatedAt: string;
   labelIds: string[];

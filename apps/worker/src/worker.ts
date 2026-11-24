@@ -2,7 +2,12 @@ import { workerConfig } from './config';
 import { deliver, nextRetryDelayS, renderBody } from './delivery';
 import { resolvesToPrivate } from './public-host';
 import { processNotificationDeliveries } from './notification-delivery';
-import { notifyIssuesArchived, runCycleUpkeep, runUploadCleanup } from './internal-api';
+import {
+  notifyIssuesArchived,
+  runCycleUpkeep,
+  runProjectPurge,
+  runUploadCleanup,
+} from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
 import {
   type ClaimedDelivery,
@@ -24,8 +29,8 @@ export function startWorker(): WorkerHandle {
 }
 
 // One poll: claim a batch of due deliveries, send them concurrently, record each
-// outcome, then run the delivery cleanup, the auto-archive sweep and the cycle
-// upkeep on their own tick intervals.
+// outcome, then run the delivery, upload and trashed-project cleanup, the
+// auto-archive sweep and the cycle upkeep on their own tick intervals.
 async function tick(): Promise<void> {
   const cfg = workerConfig();
   const claimed = await claimDueDeliveries();
@@ -43,6 +48,12 @@ async function tick(): Promise<void> {
       if (uploads > 0) console.log(`[worker] deleted ${uploads} unused uploads`);
     } catch (error) {
       console.error('[worker] upload cleanup failed:', error);
+    }
+    try {
+      const projects = await runProjectPurge();
+      if (projects > 0) console.log(`[worker] deleted ${projects} trashed projects`);
+    } catch (error) {
+      console.error('[worker] project purge failed:', error);
     }
   }
   if (++ticksSinceAutoArchive >= cfg.autoArchiveEveryTicks) {

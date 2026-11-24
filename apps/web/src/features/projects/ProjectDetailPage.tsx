@@ -8,7 +8,7 @@ import { projectPath, type ProjectTab } from '@/utils/paths';
 import { qk } from '@/services/queryKeys';
 import { useProjectQuery } from '@/services/projects.service';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import ProjectArchivedBanner from './components/detail/ProjectArchivedBanner';
+import ProjectDeletedBanner from './components/detail/ProjectDeletedBanner';
 import ProjectHeader from './components/detail/ProjectHeader';
 import ProjectIssuesBoard from './components/detail/ProjectIssuesBoard';
 import ProjectDocuments from './components/detail/ProjectDocuments';
@@ -57,7 +57,7 @@ export default function ProjectDetailPage({ tab = 'overview' }: { tab?: ProjectT
       ) : (
         <>
           <ProjectHeader project={project} team={team} />
-          {project.archivedAt && <ProjectArchivedBanner projectId={project.id} teamKey={teamKey} />}
+          <ProjectDeletedBanner project={project} teamKey={teamKey} />
           <Tabs
             value={tab}
             onValueChange={(value) =>

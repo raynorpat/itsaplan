@@ -71,7 +71,7 @@ export function toProject(p: ProjectRow) {
     // Deprecated in Linear, still selected by the SDK: the status type.
     state: p.status,
     url: `${trustedOrigins[0]}/projects/${p.id}`,
-    trashed: false,
+    trashed: p.trashed,
     // Read by the relation resolvers; not schema fields.
     statusId: p.statusId,
     leadUserId: p.leadUserId,

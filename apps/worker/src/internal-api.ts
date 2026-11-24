@@ -49,3 +49,11 @@ export async function runUploadCleanup(): Promise<number> {
   const body = (await response.json()) as { removed?: number };
   return body.removed ?? 0;
 }
+
+// Deletes projects that have been in the trash longer than the API's trash period.
+export async function runProjectPurge(): Promise<number> {
+  const response = await postInternal('/internal/projects/purge', {}, 60_000);
+  if (!response.ok) throw new Error(`Project purge API returned ${response.status}`);
+  const body = (await response.json()) as { removed?: number };
+  return body.removed ?? 0;
+}

@@ -288,6 +288,13 @@
       "when": 1795531581424,
       "tag": "0040_sour_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795534278653,
+      "tag": "0041_faithful_rictor",
+      "breakpoints": true
     }
   ]
 }

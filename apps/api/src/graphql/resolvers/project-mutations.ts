@@ -12,8 +12,8 @@ import { assertProjectAccess, projectTeamIds } from '../../projects/access';
 import {
   assertProjectPatch,
   createProject,
-  deleteProject,
   setProjectArchived,
+  trashProject,
   setProjectTeams,
   updateProject,
   type ProjectPatch,
@@ -230,13 +230,18 @@ export const projectMutationResolvers = {
         };
       }),
 
-    // There is no trash: delete removes the project; its issues keep existing.
+    // Linear's trash: the project is archived and trashed; projectUnarchive restores
+    // it, and the worker deletes it PROJECT_TRASH_DAYS later.
     projectDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
         const found = await findProject(id, ctx);
         await projectAccess(found.id, ctx);
-        await deleteProject(found.id, ctx.user.id);
-        return { success: true, lastSyncId: lastSyncId(), entity: found };
+        await trashProject(found.id, ctx.user.id);
+        return {
+          success: true,
+          lastSyncId: lastSyncId(),
+          entity: await findProject(found.id, ctx),
+        };
       }),
 
     projectMilestoneCreate: (

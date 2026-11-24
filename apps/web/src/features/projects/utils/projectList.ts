@@ -64,11 +64,38 @@ export function sortProjects<T extends SortableProject>(
     .map((x) => x.p);
 }
 
-// The Archived tab: the archived projects among those listed with includeArchived,
-// most recently archived first. ProjectFilter has no archivedAt field, so the API
-// lists archived and active projects together.
-export function archivedProjects<T extends { archivedAt: string | null }>(projects: T[]): T[] {
+// A project in the Deleted tab: trashed (projectDelete) or archived through the API
+// (projectArchive). Both are restored with projectUnarchive.
+export function isDeletedProject(p: { archivedAt: string | null }): boolean {
+  return p.archivedAt != null;
+}
+
+// The Deleted tab: the trashed and archived projects among those listed with
+// includeArchived, most recently removed first. ProjectFilter has no archivedAt
+// field, so the API lists them with the active projects.
+export function deletedProjects<T extends { archivedAt: string | null }>(projects: T[]): T[] {
   return projects
-    .filter((p) => p.archivedAt != null)
+    .filter(isDeletedProject)
     .sort((a, b) => b.archivedAt!.localeCompare(a.archivedAt!));
+}
+
+// Days a trashed project stays restorable; the API's PROJECT_TRASH_DAYS.
+const TRASH_DAYS = 30;
+
+const dayFormat = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+// The banner on a deleted project's page, or null for an active project.
+export function projectBannerText(p: {
+  archivedAt: string | null;
+  trashed: boolean | null;
+}): string | null {
+  if (p.archivedAt == null) return null;
+  if (!p.trashed) return 'This project is archived.';
+  const purgeAt = new Date(Date.parse(p.archivedAt) + TRASH_DAYS * 24 * 60 * 60 * 1000);
+  return `This project is in the trash. It will be deleted for good on ${dayFormat.format(purgeAt)}.`;
 }
