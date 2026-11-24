@@ -720,6 +720,11 @@ export const issue = pgTable(
     creatorUserId: uuid('creator_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
+    // Linear's Issue.externalUserCreator: the requester who suggested it on the portal.
+    externalUserCreatorId: uuid('external_user_creator_id').references(
+      (): AnyPgColumn => externalUser.id,
+      { onDelete: 'set null' },
+    ),
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
     // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
@@ -857,6 +862,8 @@ export const externalUser = pgTable(
       onDelete: 'set null',
     }),
     lastSeen: timestamp('last_seen', { withTimezone: true }).notNull().defaultNow(),
+    // Set when an owner or admin blocks the person from the portal.
+    portalBlockedAt: timestamp('portal_blocked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -893,6 +900,61 @@ export const customerNeed = pgTable(
     index('customer_need_issue_idx').on(t.issueId),
     uniqueIndex('customer_need_attachment_uq').on(t.attachmentId),
     check('customer_need_priority_check', sql`${t.priority} IN (0, 1)`),
+  ],
+);
+
+// A portal board: the issues of one team or one project (optionally only those with
+// any of `label_ids`) shown at /portal/<slug> to people outside the workspace.
+// `access` public: anyone reads; restricted: only visitors whose email domain is in
+// `allowed_domains` or whose address is in `allowed_emails` (both lowercased).
+// `comments` portal: only the board's portal threads are shown; all: every comment
+// except other boards' threads. Suggestions create issues in the suggestion team,
+// state and label.
+export const portalBoard = pgTable(
+  'portal_board',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+    intro: text('intro').notNull().default(''),
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    labelIds: uuid('label_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    access: text('access').notNull().default('public'),
+    allowedDomains: text('allowed_domains')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    allowedEmails: text('allowed_emails')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    showDescription: boolean('show_description').notNull().default(false),
+    comments: text('comments').notNull().default('portal'),
+    suggestionsEnabled: boolean('suggestions_enabled').notNull().default(false),
+    suggestionTeamId: uuid('suggestion_team_id').references(() => team.id, {
+      onDelete: 'set null',
+    }),
+    suggestionStateId: uuid('suggestion_state_id').references(() => workflowState.id, {
+      onDelete: 'set null',
+    }),
+    suggestionLabelId: uuid('suggestion_label_id').references(() => label.id, {
+      onDelete: 'set null',
+    }),
+    enabled: boolean('enabled').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('portal_board_slug_uq').on(t.slug),
+    check('portal_board_slug_check', sql`${t.slug} ~ '^[a-z0-9-]{1,48}$'`),
+    check('portal_board_scope_check', sql`(${t.teamId} IS NULL) <> (${t.projectId} IS NULL)`),
+    check('portal_board_access_check', sql`${t.access} IN ('public', 'restricted')`),
+    check('portal_board_comments_check', sql`${t.comments} IN ('portal', 'all')`),
   ],
 );
 
@@ -1120,6 +1182,15 @@ export const comment = pgTable(
     userName: text('user_name'),
     // The workflow that posted the comment (no user author then).
     workflowDefinitionId: uuid('workflow_definition_id').references(() => workflowDefinition.id, {
+      onDelete: 'set null',
+    }),
+    // A portal visitor's comment (Linear's Comment.externalUser): no user author then.
+    externalUserId: uuid('external_user_id').references((): AnyPgColumn => externalUser.id, {
+      onDelete: 'set null',
+    }),
+    // On a root comment: the portal board whose thread it starts (Linear's
+    // externalThread). Replies belong to their root's board.
+    portalBoardId: uuid('portal_board_id').references((): AnyPgColumn => portalBoard.id, {
       onDelete: 'set null',
     }),
     body: text('body').notNull(),

@@ -37,7 +37,10 @@ merge}`; members, merge for owners and admins, never guests), and the attachment
 names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`),
 and the number of people asking on an issue (`GET feedback/count?issueId=`, `{ people }`,
 for anyone who can see the issue, guests included) are here because Linear's schema has no mutation for them
-(`apps/api/src/feedback/requesters.ts`). All but the first need the
+(`apps/api/src/feedback/requesters.ts`). Portal boards (`GET portal/boards`, `POST
+portal/boards/{create, update, delete}`; owners and admins) and the boards showing an
+issue (`GET portal/issue-boards?issueId=`; members) are here because Linear has no
+portal (`apps/api/src/portal/admin.ts`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

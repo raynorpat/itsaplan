@@ -125,6 +125,13 @@ Rules and invariants for this package below; read the code for the walkthrough.
   merge) returns that requester. Merging A into B points A's feedback attachments at B
   (so B counts once per issue) and keeps A's row with `merged_into_id`, so a link or
   email of A leads to B; B takes A's email when it has none.
+- **Portal boards** (`portal/`, `portal_board`): a board shows the active issues of
+  one public team or one project (its public-team issues only), narrowed to any of its
+  labels when it has some, whose state has a public status (`portal/status.ts`:
+  planned, in progress, done; canceled issues and issues completed more than 30 days
+  ago are not shown). A board cannot target a private team. Owners and admins manage
+  boards through `/api/auth/instance/portal/*` (`portal/admin.ts`); a board with
+  suggestions gets the suggestion team's "Portal" label unless another is chosen.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

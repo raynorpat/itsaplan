@@ -128,6 +128,17 @@ export interface RequestersHandlers {
   feedbackCount(headers: Headers, query: Record<string, unknown>): Promise<object>;
 }
 
+// Portal boards shown to people outside the workspace (Linear has no portal): owners
+// and admins manage them; members read which boards show an issue. Each handler checks
+// the caller itself.
+export interface PortalHandlers {
+  boards(headers: Headers): Promise<object>;
+  createBoard(headers: Headers, body: unknown): Promise<object>;
+  updateBoard(headers: Headers, body: unknown): Promise<object>;
+  deleteBoard(headers: Headers, body: unknown): Promise<object>;
+  issueBoards(headers: Headers, query: Record<string, unknown>): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -138,6 +149,7 @@ export interface InstanceHandlers {
   accountEmails: AccountEmailsHandlers;
   imports: ImportsHandlers;
   requesters: RequestersHandlers;
+  portal: PortalHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -207,6 +219,12 @@ const requestersWrite = (
   trusted: string[],
   call: (h: RequestersHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.requesters, headers, body));
+
+const portalWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: PortalHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.portal, headers, body));
 
 const importsWrite = (
   path: string,
@@ -340,6 +358,34 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
             await run((h) =>
               h.requesters.feedbackCount(ctx.headers ?? new Headers(), { ...ctx.query }),
             ),
+          ),
+      ),
+      instancePortalBoards: createAuthEndpoint(
+        '/instance/portal/boards',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.portal.boards(ctx.headers ?? new Headers()))),
+      ),
+      instancePortalBoardCreate: portalWrite(
+        '/instance/portal/boards/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.createBoard(headers, body),
+      ),
+      instancePortalBoardUpdate: portalWrite(
+        '/instance/portal/boards/update',
+        options.trustedOrigins,
+        (h, headers, body) => h.updateBoard(headers, body),
+      ),
+      instancePortalBoardDelete: portalWrite(
+        '/instance/portal/boards/delete',
+        options.trustedOrigins,
+        (h, headers, body) => h.deleteBoard(headers, body),
+      ),
+      instancePortalIssueBoards: createAuthEndpoint(
+        '/instance/portal/issue-boards',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) => h.portal.issueBoards(ctx.headers ?? new Headers(), { ...ctx.query })),
           ),
       ),
       instanceAccountEmails: createAuthEndpoint(

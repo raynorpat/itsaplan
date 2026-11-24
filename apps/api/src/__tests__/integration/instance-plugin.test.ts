@@ -10,6 +10,7 @@ import { getAppVersion } from '../../settings/version';
 import { oauthAppsHandlers } from '../../oauth/apps';
 import { importsHandlers } from '../../imports/handlers';
 import { requestersHandlers } from '../../feedback/handlers';
+import { portalHandlers } from '../../portal/admin';
 import { workflowsHandlers } from '../../workflows/handlers';
 import { accountEmailsHandlers } from '../../accounts/handlers';
 
@@ -155,6 +156,7 @@ describe('instance plugin errors and origin checks', () => {
       accountEmails: accountEmailsHandlers,
       imports: importsHandlers,
       requesters: requestersHandlers,
+      portal: portalHandlers,
     });
     try {
       const res = await call('version');
