@@ -8,6 +8,7 @@ import { resetDb } from '../helpers/db';
 import { getStorageSettings } from '../../settings/storage';
 import { getAppVersion } from '../../settings/version';
 import { oauthAppsHandlers } from '../../oauth/apps';
+import { importsHandlers } from '../../imports/handlers';
 import { workflowsHandlers } from '../../workflows/handlers';
 import { accountEmailsHandlers } from '../../accounts/handlers';
 
@@ -151,6 +152,7 @@ describe('instance plugin errors and origin checks', () => {
       agentSessionStop: async () => ({ success: true }),
       workflows: workflowsHandlers,
       accountEmails: accountEmailsHandlers,
+      imports: importsHandlers,
     });
     try {
       const res = await call('version');

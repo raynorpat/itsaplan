@@ -212,6 +212,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   interrupted import run again duplicates nothing. The issue's `created` history entry
   names the import (`issue_activity.issue_import_id`, `IssueHistory.issueImport`). On
   startup (`index.ts`) imports left running end as `error`.
+  GitLab, Gitea and Forgejo imports go through the instance plugin
+  (`/api/auth/instance/imports*`, `imports/handlers.ts`; owners and admins): the
+  admin's token is used by a background fetch in the API process
+  (`imports/sources/`: any host, http or https, no redirects followed, rate limits
+  waited out, the token never in an error, row or log) and dropped when the fetch
+  ends; the fetched data waits in memory for the people matching, then
+  `processImport` runs. One running import per team. A team the import creates gets
+  the matched members.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

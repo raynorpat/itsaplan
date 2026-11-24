@@ -1,6 +1,7 @@
 import { getActiveSession, provideInstanceHandlers } from '@repo/auth';
 import { accountEmailsHandlers } from '../accounts/handlers';
 import { stopSession } from '../agents/store';
+import { importsHandlers } from '../imports/handlers';
 import { changeTeamOwner } from '../members/store';
 import { oauthAppsHandlers } from '../oauth/apps';
 import { getStorageSettings } from '../settings/storage';
@@ -12,7 +13,8 @@ import { workflowsHandlers } from '../workflows/handlers';
 // src/instance-plugin.ts): the app version, the upload limits, the team owner change
 // (team managers only), the management of the workspace's OAuth applications
 // (oauth/apps.ts), of teams' workflow rules (workflows/handlers.ts) and of a person's
-// extra email addresses (accounts/emails.ts).
+// extra email addresses (accounts/emails.ts) and issue imports from GitLab, Gitea and
+// Forgejo (imports/handlers.ts).
 
 async function signedInUser(headers: Headers) {
   const session = await getActiveSession(headers);
@@ -57,5 +59,6 @@ export function registerInstanceHandlers(): void {
     },
     workflows: workflowsHandlers,
     accountEmails: accountEmailsHandlers,
+    imports: importsHandlers,
   });
 }

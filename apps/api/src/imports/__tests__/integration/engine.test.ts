@@ -266,6 +266,25 @@ describe('processImport', () => {
     expect(created).toHaveLength(1);
   });
 
+  it('adds the matched members to a team it creates, so they keep their issues', async () => {
+    const row = await createImport({
+      service: 'gitea',
+      teamName: 'Imported Two',
+      creatorId: owner.userId,
+      displayName: 'acme/two',
+      serviceMetadata: { repository: 'acme/two' },
+    });
+    await processImport(
+      row.id,
+      { serviceLabel: 'Gitea', issues: [sourceIssue(1, { author: ann, assignee: ann })] },
+      { ann: other.userId, octo: null },
+    );
+    const job = (await getImport(row.id))!;
+    const [created] = await db.select().from(issue).where(eq(issue.teamId, job.teamId!));
+    expect(created!.assigneeUserId).toBe(other.userId);
+    expect(created!.creatorUserId).toBe(other.userId);
+  });
+
   it('links the created issue to its import in history', async () => {
     const id = await newImport();
     await processImport(id, data([sourceIssue(1)]), {});

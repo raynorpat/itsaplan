@@ -23,7 +23,11 @@ for them; the rules run in the API's issue writes, `apps/api/src/workflows/engin
 A person's extra email addresses (`GET account/emails`, `POST account/emails/{add,
 remove}`, and the public `GET account/emails/confirm?token=` the confirmation mail links
 to, which redirects to the web's profile page) are used only to match people in an
-issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email`. All but the first need the
+issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email`. Issue
+imports from GitLab, Gitea and Forgejo (`GET imports`, `GET import?id=`, `GET
+import/people?id=`, `POST imports/{repositories, start, process}`; owners and admins)
+take a pasted access token that the API uses for the fetch and never stores
+(`apps/api/src/imports/handlers.ts`); Linear's schema imports GitHub only. All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

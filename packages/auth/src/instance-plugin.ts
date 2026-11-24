@@ -40,6 +40,11 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - GET  /instance/account/emails/confirm?token=  public: the link mailed to an added
 //   address; confirms it and redirects to the web's profile page with
 //   `emailConfirmed=1` or `emailConfirmError=<message>`.
+// - GET  /instance/imports, GET /instance/import?id=, GET /instance/import/people?id=
+//   and POST /instance/imports/{repositories, start, process}  workspace admins and
+//   owners: issue imports from GitLab, Gitea and Forgejo with a pasted access token
+//   (apps/api src/imports/handlers.ts), which Linear's schema has no import for. The
+//   token is used by the fetch and never stored. Same Origin rule for the POSTs.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -88,6 +93,17 @@ export interface AccountEmailsHandlers {
   confirm(token: unknown): Promise<{ email: string }>;
 }
 
+// Issue imports from GitLab, Gitea and Forgejo (Linear's schema imports GitHub only,
+// through its GitHub Import App). Each handler checks the caller itself.
+export interface ImportsHandlers {
+  list(headers: Headers): Promise<object>;
+  get(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  repositories(headers: Headers, body: unknown): Promise<object>;
+  start(headers: Headers, body: unknown): Promise<object>;
+  people(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  process(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -96,6 +112,7 @@ export interface InstanceHandlers {
   agentSessionStop(headers: Headers, body: unknown): Promise<{ success: boolean }>;
   workflows: WorkflowsHandlers;
   accountEmails: AccountEmailsHandlers;
+  imports: ImportsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -159,6 +176,12 @@ const accountEmailsWrite = (
   trusted: string[],
   call: (h: AccountEmailsHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.accountEmails, headers, body));
+
+const importsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: ImportsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.imports, headers, body));
 
 const requiredClientId = (body: unknown): string => {
   const clientId = (body as { clientId?: unknown } | undefined)?.clientId;
@@ -274,6 +297,35 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
           }
           throw ctx.redirect(`${profile}?emailConfirmed=1`);
         },
+      ),
+      instanceImports: createAuthEndpoint('/instance/imports', { method: 'GET' }, async (ctx) =>
+        ctx.json(await run((h) => h.imports.list(ctx.headers ?? new Headers()))),
+      ),
+      instanceImport: createAuthEndpoint('/instance/import', { method: 'GET' }, async (ctx) =>
+        ctx.json(await run((h) => h.imports.get(ctx.headers ?? new Headers(), { ...ctx.query }))),
+      ),
+      instanceImportPeople: createAuthEndpoint(
+        '/instance/import/people',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) => h.imports.people(ctx.headers ?? new Headers(), { ...ctx.query })),
+          ),
+      ),
+      instanceImportRepositories: importsWrite(
+        '/instance/imports/repositories',
+        options.trustedOrigins,
+        (h, headers, body) => h.repositories(headers, body),
+      ),
+      instanceImportStart: importsWrite(
+        '/instance/imports/start',
+        options.trustedOrigins,
+        (h, headers, body) => h.start(headers, body),
+      ),
+      instanceImportProcess: importsWrite(
+        '/instance/imports/process',
+        options.trustedOrigins,
+        (h, headers, body) => h.process(headers, body),
       ),
       instanceOAuthUninstall: createAuthEndpoint(
         '/instance/oauth-uninstall',

@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { createComment } from '../comments/store';
 import { createIssue } from '../issues/store';
 import { createLabel } from '../labels/store';
+import { joinTeam } from '../members/store';
 import { HttpError } from '../shared/lib';
 import { runAsImport } from '../shared/workflow-context';
 import { createTeam, getTeamById, getTeamByKey, type TeamRow } from '../teams/store';
@@ -52,10 +53,11 @@ async function teamStates(teamId: string): Promise<StateIds> {
 }
 
 // The destination team: the import's team, or a team created by name with Linear's
-// default statuses, owned by the importer.
+// default statuses, owned by the importer, joined by the matched members.
 async function destinationTeam(
   job: { teamId: string | null; teamName: string | null },
   creatorId: string,
+  people: Record<string, string | null>,
 ): Promise<TeamRow> {
   if (job.teamId) {
     const found = await getTeamById(job.teamId);
@@ -66,7 +68,18 @@ async function destinationTeam(
   if (!name) throw new HttpError(400, 'The import has no destination team');
   for (let n = 1; ; n += 1) {
     const key = teamKeyFor(name, n);
-    if (!(await getTeamByKey(key))) return createTeam({ key, name }, creatorId);
+    if (await getTeamByKey(key)) continue;
+    const created = await createTeam({ key, name }, creatorId);
+    // The people matched to members join the new team, so their issues keep them.
+    for (const userId of new Set(Object.values(people))) {
+      if (!userId || userId === creatorId) continue;
+      try {
+        await joinTeam(created.id, userId);
+      } catch (err) {
+        if (!(err instanceof HttpError)) throw err;
+      }
+    }
+    return created;
   }
 }
 
@@ -124,7 +137,7 @@ export async function processImport(
     skipped: [],
   };
   try {
-    const team = await destinationTeam(job, creatorId);
+    const team = await destinationTeam(job, creatorId, people);
     await setImportStatus(importId, 'inProcess', {
       teamId: team.id,
       mapping: { people },
