@@ -172,6 +172,7 @@ export default function Shell({
               <ShellHeaderTitle
                 route={route}
                 teamName={team?.team.name ?? 'Team'}
+                issueId={issueQuery.data?.id ?? null}
                 issueIdentifier={issueQuery.data?.identifier ?? null}
               />
             }

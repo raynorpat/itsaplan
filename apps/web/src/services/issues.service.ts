@@ -162,6 +162,7 @@ const fetchIssue = async (id: string) => toIssue((await gqlRequest(IssueQuery, {
 function toUpdateInput(patch: IssuePatch) {
   const input: Record<string, unknown> = {};
   if (patch.stateId !== undefined) input.stateId = patch.stateId;
+  if (patch.parentId !== undefined) input.parentId = patch.parentId;
   if (patch.position !== undefined) input.sortOrder = patch.position;
   if (patch.projectId !== undefined) input.projectId = patch.projectId;
   if (patch.cycleId !== undefined) input.cycleId = patch.cycleId;
@@ -197,6 +198,77 @@ export function useIssueBySeqQuery(teamKey: string | null, seq: number | null) {
       return issue;
     },
     enabled: teamKey != null && seq != null,
+  });
+}
+
+// --- Sub-issues and parent (the issue page's sub-issues section and breadcrumb) ---
+// Read apart from IssueFields, which every board row carries, so the board does not
+// page the parent's title and the children of every issue.
+
+const IssueFamilyQuery = graphql(`
+  query IssueFamily($id: String!) {
+    issue(id: $id) {
+      parent {
+        id
+        identifier
+        title
+      }
+      children(first: 250) {
+        nodes {
+          id
+          identifier
+          title
+          priority
+          state {
+            id
+            name
+            type
+            color
+          }
+          assignee {
+            id
+            name
+            avatarUrl
+          }
+        }
+      }
+    }
+  }
+`);
+
+export interface SubIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  priority: number;
+  state: { id: string; name: string; type: string; color: string };
+  assignee: { id: string; name: string; avatarUrl: string | null } | null;
+}
+
+export interface IssueFamily {
+  parent: { id: string; identifier: string; title: string } | null;
+  children: SubIssue[];
+}
+
+// The issue's parent and sub-issues. Its key is under qk.anyIssueFamily, which every
+// issue write refreshes (ISSUE_DEPENDENT_KEYS): a sub-issue's own edit changes the
+// parent's list.
+export function useSubIssuesQuery(issueId: string | null) {
+  return useQuery({
+    queryKey: qk.issueFamily(issueId ?? ''),
+    queryFn: async (): Promise<IssueFamily> => {
+      const { issue } = await gqlRequest(IssueFamilyQuery, { id: issueId! });
+      return {
+        parent: issue.parent ?? null,
+        children: issue.children.nodes.map((c) => ({
+          ...c,
+          assignee: c.assignee
+            ? { id: c.assignee.id, name: c.assignee.name, avatarUrl: c.assignee.avatarUrl ?? null }
+            : null,
+        })),
+      };
+    },
+    enabled: issueId != null,
   });
 }
 
@@ -534,6 +606,7 @@ function toCreateInput(teamKey: string, input: NewIssueInput) {
     title: input.title,
     stateId: input.stateId,
   };
+  if (input.parentId !== undefined) out.parentId = input.parentId;
   if (input.description !== undefined) out.description = input.description;
   if (input.priority !== undefined) out.priority = input.priority;
   if (input.dueDate !== undefined) out.dueDate = input.dueDate;

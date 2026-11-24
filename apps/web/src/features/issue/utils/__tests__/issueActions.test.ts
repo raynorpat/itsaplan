@@ -4,10 +4,11 @@ import { issueMenuItems } from '../issueActions';
 
 // issueMenuItems: the entries of the issue's ⋯ menu, hiding what the API would refuse.
 describe('issueMenuItems', () => {
-  it('lists copy, archive and delete for an editor who may delete', () => {
+  it('lists copy, set parent, archive and delete for an editor who may delete', () => {
     assert.deepEqual(issueMenuItems({ canEdit: true, canDelete: true, archived: false }), [
       'copyLink',
       'copyPrompt',
+      'setParent',
       'archive',
       'delete',
     ]);
@@ -24,5 +25,27 @@ describe('issueMenuItems', () => {
       'copyLink',
       'copyPrompt',
     ]);
+  });
+});
+
+describe('issueMenuItems parent entries', () => {
+  const base = { canDelete: false, archived: false };
+
+  it('offers set parent, not remove, to an editor of a top-level issue', () => {
+    const items = issueMenuItems({ ...base, canEdit: true, hasParent: false });
+    assert.ok(items.includes('setParent'));
+    assert.ok(!items.includes('removeParent'));
+  });
+
+  it('offers both to an editor of a sub-issue', () => {
+    const items = issueMenuItems({ ...base, canEdit: true, hasParent: true });
+    assert.ok(items.includes('setParent'));
+    assert.ok(items.includes('removeParent'));
+  });
+
+  it('offers neither to a reader', () => {
+    const items = issueMenuItems({ ...base, canEdit: false, hasParent: true });
+    assert.ok(!items.includes('setParent'));
+    assert.ok(!items.includes('removeParent'));
   });
 });

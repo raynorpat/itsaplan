@@ -4,13 +4,15 @@ import {
   Archive,
   ArchiveRestore,
   ClipboardCopy,
+  CornerLeftUp,
   Link2,
   MoreHorizontal,
   Trash2,
+  Unlink,
 } from 'lucide-react';
 import type { TeamDetail } from '@/types/team';
 import type { IssueDetail as IssueDetailRow } from '@/types/issue';
-import { useArchiveIssue, useRestoreIssue } from '@/services/issues.service';
+import { useArchiveIssue, useRestoreIssue, useUpdateIssueDetail } from '@/services/issues.service';
 import { usePermissions } from '@/hooks/usePermissions';
 import { DeleteIssueDialog } from '@/components/common/issue/IssueActions';
 import { buildIssuePrompt } from '@/utils/issuePrompt';
@@ -23,10 +25,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { issueMenuItems, type IssueMenuItemId } from '../../utils/issueActions';
+import SetParentDialog from '../subissues/SetParentDialog';
 
-// The issue's ⋯ menu, as in Linear's issue header: copy link, copy prompt, archive or
-// restore, delete. Owns the delete confirmation and the mutations it runs; the dialog
-// renders through a portal, so where the menu sits does not matter.
+// The issue's ⋯ menu, as in Linear's issue header: copy link, copy prompt, set or
+// remove the parent, archive or restore, delete. Owns the parent picker, the delete
+// confirmation and the mutations it runs; the dialogs render through a portal, so
+// where the menu sits does not matter.
 export default function IssueActionsMenu({
   team,
   issue,
@@ -40,13 +44,23 @@ export default function IssueActionsMenu({
   const { data: session } = useSession();
   const archiveIssue = useArchiveIssue(team.team.key);
   const restoreIssue = useRestoreIssue(team.team.key);
+  const updateIssue = useUpdateIssueDetail(team.team.key);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [settingParent, setSettingParent] = useState(false);
 
   const items = issueMenuItems({
     canEdit: can('work_items', 'edit'),
     canDelete: can('work_items', 'delete'),
     archived: issue.archivedAt != null,
+    hasParent: issue.parentId != null,
   });
+
+  function removeParent() {
+    updateIssue.mutate(
+      { id: issue.id, patch: { parentId: null } },
+      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') },
+    );
+  }
 
   async function copyPrompt() {
     await navigator.clipboard.writeText(buildIssuePrompt(issue, team, session?.user));
@@ -85,8 +99,16 @@ export default function IssueActionsMenu({
         <Trash2 className="size-3.5" /> Delete
       </DropdownMenuItem>
     ),
-    setParent: null,
-    removeParent: null,
+    setParent: (
+      <DropdownMenuItem onSelect={() => setSettingParent(true)}>
+        <CornerLeftUp className="size-3.5" /> Set parent…
+      </DropdownMenuItem>
+    ),
+    removeParent: (
+      <DropdownMenuItem onSelect={removeParent}>
+        <Unlink className="size-3.5" /> Remove parent
+      </DropdownMenuItem>
+    ),
   };
 
   return (
@@ -108,6 +130,10 @@ export default function IssueActionsMenu({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {settingParent && (
+        <SetParentDialog team={team} issue={issue} onClose={() => setSettingParent(false)} />
+      )}
 
       {confirmingDelete && (
         <DeleteIssueDialog

@@ -73,6 +73,9 @@ export const qk = {
   anyCycles: ['cycles'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,
+  // An issue's parent and sub-issues; issue writes refresh every entry by the prefix.
+  issueFamily: (id: string) => ['issueFamily', id] as const,
+  anyIssueFamily: ['issueFamily'] as const,
   // The viewer's notifications for the whole workspace (the inbox and its badge).
   notifications: () => ['notifications'] as const,
   // The signed-in user's WebAuthn passkeys (account security page).
@@ -116,4 +119,5 @@ export const ISSUE_DEPENDENT_KEYS: readonly (readonly unknown[])[] = [
   qk.anyCycle,
   qk.anyCycles,
   qk.anyMyIssues,
+  qk.anyIssueFamily,
 ];

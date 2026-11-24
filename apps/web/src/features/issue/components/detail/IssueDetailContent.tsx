@@ -10,9 +10,10 @@ import IssueActivityFeed from './IssueActivityFeed';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import IssueProperties from './IssueProperties';
 import IssueActionsMenu from '../actions/IssueActionsMenu';
+import IssueSubIssues from '../subissues/IssueSubIssues';
 
 // The full editable body of an issue in Linear's order — title, description,
-// reactions, links and attachments, relations, documents, activity — and its
+// reactions, links and attachments, sub-issues, relations, documents, activity — and its
 // properties. Shared by the side panel (IssueDetail), the full-page view
 // (IssueViewPage) and the inbox pane; the panel and the page put the ⋯ menu in their
 // own header, the inbox pane gets it above the properties. Data loading and
@@ -95,6 +96,8 @@ export default function IssueDetailContent({
       <IssueReactions issueId={issue.id} />
 
       <IssueAttachmentsPanel issueId={issue.id} canEdit={canEdit} onInsert={insertAttachment} />
+
+      <IssueSubIssues team={team} issueId={issue.id} canEdit={canEdit} />
 
       <IssueRelations issueId={issue.id} teamKey={team.team.key} canEdit={canEdit} />
 

@@ -106,6 +106,8 @@ export interface FeedItem {
 export type IssueDetail = Issue;
 
 export interface NewIssueInput {
+  // Creates the issue as a sub-issue of this one.
+  parentId?: string;
   projectId?: string | null;
   cycleId?: string | null;
   assigneeUserId?: string | null;
@@ -132,6 +134,8 @@ export interface BulkIssuePatch {
 
 export interface IssuePatch {
   stateId?: string;
+  // The parent issue (sub-issues); null makes the issue top-level.
+  parentId?: string | null;
   position?: number;
   projectId?: string | null;
   cycleId?: string | null;

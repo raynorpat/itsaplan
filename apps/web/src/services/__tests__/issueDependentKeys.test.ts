@@ -18,4 +18,8 @@ describe('ISSUE_DEPENDENT_KEYS', () => {
     assert.equal(covers(qk.anyProject), true);
     assert.equal(covers(qk.anyCycles), true);
   });
+
+  it('refreshes every issue’s parent and sub-issues', () => {
+    assert.equal(covers(qk.issueFamily('any-issue')), true);
+  });
 });

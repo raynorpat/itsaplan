@@ -7,12 +7,16 @@ export function issueMenuItems({
   canEdit,
   canDelete,
   archived,
+  hasParent = false,
 }: {
   canEdit: boolean;
   canDelete: boolean;
   archived: boolean;
+  hasParent?: boolean;
 }): IssueMenuItemId[] {
   const items: IssueMenuItemId[] = ['copyLink', 'copyPrompt'];
+  if (canEdit) items.push('setParent');
+  if (canEdit && hasParent) items.push('removeParent');
   if (canEdit) items.push(archived ? 'restore' : 'archive');
   if (canDelete) items.push('delete');
   return items;

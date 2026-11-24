@@ -20,15 +20,22 @@ function pageLabel(route: ShellRoute, teamName: string): string {
 export default function ShellHeaderTitle({
   route,
   teamName,
+  issueId,
   issueIdentifier,
 }: {
   route: ShellRoute;
   teamName: string;
+  issueId: string | null;
   issueIdentifier: string | null;
 }) {
   if (route.routeIssueSeq != null) {
     return (
-      <IssueBreadcrumb teamKey={route.teamKey} teamName={teamName} identifier={issueIdentifier} />
+      <IssueBreadcrumb
+        teamKey={route.teamKey}
+        teamName={teamName}
+        issueId={issueId}
+        identifier={issueIdentifier}
+      />
     );
   }
   if (route.routeProjectId != null) {
