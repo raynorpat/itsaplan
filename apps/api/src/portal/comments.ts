@@ -1,6 +1,6 @@
 import { comment, db, externalUser, issue, portalBoard, team, user } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   createComment,
   deleteVisitorComment,
@@ -9,9 +9,8 @@ import {
   type CommentRow,
 } from '../comments/store';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
-import { shownNameSql } from '../shared/user-name';
 import type { BoardRow } from './boards';
-import { boardCommentsSql } from './issues';
+import { boardCommentsSql, visitorMayReadIssue } from './issues';
 import { allow, LIMITS } from './rate-limit';
 import type { Visitor } from './session';
 
@@ -56,7 +55,7 @@ export async function listPortalComments(
       createdAt: comment.createdAt,
       editedAt: comment.editedAt,
       userId: comment.userId,
-      memberName: shownNameSql,
+      memberName: sql<string | null>`nullif(trim(${user.name}), '')`,
       memberAvatar: user.image,
       externalUserId: comment.externalUserId,
       visitorName: externalUser.displayName,
@@ -71,7 +70,9 @@ export async function listPortalComments(
     let author: PortalComment['author'];
     if (r.externalUserId)
       author = { name: r.visitorName ?? 'Portal visitor', avatarUrl: r.visitorAvatar, team: false };
-    else if (r.userId) author = { name: r.memberName, avatarUrl: r.memberAvatar, team: true };
+    // A member without a name shows as "Team" (never a part of their email).
+    else if (r.userId)
+      author = { name: r.memberName ?? 'Team', avatarUrl: r.memberAvatar, team: true };
     else author = { name: 'Automation', avatarUrl: null, team: true };
     return {
       id: r.id,
@@ -96,6 +97,14 @@ async function boardComment(board: BoardRow, id: string): Promise<CommentRow> {
     : [];
   const found = row ? await getComment(row.id) : null;
   if (!found?.issueId) throw new HttpError(404, 'Comment not found');
+  return found;
+}
+
+// A comment the board shows on an issue the visitor may still read there; 404 otherwise.
+async function readableComment(board: BoardRow, id: string, visitor: Visitor): Promise<CommentRow> {
+  const found = await boardComment(board, id);
+  if (!(await visitorMayReadIssue(board, visitor, found.issueId!)))
+    throw new HttpError(404, 'Comment not found');
   return found;
 }
 
@@ -146,7 +155,7 @@ export async function editPortalComment(
   visitor: Visitor,
   input: Record<string, unknown>,
 ): Promise<PortalComment> {
-  const found = await boardComment(board, id);
+  const found = await readableComment(board, id, visitor);
   const updated = await updateVisitorComment(
     found.id,
     commentBody(input.body),
@@ -160,7 +169,7 @@ export async function deletePortalComment(
   id: string,
   visitor: Visitor,
 ): Promise<void> {
-  const found = await boardComment(board, id);
+  const found = await readableComment(board, id, visitor);
   await deleteVisitorComment(found.id, visitor.requesterId);
 }
 

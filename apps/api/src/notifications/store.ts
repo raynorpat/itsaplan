@@ -85,11 +85,12 @@ async function insertNotifications(all: NewNotificationRow[]): Promise<void> {
 export async function notifyComment(
   teamId: string,
   comment: { issueId: string | null; id: string; userId: string | null; body: string },
-  opts: { onlyMentioned?: string[] } = {},
+  opts: { onlyMentioned?: string[]; mentions?: boolean } = {},
 ): Promise<void> {
   if (!comment.issueId) return;
   const actor = comment.userId;
-  let mentionedIds = parseMentions(comment.body);
+  // `mentions: false` ignores the mentions in the body (a portal visitor's comment).
+  let mentionedIds = opts.mentions === false ? [] : parseMentions(comment.body);
   if (opts.onlyMentioned)
     mentionedIds = mentionedIds.filter((id) => opts.onlyMentioned!.includes(id));
   const mentioned = await keepTeamMembers(teamId, mentionedIds);

@@ -305,31 +305,42 @@ export async function deleteAttachment(
 // A feedback item's source attachment (sourceType `feedback`): the requester as its
 // external creator, `url` a link to the item in the web app (the attachment's own id
 // keeps it unique on the issue).
-export async function createFeedbackAttachment(input: {
+export interface FeedbackAttachmentInput {
   issueId: string;
   externalUserCreatorId: string;
   title: string;
   subtitle: string;
   creatorUserId: string | null;
   source: 'team' | 'portal' | 'form';
-}): Promise<AttachmentRow> {
+}
+
+// The row values of a feedback source attachment, for a caller inserting it in its own
+// transaction (it then sends the event with `announceAttachment` after the commit).
+export function feedbackAttachmentValues(
+  input: FeedbackAttachmentInput,
+): typeof attachment.$inferInsert {
   const id = randomUUID();
-  const [row] = await db
-    .insert(attachment)
-    .values({
-      id,
-      issueId: input.issueId,
-      url: feedbackUrl(input.issueId, id),
-      title: cleanTitle(input.title),
-      subtitle: input.subtitle,
-      sourceType: 'feedback',
-      // Where the feedback came from; the portal finds a visitor's votes by it.
-      metadata: { source: input.source },
-      groupBySource: true,
-      creatorUserId: input.creatorUserId,
-      externalUserCreatorId: input.externalUserCreatorId,
-    })
-    .returning();
+  return {
+    id,
+    issueId: input.issueId,
+    url: feedbackUrl(input.issueId, id),
+    title: cleanTitle(input.title),
+    subtitle: input.subtitle,
+    sourceType: 'feedback',
+    // Where the feedback came from; the portal finds a visitor's votes by it.
+    metadata: { source: input.source },
+    groupBySource: true,
+    creatorUserId: input.creatorUserId,
+    externalUserCreatorId: input.externalUserCreatorId,
+  };
+}
+
+export const announceAttachment = sendAttachmentEvent;
+
+export async function createFeedbackAttachment(
+  input: FeedbackAttachmentInput,
+): Promise<AttachmentRow> {
+  const [row] = await db.insert(attachment).values(feedbackAttachmentValues(input)).returning();
   const created = mapAttachment(row!);
   await sendAttachmentEvent('create', created, input.creatorUserId);
   return created;

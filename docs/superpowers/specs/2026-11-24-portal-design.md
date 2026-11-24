@@ -172,6 +172,8 @@ instance's own. What visitors do is stored in Linear's types wherever Linear has
 - Portal routes are the API's own (`/portal/*`), outside better-auth, with their own
   session table and cookie (user's choice, Approach 1). The web reaches them over HTTP
   like the other routes; Origin is checked on cookie POSTs as for the instance plugin.
+  As for member sign-in, the web app and the API must be on the same site (for
+  example app.example.com and api.example.com) for the portal cookie to be sent.
 
 ## Approaches
 

@@ -985,6 +985,9 @@ export const portalSession = pgTable(
     externalUserId: uuid('external_user_id')
       .notNull()
       .references(() => externalUser.id, { onDelete: 'cascade' }),
+    // The lowercased address that confirmed the sign-in link. Restricted boards are
+    // checked against it, not against the requester's current email.
+    email: text('email').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1229,6 +1232,9 @@ export const comment = pgTable(
     portalBoardId: uuid('portal_board_id').references((): AnyPgColumn => portalBoard.id, {
       onDelete: 'set null',
     }),
+    // On a root comment: it starts a portal thread. Stays set when the board is
+    // deleted, so the thread never reads as an internal comment on another board.
+    portalThread: boolean('portal_thread').notNull().default(false),
     body: text('body').notNull(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),

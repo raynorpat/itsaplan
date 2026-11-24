@@ -129,24 +129,32 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Portal boards** (`portal/`, `portal_board`): a board shows the active issues of
   one public team or one project (its public-team issues only), narrowed to any of its
   labels when it has some, whose state has a public status (`portal/status.ts`:
-  planned, in progress, done; canceled issues and issues completed more than 30 days
-  ago are not shown). A board cannot target a private team. Owners and admins manage
+  planned, in progress, done; triage and canceled issues and issues completed more
+  than 30 days ago are not shown). A board cannot target a private team. Owners and admins manage
   boards through `/api/auth/instance/portal/*` (`portal/admin.ts`); a board with
   suggestions gets the suggestion team's "Portal" label unless another is chosen.
 - **Portal visitors** (`portal/session.ts`, `portal/routes.ts`): people outside the
   workspace use the boards through the API's own `/portal/*` routes, not better-auth.
   A visitor asks for a link on a board (`POST /portal/auth/link`, always `{ ok: true }`;
   mailed only when the address may read the board and its requester is not blocked;
-  logged as `[portal] sign-in link for` when no mail provider sends it; 5 per address
-  and 20 per client IP an hour, `portal/rate-limit.ts`, in memory per process). The
+  logged as `[portal] sign-in link for` when no mail provider sends it). The mail is
+  sent after the response, so its timing tells nothing either. Limits
+  (`portal/rate-limit.ts`, in memory per process): 5 links per address an hour (over
+  it the same answer and no link) and 20 per client IP (429). The client IP is the
+  connection's address, or `X-Forwarded-For` / `X-Real-IP` only when `TRUST_PROXY=true`.
+  The
   link opens the web's confirm page; its button posts the token (`/portal/auth/confirm`,
   once, 15 minutes, stored hashed), which creates the requester on first sign-in (400
   `name required` without a name, the token left usable) and sets the
   `portal_session` cookie (HttpOnly, SameSite=Lax, Path=/portal, 30 days, stored
-  hashed in `portal_session`). The cookie is read only by `/portal/*`, and a
-  better-auth session or API key means nothing there. A visitor changes only their
+  hashed in `portal_session` with the address that confirmed the link). The cookie is
+  read only by `/portal/*`, and a better-auth session or API key means nothing there.
+  Like member sign-in (SameSite=Lax), it needs the web app and the API on the same
+  site (e.g. app.example.com and api.example.com). A visitor changes only their
   `displayName` (the team's `name` stays). Restricted board access
-  (`portal/access.ts`) is checked on every request; blocking a requester
+  (`portal/access.ts`) is checked on every request against the session's address, not
+  the requester's current email; changing a requester's email or merging requesters
+  ends the sessions of the people involved. Blocking a requester
   (`/api/auth/instance/portal/block`, owners and admins) ends their sessions and stops
   their links. Every `/portal/*` POST needs an `Origin` in `trustedOrigins` (403).
 - **Portal board actions** (`portal/issues.ts`, `votes.ts`, `suggestions.ts`): a
@@ -155,25 +163,30 @@ Rules and invariants for this package below; read the code for the walkthrough.
   the board does not show yet (`underReview`). A board, or an issue on it, the visitor
   may not read is 404. A vote is a `CustomerNeed` from the visitor's requester with a
   source attachment whose `metadata.source` is `portal` and no quote, at most one per
-  person and issue (an advisory lock per person and issue); the vote count is the
+  person and issue (`addPortalVote` / `removePortalVotes` in `feedback/store.ts`: one
+  transaction with an advisory lock per person and issue, every query on its own
+  connection, events after the commit); the vote count is the
   issue's people asking (team-logged feedback counts, and makes the visitor "voted"),
   and unvoting deletes only portal votes without a quote. A suggestion creates an
   issue in the board's suggestion team, state and label with
   `issue.external_user_creator_id` (GraphQL `Issue.externalUserCreator`, null for
   guests) and no member creator, plus the visitor's portal feedback quoting the
-  details; it runs as any issue creation. Votes 60 and suggestions 10 per visitor an
-  hour.
+  details; it runs as any issue creation. Similar issues match any title word of two
+  characters or more, more matching words first. Votes 60 and suggestions 10 per
+  visitor an hour.
 - **Portal comments** (`portal/comments.ts`): a visitor's comment is a `comment` with
   `external_user_id` (GraphQL `Comment.externalUser`, null for guests) and no user; it
   sends the Comment webhook (`externalUserId`) and notifies the issue's subscribers like
-  any comment, and starts no agent session. A root comment written on a board (by a
+  any comment, and starts no agent session; mentions in it are ignored. A root comment written on a board (by a
   visitor, or by a member through `/api/auth/instance/portal/comment`, only on a board
   showing the issue with `comments: 'portal'`) starts a portal thread of that board
-  (`portal_board_id`, `Comment.externalThread` of type `portal`); a reply belongs to its
+  (`portal_board_id`, `portal_thread`, `Comment.externalThread` of type `portal`); a
+  deleted board's threads keep `portal_thread` and no board shows them; a reply belongs to its
   root's thread, so a member's `commentCreate` reply in a portal thread is on the
   portal. A board shows its own threads (`comments: 'portal'`) or every comment except
   other boards' threads (`'all'`) (`boardCommentsSql`); a visitor replies only into a
-  thread the board shows and edits or deletes only their own comments. At most 10,000
+  thread the board shows and edits or deletes only their own comments on issues the
+  board still shows. A member without a name appears as "Team". At most 10,000
   characters, 30 comments per visitor an hour.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a

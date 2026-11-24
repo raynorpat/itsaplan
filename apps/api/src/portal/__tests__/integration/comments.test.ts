@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, notification } from '@repo/db';
+import { db, notification, user } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -9,6 +9,7 @@ import {
   createTeam,
   createWebhook,
   gqlData,
+  makePrivate,
   signUpAs,
   statesByType,
 } from '../../../__tests__/helpers/graphql';
@@ -262,6 +263,78 @@ describe('portal comments', () => {
     });
     expect(res.status).toBe(400);
     expect(eng.team.id).not.toBe(other.team.id);
+  });
+
+  it("keeps a deleted board's threads off the other boards", async () => {
+    const { owner, eng, issue } = await setup();
+    const acme = await createBoard(owner, {
+      slug: 'acme',
+      name: 'Acme',
+      teamId: eng.team.id,
+      access: 'restricted',
+      allowedDomains: ['acme.test'],
+    });
+    const kim = await visitor('acme', 'Kim', `kim-${Date.now()}@acme.test`);
+    await ok(await post('acme', issue.identifier, kim.cookie, { body: 'Acme only' }));
+    await ok(await instance('portal/boards/delete', owner, { id: acme.id }));
+    const shown = await listComments('all', issue.identifier);
+    expect(shown.map((c) => c.body)).not.toContain('Acme only');
+  });
+
+  it('shows a member without a name as Team', async () => {
+    const { member, issue } = await setup();
+    await db.update(user).set({ name: '' }).where(eq(user.id, member.userId));
+    const jane = await visitor('eng', 'Jane');
+    const root = (await ok(await post('eng', issue.identifier, jane.cookie, { body: 'Hi' })))
+      .comment as Json;
+    await gqlData(
+      member,
+      `mutation ($input: CommentCreateInput!) { commentCreate(input: $input) { success } }`,
+      { input: { issueId: issue.id, parentId: root.id, body: 'Hello' } },
+    );
+    const reply = (await listComments('eng', issue.identifier)).find((c) => c.body === 'Hello');
+    expect(reply?.author).toEqual({ name: 'Team', avatarUrl: null, team: true });
+  });
+
+  it('refuses edits and deletes once the board no longer shows the issue', async () => {
+    const { owner, issue } = await setup();
+    const jane = await visitor('eng', 'Jane');
+    const mine = (await ok(await post('eng', issue.identifier, jane.cookie, { body: 'Mine' })))
+      .comment as Json;
+    await makePrivate(owner, 'ENG');
+    const edit = await portal(`boards/eng/comments/${mine.id}`, {
+      cookie: jane.cookie,
+      method: 'PATCH',
+      body: { body: 'Changed' },
+    });
+    expect(edit.status).toBe(404);
+    const del = await portal(`boards/eng/comments/${mine.id}`, {
+      cookie: jane.cookie,
+      method: 'DELETE',
+      body: {},
+    });
+    expect(del.status).toBe(404);
+  });
+
+  it('ignores mentions in visitor comments', async () => {
+    const { owner, member, issue } = await setup();
+    const jane = await visitor('eng', 'Jane');
+    const mention = `@[Owner](user:${owner.userId})`;
+    const posted = (
+      await ok(await post('eng', issue.identifier, jane.cookie, { body: `Hey ${mention}` }))
+    ).comment as Json;
+    await ok(
+      await portal(`boards/eng/comments/${posted.id}`, {
+        cookie: jane.cookie,
+        method: 'PATCH',
+        body: { body: `Again ${mention} @[Member](user:${member.userId})` },
+      }),
+    );
+    const mentioned = await db
+      .select()
+      .from(notification)
+      .where(eq(notification.type, 'mentioned'));
+    expect(mentioned).toEqual([]);
   });
 
   it("sends the Comment webhook and notifies the issue's subscribers", async () => {

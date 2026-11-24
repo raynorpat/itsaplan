@@ -66,7 +66,12 @@ export async function visitor(
   email = `visitor-${++n}-${Date.now()}@example.com`,
 ): Promise<{ cookie: string; requesterId: string; email: string }> {
   await ok(await portal('auth/link', { body: { email, board } }));
-  const url = links.get(email.toLowerCase());
+  // The link is mailed (here: logged) after the response.
+  let url = links.get(email.toLowerCase());
+  for (let i = 0; !url && i < 100; i++) {
+    await Bun.sleep(10);
+    url = links.get(email.toLowerCase());
+  }
   if (!url) throw new Error(`no sign-in link for ${email}`);
   const token = new URL(url).searchParams.get('token');
   const res = await portal('auth/confirm', { body: { token, name } });

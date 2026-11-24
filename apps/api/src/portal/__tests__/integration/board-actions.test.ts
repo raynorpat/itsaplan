@@ -179,6 +179,21 @@ describe('portal board reading and votes', () => {
     expect(bodies).toEqual(['Said on a call']);
   });
 
+  it('completes many votes at once from different visitors', async () => {
+    const { member, states } = await setup();
+    const many = await Promise.all(
+      Array.from({ length: 12 }, (_, i) =>
+        createIssue(member, { teamId: 'ENG', title: `Idea ${i}`, stateId: states.unstarted }),
+      ),
+    );
+    const people: { cookie: string }[] = [];
+    for (let i = 0; i < many.length; i++) people.push(await visitor('eng', `V${i}`));
+    const results = await Promise.all(
+      many.map((issue, i) => vote('eng', issue.identifier, people[i]!.cookie)),
+    );
+    expect(results.map((r) => r.status)).toEqual(many.map(() => 200));
+  }, 20_000);
+
   it('hides the issues of a private team on a project board', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
     await createTeam(owner, { key: 'ENG', name: 'Engineering' });
@@ -192,6 +207,7 @@ describe('portal board reading and votes', () => {
     expect(await issues('launch', '', jane.cookie)).toEqual([]);
     expect((await portal(`boards/launch/issues/${issue.identifier}`)).status).toBe(404);
     expect((await vote('launch', issue.identifier, jane.cookie)).status).toBe(404);
+    expect((await vote('launch', issue.identifier, jane.cookie, 'DELETE')).status).toBe(404);
   });
 
   it('sends a CustomerNeed webhook for a vote and notifies no one', async () => {
@@ -319,5 +335,10 @@ describe('portal suggestions', () => {
     const similar = (await ok(await portal('boards/eng/similar?q=editor%20dark'))).issues as Json[];
     expect(similar.map((i) => i.identifier)).toEqual([first.identifier]);
     expect(await ok(await portal('boards/eng/similar?q='))).toEqual({ issues: [] });
+    // Any word counts; more matching words rank first.
+    const longer = (
+      await ok(await portal('boards/eng/similar?q=Please%20add%20dark%20mode%20support'))
+    ).issues as Json[];
+    expect(longer.map((i) => i.identifier)).toEqual([first.identifier]);
   });
 });

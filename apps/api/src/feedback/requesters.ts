@@ -1,4 +1,13 @@
-import { attachment, customerNeed, db, externalUser, issue, team, workflowState } from '@repo/db';
+import {
+  attachment,
+  customerNeed,
+  db,
+  externalUser,
+  issue,
+  portalSession,
+  team,
+  workflowState,
+} from '@repo/db';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   atLeast,
@@ -306,6 +315,10 @@ export async function updateRequester(
         .set({ ...patch, updatedAt: sql`now()` })
         .where(eq(externalUser.id, row.id))
         .returning();
+      // A portal session stands for the address that signed in; a changed email ends
+      // the person's sessions.
+      if (patch.email !== undefined && patch.email !== row.email)
+        await tx.delete(portalSession).where(eq(portalSession.externalUserId, row.id));
       // The feedback attachments show the requester's name as their title.
       const sendEvents = patch.displayName
         ? await retitleFeedbackAttachments(tx, row.id, { title: patch.displayName })
@@ -353,6 +366,8 @@ export async function mergeRequesters(
       externalUserCreatorId: into.id,
     });
     const takeEmail = !into.email && from.email;
+    // Both people sign in to the portal again, as the person kept.
+    await tx.delete(portalSession).where(inArray(portalSession.externalUserId, [from.id, into.id]));
     await tx
       .update(externalUser)
       .set({ mergedIntoId: into.id, updatedAt: sql`now()` })

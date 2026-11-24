@@ -37,7 +37,7 @@ function shownSql(board: BoardRow, now: Date): SQL {
         )
       : undefined,
     or(
-      inArray(workflowState.stateType, ['triage', 'backlog', 'unstarted', 'started']),
+      inArray(workflowState.stateType, ['backlog', 'unstarted', 'started']),
       and(eq(workflowState.stateType, 'completed'), gte(issue.completedAt, doneSince)),
     ),
   )!;

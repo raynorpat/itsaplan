@@ -33,10 +33,18 @@ import { castVote, removeVote } from './votes';
 const fields = (body: unknown): Record<string, unknown> =>
   body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
 
-// The client address from the proxy headers, when the API runs behind one.
-function clientIp(request: Request): string | null {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || request.headers.get('x-real-ip') || null;
+// The client address: from the proxy headers when TRUST_PROXY=true (the API runs behind
+// a proxy that sets them), otherwise the connection's own address. Without a trusted
+// proxy the headers are ignored, since any client can send them.
+function clientIp(
+  request: Request,
+  server: { requestIP(r: Request): { address: string } | null } | null,
+): string | null {
+  if (process.env.TRUST_PROXY === 'true') {
+    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    return forwarded || request.headers.get('x-real-ip') || null;
+  }
+  return server?.requestIP(request)?.address ?? null;
 }
 
 export async function signedInVisitor(request: Request): Promise<Visitor> {
@@ -69,9 +77,9 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
     if (!origin || !trustedOrigins.includes(origin))
       throw new HttpError(403, 'This request must come from the portal');
   })
-  .post('/auth/link', async ({ request, body }) => {
+  .post('/auth/link', async ({ request, body, server }) => {
     const input = fields(body);
-    await requestSignInLink(input.email, input.board, clientIp(request));
+    await requestSignInLink(input.email, input.board, clientIp(request, server));
     return { ok: true };
   })
   .get('/auth/link-info', ({ query }) => signInLinkInfo(query.token))

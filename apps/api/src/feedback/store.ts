@@ -1,8 +1,11 @@
 import { attachment, customerNeed, db, externalUser, issue, user } from '@repo/db';
-import { eq, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
+  announceAttachment,
   announceAttachmentMove,
   createFeedbackAttachment,
+  feedbackAttachmentValues,
+  mapAttachment,
   deleteAttachment,
   getAttachment,
   moveAttachmentRow,
@@ -133,6 +136,98 @@ export async function createRequesterAttachment(
     source,
   });
   return { attachmentId: created.id };
+}
+
+// --- Portal votes ------------------------------------------------------------------
+
+// A portal vote is feedback with a portal source attachment and no quote. Each vote
+// change runs in one transaction that takes a lock for the person and issue (two votes
+// at once make one item) and does every read and write on that transaction's
+// connection: waiting for another pool connection while holding one would let a burst
+// of votes take the whole pool and wait on each other. Events go out after the commit.
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const lockVote = (tx: Tx, issueId: string, requesterId: string) =>
+  tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext(${`portal-vote:${requesterId}:${issueId}`}))`,
+  );
+
+// Adds the requester's portal vote unless they already have active feedback on the
+// issue. The caller checks the requester may vote there.
+export async function addPortalVote(issueId: string, requesterId: string): Promise<void> {
+  const requester = await activeRequester(requesterId);
+  if (!requester) throw new HttpError(404, 'Requester not found');
+  const values = feedbackAttachmentValues({
+    issueId,
+    externalUserCreatorId: requester.id,
+    title: requester.displayName,
+    subtitle: SOURCE_SUBTITLE.portal,
+    creatorUserId: null,
+    source: 'portal',
+  });
+  const created = await db.transaction(async (tx) => {
+    await lockVote(tx, issueId, requester.id);
+    const [existing] = await tx
+      .select({ id: customerNeed.id })
+      .from(customerNeed)
+      .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
+      .where(
+        and(
+          eq(customerNeed.issueId, issueId),
+          isNull(customerNeed.archivedAt),
+          eq(attachment.externalUserCreatorId, requester.id),
+        ),
+      )
+      .limit(1);
+    if (existing) return null;
+    const [source] = await tx.insert(attachment).values(values).returning();
+    const [need] = await tx
+      .insert(customerNeed)
+      .values({ issueId, attachmentId: source!.id, body: null, creatorId: null })
+      .returning();
+    return { source: mapAttachment(source!), need: mapNeed(need!) };
+  });
+  if (!created) return;
+  await announceAttachment('create', created.source, null);
+  await sendNeedEvent('create', created.need, null);
+}
+
+// Removes the requester's portal votes on the issue (feedback the team logged stays).
+export async function removePortalVotes(issueId: string, requesterId: string): Promise<void> {
+  const removed = await db.transaction(async (tx) => {
+    await lockVote(tx, issueId, requesterId);
+    const votes = await tx
+      .select({ id: customerNeed.id })
+      .from(customerNeed)
+      .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
+      .where(
+        and(
+          eq(customerNeed.issueId, issueId),
+          isNull(customerNeed.body),
+          eq(attachment.externalUserCreatorId, requesterId),
+          sql`${attachment.metadata}->>'source' = 'portal'`,
+        ),
+      );
+    if (votes.length === 0) return null;
+    const needs = await tx
+      .delete(customerNeed)
+      .where(
+        inArray(
+          customerNeed.id,
+          votes.map((v) => v.id),
+        ),
+      )
+      .returning();
+    const sourceIds = needs.flatMap((n) => (n.attachmentId ? [n.attachmentId] : []));
+    const sources = sourceIds.length
+      ? await tx.delete(attachment).where(inArray(attachment.id, sourceIds)).returning()
+      : [];
+    return { needs: needs.map(mapNeed), sources: sources.map(mapAttachment) };
+  });
+  if (!removed) return;
+  for (const source of removed.sources) await announceAttachment('remove', source, null);
+  for (const need of removed.needs) await sendNeedEvent('remove', need, null);
 }
 
 export interface NeedInput {

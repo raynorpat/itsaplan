@@ -12,6 +12,7 @@ export function emailMayRead(board: BoardRow, email: string | null): boolean {
 }
 
 // Checked on every portal request, so a changed board or a blocked visitor takes effect
-// at once (visitorFromRequest returns null for a blocked requester).
+// at once (visitorFromRequest returns null for a blocked requester). The visitor's
+// email is the address that confirmed their sign-in link.
 export const canReadBoard = (board: BoardRow, visitor: Visitor | null): boolean =>
   emailMayRead(board, visitor?.email ?? null);

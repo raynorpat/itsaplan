@@ -38,9 +38,15 @@ const address = (domain = 'example.com') => `visitor-${++n}-${Date.now()}@${doma
 
 function portal(
   path: string,
-  init: { body?: unknown; cookie?: string; origin?: string | null; method?: string } = {},
+  init: {
+    body?: unknown;
+    cookie?: string;
+    origin?: string | null;
+    method?: string;
+    headers?: Record<string, string>;
+  } = {},
 ) {
-  const headers = new Headers();
+  const headers = new Headers(init.headers);
   if (init.origin !== null) headers.set('origin', init.origin ?? ORIGIN);
   if (init.cookie) headers.set('cookie', init.cookie);
   if (init.body !== undefined) headers.set('content-type', 'application/json');
@@ -77,6 +83,16 @@ const tokenFor = (email: string) => {
   return url ? new URL(url).searchParams.get('token') : null;
 };
 
+// The link is mailed (here: logged) after the response; waits up to `ms` for it.
+async function linkFor(email: string, ms = 1000): Promise<string | null> {
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const token = tokenFor(email);
+    if (token) return token;
+    await Bun.sleep(10);
+  }
+  return null;
+}
+
 const sessionCookie = (res: Response) => {
   const set = res.headers.getSetCookie().find((c) => c.startsWith('portal_session='));
   return set ? set.split(';')[0]! : null;
@@ -89,7 +105,7 @@ async function requestLink(email: string, board: string) {
 // Requests a link and confirms it; returns the session cookie.
 async function signIn(email: string, board: string, name = 'Visitor'): Promise<string> {
   await requestLink(email, board);
-  const token = tokenFor(email);
+  const token = await linkFor(email);
   if (!token) throw new Error(`no link for ${email}`);
   const res = await portal('auth/confirm', { body: { token, name } });
   if (res.status !== 200) throw new Error(`${res.status}: ${await res.text()}`);
@@ -126,18 +142,18 @@ describe('portal sign-in', () => {
     expect(await requestLink(allowed, 'acme')).toEqual({ ok: true });
     expect(await requestLink(refused, 'acme')).toEqual({ ok: true });
     expect(await requestLink(address(), 'missing')).toEqual({ ok: true });
-    expect(tokenFor(allowed)).toBeTruthy();
-    expect(tokenFor(refused)).toBeNull();
+    expect(await linkFor(allowed)).toBeTruthy();
+    expect(await linkFor(refused, 200)).toBeNull();
     // An address on the board's email list is allowed whatever its domain.
     await requestLink('friend@other.test', 'acme');
-    expect(tokenFor('friend@other.test')).toBeTruthy();
+    expect(await linkFor('friend@other.test')).toBeTruthy();
   });
 
   it('stores only the hash of the token', async () => {
     await setup();
     const email = address();
     await requestLink(email, 'open');
-    const token = tokenFor(email)!;
+    const token = (await linkFor(email))!;
     const rows = await db
       .select()
       .from(portalSignInToken)
@@ -146,19 +162,64 @@ describe('portal sign-in', () => {
     expect(rows[0]!.tokenHash).toBe(createHash('sha256').update(token).digest('hex'));
   });
 
-  it('limits links per address', async () => {
+  it('limits links per address without telling', async () => {
     await setup();
     const email = address();
     for (let i = 0; i < 5; i++) await requestLink(email, 'open');
-    const res = await portal('auth/link', { body: { email, board: 'open' } });
-    expect(res.status).toBe(429);
+    links.delete(email);
+    expect(await requestLink(email, 'open')).toEqual({ ok: true });
+    expect(await linkFor(email, 200)).toBeNull();
+  });
+
+  it('trusts the proxy address only when TRUST_PROXY is on', async () => {
+    await setup();
+    const ip = `203.0.113.${++n % 250}`;
+    const fromProxy = () =>
+      portal('auth/link', {
+        body: { email: address(), board: 'open' },
+        headers: { 'x-forwarded-for': ip },
+      });
+    for (let i = 0; i < 21; i++) expect((await fromProxy()).status).toBe(200);
+    process.env.TRUST_PROXY = 'true';
+    try {
+      for (let i = 0; i < 20; i++) expect((await fromProxy()).status).toBe(200);
+      expect((await fromProxy()).status).toBe(429);
+    } finally {
+      delete process.env.TRUST_PROXY;
+    }
+  });
+
+  it('answers before the sign-in mail is sent', async () => {
+    await setup();
+    // An SMTP server that accepts the connection and never greets.
+    const server = Bun.listen({
+      hostname: '127.0.0.1',
+      port: 0,
+      socket: { data() {}, open() {} },
+    });
+    const saved = { ...process.env };
+    Object.assign(process.env, {
+      SMTP_HOST: '127.0.0.1',
+      SMTP_PORT: String(server.port),
+      EMAIL_FROM: 'portal@example.com',
+    });
+    try {
+      const started = Date.now();
+      expect(await requestLink(address(), 'open')).toEqual({ ok: true });
+      expect(Date.now() - started).toBeLessThan(1000);
+    } finally {
+      for (const key of ['SMTP_HOST', 'SMTP_PORT', 'EMAIL_FROM'])
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      server.stop(true);
+    }
   });
 
   it('creates a requester with the given name on confirm', async () => {
     const { owner } = await setup();
     const email = address();
     await requestLink(email, 'open');
-    const token = tokenFor(email)!;
+    const token = (await linkFor(email))!;
     expect(await ok(await portal(`auth/link-info?token=${token}`))).toEqual({ needsName: true });
     const res = await portal('auth/confirm', { body: { token, name: 'Jane Doe' } });
     expect(res.status).toBe(200);
@@ -179,7 +240,7 @@ describe('portal sign-in', () => {
       await instance('requesters/create', owner, { name: 'Known Person', email }),
     );
     await requestLink(email.toUpperCase(), 'open');
-    const token = tokenFor(email)!;
+    const token = (await linkFor(email))!;
     expect(await ok(await portal(`auth/link-info?token=${token}`))).toEqual({ needsName: false });
     const res = await portal('auth/confirm', { body: { token } });
     expect(res.status).toBe(200);
@@ -191,7 +252,7 @@ describe('portal sign-in', () => {
     const { owner } = await setup();
     const email = address();
     await requestLink(email, 'open');
-    const token = tokenFor(email)!;
+    const token = (await linkFor(email))!;
     const first = await portal('auth/confirm', { body: { token } });
     expect(first.status).toBe(400);
     expect(await first.text()).toContain('name required');
@@ -206,14 +267,14 @@ describe('portal sign-in', () => {
     await setup();
     const email = address();
     await requestLink(email, 'open');
-    const token = tokenFor(email)!;
+    const token = (await linkFor(email))!;
     await ok(await portal('auth/confirm', { body: { token, name: 'Once' } }));
     expect((await portal('auth/confirm', { body: { token, name: 'Twice' } })).status).toBe(400);
     expect((await portal(`auth/link-info?token=${token}`)).status).toBe(400);
 
     const other = address();
     await requestLink(other, 'open');
-    const late = tokenFor(other)!;
+    const late = (await linkFor(other))!;
     await db
       .update(portalSignInToken)
       .set({ expiresAt: new Date(Date.now() - 1000) })
@@ -285,10 +346,48 @@ describe('portal sign-in', () => {
     expect(person.requester.portalBlocked).toBe(true);
     links.delete(email);
     expect(await requestLink(email, 'open')).toEqual({ ok: true });
-    expect(tokenFor(email)).toBeNull();
+    expect(await linkFor(email, 200)).toBeNull();
     await ok(await instance('portal/block', owner, { requesterId: me.id, blocked: false }));
     await requestLink(email, 'open');
-    expect(tokenFor(email)).toBeTruthy();
+    expect(await linkFor(email)).toBeTruthy();
+  });
+
+  it('reads restricted boards with the address that signed in, and ends sessions on merge', async () => {
+    const { owner } = await setup();
+    const gmail = address('gmail.test');
+    const a = await signIn(gmail, 'open', 'A');
+    const b = await signIn(address('acme.test'), 'acme', 'B');
+    const aId = (await ok(await portal('me', { cookie: a }))).id;
+    const bId = (await ok(await portal('me', { cookie: b }))).id;
+    await ok(await instance('requesters/merge', owner, { fromId: aId, intoId: bId }));
+    expect((await portal('me', { cookie: a })).status).toBe(401);
+    expect((await portal('me', { cookie: b })).status).toBe(401);
+    const again = await signIn(gmail, 'open');
+    expect((await ok(await portal('me', { cookie: again }))).id).toBe(bId);
+    expect((await ok(await portal('boards/acme', { cookie: again }))).canRead).toBe(false);
+    expect((await portal('boards/acme/issues', { cookie: again })).status).toBe(404);
+  });
+
+  it('ends the sessions of a person whose email the team changes', async () => {
+    const { member } = await setup();
+    const cookie = await signIn(address('acme.test'), 'acme');
+    const me = await ok(await portal('me', { cookie }));
+    await ok(
+      await instance('requesters/update', member, { id: me.id, email: address('other.test') }),
+    );
+    expect((await portal('me', { cookie })).status).toBe(401);
+  });
+
+  it('refuses a link issued before the person was blocked', async () => {
+    const { owner } = await setup();
+    const email = address();
+    const cookie = await signIn(email, 'open');
+    const me = await ok(await portal('me', { cookie }));
+    links.delete(email);
+    await requestLink(email, 'open');
+    const token = await linkFor(email);
+    await ok(await instance('portal/block', owner, { requesterId: me.id, blocked: true }));
+    expect((await portal('auth/confirm', { body: { token } })).status).toBe(400);
   });
 
   it('refuses a cookie POST without a trusted Origin', async () => {

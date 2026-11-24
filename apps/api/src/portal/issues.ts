@@ -1,5 +1,5 @@
 import { attachment, comment, customerNeed, db, issue, team, workflowState } from '@repo/db';
-import { and, eq, ilike, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { requesterCountSql } from '../feedback/store';
 import { boardIssueIds, boardShowsIssue, type BoardRow } from './boards';
 import type { Visitor } from './session';
@@ -27,21 +27,30 @@ export type PortalSort = 'top' | 'new';
 
 // SQL over `comment`: the comments a board shows. A thread belongs to the board its
 // root names (replies are stored under the root). "portal": the board's own threads;
-// "all": every comment except the threads of other boards.
+// "all": every comment except portal threads of other boards, including threads of a
+// deleted board (their root keeps `portal_thread`).
 export function boardCommentsSql(board: BoardRow): SQL {
-  const threadBoard = sql`(CASE WHEN ${comment.parentId} IS NULL THEN ${comment.portalBoardId}
-    ELSE (SELECT r.portal_board_id FROM ${comment} r WHERE r.id = ${comment.parentId}) END)`;
-  return board.comments === 'all'
-    ? sql`(${threadBoard} IS NULL OR ${threadBoard} = ${board.id})`
-    : sql`${threadBoard} = ${board.id}`;
+  const root = sql`(CASE WHEN ${comment.parentId} IS NULL THEN ${comment.id} ELSE ${comment.parentId} END)`;
+  const ownThread = sql`EXISTS (SELECT 1 FROM ${comment} r
+    WHERE r.id = ${root} AND r.portal_board_id = ${board.id})`;
+  if (board.comments !== 'all') return ownThread;
+  const portalThread = sql`EXISTS (SELECT 1 FROM ${comment} r
+    WHERE r.id = ${root} AND r.portal_thread)`;
+  return sql`(NOT ${portalThread} OR ${ownThread})`;
 }
 
-// Title words, each to be found in the title (LIKE wildcards escaped).
+const titleHas = (word: string): SQL =>
+  ilike(issue.title, `%${word.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+
+// The search box: titles holding every word of `q`.
 function titleMatches(q: string): SQL | undefined {
   const words = q.split(/\s+/).filter(Boolean);
   if (words.length === 0) return undefined;
-  return and(...words.map((w) => ilike(issue.title, `%${w.replace(/[\\%_]/g, (c) => `\\${c}`)}%`)));
+  return and(...words.map(titleHas));
 }
+
+// Similar issues: the words of `q` of two or more characters.
+const similarWords = (q: string): string[] => q.split(/\s+/).filter((w) => w.length >= 2);
 
 // The visitor's own suggestions in the board's suggestion team (a public team).
 async function ownSuggestionIds(board: BoardRow, visitor: Visitor | null): Promise<string[]> {
@@ -69,7 +78,7 @@ async function readIssues(
   ids: string[],
   shown: Set<string>,
   now: Date,
-  options: { q?: string; sort?: PortalSort } = {},
+  options: { q?: string; sort?: PortalSort; anyOf?: string[] } = {},
 ): Promise<PortalIssueDetail[]> {
   if (ids.length === 0) return [];
   const votedSql = visitor
@@ -81,6 +90,12 @@ async function readIssues(
           AND ${attachment.externalUserCreatorId} = ${visitor.requesterId})`
     : sql<boolean>`false`;
   const votes = requesterCountSql();
+  // With `anyOf`, titles holding any of the words, those holding more of them first.
+  const anyOf = options.anyOf ?? [];
+  const matched = sql`(${sql.join(
+    anyOf.map((w) => sql`(CASE WHEN ${titleHas(w)} THEN 1 ELSE 0 END)`),
+    sql` + `,
+  )})`;
   const rows = await db
     .select({
       id: issue.id,
@@ -98,8 +113,15 @@ async function readIssues(
     .from(issue)
     .innerJoin(team, eq(team.id, issue.teamId))
     .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
-    .where(and(inArray(issue.id, ids), options.q ? titleMatches(options.q) : undefined))
+    .where(
+      and(
+        inArray(issue.id, ids),
+        options.q ? titleMatches(options.q) : undefined,
+        anyOf.length ? or(...anyOf.map(titleHas)) : undefined,
+      ),
+    )
     .orderBy(
+      ...(anyOf.length ? [sql`${matched} DESC`] : []),
       ...(options.sort === 'new'
         ? [sql`${issue.createdAt} DESC`]
         : [sql`${votes} DESC`, sql`${issue.createdAt} DESC`]),
@@ -107,7 +129,11 @@ async function readIssues(
     );
   const out: PortalIssueDetail[] = [];
   for (const row of rows) {
-    const status = publicStatus(row.stateType, row.completedAt, now);
+    const underReview = !shown.has(row.id);
+    // A visitor's own suggestion still in triage reads as planned, under review.
+    const status =
+      publicStatus(row.stateType, row.completedAt, now) ??
+      (underReview && row.stateType === 'triage' ? 'planned' : null);
     if (!status) continue;
     out.push({
       identifier: `${row.teamKey}-${row.number}`,
@@ -116,7 +142,7 @@ async function readIssues(
       votes: row.votes,
       comments: row.comments,
       voted: row.voted,
-      underReview: !shown.has(row.id),
+      underReview,
       description: board.showDescription ? row.description : null,
     });
   }
@@ -139,17 +165,34 @@ export async function listBoardIssues(
   return (await readIssues(board, visitor, ids, new Set(shown), now, options)).map(listItem);
 }
 
-// Up to 5 board issues whose titles hold the words of `q`, most votes first.
+// Up to 5 board issues whose titles hold any word of `q` (two characters or more),
+// those matching more words first, then most votes.
 export async function similarIssues(
   board: BoardRow,
   visitor: Visitor | null,
   q: string,
   now = new Date(),
 ): Promise<PortalIssue[]> {
-  if (!q.trim()) return [];
+  const anyOf = similarWords(q);
+  if (anyOf.length === 0) return [];
   const shown = await boardIssueIds(board, now);
-  const found = await readIssues(board, visitor, shown, new Set(shown), now, { q, sort: 'top' });
+  const found = await readIssues(board, visitor, shown, new Set(shown), now, {
+    anyOf,
+    sort: 'top',
+  });
   return found.slice(0, 5).map(listItem);
+}
+
+// Whether the visitor may read the issue on the board: the board shows it, or it is
+// their own suggestion.
+export async function visitorMayReadIssue(
+  board: BoardRow,
+  visitor: Visitor | null,
+  issueId: string,
+  now = new Date(),
+): Promise<boolean> {
+  if (await boardShowsIssue(board, issueId, now)) return true;
+  return (await ownSuggestionIds(board, visitor)).includes(issueId);
 }
 
 // The issue `identifier` ("ENG-12") when the visitor may read it on the board: the

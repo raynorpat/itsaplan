@@ -231,6 +231,7 @@ export async function createComment(input: {
       userName: await userName(input.actorUserId),
       externalUserId: input.externalUserId ?? null,
       portalBoardId: rootId ? null : (input.portalBoardId ?? null),
+      portalThread: !rootId && !!input.portalBoardId,
       // A workflow's comment: written by the rule, with no user author.
       workflowDefinitionId:
         input.actorUserId || input.externalUserId ? null : (currentWorkflow()?.id ?? null),
@@ -252,7 +253,9 @@ export async function createComment(input: {
     });
   // An imported comment notifies no one and starts no agent session.
   if (created.issueId && teamIds[0] && !currentImport()) {
-    if (input.notify !== false) await notifyComment(teamIds[0], created);
+    // Mentions in a portal visitor's comment are ignored.
+    if (input.notify !== false)
+      await notifyComment(teamIds[0], created, { mentions: !created.externalUserId });
     if (!created.externalUserId)
       await bestEffort('mention sessions', () => commentPosted(created, teamIds[0]!));
   }
@@ -323,7 +326,7 @@ async function replaceBody(
     .returning();
   const updated = mapComment(row!);
   await sendCommentEvent('update', updated, actorUserId, await commentData(id), beforeData);
-  if (updated.issueId) {
+  if (updated.issueId && !updated.externalUserId) {
     const known = new Set(parseMentions(before.body));
     const added = parseMentions(body).filter((u) => !known.has(u));
     const [teamId] = await commentTeamIds(updated);

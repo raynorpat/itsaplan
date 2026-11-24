@@ -60,7 +60,8 @@ async function setup() {
 describe('publicStatus', () => {
   const now = new Date('2026-11-24T12:00:00Z');
   it('maps state types to the three public statuses', () => {
-    expect(publicStatus('triage', null, now)).toBe('planned');
+    // Triage holds issues the team has not accepted yet; boards never show them.
+    expect(publicStatus('triage', null, now)).toBeNull();
     expect(publicStatus('backlog', null, now)).toBe('planned');
     expect(publicStatus('unstarted', null, now)).toBe('planned');
     expect(publicStatus('started', null, now)).toBe('inProgress');

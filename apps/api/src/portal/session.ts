@@ -25,7 +25,9 @@ const MAX_NAME = 255;
 
 export interface Visitor {
   requesterId: string;
-  email: string | null;
+  // The address that confirmed the sign-in link (restricted boards are checked
+  // against it).
+  email: string;
   displayName: string;
   avatarUrl: string | null;
 }
@@ -69,9 +71,9 @@ export function sessionCookie(token: string | null): string {
   return `${SESSION_COOKIE}=${value}; Path=/portal; HttpOnly; SameSite=Lax; Max-Age=${age}${secure}`;
 }
 
-const toVisitor = (row: typeof externalUser.$inferSelect): Visitor => ({
+const toVisitor = (row: typeof externalUser.$inferSelect, email: string): Visitor => ({
   requesterId: row.id,
-  email: row.email,
+  email,
   displayName: row.displayName,
   avatarUrl: row.avatarUrl,
 });
@@ -94,7 +96,10 @@ async function mailLink(email: string, url: string): Promise<void> {
 }
 
 // Sends a sign-in link when the address may read the board and is not blocked. The
-// answer never tells which happened. `ip` is the client address when known.
+// answer never tells which happened, in its body or its timing: the mail is sent after
+// the response, and an address over its limit gets the same answer and no link. `ip` is
+// the client address when known (per-IP limits answer 429, which tells nothing about
+// the address).
 export async function requestSignInLink(
   rawEmail: unknown,
   slug: unknown,
@@ -105,10 +110,9 @@ export async function requestSignInLink(
   if (!EMAIL_RE.test(email) || email.length > 320)
     throw new HttpError(400, 'Enter a valid email address');
   const { linksPerAddress, linksPerIp } = LIMITS;
-  if (!allow(`link:${email}`, linksPerAddress.limit, linksPerAddress.windowMs))
-    throw new HttpError(429, 'Too many sign-in links. Try again later.');
   if (ip && !allow(`link-ip:${ip}`, linksPerIp.limit, linksPerIp.windowMs))
     throw new HttpError(429, 'Too many sign-in links. Try again later.');
+  if (!allow(`link:${email}`, linksPerAddress.limit, linksPerAddress.windowMs)) return;
 
   const board = typeof slug === 'string' ? await getBoardBySlug(slug) : null;
   if (!board || !emailMayRead(board, email)) return;
@@ -123,7 +127,9 @@ export async function requestSignInLink(
     expiresAt: new Date(Date.now() + LINK_TTL_MS),
   });
   const origin = (trustedOrigins[0] ?? '').replace(/\/+$/, '');
-  await mailLink(email, `${origin}/portal/${board.slug}/sign-in?token=${token}`);
+  void mailLink(email, `${origin}/portal/${board.slug}/sign-in?token=${token}`).catch((err) =>
+    console.error('[portal] sign-in mail failed:', err instanceof Error ? err.message : err),
+  );
 }
 
 async function usableToken(token: unknown) {
@@ -194,20 +200,22 @@ export async function confirmSignIn(
   await db.insert(portalSession).values({
     tokenHash: hashToken(sessionToken),
     externalUserId: requester.id,
+    email: pending.email,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
-  return { sessionToken, visitor: toVisitor(requester) };
+  return { sessionToken, visitor: toVisitor(requester, pending.email) };
 }
 
 // --- Sessions --------------------------------------------------------------------
 
 // The signed-in visitor, or null (no or expired session, or a blocked requester). A
-// session of a requester merged into another acts as the one kept.
+// session of a requester merged into another acts as the one kept (merges and email
+// changes end the sessions of the people involved; requesters.ts).
 export async function visitorFromRequest(request: Request): Promise<Visitor | null> {
   const token = cookieValue(request);
   if (!token) return null;
   const [session] = await db
-    .select({ externalUserId: portalSession.externalUserId })
+    .select({ externalUserId: portalSession.externalUserId, email: portalSession.email })
     .from(portalSession)
     .where(
       and(eq(portalSession.tokenHash, hashToken(token)), gt(portalSession.expiresAt, new Date())),
@@ -215,7 +223,7 @@ export async function visitorFromRequest(request: Request): Promise<Visitor | nu
   if (!session) return null;
   const requester = await activeRequester(session.externalUserId);
   if (!requester || requester.portalBlockedAt) return null;
-  return toVisitor(requester);
+  return toVisitor(requester, session.email);
 }
 
 export async function signOut(request: Request): Promise<void> {
@@ -239,7 +247,7 @@ export async function updateDisplayName(visitor: Visitor, value: unknown): Promi
     return { updated: saved!, announce: sendEvents };
   });
   await announce(null);
-  return toVisitor(updated);
+  return toVisitor(updated, visitor.email);
 }
 
 // Blocks (ending the requester's sessions) or unblocks a requester. The caller checks
