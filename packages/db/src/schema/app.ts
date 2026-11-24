@@ -889,22 +889,31 @@ export const workflowDefinition = pgTable(
 // (repository, host) and never a token; `mapping` the people matching (source person
 // key → user id or null); `summary` the counts of the processing step. The team is
 // `team_id`, or `team_name` for a team the import creates when it processes.
-export const issueImport = pgTable('issue_import', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  service: text('service').notNull(),
-  status: text('status').notNull(),
-  progress: real('progress'),
-  teamId: uuid('team_id').references(() => team.id, { onDelete: 'set null' }),
-  teamName: text('team_name'),
-  creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
-  displayName: text('display_name').notNull(),
-  serviceMetadata: jsonb('service_metadata').$type<Record<string, unknown>>(),
-  mapping: jsonb('mapping').$type<Record<string, unknown>>(),
-  summary: jsonb('summary').$type<Record<string, unknown>>(),
-  error: text('error'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const issueImport = pgTable(
+  'issue_import',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    service: text('service').notNull(),
+    status: text('status').notNull(),
+    progress: real('progress'),
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'set null' }),
+    teamName: text('team_name'),
+    creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    displayName: text('display_name').notNull(),
+    serviceMetadata: jsonb('service_metadata').$type<Record<string, unknown>>(),
+    mapping: jsonb('mapping').$type<Record<string, unknown>>(),
+    summary: jsonb('summary').$type<Record<string, unknown>>(),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // One import creating issues (`inProcess`) per team at a time.
+  (t) => [
+    uniqueIndex('issue_import_team_in_process_uq')
+      .on(t.teamId)
+      .where(sql`${t.status} = 'inProcess'`),
+  ],
+);
 
 // A workspace integration (Linear's Integration). Only `githubImport` is used: the
 // GitHub Import App installation that GitHub issue imports read through
@@ -915,9 +924,8 @@ export const integration = pgTable('integration', {
   id: uuid('id').primaryKey().defaultRandom(),
   service: text('service').notNull().unique(),
   installationId: text('installation_id').notNull(),
-  creatorId: uuid('creator_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
+  // Who connected it; the connection outlives that account.
+  creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

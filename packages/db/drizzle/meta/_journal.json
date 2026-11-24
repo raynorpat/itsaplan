@@ -323,6 +323,13 @@
       "when": 1795539101773,
       "tag": "0045_gray_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795541430118,
+      "tag": "0046_easy_fallen_one",
+      "breakpoints": true
     }
   ]
 }
