@@ -88,3 +88,30 @@ order of the work.
 - A view or board with no stored layout opens as List, Linear's default layout,
   including views saved before display preferences existed or by another client.
 
+
+## Stage 3: issue page and peek
+
+- **Header:** breadcrumb "Team › ENG-12", with the parent issue before the issue when it
+  has one; up / down buttons with "3 / 15" move through the list the issue was opened
+  from (J / K do the same on the page); the issue actions (copy link, copy prompt,
+  archive / restore, delete, set / remove parent) sit in one "⋯" menu. Without a
+  remembered list the position and arrows are hidden.
+- **Main column, in order:** title, description, reactions; links and attachments as
+  compact rows; sub-issues (list with "2/5", each row opening its issue, an inline
+  "+ Add sub-issue" that creates a sub-issue in the team's first state); relations as
+  compact rows; documents; activity with Subscribe and subscriber avatars in its
+  header and the comment box at the bottom. The status timeline is removed (Linear has
+  none; the activity shows each status change).
+- **Sub-issue progress:** done = completed or canceled children, out of all children.
+- **Parent:** set or removed from the ⋯ menu through an issue picker (the issue itself
+  and its sub-issues are not offered); the API's refusal (other team, a cycle) shows
+  as its message.
+- **Properties sidebar:** a flat list without a card or a name column — icon and value
+  for status, priority, assignee, delegate, labels, project and milestone, cycle, due
+  date.
+- **Peek:** Space on the focused or hovered row of a team, project or cycle list opens
+  the issue in the side panel; Space or Escape closes it; J / K show the next / previous
+  issue of that list and move the list's focus with it. A click opens the account's
+  chosen mode, whose default becomes the full page (Linear's default). My issues has no
+  peek (it spans teams and the panel belongs to one team); Space there does nothing.
+- **Inbox:** the detail pane uses the same layout.
