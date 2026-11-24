@@ -26,9 +26,9 @@ import { userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { toTeam } from './team';
 
-// Linear's Webhook over the webhook table, with the REST access rules: a team
-// webhook through the team's `webhooks.<action>` permission, an all-teams webhook
-// for the god user or an owner of every team.
+// Linear's Webhook over the webhook table. Workspace admins and owners manage
+// webhooks: a team webhook when they can see the team, an all-teams webhook always
+// (webhooks/access.ts).
 
 function toWebhook(row: WebhookRow) {
   return {

@@ -25,8 +25,8 @@ import { getOrganization } from './organization';
 import { findTeam, teamFilter, toTeam } from './team';
 
 // Linear's workspace administration over GraphQL: team memberships, role changes and
-// suspension, organization invites and teamCreate. The rules are the stores' (the
-// same as REST); this module maps Linear's shapes onto them.
+// suspension, organization invites and teamCreate. The rules are the stores'; this
+// module maps Linear's shapes onto them.
 
 type MembershipRow = typeof teamMember.$inferSelect;
 type InviteTableRow = typeof workspaceInvite.$inferSelect;
@@ -91,7 +91,7 @@ async function findMembership(id: string, viewerId: string): Promise<MembershipR
 
 // `metadata` carries the invite's teams for anyone who may list invites, and the
 // invite link's token (the id organizationInviteDetails looks up) only when
-// `showToken`: for the invite's sender and for admins and owners, as the REST list.
+// `showToken`: for the invite's sender and for admins and owners.
 const toInvite = (
   row: {
     id: string;
@@ -307,7 +307,7 @@ export const workspaceResolvers = {
         const found = await teamToJoin(String(input.teamId), ctx);
         const userId = uuidArg(String(input.userId), 'input.userId');
         // A membership for oneself is joining: anyone who can see the team may join it
-        // (teamToJoin checked that), as REST's /teams/:teamKey/join.
+        // (teamToJoin checked that).
         if (userId === ctx.user.id) {
           await joinTeam(found.id, userId);
         } else {

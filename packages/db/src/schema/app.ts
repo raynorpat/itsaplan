@@ -199,7 +199,7 @@ export const workflowState = pgTable(
     color: text('color').notNull().default('#6b7280'),
     description: text('description').notNull().default(''),
     position: integer('position').notNull(),
-    // When set, the column is archived: hidden from the board, REST and MCP, and
+    // When set, the column is archived: hidden from the board, GraphQL and MCP, and
     // refused as an issue target. Archived columns keep their position value, so
     // position is unique only among active columns.
     archivedAt: timestamp('archived_at', { withTimezone: true }),

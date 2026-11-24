@@ -1,5 +1,8 @@
-import { ToolError } from '../graphql';
+import type { Gql } from '../graphql';
 import {
+  bestMatches,
+  lower,
+  pick,
   resolveCycle,
   resolveIssueId,
   resolveProject,
@@ -191,6 +194,33 @@ const listIssueLabels: McpTool = {
   },
 };
 
+interface GroupRef {
+  id: string;
+  name: string;
+  team: { id: string } | null;
+}
+
+// A label group by id or name (any case): the team's groups and the workspace groups
+// for a team label (a team group wins over a workspace group of the same name), only
+// the workspace groups for a workspace label.
+async function resolveLabelGroup(gql: Gql, teamId: unknown, ref: string): Promise<string> {
+  const scope = teamId
+    ? { or: [{ team: { id: { eq: teamId } } }, { team: { null: true } }] }
+    : { team: { null: true } };
+  const data = await gql<{ issueLabels: { nodes: GroupRef[] } }>(
+    `query($filter: IssueLabelFilter) { issueLabels(first: 250, filter: $filter) {
+      nodes { id name team { id } } } }`,
+    { filter: { and: [{ isGroup: { eq: true } }, scope] } },
+  );
+  const r = lower(ref);
+  const matches = bestMatches(data.issueLabels.nodes, [
+    (g) => g.id === ref.trim(),
+    (g) => lower(g.name) === r && g.team !== null,
+    (g) => lower(g.name) === r,
+  ]);
+  return pick('label group', ref, matches, (g) => `${g.name} (id ${g.id})`).id;
+}
+
 const createIssueLabel: McpTool = {
   name: 'create_issue_label',
   description: 'Create an issue label in a team, or a workspace label when no team is given.',
@@ -210,17 +240,7 @@ const createIssueLabel: McpTool = {
     if (args.team) input.teamId = (await resolveTeam(gql, String(args.team))).id;
     if (args.color) input.color = String(args.color);
     if (args.description) input.description = String(args.description);
-    if (args.group) {
-      const data = await gql<{ issueLabels: { nodes: { id: string; name: string }[] } }>(
-        `query { issueLabels(first: 250, filter: { isGroup: { eq: true } }) { nodes { id name } } }`,
-      );
-      const ref = String(args.group).toLowerCase();
-      const groups = data.issueLabels.nodes.filter(
-        (g) => g.id === args.group || g.name.toLowerCase() === ref,
-      );
-      if (groups.length !== 1) throw new ToolError(`No single label group "${args.group}"`);
-      input.parentId = groups[0]!.id;
-    }
+    if (args.group) input.parentId = await resolveLabelGroup(gql, input.teamId, String(args.group));
     const data = await gql<{ issueLabelCreate: { issueLabel: LabelNode } }>(
       `mutation($input: IssueLabelCreateInput!) { issueLabelCreate(input: $input) {
         issueLabel { ${LABEL_FIELDS} } } }`,

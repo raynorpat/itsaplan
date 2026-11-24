@@ -39,3 +39,71 @@ export function nextCursor(pageInfo: { hasNextPage: boolean; endCursor: string |
 }
 
 export const PAGE_INFO = 'pageInfo { hasNextPage endCursor }';
+
+interface PropertySchema {
+  type?: string | string[];
+  items?: { type?: string };
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+}
+
+function describeType(type: string | string[], items?: { type?: string }): string {
+  const one = (t: string) => {
+    if (t === 'array') return `an array of ${items?.type ?? 'value'}s`;
+    if (t === 'null') return 'null';
+    return t === 'integer' ? 'an integer' : `a ${t}`;
+  };
+  return Array.isArray(type) ? type.map(one).join(' or ') : one(type);
+}
+
+function hasType(value: unknown, type: string, items?: { type?: string }): boolean {
+  switch (type) {
+    case 'string':
+      return typeof value === 'string';
+    case 'integer':
+      return Number.isInteger(value);
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'null':
+      return value === null;
+    case 'array':
+      return (
+        Array.isArray(value) &&
+        (!items?.type || value.every((item) => hasType(item, items.type!, undefined)))
+      );
+    default:
+      return true;
+  }
+}
+
+// Checks a call's arguments against the tool's input schema before it runs, since the
+// MCP SDK does not; the message names the argument and what it must be.
+export function checkArgs(schema: McpInputSchema, args: Record<string, unknown>): string | null {
+  for (const name of schema.required ?? [])
+    if (args[name] === undefined) return `${name} is required`;
+  for (const [name, value] of Object.entries(args)) {
+    const prop = schema.properties[name] as PropertySchema | undefined;
+    if (!prop) {
+      if (schema.additionalProperties === false) return `Unknown argument: ${name}`;
+      continue;
+    }
+    if (value === undefined) continue;
+    if (prop.type) {
+      const types = Array.isArray(prop.type) ? prop.type : [prop.type];
+      if (!types.some((t) => hasType(value, t, prop.items)))
+        return `${name} must be ${describeType(prop.type, prop.items)}`;
+    }
+    if (prop.enum && !prop.enum.includes(value))
+      return `${name} must be one of: ${prop.enum.join(', ')}`;
+    if (typeof value === 'number') {
+      if (prop.minimum !== undefined && value < prop.minimum)
+        return `${name} must be at least ${prop.minimum}`;
+      if (prop.maximum !== undefined && value > prop.maximum)
+        return `${name} must be at most ${prop.maximum}`;
+    }
+  }
+  return null;
+}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it } from 'node:test';
 
 // gqlRequest: posts the document with the session cookie, returns `data`, and turns
-// GraphQL errors into the web's ApiError with the status REST would have used.
+// GraphQL errors into the web's ApiError with the matching HTTP status.
 
 process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
 

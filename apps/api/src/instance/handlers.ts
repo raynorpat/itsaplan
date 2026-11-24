@@ -7,10 +7,9 @@ import { getAppVersion } from '../settings/version';
 import { HttpError, UUID_RE } from '../shared/lib';
 
 // The API's side of the better-auth instance endpoints (packages/auth
-// src/instance-plugin.ts): the same session and access rules as the REST routes they
-// stand in for (GET /settings/version, GET /settings/storage, PATCH
-// /teams/:teamKey/members/:userId), and the management of the workspace's OAuth
-// applications (oauth/apps.ts).
+// src/instance-plugin.ts): the app version, the upload limits, the team owner change
+// (team managers only), and the management of the workspace's OAuth applications
+// (oauth/apps.ts).
 
 async function signedInUser(headers: Headers) {
   const session = await getActiveSession(headers);

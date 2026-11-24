@@ -33,7 +33,7 @@ import { guard, lastSyncId, onlySupported } from './mutations';
 
 // Linear's Attachment: links and uploaded files on issues. An attachment is visible
 // to members of its issue's team; writes need work_items.create / edit / delete
-// there, as the REST attachment routes.
+// there.
 
 // Linear's Attachment has no file fields, so an upload carries its filename,
 // content type and size in `metadata` (read-only: the stored metadata is unchanged).

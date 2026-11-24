@@ -124,7 +124,7 @@ export const uploadResolvers = {
             .set({ ...set, updatedAt: new Date() })
             .where(eq(user.id, ctx.user.id));
         }
-        // The previous avatar (a REST object or an upload) is released.
+        // The previous avatar (an avatar object or an upload) is released.
         if (input.avatarUrl !== undefined && current.image !== set.image)
           await releaseAvatarImage(current.image);
         return {

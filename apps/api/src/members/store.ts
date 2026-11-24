@@ -71,14 +71,13 @@ export async function assertNotAppUser(...userIds: string[]): Promise<void> {
       throw new HttpError(400, "An application's teams are set when it is installed");
 }
 
-// Joins a team oneself (REST /teams/:teamKey/join and Linear's teamMembershipCreate
-// for oneself); the caller has checked that the user can see the team.
+// Joins a team oneself (Linear's teamMembershipCreate for oneself); the caller has checked that the user can see the team.
 export async function joinTeam(teamId: string, userId: string): Promise<void> {
   await assertNotAppUser(userId);
   if (!(await isTeamMember(teamId, userId))) await upsertMember(teamId, userId, 'member');
 }
 
-// Adds someone to a team (REST and Linear's teamMembershipCreate). Any team member
+// Adds someone to a team (Linear's teamMembershipCreate). Any team member
 // may add people to a public team; a private team, and making someone a team
 // owner, need a team manager. Suspended users cannot be added.
 export async function addTeamMember(

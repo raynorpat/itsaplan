@@ -12,8 +12,8 @@ import {
   teamView,
 } from '../../../__tests__/helpers/graphql';
 
-// Issue and workflow state mutations over the Linear API. They go through the same
-// store functions as REST, so activity, webhooks and permissions match.
+// Issue and workflow state mutations over the Linear API: their activity, webhooks
+// and permissions.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
@@ -104,7 +104,7 @@ describe('graphql mutations', () => {
   });
 
   describe('issueUpdate', () => {
-    it('moves an issue with the same activity and webhook REST produces', async () => {
+    it('moves an issue and records its activity and webhook', async () => {
       const { owner, client, teamId, col } = await setup();
       const hook = await createWebhook(owner, {
         teamId: 'MKT',

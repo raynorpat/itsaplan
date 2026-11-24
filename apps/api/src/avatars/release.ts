@@ -1,10 +1,11 @@
 import { deleteObject } from '../shared/s3';
 import { setUploadUsed, uploadIdFromAssetUrl } from '../uploads/store';
 
-// An avatar is either a REST-uploaded object (`/avatars/<id>/raw`, object
-// `avatars/<id>`) or a fileUpload asset (`/uploads/<id>/raw`). When a user's avatar is
-// replaced or cleared, whichever path the previous image came from is released: the
-// REST object is deleted, the upload is marked unused for the daily sweep.
+// An avatar is either an avatar object stored by the earlier direct upload
+// (`/avatars/<id>/raw`, object `avatars/<id>`) or a fileUpload asset
+// (`/uploads/<id>/raw`). When a user's avatar is replaced or cleared, whichever path
+// the previous image came from is released: the avatar object is deleted, the upload
+// is marked unused for the daily sweep.
 
 export const avatarKey = (id: string) => `avatars/${id}`;
 

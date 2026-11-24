@@ -10,8 +10,7 @@ import {
   teamView,
 } from '../../../__tests__/helpers/graphql';
 
-// Project, milestone, update and label mutations over the Linear API, through the
-// same store functions and permission checks as REST.
+// Project, milestone, update and label mutations over the Linear API.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });

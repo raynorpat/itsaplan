@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { graphqlAs, ToolError } from './graphql';
 import { SERVER_INSTRUCTIONS } from './instructions';
+import { checkArgs } from './tools/schema';
 import { commentTools } from './tools/comments';
 import { issueTools } from './tools/issues';
 import { projectTools } from './tools/projects';
@@ -53,13 +54,18 @@ export function buildMcpServer(app: McpApp, credential: string, readOnly: boolea
         : `Unknown tool: ${req.params.name}`;
       return { content: [{ type: 'text', text }], isError: true };
     }
+    const args = req.params.arguments ?? {};
+    const invalid = checkArgs(tool.inputSchema, args);
+    if (invalid) return { content: [{ type: 'text', text: invalid }], isError: true };
     try {
-      const result = await tool.run(gql, req.params.arguments ?? {});
+      const result = await tool.run(gql, args);
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     } catch (err) {
       if (err instanceof ToolError)
         return { content: [{ type: 'text', text: err.message }], isError: true };
-      throw err;
+      // Anything else is a bug: log it and answer without the details.
+      console.error(`[mcp] ${tool.name} failed`, err);
+      return { content: [{ type: 'text', text: 'Internal error' }], isError: true };
     }
   });
 

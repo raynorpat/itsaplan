@@ -37,7 +37,7 @@ async function emitLabel(
 export interface LabelRow {
   id: string;
   teamId: string | null;
-  // The REST name of parent_id: the group the label belongs to.
+  // parent_id: the group the label belongs to (Linear's `parent`).
   groupId: string | null;
   name: string;
   color: string;

@@ -11,7 +11,7 @@ import { oauthAppsHandlers } from '../../oauth/apps';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
 // sign-in options (public), the app version and upload limits (signed in), and the
-// team owner change (team managers, same rules as the REST member role route).
+// team owner change (team managers only).
 
 const ORIGIN = (process.env.APP_URL ?? '').split(',')[0]!.trim();
 

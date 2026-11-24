@@ -57,8 +57,7 @@ export async function requestUpload(input: {
     throw new HttpError(400, 'size must be a positive number of bytes');
   const limits = await getStorageSettings();
   // A file either use accepts: the workspace's attachment types up to the attachment
-  // limit, or a raster image up to the avatar limit. Refusals read like the REST
-  // upload's.
+  // limit, or a raster image up to the avatar limit.
   const avatarType = AVATAR_IMAGE_TYPES.test(contentType);
   const attachmentType = mimeAllowed(contentType, limits.attachmentMimeTypes);
   if (!avatarType && !attachmentType)

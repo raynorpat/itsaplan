@@ -6,7 +6,7 @@ import { createTeam, signUpAs, teamView } from '../../../__tests__/helpers/graph
 
 // OrganizationInvite.metadata carries the invite's team ids for anyone who may list
 // invites, and the invite link's token only for the invite's sender and for admins
-// and owners, as the REST invite list shows it.
+// and owners.
 
 type Invite = { id: string; email: string; metadata: { token?: string; teamIds: string[] } };
 

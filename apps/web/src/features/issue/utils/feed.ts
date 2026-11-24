@@ -10,8 +10,8 @@ import { pagedCutoff } from '@/utils/pagedCutoff';
 
 // The issue feed built from Linear's GraphQL: the issue's comments and its history
 // (IssueHistory) as feed rows, newest first. A history entry becomes one or more
-// change rows in the same shape the REST feed used (action + from/to text), so the
-// feed's renderers describe both the same way. Comments are grouped into threads
+// change rows (action + from/to text), so the feed's renderers describe every change
+// the same way. Comments are grouped into threads
 // (see buildThreads).
 
 interface Named {

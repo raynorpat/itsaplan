@@ -39,7 +39,7 @@ export function pgErrorCode(err: unknown): string | undefined {
 
 // Postgres SQLSTATEs caused by a client value the database cannot store or read: a
 // bad uuid/date/number text, a number out of range, a check or not-null violation.
-// Both the REST error handler and the GraphQL endpoint answer these as bad input.
+// The GraphQL endpoint and the plain HTTP routes answer these as bad input.
 export const PG_INVALID_INPUT_CODES = new Set([
   '22P02',
   '22003',

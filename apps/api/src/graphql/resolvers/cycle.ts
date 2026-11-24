@@ -218,7 +218,7 @@ export const cycleResolvers = {
         return { success: true, lastSyncId: lastSyncId(), entity: toCycle(archived) };
       }),
     // Name, description, visibility (Linear's `private`) and the cycle settings; team
-    // managers only (the REST rule).
+    // managers only.
     teamUpdate: (
       _: unknown,
       { id, input }: { id: string; input: Record<string, unknown> },

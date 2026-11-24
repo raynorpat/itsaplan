@@ -8,20 +8,22 @@ import { ToolError, type Gql } from './graphql';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (value: string) => UUID.test(value);
 
-const lower = (value: string) => value.trim().toLowerCase();
+export const lower = (value: string) => value.trim().toLowerCase();
+
+const plural = (kind: string) => (kind.endsWith('s') ? `${kind}es` : `${kind}s`);
 
 // The single match, or a ToolError naming the candidates (or that nothing matched).
-function pick<T>(kind: string, ref: string, matches: T[], describe: (m: T) => string): T {
+export function pick<T>(kind: string, ref: string, matches: T[], describe: (m: T) => string): T {
   if (matches.length === 1) return matches[0]!;
   if (matches.length === 0) throw new ToolError(`No ${kind} matches "${ref}"`);
   throw new ToolError(
-    `"${ref}" matches several ${kind}s: ${matches.map(describe).join('; ')}. ` +
+    `"${ref}" matches several ${plural(kind)}: ${matches.map(describe).join('; ')}. ` +
       'Use the full name or the id.',
   );
 }
 
 // Matches in order of strength: the first rule that finds anything decides.
-function bestMatches<T>(items: T[], rules: ((item: T) => boolean)[]): T[] {
+export function bestMatches<T>(items: T[], rules: ((item: T) => boolean)[]): T[] {
   for (const rule of rules) {
     const found = items.filter(rule);
     if (found.length) return found;

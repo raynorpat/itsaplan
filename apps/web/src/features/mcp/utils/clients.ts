@@ -1,6 +1,8 @@
-// The MCP endpoint clients connect to. NEXT_PUBLIC_API_URL is the API origin
-// (mandatory build-time config); the transport is Streamable HTTP at /mcp.
+// The MCP endpoints clients connect to. NEXT_PUBLIC_API_URL is the API origin
+// (mandatory build-time config); the transport is Streamable HTTP. /mcp offers every
+// tool, /mcp/readonly only the tools that read.
 export const MCP_URL = `${process.env.NEXT_PUBLIC_API_URL}/mcp`;
+export const MCP_READONLY_URL = `${MCP_URL}/readonly`;
 
 interface McpClient {
   label: string;
@@ -9,9 +11,9 @@ interface McpClient {
   code: string;
 }
 
-// Every client uses the same endpoint and a Bearer API key; only the file and the
-// key holding the URL/headers differ, taken verbatim from each tool's own docs.
-// <API_KEY> is a placeholder the user swaps for a personal key.
+// The API-key setup for each client: the same endpoint and a Bearer API key; only the
+// file and the key holding the URL/headers differ, taken verbatim from each tool's own
+// docs. <API_KEY> is a placeholder the user swaps for a personal key.
 export const MCP_CLIENTS: McpClient[] = [
   {
     label: 'Claude Code',

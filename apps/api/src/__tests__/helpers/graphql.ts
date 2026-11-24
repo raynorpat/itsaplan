@@ -194,7 +194,7 @@ export interface CreatedIssue {
   id: string;
   identifier: string;
   number: number;
-  // The REST shape's name for `number`, kept so tests read either.
+  // The same value as `number`, under the store's name.
   sequenceNumber: number;
   title: string;
   url: string;

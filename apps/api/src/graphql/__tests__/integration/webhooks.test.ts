@@ -4,7 +4,7 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import { addMember, createTeam, teamView } from '../../../__tests__/helpers/graphql';
 
-// Webhook management over the Linear API, with the same access rules as REST.
+// Webhook management over the Linear API and who may do it.
 
 const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
   res.body.errors?.[0]?.extensions?.code;

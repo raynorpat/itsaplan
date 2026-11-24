@@ -42,7 +42,7 @@ describe('graphql issue queries', () => {
     await resetDb();
   });
 
-  it('returns the full SDK issue fragment matching REST', async () => {
+  it('returns the full SDK issue fragment', async () => {
     const { owner, col, client } = await setup();
     const parent = await create(owner, col.backlog, { title: 'Parent' });
     const rest = await create(owner, col.started, {

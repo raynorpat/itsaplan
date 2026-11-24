@@ -3,8 +3,8 @@
 import SectionPageView from '@/components/common/page/SectionPageView';
 import McpConnectionGuide from './components/McpConnectionGuide';
 
-// How to connect an MCP client. Access is by API key: a client reaches every team
-// and issue its key's user can see.
+// How to connect an MCP client: by signing in through the browser (OAuth) or with an
+// API key. A client reaches what the signed-in person can see, within what they allowed.
 export default function McpServerPage() {
   return (
     <SectionPageView

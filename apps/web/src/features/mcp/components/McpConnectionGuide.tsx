@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { MCP_CLIENTS, MCP_URL } from '../utils/clients';
+import { MCP_CLIENTS, MCP_READONLY_URL, MCP_URL } from '../utils/clients';
 import McpCodeBlock from './McpCodeBlock';
 
 export default function McpConnectionGuide() {
@@ -17,21 +17,40 @@ export default function McpConnectionGuide() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        The server speaks MCP over Streamable HTTP. Authenticate with a personal API key as a Bearer
-        token. Create one on the{' '}
+        The server speaks MCP over Streamable HTTP. Most clients sign in through the browser: add
+        the endpoint without an Authorization header, and the client opens a page where you sign in
+        and choose what it may do. You can revoke it later under{' '}
+        <Link
+          href="/account/authorized-apps"
+          className="font-medium text-foreground underline underline-offset-4"
+        >
+          Authorized apps
+        </Link>
+        .
+      </p>
+
+      <p className="text-sm text-muted-foreground">
+        A client that cannot sign in can use a personal API key as a Bearer token. Create one on the{' '}
         <Link
           href="/account/api-keys"
           className="font-medium text-foreground underline underline-offset-4"
         >
           API keys
         </Link>{' '}
-        page, then replace <code className="font-mono text-xs">&lt;API_KEY&gt;</code> in the
-        snippet.
+        page, then replace <code className="font-mono text-xs">&lt;API_KEY&gt;</code> in the snippet
+        below.
       </p>
 
       <div className="space-y-2">
         <span className="text-xs font-medium text-muted-foreground">Endpoint</span>
         <McpCodeBlock code={MCP_URL} />
+      </div>
+
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          Read-only endpoint: only the tools that read
+        </span>
+        <McpCodeBlock code={MCP_READONLY_URL} />
       </div>
 
       <div className="space-y-3">

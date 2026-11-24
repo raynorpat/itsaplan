@@ -30,7 +30,7 @@ import { findTeam, teamFilter, toTeam } from './team';
 
 // Linear's CustomView over the saved team views, and ViewPreferences for their
 // layout. A shared view is visible when its team is (project 2 rules), and anyone who
-// can see the team may change or delete it, as over REST; a non-shared view is its
+// can see the team may change or delete it; a non-shared view is its
 // owner's only.
 
 const toCustomView = (row: ViewRow) => ({

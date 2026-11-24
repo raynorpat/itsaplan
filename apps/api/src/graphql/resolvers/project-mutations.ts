@@ -45,7 +45,7 @@ import { guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toLabel, toMilestone, toUpdate } from './project';
 import { projectData } from '../../webhooks/data';
 
-// Project, milestone, update and label mutations. Access follows REST: a project
+// Project, milestone, update and label mutations. A project
 // is changed through a team that grants the projects permission (assertProjectAccess),
 // labels by any team member.
 

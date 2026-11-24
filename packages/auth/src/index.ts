@@ -418,8 +418,7 @@ export const auth = betterAuth({
     // Personal API keys: a signed-in user creates a named key, sees its value once
     // at creation, and can list (value hidden) or delete it. Adds the `apikey` table.
     // enableSessionForAPIKeys makes a request carrying an `x-api-key` header resolve
-    // to the key owner's session, so getSession (and every planner guard built on it)
-    // accepts API keys without any change in apps/api. Rate limit: 100 requests per
+    // to the key owner's session, so getSession accepts API keys. Rate limit: 100 requests per
     // second per key (timeWindow is in milliseconds). The ceiling is set for the
     // heaviest legitimate caller rather than a typical one: an internal AI agent runs
     // on its own key and dispatches every tool call through a route, and a model that
@@ -475,7 +474,7 @@ export const auth = betterAuth({
     // /api/auth/reference and the raw schema at /api/auth/open-api/generate-schema.
     // The schema is built from every active plugin, so the passkey and apiKey
     // endpoints are documented automatically. This is docs-only: it adds no table,
-    // so `auth:generate` is not needed. The planner's own OpenAPI docs stay at /docs.
+    // so `auth:generate` is not needed.
     openAPI(),
   ],
 
@@ -531,7 +530,7 @@ export { APIError };
 export type Auth = typeof auth;
 
 // The session for a request, or null when there is none or its user is suspended.
-// Every API entry point (REST, GraphQL, MCP) resolves sessions through this, so an
+// Every API entry point (GraphQL, MCP, the instance plugin) resolves sessions through this, so an
 // API key of a suspended user is refused too.
 export async function getActiveSession(headers: Headers) {
   // The api-key plugin rejects a refused key (a suspended user's) with an error

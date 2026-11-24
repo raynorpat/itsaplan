@@ -36,7 +36,7 @@ async function setup() {
   return { owner, b, client, newIssue };
 }
 
-// The REST name for the assignee, used by these tests, mapped to Linear's.
+// The store's name for the assignee, used by these tests, mapped to Linear's.
 const assignee = ({ assigneeUserId, ...rest }: Record<string, unknown>) => ({
   ...rest,
   ...(assigneeUserId ? { assigneeId: assigneeUserId } : {}),

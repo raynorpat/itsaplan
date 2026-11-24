@@ -123,7 +123,7 @@ describe('buildFeed', () => {
       ['status', 'Todo', 'Done'],
     );
     assert.deepEqual([find('assignee').action, find('assignee').toText], ['assignee', 'Bo']);
-    // One feed row per label change, as the REST feed showed them.
+    // One feed row per label change.
     assert.deepEqual(
       items.filter((i) => i.id.startsWith('labels')).map((i) => [i.action, i.fromText ?? i.toText]),
       [

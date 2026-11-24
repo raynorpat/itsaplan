@@ -83,8 +83,8 @@ const depthLimit: Plugin = {
 const AUTH_MESSAGE = 'Authentication required, not authenticated';
 
 // Adds the Linear-compatible GraphQL endpoint (/graphql) to the app. Mounted on the
-// root app after the chain, like the MCP endpoint, so `type App` stays the REST
-// surface. Authentication is resolved before Yoga runs: a request without valid
+// root app after the chain, like the MCP endpoint. Authentication is resolved before
+// Yoga runs: a request without valid
 // credentials gets a 401 with Linear's AUTHENTICATION_ERROR shape, except the invite
 // lookup (anonymous.ts).
 // Typed as `any` for the same reason as mountMcp: Elysia's generics are invariant.

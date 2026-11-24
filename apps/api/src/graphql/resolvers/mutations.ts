@@ -25,9 +25,9 @@ import { findIssue, issueById, toIssue } from './issue';
 import { findTeam } from './team';
 import { findState, toWorkflowState } from './workflow-state';
 
-// Issue and workflow state mutations. Each one checks the same permission as the
-// matching REST route and calls the same store function, so activity, webhooks,
-// notifications and agent runs are identical. Store HttpErrors become GraphQL
+// Issue and workflow state mutations. Each one checks its permission and calls the
+// store function, which writes the activity, webhooks, notifications and agent
+// sessions. Store HttpErrors become GraphQL
 // errors (400 INVALID_INPUT, 403 FORBIDDEN, 404 ENTITY_NOT_FOUND, 409 CONFLICT).
 
 // An increasing number for the payload's lastSyncId. This app has no sync log, so
@@ -145,7 +145,7 @@ const ID_FIELDS = [
   'cycleId',
 ] as const;
 
-// The checks REST does in its route schema: ids are UUIDs, priority is 0..4, a
+// Input checks before the store: ids are UUIDs, priority is 0..4, a
 // title is not empty, dueDate is YYYY-MM-DD. Postgres would reject the rest.
 function assertIssueInput(input: IssueInput): void {
   for (const field of ID_FIELDS) {
@@ -331,7 +331,7 @@ export const mutationResolvers = {
         return { success: true, lastSyncId: lastSyncId(), entity: await issueById(row.id) };
       }),
 
-    // There is no trash: delete removes the issue, as REST does, and purges its
+    // There is no trash: delete removes the issue and purges its
     // attachment objects best-effort.
     issueDelete: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {

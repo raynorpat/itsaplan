@@ -50,7 +50,7 @@ export type { ResultOf, VariablesOf } from 'gql.tada';
 export type { FragmentOf } from 'gql.tada';
 export { readFragment } from 'gql.tada';
 
-// Linear's error codes and the HTTP status the REST API uses for the same failure.
+// Linear's error codes and the HTTP status the web's ApiError carries for each.
 const STATUS_BY_CODE: Record<string, number> = {
   INVALID_INPUT: 400,
   FORBIDDEN: 403,

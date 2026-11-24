@@ -22,7 +22,7 @@ import {
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Initiatives: defaults, status timestamps, archive / trash, visibility by lead
-// team, owner rules and webhooks. Users and teams are built through the REST API.
+// team, owner rules and webhooks.
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });

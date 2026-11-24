@@ -11,8 +11,7 @@ import { toSearchHit } from '@/utils/issueSearch';
 
 // --- The issue over GraphQL (the issue page and every surface reading qk.issue) ---
 // The issue's own fields as Linear's Issue, mapped onto the web's Issue type so the
-// detail, the context menu and the commands read one shape whichever source a host
-// has (the board's rows still come from REST until the board moves to GraphQL).
+// detail, the context menu and the commands read one shape.
 
 export const IssueFields = graphql(`
   fragment IssueFields on Issue {

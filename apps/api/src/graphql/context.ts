@@ -39,8 +39,8 @@ export async function resolveOAuth(token: string): Promise<ResolvedAuth | null> 
 // valid credentials. The Linear SDK sends a personal API key as `Authorization: <key>`
 // and an OAuth access token as `Authorization: Bearer <token>`; an API key with
 // `Bearer` is accepted too. OAuth tokens are told apart by their prefix. An API key is
-// passed to better-auth as `x-api-key`, which resolves it to the owner's session the
-// same way REST does. Without an Authorization header the session cookie (or
+// passed to better-auth as `x-api-key`, which resolves it to the owner's session.
+// Without an Authorization header the session cookie (or
 // x-api-key) is used. Invalid credentials resolve to null, not an error.
 export async function resolveGraphQLAuth(request: Request): Promise<ResolvedAuth | null> {
   const headers = new Headers(request.headers);

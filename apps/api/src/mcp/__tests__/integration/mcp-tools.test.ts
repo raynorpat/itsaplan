@@ -4,6 +4,8 @@ import { resetDb } from '../../../__tests__/helpers/db';
 import {
   addMember,
   createDocument,
+  createLabel,
+  createState,
   createIssue,
   createProject,
   createTeam,
@@ -16,7 +18,7 @@ import {
   type TeamView,
 } from '../../../__tests__/helpers/graphql';
 import { createApiKey } from '../../../__tests__/helpers/linear';
-import { callTool, toolJson, toolNames } from '../../../__tests__/helpers/mcp';
+import { callTool, mcp, toolJson, toolNames } from '../../../__tests__/helpers/mcp';
 
 // Linear's MCP tool set on GraphQL: each tool runs a GraphQL operation as the caller,
 // accepts names, keys or ids, and answers with compact JSON.
@@ -160,6 +162,67 @@ describe('MCP tools on GraphQL', () => {
     const cleared = await toolJson(key, 'update_issue', { id: 'ENG-1', assignee: null });
     expect(cleared.assignee).toBeNull();
     expect(ann.userId).toBeTruthy();
+  });
+
+  it('changes nothing and lists the candidates for an ambiguous status or label', async () => {
+    await createState(owner, { teamId: 'ENG', name: 'Doing', type: 'started' });
+    await createState(owner, { teamId: 'ENG', name: 'doing', type: 'started' });
+    await createLabel(owner, { teamId: 'ENG', name: 'Bug' });
+    await createLabel(owner, { teamId: 'ENG', name: 'bug' });
+    const created = await toolJson(key, 'create_issue', { team: 'ENG', title: 'Steady' });
+
+    const byState = await callTool(key, 'update_issue', { id: created.identifier, state: 'DOING' });
+    expect(byState.isError).toBe(true);
+    expect(byState.content[0]!.text).toContain('several statuses');
+    expect(byState.content[0]!.text).toContain('Doing (started)');
+    expect(byState.content[0]!.text).toContain('doing (started)');
+
+    const byLabel = await callTool(key, 'update_issue', {
+      id: created.identifier,
+      labels: ['BUG'],
+    });
+    expect(byLabel.isError).toBe(true);
+    expect(byLabel.content[0]!.text).toContain('several labels');
+
+    const after = await toolJson(key, 'get_issue', { id: created.identifier });
+    expect(after.state.name).toBe(created.state.name);
+    expect(after.labels).toEqual([]);
+  });
+
+  it('refuses an argument of the wrong type with a tool error, not a server error', async () => {
+    await createLabel(owner, { teamId: 'ENG', name: 'Bug' });
+    const created = await toolJson(key, 'create_issue', { team: 'ENG', title: 'Typed' });
+    const res = await mcp(key, 'tools/call', {
+      name: 'update_issue',
+      arguments: { id: created.identifier, labels: 'Bug' },
+    });
+    expect(res.error).toBeUndefined();
+    const result = res.result as { isError?: boolean; content: { text: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toBe('labels must be an array of strings');
+    expect((await toolJson(key, 'get_issue', { id: created.identifier })).labels).toEqual([]);
+  });
+
+  it('puts a new label into a group of the given team and lists ambiguous groups', async () => {
+    await createLabel(owner, { teamId: 'ENG', name: 'Area', isGroup: true });
+    await createTeam(owner, { key: 'OPS', name: 'Operations' });
+    await createLabel(owner, { teamId: 'OPS', name: 'Area', isGroup: true });
+    const inEng = await toolJson(key, 'create_issue_label', {
+      name: 'Backend',
+      team: 'ENG',
+      group: 'area',
+    });
+    expect(inEng.name).toBe('Backend');
+
+    await createLabel(owner, { teamId: 'ENG', name: 'Kind', isGroup: true });
+    await createLabel(owner, { teamId: 'ENG', name: 'kind', isGroup: true });
+    const ambiguous = await callTool(key, 'create_issue_label', {
+      name: 'Feature',
+      team: 'ENG',
+      group: 'KIND',
+    });
+    expect(ambiguous.isError).toBe(true);
+    expect(ambiguous.content[0]!.text).toContain('several label groups');
   });
 
   it('lists issues by team, state, assignee, label, text and completion date', async () => {

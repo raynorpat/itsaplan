@@ -5,7 +5,7 @@ import { gql } from '../../../__tests__/helpers/linear';
 import { createTeam } from '../../../__tests__/helpers/graphql';
 
 // searchIssues finds an issue by its number: a bare number ("2") or an identifier
-// ("MKT-2"), as Linear's search and the REST search do, next to the title and
+// ("MKT-2"), as Linear's search does, next to the title and
 // description match.
 
 const SEARCH = `query($term: String!, $teamId: String) {

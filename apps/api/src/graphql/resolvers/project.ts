@@ -29,8 +29,8 @@ import { toGraphQLUser } from './user';
 import { guard } from './mutations';
 
 // Linear's Project and its items (ProjectStatus, ProjectMilestone, ProjectUpdate,
-// ProjectLabel). Project data comes from the REST store (getProjectsByIds), so
-// progress, health and the visible-teams rule match REST.
+// ProjectLabel). Project data comes from the projects store (getProjectsByIds),
+// which works out progress, health and the visible teams.
 
 const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
 
@@ -349,7 +349,7 @@ export const projectResolvers = {
     },
     projectUpdates: (_: unknown, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUpdates(undefined, args, ctx),
-    // Workspace project labels are not shown to guests (as on REST).
+    // Workspace project labels are not shown to guests.
     projectLabel: async (_: unknown, args: { id: string }, ctx: GraphQLContext) => {
       await guard(() => assertLabelReader(ctx.user.id));
       const [row] = UUID_RE.test(args.id)
