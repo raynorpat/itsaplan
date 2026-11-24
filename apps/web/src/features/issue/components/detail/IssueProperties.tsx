@@ -15,6 +15,7 @@ import { cyclesVisible, knownCycles } from '@/utils/cycles';
 import ProjectSelect from '@/components/common/fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
+import IssuePortalInfo from './IssuePortalInfo';
 import { projectDisplayName } from '@/utils/projectMeta';
 
 // One property in Linear's flat list: the control alone (its pill shows the icon and the
@@ -37,6 +38,7 @@ export default function IssueProperties({
   onToggleLabel,
   hasSidebar,
   readOnly,
+  showPortal = false,
 }: {
   team: TeamDetail;
   issue: IssueDetailRow;
@@ -46,6 +48,8 @@ export default function IssueProperties({
   // When true every control is a non-interactive display of its value (public
   // shared page). The onPatch/onToggleLabel callbacks are never called.
   readOnly?: boolean;
+  // Members see which portal boards show the issue.
+  showPortal?: boolean;
 }) {
   const hasMembers = team.assignees.length > 0;
   const rows = (
@@ -149,6 +153,8 @@ export default function IssueProperties({
           readOnly={readOnly}
         />
       </PropertyRow>
+
+      {showPortal && <IssuePortalInfo issueId={issue.id} identifier={issue.identifier} />}
     </>
   );
 

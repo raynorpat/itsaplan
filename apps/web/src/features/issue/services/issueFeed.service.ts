@@ -31,6 +31,14 @@ const FeedCommentsQuery = graphql(`
             type
             name
           }
+          externalUser {
+            name
+          }
+          externalThread {
+            type
+            name
+            url
+          }
           parentId
           agentSession {
             id

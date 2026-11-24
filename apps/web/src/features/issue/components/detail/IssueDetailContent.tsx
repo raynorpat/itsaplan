@@ -127,6 +127,7 @@ export default function IssueDetailContent({
       onPatch={patch}
       onToggleLabel={toggleLabel}
       hasSidebar={hasSidebar}
+      showPortal={showFeedback}
     />
   );
 
@@ -135,6 +136,7 @@ export default function IssueDetailContent({
       issueId={issue.id}
       assignees={team.mentionCandidates}
       imageByUserId={imageByUserId}
+      showPortal={showFeedback}
     />
   );
 

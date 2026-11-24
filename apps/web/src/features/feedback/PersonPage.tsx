@@ -12,11 +12,13 @@ import { feedbackPeoplePath, feedbackPersonPath } from '@/utils/paths';
 import EditPersonDialog from './components/EditPersonDialog';
 import MergePeopleDialog from './components/MergePeopleDialog';
 import PersonFeedback from './components/PersonFeedback';
+import PersonPortalBlockButton from './components/PersonPortalBlockButton';
 import { usePersonQuery } from './services/people.service';
 import { canMergePeople, feedbackCountText } from './utils/people';
 
 // One person who gave feedback: their name and email, edit (members), merge into
-// another person (owners and admins), and their feedback grouped by issue. A merged
+// another person and block them from the portal (owners and admins), and their
+// feedback grouped by issue. A merged
 // person's id leads to the person kept (the API follows the merge).
 export default function PersonPage() {
   const params = useParams();
@@ -51,7 +53,13 @@ export default function PersonPage() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted-foreground">
-            {[person.email, feedbackCountText(person.feedbackCount)].filter(Boolean).join(' · ')}
+            {[
+              person.email,
+              feedbackCountText(person.feedbackCount),
+              person.portalBlocked && 'Blocked from the portal',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         <Button
@@ -74,6 +82,7 @@ export default function PersonPage() {
             Merge into…
           </Button>
         )}
+        {canMergePeople(role) && <PersonPortalBlockButton person={person} />}
       </div>
       <h2 className="px-4 pt-2 pb-1 text-sm font-medium">Feedback</h2>
       <PersonFeedback groups={issues} />

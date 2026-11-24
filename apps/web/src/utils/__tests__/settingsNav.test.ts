@@ -40,6 +40,7 @@ describe('settingsNav', () => {
         'members',
         'applications',
         'import',
+        'portal',
         'mcp',
         'labels',
         'project-labels',

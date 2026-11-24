@@ -25,6 +25,10 @@ export interface FeedComment {
   user: FeedUser | null;
   // The workflow that wrote the comment (Linear's Comment.botActor); no user then.
   botActor?: { type?: string | null; name?: string | null } | null;
+  // The portal visitor who wrote it (Linear's Comment.externalUser; null for guests).
+  externalUser?: { name: string } | null;
+  // Set on the root of a portal thread (type "portal").
+  externalThread?: { type: string; name?: string | null; url?: string | null } | null;
   reactions?: { id: string; emoji: string; user: FeedUser | null }[];
 }
 
@@ -38,10 +42,22 @@ export interface FeedEntry {
 
 export const REMOVED_USER = 'a removed user';
 
+const isPortalThread = (c: FeedComment) => c.externalThread?.type === 'portal';
+
 // `ownerId` fills FeedItem.issueId: the id of the issue, document, project or
-// update the comment belongs to.
-export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
-  const author = actorDisplay({ actor: c.user, botActor: c.botActor });
+// update the comment belongs to. `inPortalThread` marks a comment of a portal thread,
+// where a comment without a member author is a visitor's.
+export function commentToFeedItem(
+  c: FeedComment,
+  ownerId: string,
+  inPortalThread = isPortalThread(c),
+): FeedItem {
+  const author = actorDisplay({
+    actor: c.user,
+    botActor: c.botActor,
+    externalUser: c.externalUser,
+    portal: inPortalThread,
+  });
   return {
     id: c.id,
     issueId: ownerId,
@@ -51,6 +67,8 @@ export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
     actorName: author.kind === 'unknown' ? REMOVED_USER : author.name,
     actorIsApp: author.kind === 'app',
     actorWorkflow: author.kind === 'workflow',
+    actorPortal: author.kind === 'visitor',
+    portalBoard: isPortalThread(c) ? (c.externalThread?.name ?? null) : null,
     body: c.body,
     action: null,
     subject: null,
@@ -68,16 +86,18 @@ export function commentToFeedItem(c: FeedComment, ownerId: string): FeedItem {
 export function buildThreads(comments: FeedComment[], ownerId: string): FeedEntry[] {
   const entries: FeedEntry[] = [];
   const roots = new Map<string, FeedEntry>();
+  const portalRoots = new Set<string>();
   for (const c of comments) {
     if (c.parentId) continue;
+    if (isPortalThread(c)) portalRoots.add(c.id);
     const entry = { item: commentToFeedItem(c, ownerId), replies: [], resolved: !!c.resolvedAt };
     roots.set(c.id, entry);
     entries.push(entry);
   }
   for (const c of [...comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
     if (!c.parentId) continue;
-    const reply = commentToFeedItem(c, ownerId);
     const root = roots.get(c.parentId);
+    const reply = commentToFeedItem(c, ownerId, portalRoots.has(c.parentId));
     if (root) root.replies.push(reply);
     else entries.push({ item: reply, replies: [], resolved: false });
   }

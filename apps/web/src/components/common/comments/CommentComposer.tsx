@@ -5,6 +5,7 @@ import type { Assignee } from '@/types/team';
 import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import CommentPortalSelect, { INTERNAL } from './CommentPortalSelect';
 import { useCreateComment, useUpdateComment } from '@/services/comments.service';
 import { type CommentTarget } from '@/utils/commentTarget';
 
@@ -30,6 +31,7 @@ export default function CommentComposer({
   parentId,
   editing,
   onDone,
+  portal,
 }: {
   target: CommentTarget;
   assignees: Assignee[];
@@ -38,6 +40,12 @@ export default function CommentComposer({
   parentId?: string;
   editing?: { id: string; body: string };
   onDone?: () => void;
+  // The portal boards a new top-level comment may start a thread on ("Post on
+  // portal"), and how to post one; other comments stay internal.
+  portal?: {
+    boards: { id: string; name: string }[];
+    post: (boardId: string, body: string) => Promise<unknown>;
+  };
 }) {
   const createComment = useCreateComment();
   const updateComment = useUpdateComment();
@@ -46,9 +54,16 @@ export default function CommentComposer({
   const [active, setActive] = useState(0);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const portalBoards = !editing && !parentId ? (portal?.boards ?? []) : [];
+  const [portalBoardId, setPortalBoardId] = useState(INTERNAL);
+  const onPortal = portalBoardId !== INTERNAL && portalBoards.some((b) => b.id === portalBoardId);
+  const [portalPosting, setPortalPosting] = useState(false);
 
-  const posting = createComment.isPending || updateComment.isPending;
-  const submitLabel = editing ? 'Save' : parentId ? 'Reply' : 'Comment';
+  const posting = createComment.isPending || updateComment.isPending || portalPosting;
+  let submitLabel = 'Comment';
+  if (editing) submitLabel = 'Save';
+  else if (parentId) submitLabel = 'Reply';
+  else if (onPortal) submitLabel = 'Post on portal';
   const cmdKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl';
 
   const matches = useMemo(() => {
@@ -102,9 +117,13 @@ export default function CommentComposer({
     inFlight.current = true;
     try {
       if (editing) await updateComment.mutateAsync({ target, id: editing.id, body: body.trim() });
-      else await createComment.mutateAsync({ target, input: { body: body.trim(), parentId } });
+      else if (onPortal && portal) {
+        setPortalPosting(true);
+        await portal.post(portalBoardId, body.trim());
+      } else await createComment.mutateAsync({ target, input: { body: body.trim(), parentId } });
     } finally {
       inFlight.current = false;
+      setPortalPosting(false);
     }
     setBody('');
     setMenu(null);
@@ -177,6 +196,13 @@ export default function CommentComposer({
                 <span className="ml-1.5">to send</span>
               </span>
               <div className="flex items-center gap-1.5">
+                {portalBoards.length > 0 && (
+                  <CommentPortalSelect
+                    boards={portalBoards}
+                    value={portalBoardId}
+                    onChange={setPortalBoardId}
+                  />
+                )}
                 {onDone && (
                   <Button size="sm" variant="ghost" onClick={onDone}>
                     Cancel

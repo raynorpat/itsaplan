@@ -105,6 +105,10 @@ export interface FeedItem {
   actorIsApp?: boolean;
   // The actor is a workflow (Linear's ActorBot of type "workflow"); actorName is its name.
   actorWorkflow?: boolean;
+  // The actor is a portal visitor (Linear's Comment.externalUser), marked "Portal".
+  actorPortal?: boolean;
+  // On a portal thread's root: the board's name (visitors on that board see the thread).
+  portalBoard?: string | null;
   body: string | null;
   action: ActivityAction | null;
   subject: string | null;

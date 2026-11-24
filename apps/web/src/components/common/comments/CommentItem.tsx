@@ -41,9 +41,11 @@ export default function CommentItem({
           <span className="text-sm font-medium">{author}</span>
           {item.actorIsApp && <AppBadge />}
           {item.actorWorkflow && <AppBadge label="Workflow" />}
+          {item.actorPortal && <AppBadge label="Portal" />}
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
             {item.editedAt && ' (edited)'}
+            {item.portalBoard && ` · on the ${item.portalBoard} portal`}
           </span>
           {actions && <span className="ml-auto">{actions}</span>}
         </div>

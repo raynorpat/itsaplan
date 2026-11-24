@@ -123,6 +123,9 @@ export const qk = {
   // person has authorized, and the application a consent page shows.
   oauthApps: ['oauthApps'] as const,
   imports: ['imports'] as const,
+  // Portal boards (Settings → Workspace → Portal) and the boards showing an issue.
+  portalBoards: ['portal', 'boards'] as const,
+  issuePortalBoards: (issueId: string) => ['portal', 'issue', issueId] as const,
   importPeople: (id: string) => ['imports', 'people', id] as const,
   githubImport: ['githubImport'] as const,
   githubImportRepositories: ['githubImport', 'repositories'] as const,

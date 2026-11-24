@@ -15,6 +15,8 @@ export interface Person {
   avatarUrl: string | null;
   feedbackCount: number;
   lastFeedbackAt: string | null;
+  // Blocked from the portal (set on a person's page only).
+  portalBlocked: boolean;
 }
 
 export interface PersonIssueFeedback {
@@ -42,6 +44,7 @@ interface PersonDto {
   avatarUrl: string | null;
   feedbackCount: number;
   lastFeedbackAt: unknown;
+  portalBlocked?: boolean;
 }
 
 interface PersonIssueDto {
@@ -57,11 +60,12 @@ interface PersonIssueDto {
 
 const toPerson = (r: PersonDto): Person => ({
   id: r.id,
-  name: r.displayName || r.name,
+  name: r.name,
   email: r.email,
   avatarUrl: r.avatarUrl,
   feedbackCount: r.feedbackCount,
   lastFeedbackAt: isoString(r.lastFeedbackAt),
+  portalBlocked: r.portalBlocked ?? false,
 });
 
 const toIssueFeedback = (g: PersonIssueDto): PersonIssueFeedback => ({
@@ -147,5 +151,17 @@ export function useMergePeople() {
         body: input,
       }).then((r) => toPerson(r.requester)),
     onSuccess: refresh,
+  });
+}
+
+// Blocks or unblocks a person from the portal (owners and admins): a blocked person's
+// portal sessions end and sign-in links are refused.
+export function useSetPortalBlocked() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { requesterId: string; blocked: boolean }) =>
+      instanceFetch('/instance/portal/block', { method: 'POST', body: input }),
+    onSuccess: (_d, { requesterId }) =>
+      void qc.invalidateQueries({ queryKey: qk.requester(requesterId) }),
   });
 }
