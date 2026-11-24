@@ -157,10 +157,10 @@ export default function BreakdownChart({
                     </span>
                   )}
                 </th>
-                <td className="py-1 text-right align-top tabular-nums">
+                <td className="py-1 pl-3 text-right align-top whitespace-nowrap tabular-nums">
                   {Math.round(r.value * 10) / 10}
                 </td>
-                <td className="py-1 text-right align-top text-muted-foreground tabular-nums">
+                <td className="py-1 pl-3 text-right align-top whitespace-nowrap text-muted-foreground tabular-nums">
                   {Math.round(r.share * 100)}%
                 </td>
               </tr>
