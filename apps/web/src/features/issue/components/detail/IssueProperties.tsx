@@ -12,7 +12,7 @@ import PrioritySelect from '@/components/common/fields/PrioritySelect';
 import StatusSelect from '@/components/common/fields/StatusSelect';
 import CycleSelect from '@/components/common/fields/CycleSelect';
 import { cyclesVisible, knownCycles } from '@/utils/cycles';
-import ProjectSelect from '../fields/ProjectSelect';
+import ProjectSelect from '@/components/common/fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
 

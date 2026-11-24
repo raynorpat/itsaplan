@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, CircleDashed, Target } from 'lucide-react';
 import { useProjectQuery, useProjectsQuery } from '@/services/projects.service';
 import type { Project } from '@/types/project';
-import { colorDot } from '@/components/common/fields/colorDot';
+import { colorDot } from './colorDot';
 import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
 import {
   Command,
@@ -13,7 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Pill } from '@/components/common/fields/Pill';
+import { Pill } from './Pill';
 
 // The dropdown shows at most this many projects at once; the rest are reached by
 // typing, which the server matches by title.

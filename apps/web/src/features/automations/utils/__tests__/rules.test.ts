@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   canCreateRule,
   canEditRule,
+  normalizeRule,
   reorderIds,
   sortOrderForMove,
   triggerSummary,
@@ -107,5 +108,23 @@ describe('triggerSummary', () => {
       triggerSummary({ ...rule('a', 1), trigger: 'entityUpdated' }),
       'When an issue starts matching the conditions',
     );
+  });
+});
+
+describe('normalizeRule', () => {
+  it('turns dates the auth client parsed back into ISO strings', () => {
+    const raw = {
+      ...rule('a', 1),
+      lastExecutedAt: new Date('2026-11-24T10:00:00.000Z'),
+      archivedAt: new Date('2026-11-25T10:00:00.000Z'),
+    } as unknown as WorkflowRule;
+    const out = normalizeRule(raw);
+    assert.equal(out.lastExecutedAt, '2026-11-24T10:00:00.000Z');
+    assert.equal(out.archivedAt, '2026-11-25T10:00:00.000Z');
+  });
+
+  it('keeps strings and nulls', () => {
+    const r = { ...rule('a', 1), lastExecutedAt: '2026-11-24T10:00:00.000Z' };
+    assert.deepEqual(normalizeRule(r), r);
   });
 });

@@ -37,6 +37,13 @@ export interface WorkflowRule {
   archivedAt: string | null;
 }
 
+// The rule as the API sent it. The auth client's JSON parser turns ISO date strings
+// into Date objects, so the date fields are turned back into the strings the API sent.
+export function normalizeRule(raw: WorkflowRule): WorkflowRule {
+  const iso = (v: string | Date | null) => (v instanceof Date ? v.toISOString() : v);
+  return { ...raw, lastExecutedAt: iso(raw.lastExecutedAt), archivedAt: iso(raw.archivedAt) };
+}
+
 // The viewer as the access rules need them: their workspace role and whether they
 // manage the team (team owner, workspace admin or owner, or a member of a team
 // without owners).

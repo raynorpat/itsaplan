@@ -16,7 +16,7 @@ import StatusSelect from '@/components/common/fields/StatusSelect';
 import CycleSelect from '@/components/common/fields/CycleSelect';
 import { cyclesVisible } from '@/utils/cycles';
 import { Button } from '@/components/ui/button';
-import ProjectSelect from '../fields/ProjectSelect';
+import ProjectSelect from '@/components/common/fields/ProjectSelect';
 
 export default function NewIssueModal({
   team,

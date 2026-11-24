@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
-import type { WorkflowRule } from '../utils/rules';
+import { normalizeRule, type WorkflowRule } from '../utils/rules';
 
 // A team's automation rules (Linear's WorkflowDefinition), managed through the
 // instance plugin's /api/auth/instance/workflows* endpoints. The list holds archived
@@ -18,8 +18,41 @@ export function useAutomationsQuery(teamId: string | null) {
         await instanceFetch<{ workflows: WorkflowRule[] }>(
           `/instance/workflows?teamId=${encodeURIComponent(teamId!)}&includeArchived=true`,
         )
-      ).workflows,
+      ).workflows.map(normalizeRule),
     enabled: teamId != null,
+  });
+}
+
+// One rule, for the editor. A rule the viewer cannot see is a 404 from the API.
+export function useAutomationQuery(id: string | null) {
+  return useQuery({
+    queryKey: qk.automation(id ?? ''),
+    queryFn: async () =>
+      normalizeRule(
+        (
+          await instanceFetch<{ workflow: WorkflowRule }>(
+            `/instance/workflow?id=${encodeURIComponent(id!)}`,
+          )
+        ).workflow,
+      ),
+    enabled: id != null,
+  });
+}
+
+// Creates a rule (`id` null) or changes one. Errors are left to the caller, which
+// shows the API's message next to the form.
+export function useSaveAutomation(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: Record<string, unknown> }) =>
+      instanceFetch<{ workflow: WorkflowRule }>(
+        id ? '/instance/workflows/update' : '/instance/workflows/create',
+        { method: 'POST', body: id ? { ...input, id } : input },
+      ),
+    onSuccess: ({ workflow }) => {
+      qc.setQueryData(qk.automation(workflow.id), normalizeRule(workflow));
+      return qc.invalidateQueries({ queryKey: qk.automations(teamId) });
+    },
   });
 }
 
