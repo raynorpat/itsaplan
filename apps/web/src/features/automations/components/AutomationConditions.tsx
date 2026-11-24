@@ -4,7 +4,7 @@ import { conditionsHidden, type RuleForm } from '../utils/ruleForm';
 
 // The If part: the views filter bar. Empty matches every issue (allowed only for the
 // created trigger). Conditions the filter bar cannot show are kept until the filters
-// are changed, and a note says so.
+// are changed; a note says so, and after a change says they will be replaced.
 export default function AutomationConditions({
   form,
   team,
@@ -16,7 +16,9 @@ export default function AutomationConditions({
   editable: boolean;
   onChange: (patch: Partial<RuleForm>) => void;
 }) {
-  const hidden = !form.filtersEdited && conditionsHidden(form.rawConditions);
+  const hasHidden = conditionsHidden(form.rawConditions);
+  const hidden = hasHidden && !form.filtersEdited;
+  const replaced = hasHidden && form.filtersEdited;
   return (
     <div className="flex flex-col gap-1.5">
       <div inert={!editable} className={editable ? undefined : 'opacity-70'}>
@@ -37,6 +39,11 @@ export default function AutomationConditions({
         <p className="text-xs text-muted-foreground">
           Some conditions were set outside this page and are not shown. They are kept unless you
           change the conditions here.
+        </p>
+      )}
+      {replaced && (
+        <p className="text-xs text-destructive">
+          The conditions set outside this page will be replaced by these when you save.
         </p>
       )}
       <p className="text-xs text-muted-foreground">

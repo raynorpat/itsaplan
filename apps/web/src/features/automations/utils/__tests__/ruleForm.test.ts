@@ -4,10 +4,12 @@ import { filterSetToIssueFilter } from '@/utils/viewFilters';
 import {
   actionSummary,
   conditionsHidden,
+  formDirty,
   formToRuleInput,
   newAction,
   ruleToForm,
   ruleUpdatePatch,
+  takesOwnership,
   type RuleForm,
   type SummaryContext,
 } from '../ruleForm';
@@ -43,6 +45,7 @@ function rule(over: Partial<WorkflowRule> = {}): WorkflowRule {
     lastExecutedAt: null,
     stats: { runs: 0 },
     archivedAt: null,
+    updatedAt: '2026-11-24T09:00:00.000Z',
     ...over,
   };
 }
@@ -245,5 +248,37 @@ describe('newAction', () => {
     assert.deepEqual(newAction('addLabels', []), { type: 'addLabels', labelIds: [] });
     assert.deepEqual(newAction('setAssignee', []), { type: 'setAssignee', userId: null });
     assert.deepEqual(newAction('addComment', []), { type: 'addComment', body: '' });
+  });
+});
+
+describe('actionSummary while a lookup is pending', () => {
+  const action = { type: 'setProject' as const, projectId: GONE };
+  it('does not call a project missing while it is still loading', () => {
+    assert.equal(actionSummary(action, { ...ctx, pendingIds: [GONE] }).missing, false);
+  });
+  it('calls it missing once the lookup finished without it', () => {
+    assert.equal(actionSummary(action, ctx).missing, true);
+  });
+});
+
+describe('takesOwnership', () => {
+  it('is true when someone else owns the rule and conditions or actions are sent', () => {
+    assert.equal(takesOwnership({ name: 'x', activities: [] }, rule(), 'u2'), true);
+    assert.equal(takesOwnership({ name: 'x', conditions: {} }, rule(), 'u2'), true);
+  });
+  it('is false for a rename, for the owner, and for a new rule', () => {
+    assert.equal(takesOwnership({ name: 'x' }, rule(), 'u2'), false);
+    assert.equal(takesOwnership({ activities: [] }, rule(), 'u1'), false);
+    assert.equal(takesOwnership({ activities: [] }, null, 'u2'), false);
+  });
+});
+
+describe('formDirty', () => {
+  it('is false for an untouched form and true after an edit', () => {
+    const form = ruleToForm(rule());
+    assert.equal(formDirty(form, rule()), false);
+    assert.equal(formDirty({ ...form, name: 'Other' }, rule()), true);
+    assert.equal(formDirty(ruleToForm(null), null), false);
+    assert.equal(formDirty({ ...ruleToForm(null), name: 'New' }, null), true);
   });
 });

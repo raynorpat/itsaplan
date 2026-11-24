@@ -35,13 +35,20 @@ export interface WorkflowRule {
   lastExecutedAt: string | null;
   stats: { runs: number; lastError?: string };
   archivedAt: string | null;
+  updatedAt: string;
 }
 
 // The rule as the API sent it. The auth client's JSON parser turns ISO date strings
 // into Date objects, so the date fields are turned back into the strings the API sent.
 export function normalizeRule(raw: WorkflowRule): WorkflowRule {
-  const iso = (v: string | Date | null) => (v instanceof Date ? v.toISOString() : v);
-  return { ...raw, lastExecutedAt: iso(raw.lastExecutedAt), archivedAt: iso(raw.archivedAt) };
+  const iso = <T extends string | null>(v: T | Date): T =>
+    (v instanceof Date ? v.toISOString() : v) as T;
+  return {
+    ...raw,
+    lastExecutedAt: iso(raw.lastExecutedAt),
+    archivedAt: iso(raw.archivedAt),
+    updatedAt: iso(raw.updatedAt),
+  };
 }
 
 // The viewer as the access rules need them: their workspace role and whether they
@@ -110,4 +117,38 @@ export function sortOrderForMove(rules: WorkflowRule[], ids: string[], movedId: 
   if (after != null) return after - 1;
   if (before != null) return before + 1;
   return order.get(movedId) ?? 0;
+}
+
+// The step between renumbered rules, the same step the API leaves between new rules.
+const SORT_STEP = 1000;
+
+// The reorder writes that put `movedId` at its place in `ids` (the new run order).
+// Usually one write, the moved rule halfway between its neighbours. When the
+// neighbours share a sortOrder (set through the API or MCP) there is no value between
+// them, so every rule whose place changes is renumbered in steps of 1000.
+export function reorderWrites(
+  rules: WorkflowRule[],
+  ids: string[],
+  movedId: string,
+): { id: string; sortOrder: number }[] {
+  const order = new Map(rules.map((r) => [r.id, r.sortOrder]));
+  const at = ids.indexOf(movedId);
+  const before = at > 0 ? order.get(ids[at - 1]) : undefined;
+  const after = at < ids.length - 1 ? order.get(ids[at + 1]) : undefined;
+  const value = sortOrderForMove(rules, ids, movedId);
+  const fits = (before == null || value > before) && (after == null || value < after);
+  if (fits) return [{ id: movedId, sortOrder: value }];
+  return ids
+    .map((id, i) => ({ id, sortOrder: (i + 1) * SORT_STEP }))
+    .filter(({ id, sortOrder }) => order.get(id) !== sortOrder);
+}
+
+// The rule owner's name among `people`; "a former member" when they are not among
+// them; null when the rule has no owner.
+export function ownerName(
+  ownerId: string | null,
+  people: { userId: string; name: string }[],
+): string | null {
+  if (!ownerId) return null;
+  return people.find((p) => p.userId === ownerId)?.name ?? 'a former member';
 }

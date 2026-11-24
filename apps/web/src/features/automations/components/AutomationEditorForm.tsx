@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from '@/lib/auth-client';
+import { useWorkspaceUsersQuery } from '@/services/members.service';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { TeamDetail } from '@/types/team';
@@ -8,17 +10,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useSaveAutomation } from '../services/automations.service';
-import { formToRuleInput, ruleToForm, ruleUpdatePatch, type RuleForm } from '../utils/ruleForm';
-import type { WorkflowRule } from '../utils/rules';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+import {
+  formDirty,
+  formToRuleInput,
+  ruleToForm,
+  ruleUpdatePatch,
+  takesOwnership,
+  type RuleForm,
+} from '../utils/ruleForm';
+import { normalizeRule, ownerName, type WorkflowRule } from '../utils/rules';
 import AutomationEditorSection from './AutomationEditorSection';
 import AutomationTriggerSelect from './AutomationTriggerSelect';
 import AutomationConditions from './AutomationConditions';
 import AutomationActions from './AutomationActions';
 import AutomationEditAccessSelect from './AutomationEditAccessSelect';
 
-// The editor's form: name, When, If, Then and edit access. Save sends only what the
-// API needs (ruleUpdatePatch) and returns to the list; a refusal shows the API's
-// message above the buttons. Read-only when `editable` is false.
+// The editor's form: name, When, If, Then and edit access. Save sends only what
+// changed since the form was opened (ruleUpdatePatch against `base`, the rule the form
+// was built from) and returns to the list; a refusal shows the API's message above the
+// buttons. When the server copy changes meanwhile (another editor), a notice offers to
+// reload it. Read-only when `editable` is false.
 export default function AutomationEditorForm({
   team,
   rule,
@@ -33,22 +45,39 @@ export default function AutomationEditorForm({
   listHref: string;
 }) {
   const router = useRouter();
+  const viewerId = useSession().data?.user.id ?? '';
   const save = useSaveAutomation(team.team.id);
+  const [base, setBase] = useState<WorkflowRule | null>(rule);
   const [form, setForm] = useState<RuleForm>(() => ruleToForm(rule));
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<RuleForm>) => setForm((f) => ({ ...f, ...patch }));
 
+  const dirty = editable && formDirty(form, base);
+  useUnsavedChangesGuard(dirty && !save.isPending && !save.isSuccess);
+  const changedElsewhere = rule != null && base != null && rule.updatedAt !== base.updatedAt;
+  const reload = () => {
+    setBase(rule);
+    setForm(ruleToForm(rule));
+    setError(null);
+  };
+
+  const owner = useOwnerName(team, base?.ownerId ?? null);
+  const result = formToRuleInput(form, team.team.id);
+  const patch = base && 'input' in result ? ruleUpdatePatch(result.input, base) : null;
+  const becomesOwner = patch != null && takesOwnership(patch, base, viewerId);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (save.isPending) return;
-    const result = formToRuleInput(form, team.team.id);
     if ('error' in result) return setError(result.error);
     setError(null);
-    const input = rule ? ruleUpdatePatch(result.input, rule) : result.input;
     save.mutate(
-      { id: rule?.id ?? null, input },
+      { id: base?.id ?? null, input: patch ?? result.input },
       {
-        onSuccess: () => router.push(listHref),
+        onSuccess: ({ workflow }) => {
+          setBase(normalizeRule(workflow));
+          router.push(listHref);
+        },
         onError: (err) => setError(err instanceof Error ? err.message : 'Saving failed'),
       },
     );
@@ -56,6 +85,17 @@ export default function AutomationEditorForm({
 
   return (
     <form onSubmit={submit} className="flex max-w-3xl flex-col gap-6">
+      {changedElsewhere && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+        >
+          <span>This automation was changed by someone else.</span>
+          <Button type="button" variant="outline" size="sm" onClick={reload}>
+            Reload
+          </Button>
+        </div>
+      )}
       <AutomationEditorSection label="Name">
         <Input
           value={form.name}
@@ -102,8 +142,14 @@ export default function AutomationEditorForm({
           onChange={(editAccess) => set({ editAccess })}
           disabled={!editable || !managesAccess}
         />
+        {base && <p className="text-xs text-muted-foreground">Owner: {owner ?? 'no one'}</p>}
       </AutomationEditorSection>
 
+      {editable && becomesOwner && (
+        <p className="text-sm text-muted-foreground">
+          Saving makes you the owner of this automation.
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -121,4 +167,13 @@ export default function AutomationEditorForm({
       </div>
     </form>
   );
+}
+
+// The rule owner's name: a team member, else a workspace user (guests cannot list
+// workspace users and see only the team's members).
+function useOwnerName(team: TeamDetail, ownerId: string | null): string | null {
+  const known = team.assignees.some((a) => a.userId === ownerId);
+  const isGuest = team.viewer.workspaceRole === 'guest';
+  const users = useWorkspaceUsersQuery(ownerId != null && !known && !isGuest).data ?? [];
+  return ownerName(ownerId, [...team.assignees, ...users]);
 }

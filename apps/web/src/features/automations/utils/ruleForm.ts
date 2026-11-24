@@ -161,6 +161,9 @@ export interface SummaryContext {
   users: { userId: string; name: string }[];
   projects: { id: string; name: string }[];
   cycles: { id: string; name: string | null; number: number }[];
+  // Ids whose lookup has not answered yet (a project or cycle loaded by its own
+  // query); they are not reported missing.
+  pendingIds?: string[];
 }
 
 // One action as a sentence ("Set status to Done"). An id that is not in `ctx` (a
@@ -171,21 +174,26 @@ export function actionSummary(
   ctx: SummaryContext,
 ): { text: string; missing: boolean } {
   let missing = false;
+  const pendingIds = ctx.pendingIds ?? [];
   const name = <T>(
     list: T[],
+    id: string,
     match: (item: T) => boolean,
     label: (item: T) => string,
     what: string,
   ) => {
     const found = list.find(match);
-    if (!found) missing = true;
-    return found ? label(found) : `a removed ${what}`;
+    if (found) return label(found);
+    if (pendingIds.includes(id)) return '…';
+    missing = true;
+    return `a removed ${what}`;
   };
   const labelNames = (ids: string[]) =>
     ids
       .map((id) =>
         name(
           ctx.labels,
+          id,
           (l) => l.id === id,
           (l) => l.name,
           'label',
@@ -198,6 +206,7 @@ export function actionSummary(
     case 'setState':
       text = `Set status to ${name(
         ctx.states,
+        action.stateId,
         (s) => s.id === action.stateId,
         (s) => s.name,
         'status',
@@ -207,6 +216,7 @@ export function actionSummary(
       text = action.userId
         ? `Assign to ${name(
             ctx.users,
+            action.userId,
             (u) => u.userId === action.userId,
             (u) => u.name,
             'member',
@@ -217,6 +227,7 @@ export function actionSummary(
       text = action.appUserId
         ? `Delegate to ${name(
             ctx.users,
+            action.appUserId,
             (u) => u.userId === action.appUserId,
             (u) => u.name,
             'agent',
@@ -236,6 +247,7 @@ export function actionSummary(
       text = action.projectId
         ? `Set project to ${name(
             ctx.projects,
+            action.projectId,
             (p) => p.id === action.projectId,
             (p) => p.name,
             'project',
@@ -244,7 +256,13 @@ export function actionSummary(
       break;
     case 'setCycle':
       text = action.cycleId
-        ? `Set cycle to ${name(ctx.cycles, (c) => c.id === action.cycleId, cycleLabel, 'cycle')}`
+        ? `Set cycle to ${name(
+            ctx.cycles,
+            action.cycleId,
+            (c) => c.id === action.cycleId,
+            cycleLabel,
+            'cycle',
+          )}`
         : 'Remove the cycle';
       break;
     case 'addComment':
@@ -252,4 +270,20 @@ export function actionSummary(
       break;
   }
   return { text, missing };
+}
+
+// True when saving `patch` makes the viewer the owner of someone else's rule: the API
+// makes whoever sends conditions or actions the owner.
+export function takesOwnership(
+  patch: Record<string, unknown>,
+  rule: Pick<WorkflowRule, 'ownerId'> | null,
+  viewerId: string,
+): boolean {
+  if (!rule || rule.ownerId === viewerId) return false;
+  return 'conditions' in patch || 'activities' in patch;
+}
+
+// True when `form` differs from the form `base` gives (unsaved edits).
+export function formDirty(form: RuleForm, base: WorkflowRule | null): boolean {
+  return canonical(form) !== canonical(ruleToForm(base));
 }

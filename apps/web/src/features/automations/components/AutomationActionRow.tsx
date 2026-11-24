@@ -22,10 +22,8 @@ export default function AutomationActionRow({
   onChange: (action: WorkflowAction) => void;
   onRemove: () => void;
 }) {
-  const ctx = useSummaryContext(team, action.type === 'setProject' ? action.projectId : null);
-  const summary = actionSummary(action, ctx);
-  // A project is looked up by its own query; until it answers it is not known missing.
-  const missing = summary.missing && action.type !== 'setProject';
+  const summary = actionSummary(action, useSummaryContext(team, action));
+  const missing = summary.missing;
   const label = ACTION_TYPES.find((t) => t.type === action.type)?.label ?? action.type;
 
   return (

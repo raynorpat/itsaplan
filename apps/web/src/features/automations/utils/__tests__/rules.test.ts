@@ -4,7 +4,9 @@ import {
   canCreateRule,
   canEditRule,
   normalizeRule,
+  ownerName,
   reorderIds,
+  reorderWrites,
   sortOrderForMove,
   triggerSummary,
   type WorkflowRule,
@@ -27,6 +29,7 @@ function rule(id: string, sortOrder: number, archivedAt: string | null = null): 
     lastExecutedAt: null,
     stats: { runs: 0 },
     archivedAt,
+    updatedAt: '2026-11-24T09:00:00.000Z',
   };
 }
 
@@ -101,6 +104,39 @@ describe('sortOrderForMove', () => {
   });
 });
 
+describe('reorderWrites', () => {
+  it('writes only the moved rule when its neighbours leave room', () => {
+    const rules = [rule('a', 1), rule('b', 2), rule('c', 3)];
+    assert.deepEqual(reorderWrites(rules, ['a', 'c', 'b'], 'c'), [{ id: 'c', sortOrder: 1.5 }]);
+  });
+
+  it('renumbers the rules whose place changes when the neighbours share a sortOrder', () => {
+    const rules = [rule('a', 1), rule('b', 1), rule('c', 2)];
+    assert.deepEqual(reorderWrites(rules, ['a', 'c', 'b'], 'c'), [
+      { id: 'a', sortOrder: 1000 },
+      { id: 'c', sortOrder: 2000 },
+      { id: 'b', sortOrder: 3000 },
+    ]);
+  });
+
+  it('leaves out rules already at their renumbered value', () => {
+    const rules = [rule('a', 1000), rule('b', 1000), rule('c', 3000)];
+    assert.deepEqual(reorderWrites(rules, ['a', 'c', 'b'], 'c'), [
+      { id: 'c', sortOrder: 2000 },
+      { id: 'b', sortOrder: 3000 },
+    ]);
+  });
+});
+
+describe('ownerName', () => {
+  const people = [{ userId: 'u1', name: 'Bob' }];
+  it('names the owner, a former member, or no one', () => {
+    assert.equal(ownerName('u1', people), 'Bob');
+    assert.equal(ownerName('u9', people), 'a former member');
+    assert.equal(ownerName(null, people), null);
+  });
+});
+
 describe('triggerSummary', () => {
   it('names the trigger', () => {
     assert.equal(triggerSummary(rule('a', 1)), 'When an issue is created');
@@ -117,10 +153,12 @@ describe('normalizeRule', () => {
       ...rule('a', 1),
       lastExecutedAt: new Date('2026-11-24T10:00:00.000Z'),
       archivedAt: new Date('2026-11-25T10:00:00.000Z'),
+      updatedAt: new Date('2026-11-26T10:00:00.000Z'),
     } as unknown as WorkflowRule;
     const out = normalizeRule(raw);
     assert.equal(out.lastExecutedAt, '2026-11-24T10:00:00.000Z');
     assert.equal(out.archivedAt, '2026-11-25T10:00:00.000Z');
+    assert.equal(out.updatedAt, '2026-11-26T10:00:00.000Z');
   });
 
   it('keeps strings and nulls', () => {

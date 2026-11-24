@@ -4,11 +4,11 @@ import { closestCenter, DndContext, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDndSensors } from '@/lib/dnd';
 import { useReorderAutomation } from '../services/automations.service';
-import { reorderIds, sortOrderForMove, type WorkflowRule } from '../utils/rules';
+import { reorderIds, reorderWrites, type WorkflowRule } from '../utils/rules';
 import AutomationRow from './AutomationRow';
 
 // The team's active rules in run order (top runs first); drag a rule's handle to
-// move it. Only the moved rule's sortOrder is written.
+// move it. Usually only the moved rule's sortOrder is written (reorderWrites).
 export default function AutomationsList({
   rules,
   teamId,
@@ -27,7 +27,9 @@ export default function AutomationsList({
     if (!e.over || e.active.id === e.over.id) return;
     const movedId = String(e.active.id);
     const ids = reorderIds(rules, movedId, String(e.over.id));
-    reorder.mutate({ id: movedId, sortOrder: sortOrderForMove(rules, ids, movedId) });
+    void (async () => {
+      for (const write of reorderWrites(rules, ids, movedId)) await reorder.mutateAsync(write);
+    })().catch(() => {});
   }
 
   return (

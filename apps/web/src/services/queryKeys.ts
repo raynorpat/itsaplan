@@ -26,6 +26,8 @@ export const qk = {
   // Automations).
   automations: (teamId: string) => ['automations', teamId] as const,
   automation: (id: string) => ['automation', id] as const,
+  // A cycle an automation action points at, looked up by id.
+  automationCycle: (id: string) => ['automation-cycle', id] as const,
   // A team's members (the Members section), and the workspace's users and pending
   // invites (the workspace Members page).
   members: (teamKey: string) => ['members', teamKey] as const,

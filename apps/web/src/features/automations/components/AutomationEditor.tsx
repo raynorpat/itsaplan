@@ -6,7 +6,8 @@ import { ChevronLeft } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
 import SectionPageView from '@/components/common/page/SectionPageView';
 import { settingsPath } from '@/utils/paths';
-import { useAutomationQuery } from '../services/automations.service';
+import { Button } from '@/components/ui/button';
+import { useAutomationQuery, useUnarchiveAutomation } from '../services/automations.service';
 import { useRuleViewer } from '../hooks/useRuleViewer';
 import { canCreateRule, canEditRule } from '../utils/rules';
 import AutomationEditorForm from './AutomationEditorForm';
@@ -20,6 +21,7 @@ export default function AutomationEditor() {
   const { team } = useShell();
   const viewer = useRuleViewer(team);
   const query = useAutomationQuery(ruleId);
+  const unarchive = useUnarchiveAutomation(team?.team.id ?? '');
   if (!team) return null;
 
   const listHref = settingsPath(team.team.key, 'automations');
@@ -37,14 +39,35 @@ export default function AutomationEditor() {
   else {
     const editable = rule ? canEditRule(rule, viewer) : canCreateRule(viewer);
     body = (
-      <AutomationEditorForm
-        key={rule?.id ?? 'new'}
-        team={team}
-        rule={rule}
-        editable={editable}
-        managesAccess={canCreateRule(viewer)}
-        listHref={listHref}
-      />
+      <>
+        {rule?.archivedAt && (
+          <div
+            role="status"
+            className="mb-4 flex max-w-3xl items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+          >
+            <span>This automation is archived and does not run.</span>
+            {editable && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={unarchive.isPending}
+                onClick={() => unarchive.mutate(rule.id)}
+              >
+                Unarchive
+              </Button>
+            )}
+          </div>
+        )}
+        <AutomationEditorForm
+          key={rule?.id ?? 'new'}
+          team={team}
+          rule={rule}
+          editable={editable}
+          managesAccess={canCreateRule(viewer)}
+          listHref={listHref}
+        />
+      </>
     );
   }
 
