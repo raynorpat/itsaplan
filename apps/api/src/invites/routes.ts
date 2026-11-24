@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { assertWorkspaceRole, atLeast, requireUser, workspaceRole } from '../shared/access';
@@ -70,7 +69,6 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
         description:
           'Invite an email address to the workspace with a role (admin, member or guest) and ' +
           'optional teams, applied when the address signs up. Not above your own role.',
-        ...mcpTool('create_invite'),
       },
     },
   )
@@ -87,7 +85,7 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
     },
     {
       response: { 200: t.Array(InviteRowResponse), 401: ErrorResponse, 403: ErrorResponse },
-      detail: { summary: 'List pending workspace invites', ...mcpTool('list_invites') },
+      detail: { summary: 'List pending workspace invites' },
     },
   )
 
@@ -109,7 +107,6 @@ export const inviteRoutes = new Elysia({ name: 'invites', detail: { tags: ['Invi
       detail: {
         summary: 'Revoke a workspace invite',
         description: 'Revoke a pending invite: its sender, or a workspace admin.',
-        ...mcpTool('delete_invite', { destructiveHint: true }),
       },
     },
   )

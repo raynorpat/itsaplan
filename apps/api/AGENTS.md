@@ -365,16 +365,16 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.
-- **MCP** (`mcp/`): `/mcp` takes an API key or an OAuth access token as
-  `Authorization: Bearer` (no cookie). A 401 carries `WWW-Authenticate: Bearer
-  resource_metadata=".../.well-known/oauth-protected-resource/mcp"` (served by
-  `oauth/routes.ts`, RFC 9728), where an MCP client starts signing in. Tools run REST
-  routes in process: an API key is forwarded as `x-api-key`; an OAuth caller's user
-  is passed to `authContext` through `runAsMcpCaller` (an in-process store no request
-  can set) with the token's scopes (`runWithAuth`), so REST itself takes no OAuth
-  token. A tool needs `read` or `write` (GET), `issues:create` or `write` (create an issue),
-  `comments:create` or `write` (add a comment), else `write` (`toolScopes`); admin
-  tools also need `admin` through the role checks.
+- **MCP** (`mcp/`): `/mcp` (every tool) and `/mcp/readonly` (read tools only) take
+  an API key or an OAuth access token as `Authorization: Bearer` (no cookie). A 401
+  carries `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`
+  (or `.../mcp/readonly`; served by `oauth/routes.ts`, RFC 9728), where an MCP client
+  starts signing in. The tools are Linear's MCP tool set (`mcp/tools/`); each runs
+  GraphQL in process as the caller (`mcp/graphql.ts`: a `/graphql` request carrying
+  the caller's own credential), so access and scopes are GraphQL's. Tools take names,
+  keys or ids (`mcp/resolve.ts`); a reference that matches several records is refused
+  with the candidates. The server instructions (`mcp/instructions.ts`) carry the
+  workflow rules for working on an issue.
 - **Tests:** `src/__tests__/helpers/linear.ts` serves the app on a local port and
   returns a `LinearClient`, so tests drive the endpoint with the real SDK.
 

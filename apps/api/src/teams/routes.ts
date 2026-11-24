@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { HttpError } from '../shared/lib';
 import { authContext } from '../shared/auth-context';
@@ -139,7 +138,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       description:
         'List the teams you can see: your teams, plus every public team unless you are a ' +
         'guest. `role` is your membership (null when not joined).',
-      ...mcpTool('list_teams'),
     },
   })
 
@@ -162,7 +160,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
         description:
           'Create a team you own. `key` is the unique, immutable prefix for issue ids ' +
           "(e.g. 'MKT' -> 'MKT-1'). Seeds the default columns.",
-        ...mcpTool('create_team'),
       },
     },
   )
@@ -208,7 +205,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
           'Get a team setup by key: states, labels and assignable users. Resolves the ids ' +
           'create_issue and update_issue ' +
           'take. For issues use list_issues or search_issues.',
-        ...mcpTool('get_team'),
       },
     },
   )
@@ -239,7 +235,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       detail: {
         summary: 'Update a team',
         description: "Update a team's name and/or description. The key is immutable.",
-        ...mcpTool('update_team'),
       },
     },
   )
@@ -329,7 +324,6 @@ export const teamRoutes = new Elysia({ name: 'teams', detail: { tags: ['Teams'] 
       detail: {
         summary: 'Delete a team',
         description: 'Permanently delete a team and everything in it. Irreversible.',
-        ...mcpTool('delete_team'),
       },
     },
   );

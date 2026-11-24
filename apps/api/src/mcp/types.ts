@@ -1,17 +1,36 @@
-import type { SessionUser } from '../shared/auth-context';
-import type { RequestAuth } from '../shared/request-auth';
+import type { Gql } from './graphql';
 
-// The minimal surface of the assembled Elysia app the MCP layer uses: route
-// introspection and in-process dispatch. A structural type (not Elysia<...>) so a
-// concrete app is assignable without hitting Elysia's invariant generics.
+// The minimal surface of the assembled Elysia app the MCP layer uses: in-process
+// dispatch to /graphql. A structural type (not Elysia<...>) so a concrete app is
+// assignable without hitting Elysia's invariant generics.
 export interface McpApp {
-  routes: ReadonlyArray<{ method: string; path: string; hooks: unknown }>;
   handle: (request: Request) => Promise<Response>;
 }
 
-// Who an MCP request acts as: an API key, forwarded to the routes as x-api-key; or an
-// OAuth token, already checked by the endpoint, whose user and scopes the tool calls
-// run with (dispatch.ts).
-export type McpCaller =
-  | { kind: 'apiKey'; apiKey: string }
-  | { kind: 'oauth'; user: SessionUser; auth: Extract<RequestAuth, { kind: 'oauth' }> };
+// The JSON Schema an MCP client receives for a tool's arguments.
+export interface McpInputSchema {
+  type: 'object';
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
+// Behaviour hints an MCP client reads to decide whether a call needs the person's
+// confirmation. Hints only: GraphQL enforces access and scopes.
+export interface McpToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+// One MCP tool: what the client sees, and what a call runs (GraphQL as the caller).
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema: McpInputSchema;
+  // A read tool only queries; it is the only kind /mcp/readonly lists and runs.
+  readOnly: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  run: (gql: Gql, args: Record<string, any>) => Promise<unknown>;
+}

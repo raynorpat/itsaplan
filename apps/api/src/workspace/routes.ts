@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { assertWorkspaceRole, requireUser } from '../shared/access';
@@ -42,7 +41,7 @@ export const workspaceRoutes = new Elysia({ name: 'workspace', detail: { tags: [
     },
     {
       response: { 200: t.Array(WorkspaceUserResponse), 401: ErrorResponse, 403: ErrorResponse },
-      detail: { summary: 'List workspace users', ...mcpTool('list_workspace_users') },
+      detail: { summary: 'List workspace users' },
     },
   )
 
@@ -58,7 +57,6 @@ export const workspaceRoutes = new Elysia({ name: 'workspace', detail: { tags: [
         description:
           'Owner, admin, member or guest. Admins change members and guests; only owners ' +
           'make or remove owners; the workspace keeps at least one owner.',
-        ...mcpTool('set_workspace_role'),
       },
     },
   )
@@ -75,7 +73,6 @@ export const workspaceRoutes = new Elysia({ name: 'workspace', detail: { tags: [
       detail: {
         summary: 'Suspend a user',
         description: 'The user can no longer sign in or use API keys. Their history stays.',
-        ...mcpTool('suspend_user', { destructiveHint: true }),
       },
     },
   )
@@ -89,6 +86,6 @@ export const workspaceRoutes = new Elysia({ name: 'workspace', detail: { tags: [
     {
       params: userParams,
       response: { 204: t.Void(), ...errors },
-      detail: { summary: 'Unsuspend a user', ...mcpTool('unsuspend_user') },
+      detail: { summary: 'Unsuspend a user' },
     },
   );

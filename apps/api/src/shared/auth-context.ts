@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { Elysia } from 'elysia';
 import { auth, getActiveSession } from '@repo/auth';
 import { HttpError } from './lib';
@@ -25,21 +24,9 @@ export type SessionUser = SessionResult['user'];
 // session-gated. A feature also uses it directly when its handlers or local
 // macros reference `user`, which is what makes the `user` type flow there. The
 // plugin is named, so its resolve runs once per request (dedup).
-// The user an MCP tool call made with an OAuth token runs as (mcp/dispatch.ts). The
-// tool runs a REST route in process; REST takes no OAuth token, so the MCP endpoint,
-// which checked the token, passes the user through this store around that in-process
-// request only. Nothing an outside request carries can set it.
-const mcpCaller = new AsyncLocalStorage<SessionUser>();
-
-export function runAsMcpCaller<T>(user: SessionUser, run: () => T): T {
-  return mcpCaller.run(user, run);
-}
-
 export const authContext = new Elysia({ name: 'auth-context' }).resolve(
   { as: 'scoped' },
   async ({ request, path }): Promise<{ user: SessionUser | null }> => {
-    const caller = mcpCaller.getStore();
-    if (caller) return { user: caller };
     const session = await getActiveSession(request.headers);
     if (session) return { user: session.user };
     // The public raw-attachment route has no session and needs none.

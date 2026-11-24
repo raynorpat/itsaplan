@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
@@ -41,7 +40,7 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: 'List team members', ...mcpTool('list_members') },
+      detail: { summary: 'List team members' },
     },
   )
 
@@ -64,7 +63,6 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
       detail: {
         summary: 'Join a team',
         description: 'Join a team you can see (a public team, without an invite).',
-        ...mcpTool('join_team'),
       },
     },
   )
@@ -93,7 +91,6 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         description:
           'Add a workspace user to the team, optionally as a team owner. Private teams and ' +
           'team owners need a team manager.',
-        ...mcpTool('add_member'),
       },
     },
   )
@@ -121,7 +118,6 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
         summary: "Update a member's role",
         description:
           "Make a member a team owner ('owner') or a plain member ('member'). Team managers only.",
-        ...mcpTool('set_member_role'),
       },
     },
   )
@@ -147,7 +143,6 @@ export const memberRoutes = new Elysia({ name: 'members', detail: { tags: ['Memb
       detail: {
         summary: 'Remove a member',
         description: 'Remove a member from the team, or leave it yourself.',
-        ...mcpTool('remove_member'),
       },
     },
   );

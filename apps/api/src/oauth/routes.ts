@@ -17,7 +17,7 @@ import {
 //                           token; otherwise the standard form with client credentials
 // - POST /oauth/register    dynamic client registration (MCP clients)
 // - GET  /.well-known/oauth-authorization-server   the server metadata (RFC 8414)
-// - GET  /.well-known/oauth-protected-resource[/mcp]   the MCP endpoint's resource
+// - GET  /.well-known/oauth-protected-resource[/mcp[/readonly]]   the MCP endpoints' resource
 //                           metadata (RFC 9728), where an MCP client starts signing in
 
 const FORWARDED = {
@@ -53,11 +53,12 @@ export function authorizationServerMetadata(apiUrl: string) {
   };
 }
 
-// The MCP endpoint's resource metadata. It lists only the scopes a self-registered
-// MCP client may ask for, since that is what an MCP client registers with.
-export function protectedResourceMetadata(apiUrl: string) {
+// An MCP endpoint's resource metadata (/mcp or /mcp/readonly). It lists only the
+// scopes a self-registered MCP client may ask for, since that is what an MCP client
+// registers with.
+export function protectedResourceMetadata(apiUrl: string, path: '/mcp' | '/mcp/readonly' = '/mcp') {
   return {
-    resource: `${apiUrl}/mcp`,
+    resource: `${apiUrl}${path}`,
     authorization_servers: [oauthIssuer(apiUrl)],
     scopes_supported: [...MCP_CLIENT_SCOPES],
     bearer_methods_supported: ['header'],
@@ -113,11 +114,14 @@ export function mountOAuth(app: any): void {
   app.get('/.well-known/oauth-authorization-server', () =>
     Response.json(authorizationServerMetadata(apiUrl)),
   );
-  // The MCP endpoint as a protected resource (RFC 9728). MCP clients probe the path
-  // with the resource's path appended, and the bare path.
+  // The MCP endpoints as protected resources (RFC 9728). MCP clients probe the path
+  // with the resource's path appended, and the bare path (which describes /mcp).
   for (const path of [
     '/.well-known/oauth-protected-resource',
     '/.well-known/oauth-protected-resource/mcp',
   ])
     app.get(path, () => Response.json(protectedResourceMetadata(apiUrl)));
+  app.get('/.well-known/oauth-protected-resource/mcp/readonly', () =>
+    Response.json(protectedResourceMetadata(apiUrl, '/mcp/readonly')),
+  );
 }

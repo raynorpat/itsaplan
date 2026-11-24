@@ -7,7 +7,6 @@ import { HttpError } from '../shared/lib';
 import { putObject, getObject } from '../shared/s3';
 import { assertPublicHttpUrl } from '../shared/net';
 import { getIssueTeamId } from '../issues/store';
-import { mcpTool } from '../mcp/generate';
 import { ErrorResponse } from '../shared/responses';
 import { rawObjectResponse } from '../shared/raw-object';
 import { getStorageSettings, MB } from '../settings/storage';
@@ -91,7 +90,6 @@ export const attachmentRoutes = new Elysia({
       detail: {
         summary: 'List attachments',
         description: "List an issue's attachments by its id (a UUID).",
-        ...mcpTool('list_attachments'),
       },
     },
   )
@@ -240,7 +238,6 @@ export const attachmentRoutes = new Elysia({
       detail: {
         summary: 'Add an attachment from a URL or base64',
         description: 'Attach a file to an issue without a multipart upload.',
-        ...mcpTool('add_attachment'),
       },
     },
   )
@@ -265,7 +262,6 @@ export const attachmentRoutes = new Elysia({
       detail: {
         summary: 'Delete an attachment',
         description: 'Delete an attachment. Irreversible.',
-        ...mcpTool('delete_attachment'),
       },
     },
   )

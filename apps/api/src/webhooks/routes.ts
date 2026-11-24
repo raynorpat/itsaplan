@@ -6,7 +6,6 @@ import { assertAllTeamsManager, assertWebhookAccess } from './access';
 import { validateWebhookUrl } from './url';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
-import { mcpTool } from '../mcp/generate';
 import { ErrorResponse } from '../shared/responses';
 import {
   WEBHOOK_RESOURCE_TYPES,
@@ -86,7 +85,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "List a team's webhooks", ...mcpTool('list_webhooks') },
+      detail: { summary: "List a team's webhooks" },
     },
   )
 
@@ -113,7 +112,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: 'Create a webhook', ...mcpTool('create_webhook') },
+      detail: { summary: 'Create a webhook' },
     },
   )
 
@@ -123,7 +122,6 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
     detail: {
       summary: 'List all-teams webhooks',
       description: 'List the webhooks that receive events of every team.',
-      ...mcpTool('list_all_teams_webhooks'),
     },
   })
 
@@ -153,7 +151,6 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         summary: 'Create an all-teams webhook',
         description:
           'Create a webhook that receives events of every team, including teams created later.',
-        ...mcpTool('create_all_teams_webhook'),
       },
     },
   )
@@ -175,7 +172,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: "Rotate a webhook's secret", ...mcpTool('rotate_webhook_secret') },
+      detail: { summary: "Rotate a webhook's secret" },
     },
   )
 
@@ -206,7 +203,7 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: 'Update a webhook', ...mcpTool('update_webhook') },
+      detail: { summary: 'Update a webhook' },
     },
   )
 
@@ -226,6 +223,6 @@ export const webhookRoutes = new Elysia({ name: 'webhooks', detail: { tags: ['We
         403: ErrorResponse,
         404: ErrorResponse,
       },
-      detail: { summary: 'Delete a webhook', ...mcpTool('delete_webhook') },
+      detail: { summary: 'Delete a webhook' },
     },
   );

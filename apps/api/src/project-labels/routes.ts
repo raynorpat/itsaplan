@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { requireUser, type AuthUser } from '../shared/access';
@@ -62,7 +61,6 @@ export const projectLabelRoutes = new Elysia({
     detail: {
       summary: 'List project labels',
       description: 'List the workspace-level project labels and label groups.',
-      ...mcpTool('list_project_labels'),
     },
   })
   .post(
@@ -90,7 +88,6 @@ export const projectLabelRoutes = new Elysia({
       detail: {
         summary: 'Create a project label',
         description: 'Create a project label, or a group with isGroup.',
-        ...mcpTool('create_project_label'),
       },
     },
   )
@@ -120,7 +117,6 @@ export const projectLabelRoutes = new Elysia({
       },
       detail: {
         summary: 'Update a project label',
-        ...mcpTool('update_project_label'),
       },
     },
   )
@@ -138,7 +134,6 @@ export const projectLabelRoutes = new Elysia({
       detail: {
         summary: 'Delete a project label',
         description: 'Delete a project label; deleting a group deletes its labels.',
-        ...mcpTool('delete_project_label'),
       },
     },
   );

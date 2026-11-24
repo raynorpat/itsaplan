@@ -105,9 +105,9 @@ export const app = new Elysia()
   // Planner API: teams, issues, and their dependent entities.
   .use(planner);
 
-// MCP endpoint (POST /mcp). Added after the chain so `type App` (the Eden client
-// type) stays the REST surface; the MCP endpoint is JSON-RPC, not called via Eden.
-// Its tools are generated from the planner routes tagged with mcpTool().
+// MCP endpoints (POST /mcp, POST /mcp/readonly). Added after the chain so `type App`
+// (the Eden client type) stays the REST surface; MCP is JSON-RPC, not called via Eden.
+// Its tools run GraphQL in process as the caller (mcp/graphql.ts).
 mountMcp(app);
 
 // Linear-compatible GraphQL endpoint (/graphql), mounted the same way as MCP.

@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
@@ -222,7 +221,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Create an issue',
         description: 'Create an issue in a team.',
-        ...mcpTool('create_issue'),
       },
     },
   )
@@ -399,7 +397,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Search issues by text',
         description: "Search a team's issues by text.",
-        ...mcpTool('search_issues'),
       },
     },
   )
@@ -473,7 +470,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'List issues by filters',
         description: "List a team's issues by field filters.",
-        ...mcpTool('list_issues'),
       },
     },
   )
@@ -531,7 +527,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
         summary: 'Get an issue by number',
         description:
           'Get an issue by its team-scoped number: the 42 in "MKT-42". Use this when you were given an identifier; get_issue takes the issue id (a UUID) instead.',
-        ...mcpTool('get_issue_by_number'),
       },
     },
   )
@@ -559,7 +554,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Get an issue',
         description: 'Get an issue by its id (a UUID).',
-        ...mcpTool('get_issue'),
       },
     },
   )
@@ -659,7 +653,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Update an issue',
         description: 'Update an issue by its id (a UUID).',
-        ...mcpTool('update_issue'),
       },
     },
   )
@@ -698,7 +691,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Delete an issue',
         description: 'Permanently delete an issue by its id (a UUID). Irreversible.',
-        ...mcpTool('delete_issue'),
       },
     },
   )
@@ -726,7 +718,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Archive an issue',
         description: 'Archive an issue by its id (a UUID).',
-        ...mcpTool('archive_issue'),
       },
     },
   )
@@ -752,7 +743,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Restore an archived issue',
         description: 'Restore an archived issue by its id (a UUID).',
-        ...mcpTool('restore_issue'),
       },
     },
   )
@@ -795,7 +785,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Get an issue feed',
         description: "Get an issue's activity feed by its id (a UUID).",
-        ...mcpTool('list_issue_activity'),
       },
     },
   )
@@ -874,7 +863,6 @@ export const issueRoutes = new Elysia({ name: 'issues', detail: { tags: ['Issues
       detail: {
         summary: 'Add a comment',
         description: 'Add a comment to an issue by its id (a UUID).',
-        ...mcpTool('add_comment'),
       },
     },
   );

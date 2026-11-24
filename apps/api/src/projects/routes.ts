@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
 import { PROJECT_STATUSES, type ProjectStatusType } from '@repo/db';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { requireUser, type AuthUser, visibleTeamIdList } from '../shared/access';
@@ -193,7 +192,6 @@ export const projectRoutes = new Elysia({
         summary: 'List projects',
         description:
           'List the projects you can see across your teams, filtered (optionally to one team), sorted and paged.',
-        ...mcpTool('list_projects'),
       },
     },
   )
@@ -289,7 +287,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Create a project',
         description: 'Create a project in one or more teams.',
-        ...mcpTool('create_project'),
       },
     },
   )
@@ -314,7 +311,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Get a project',
         description: 'Get a project by its id (a UUID).',
-        ...mcpTool('get_project'),
       },
     },
   )
@@ -369,7 +365,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Update a project',
         description: 'Update a project by its id (a UUID).',
-        ...mcpTool('update_project'),
       },
     },
   )
@@ -409,7 +404,6 @@ export const projectRoutes = new Elysia({
         summary: "Set a project's teams",
         description:
           "Replace the project's teams (the ones you can see). A team with issues in the project cannot be removed, and the project keeps at least one team.",
-        ...mcpTool('set_project_teams'),
       },
     },
   )
@@ -438,7 +432,6 @@ export const projectRoutes = new Elysia({
     detail: {
       summary: "List a project's milestones",
       description: 'Milestones are read-only over REST; create and edit them over GraphQL.',
-      ...mcpTool('list_project_milestones'),
     },
   })
 
@@ -458,7 +451,6 @@ export const projectRoutes = new Elysia({
     detail: {
       summary: 'List project statuses',
       description: 'The six project statuses, in lifecycle order.',
-      ...mcpTool('list_project_statuses'),
     },
   })
 
@@ -480,7 +472,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Archive a project',
         description: 'Archive a project; it is hidden from lists unless includeArchived.',
-        ...mcpTool('archive_project'),
       },
     },
   )
@@ -503,7 +494,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Unarchive a project',
         description: 'Restore an archived project.',
-        ...mcpTool('unarchive_project'),
       },
     },
   )
@@ -527,7 +517,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Delete a project',
         description: 'Delete a project by its id (a UUID). Irreversible.',
-        ...mcpTool('delete_project'),
       },
     },
   )
@@ -566,7 +555,6 @@ export const projectRoutes = new Elysia({
       detail: {
         summary: 'Get a project feed',
         description: "Get a project's activity feed by its id (a UUID).",
-        ...mcpTool('list_project_activity'),
       },
     },
   );

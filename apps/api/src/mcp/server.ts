@@ -1,74 +1,66 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { McpApp, McpCaller } from './types';
-import { routeTools, type McpRouteTool } from './generate';
-import { dispatchTool } from './dispatch';
+import { graphqlAs, ToolError } from './graphql';
 import { SERVER_INSTRUCTIONS } from './instructions';
+import { commentTools } from './tools/comments';
+import { issueTools } from './tools/issues';
+import { projectTools } from './tools/projects';
+import { workspaceTools } from './tools/workspace';
+import type { McpApp, McpTool } from './types';
 
-// The scopes that let an OAuth token run a tool (Linear's rules for the operation the
-// tool performs): reading needs `read` (or `write`, which includes it, as on GraphQL); creating an issue `issues:create` or `write`;
-// adding a comment `comments:create` or `write`; any other write `write`. Admin tools
-// need `admin` as well, which the routes' role checks apply (shared/access.ts).
-export function toolScopes(tool: Pick<McpRouteTool, 'method' | 'path'>): string[] {
-  if (tool.method === 'GET') return ['read', 'write'];
-  if (tool.method === 'POST' && tool.path === '/teams/:teamKey/issues')
-    return ['issues:create', 'write'];
-  if (tool.method === 'POST' && tool.path === '/issues/:issueId/comments')
-    return ['comments:create', 'write'];
-  return ['write'];
-}
+// Linear's MCP tool set. Every tool runs GraphQL as the caller, so access and scopes
+// are GraphQL's own (an OAuth token without `write` is refused a write tool there).
+export const TOOLS: McpTool[] = [
+  ...issueTools,
+  ...commentTools,
+  ...projectTools,
+  ...workspaceTools,
+];
 
-// A low-level MCP Server for one request. tools/list returns every route tagged
-// with x-mcp; tools/call dispatches to the real route via app.handle as the caller
-// (an API key, or an OAuth token within its scopes). The low-level Server (not McpServer) is used so the route's
-// TypeBox JSON Schema can be served as the tool inputSchema without converting to
-// Zod. Arguments are validated by the route itself, not here.
-export function buildMcpServer(app: McpApp, caller: McpCaller): Server {
+// A low-level MCP Server for one request. `readOnly` is the /mcp/readonly endpoint:
+// it lists and runs only the read tools.
+export function buildMcpServer(app: McpApp, credential: string, readOnly: boolean): Server {
   const server = new Server(
-    // `name` is the stable programmatic identifier; `title` is the human-readable
-    // display name a client shows to the user (per the MCP Implementation spec).
+    // `name` is the stable programmatic identifier; `title` the display name.
     { name: 'itsaplan', title: 'Itsaplan', version: '1.0.0' },
-    // `instructions` reaches the client in the initialize response and covers what
-    // no single tool description can: which tool resolves ids, how a column is
-    // picked, how far a request to "work on an issue" goes.
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   );
-
-  const table = routeTools(app);
-  const byName = new Map(table.map((t) => [t.name, t]));
+  const tools = TOOLS.filter((t) => !readOnly || t.readOnly);
+  const byName = new Map(tools.map((t) => [t.name, t]));
+  const gql = graphqlAs(app, credential);
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: table.map((t) => ({
+    tools: tools.map((t) => ({
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema,
-      annotations: t.annotations,
+      annotations: t.readOnly
+        ? { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+        : {
+            readOnlyHint: false,
+            destructiveHint: false,
+            idempotentHint: false,
+            openWorldHint: false,
+          },
     })),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const tool = byName.get(req.params.name);
     if (!tool) {
-      return {
-        content: [{ type: 'text', text: `Unknown tool: ${req.params.name}` }],
-        isError: true,
-      };
+      const text = TOOLS.some((t) => t.name === req.params.name)
+        ? `${req.params.name} changes data and is not available on the read-only endpoint`
+        : `Unknown tool: ${req.params.name}`;
+      return { content: [{ type: 'text', text }], isError: true };
     }
-    if (caller.kind === 'oauth') {
-      const allowed = toolScopes(tool);
-      if (!allowed.some((scope) => caller.auth.scopes.includes(scope as never)))
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `This tool needs the ${allowed.map((s) => `\`${s}\``).join(' or ')} scope`,
-            },
-          ],
-          isError: true,
-        };
+    try {
+      const result = await tool.run(gql, req.params.arguments ?? {});
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    } catch (err) {
+      if (err instanceof ToolError)
+        return { content: [{ type: 'text', text: err.message }], isError: true };
+      throw err;
     }
-    const { text, isError } = await dispatchTool(app, tool, req.params.arguments ?? {}, caller);
-    return { content: [{ type: 'text', text }], isError };
   });
 
   return server;

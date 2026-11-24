@@ -4,7 +4,6 @@ import { guards, entityGuard } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
 import { HttpError } from '../shared/lib';
 import { ErrorResponse } from '../shared/responses';
-import { mcpTool } from '../mcp/generate';
 import { requireUser } from '../shared/access';
 import {
   isViewSharedWith,
@@ -87,7 +86,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       detail: {
         summary: 'List saved views',
         description: "List a team's saved views.",
-        ...mcpTool('list_views'),
       },
     },
   )
@@ -119,7 +117,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       detail: {
         summary: 'Create a saved view',
         description: 'Create a saved view in a team.',
-        ...mcpTool('create_view'),
       },
     },
   )
@@ -152,7 +149,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       detail: {
         summary: 'Update a saved view',
         description: 'Update an existing saved view.',
-        ...mcpTool('update_view'),
       },
     },
   )
@@ -176,7 +172,6 @@ export const viewRoutes = new Elysia({ name: 'views', detail: { tags: ['Views'] 
       detail: {
         summary: 'Delete a saved view',
         description: 'Delete a saved view. Irreversible.',
-        ...mcpTool('delete_view'),
       },
     },
   );

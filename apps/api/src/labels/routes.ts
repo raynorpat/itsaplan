@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
 import { requireUser } from '../shared/access';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { guards } from '../shared/guards';
 import { authContext } from '../shared/auth-context';
@@ -69,7 +68,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       detail: {
         summary: 'Create a label',
         description: 'Create a label. Optional groupId assigns it to a label group.',
-        ...mcpTool('create_label'),
       },
     },
   )
@@ -106,7 +104,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
         summary: 'Update a label',
         description:
           "Update a label's name, color, or group. Set groupId to null to remove it from its group.",
-        ...mcpTool('update_label'),
       },
     },
   )
@@ -130,7 +127,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       detail: {
         summary: 'Delete a label',
         description: 'Delete a label.',
-        ...mcpTool('delete_label'),
       },
     },
   )
@@ -164,7 +160,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       detail: {
         summary: 'Create a label group',
         description: 'Create a label group, a named container for labels.',
-        ...mcpTool('create_label_group'),
       },
     },
   )
@@ -199,7 +194,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       detail: {
         summary: 'Update a label group',
         description: "Update a label group's name or color.",
-        ...mcpTool('update_label_group'),
       },
     },
   )
@@ -223,7 +217,6 @@ export const labelRoutes = new Elysia({ name: 'labels', detail: { tags: ['Labels
       detail: {
         summary: 'Delete a label group',
         description: 'Delete a label group.',
-        ...mcpTool('delete_label_group'),
       },
     },
   );

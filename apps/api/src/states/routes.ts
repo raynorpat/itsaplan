@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { mcpTool } from '../mcp/generate';
 import { noContent } from '../shared/http';
 import { authContext } from '../shared/auth-context';
 import { guards } from '../shared/guards';
@@ -66,7 +65,6 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         description:
           'Create a column (workflow state). stateType is one of ' +
           'backlog/unstarted/started/completed/canceled.',
-        ...mcpTool('create_state'),
       },
     },
   )
@@ -94,7 +92,6 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         description:
           "Reorder a team's columns. orderedIds is the full left-to-right list of " +
           'column ids. Returns the reordered columns.',
-        ...mcpTool('reorder_states'),
       },
     },
   )
@@ -126,7 +123,6 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
       detail: {
         summary: 'Update a column',
         description: "Update a column's name, color, or description. The type is fixed.",
-        ...mcpTool('update_state'),
       },
     },
   )
@@ -149,7 +145,6 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         description:
           'Archive a column (workflow state). It must hold no active issues and must ' +
           'not be the last active column of its state type.',
-        ...mcpTool('archive_state'),
       },
     },
   )
@@ -182,7 +177,6 @@ export const stateRoutes = new Elysia({ name: 'states', detail: { tags: ['States
         description:
           "Delete a column. Body mode 'move' reassigns its issues to targetStateId, " +
           "'delete' removes them. Backlog columns cannot be deleted.",
-        ...mcpTool('delete_state'),
       },
     },
   );
