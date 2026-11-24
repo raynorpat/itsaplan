@@ -1,9 +1,6 @@
-import { db, workflowState, issue, issueLabel } from '@repo/db';
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { db, workflowState, issue } from '@repo/db';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
-import { recordActivityForIssues } from '../issues/activity';
-import { emitEvent, isWatched } from '../webhooks/event';
-import { issueData, type WebhookData } from '../webhooks/data';
 
 // Data access for columns (kanban states). A column belongs to one team and
 // has a state type that fixes its place in the work items view's left-to-right order.
@@ -200,90 +197,4 @@ export async function reorderStates(teamId: string, orderedIds: string[]): Promi
         .where(and(eq(workflowState.id, id), eq(workflowState.teamId, teamId)));
     }
   });
-}
-
-// Deletes a column. `move` reassigns the column's issues to targetStateId before
-// dropping the column; `delete` removes the issues and their dependent rows
-// (labels and the like) first. Backlog columns cannot be deleted,
-// which keeps at least one column on every team. Runs in one transaction so the
-// column and its issues are never left half-deleted.
-export type DeleteStateOptions = { mode: 'move'; targetStateId: string } | { mode: 'delete' };
-
-export async function deleteState(
-  stateId: string,
-  teamId: string,
-  opts: DeleteStateOptions,
-  actorUserId?: string | null,
-): Promise<void> {
-  const column = await getStateById(stateId);
-  // Scoped to teamId: a column id outside the caller's team is a 404, not a
-  // cross-team delete.
-  if (!column || column.teamId !== teamId) throw new HttpError(404, `Column ${stateId} not found`);
-  if (column.stateType === 'backlog') throw new HttpError(400, 'Backlog columns cannot be deleted');
-
-  let target: WorkflowStateRow | null = null;
-  if (opts.mode === 'move') {
-    target = await getStateById(opts.targetStateId);
-    if (!target || target.teamId !== column.teamId)
-      throw new HttpError(400, 'Target column must belong to the same team');
-    if (target.id === column.id)
-      throw new HttpError(400, 'Target column must differ from the deleted column');
-  }
-
-  // Webhook data of the column's issues before the change, for their Issue events.
-  const affected = (await isWatched('Issue', [teamId]))
-    ? await db.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId))
-    : [];
-  const beforeData = new Map<string, WebhookData>();
-  for (const { id } of affected) {
-    const data = await issueData(id);
-    if (data) beforeData.set(id, data);
-  }
-
-  const movedIssueIds = await db.transaction(async (tx) => {
-    let moved: string[] = [];
-    if (opts.mode === 'move') {
-      const rows = await tx
-        .update(issue)
-        .set({ stateId: opts.targetStateId, updatedAt: sql`now()` })
-        .where(eq(issue.stateId, stateId))
-        .returning({ id: issue.id });
-      moved = rows.map((r) => r.id);
-    } else {
-      const issueIds = tx.select({ id: issue.id }).from(issue).where(eq(issue.stateId, stateId));
-      await tx.delete(issueLabel).where(inArray(issueLabel.issueId, issueIds));
-      await tx.delete(issue).where(eq(issue.stateId, stateId));
-    }
-    await tx.delete(workflowState).where(eq(workflowState.id, stateId));
-    return moved;
-  });
-
-  // A reassignment is a status change like any other, so it belongs in the change
-  // log: the issue's status timeline reads its stretches from these entries, and
-  // without one the issue keeps counting time under the column it no longer sits in.
-  if (target)
-    await recordActivityForIssues(
-      movedIssueIds,
-      {
-        action: 'status',
-        fromText: column.name,
-        toText: target.name,
-        fromId: column.id,
-        toId: target.id,
-      },
-      actorUserId,
-    );
-
-  for (const [id, before] of beforeData) {
-    const data = target ? await issueData(id) : before;
-    if (!data) continue;
-    await emitEvent({
-      type: 'Issue',
-      action: target ? 'update' : 'remove',
-      teamIds: [teamId],
-      actorUserId: actorUserId ?? null,
-      data,
-      before: target ? before : undefined,
-    });
-  }
 }

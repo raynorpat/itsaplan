@@ -12,7 +12,7 @@ The **server-side** better-auth instance. Consumed by `apps/api`. See root `AGEN
 
 A better-auth plugin serves what Linear's GraphQL schema has no place for, under
 `/api/auth/instance/*`: `GET sign-in-options` (public, `signInOptions()` in
-`src/instance.ts`, also behind REST `/auth-config`), `GET version` and
+`src/instance.ts`), `GET version` and
 `GET upload-limits` (signed in), and `POST team-owner` `{ teamId, userId, owner }`
 (team managers; Linear's schema exposes `TeamMembership.owner` but no input that sets
 it), and `POST agent-session-stop` `{ sessionId }` (anyone who can see the session's
@@ -203,8 +203,8 @@ The workspace's `organization.allowed_auth_services` (`email` = magic link, `goo
 `passkey`; empty = every configured one) is enforced in `hooks.before`: a magic-link
 request answers like a sent one and sends nothing when `email` is not allowed, unless the
 address is a workspace owner's (so a wrong setting cannot lock everyone out); Google and
-passkey sign-in are refused with 403. `/auth-config` reports what the sign-in page may
-offer.
+passkey sign-in are refused with 403. `GET /api/auth/instance/sign-in-options` reports
+what the sign-in page may offer.
 
 Account linking is left at better-auth's defaults, which means
 `accountLinking.requireLocalEmailVerified` is `true`: a Google address that already has an
@@ -222,10 +222,8 @@ callback fails the request instead.
 The `openAPI()` plugin (`better-auth/plugins`) documents the auth handler. It serves a
 Scalar UI at `/api/auth/reference` and the raw schema at
 `/api/auth/open-api/generate-schema`. The schema is built from every active plugin, so
-the passkey and apiKey endpoints appear without any manual description. This is separate
-from the planner's own OpenAPI docs at `/docs` (the `@elysiajs/swagger` spec, which does
-not see the catch-all auth handler). Docs-only: it adds no table, so `auth:generate` is
-not required for it.
+the passkey and apiKey endpoints appear without any manual description. Docs-only: it
+adds no table, so `auth:generate` is not required for it.
 
 ## Rules
 

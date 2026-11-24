@@ -2,10 +2,8 @@ import { describe, it, expect } from 'bun:test';
 import { requireUser } from '../../access';
 import { HttpError } from '../../lib';
 
-// Only requireUser is a pure function. The rest of access.ts (requireTeamAccess,
-// requireTeamOwner, assertPermission, requireTeamPermission) resolves
-// membership from the database and is covered by the feature integration tests
-// through the guards.
+// Only requireUser is a pure function. The rest of access.ts resolves membership
+// from the database and is covered by the GraphQL integration tests.
 describe('requireUser', () => {
   it('returns the user when a session is present', () => {
     const user = { id: 'u1' };

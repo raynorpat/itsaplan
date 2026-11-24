@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { provideInstanceHandlers } from '@repo/auth';
+import { provideInstanceHandlers, signInOptions } from '@repo/auth';
 import { app } from '../../app';
 import { registerInstanceHandlers } from '../../instance/handlers';
-import { authedApi } from '../helpers/app';
 import { signUpTestUser, type TestUser } from '../helpers/auth';
-import { addMember, createTeam, teamView } from '../helpers/graphql';
+import { addMember, createTeam, signUpAs, teamView } from '../helpers/graphql';
 import { resetDb } from '../helpers/db';
-import { signUpWithRole } from '../helpers/roles';
+import { getStorageSettings } from '../../settings/storage';
+import { getAppVersion } from '../../settings/version';
 import { oauthAppsHandlers } from '../../oauth/apps';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
@@ -31,7 +31,7 @@ function call(path: string, init: { cookie?: string; body?: unknown } = {}) {
 async function setupTeam() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const teamId = (await createTeam(owner, { key: 'MKT', name: 'Marketing' })).team.id;
-  const member = await signUpWithRole('member', { name: 'Ann' });
+  const member = await signUpAs('member', { name: 'Ann' });
   await addMember(owner, teamId, member.userId);
   return { owner, asOwner: owner, teamId, member };
 }
@@ -46,11 +46,10 @@ describe('instance plugin', () => {
     await resetDb();
   });
 
-  it('serves the sign-in options without a session, as /auth-config does', async () => {
+  it('serves the sign-in options without a session', async () => {
     const res = await call('sign-in-options');
     expect(res.status).toBe(200);
-    const rest = await app.handle(new Request('http://localhost/auth-config'));
-    expect(await res.json()).toEqual(await rest.json());
+    expect(await res.json()).toEqual(await signInOptions());
   });
 
   it('serves the version and upload limits to a signed-in user only', async () => {
@@ -60,14 +59,10 @@ describe('instance plugin', () => {
     const user = await signUpTestUser();
     const version = await call('version', { cookie: user.cookie });
     expect(version.status).toBe(200);
-    expect(await version.json()).toEqual(
-      (await authedApi(user.cookie).settings.version.get()).data as object,
-    );
+    expect(await version.json()).toEqual({ version: getAppVersion() });
     const limits = await call('upload-limits', { cookie: user.cookie });
     expect(limits.status).toBe(200);
-    expect(await limits.json()).toEqual(
-      (await authedApi(user.cookie).settings.storage.get()).data as object,
-    );
+    expect(await limits.json()).toEqual(JSON.parse(JSON.stringify(await getStorageSettings())));
   });
 
   it('lets a team manager make a member a team owner and back', async () => {
@@ -90,7 +85,7 @@ describe('instance plugin', () => {
 
   it('refuses the owner change to a non-manager, a guest, oneself and without a session', async () => {
     const { owner, asOwner, teamId, member } = await setupTeam();
-    const other = await signUpWithRole('member', { name: 'Ben' });
+    const other = await signUpAs('member', { name: 'Ben' });
     await addMember(owner, teamId, other.userId);
 
     // A plain member of a team that has an owner does not manage it.
@@ -100,7 +95,7 @@ describe('instance plugin', () => {
     });
     expect(byMember.status).toBe(403);
 
-    const guest = await signUpWithRole('guest', { name: 'Gus' });
+    const guest = await signUpAs('guest', { name: 'Gus' });
     const byGuest = await call('team-owner', {
       cookie: guest.cookie,
       body: { teamId, userId: other.userId, owner: true },
@@ -113,7 +108,7 @@ describe('instance plugin', () => {
     });
     expect(self.status).toBe(400);
 
-    const stranger = await signUpWithRole('member', { name: 'Sam' });
+    const stranger = await signUpAs('member', { name: 'Sam' });
     const notMember = await call('team-owner', {
       cookie: owner.cookie,
       body: { teamId, userId: stranger.userId, owner: true },

@@ -17,7 +17,7 @@ COPY packages/mailer/package.json ./packages/mailer/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 # --filter api installs only the api workspace and its dependency closure, so the
 # image excludes every other app's deps. INSTALL_FLAGS defaults to --production;
-# the test gate overrides it to "" so the api suite gets its devDeps (@elysiajs/eden).
+# the test gate overrides it to "" so the api suite gets its devDeps (@linear/sdk).
 ARG INSTALL_FLAGS="--production"
 RUN bun install --frozen-lockfile --filter api $INSTALL_FLAGS
 

@@ -1,4 +1,4 @@
-import { db, issue, projectMilestone } from '@repo/db';
+import { db, projectMilestone } from '@repo/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { iso, num } from '../shared/lib';
 
@@ -108,13 +108,4 @@ export async function milestoneProjectId(id: string): Promise<string | null> {
     .from(projectMilestone)
     .where(eq(projectMilestone.id, id));
   return row?.projectId ?? null;
-}
-
-// Number of issues in a milestone.
-export async function milestoneIssueCount(id: string): Promise<number> {
-  const [{ n }] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(issue)
-    .where(eq(issue.projectMilestoneId, id));
-  return n;
 }

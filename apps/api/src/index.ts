@@ -5,5 +5,3 @@ import { app } from './app';
 app.listen(Number(process.env.API_PORT ?? 3000));
 
 console.log(`🦊 API running at http://${app.server?.hostname}:${app.server?.port}`);
-
-export type { App } from './app';

@@ -1,6 +1,5 @@
 import { db, teamMember, user } from '@repo/db';
-import { and, eq, ne } from 'drizzle-orm';
-import { APP_ROLE } from '@repo/auth';
+import { and, eq } from 'drizzle-orm';
 import {
   assertTeamAccess,
   canManageTeam,
@@ -8,22 +7,13 @@ import {
   isTeamMember,
   type AuthUser,
 } from '../shared/access';
-import { HttpError, iso } from '../shared/lib';
+import { HttpError } from '../shared/lib';
 
 // Data access for team membership. A member is a team owner or a plain member
 // (`team_member.owner`); the DTO's `role` reports which. Access itself is decided in
 // shared/access.ts.
 
 export type MemberRole = 'owner' | 'member';
-
-export interface MemberRow {
-  userId: string;
-  name: string;
-  email: string;
-  image: string | null;
-  role: MemberRole;
-  createdAt: string;
-}
 
 const roleOf = (owner: boolean): MemberRole => (owner ? 'owner' : 'member');
 
@@ -34,58 +24,6 @@ export async function getMembership(teamId: string, userId: string): Promise<Mem
     .from(teamMember)
     .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)));
   return rows[0] ? roleOf(rows[0].owner) : null;
-}
-
-// A team member an issue can be assigned to, with their owner/member flag.
-export interface AssigneeCandidate {
-  userId: string;
-  name: string;
-  email: string;
-  image: string | null;
-  role: MemberRole;
-}
-
-export async function listAssigneeCandidates(teamId: string): Promise<AssigneeCandidate[]> {
-  const rows = await db
-    .select({
-      userId: teamMember.userId,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      owner: teamMember.owner,
-    })
-    .from(teamMember)
-    .innerJoin(user, eq(user.id, teamMember.userId))
-    // An app user is never the assignee (Linear makes it the delegate).
-    .where(and(eq(teamMember.teamId, teamId), ne(user.workspaceRole, APP_ROLE)));
-  return rows
-    .map(({ owner, ...r }) => ({ ...r, role: roleOf(owner) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export async function listMembers(teamId: string): Promise<MemberRow[]> {
-  const rows = await db
-    .select({
-      userId: teamMember.userId,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      owner: teamMember.owner,
-      createdAt: teamMember.createdAt,
-    })
-    .from(teamMember)
-    .innerJoin(user, eq(user.id, teamMember.userId))
-    // App users are left out of member lists (Linear lists apps separately).
-    .where(and(eq(teamMember.teamId, teamId), ne(user.workspaceRole, APP_ROLE)))
-    .orderBy(teamMember.createdAt);
-  return rows.map((r) => ({
-    userId: r.userId,
-    name: r.name,
-    email: r.email,
-    image: r.image,
-    role: roleOf(r.owner),
-    createdAt: iso(r.createdAt),
-  }));
 }
 
 // Adds a user to a team. Upserts the owner flag when the user is already a member,

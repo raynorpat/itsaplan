@@ -1,13 +1,16 @@
 import {
   APIError,
+  type auth,
   getActiveSession,
   OAUTH_ACCESS_TOKEN_PREFIX,
   resolveOAuthAccessToken,
 } from '@repo/auth';
 import { db, user as userTable } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import type { SessionUser } from '../shared/auth-context';
 import type { RequestAuth } from '../shared/request-auth';
+
+// The authenticated user of a request (a better-auth session user).
+export type SessionUser = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>['user'];
 
 export interface GraphQLContext {
   user: SessionUser;

@@ -61,13 +61,6 @@ export async function getObject(
   };
 }
 
-// Reads a whole object into a UTF-8 string. For small text objects (skill
-// markdown and references); do not use for large binaries — it buffers fully.
-export async function getObjectText(key: string): Promise<string> {
-  const { body } = await getObject(key);
-  return new Response(body).text();
-}
-
 export async function deleteObject(key: string): Promise<void> {
   const { client, bucket } = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));

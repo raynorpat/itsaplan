@@ -143,20 +143,6 @@ export async function listIssues(team: TeamRow): Promise<IssueRow[]> {
   return issues;
 }
 
-// The team's archived issues, newest archived first. The archive view lists
-// these so an owner can restore one. Same per-issue enrichment as the board.
-export async function listArchivedIssues(team: TeamRow): Promise<IssueRow[]> {
-  const rows = await db
-    .select()
-    .from(issue)
-    .where(and(eq(issue.teamId, team.id), isNotNull(issue.archivedAt)))
-    .orderBy(sql`${issue.archivedAt} desc`);
-  const issues = rows.map((row) => mapIssue(row, team.key));
-  await attachLabels(issues);
-  await attachProjects(issues);
-  return issues;
-}
-
 // A light issue result for search and list: the fields the command palette and the
 // search_issues / list_issues MCP tools need to list and open a match. No
 // description (which may embed large data URIs), so the payload stays small.
@@ -447,25 +433,6 @@ export async function getIssue(id: string): Promise<IssueRow | null> {
     .from(issue)
     .innerJoin(teamTable, eq(teamTable.id, issue.teamId))
     .where(eq(issue.id, id));
-  if (!rows[0]) return null;
-  const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
-  await attachLabels([mapped]);
-  await attachProjects([mapped]);
-  return mapped;
-}
-
-// Loads an issue by its team-scoped sequence number (the human number in a URL
-// like /team/MKT/issue/42). Returns null if the team has no issue with that
-// number. Archived issues resolve too, so a link to one still opens.
-export async function getIssueBySequence(
-  teamId: string,
-  sequenceNumber: number,
-): Promise<IssueRow | null> {
-  const rows = await db
-    .select({ issue, teamKey: teamTable.key })
-    .from(issue)
-    .innerJoin(teamTable, eq(teamTable.id, issue.teamId))
-    .where(and(eq(issue.teamId, teamId), eq(issue.sequenceNumber, sequenceNumber)));
   if (!rows[0]) return null;
   const mapped = mapIssue(rows[0].issue, rows[0].teamKey);
   await attachLabels([mapped]);
@@ -931,91 +898,3 @@ export async function setIssueLabels(
 // the single-issue operation per id in the request, so the per-issue side effects
 // (activity feed, webhooks) still fire, but the client makes one
 // request and refetches the board once instead of N times.
-
-// The subset of `ids` that belong to this team (active or archived). The bulk
-// routes are team-scoped by their guard; filtering here drops any id the client
-// sent that is not in this team, so a bulk action can never reach across teams.
-async function issuesInTeam(teamId: string, ids: string[]): Promise<string[]> {
-  if (ids.length === 0) return [];
-  const rows = await db
-    .select({ id: issue.id })
-    .from(issue)
-    .where(and(eq(issue.teamId, teamId), inArray(issue.id, ids)));
-  return rows.map((r) => r.id);
-}
-
-// Applies the same patch to every listed issue. Returns how many were updated.
-export async function bulkUpdateIssues(
-  teamId: string,
-  ids: string[],
-  patch: IssuePatch,
-  actorUserId?: string | null,
-): Promise<number> {
-  const valid = await issuesInTeam(teamId, ids);
-  for (const id of valid) await updateIssue(id, patch, actorUserId);
-  return valid.length;
-}
-
-// Adds the given labels to every listed issue, keeping each issue's existing
-// labels. An issue that already carries all of them is left untouched. Returns how
-// many issues changed.
-export async function bulkAddLabels(
-  teamId: string,
-  ids: string[],
-  labelIds: string[],
-  actorUserId?: string | null,
-): Promise<number> {
-  const add = [...new Set(labelIds)];
-  await assertLabelsApplicable(teamId, add);
-  const valid = await issuesInTeam(teamId, ids);
-  if (add.length === 0 || valid.length === 0) return 0;
-
-  const rows = await db
-    .select({ issueId: issueLabel.issueId, labelId: issueLabel.labelId })
-    .from(issueLabel)
-    .where(inArray(issueLabel.issueId, valid));
-  const current = new Map<string, string[]>();
-  for (const r of rows) {
-    let list = current.get(r.issueId);
-    if (!list) current.set(r.issueId, (list = []));
-    list.push(r.labelId);
-  }
-
-  let changed = 0;
-  for (const id of valid) {
-    const have = current.get(id) ?? [];
-    const missing = add.filter((l) => !have.includes(l));
-    if (missing.length === 0) continue;
-    await setIssueLabels(teamId, id, [...have, ...missing], actorUserId);
-    changed++;
-  }
-  return changed;
-}
-
-// Archives every listed issue. Returns how many were archived (already-archived
-// issues re-stamp to a no-op and still count).
-export async function bulkArchiveIssues(
-  teamId: string,
-  ids: string[],
-  actorUserId?: string | null,
-): Promise<number> {
-  const valid = await issuesInTeam(teamId, ids);
-  for (const id of valid) await archiveIssue(id, actorUserId);
-  return valid.length;
-}
-
-// Deletes every listed issue. Returns the count deleted and their attachment rows
-// so the caller can remove the objects from the store.
-export async function bulkDeleteIssues(
-  teamId: string,
-  ids: string[],
-  actorUserId?: string | null,
-): Promise<{ deleted: number; attachments: AttachmentRow[] }> {
-  const valid = await issuesInTeam(teamId, ids);
-  const attachments: AttachmentRow[] = [];
-  for (const id of valid) {
-    const rows = await deleteIssue(id, actorUserId);
-    if (rows) attachments.push(...rows);
-  }
-  return { deleted: valid.length, attachments };
-}

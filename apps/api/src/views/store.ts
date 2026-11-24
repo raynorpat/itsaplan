@@ -56,15 +56,6 @@ export const viewSharedWith = (userId: string) =>
 export const isViewSharedWith = (row: ViewRow, userId: string) =>
   row.shared || (row.ownerUserId ?? row.creatorUserId) === userId;
 
-export async function listViews(teamId: string, userId: string): Promise<ViewRow[]> {
-  const rows = await db
-    .select()
-    .from(teamView)
-    .where(and(eq(teamView.teamId, teamId), viewSharedWith(userId)))
-    .orderBy(teamView.createdAt, teamView.id);
-  return rows.map(mapView);
-}
-
 export interface ViewInput {
   name: string;
   description?: string | null;

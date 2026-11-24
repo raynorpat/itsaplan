@@ -2,15 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { AppWindow, Braces, Server, Settings2 } from 'lucide-react';
+import { AppWindow, Server, Settings2 } from 'lucide-react';
 import type { Team } from '@/types/team';
 import { useSession } from '@/lib/auth-client';
-import {
-  apiDocsPath,
-  mcpServerPath,
-  workspaceApplicationsPath,
-  workspaceSettingsPath,
-} from '@/utils/paths';
+import { mcpServerPath, workspaceApplicationsPath, workspaceSettingsPath } from '@/utils/paths';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import {
   Sidebar,
@@ -60,7 +55,6 @@ export default function AppSidebar({
   // Members is not in those groups, so it keeps the main sidebar.
   const settingsNav = useSettingsNavGroups(currentTeamKey);
   const settingsMode = settingsNav.groups.some((g) => g.items.some((i) => i.active));
-  const onApiDocs = pathname.endsWith('/api');
   const onMcp = pathname.endsWith('/mcp');
 
   return (
@@ -86,13 +80,6 @@ export default function AppSidebar({
         {!settingsMode && (
           <>
             <SidebarMenu>
-              <SidebarNavItem
-                href={currentTeamKey ? apiDocsPath(currentTeamKey) : '#'}
-                icon={Braces}
-                label="API docs"
-                active={onApiDocs}
-                disabled={disabled}
-              />
               <SidebarNavItem
                 href={currentTeamKey ? mcpServerPath(currentTeamKey) : '#'}
                 icon={Server}

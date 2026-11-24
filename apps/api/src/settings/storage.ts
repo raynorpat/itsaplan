@@ -1,4 +1,3 @@
-import { t } from 'elysia';
 import { getOrganization } from '../organization/store';
 
 // Upload limits. The sizes and the team quota are server limits from the environment
@@ -26,14 +25,6 @@ export interface StorageSettings {
   // Total stored attachment bytes allowed per team, in MB. 0 means unlimited.
   teamQuotaMb: number;
 }
-
-// Served by GET /settings/storage (any signed-in user).
-export const StorageSettingsSchema = t.Object({
-  maxAttachmentMb: t.Number(),
-  maxAvatarMb: t.Number(),
-  attachmentMimeTypes: t.Array(t.String()),
-  teamQuotaMb: t.Number(),
-});
 
 // A non-negative number from the environment, or the default when unset or invalid.
 function envNumber(name: string, fallback: number): number {

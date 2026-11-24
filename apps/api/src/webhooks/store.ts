@@ -65,24 +65,6 @@ export function generateSecret(): string {
   return `whsec_${randomBytes(24).toString('hex')}`;
 }
 
-export async function listWebhooks(teamId: string): Promise<WebhookRow[]> {
-  const rows = await db
-    .select()
-    .from(webhook)
-    .where(eq(webhook.teamId, teamId))
-    .orderBy(webhook.createdAt, webhook.id);
-  return rows.map(mapWebhook);
-}
-
-export async function listAllTeamsWebhooks(): Promise<WebhookRow[]> {
-  const rows = await db
-    .select()
-    .from(webhook)
-    .where(eq(webhook.allPublicTeams, true))
-    .orderBy(webhook.createdAt, webhook.id);
-  return rows.map(mapWebhook);
-}
-
 // teamId null creates an all-teams webhook. A missing secret is generated.
 export async function createWebhook(input: {
   teamId: string | null;

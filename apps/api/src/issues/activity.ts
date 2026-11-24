@@ -138,60 +138,6 @@ export async function listFeed(
 // The stretches carry no feed entries: what happened inside one is read on demand
 // with listFeedRange when the person opens it.
 
-export interface TimelineSegment {
-  // The column name snapshot the issue was in. Null only when the issue has no
-  // status history and its current column was deleted.
-  status: string | null;
-  from: string;
-  // When the issue left this column, or null for the stretch it is in now.
-  to: string | null;
-  durationMs: number;
-}
-
-// Every stretch the issue spent in one column, oldest first. The boundaries are the
-// 'status' entries of the change log; the first stretch starts at the issue's
-// creation. The opening column is the first status change's from_text, or — for an
-// issue that never changed column — its current one. Both are name snapshots, so a
-// renamed column reads under the name it had at the time and splits into two lanes.
-export async function listStatusTimeline(issueId: string): Promise<TimelineSegment[]> {
-  const [issueRow] = await db
-    .select({ createdAt: issue.createdAt, columnName: workflowState.name })
-    .from(issue)
-    .leftJoin(workflowState, eq(workflowState.id, issue.stateId))
-    .where(eq(issue.id, issueId));
-  if (!issueRow) return [];
-
-  const changes = await db
-    .select({
-      fromText: issueActivity.fromText,
-      toText: issueActivity.toText,
-      createdAt: issueActivity.createdAt,
-    })
-    .from(issueActivity)
-    .where(and(eq(issueActivity.issueId, issueId), eq(issueActivity.action, 'status')))
-    .orderBy(issueActivity.createdAt, issueActivity.id);
-
-  let current: TimelineSegment = {
-    status: changes[0]?.fromText ?? issueRow.columnName,
-    from: iso(issueRow.createdAt),
-    to: null,
-    durationMs: 0,
-  };
-  const segments = [current];
-  for (const change of changes) {
-    current.to = iso(change.createdAt);
-    current = { status: change.toText, from: iso(change.createdAt), to: null, durationMs: 0 };
-    segments.push(current);
-  }
-
-  const now = Date.now();
-  for (const segment of segments) {
-    const end = segment.to ? Date.parse(segment.to) : now;
-    segment.durationMs = Math.max(0, end - Date.parse(segment.from));
-  }
-  return segments;
-}
-
 // The feed entries written inside one stretch of the timeline: created at or after
 // `from`, and before `to` (absent for the stretch the issue is in now). Oldest
 // first, and unpaged — this is the slice of the activity behind a single bar of the
@@ -255,21 +201,6 @@ export async function recordActivity(
     events.map((event) => ({ issueId, event })),
     actorUserId,
     executor,
-  );
-}
-
-// Records one event for a set of issues in a single insert, with the actor name
-// resolved once. For the writes that change many issues at once (deleting a column
-// reassigns all of its issues), where a recordActivity per issue would be a pair of
-// queries each.
-export async function recordActivityForIssues(
-  issueIds: string[],
-  event: ActivityInput,
-  actorUserId?: string | null,
-): Promise<void> {
-  await insertActivity(
-    issueIds.map((issueId) => ({ issueId, event })),
-    actorUserId,
   );
 }
 

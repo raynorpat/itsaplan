@@ -15,15 +15,6 @@ export interface McpInputSchema {
   additionalProperties?: boolean;
 }
 
-// Behaviour hints an MCP client reads to decide whether a call needs the person's
-// confirmation. Hints only: GraphQL enforces access and scopes.
-export interface McpToolAnnotations {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  idempotentHint?: boolean;
-  openWorldHint?: boolean;
-}
-
 // One MCP tool: what the client sees, and what a call runs (GraphQL as the caller).
 export interface McpTool {
   name: string;

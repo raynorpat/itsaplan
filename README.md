@@ -51,10 +51,10 @@ stable release.
 
 **Platform**
 
-- REST API with an OpenAPI reference and API keys
-- MCP server, so an external assistant can read and change issues through the same API
-- Linear-compatible GraphQL API at `/graphql`: point the official `@linear/sdk` at your instance
-  to read and change teams, issues, workflow states and projects
+- Linear-compatible GraphQL API at `/graphql`, the instance's only data API: point the
+  official `@linear/sdk` at your instance; API keys and Linear-style OAuth applications
+- MCP server with Linear's MCP tool set (`/mcp`, and `/mcp/readonly` for read tools only),
+  signed in with an API key or OAuth
 - Outgoing webhooks in Linear's format: per team or all teams, signed payloads and retries
 - Sign-in with an emailed link, a passkey, or Google; people join by invite or an approved email domain
 - Notifications by email (SMTP or Resend), with per-member preferences

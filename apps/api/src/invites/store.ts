@@ -1,5 +1,5 @@
-import { db, team, user, workspaceInvite } from '@repo/db';
-import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { db, user, workspaceInvite } from '@repo/db';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import {
   assertWorkspaceRole,
   atLeast,
@@ -27,16 +27,6 @@ export interface InviteRow {
   expiresAt: string;
   invitedByUserId: string | null;
   invitedByName: string | null;
-}
-
-// What the invite link shows before the address has an account.
-export interface InviteView {
-  token: string;
-  email: string;
-  role: InviteRole;
-  teamNames: string[];
-  invitedByName: string | null;
-  expiresAt: string;
 }
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -83,17 +73,6 @@ export async function getInvite(id: string): Promise<InviteRow | null> {
   return row ? mapInvite(row) : null;
 }
 
-// Pending invites, newest first. Expired ones are left out.
-export async function listInvites(): Promise<InviteRow[]> {
-  const rows = await db
-    .select(columns)
-    .from(workspaceInvite)
-    .leftJoin(user, eq(user.id, workspaceInvite.invitedByUserId))
-    .where(active)
-    .orderBy(desc(workspaceInvite.createdAt));
-  return rows.map(mapInvite);
-}
-
 // Creates an invite. The caller checks the inviter's role and the teams. An address
 // with an account is already in the workspace (400); a second pending invite for
 // an address is 409; an expired one is replaced.
@@ -137,28 +116,6 @@ export async function deleteInvite(id: string): Promise<boolean> {
     .where(eq(workspaceInvite.id, id))
     .returning({ id: workspaceInvite.id });
   return deleted.length > 0;
-}
-
-// The invite behind a link, for the sign-up screen, or null when it is unknown or
-// expired.
-export async function getInviteByToken(token: string): Promise<InviteView | null> {
-  const [row] = await db
-    .select(columns)
-    .from(workspaceInvite)
-    .leftJoin(user, eq(user.id, workspaceInvite.invitedByUserId))
-    .where(and(eq(workspaceInvite.token, token), active));
-  if (!row) return null;
-  const teams = row.teamIds.length
-    ? await db.select({ name: team.name }).from(team).where(inArray(team.id, row.teamIds))
-    : [];
-  return {
-    token: row.token,
-    email: row.email,
-    role: row.role as InviteRole,
-    teamNames: teams.map((t) => t.name).sort(),
-    invitedByName: row.invitedByName,
-    expiresAt: iso(row.expiresAt),
-  };
 }
 
 // What a pending, unexpired invite shows on Linear's organizationInviteDetails, by its

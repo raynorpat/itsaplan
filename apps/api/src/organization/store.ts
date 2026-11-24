@@ -1,4 +1,3 @@
-import { approvedDomains } from '@repo/auth';
 import { db, organization } from '@repo/db';
 import { sql } from 'drizzle-orm';
 import {
@@ -9,7 +8,6 @@ import {
   type WorkspaceRole,
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
-import { getAppVersion } from '../settings/version';
 
 // The workspace (Linear's Organization): one row, created with defaults on first
 // read. Owners and admins change it; everyone signed in reads it. Instance secrets and
@@ -161,24 +159,4 @@ export async function assertAllowedTo(
   if (!atLeast(await workspaceRole(current.id), (await minimumRole(action)) as WorkspaceRole))
     throw new HttpError(403, ACTION_REFUSAL[action]);
   return current;
-}
-
-// The organization as the web's workspace settings page reads it.
-export async function organizationDto() {
-  const org = await getOrganization();
-  return {
-    id: org.id,
-    name: org.name,
-    urlKey: org.urlKey,
-    logoUrl: org.logoUrl,
-    allowedAuthServices: org.allowedAuthServices,
-    allowedFileUploadContentTypes: org.allowedFileUploadContentTypes,
-    teamCreationRole: org.teamCreationRole,
-    labelManagementRole: org.labelManagementRole,
-    invitationsRole: org.invitationsRole,
-    approvedDomains: approvedDomains(),
-    version: getAppVersion(),
-    createdAt: org.createdAt.toISOString(),
-    updatedAt: org.updatedAt.toISOString(),
-  };
 }

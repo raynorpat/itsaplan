@@ -1,7 +1,7 @@
 import { APP_ROLE } from '@repo/auth';
 import { db, oauthInstallation } from '@repo/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { SessionUser } from '../../shared/auth-context';
+import type { SessionUser } from '../context';
 import type { GraphQLContext } from '../context';
 
 // The fields of better-auth's user row that Linear's User maps from.

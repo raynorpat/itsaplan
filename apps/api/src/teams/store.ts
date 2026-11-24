@@ -149,14 +149,6 @@ export function isAutoArchivePeriod(value: unknown): value is number {
   return typeof value === 'number' && (AUTO_ARCHIVE_PERIODS as readonly number[]).includes(value);
 }
 
-export async function getAutoArchivePeriod(teamId: string): Promise<number> {
-  const [row] = await db
-    .select({ period: team.autoArchivePeriod })
-    .from(team)
-    .where(eq(team.id, teamId));
-  return row?.period ?? 0;
-}
-
 export async function setAutoArchivePeriod(teamId: string, period: number): Promise<number> {
   if (!isAutoArchivePeriod(period))
     throw new HttpError(400, 'autoArchivePeriod must be one of 0, 1, 3, 6, 9 or 12 months');

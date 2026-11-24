@@ -301,38 +301,6 @@ export async function listProjects(
   return { items: await enrich(rows, readableTeamIds), total: Number(total) };
 }
 
-export type ProjectStatusCounts = Record<ProjectStatusType | 'total', number>;
-
-// Per-status-type row counts of the visible projects (optionally of one team), for
-// the list's status tabs. Kept separate from listProjects so the tab counts stay
-// correct under paging.
-export async function projectStatusCounts(
-  readableTeamIds: string[],
-  teamId?: string,
-): Promise<ProjectStatusCounts> {
-  const rows = await db
-    .select({ type: projectStatus.type, c: sql<number>`count(*)` })
-    .from(project)
-    .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-    .where(scope(readableTeamIds, { teamId }))
-    .groupBy(projectStatus.type);
-  const out: ProjectStatusCounts = {
-    total: 0,
-    backlog: 0,
-    planned: 0,
-    started: 0,
-    paused: 0,
-    completed: 0,
-    canceled: 0,
-  };
-  for (const r of rows) {
-    const n = Number(r.c);
-    out.total += n;
-    out[r.type as ProjectStatusType] = n;
-  }
-  return out;
-}
-
 // Several projects in the order of `ids` (missing ones are skipped); `teams` lists
 // only visibleTeamIds when given.
 export async function getProjectsByIds(
@@ -670,26 +638,6 @@ export async function setProjectArchived(
     .returning({ id: project.id });
   if (rows.length) await emitProject('update', await projectData(id), actorUserId, beforeData);
   return rows.length > 0;
-}
-
-export interface ProjectStatusRow {
-  id: string;
-  name: string;
-  type: ProjectStatusType;
-  color: string;
-  position: number;
-}
-
-// The six seeded project statuses in lifecycle order.
-export async function listProjectStatuses(): Promise<ProjectStatusRow[]> {
-  const rows = await db.select().from(projectStatus).orderBy(projectStatus.position);
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    type: r.type as ProjectStatusType,
-    color: r.color,
-    position: num(r.position),
-  }));
 }
 
 // Linked issues keep existing (issue.project_id is set null by the FK); the

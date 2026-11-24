@@ -5,36 +5,28 @@ Rules and invariants for this package below; read the code for the walkthrough.
 
 ## Structure
 
-- Feature-based: one folder per domain = `routes.ts` (controller) + `store.ts`
-  (Drizzle service). Cross-cutting code in `shared/`. See `src/` for the current set.
+- The instance's data API is `/graphql` (Linear's schema, `src/graphql/`). There is no
+  REST data API. Besides GraphQL the app serves better-auth (`/api/auth/*`), MCP
+  (`/mcp`, `/mcp/readonly`), Linear's OAuth paths and discovery documents
+  (`oauth/routes.ts`), the health check (`GET /`), the file routes (`PUT /uploads/:token`,
+  `GET /uploads/:id/raw`, `GET /avatars/:id/raw`, `GET /attachments/:publicId/raw`) and
+  the worker's internal routes (`/internal/*`, the `x-worker-token` secret).
+- Feature-based: one folder per domain with a `store.ts` (Drizzle service) that the
+  GraphQL resolvers, MCP (through GraphQL), the instance plugin handlers and the
+  internal routes call. Cross-cutting code in `shared/`. See `src/` for the current set.
 - `app.ts` assembles and exports the app (`export const app`, no `.listen()`);
-  `index.ts` only binds the port. `export type App = typeof app` types the Eden Treaty
-  client (web + tests).
-- `routes.ts`: `new Elysia({ name: "<feature>", detail: { tags: ["<Tag>"] } })` —
-  routes chained directly on it, input validated with `t`, each route sets
-  `detail.summary`.
+  `index.ts` only binds the port.
 - `store.ts`: plain async functions, no Elysia/HTTP types, returns DTOs never rows.
-
-## Adding a route
-
-- Chain on the same instance — never reassign to an intermediate `const` (breaks
-  Elysia type inference and `type App`).
-- Validate all input with `t`. Numeric path ids use `t.Numeric()`; never
-  `Number(params.x)` in the handler.
-- Enforce access with a guard in the route options, never an imperative call in the
-  handler (see Auth and access).
-- Throw `HttpError` for failures; return the store DTO on success; `noContent()` for a
-  delete with no body; `set.status = 201` on create.
-- New feature: `.use()` it in `planner.ts` and register its tag in the swagger
-  `documentation.tags` list in `app.ts`.
 
 ## Error model
 
-- Throw `HttpError(status, message)` for expected failures (400/404/409/413/502) —
-  never hand-build error bodies. `onError` maps it to `{ error }`.
+- Stores throw `HttpError(status, message)` for expected failures
+  (400/403/404/409/413/502) — never hand-build error bodies. GraphQL maps it to
+  Linear's error codes (`graphql/errors.ts`); the plain HTTP routes map it to
+  `{ error }` (`shared/http-errors.ts`).
 - Unique violation: wrap the insert in `rethrowDuplicate(err, "<what>")` → 409.
-- `onError` also maps `t`-schema rejection → 400, `NOT_FOUND` → 404, anything else →
-  500 logged with `[planner]`.
+- `shared/http-errors.ts` also maps `t`-schema rejection → 400, `NOT_FOUND` → 404,
+  anything else → 500 logged with `[api]`.
 
 ## Data invariants
 
@@ -101,8 +93,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
   returned as an absolute URL on `API_URL`; incoming URLs on that route are
   normalised back before matching. One attachment per URL on an issue:
   `upsertLinkAttachment` updates the existing one. Every write goes through the
-  store, which sends the `Attachment` webhooks; REST lists and quotas count uploads
-  only. Access follows the issue's team.
+  store, which sends the `Attachment` webhooks; the team quota counts uploads only. Access follows the issue's team.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
@@ -161,12 +152,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
 
 ## Auth and access
 
-Enforced declaratively through macros, never imperative calls in handlers.
-
-- **Session:** `authContext` (named plugin) reads the better-auth session once, puts
-  `user` on context, throws 401 with none. `planner.ts` gates every planner route;
-  a feature also `.use(authContext)` when its handlers/macros reference `user`. An
-  `x-api-key` header resolves through `getSession` — no special-casing.
+- **Credentials:** GraphQL resolves a session cookie, an API key or an OAuth access
+  token (`graphql/context.ts`; see GraphQL below). The file routes need no session: the
+  raw GETs are public and the upload PUT carries its own token.
 - **Linear's model** (`shared/access.ts`, the one place access is decided):
   workspace roles on the user (`user.workspace_role`: `owner`, `admin`, `member`,
   `guest`); teams are `public` or `private`; `team_member.owner` marks a team
@@ -182,31 +170,26 @@ Enforced declaratively through macros, never imperative calls in handlers.
   guest, so an app user is never an admin and never manages a team. It sees its
   `team_member` teams, plus every public team when its install includes them
   (`seesPublicTeams`); it reaches initiatives through those teams. It is left out of
-  member lists (REST members and workspace users, `Team.memberships`,
+  member lists (workspace users, `Team.memberships`,
   `teamMemberships`), gets its teams only from its install (no membership change is
   made by it or to it: `assertNotAppUser` in `members/store.ts`), offered in `Team.members` only when its install granted
   `app:assignable` or `app:mentionable` (`User.isAssignable` / `isMentionable`), and
   never set as an assignee. GraphQL `users` lists it with `app: true`.
-- **`:teamKey` routes:** `.use(guards)` and set `teamAccess: "see" | "manage"` or
-  `teamWebhooks: true`; read the resolved `team` from context.
-- **Entity-by-id routes** (`/issues/:issueId`, `/views/:viewId`, …): define a local
-  macro via `entityGuard(notFound, resolveTeamId)` and set it in route options
-  (e.g. `workItem: "see"`).
-- Guards/macros wrap the `shared/access.ts` primitives. Handlers that still need
-  `user` (team create, invites, joining, self-removal) call `requireUser(user)`.
+- Resolvers check access with the `shared/access.ts` primitives (`assertPermission`
+  and the team, project and initiative checks) before calling a store.
 - **Joining the workspace and teams:** people join the workspace through workspace
   invites (`invites/`, `workspace_invite`): an invite carries a role (admin, member,
   guest) and teams, applied by the better-auth user-create hook when the address
   signs up, which also deletes the invite; one pending invite per address, and an
   address that already has an account cannot be invited. Nobody invites above their
-  own role. Anyone who can see a team may join it (`POST /teams/:teamKey/join`);
+  own role. Anyone who can see a team may join it (`teamMembershipCreate` for oneself);
   any team member may add people to a public team, a team manager to a private
   one or as a team owner (`members/`).
 - **Workspace settings** (`organization/`, Linear's `Organization`): one
   `organization` row (name, URL key, logo, allowed sign-in services, allowed upload
   types, and the minimum role for creating teams, managing workspace labels and project
   labels, and inviting: `owner`, `admin` or `member`, checked by `assertAllowedTo`).
-  Owners and admins change it (`PATCH /organization`, `organizationUpdate`, whose
+  Owners and admins change it (`organizationUpdate`, whose
   `securitySettings` carry the minimum roles); everyone signed in reads it. Instance
   secrets and server limits are environment variables: the mail provider and Google
   credentials (`@repo/auth`), `APPROVED_EMAIL_DOMAINS`, and `MAX_ATTACHMENT_MB`,
@@ -215,13 +198,12 @@ Enforced declaratively through macros, never imperative calls in handlers.
   and guests and suspend them; owners act on anyone and alone make or remove
   owners; the workspace keeps at least one active owner. A suspended user
   (`user.suspended_at`) has no sessions, cannot sign in (better-auth session
-  create hook), is refused on API keys (`getActiveSession`, used by REST, GraphQL
-  and MCP) and receives no notifications; memberships and history stay. There is no
+  create hook), is refused on API keys (`getActiveSession`, used by GraphQL and
+  MCP) and receives no notifications; memberships and history stay. There is no
   hard user delete.
-- **Projects span teams** (`project_team`), so routes that address a project use the
-  `project: true` macro in `projects/routes.ts`, which resolves access through every
-  team of the project (`projects/access.ts`): a project none of whose teams the user
-  can see → 404. Issues may only join a project
+- **Projects span teams** (`project_team`), so access to a project resolves through
+  every team of the project (`projects/access.ts`): a project none of whose teams the
+  user can see → 404. Issues may only join a project
   that includes their team; a team with issues in a project cannot be removed from it.
   Project statuses are six seeded rows (`project_status`, ids in
   `packages/db/src/project-statuses.ts`); `resetDb` keeps them.
@@ -235,9 +217,9 @@ Enforced declaratively through macros, never imperative calls in handlers.
 
 ## Tests
 
-`bun test` with **Eden Treaty** driving the app in memory against a real test Postgres
-and real better-auth sessions — nothing is mocked. Import `app` via the helpers (from
-`src/app.ts`), never `src/index.ts` (it binds the port).
+`bun test` driving the app in memory (`app.handle`, no port) against a real test
+Postgres and real better-auth sessions — nothing is mocked. Import `app` from
+`src/app.ts`, never `src/index.ts` (it binds the port).
 
 **Setup.** Point tests at a dedicated `*_test` database, never dev/prod:
 
@@ -247,37 +229,30 @@ bun run db:migrate:test               # migrate it (repo root)
 bun run test                          # from apps/api, or at root via turbo
 ```
 
-The `test` script loads `--env-file=../../.env.test`. The attachments test also needs
-RustFS + `S3_*` in `.env.test` (`docker compose -f docker-compose.dev.yml up -d` creates
-the bucket); the Docker test gate starts its own throwaway RustFS.
+The `test` script loads `--env-file=../../.env.test`. The attachment and upload tests
+also need RustFS + `S3_*` in `.env.test` (`docker compose -f docker-compose.dev.yml up -d`
+creates the bucket); the Docker test gate starts its own throwaway RustFS.
 
-**Layout.** Tests colocated under `__tests__/`, `integration/` (Treaty vs running app +
-test DB, one file per feature) or `unit/` (pure functions, no session/HTTP/DB — import
-directly). Helpers in `src/__tests__/helpers/`: `api` (anonymous client), `authedApi(cookie)`,
-`signUpTestUser()` → `{ cookie, userId, email }`, `resetDb()`.
+**Layout.** Tests colocated under `__tests__/`, `integration/` (the running app + test
+DB, one file per feature) or `unit/` (pure functions, no session/HTTP/DB — import
+directly). Helpers in `src/__tests__/helpers/`: `signUpTestUser()` →
+`{ cookie, userId, email }` (the first in a test is the workspace owner, later ones
+members), `resetDb()`; `graphql.ts` (`gqlData(as, query, vars)`, `signUpAs(role)` and
+setup helpers: `createTeam`, `addMember`, `createIssue`, `createComment`,
+`createProject`, …, which take a team key or id), `linear.ts` (a `LinearClient` on a
+local port, `createApiKey`), `mcp.ts`, `oauth.ts`.
 
 **Rules.**
 
-- `beforeEach(resetDb)`. Build every precondition through the API, not raw inserts.
-- Assert through the API (status + DTO via `toMatchObject`, side effects via a
-  follow-up read), never by reading rows.
-- Cover per route: happy path, one valid + one invalid per field rule, boundaries
-  (empty, max/max+1, last-owner), each failure status (400/403/404/409), and the
-  feature's own access wiring (who succeeds; a user who cannot see the team gets
-  404). Don't re-test shared machinery — the no-session 401 and the role rules have
-  their own tests in `shared/__tests__/`.
+- `beforeEach(resetDb)`. Build every precondition through GraphQL (the helpers), not
+  raw inserts.
+- Assert through the API (GraphQL data and error codes, side effects via a follow-up
+  query), never by reading rows.
+- One test per rule: happy path, one valid + one invalid per field rule, boundaries
+  (empty, max/max+1, last owner), each failure code (INVALID_INPUT, FORBIDDEN,
+  ENTITY_NOT_FOUND, CONFLICT), and the feature's own access (who succeeds; a user who
+  cannot see the team gets ENTITY_NOT_FOUND).
 - Confirm each case goes red when the behavior is broken.
-
-**Gotchas.**
-
-- Assert failures on the top-level `status`, not `error.status` — Treaty narrows
-  `error.status` (e.g. `422`), so `HttpError` codes (400/401/403/404) fail typecheck
-  there. Read the body from `error.value`.
-- A DTO date arrives as a `Date`, not a string — Treaty revives `iso()` strings on the
-  client. Assert the value, not `typeof === "string"`.
-- The first `signUpTestUser` in a test is the workspace `owner` (fresh DB per
-  `resetDb`); later ones are `member`s. `__tests__/helpers/roles.ts` gives a user
-  another role, adds them to a team and makes a team private.
 - Don't hardcode ids or the "-42" sequence — read them from the create response.
 
 ## Webhooks (Linear-compatible)
@@ -317,7 +292,7 @@ receiver works against the instance.
 
 `/graphql` serves Linear's published schema so `@linear/sdk` and Linear tools work
 against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
-`mountGraphql(app)` after the chain, like MCP, so `type App` stays the REST surface.
+`mountGraphql(app)`.
 
 - **Schema:** `schema.graphql` is vendored unmodified (source and update steps in
   `SCHEMA_SOURCE.md`). Never edit it. The `@linear/sdk` dev dependency is pinned to
@@ -340,9 +315,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `NOT_IMPLEMENTED`. Any other field without a resolver reads its parent's property
   or resolves to a neutral value by type (`schema.ts`). Add a resolver; do not
   edit the schema.
-- **Writes:** mutations call the same store functions and `assertPermission`
-  checks as REST (`resolvers/mutations.ts`), so activity, webhooks and
-  notifications match. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
+- **Writes:** mutations call the store functions after the `assertPermission`
+  checks (`resolvers/mutations.ts`), so activity, webhooks and notifications are
+  written in one place. Store `HttpError`s map to `INVALID_INPUT` / `FORBIDDEN` /
   `ENTITY_NOT_FOUND` / `CONFLICT` (`errors.ts`).
 - **Access:** the rules in Auth and access: a team and everything in it is visible
   through `visibleTeamIds`; a project through any of its teams; every workspace user
@@ -384,6 +359,6 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   either. The web app never imports these packages; it uses this API over HTTP.
 - CORS `origin` is the `trustedOrigins` list exported by `@repo/auth` — do not re-parse
   `APP_URL` here.
-- swagger `/docs` (planner) is separate from better-auth's `/api/auth/reference`; both
-  stay reachable without a session.
+- better-auth's own reference (`/api/auth/reference`) stays reachable without a
+  session.
 - Dev: `bun run dev`. Prod: the Dockerfile migrates, then starts the server.

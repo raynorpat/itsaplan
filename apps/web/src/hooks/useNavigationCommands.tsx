@@ -1,7 +1,6 @@
 import { useRouter } from 'next/navigation';
 import {
   Bell,
-  Braces,
   FolderKanban,
   Inbox,
   Server,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import {
-  apiDocsPath,
   workspaceSettingsPath,
   inboxPath,
   projectsPath,
@@ -68,7 +66,6 @@ export function useNavigationCommands(teamKey: string | null): CommandSection | 
         });
       }
     }
-    add('nav.api', 'API docs', <Braces />, apiDocsPath(key), 'rest openapi');
     add('nav.mcp', 'MCP Server', <Server />, mcpServerPath(key), 'model context protocol');
   }
 

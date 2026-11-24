@@ -2,7 +2,6 @@ import { db, oauthInstallation, team, teamMember, user as userTable } from '@rep
 import { APP_ROLE } from '@repo/auth';
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from './lib';
-import { getTeamByKey, type TeamRow } from '../teams/store';
 import { mayUseAdminRights } from './request-auth';
 
 // Linear's access model, the one place access is decided.
@@ -190,15 +189,6 @@ export async function visibleTeamIdList(userId: string): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-// The teams the user is a member of, as ids.
-export async function memberTeamIdList(userId: string): Promise<string[]> {
-  const rows = await db
-    .select({ id: teamMember.teamId })
-    .from(teamMember)
-    .where(eq(teamMember.userId, userId));
-  return rows.map((r) => r.id);
-}
-
 export async function isTeamMember(teamId: string, userId: string): Promise<boolean> {
   const [row] = await db
     .select({ userId: teamMember.userId })
@@ -251,18 +241,6 @@ export async function assertTeamAccess(
   if (level === 'manage' && !(await canManageTeam(teamId, current.id)))
     throw new HttpError(403, 'Only a team owner or a workspace admin can do this');
   return current;
-}
-
-// Resolves the :teamKey path param to a team the user may act on at `level`.
-export async function requireTeamAccess(
-  teamKey: string,
-  user: AuthUser | undefined | null,
-  level: TeamLevel,
-): Promise<TeamRow> {
-  const found = await getTeamByKey(teamKey);
-  if (!found) throw new HttpError(404, `Team '${teamKey}' not found`);
-  await assertTeamAccess(found.id, user, level, `Team '${teamKey}' not found`);
-  return found;
 }
 
 // Webhooks of a team: workspace admins and owners who can see the team (an admin

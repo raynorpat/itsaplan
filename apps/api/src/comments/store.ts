@@ -13,7 +13,6 @@ import {
 import { trustedOrigins } from '@repo/auth';
 import { eq, inArray, or, type SQL } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
-import type { FeedItemRow } from '../issues/activity';
 import { emitEvent } from '../webhooks/event';
 import { commentData } from '../webhooks/data';
 import { notifyComment } from '../notifications/store';
@@ -81,25 +80,6 @@ export function mapComment(row: typeof comment.$inferSelect): CommentRow {
     resolvingCommentId: row.resolvingCommentId,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
-  };
-}
-
-// An issue comment as an entry of the issue feed (the REST comment route's DTO).
-export function commentFeedItem(c: CommentRow): FeedItemRow {
-  return {
-    id: c.id,
-    issueId: c.issueId as string,
-    kind: 'comment',
-    actorUserId: c.userId,
-    actorName: c.userName,
-    body: c.body,
-    action: null,
-    subject: null,
-    fromText: null,
-    toText: null,
-    parentId: c.parentId,
-    editedAt: c.editedAt,
-    createdAt: c.createdAt,
   };
 }
 

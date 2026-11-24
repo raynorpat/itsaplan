@@ -20,8 +20,6 @@ export const notificationsPath = (key: string) => `${teamPath(key)}/notification
 
 export const mcpServerPath = (key: string) => `${teamPath(key)}/mcp`;
 
-export const apiDocsPath = (key: string) => `${teamPath(key)}/api`;
-
 export const membersPath = (key: string) => `${teamPath(key)}/members`;
 
 export const cyclesPath = (key: string) => `${teamPath(key)}/cycles`;

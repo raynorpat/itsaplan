@@ -1,7 +1,7 @@
 import { createYoga, maskError, type Plugin } from 'graphql-yoga';
 import { GraphQLError } from 'graphql';
 import { PG_INVALID_INPUT_CODES, pgErrorCode } from '../shared/lib';
-import type { SessionUser } from '../shared/auth-context';
+import type { SessionUser } from './context';
 import { resolveGraphQLAuth, type GraphQLContext } from './context';
 import { scopeCheck } from './scopes';
 import { runWithAuth, type RequestAuth } from '../shared/request-auth';

@@ -202,11 +202,11 @@ describe('MCP sign-in with OAuth', () => {
 
   it('accepts an OAuth token on /mcp only, and keeps API keys working', async () => {
     const token = await mcpClientToken(owner);
-    // REST routes do not take OAuth tokens.
+    // There is no REST data API: a former REST path is 404 with the token too.
     const rest = await app.handle(
       new Request('http://localhost/teams', { headers: { authorization: `Bearer ${token}` } }),
     );
-    expect(rest.status).toBe(401);
+    expect(rest.status).toBe(404);
 
     const key = await createApiKey(owner.cookie);
     expect((await callTool(key, 'list_teams')).isError).toBeFalsy();
