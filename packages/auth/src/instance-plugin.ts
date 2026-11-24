@@ -139,6 +139,8 @@ export interface PortalHandlers {
   issueBoards(headers: Headers, query: Record<string, unknown>): Promise<object>;
   // Blocks or unblocks a requester from the portal (owners and admins).
   block(headers: Headers, body: unknown): Promise<object>;
+  // A member starts a portal thread on a board showing the issue.
+  comment(headers: Headers, body: unknown): Promise<object>;
 }
 
 export interface InstanceHandlers {
@@ -386,6 +388,11 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/portal/block',
         options.trustedOrigins,
         (h, headers, body) => h.block(headers, body),
+      ),
+      instancePortalComment: portalWrite(
+        '/instance/portal/comment',
+        options.trustedOrigins,
+        (h, headers, body) => h.comment(headers, body),
       ),
       instancePortalIssueBoards: createAuthEndpoint(
         '/instance/portal/issue-boards',

@@ -15,6 +15,12 @@ import {
   visitorFromRequest,
   type Visitor,
 } from './session';
+import {
+  createPortalComment,
+  deletePortalComment,
+  editPortalComment,
+  listPortalComments,
+} from './comments';
 import { createSuggestion } from './suggestions';
 import { castVote, removeVote } from './votes';
 
@@ -127,6 +133,27 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
     const visitor = await signedInVisitor(request);
     const { id } = await readableIssue(params.slug, params.identifier, visitor);
     return removeVote(id, visitor);
+  })
+  .get('/boards/:slug/issues/:identifier/comments', async ({ request, params }) => {
+    const visitor = await visitorFromRequest(request);
+    const { board, id } = await readableIssue(params.slug, params.identifier, visitor);
+    return { comments: await listPortalComments(board, id, visitor) };
+  })
+  .post('/boards/:slug/issues/:identifier/comments', async ({ request, params, body }) => {
+    const visitor = await signedInVisitor(request);
+    const { board, id } = await readableIssue(params.slug, params.identifier, visitor);
+    return { comment: await createPortalComment(board, id, visitor, fields(body)) };
+  })
+  .patch('/boards/:slug/comments/:id', async ({ request, params, body }) => {
+    const visitor = await signedInVisitor(request);
+    const board = await readableBoard(params.slug, visitor);
+    return { comment: await editPortalComment(board, params.id, visitor, fields(body)) };
+  })
+  .delete('/boards/:slug/comments/:id', async ({ request, params }) => {
+    const visitor = await signedInVisitor(request);
+    const board = await readableBoard(params.slug, visitor);
+    await deletePortalComment(board, params.id, visitor);
+    return { ok: true };
   })
   .post('/boards/:slug/suggestions', async ({ request, params, body }) => {
     const visitor = await signedInVisitor(request);

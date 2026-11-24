@@ -82,7 +82,8 @@ export async function issueData(issueId: string): Promise<WebhookData | null> {
 export async function commentData(commentId: string): Promise<WebhookData | null> {
   const found = await getComment(commentId);
   if (!found) return null;
-  return toComment(found, await commentParentUrl(found));
+  const { portalBoardId: _, ...data } = toComment(found, await commentParentUrl(found));
+  return data;
 }
 
 export async function issueLabelData(labelId: string): Promise<WebhookData | null> {

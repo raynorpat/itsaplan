@@ -98,7 +98,7 @@ function bodyInput(value: unknown): string | null | undefined {
 }
 
 // The requester (ExternalUser) a merged requester now points at, as Linear's type.
-async function externalUserById(ctx: GraphQLContext, id: string | null) {
+export async function externalUserById(ctx: GraphQLContext, id: string | null) {
   if (!id) return null;
   const row = await followMerges(id, (next) => loaders(ctx).externalUser.load(next));
   return row ? toExternalUser(row) : null;

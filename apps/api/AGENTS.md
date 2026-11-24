@@ -163,6 +163,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   guests) and no member creator, plus the visitor's portal feedback quoting the
   details; it runs as any issue creation. Votes 60 and suggestions 10 per visitor an
   hour.
+- **Portal comments** (`portal/comments.ts`): a visitor's comment is a `comment` with
+  `external_user_id` (GraphQL `Comment.externalUser`, null for guests) and no user; it
+  sends the Comment webhook (`externalUserId`) and notifies the issue's subscribers like
+  any comment, and starts no agent session. A root comment written on a board (by a
+  visitor, or by a member through `/api/auth/instance/portal/comment`, only on a board
+  showing the issue with `comments: 'portal'`) starts a portal thread of that board
+  (`portal_board_id`, `Comment.externalThread` of type `portal`); a reply belongs to its
+  root's thread, so a member's `commentCreate` reply in a portal thread is on the
+  portal. A board shows its own threads (`comments: 'portal'`) or every comment except
+  other boards' threads (`'all'`) (`boardCommentsSql`); a visitor replies only into a
+  thread the board shows and edits or deletes only their own comments. At most 10,000
+  characters, 30 comments per visitor an hour.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

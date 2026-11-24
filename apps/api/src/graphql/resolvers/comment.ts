@@ -26,6 +26,8 @@ import { dateTimeInput, guard, lastSyncId, onlySupported } from './mutations';
 import { findProject, toUpdate } from './project';
 import { findInitiativeUpdate, toInitiativeUpdate } from './initiative';
 import { toDocumentContent, visibleDocumentOrNull } from './document';
+import { externalUserById } from './customer-need';
+import { portalThread } from '../../portal/comments';
 
 // Linear's Comment over a comment row. `parentUrl` is the web URL of the comment's
 // issue, project or project update; GraphQL resolves `url` lazily when it is empty.
@@ -46,6 +48,10 @@ export function toComment(row: CommentRow, parentUrl = '') {
     documentContentId: row.documentId,
     parentId: row.parentId,
     userId: row.userId,
+    externalUserId: row.externalUserId,
+    // Not a Linear field: the board of a portal thread, for externalThread. Webhook
+    // data leaves it out (webhooks/data.ts).
+    portalBoardId: row.portalBoardId,
     workflowDefinitionId: row.workflowDefinitionId,
     resolvingUserId: row.resolvingUserId,
     resolvingCommentId: row.resolvingCommentId,
@@ -183,6 +189,14 @@ export const commentResolvers = {
       return row ? toComment(row) : null;
     },
     user: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => userFor(ctx, c.userId),
+    // The portal visitor who wrote the comment; guests see no requester.
+    externalUser: async (c: GraphQLComment, _: unknown, ctx: GraphQLContext) => {
+      if (!c.externalUserId || !(await loaders(ctx).readsFeedback())) return null;
+      return externalUserById(ctx, c.externalUserId);
+    },
+    // A portal thread's root names its board (Linear's synced external thread).
+    externalThread: (c: GraphQLComment) =>
+      c.portalBoardId ? portalThread(c.portalBoardId, c.issueId) : null,
     botActor: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>
       c.workflowDefinitionId ? loaders(ctx).workflowBot.load(c.workflowDefinitionId) : null,
     resolvingUser: (c: GraphQLComment, _: unknown, ctx: GraphQLContext) =>

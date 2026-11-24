@@ -4,7 +4,9 @@ import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { createLabel } from '../labels/store';
 import { assertWorkspaceRole, canSeeTeam, workspaceRole } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
-import { boardIssueIds, boardsShowingIssue, type BoardRow } from './boards';
+import { assertParentAccess } from '../comments/store';
+import { boardIssueIds, boardShowsIssue, boardsShowingIssue, type BoardRow } from './boards';
+import { startPortalThread } from './comments';
 import { setPortalBlocked } from './session';
 
 // The instance plugin's portal endpoints (/api/auth/instance/portal/*): owners and
@@ -324,5 +326,18 @@ export const portalHandlers: PortalHandlers = {
     return {
       boards: boards.map((b) => ({ id: b.id, slug: b.slug, name: b.name, comments: b.comments })),
     };
+  },
+  comment: async (headers, body) => {
+    const user = await signedIn(headers);
+    const input = fields(body);
+    const issueId = idOrNull(input.issueId, 'issueId');
+    if (!issueId) throw new HttpError(400, 'issueId is required');
+    await assertParentAccess({ issueId }, user);
+    if ((await workspaceRole(user.id)) === 'guest')
+      throw new HttpError(403, 'Guests cannot post on the portal');
+    const board = await findBoard(input.boardId);
+    const shown = board.enabled && (await boardShowsIssue(board, issueId, new Date()));
+    const created = await startPortalThread(board, issueId, user.id, input.body, shown);
+    return { id: created.id };
   },
 };

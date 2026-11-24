@@ -55,6 +55,10 @@ export interface CommentRow {
   parentId: string | null;
   userId: string | null;
   userName: string | null;
+  // The portal visitor (requester) who wrote the comment, for a comment with no user.
+  externalUserId: string | null;
+  // The portal board whose thread this root comment starts (portal/comments.ts).
+  portalBoardId: string | null;
   // The workflow automation that wrote the comment, for a comment with no user.
   workflowDefinitionId: string | null;
   body: string;
@@ -77,6 +81,8 @@ export function mapComment(row: typeof comment.$inferSelect): CommentRow {
     parentId: row.parentId,
     userId: row.userId,
     userName: row.userName,
+    externalUserId: row.externalUserId,
+    portalBoardId: row.portalBoardId,
     workflowDefinitionId: row.workflowDefinitionId,
     body: row.body,
     editedAt: row.editedAt ? iso(row.editedAt) : null,
@@ -186,12 +192,17 @@ async function userName(id: string | null): Promise<string | null> {
 // root. Sends the Comment webhook; an issue comment also notifies participants
 // (unless `notify` is false) and starts or prompts the agent sessions of the apps it
 // mentions. `createdAt` is an imported comment's original date (Linear's
-// CommentCreateInput.createdAt), which must be in the past.
+// CommentCreateInput.createdAt), which must be in the past. A portal visitor's comment
+// has `externalUserId` and no user; `portalBoardId` makes a root comment a portal
+// thread of that board (a reply belongs to its root's thread and keeps none). A
+// visitor's comment starts no agent session.
 export async function createComment(input: {
   parent: CommentParent;
   parentId?: string | null;
   body: string;
   actorUserId: string | null;
+  externalUserId?: string | null;
+  portalBoardId?: string | null;
   id?: string;
   notify?: boolean;
   createdAt?: Date;
@@ -218,8 +229,11 @@ export async function createComment(input: {
       parentId: rootId,
       userId: input.actorUserId,
       userName: await userName(input.actorUserId),
+      externalUserId: input.externalUserId ?? null,
+      portalBoardId: rootId ? null : (input.portalBoardId ?? null),
       // A workflow's comment: written by the rule, with no user author.
-      workflowDefinitionId: input.actorUserId ? null : (currentWorkflow()?.id ?? null),
+      workflowDefinitionId:
+        input.actorUserId || input.externalUserId ? null : (currentWorkflow()?.id ?? null),
       body: input.body,
       ...(input.createdAt ? { createdAt: input.createdAt, updatedAt: input.createdAt } : {}),
     })
@@ -239,7 +253,8 @@ export async function createComment(input: {
   // An imported comment notifies no one and starts no agent session.
   if (created.issueId && teamIds[0] && !currentImport()) {
     if (input.notify !== false) await notifyComment(teamIds[0], created);
-    await bestEffort('mention sessions', () => commentPosted(created, teamIds[0]!));
+    if (!created.externalUserId)
+      await bestEffort('mention sessions', () => commentPosted(created, teamIds[0]!));
   }
   return created;
 }
@@ -279,6 +294,27 @@ export async function updateComment(
 ): Promise<CommentRow> {
   const before = await findComment(id);
   if (before.userId !== actorUserId) throw new HttpError(403, 'Only the author can edit a comment');
+  return replaceBody(before, body, actorUserId);
+}
+
+// A portal visitor's edit of their own comment (403 for anyone else's).
+export async function updateVisitorComment(
+  id: string,
+  body: string,
+  externalUserId: string,
+): Promise<CommentRow> {
+  const before = await findComment(id);
+  if (before.externalUserId !== externalUserId)
+    throw new HttpError(403, 'Only the author can edit a comment');
+  return replaceBody(before, body, null);
+}
+
+async function replaceBody(
+  before: CommentRow,
+  body: string,
+  actorUserId: string | null,
+): Promise<CommentRow> {
+  const id = before.id;
   const beforeData = await commentData(id);
   const [row] = await db
     .update(comment)
@@ -308,8 +344,20 @@ export async function deleteComment(id: string, actorUserId: string): Promise<vo
       throw new HttpError(403, 'Only the author or a team manager can delete a comment');
   }
   await assertThreadDeletable(id, actorUserId);
-  const beforeData = await commentData(id);
-  await db.delete(comment).where(eq(comment.id, id));
+  await removeComment(found, actorUserId);
+}
+
+// A portal visitor deletes their own comment (403 for anyone else's).
+export async function deleteVisitorComment(id: string, externalUserId: string): Promise<void> {
+  const found = await findComment(id);
+  if (found.externalUserId !== externalUserId)
+    throw new HttpError(403, 'Only the author can delete a comment');
+  await removeComment(found, null);
+}
+
+async function removeComment(found: CommentRow, actorUserId: string | null): Promise<void> {
+  const beforeData = await commentData(found.id);
+  await db.delete(comment).where(eq(comment.id, found.id));
   await sendCommentEvent('remove', found, actorUserId, beforeData);
 }
 
