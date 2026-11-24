@@ -177,6 +177,19 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+// The roles of the layers a plain-key shortcut must not reach past: a dialog's or a
+// menu's keys belong to it (Radix dialogs, dropdown menus and select lists all carry
+// one of these roles).
+const LAYER_ROLES = '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]';
+
+// True when a plain-key app shortcut must not fire for this target: while typing, or
+// with focus inside a dialog, menu or list.
+export function blocksShortcuts(target: EventTarget | null): boolean {
+  if (isTypingTarget(target)) return true;
+  const el = target as Element | null;
+  return typeof el?.closest === 'function' && el.closest(LAYER_ROLES) != null;
+}
+
 // The combination as shown in the UI: ⌘K on macOS, Ctrl+K elsewhere.
 export function formatCombo(combo: string, isMac: boolean): string {
   const c = parseCombo(combo);

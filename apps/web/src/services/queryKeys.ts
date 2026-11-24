@@ -53,7 +53,7 @@ export const qk = {
   projectDocuments: (id: string) => ['projectDocuments', id] as const,
   projectLabels: ['projectLabels'] as const,
   // Prefix keys: issue mutations invalidate every project query without
-  // knowing the id (see invalidateProgress in issues.service).
+  // knowing the id (see ISSUE_DEPENDENT_KEYS below).
   anyProject: ['project'] as const,
   anyProjects: ['projects'] as const,
   // Initiatives: the workspace's list, one initiative, its updates with their
@@ -97,4 +97,22 @@ export const qk = {
   appVersion: ['appVersion'] as const,
   // The workspace settings (Linear's Organization).
   organization: ['organization'] as const,
+  // The viewer's workspace role and the workspace's name and logo (the sidebar chrome).
+  viewerWorkspace: ['viewerWorkspace'] as const,
+  // My issues: one tab, with or without completed and canceled issues.
+  myIssues: (tab: string, includeCompleted: boolean) =>
+    ['myIssues', tab, includeCompleted] as const,
+  anyMyIssues: ['myIssues'] as const,
 };
+
+// The queries an issue write can change beyond the issue and its team's board: its
+// project's and cycle's progress and scope, a past cycle's archived issues, and the
+// My issues lists. The mutations do not know which entries are affected, so they
+// invalidate these prefixes; only active queries refetch.
+export const ISSUE_DEPENDENT_KEYS: readonly (readonly unknown[])[] = [
+  qk.anyProject,
+  qk.anyProjects,
+  qk.anyCycle,
+  qk.anyCycles,
+  qk.anyMyIssues,
+];

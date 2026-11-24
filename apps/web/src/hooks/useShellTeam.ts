@@ -25,7 +25,14 @@ function errorMessage(error: unknown): string | null {
 // The team state behind the Shell: the team list, the composed team, the
 // saved views and the view editor, plus the load/error flags the Shell renders
 // from. Kept out of the Shell so it stays a composition of chrome and overlays.
-export function useShellTeam(teamKey: string | null, activeViewId: string | null) {
+// `withBoard` is false on pages that read no team (the inbox, My issues, the account
+// and workspace settings): they keep the team's scaffold, which the new-issue dialog
+// needs, but do not load its issues or views.
+export function useShellTeam(
+  teamKey: string | null,
+  activeViewId: string | null,
+  withBoard: boolean,
+) {
   const router = useRouter();
 
   const teamsQuery = useTeamsQuery();
@@ -35,7 +42,8 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
   // viewer) and the issues. They are composed into one team object here so every
   // child reads team.issues.
   const teamQuery = useTeamScaffold(teamKey);
-  const boardIssuesQuery = useBoardIssues(teamKey);
+  const boardKey = withBoard ? teamKey : null;
+  const boardIssuesQuery = useBoardIssues(boardKey);
   const scaffold = teamQuery.data ?? null;
   const team = useMemo(
     () =>
@@ -48,7 +56,7 @@ export function useShellTeam(teamKey: string | null, activeViewId: string | null
     [scaffold, boardIssuesQuery.data],
   );
 
-  const viewsQuery = useViewsQuery(teamKey);
+  const viewsQuery = useViewsQuery(boardKey);
   const views = useMemo(() => viewsQuery.data ?? [], [viewsQuery.data]);
 
   // Saved-views, layout, display and filter editing for the current team. The

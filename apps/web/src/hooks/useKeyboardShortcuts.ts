@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Team } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
-import { isTypingTarget, type HotkeyId } from '@/utils/hotkeys';
+import { blocksShortcuts, type HotkeyId } from '@/utils/hotkeys';
 import { useHotkeyMatch } from '@/context/useHotkeys';
 import { goSequenceStep, type GoTarget } from '@/utils/goSequence';
 
@@ -16,8 +16,9 @@ const VIEW_HOTKEYS: [HotkeyId, WorkItemsView][] = [
 // The global keyboard layer. Which combination runs what is declared in
 // lib/hotkeys; this hook only decides when a binding may fire. A 'global' binding
 // (the palette, the team switch) fires even with an overlay open, while an
-// 'app' one is suppressed while the user types or an overlay is open, because its
-// combination is a plain key that would land in the text being typed.
+// 'app' one is suppressed while the user types, while focus is inside a dialog,
+// menu or list, or while an overlay is open, because its combination is a plain key
+// that belongs to whatever has focus.
 export function useKeyboardShortcuts(opts: {
   hasTeam: boolean;
   teams: Team[];
@@ -76,7 +77,7 @@ export function useKeyboardShortcuts(opts: {
         return;
       }
 
-      if (isTypingTarget(e.target) || overlayOpen) {
+      if (blocksShortcuts(e.target) || overlayOpen) {
         goPending.current = null;
         return;
       }

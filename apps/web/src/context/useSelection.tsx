@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { isTypingTarget } from '@/utils/hotkeys';
+import { blocksShortcuts } from '@/utils/hotkeys';
 import { useHotkeyMatch } from '@/context/useHotkeys';
 
 // Window event that selects every issue on the mounted board. The command palette
@@ -79,7 +79,7 @@ export function SelectionProvider({
         return;
       }
       if (matches(e, 'board.select-all')) {
-        if (isTypingTarget(document.activeElement)) return;
+        if (blocksShortcuts(document.activeElement)) return;
         e.preventDefault();
         selectAll();
       }

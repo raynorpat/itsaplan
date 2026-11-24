@@ -20,6 +20,7 @@ import {
   settingsHomePath,
 } from '@/utils/paths';
 import type { GoTarget } from '@/utils/goSequence';
+import { shellBodyState } from '@/utils/shellRoute';
 
 // Where each G-then-letter shortcut leads.
 const GO_PATHS: Record<GoTarget, () => string> = {
@@ -76,7 +77,7 @@ export default function Shell({
     canCreateIssue,
     errorMsg,
     forbidden,
-  } = useShellTeam(teamKey, route.activeViewId);
+  } = useShellTeam(teamKey, route.activeViewId, route.needsTeam);
 
   const { issueOpenMode } = useAccountPreferences();
   const overlays = useOverlays();
@@ -175,11 +176,14 @@ export default function Shell({
 
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <ShellBody
-              forbidden={forbidden}
-              hasTeam={!!team}
-              hasError={!!errorMsg}
-              teamsLoaded={teamsLoaded}
-              teamCount={joinedTeams.length}
+              state={shellBodyState({
+                forbidden,
+                needsTeam: route.needsTeam,
+                hasTeam: !!team,
+                hasError: !!errorMsg,
+                teamsLoaded,
+                teamCount: joinedTeams.length,
+              })}
             >
               {children}
             </ShellBody>

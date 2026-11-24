@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronDown, LogOut, Plus, Settings, UserPlus } from 'lucide-react';
 import { signOut, useSession } from '@/lib/auth-client';
 import { useAppVersionQuery } from '@/services/version.service';
+import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { settingsHomePath, workspaceMembersPath } from '@/utils/paths';
 import ItsAPlanMark from '@/components/brand/ItsAPlanMark';
 import {
@@ -25,6 +26,9 @@ export default function WorkspaceMenu({ onNewTeam }: { onNewTeam: () => void }) 
   const router = useRouter();
   const { data: session } = useSession();
   const { data: appVersion } = useAppVersionQuery();
+  // Guests see only their account settings, so the menu offers them no invite.
+  const { data: workspace } = useViewerWorkspaceQuery();
+  const workspaceRole = workspace?.workspaceRole ?? null;
   // The session can already be cached when React hydrates while the server
   // rendered without it; reading it after mount keeps the first render identical.
   const [mounted, setMounted] = useState(false);
@@ -58,12 +62,14 @@ export default function WorkspaceMenu({ onNewTeam }: { onNewTeam: () => void }) 
             Settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={workspaceMembersPath()}>
-            <UserPlus />
-            Invite people
-          </Link>
-        </DropdownMenuItem>
+        {workspaceRole !== 'guest' && (
+          <DropdownMenuItem asChild>
+            <Link href={workspaceMembersPath()}>
+              <UserPlus />
+              Invite people
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={onNewTeam}>
           <Plus />
           New team

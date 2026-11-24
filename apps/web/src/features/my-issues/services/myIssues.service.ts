@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { gqlRequest, graphql } from '@/lib/graphql';
+import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { myIssuesFilter, type MyIssuesTab } from '../utils/myIssues';
 
@@ -70,5 +71,6 @@ async function fetchMyIssues(tab: MyIssuesTab): Promise<MyIssue[]> {
 
 // The viewer's issues for one tab, across every team they can see.
 export function useMyIssues(tab: MyIssuesTab) {
-  return useQuery({ queryKey: ['myIssues', tab], queryFn: () => fetchMyIssues(tab) });
+  // Registered in qk so every issue write refreshes it (ISSUE_DEPENDENT_KEYS).
+  return useQuery({ queryKey: qk.myIssues(tab, true), queryFn: () => fetchMyIssues(tab) });
 }

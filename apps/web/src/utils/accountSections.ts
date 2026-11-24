@@ -8,9 +8,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-// The account pages, in the order the user menu lists them. Every signed-in user
-// reaches all of them, so there is no permission gate. Each slug is a page under
-// /settings/account/<slug>. Used by the user menu and the command palette's section search.
+// The account pages every signed-in user reaches, so there is no permission gate.
+// Each slug is a page under /settings/account/<slug>. Used by the Settings sidebar
+// and the command palette's section search.
 export type AccountSection = { slug: string; label: string; icon: LucideIcon };
 
 export const ACCOUNT_SECTIONS: AccountSection[] = [

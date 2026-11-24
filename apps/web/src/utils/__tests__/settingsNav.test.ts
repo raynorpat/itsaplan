@@ -50,9 +50,9 @@ describe('settingsNav', () => {
     assert.deepEqual(keys(nav.workspace), ['members', 'mcp', 'project-labels']);
   });
 
-  it('shows a guest the same workspace pages as a member, as the menu did', () => {
+  it('shows a guest no workspace pages, as Linear does', () => {
     const nav = settingsNav({ workspaceRole: 'guest', teams: [], pathname: '/settings' });
-    assert.deepEqual(keys(nav.workspace), ['members', 'mcp', 'project-labels']);
+    assert.deepEqual(keys(nav.workspace), []);
   });
 
   it('lists the teams the viewer joined, and the team in the URL', () => {

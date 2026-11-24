@@ -1,5 +1,6 @@
 import type { Team } from '@/types/team';
 import type { WorkspaceRole } from '@/types/workspace';
+import { ACCOUNT_SECTIONS } from '@/utils/accountSections';
 import { isWorkspaceAdmin } from '@/utils/workspaceRoles';
 
 export interface SettingsNavItem {
@@ -18,14 +19,12 @@ export interface SettingsNav {
   activeTeamKey: string | null;
 }
 
+// The account pages: the user-menu sections, with Notifications after Preferences
+// and the teams list last.
 const ACCOUNT: [string, string][] = [
-  ['profile', 'Profile'],
-  ['preferences', 'Preferences'],
+  ...ACCOUNT_SECTIONS.slice(0, 2).map((s): [string, string] => [s.slug, s.label]),
   ['notifications', 'Notifications'],
-  ['accounts', 'Accounts'],
-  ['security', 'Security'],
-  ['api-keys', 'API keys'],
-  ['authorized-apps', 'Authorized apps'],
+  ...ACCOUNT_SECTIONS.slice(2).map((s): [string, string] => [s.slug, s.label]),
   ['teams', 'Teams'],
 ];
 
@@ -39,7 +38,8 @@ const WORKSPACE: [string, string, boolean][] = [
 ];
 
 // The Settings area's sidebar, as in Linear: the account pages, the workspace pages
-// (General and Applications for owners and admins only), then the teams.
+// (General and Applications for owners and admins only; none for guests, who see only
+// their account), then the teams.
 export function settingsNav({
   workspaceRole,
   teams,
@@ -54,13 +54,16 @@ export function settingsNav({
     return { key: slug, label, href, active: pathname === href };
   };
   const admin = workspaceRole != null && isWorkspaceAdmin(workspaceRole);
+  const guest = workspaceRole === 'guest';
   const segs = pathname.split('/').filter(Boolean);
   const activeTeamKey = segs[1] === 'teams' ? (segs[2] ?? null) : null;
   return {
     account: ACCOUNT.map(([slug, label]) => item('account', slug, label)),
-    workspace: WORKSPACE.filter(([, , adminOnly]) => !adminOnly || admin).map(([slug, label]) =>
-      item('workspace', slug, label),
-    ),
+    workspace: guest
+      ? []
+      : WORKSPACE.filter(([, , adminOnly]) => !adminOnly || admin).map(([slug, label]) =>
+          item('workspace', slug, label),
+        ),
     teams: teams.filter((t) => t.role != null || t.key === activeTeamKey),
     activeTeamKey,
   };

@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Team } from '@/types/team';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import { ACCOUNT_SECTIONS } from '@/utils/accountSections';
 import { membersPath, teamSettingsPath } from '@/utils/paths';
@@ -103,7 +103,7 @@ function TeamSettingsItems({ team, open }: { team: Team; open: boolean }) {
 // the workspace pages and the teams.
 export default function SidebarSettingsNav({ teams }: { teams: Team[] }) {
   const pathname = usePathname();
-  const { workspaceRole } = usePermissions();
+  const workspaceRole = useViewerWorkspaceQuery().data?.workspaceRole ?? null;
   const nav = settingsNav({ workspaceRole, teams, pathname });
 
   return (

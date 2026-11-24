@@ -60,6 +60,8 @@ export function useUpdateOrganization() {
     },
     onSuccess: (data) => {
       qc.setQueryData(qk.organization, data);
+      // The workspace menu shows the name and logo.
+      void qc.invalidateQueries({ queryKey: qk.viewerWorkspace });
       toast.success('Workspace settings saved');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not save'),
