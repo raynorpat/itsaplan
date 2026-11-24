@@ -52,6 +52,7 @@ export const IssueFields = graphql(`
     project {
       id
       name
+      archivedAt
     }
     projectMilestone {
       id
@@ -74,7 +75,9 @@ export function toIssue(data: FragmentOf<typeof IssueFields>): Issue {
     teamId: node.team.id,
     sequenceNumber: node.number,
     identifier: node.identifier,
-    project: node.project ? { id: node.project.id, title: node.project.name } : null,
+    project: node.project
+      ? { id: node.project.id, title: node.project.name, deleted: node.project.archivedAt != null }
+      : null,
     assigneeUserId: node.assignee?.id ?? null,
     delegateUserId: node.delegate?.id ?? null,
     stateId: node.state.id,

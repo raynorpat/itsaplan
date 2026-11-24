@@ -284,6 +284,14 @@ describe('myIssueRow', () => {
     assert.deepEqual(row.assignee, { name: 'Pat', image: null });
   });
 
+  it('marks a project in the trash as deleted', () => {
+    const row = myIssueRow({
+      ...base,
+      project: { id: 'm', name: 'Mobile', archivedAt: '2026-11-24T00:00:00Z' },
+    });
+    assert.equal(row.project, 'Mobile (deleted)');
+  });
+
   it('never marks a finished issue overdue', () => {
     assert.deepEqual(myIssueRow(base).dueDate, { date: '2020-01-01', overdue: false });
     const open = myIssueRow({ ...base, state: { ...base.state, type: 'started' } });

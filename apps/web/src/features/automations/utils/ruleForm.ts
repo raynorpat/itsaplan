@@ -54,11 +54,30 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+// A filter in one shape for comparison: its top-level conditions as a list (a bare
+// condition or an `and` of them) with every single-value `eq` / `neq` read as a
+// one-value `in` / `nin`, the shape the filter bar writes.
+function comparable(filter: unknown): unknown {
+  const rewrite = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(rewrite);
+    if (v === null || typeof v !== 'object') return v;
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (entries.length === 1 && (entries[0]![0] === 'eq' || entries[0]![0] === 'neq'))
+      return { [entries[0]![0] === 'eq' ? 'in' : 'nin']: [entries[0]![1]] };
+    return Object.fromEntries(entries.map(([k, x]) => [k, rewrite(x)]));
+  };
+  const f = (filter ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(f);
+  if (keys.length === 0) return [];
+  const list = keys.length === 1 && Array.isArray(f.and) ? (f.and as unknown[]) : [f];
+  return list.map(rewrite);
+}
+
 // True when the filter bar cannot show all of `conditions` (reading them back and
-// writing them again does not give the same filter).
+// writing them again does not give an equivalent filter).
 export function conditionsHidden(conditions: Record<string, unknown>): boolean {
   const shown = filterSetToIssueFilter(issueFilterToFilterSet(conditions));
-  return canonical(shown) !== canonical(conditions);
+  return canonical(comparable(shown)) !== canonical(comparable(conditions));
 }
 
 export type ActionType = WorkflowAction['type'];

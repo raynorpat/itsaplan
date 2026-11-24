@@ -29,14 +29,21 @@ function initials(name: string): string {
 
 // A Linear User object for a user row, as seen by the viewer. Fields without a
 // counterpart here resolve to their neutral value (see schema.ts).
+// A magic-link sign-up has no name; like Linear, the account is then named after its
+// email's local part until the person sets one.
+function shownName(user: Pick<UserSource, 'name' | 'email'>): string {
+  return user.name.trim() || user.email.split('@')[0]!;
+}
+
 export function toGraphQLUser(user: UserSource, viewerId: string) {
+  const name = shownName(user);
   return {
     id: user.id,
-    name: user.name,
-    displayName: user.name,
+    name,
+    displayName: name,
     email: user.email,
     avatarUrl: user.image ?? null,
-    initials: initials(user.name),
+    initials: initials(name),
     createdAt: isoOf(user.createdAt),
     updatedAt: isoOf(user.updatedAt),
     // Linear's role flags: admin covers owners and admins; active = not suspended.

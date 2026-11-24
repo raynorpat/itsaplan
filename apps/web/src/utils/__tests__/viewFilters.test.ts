@@ -147,3 +147,29 @@ describe('cycle condition', () => {
     );
   });
 });
+
+// Filters written by API and MCP clients use single-value comparators.
+describe('single-value comparators', () => {
+  const read = (filter: unknown) =>
+    issueFilterToFilterSet(filter).conditions.map(({ field, op, values }) => ({
+      field,
+      op,
+      values,
+    }));
+
+  it('reads a priority eq / neq as is / is not', () => {
+    assert.deepEqual(read({ priority: { eq: 1 } }), [{ field: 'priority', op: 'is', values: [1] }]);
+    assert.deepEqual(read({ priority: { neq: 2 } }), [
+      { field: 'priority', op: 'is_not', values: [2] },
+    ]);
+  });
+
+  it('reads a state id eq / neq as is / is not', () => {
+    assert.deepEqual(read({ state: { id: { eq: 's1' } } }), [
+      { field: 'status', op: 'is', values: ['s1'] },
+    ]);
+    assert.deepEqual(read({ state: { type: { neq: 'completed' } } }), [
+      { field: 'statusType', op: 'is_not', values: ['completed'] },
+    ]);
+  });
+});

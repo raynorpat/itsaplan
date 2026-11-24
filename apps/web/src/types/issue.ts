@@ -3,6 +3,8 @@ import type { Cycle } from '@/types/team';
 export interface ProjectOption {
   id: string;
   title: string;
+  // In the trash, or archived through the API; the issue keeps the link.
+  deleted: boolean;
 }
 
 export interface Issue {

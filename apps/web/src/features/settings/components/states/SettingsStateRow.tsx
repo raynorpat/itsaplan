@@ -58,7 +58,7 @@ export function SettingsStateRow({
       <ItemContent>
         <ItemTitle>{column.name}</ItemTitle>
       </ItemContent>
-      <ItemActions className="opacity-0 group-hover/item:opacity-100">
+      <ItemActions className="opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100">
         {canEdit && (
           <Button
             variant="ghost"

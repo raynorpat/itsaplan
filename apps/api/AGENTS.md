@@ -379,7 +379,8 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar),
+  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar; a
+  user without a name reads as its email's local part in `name` and `displayName`),
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
   updates) and webhooks

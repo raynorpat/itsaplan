@@ -155,10 +155,16 @@ const only = (o: Record<string, unknown>): [string, unknown] | null => {
   return keys.length === 1 ? [keys[0]!, o[keys[0]!]] : null;
 };
 
+// The values of an `in` / `nin` comparator; a single-value `eq` / `neq`, as API and
+// MCP clients write it, reads as a list of one.
 const ids = (comparator: unknown, op: 'in' | 'nin'): FilterValue[] | null => {
   if (!isObject(comparator)) return null;
   const entry = only(comparator);
-  return entry && entry[0] === op && Array.isArray(entry[1]) ? (entry[1] as FilterValue[]) : null;
+  if (!entry) return null;
+  if (entry[0] === op && Array.isArray(entry[1])) return entry[1] as FilterValue[];
+  if (entry[0] === (op === 'in' ? 'eq' : 'neq') && entry[1] !== undefined)
+    return [entry[1] as FilterValue];
+  return null;
 };
 
 type Partial = Omit<FilterCondition, 'id'>;
@@ -272,11 +278,14 @@ function elementToCondition(element: unknown): Partial | null {
       return { field: 'priority', op: 'is_set', values: [] };
     if (inner[0] === 'eq' && inner[1] === 0)
       return { field: 'priority', op: 'is_not_set', values: [] };
-    if ((inner[0] === 'in' || inner[0] === 'nin') && Array.isArray(inner[1]))
+    const isValues = ids(value, 'in');
+    const notValues = ids(value, 'nin');
+    const values = isValues ?? notValues;
+    if (values)
       return {
         field: 'priority',
-        op: inner[0] === 'in' ? 'is' : 'is_not',
-        values: (inner[1] as FilterValue[]).map((v) => (v === 0 ? null : v)),
+        op: isValues ? 'is' : 'is_not',
+        values: values.map((v) => (v === 0 ? null : v)),
       };
     return null;
   }

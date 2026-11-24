@@ -8,6 +8,7 @@ import { PRIORITIES } from '@/utils/fieldOptions';
 import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import type { Sort } from '@/utils/viewTypes';
+import { projectDisplayName } from '@/utils/projectMeta';
 
 export type { Sort, SortField } from '@/utils/viewTypes';
 
@@ -209,7 +210,7 @@ export function buildGroups(team: TeamDetail, group: GroupField): IssueGroup[] {
       // the full list is fetched on demand only where a picker needs it.
       const seen = new Map<string, string>();
       for (const issue of team.issues)
-        if (issue.project) seen.set(issue.project.id, issue.project.title);
+        if (issue.project) seen.set(issue.project.id, projectDisplayName(issue.project));
       const options = [...seen.entries()]
         .sort((a, b) => a[1].localeCompare(b[1]))
         .map(([id, title]) => ({ key: `i${id}`, name: title, assign: { projectId: id } }));

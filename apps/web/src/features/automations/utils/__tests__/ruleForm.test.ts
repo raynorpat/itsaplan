@@ -175,6 +175,12 @@ describe('conditionsHidden', () => {
     assert.equal(conditionsHidden({}), false);
   });
 
+  it('is false for a filter the bar shows in another but equivalent shape', () => {
+    assert.equal(conditionsHidden({ priority: { eq: 1 } }), false);
+    assert.equal(conditionsHidden({ priority: { in: [1] } }), false);
+    assert.equal(conditionsHidden({ and: [{ state: { id: { eq: 's1' } } }] }), false);
+  });
+
   it('is true when part of the conditions cannot be shown', () => {
     assert.equal(conditionsHidden({ and: [{ estimate: { gt: 3 } }] }), true);
   });

@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StateIcon } from '@/components/common/issue/IssueIcons';
+import { projectDisplayName } from '@/utils/projectMeta';
 
 const CHIP = 'max-w-full rounded-full px-1.5 py-0.5 text-[10px] text-muted-foreground';
 
@@ -104,7 +105,7 @@ export function IssueCardBody({
           {has('project') && project && (
             <Badge variant="outline" className={CHIP}>
               <Target className="size-2.5 shrink-0" />
-              <span className="truncate">{project.title}</span>
+              <span className="truncate">{projectDisplayName(project)}</span>
             </Badge>
           )}
           {has('cycle') && cycle && (

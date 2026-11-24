@@ -3,7 +3,7 @@ import { Check, CircleDashed, Target } from 'lucide-react';
 import { useProjectQuery, useProjectsQuery } from '@/services/projects.service';
 import type { Project } from '@/types/project';
 import { colorDot } from './colorDot';
-import { LINKABLE_STATUSES, STATUS_META } from '@/utils/projectMeta';
+import { LINKABLE_STATUSES, STATUS_META, projectDisplayName } from '@/utils/projectMeta';
 import {
   Command,
   CommandEmpty,
@@ -64,7 +64,9 @@ export default function ProjectSelect({
       <PopoverTrigger asChild>
         <Pill active={value != null}>
           {value != null ? <Target /> : <CircleDashed />}
-          {current?.name ?? (picked?.id === value ? picked?.name : undefined) ?? 'Project'}
+          {current
+            ? projectDisplayName({ title: current.name, deleted: current.archivedAt != null })
+            : ((picked?.id === value ? picked?.name : undefined) ?? 'Project')}
         </Pill>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">

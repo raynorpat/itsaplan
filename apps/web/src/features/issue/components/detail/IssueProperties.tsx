@@ -15,6 +15,7 @@ import { cyclesVisible, knownCycles } from '@/utils/cycles';
 import ProjectSelect from '@/components/common/fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
+import { projectDisplayName } from '@/utils/projectMeta';
 
 // One property in Linear's flat list: the control alone (its pill shows the icon and the
 // value); the property's name is its accessible label.
@@ -110,7 +111,7 @@ export default function IssueProperties({
           <ReadOnlyPill>
             <Pill active={!!issue.project}>
               <Target />
-              {issue.project?.title ?? 'Project'}
+              {issue.project ? projectDisplayName(issue.project) : 'Project'}
             </Pill>
           </ReadOnlyPill>
         ) : (

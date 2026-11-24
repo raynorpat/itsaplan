@@ -2,6 +2,7 @@ import type { StateType } from '@/types/team';
 import { cycleLabel } from '@/utils/cycles';
 import { isDueOverdue } from '@/utils/dates';
 import { PRIORITY_ORDER, priorityLabel } from '@/utils/fieldOptions';
+import { projectDisplayName } from '@/utils/projectMeta';
 import type { GroupField } from '@/utils/viewSettings';
 import type { Sort } from '@/utils/viewTypes';
 import type { ListRowData } from '@/components/common/board/list/ListRowContent';
@@ -70,7 +71,7 @@ const TYPE_LABELS: Record<string, string> = {
 interface GroupableIssue {
   state: { type: string; color?: string };
   priority: number;
-  project: { id: string; name: string } | null;
+  project: { id: string; name: string; archivedAt?: string | null } | null;
 }
 
 export interface MyIssuesGroupData<T> {
@@ -119,7 +120,12 @@ export function groupMyIssues<T extends GroupableIssue>(
     case 'project': {
       // Keyed by id: projects of different teams may share a name.
       const projects = new Map<string, string>();
-      for (const i of issues) if (i.project) projects.set(i.project.id, i.project.name);
+      for (const i of issues)
+        if (i.project)
+          projects.set(
+            i.project.id,
+            projectDisplayName({ title: i.project.name, deleted: i.project.archivedAt != null }),
+          );
       const ordered = [...projects.entries()].sort((a, b) =>
         a[1].localeCompare(b[1], undefined, { sensitivity: 'base' }),
       );
@@ -234,7 +240,9 @@ export function myIssueRow(issue: MyIssue): ListRowData {
     title: issue.title,
     state: { type, color: issue.state.color, name: issue.state.name },
     labels: issue.labels,
-    project: issue.project?.name ?? null,
+    project: issue.project
+      ? projectDisplayName({ title: issue.project.name, deleted: issue.project.archivedAt != null })
+      : null,
     cycle: issue.cycle ? cycleLabel(issue.cycle) : null,
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, type) }

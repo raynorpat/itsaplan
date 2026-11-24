@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import IssueContextMenu from '@/components/common/issue/IssueContextMenu';
 import { DropLine } from '@/components/common/board/shared/DropLine';
 import { ListRowContent, type ListRowData } from './ListRowContent';
+import { projectDisplayName } from '@/utils/projectMeta';
 
 // The display data of a team issue, resolved through the team's lookup maps.
 function rowData(issue: Issue, maps: Maps): ListRowData {
@@ -31,7 +32,7 @@ function rowData(issue: Issue, maps: Maps): ListRowData {
       const l = maps.labelById.get(id);
       return l ? [{ id, name: l.name, color: l.color }] : [];
     }),
-    project: issue.project?.title ?? null,
+    project: issue.project ? projectDisplayName(issue.project) : null,
     cycle: cycle ? cycleLabel(cycle) : null,
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, state?.stateType) }

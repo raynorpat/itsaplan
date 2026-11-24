@@ -46,7 +46,7 @@ export function SettingsRow({
       {meta != null && (
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{meta}</span>
       )}
-      <ItemActions className="opacity-0 group-hover/item:opacity-100">
+      <ItemActions className="opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100">
         {extraAction}
         {can('edit') && (
           <Button

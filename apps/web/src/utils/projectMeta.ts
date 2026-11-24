@@ -36,3 +36,10 @@ export const HEALTH_META: Record<ProjectHealth, { label: string; color: string }
 export function healthMeta(health: ProjectHealth | null): { label: string; color: string } {
   return health ? HEALTH_META[health] : { label: 'No update', color: '#a1a1aa' };
 }
+
+// The name of an issue's project. An issue keeps its link to a project in the trash
+// (or archived through the API) until the project is restored or purged, and the name
+// then says so.
+export function projectDisplayName(project: { title: string; deleted: boolean }): string {
+  return project.deleted ? `${project.title} (deleted)` : project.title;
+}

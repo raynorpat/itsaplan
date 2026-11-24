@@ -46,6 +46,7 @@ const MyIssuesPage = graphql(`
         project {
           id
           name
+          archivedAt
         }
         cycle {
           number
@@ -79,7 +80,7 @@ export type MyIssue = {
   assignee: Person | null;
   delegate: Person | null;
   labels: { id: string; name: string; color: string }[];
-  project: { id: string; name: string } | null;
+  project: { id: string; name: string; archivedAt?: string | null } | null;
   cycle: { number: number; name: string | null } | null;
 };
 
@@ -106,7 +107,7 @@ type MyIssueNode = {
   assignee: NodePerson;
   delegate?: NodePerson;
   labels: { nodes: { id: string; name: string; color: string }[] };
-  project?: { id: string; name: string } | null;
+  project?: { id: string; name: string; archivedAt?: string | null } | null;
   cycle?: { number: number; name?: string | null } | null;
 };
 
