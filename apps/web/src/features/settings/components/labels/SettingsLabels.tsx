@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { teamOwnGroups, teamOwnLabels } from '@/utils/labels';
+import { splitLabels, teamOwnGroups, teamOwnLabels } from '@/utils/labels';
 import { DndContext, DragOverlay, type DragEndEvent } from '@dnd-kit/core';
 import type { Label as LabelRow, LabelGroup, TeamDetail } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
@@ -13,6 +13,8 @@ import {
   useCreateLabelGroup,
   useDeleteLabel,
   useDeleteLabelGroup,
+  useRestoreLabel,
+  useRetireLabel,
   useUpdateLabel,
   useUpdateLabelGroup,
 } from '../../services/settings.service';
@@ -30,7 +32,8 @@ import { SettingsLabelsAddMenu } from './SettingsLabelsAddMenu';
 // ungrouped label. Labels drag between groups and the root.
 export default function SettingsLabels({ team }: { team: TeamDetail }) {
   const teamKey = team.team.key;
-  const ownLabels = teamOwnLabels(team.labels);
+  // Retired labels are listed apart, under the groups, with Restore.
+  const { active: ownLabels, retired: retiredLabels } = splitLabels(teamOwnLabels(team.labels));
   const ownGroups = teamOwnGroups(team.labelGroups);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // The open label add/edit form, and the open group add/edit form. At most one is
@@ -59,10 +62,14 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
   const createLabelGroup = useCreateLabelGroup(teamKey);
   const updateLabelGroup = useUpdateLabelGroup(teamKey);
   const deleteLabelGroup = useDeleteLabelGroup(teamKey);
+  const retireLabel = useRetireLabel(teamKey);
+  const restoreLabel = useRestoreLabel(teamKey);
 
   const issueCount = (labelId: string) =>
     team.issues.filter((t) => t.labelIds.includes(labelId)).length;
-  const labelCount = (groupId: string) => ownLabels.filter((l) => l.groupId === groupId).length;
+  // Deleting a group affects its retired labels too, so they count.
+  const labelCount = (groupId: string) =>
+    teamOwnLabels(team.labels).filter((l) => l.groupId === groupId).length;
   const hasGroups = ownGroups.length > 0;
   const activeLabel = activeId != null ? ownLabels.find((l) => l.id === activeId) : null;
   const ungroupedLabels = ownLabels.filter((l) => l.groupId == null);
@@ -166,7 +173,7 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
   );
 
   // A label as an editing form (when it is the one being edited) or a draggable row.
-  function renderLabelRow(l: LabelRow) {
+  function renderLabelRow(l: LabelRow, retired = false) {
     if (labelForm?.mode === 'edit' && labelForm.id === l.id) {
       return (
         <div key={l.id} className="px-3 py-1">
@@ -179,10 +186,12 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
       <SettingsDraggableLabelRow
         key={l.id}
         label={l}
-        draggable={hasGroups}
+        draggable={hasGroups && !retired}
         meta={count === 0 ? undefined : `${count} ${count === 1 ? 'issue' : 'issues'}`}
         onEdit={() => openLabelEdit(l)}
         onDelete={() => setDeletingLabel(l)}
+        onRetire={retired ? undefined : () => retireLabel.mutate(l.id)}
+        onRestore={retired ? () => restoreLabel.mutate(l.id) : undefined}
       />
     );
   }
@@ -267,6 +276,18 @@ export default function SettingsLabels({ team }: { team: TeamDetail }) {
           onAddLabel={() => openLabelAdd(null, 'ungrouped')}
           onAddGroup={openGroupAdd}
         />
+      )}
+
+      {retiredLabels.length > 0 && (
+        <section className="pt-4">
+          <h3 className="px-3 pb-1 text-xs font-medium text-muted-foreground">Retired labels</h3>
+          <p className="px-3 pb-2 text-xs text-muted-foreground">
+            Retired labels stay on their issues but can no longer be added.
+          </p>
+          <div className="divide-y divide-border/50">
+            {retiredLabels.map((l) => renderLabelRow(l, true))}
+          </div>
+        </section>
       )}
 
       {deletingLabel && (

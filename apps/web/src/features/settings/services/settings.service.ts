@@ -208,6 +208,32 @@ export function useDeleteLabel(teamKey: string) {
   return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelDelete, { id }));
 }
 
+// Retiring keeps the label on the issues that carry it and hides it from the pickers;
+// restoring offers it again (Linear's issueLabelRetire / issueLabelRestore).
+const LabelRetire = graphql(`
+  mutation SettingsLabelRetire($id: String!) {
+    issueLabelRetire(id: $id) {
+      success
+    }
+  }
+`);
+
+const LabelRestore = graphql(`
+  mutation SettingsLabelRestore($id: String!) {
+    issueLabelRestore(id: $id) {
+      success
+    }
+  }
+`);
+
+export function useRetireLabel(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelRetire, { id }));
+}
+
+export function useRestoreLabel(teamKey: string) {
+  return useTeamMutation(teamKey, (id: string) => gqlRequest(LabelRestore, { id }));
+}
+
 // A label group is a label with isGroup. The created group is returned so the labels
 // import can place new labels in it.
 export function useCreateLabelGroup(teamKey: string) {

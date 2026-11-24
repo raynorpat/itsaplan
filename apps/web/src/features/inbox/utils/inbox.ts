@@ -1,5 +1,11 @@
 import type { Notification, NotificationType } from '@/types/notification';
 import { isSnoozed } from '@/utils/notifications';
+import {
+  blocksShortcuts,
+  matchesCombo,
+  type HotkeyCombos,
+  type KeyEventLike,
+} from '@/utils/hotkeys';
 
 // What the inbox list shows, chosen in the browser from every unarchived
 // notification of the viewer (Linear's NotificationFilter has no read or snooze
@@ -50,4 +56,19 @@ export function issuesWithUnread(list: Notification[]): string[] {
   return [
     ...new Set(list.filter((n) => n.archivedAt == null && n.readAt == null).map((n) => n.issueId)),
   ];
+}
+
+// "Unsnooze all": the unarchived notifications still snoozed.
+export function snoozedIds(list: Notification[], now: Date): string[] {
+  return list.filter((n) => n.archivedAt == null && isSnoozed(n, now)).map((n) => n.id);
+}
+
+// E archives the open notification, as in Linear; never while typing or for a key
+// another handler has taken.
+export function inboxKeyAction(
+  e: KeyEventLike & { target: EventTarget | null; defaultPrevented?: boolean },
+  combos: HotkeyCombos,
+): 'archive' | null {
+  if (e.defaultPrevented || blocksShortcuts(e.target)) return null;
+  return matchesCombo(e, combos['inbox.archive']) ? 'archive' : null;
 }

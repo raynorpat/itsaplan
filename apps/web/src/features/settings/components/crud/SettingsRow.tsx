@@ -16,6 +16,7 @@ export function SettingsRow({
   deleteTitle,
   onEdit,
   onDelete,
+  extraAction,
   className,
 }: {
   handle?: ReactNode;
@@ -27,6 +28,8 @@ export function SettingsRow({
   deleteTitle: string;
   onEdit: () => void;
   onDelete: () => void;
+  // A row-specific action shown before Edit (e.g. a label's Retire / Restore).
+  extraAction?: ReactNode;
   className?: string;
 }) {
   const can = useSettingsCan();
@@ -44,6 +47,7 @@ export function SettingsRow({
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{meta}</span>
       )}
       <ItemActions className="opacity-0 group-hover/item:opacity-100">
+        {extraAction}
         {can('edit') && (
           <Button
             variant="ghost"

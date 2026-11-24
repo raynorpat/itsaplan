@@ -43,3 +43,13 @@ export const teamOwnGroups = (groups: LabelGroup[]) => groups.filter((g) => g.te
 // since the pickers add and remove one label at a time.
 export const applicableLabels = (labels: Label[]) =>
   teamOwnLabels(labels).filter((l) => !l.retiredAt);
+
+// Labels settings: the active labels, and the retired ones listed apart with Restore.
+export function splitLabels<T extends { retiredAt?: string | null }>(
+  labels: T[],
+): { active: T[]; retired: T[] } {
+  const active: T[] = [];
+  const retired: T[] = [];
+  for (const l of labels) (l.retiredAt ? retired : active).push(l);
+  return { active, retired };
+}

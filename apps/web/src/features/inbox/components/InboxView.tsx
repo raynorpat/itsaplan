@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Notification } from '@/types/notification';
 import { useNotificationsList } from '@/services/notifications.service';
 import { useSnoozeClock } from '@/hooks/useSnoozeClock';
+import { useHotkeyCombos } from '@/context/useHotkeys';
 import { unreadCount } from '@/utils/notifications';
 import IssueDetailContent from '@/features/issue/components/detail/IssueDetailContent';
 import InboxToolbar from './InboxToolbar';
@@ -13,8 +14,10 @@ import InboxList from './InboxList';
 import { useInboxTeam } from '../hooks/useInboxTeam';
 import {
   DEFAULT_INBOX_FILTERS,
+  inboxKeyAction,
   issuesWithUnread,
   readForCompletedIssues,
+  snoozedIds,
   visibleNotifications,
   type InboxFilters,
 } from '../utils/inbox';
@@ -68,6 +71,26 @@ export default function InboxView() {
     if (n.readAt == null) run([n.id], { kind: 'read', read: true });
   };
 
+  // E archives the open notification and opens the next one in the list, as Linear
+  // does (the previous one when it was the last).
+  const combos = useHotkeyCombos();
+  const latest = useRef({ selected, items, archive, onSelect });
+  latest.current = { selected, items, archive, onSelect };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (inboxKeyAction(e, combos) !== 'archive') return;
+      const k = latest.current;
+      if (!k.selected) return;
+      e.preventDefault();
+      const at = k.items.findIndex((n) => n.id === k.selected!.id);
+      const next = at >= 0 ? (k.items[at + 1] ?? k.items[at - 1] ?? null) : null;
+      k.archive([k.selected.id]);
+      if (next) k.onSelect(next);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [combos]);
+
   const onChecked = (n: Notification, isChecked: boolean) =>
     setChecked((prev) => {
       const next = new Set(prev);
@@ -111,6 +134,8 @@ export default function InboxView() {
               archive(list.filter((n) => n.archivedAt == null && n.readAt != null).map((n) => n.id))
             }
             onArchiveReadCompleted={() => void archiveReadCompleted()}
+            snoozedCount={snoozedIds(list, now).length}
+            onUnsnoozeAll={() => run(snoozedIds(list, now), { kind: 'snooze', until: null })}
           />
         )}
         <InboxList

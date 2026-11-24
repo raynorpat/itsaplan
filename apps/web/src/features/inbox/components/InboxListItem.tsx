@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Archive,
   AtSign,
   Bot,
   CircleDot,
@@ -175,6 +176,19 @@ export default function InboxListItem({
               {formatDurationShort(n.createdAt)}
             </span>
             {unread && <span className="size-2 rounded-full bg-primary group-hover:hidden" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden size-6 group-hover:flex"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+              title="Archive (E)"
+              aria-label="Archive notification"
+            >
+              <Archive />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

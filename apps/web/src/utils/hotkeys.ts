@@ -24,7 +24,8 @@ export type HotkeyId =
   | 'list.prev'
   | 'list.select'
   | 'list.open'
-  | 'list.peek';
+  | 'list.peek'
+  | 'inbox.archive';
 
 // `scope` decides when the binding is live. A 'global' one fires even while the
 // user types or an overlay is open; an 'app' one is suppressed then, because its
@@ -129,6 +130,13 @@ export const HOTKEYS: HotkeyDef[] = [
     combo: 'space',
     scope: 'app',
     fixed: true,
+  },
+  {
+    id: 'inbox.archive',
+    label: 'Archive the open notification',
+    group: 'Inbox',
+    combo: 'e',
+    scope: 'app',
   },
 ];
 

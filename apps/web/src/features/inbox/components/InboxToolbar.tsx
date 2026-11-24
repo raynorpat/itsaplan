@@ -1,4 +1,11 @@
-import { Archive, CheckCheck, ListFilter, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
+import {
+  Archive,
+  CheckCheck,
+  Clock,
+  ListFilter,
+  MoreHorizontal,
+  SlidersHorizontal,
+} from 'lucide-react';
 import type { NotificationType } from '@/types/notification';
 import { type InboxFilters } from '../utils/inbox';
 import { Button } from '@/components/ui/button';
@@ -31,6 +38,8 @@ export default function InboxToolbar({
   onMarkAllRead,
   onArchiveRead,
   onArchiveReadCompleted,
+  snoozedCount,
+  onUnsnoozeAll,
 }: {
   unread: number;
   filters: InboxFilters;
@@ -38,6 +47,8 @@ export default function InboxToolbar({
   onMarkAllRead: () => void;
   onArchiveRead: () => void;
   onArchiveReadCompleted: () => void;
+  snoozedCount: number;
+  onUnsnoozeAll: () => void;
 }) {
   const selectedTypes = filters.types;
 
@@ -110,6 +121,10 @@ export default function InboxToolbar({
             <DropdownMenuItem onSelect={onMarkAllRead}>
               <CheckCheck />
               Mark all as read
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={snoozedCount === 0} onSelect={onUnsnoozeAll}>
+              <Clock />
+              Unsnooze all
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onArchiveRead}>

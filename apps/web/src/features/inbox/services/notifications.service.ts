@@ -11,19 +11,6 @@ import { NotificationFields, toNotifications } from '@/services/notifications.se
 // shows at once, the notifications the server returns replace the cached rows, and a
 // refused change is put back and reported.
 
-const UpdateNotification = graphql(
-  `
-    mutation InboxUpdateNotification($id: String!, $input: NotificationUpdateInput!) {
-      notificationUpdate(id: $id, input: $input) {
-        notification {
-          ...NotificationFields
-        }
-      }
-    }
-  `,
-  [NotificationFields],
-);
-
 const UnarchiveNotification = graphql(
   `
     mutation InboxUnarchiveNotification($id: String!) {
@@ -89,6 +76,19 @@ const ArchiveAll = graphql(
   [NotificationFields],
 );
 
+const UnsnoozeAll = graphql(
+  `
+    mutation InboxUnsnoozeAll($input: NotificationEntityInput!, $unsnoozedAt: DateTime!) {
+      notificationUnsnoozeAll(input: $input, unsnoozedAt: $unsnoozedAt) {
+        notifications {
+          ...NotificationFields
+        }
+      }
+    }
+  `,
+  [NotificationFields],
+);
+
 // What one action does to a notification, shown before the server answers.
 export type InboxChange =
   | { kind: 'read'; read: boolean }
@@ -124,8 +124,8 @@ async function runOne(id: string, change: InboxChange, now: string): Promise<Not
     }
     case 'snooze': {
       if (change.until == null) {
-        const data = await gqlRequest(UpdateNotification, { id, input: { snoozedUntilAt: null } });
-        return toNotifications([data.notificationUpdate.notification]);
+        const data = await gqlRequest(UnsnoozeAll, { input, unsnoozedAt: now });
+        return toNotifications(data.notificationUnsnoozeAll.notifications);
       }
       const data = await gqlRequest(SnoozeAll, { input, snoozedUntilAt: change.until });
       return toNotifications(data.notificationSnoozeAll.notifications);
