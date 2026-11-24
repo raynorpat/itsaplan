@@ -19,6 +19,7 @@ import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
 import ListView from '@/components/common/board/list/ListView';
 import TimelineView from '@/components/common/board/timeline/TimelineView';
 import CalendarView from '@/components/common/board/calendar/CalendarView';
+import { useNewViewFromUrl } from './hooks/useNewViewFromUrl';
 
 interface TimelineCollapseState {
   scope: string;
@@ -44,6 +45,8 @@ export default function WorkItemsPage() {
       },
     [filteredTeam, editor.settings],
   );
+
+  useNewViewFromUrl(shownTeam != null, can('views', 'create'), editor.beginNewView);
 
   if (!team || !filteredTeam || !shownTeam) return null;
 

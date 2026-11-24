@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { toast } from 'sonner';
@@ -10,9 +10,12 @@ import {
   collapsedKey,
   listDropPatch,
   listRowProperties,
+  listKeyAction,
+  moveFocus,
   rangeIds,
   type FlatItem,
 } from '@/utils/list';
+import { useHotkeyCombos } from '@/context/useHotkeys';
 import { useDndSensors } from '@/lib/dnd';
 import { usePersistedSet } from '@/hooks/usePersistedSet';
 import { useUpdateIssue } from '@/services/issues.service';
@@ -62,6 +65,12 @@ export function ListBody({
     [items],
   );
 
+  // The row the keyboard is on (J / K), as in Linear. A row that leaves the list
+  // (collapsed, filtered out, archived) drops the focus.
+  const [focusRaw, setFocused] = useState<string | null>(null);
+  const focused = focusRaw != null && order.includes(focusRaw) ? focusRaw : null;
+  const combos = useHotkeyCombos();
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -75,6 +84,38 @@ export function ListBody({
       return `r${it.issue.id}`;
     },
   });
+
+  // J / K move the focus, X selects the focused row, Enter opens it and Escape
+  // clears it (the selection provider clears the selection on Escape). The keys are
+  // live only while the list is shown, and never while typing or in a dialog or menu.
+  const keys = useRef({ order, focused, items, readOnly, onOpenIssue, selection });
+  keys.current = { order, focused, items, readOnly, onOpenIssue, selection };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = keys.current;
+      if (e.key === 'Escape') {
+        setFocused(null);
+        return;
+      }
+      const action = listKeyAction(e, combos);
+      if (action == null) return;
+      if (action === 'next' || action === 'prev') {
+        e.preventDefault();
+        const next = moveFocus(k.order, k.focused, action === 'next' ? 1 : -1);
+        setFocused(next);
+        const index = k.items.findIndex((it) => it.kind === 'row' && it.issue.id === next);
+        if (index >= 0) virtualizer.scrollToIndex(index, { align: 'auto' });
+        return;
+      }
+      if (k.focused == null) return;
+      e.preventDefault();
+      if (action === 'select') {
+        if (!k.readOnly) k.selection.toggle(k.focused);
+      } else k.onOpenIssue(k.focused);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [combos, virtualizer]);
 
   // Reordering inside a section only holds when the view is ordered manually: with
   // any other sort the row snaps back to where the sort puts it. A drop that would
@@ -148,10 +189,14 @@ export function ListBody({
             properties={properties}
             indented={subgrouped}
             selected={selection.isSelected(item.issue.id)}
+            focused={focused === item.issue.id}
             selecting={selection.isSelecting}
             dropDisabled={!manualOrder && grouped}
             onDrop={(draggedId) => moveIssue(draggedId, item.assign, item.bucket, item.index)}
-            onOpen={() => onOpenIssue(item.issue.id)}
+            onOpen={() => {
+              setFocused(item.issue.id);
+              onOpenIssue(item.issue.id);
+            }}
             onSelect={(range) => select(item.issue.id, range)}
             readOnly={readOnly}
           />

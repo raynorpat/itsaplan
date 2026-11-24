@@ -8,6 +8,8 @@ import {
   myIssuesPath,
   projectsPath,
   teamPath,
+  teamViewsPath,
+  viewsPath,
 } from '@/utils/paths';
 
 export interface SidebarItem {
@@ -37,7 +39,10 @@ export function sidebarModel({
   workspaceRole: WorkspaceRole | null;
   teams: Team[];
 }): SidebarModel {
-  const workspace: SidebarItem[] = [{ key: 'projects', label: 'Projects', href: projectsPath() }];
+  const workspace: SidebarItem[] = [
+    { key: 'projects', label: 'Projects', href: projectsPath() },
+    { key: 'views', label: 'Views', href: viewsPath() },
+  ];
   if (canSeeInitiatives(workspaceRole)) {
     workspace.push({ key: 'initiatives', label: 'Initiatives', href: initiativesPath() });
   }
@@ -55,6 +60,7 @@ export function sidebarModel({
           items.push({ key: 'cycles', label: 'Cycles', href: cyclesPath(team.key) });
         }
         items.push({ key: 'projects', label: 'Projects', href: projectsPath(team.key) });
+        items.push({ key: 'views', label: 'Views', href: teamViewsPath(team.key) });
         return { team, items };
       }),
   };

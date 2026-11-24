@@ -18,6 +18,8 @@ export const qk = {
   // A team's notification delivery settings (the Notifications section).
   notificationPreferences: () => ['notificationPreferences'] as const,
   views: (teamKey: string) => ['views', teamKey] as const,
+  // Every saved view the viewer can see, across teams (the workspace Views page).
+  allViews: () => ['allViews'] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   // A team's members (the Members section), and the workspace's users and pending

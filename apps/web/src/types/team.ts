@@ -75,11 +75,18 @@ export interface Assignee {
 export interface View {
   id: string;
   teamId: string;
+  teamKey: string;
+  teamName: string;
   name: string;
   icon: string | null;
   filters: FilterSet;
   display: SavedViewDisplay;
   createdAt: string;
+  updatedAt: string;
+  // A shared view is visible to everyone who sees its team; a personal one to its
+  // owner only.
+  shared: boolean;
+  owner: { id: string; name: string; image: string | null } | null;
 }
 
 // The caller's access to a team, returned with it: their membership (null for a

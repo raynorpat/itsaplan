@@ -26,9 +26,18 @@ const CustomViewFields = graphql(`
     name
     icon
     createdAt
+    updatedAt
+    shared
     filterData
     team {
       id
+      key
+      name
+    }
+    owner {
+      id
+      displayName
+      avatarUrl
     }
     viewPreferencesValues {
       layout
@@ -113,34 +122,47 @@ function toView(v: {
   name: string;
   icon?: string | null;
   createdAt: string;
+  updatedAt: string;
+  shared: boolean;
   filterData: unknown;
-  team?: { id: string } | null;
+  team?: { id: string; key: string; name: string } | null;
+  owner?: { id: string; displayName: string; avatarUrl?: string | null } | null;
   viewPreferencesValues?: Parameters<typeof preferencesToDisplay>[0];
 }): View {
   return {
     id: v.id,
     teamId: v.team?.id ?? '',
+    teamKey: v.team?.key ?? '',
+    teamName: v.team?.name ?? '',
     name: v.name,
     icon: v.icon ?? null,
     createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    shared: v.shared,
+    owner: v.owner
+      ? { id: v.owner.id, name: v.owner.displayName, image: v.owner.avatarUrl ?? null }
+      : null,
     filters: issueFilterToFilterSet(v.filterData),
     display: preferencesToDisplay(v.viewPreferencesValues),
   };
 }
 
-async function fetchViews(teamKey: string): Promise<View[]> {
+async function fetchViewNodes(teamKey: string | null): Promise<View[]> {
   const nodes = await fetchAllPages(async (after, first) => {
     const data = await gqlRequest(CustomViewsPage, {
-      filter: { team: { key: { eq: teamKey } } },
+      filter: teamKey != null ? { team: { key: { eq: teamKey } } } : undefined,
       after,
       first,
     });
     return data.customViews;
   });
+  return nodes.map((n) => toView(readFragment(CustomViewFields, n)));
+}
+
+async function fetchViews(teamKey: string): Promise<View[]> {
+  const views = await fetchViewNodes(teamKey);
   // Views list in creation order, as their tabs do.
-  return nodes
-    .map((n) => toView(readFragment(CustomViewFields, n)))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return views.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 async function saveDisplay(customViewId: string, display: SavedViewDisplay | undefined) {
@@ -161,6 +183,17 @@ export function useViewsQuery(teamKey: string | null) {
     queryFn: () => fetchViews(teamKey!),
     enabled: teamKey != null,
   });
+}
+
+// Every saved view the viewer can see, across their visible teams (the workspace
+// Views page).
+export function useAllViewsQuery() {
+  return useQuery({ queryKey: qk.allViews(), queryFn: () => fetchViewNodes(null) });
+}
+
+function invalidateViews(qc: ReturnType<typeof useQueryClient>, teamKey: string | null) {
+  if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
+  void qc.invalidateQueries({ queryKey: qk.allViews() });
 }
 
 export function useCreateView(teamKey: string | null) {
@@ -188,9 +221,7 @@ export function useCreateView(teamKey: string | null) {
       }
       return id;
     },
-    onSuccess: () => {
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
-    },
+    onSuccess: () => invalidateViews(qc, teamKey),
   });
 }
 
@@ -208,9 +239,7 @@ export function useUpdateView(teamKey: string | null) {
       });
       await saveDisplay(id, display);
     },
-    onSuccess: () => {
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
-    },
+    onSuccess: () => invalidateViews(qc, teamKey),
   });
 }
 
@@ -218,8 +247,6 @@ export function useDeleteView(teamKey: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => gqlRequest(DeleteView, { id }),
-    onSuccess: () => {
-      if (teamKey) void qc.invalidateQueries({ queryKey: qk.views(teamKey) });
-    },
+    onSuccess: () => invalidateViews(qc, teamKey),
   });
 }

@@ -31,6 +31,11 @@ export const mcpServerPath = () => '/settings/workspace/mcp';
 export const membersPath = (key: string) => settingsPath(key, 'members');
 
 export const cyclesPath = (key: string) => `${teamPath(key)}/cycles`;
+// The team's saved views, and every saved view the viewer can see.
+export const teamViewsPath = (key: string) => `${teamPath(key)}/views`;
+export const viewsPath = () => '/views';
+// The team's issues with a new view started from them (see WorkItemsPage).
+export const newViewPath = (key: string) => `${teamPath(key)}?new-view=1`;
 export const cyclePath = (key: string, number: number) => `${cyclesPath(key)}/${number}`;
 
 // Issues are addressed in the URL by their team-scoped number (the "42" in

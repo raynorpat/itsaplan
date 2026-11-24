@@ -16,13 +16,14 @@ import {
 import SidebarTeamBadge from '@/components/layout/SidebarTeamBadge';
 
 // Whether a team entry is the current page. Issues covers the team root, its saved
-// views and its issue pages; Projects is the projects list filtered to the team.
+// views (/view/:id, not the /views list) and its issue pages; Projects is the
+// projects list filtered to the team.
 function isActive(key: string, href: string, pathname: string, teamKey: string, query: string) {
   const root = teamPath(teamKey);
   if (key === 'issues') {
     return (
       pathname === root ||
-      pathname.startsWith(`${root}/view`) ||
+      pathname.startsWith(`${root}/view/`) ||
       pathname.startsWith(`${root}/issue`)
     );
   }

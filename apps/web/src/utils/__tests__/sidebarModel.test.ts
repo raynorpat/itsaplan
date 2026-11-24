@@ -23,7 +23,7 @@ describe('sidebarModel', () => {
     );
     assert.deepEqual(
       model.workspace.map((i) => i.key),
-      ['projects', 'initiatives'],
+      ['projects', 'views', 'initiatives'],
     );
   });
 
@@ -31,7 +31,7 @@ describe('sidebarModel', () => {
     const model = sidebarModel({ workspaceRole: 'guest', teams: [team('ENG')] });
     assert.deepEqual(
       model.workspace.map((i) => i.key),
-      ['projects'],
+      ['projects', 'views'],
     );
   });
 
@@ -54,15 +54,22 @@ describe('sidebarModel', () => {
     const [eng, des] = model.teams;
     assert.deepEqual(
       eng.items.map((i) => i.key),
-      ['issues', 'cycles', 'projects'],
+      ['issues', 'cycles', 'projects', 'views'],
     );
     assert.deepEqual(
       des.items.map((i) => i.key),
-      ['issues', 'projects'],
+      ['issues', 'projects', 'views'],
     );
     assert.equal(eng.items[0].label, 'Issues');
     assert.equal(eng.items[0].href, '/team/ENG');
     assert.equal(eng.items[1].href, '/team/ENG/cycles');
     assert.equal(eng.items[2].href, '/projects?team=ENG');
+    assert.equal(eng.items[3].label, 'Views');
+    assert.equal(eng.items[3].href, '/team/ENG/views');
+  });
+
+  it('links the workspace Views page', () => {
+    const model = sidebarModel({ workspaceRole: 'member', teams: [] });
+    assert.equal(model.workspace.find((i) => i.key === 'views')?.href, '/views');
   });
 });

@@ -1,5 +1,5 @@
 import { usePathname, useSearchParams } from 'next/navigation';
-import { CircleUserRound, Inbox, Milestone, Target, type LucideIcon } from 'lucide-react';
+import { CircleUserRound, Inbox, Layers, Milestone, Target, type LucideIcon } from 'lucide-react';
 import type { Team } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useInboxUnread } from '@/services/notifications.service';
@@ -17,6 +17,7 @@ const ICONS: Record<string, LucideIcon> = {
   inbox: Inbox,
   'my-issues': CircleUserRound,
   projects: Target,
+  views: Layers,
   initiatives: Milestone,
 };
 

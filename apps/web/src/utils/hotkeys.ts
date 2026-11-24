@@ -19,7 +19,11 @@ export type HotkeyId =
   | 'team.new'
   | 'team.settings'
   | 'settings.open'
-  | 'board.select-all';
+  | 'board.select-all'
+  | 'list.next'
+  | 'list.prev'
+  | 'list.select'
+  | 'list.open';
 
 // `scope` decides when the binding is live. A 'global' one fires even while the
 // user types or an overlay is open; an 'app' one is suppressed then, because its
@@ -92,6 +96,30 @@ export const HOTKEYS: HotkeyDef[] = [
     combo: 'mod+a',
     scope: 'app',
   },
+  { id: 'list.next', label: 'Focus the next issue', group: 'List', combo: 'j', scope: 'app' },
+  {
+    id: 'list.prev',
+    label: 'Focus the previous issue',
+    group: 'List',
+    combo: 'k',
+    scope: 'app',
+  },
+  {
+    id: 'list.select',
+    label: 'Select the focused issue',
+    group: 'List',
+    combo: 'x',
+    scope: 'app',
+  },
+  // Enter is not a letter or a digit, so it cannot be recorded as a new binding.
+  {
+    id: 'list.open',
+    label: 'Open the focused issue',
+    group: 'List',
+    combo: 'enter',
+    scope: 'app',
+    fixed: true,
+  },
 ];
 
 export type HotkeyCombos = Record<HotkeyId, string>;
@@ -128,7 +156,7 @@ function parseCombo(combo: string): ParsedCombo {
 
 // ⌘ and Ctrl are treated as the same modifier, so a combination works on macOS and
 // on Windows/Linux without a per-platform table.
-type KeyEventLike = {
+export type KeyEventLike = {
   key: string;
   metaKey: boolean;
   ctrlKey: boolean;

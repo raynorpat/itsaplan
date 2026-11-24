@@ -54,6 +54,7 @@ export function ListRow({
   properties,
   indented,
   selected,
+  focused,
   selecting,
   dropDisabled,
   onDrop,
@@ -68,6 +69,8 @@ export function ListRow({
   // Rows under a sub-section are indented to sit below their sub-header.
   indented: boolean;
   selected: boolean;
+  // The keyboard's row (J / K): shown with the hover fill so it stays visible.
+  focused: boolean;
   selecting: boolean;
   // Dropping between rows only holds under manual ordering. With any other sort
   // the row stops being a drop target so the pointer falls through to the section
@@ -121,6 +124,7 @@ export function ListRow({
         {...attributes}
         {...listeners}
         data-issue-id={issue.id}
+        data-focused={focused || undefined}
         onPointerDown={(e) => {
           pressedAt.current = { x: e.clientX, y: e.clientY };
           listeners?.onPointerDown?.(e);
@@ -136,6 +140,7 @@ export function ListRow({
         }}
         className={cn(
           'relative cursor-grab border-b border-border/50 select-none hover:bg-accent/40 sm:touch-none',
+          focused && 'bg-accent/60',
           isDragging && 'opacity-40',
         )}
       >

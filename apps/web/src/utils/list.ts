@@ -1,6 +1,12 @@
 import type { Issue, IssuePatch } from '@/types/issue';
 import { groupIssues, mergeAssign, nestIssues, positionAt, type IssueGroup } from '@/utils/team';
 import { type ViewSettings, type DisplayProperty } from '@/utils/viewSettings';
+import {
+  blocksShortcuts,
+  matchesCombo,
+  type HotkeyCombos,
+  type KeyEventLike,
+} from '@/utils/hotkeys';
 
 // The List layout: one dense line per issue under group headers, as in Linear.
 
@@ -198,4 +204,30 @@ export function buildListItems({
   }
 
   return items;
+}
+
+// The row the list's keyboard focus moves to. `order` is the visible rows top to
+// bottom (rows of collapsed groups are not in it). Focus starts at the first row
+// going down and the last going up, and stops at the ends, as in Linear.
+export function moveFocus(order: string[], current: string | null, step: 1 | -1): string | null {
+  if (order.length === 0) return null;
+  const at = current != null ? order.indexOf(current) : -1;
+  if (at === -1) return step === 1 ? order[0]! : order[order.length - 1]!;
+  return order[Math.min(order.length - 1, Math.max(0, at + step))]!;
+}
+
+export type ListKeyAction = 'next' | 'prev' | 'select' | 'open';
+
+// The list command a key press stands for, or null. The keys are plain keys, so they
+// never fire while the user types or has a dialog or menu open.
+export function listKeyAction(
+  e: KeyEventLike & { target: EventTarget | null },
+  combos: HotkeyCombos,
+): ListKeyAction | null {
+  if (blocksShortcuts(e.target)) return null;
+  if (matchesCombo(e, combos['list.next'])) return 'next';
+  if (matchesCombo(e, combos['list.prev'])) return 'prev';
+  if (matchesCombo(e, combos['list.select'])) return 'select';
+  if (matchesCombo(e, combos['list.open'])) return 'open';
+  return null;
 }
