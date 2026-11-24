@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { db, issueActivity } from '@repo/db';
+import { db, issue, issueActivity } from '@repo/db';
 import { and, eq } from 'drizzle-orm';
 import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
@@ -270,6 +270,60 @@ describe('graphql history', () => {
       .sort((x, y) => x.position - y.position)
       .map((s) => s.id);
     expect(unstarted).toEqual([readyId, todo.id]);
+  });
+
+  it('records parent changes', async () => {
+    const { owner, createIssue } = await setup();
+    const child = await createIssue('Child');
+    const first = await createIssue('First');
+    const second = await createIssue('Second');
+    const setParent = (parent: string | null) =>
+      run(
+        owner.cookie,
+        `mutation { issueUpdate(id: "${child}", input: { parentId: ${parent ? `"${parent}"` : 'null'} }) { success } }`,
+      );
+    await setParent(first);
+    await setParent(second);
+    await setParent(null);
+    const PARENT = `history { nodes { fromParentId toParentId fromParent { identifier } toParent { identifier } } }`;
+    const read = async () =>
+      (
+        (await run(owner.cookie, `{ issue(id: "${child}") { ${PARENT} } }`)).issue.history
+          .nodes as Data[]
+      ).filter((n) => n.fromParentId || n.toParentId);
+    const ident = async (id: string) =>
+      (await run(owner.cookie, `{ issue(id: "${id}") { identifier } }`)).issue.identifier;
+    const [firstKey, secondKey] = [await ident(first), await ident(second)];
+    const entries = await read();
+    expect(entries).toHaveLength(3);
+    expect(entries).toContainEqual({
+      fromParentId: null,
+      toParentId: first,
+      fromParent: null,
+      toParent: { identifier: firstKey },
+    });
+    expect(entries).toContainEqual({
+      fromParentId: first,
+      toParentId: second,
+      fromParent: { identifier: firstKey },
+      toParent: { identifier: secondKey },
+    });
+    expect(entries).toContainEqual({
+      fromParentId: second,
+      toParentId: null,
+      fromParent: { identifier: secondKey },
+      toParent: null,
+    });
+
+    // A former parent that no longer exists: the id stays, the issue resolves to null.
+    await db.delete(issue).where(eq(issue.id, second));
+    const after = await read();
+    expect(after.find((n) => n.fromParentId === second && n.toParentId === null)).toEqual({
+      fromParentId: second,
+      toParentId: null,
+      fromParent: null,
+      toParent: null,
+    });
   });
 
   it('deletes a team', async () => {

@@ -69,6 +69,7 @@ export type ActivityAction =
   | 'delegate'
   | 'priority'
   | 'due_date'
+  | 'parent'
   | 'label_add'
   | 'label_remove'
   | 'archived'

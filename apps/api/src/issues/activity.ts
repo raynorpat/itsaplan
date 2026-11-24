@@ -1,5 +1,15 @@
 import { currentWorkflow } from '../shared/workflow-context';
-import { cycle, db, issue, issueActivity, user, workflowState, label, project } from '@repo/db';
+import {
+  cycle,
+  db,
+  issue,
+  issueActivity,
+  user,
+  workflowState,
+  label,
+  project,
+  team,
+} from '@repo/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { notifyIssueChange } from '../notifications/store';
 
@@ -90,6 +100,16 @@ async function cycleName(id: string | null): Promise<string | null> {
     .where(eq(cycle.id, id));
   return row ? (row.name ?? `Cycle ${row.number}`) : null;
 }
+// An issue's identifier ("ENG-12"), snapshotted for the parent change entry.
+async function issueIdentifier(id: string | null): Promise<string | null> {
+  if (id == null) return null;
+  const [row] = await db
+    .select({ key: team.key, number: issue.sequenceNumber })
+    .from(issue)
+    .innerJoin(team, eq(team.id, issue.teamId))
+    .where(eq(issue.id, id));
+  return row ? `${row.key}-${row.number}` : null;
+}
 async function userName(id: string | null): Promise<string | null> {
   if (id == null) return null;
   const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
@@ -119,6 +139,7 @@ export interface IssueSnapshot {
   cycleId: string | null;
   assigneeUserId: string | null;
   delegateUserId: string | null;
+  parentId: string | null;
   priority: number;
   dueDate: string | null;
 }
@@ -177,6 +198,14 @@ export async function logIssueUpdate(
       toText: await userName(after.delegateUserId),
       fromId: before.delegateUserId,
       toId: after.delegateUserId,
+    });
+  if (before.parentId !== after.parentId)
+    events.push({
+      action: 'parent',
+      fromText: await issueIdentifier(before.parentId),
+      toText: await issueIdentifier(after.parentId),
+      fromId: before.parentId,
+      toId: after.parentId,
     });
   if (before.priority !== after.priority)
     events.push({

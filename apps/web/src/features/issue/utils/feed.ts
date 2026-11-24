@@ -45,6 +45,10 @@ export interface FeedHistory {
   toCycleId?: string | null;
   fromCycle?: { number: number; name: string | null } | null;
   toCycle?: { number: number; name: string | null } | null;
+  fromParentId?: string | null;
+  toParentId?: string | null;
+  fromParent?: { identifier: string } | null;
+  toParent?: { identifier: string } | null;
   fromPriority?: number | null;
   toPriority?: number | null;
   fromTitle?: string | null;
@@ -81,6 +85,13 @@ function refName(id: string | null | undefined, item: Named | null | undefined, 
 function cycleName(cycle: FeedHistory['fromCycle'], id: string | null | undefined) {
   if (cycle) return cycle.name || `Cycle ${cycle.number}`;
   return id ? 'a removed cycle' : null;
+}
+
+// A parent's identifier, or "an issue" when the history keeps its id but the issue
+// no longer exists.
+function parentName(parent: FeedHistory['fromParent'], id: string | null | undefined) {
+  if (parent) return parent.identifier;
+  return id ? 'an issue' : null;
 }
 
 function base(h: FeedHistory, issueId: string, suffix = ''): FeedItem {
@@ -140,6 +151,10 @@ export function historyToFeedItems(h: FeedHistory, issueId: string): FeedItem[] 
     ];
   if (h.fromCycleId || h.toCycleId || h.fromCycle || h.toCycle)
     return [row('cycle', cycleName(h.fromCycle, h.fromCycleId), cycleName(h.toCycle, h.toCycleId))];
+  if (h.fromParentId || h.toParentId || h.fromParent || h.toParent)
+    return [
+      row('parent', parentName(h.fromParent, h.fromParentId), parentName(h.toParent, h.toParentId)),
+    ];
   if (h.fromPriority != null || h.toPriority != null)
     return [
       row(

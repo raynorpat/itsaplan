@@ -109,6 +109,14 @@ const FeedHistoryQuery = graphql(`
             number
             name
           }
+          fromParentId
+          toParentId
+          fromParent {
+            identifier
+          }
+          toParent {
+            identifier
+          }
           fromPriority
           toPriority
           fromTitle

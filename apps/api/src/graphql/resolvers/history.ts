@@ -5,7 +5,7 @@ import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { toCycle } from './cycle';
-import { issueById, userFor } from './issue';
+import { issueById, toIssue, userFor } from './issue';
 import { toIssueLabel } from './issue-label';
 import { findProject, toProject } from './project';
 import { toWorkflowState } from './workflow-state';
@@ -53,6 +53,8 @@ export function toIssueHistory(row: ActivityRow) {
       return { ...base, fromProjectId: ids.fromId, toProjectId: ids.toId };
     case 'cycle':
       return { ...base, fromCycleId: ids.fromId, toCycleId: ids.toId };
+    case 'parent':
+      return { ...base, fromParentId: ids.fromId, toParentId: ids.toId };
     case 'priority':
       return { ...base, fromPriority: num(row.fromText), toPriority: num(row.toText) };
     case 'title':
@@ -100,6 +102,14 @@ async function cycleOrNull(id: unknown, ctx: GraphQLContext) {
   if (typeof id !== 'string') return null;
   const found = await loaders(ctx).cycle.load(id);
   return found ? toCycle(found) : null;
+}
+
+// A parent is in the issue's own team (the store enforces it), so a viewer who reaches
+// the history can see it; one that no longer exists resolves to null.
+async function issueOrNull(id: unknown, ctx: GraphQLContext) {
+  if (typeof id !== 'string') return null;
+  const row = await loaders(ctx).issue.load(id);
+  return row ? toIssue(row) : null;
 }
 
 async function labelsByIds(ids: unknown, ctx: GraphQLContext) {
@@ -249,6 +259,10 @@ export const historyResolvers = {
       cycleOrNull(h.fromCycleId, ctx),
     toCycle: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
       cycleOrNull(h.toCycleId, ctx),
+    fromParent: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      issueOrNull(h.fromParentId, ctx),
+    toParent: (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) =>
+      issueOrNull(h.toParentId, ctx),
     // The related issue is named only when the viewer can see it; a row written
     // before ids were recorded names an issue that cannot be checked, so it is left out.
     relationChanges: async (h: GraphQLIssueHistory, _: unknown, ctx: GraphQLContext) => {

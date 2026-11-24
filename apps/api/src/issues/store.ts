@@ -127,6 +127,7 @@ function snapshot(row: IssueRow): IssueSnapshot {
     cycleId: row.cycleId,
     assigneeUserId: row.assigneeUserId,
     delegateUserId: row.delegateUserId,
+    parentId: row.parentId,
     priority: row.priority,
     dueDate: row.dueDate,
   };
@@ -423,6 +424,7 @@ async function loadSnapshot(id: string): Promise<(IssueSnapshot & { teamId: stri
       cycleId: issue.cycleId,
       assigneeUserId: issue.assigneeUserId,
       delegateUserId: issue.delegateUserId,
+      parentId: issue.parentId,
       priority: issue.priority,
       dueDate: issue.dueDate,
     })

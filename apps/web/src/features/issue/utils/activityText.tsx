@@ -10,6 +10,7 @@ import {
   FileText,
   FolderKanban,
   Link2,
+  ListTree,
   RefreshCcw,
   Pencil,
   SignalHigh,
@@ -21,6 +22,7 @@ import {
 import type { ActivityAction, FeedItem } from '@/types/issue';
 import { priorityLabel } from '@/utils/fieldOptions';
 import { RELATION_PHRASE } from '@/utils/issueRelations';
+import { parentChangeText } from './parentChange';
 
 // Renders one activity feed event as an icon plus a verb phrase. Kept out of the
 // feed component so the switch over action types stays isolated from the layout.
@@ -41,6 +43,7 @@ export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   restored: ArchiveRestore,
   project: FolderKanban,
   cycle: RefreshCcw,
+  parent: ListTree,
 };
 
 const fmtDate = (v: string | null) => (v ? formatDate(v) : '');
@@ -123,6 +126,8 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
           ? { line: <>removed from {strong(a.fromText)}</> }
           : { line: 'changed the cycle' };
       return { line: <>added to {strong(a.toText)}</> };
+    case 'parent':
+      return { line: parentChangeText(a.fromText, a.toText) };
     case 'archived':
       return { line: 'archived the issue' };
     case 'restored':
