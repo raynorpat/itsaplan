@@ -65,3 +65,16 @@ export function sidebarModel({
       }),
   };
 }
+
+export type TryItem = 'import' | 'invite';
+
+// The sidebar's "Try" section, as in Linear: Import issues for owners and admins (the
+// API's rule for imports), Invite people when the organization's invitationsRole
+// allows the viewer. An empty list hides the section.
+export function tryItems(viewer: { role: WorkspaceRole | null; canInvite: boolean }): TryItem[] {
+  if (!viewer.role || viewer.role === 'guest') return [];
+  const items: TryItem[] = [];
+  if (viewer.role === 'owner' || viewer.role === 'admin') items.push('import');
+  if (viewer.canInvite) items.push('invite');
+  return items;
+}

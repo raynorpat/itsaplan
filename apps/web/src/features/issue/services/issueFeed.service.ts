@@ -77,6 +77,9 @@ const FeedHistoryQuery = graphql(`
             type
             name
           }
+          issueImport {
+            service
+          }
           fromStateId
           toStateId
           fromState {

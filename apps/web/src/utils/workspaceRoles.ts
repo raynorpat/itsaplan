@@ -48,3 +48,16 @@ export const canSeeInitiatives = (role: WorkspaceRole | null) =>
 // An invite's role as Linear names it (`user` is a member).
 export const inviteRoleFromLinear = (role: string): InviteRole =>
   role === 'admin' || role === 'guest' ? role : 'member';
+
+// Whether the role meets one of the organization's minimum-role settings
+// (securitySettings labelManagementRole, invitationsRole, …; Linear's UserRoleType,
+// where `user` is a member). Guests never do; an unknown role or setting refuses.
+export function meetsMinimumRole(
+  role: WorkspaceRole | null,
+  minimumRole: string | undefined,
+): boolean {
+  if (!role || role === 'guest' || !minimumRole) return false;
+  const minimum = minimumRole === 'user' ? 'member' : minimumRole;
+  if (minimum !== 'member' && minimum !== 'admin' && minimum !== 'owner') return false;
+  return atLeast(role, minimum);
+}

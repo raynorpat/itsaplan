@@ -5,6 +5,7 @@ import {
   importIsRunning,
   NEW_TEAM,
   importStatusText,
+  importSummaryText,
   peopleMappingInput,
   type ImportView,
 } from '../imports';
@@ -115,5 +116,34 @@ describe('destinationInput', () => {
       destinationInput({ team: NEW_TEAM, newTeamName: '  ', includeClosed: false, labels: '' }),
       { error: 'Name the new team' },
     );
+  });
+});
+
+describe('importSummaryText', () => {
+  const done = (s: Partial<NonNullable<ImportView['summary']>>): ImportView => ({
+    ...base,
+    status: 'complete',
+    summary: {
+      issues: 0,
+      skippedExisting: 0,
+      comments: 0,
+      labelsCreated: 0,
+      skipped: [],
+      total: 0,
+      ...s,
+    },
+  });
+  it('uses singular and plural words', () => {
+    assert.equal(
+      importSummaryText(done({ issues: 1, comments: 1, labelsCreated: 1 })),
+      '1 issue · 1 comment · 1 label created',
+    );
+    assert.equal(
+      importSummaryText(done({ issues: 3, comments: 2, labelsCreated: 2, skippedExisting: 3 })),
+      '3 issues · 2 comments · 2 labels created · 3 already imported',
+    );
+  });
+  it('is null until the import is complete', () => {
+    assert.equal(importSummaryText(base), null);
   });
 });

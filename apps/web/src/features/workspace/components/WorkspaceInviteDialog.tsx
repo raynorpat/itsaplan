@@ -19,14 +19,36 @@ import {
 import { useTeamsQuery } from '@/services/teams.service';
 import { useCreateInvite } from '../services/workspace.service';
 
+// The Members page's Invite button with its dialog.
+export default function WorkspaceInviteDialog({ viewerRole }: { viewerRole: WorkspaceRole }) {
+  const [open, setOpen] = useState(false);
+  if (invitableRoles(viewerRole).length === 0) return null;
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <UserPlus className="size-4" />
+        Invite
+      </Button>
+      <InviteDialog viewerRole={viewerRole} open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
 // Invites a person to the workspace by email, as a role up to the viewer's own,
 // optionally into teams. The account created for the email takes the role and
-// joins the teams.
-export default function WorkspaceInviteDialog({ viewerRole }: { viewerRole: WorkspaceRole }) {
+// joins the teams. Also opened from the sidebar's "Invite people".
+export function InviteDialog({
+  viewerRole,
+  open,
+  onOpenChange,
+}: {
+  viewerRole: WorkspaceRole;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const roles = invitableRoles(viewerRole);
   const teams = useTeamsQuery().data ?? [];
   const createInvite = useCreateInvite();
-  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InviteRole>('member');
   const [teamIds, setTeamIds] = useState<string[]>([]);
@@ -44,16 +66,12 @@ export default function WorkspaceInviteDialog({ viewerRole }: { viewerRole: Work
     // The failed mutation is toasted by the global handler; keep the dialog open.
     await createInvite.mutateAsync({ email: email.trim(), role, teamIds });
     reset();
-    setOpen(false);
+    onOpenChange(false);
   }
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <UserPlus className="size-4" />
-        Invite
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <DialogTitle>Invite to the workspace</DialogTitle>
           <form onSubmit={onSubmit} className="flex flex-col gap-4">

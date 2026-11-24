@@ -24,6 +24,8 @@ interface Named {
 export interface FeedHistory {
   id: string;
   createdAt: string;
+  // The import that created the issue, on its creation entry.
+  issueImport?: { service: string } | null;
   // The acting user's id: set with a null `actor` when that user is no longer
   // visible or was removed; null for a change the system made.
   actorId?: string | null;
@@ -258,7 +260,15 @@ export function buildFeed(
   for (const h of history) {
     const rows = historyToFeedItems(h, issueId);
     if (rows.length === 0 && isCreation(h, opts))
-      rows.push({ ...base(h, issueId), action: 'created' });
+      rows.push(
+        h.issueImport
+          ? {
+              ...base(h, issueId),
+              action: 'imported',
+              toText: importSourceLabel(h.issueImport.service),
+            }
+          : { ...base(h, issueId), action: 'created' },
+      );
     for (const item of rows) entries.push({ item, replies: [], resolved: false });
   }
 
@@ -266,4 +276,17 @@ export function buildFeed(
   return entries
     .filter((e) => cutoff === null || e.item.createdAt >= cutoff)
     .sort((a, b) => newestFirst(a.item, b.item));
+}
+
+// The source of an imported issue as its activity names it ("imported the issue from
+// Gitea"); an unknown service is shown as stored.
+const IMPORT_SOURCES: Record<string, string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  gitea: 'Gitea',
+  forgejo: 'Forgejo',
+};
+
+export function importSourceLabel(service: string): string {
+  return IMPORT_SOURCES[service] ?? service;
 }

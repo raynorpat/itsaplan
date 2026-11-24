@@ -7,6 +7,7 @@ import {
   Calendar,
   CircleDot,
   CirclePlus,
+  Import,
   FileText,
   FolderKanban,
   Link2,
@@ -29,6 +30,7 @@ import { parentChangeText } from './parentChange';
 
 export const ACTION_ICON: Record<ActivityAction, LucideIcon> = {
   created: CirclePlus,
+  imported: Import,
   title: Pencil,
   description: FileText,
   status: CircleDot,
@@ -62,6 +64,8 @@ export function describeActivity(a: FeedItem): { line: ReactNode; popover?: stri
   switch (a.action) {
     case 'created':
       return { line: 'created the issue' };
+    case 'imported':
+      return { line: <>imported the issue from {strong(a.toText)}</> };
     case 'title':
       return isLong(a.toText)
         ? { line: 'changed the title', popover: a.toText }

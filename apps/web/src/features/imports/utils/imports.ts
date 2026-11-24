@@ -56,6 +56,20 @@ export function importStatusText(imp: ImportView): string {
 
 // Whether the import is still working on its own (fetching or creating records), so
 // the page keeps polling. An import waiting for people matching waits for the admin.
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// A finished import's summary line ("3 issues · 2 comments · 1 label created"), null
+// before it completes.
+export function importSummaryText(imp: ImportView): string | null {
+  const s = imp.summary;
+  if (imp.status !== 'complete' || !s) return null;
+  const parts = [count(s.issues, 'issue', 'issues'), count(s.comments, 'comment', 'comments')];
+  if (s.labelsCreated) parts.push(`${count(s.labelsCreated, 'label', 'labels')} created`);
+  if (s.skippedExisting) parts.push(`${s.skippedExisting} already imported`);
+  if (s.skipped.length) parts.push(`${s.skipped.length} skipped`);
+  return parts.join(' · ');
+}
+
 export function importIsRunning(imp: ImportView): boolean {
   if (imp.status === 'inProcess') return true;
   return imp.status === 'inProgress' && !imp.awaitingPeople;

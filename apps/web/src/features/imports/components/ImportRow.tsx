@@ -4,23 +4,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   importStatusText,
+  importSummaryText,
   SERVICE_LABEL,
   type ImportService,
   type ImportView,
 } from '../utils/imports';
-
-function summaryText(imp: ImportView): string | null {
-  const s = imp.summary;
-  if (imp.status !== 'complete' || !s) return null;
-  const parts = [
-    `${s.issues} ${s.issues === 1 ? 'issue' : 'issues'}`,
-    `${s.comments} ${s.comments === 1 ? 'comment' : 'comments'}`,
-  ];
-  if (s.labelsCreated) parts.push(`${s.labelsCreated} labels created`);
-  if (s.skippedExisting) parts.push(`${s.skippedExisting} already imported`);
-  if (s.skipped.length) parts.push(`${s.skipped.length} skipped`);
-  return parts.join(' · ');
-}
 
 // One import in the list: repository, source, team, status (with progress while it
 // creates records), and the summary or error when done.
@@ -35,7 +23,7 @@ export default function ImportRow({
 }) {
   const [showSkipped, setShowSkipped] = useState(false);
   const label = SERVICE_LABEL[imp.service as ImportService] ?? imp.service;
-  const summary = summaryText(imp);
+  const summary = importSummaryText(imp);
   const skipped = imp.summary?.skipped ?? [];
   return (
     <div className="flex flex-col gap-1.5 p-4">

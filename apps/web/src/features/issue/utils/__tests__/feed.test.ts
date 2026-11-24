@@ -160,6 +160,13 @@ describe('buildFeed', () => {
     );
   });
 
+  it("labels an imported issue's creation with its source", () => {
+    const rows = [history('created', 2, { issueImport: { service: 'gitea' } })];
+    const [entry] = buildFeed([], rows, ISSUE, { issueCreatedAt: at(2) });
+    assert.equal(entry.item.action, 'imported');
+    assert.equal(entry.item.toText, 'Gitea');
+  });
+
   it('cuts the feed where a stream has more to load', () => {
     const comments = [comment('c10', 10), comment('c5', 5)];
     const entries = [

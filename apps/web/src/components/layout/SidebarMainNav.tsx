@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarTeamSection from '@/components/layout/SidebarTeamSection';
+import SidebarTrySection from '@/components/layout/SidebarTrySection';
 
 const ICONS: Record<string, LucideIcon> = {
   inbox: Inbox,
@@ -22,7 +23,8 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 // The main sidebar body, workspace-first as in Linear: Inbox and My issues, the
-// Workspace group, then "Your teams" with one folding section per joined team.
+// Workspace group, "Your teams" with one folding section per joined team, and the
+// "Try" section at the bottom.
 export default function SidebarMainNav({
   teams,
   teamKey,
@@ -90,6 +92,8 @@ export default function SidebarMainNav({
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+
+      <SidebarTrySection />
     </>
   );
 }

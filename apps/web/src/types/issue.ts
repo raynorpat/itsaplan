@@ -64,6 +64,7 @@ export interface Attachment {
 // where the action alone is not enough (the relation type for 'relation').
 export type ActivityAction =
   | 'created'
+  | 'imported'
   | 'title'
   | 'description'
   | 'status'
