@@ -1,5 +1,6 @@
 import { getActiveSession, provideInstanceHandlers } from '@repo/auth';
 import { accountEmailsHandlers } from '../accounts/handlers';
+import { requestersHandlers } from '../feedback/handlers';
 import { stopSession } from '../agents/store';
 import { importsHandlers } from '../imports/handlers';
 import { changeTeamOwner } from '../members/store';
@@ -60,5 +61,6 @@ export function registerInstanceHandlers(): void {
     workflows: workflowsHandlers,
     accountEmails: accountEmailsHandlers,
     imports: importsHandlers,
+    requesters: requestersHandlers,
   });
 }

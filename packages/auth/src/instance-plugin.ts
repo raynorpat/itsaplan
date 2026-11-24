@@ -114,6 +114,18 @@ export interface ImportsHandlers {
   githubDisconnect(headers: Headers, body: unknown): Promise<object>;
 }
 
+// The people who give feedback (Linear's ExternalUser; its schema has no mutation for
+// them) and the attachment that names who gave a feedback item. Each handler checks
+// the caller itself.
+export interface RequestersHandlers {
+  list(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  get(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  create(headers: Headers, body: unknown): Promise<object>;
+  update(headers: Headers, body: unknown): Promise<object>;
+  merge(headers: Headers, body: unknown): Promise<object>;
+  feedbackAttachment(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -123,6 +135,7 @@ export interface InstanceHandlers {
   workflows: WorkflowsHandlers;
   accountEmails: AccountEmailsHandlers;
   imports: ImportsHandlers;
+  requesters: RequestersHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -186,6 +199,12 @@ const accountEmailsWrite = (
   trusted: string[],
   call: (h: AccountEmailsHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.accountEmails, headers, body));
+
+const requestersWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: RequestersHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.requesters, headers, body));
 
 const importsWrite = (
   path: string,
@@ -277,6 +296,39 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/workflows/delete',
         options.trustedOrigins,
         (h, headers, body) => h.delete(headers, body),
+      ),
+      instanceRequesters: createAuthEndpoint(
+        '/instance/requesters',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) => h.requesters.list(ctx.headers ?? new Headers(), { ...ctx.query })),
+          ),
+      ),
+      instanceRequester: createAuthEndpoint('/instance/requester', { method: 'GET' }, async (ctx) =>
+        ctx.json(
+          await run((h) => h.requesters.get(ctx.headers ?? new Headers(), { ...ctx.query })),
+        ),
+      ),
+      instanceRequesterCreate: requestersWrite(
+        '/instance/requesters/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.create(headers, body),
+      ),
+      instanceRequesterUpdate: requestersWrite(
+        '/instance/requesters/update',
+        options.trustedOrigins,
+        (h, headers, body) => h.update(headers, body),
+      ),
+      instanceRequesterMerge: requestersWrite(
+        '/instance/requesters/merge',
+        options.trustedOrigins,
+        (h, headers, body) => h.merge(headers, body),
+      ),
+      instanceFeedbackAttachment: requestersWrite(
+        '/instance/feedback/attachment',
+        options.trustedOrigins,
+        (h, headers, body) => h.feedbackAttachment(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

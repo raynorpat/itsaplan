@@ -31,7 +31,12 @@ take a pasted access token that the API uses for the fetch and never stores
 (`apps/api/src/imports/handlers.ts`); Linear's schema imports GitHub only, through
 its mutations, and the Import page reads the GitHub connection and its repositories
 here (`GET imports/github`, `GET imports/github/repositories`, `POST
-imports/github/disconnect`). All but the first need the
+imports/github/disconnect`). The people who give feedback, Linear's `ExternalUser`
+(`GET requesters?q=&cursor=`, `GET requester?id=`, `POST requesters/{create, update,
+merge}`; members, merge for owners and admins, never guests), and the attachment that
+names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`)
+are here because Linear's schema has no mutation for them
+(`apps/api/src/feedback/requesters.ts`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

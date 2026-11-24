@@ -583,5 +583,6 @@ export type {
   AccountEmailsHandlers,
   ImportsHandlers,
   OAuthAppsHandlers,
+  RequestersHandlers,
   WorkflowsHandlers,
 } from './instance-plugin';

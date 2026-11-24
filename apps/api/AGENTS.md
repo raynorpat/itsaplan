@@ -110,7 +110,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   feedback without a requester is not a person. Moving feedback to another issue moves
   its attachment; deleting it deletes the attachment unless kept; deleting the issue
   deletes its feedback. Feedback notifies no one and runs no automation; the store
-  sends `CustomerNeed` webhooks.
+  sends `CustomerNeed` webhooks. Requesters are found, created, edited and merged
+  through the instance plugin (`/api/auth/instance/requesters*`,
+  `feedback/requesters.ts`; owners, admins and members, merge for owners and admins), and
+  a member's feedback gets its source attachment from `/api/auth/instance/feedback/attachment`.
+  Creating a requester with an email that a requester already has (or had before a
+  merge) returns that requester. Merging A into B points A's feedback attachments at B
+  (so B counts once per issue) and keeps A's row with `merged_into_id`, so a link or
+  email of A leads to B; B takes A's email when it has none.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
