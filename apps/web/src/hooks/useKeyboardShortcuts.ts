@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Team } from '@/types/team';
 import type { WorkItemsView } from '@/utils/viewTypes';
 import { isTypingTarget, type HotkeyId } from '@/utils/hotkeys';
 import { useHotkeyMatch } from '@/context/useHotkeys';
+import { goSequenceStep, type GoTarget } from '@/utils/goSequence';
 
 // The layout hotkeys, paired with the view each one opens.
 const VIEW_HOTKEYS: [HotkeyId, WorkItemsView][] = [
@@ -28,6 +29,8 @@ export function useKeyboardShortcuts(opts: {
   onNewIssue: () => void;
   onNewTeam: () => void;
   onSettings: () => void;
+  // Linear's G-then-letter navigation (G I, G M, G P).
+  onGo: (target: GoTarget) => void;
 }) {
   const {
     hasTeam,
@@ -39,7 +42,10 @@ export function useKeyboardShortcuts(opts: {
     onNewIssue,
     onNewTeam,
     onSettings,
+    onGo,
   } = opts;
+  // The time G was pressed, while a G sequence waits for its second key.
+  const goPending = useRef<number | null>(null);
   const { matches, digit } = useHotkeyMatch();
 
   useEffect(() => {
@@ -61,7 +67,29 @@ export function useKeyboardShortcuts(opts: {
         return;
       }
 
-      if (isTypingTarget(e.target) || overlayOpen) return;
+      if (matches(e, 'settings.open')) {
+        e.preventDefault();
+        onSettings();
+        return;
+      }
+
+      if (isTypingTarget(e.target) || overlayOpen) {
+        goPending.current = null;
+        return;
+      }
+
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        const step = goSequenceStep(goPending.current, e.key, Date.now());
+        const waiting = goPending.current != null;
+        goPending.current = step.pending;
+        if (step.target) {
+          e.preventDefault();
+          onGo(step.target);
+          return;
+        }
+        // The key after a G belongs to the sequence even when it matched nothing.
+        if (waiting || step.pending != null) return;
+      }
 
       if (hasTeam) {
         for (const [id, view] of VIEW_HOTKEYS) {
@@ -101,5 +129,6 @@ export function useKeyboardShortcuts(opts: {
     onNewIssue,
     onNewTeam,
     onSettings,
+    onGo,
   ]);
 }

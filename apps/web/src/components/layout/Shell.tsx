@@ -11,7 +11,15 @@ import { useSettingsNavGroups } from '@/hooks/useSettingsNavGroups';
 import { useShellTeam } from '@/hooks/useShellTeam';
 import { useShellRoute } from '@/hooks/useShellRoute';
 import { useTeamRouteSync } from '@/hooks/useTeamRouteSync';
-import { teamPath, issuePath } from '@/utils/paths';
+import { teamPath, issuePath, inboxPath, myIssuesPath, projectsPath } from '@/utils/paths';
+import type { GoTarget } from '@/utils/goSequence';
+
+// Where each G-then-letter shortcut leads.
+const GO_PATHS: Record<GoTarget, () => string> = {
+  inbox: inboxPath,
+  'my-issues': myIssuesPath,
+  projects: () => projectsPath(),
+};
 import { ShellCtx, type ShellContext } from '@/context/shellContext';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/AppSidebar';
@@ -99,6 +107,7 @@ export default function Shell({
     onNewIssue: () => canCreateIssue && openNewIssue(),
     onNewTeam: () => overlays.setShowNewTeam(true),
     onSettings: () => firstSettingsHref && router.push(firstSettingsHref),
+    onGo: (target) => router.push(GO_PATHS[target]()),
   });
 
   // Every view opens an issue through this one callback, so the user's choice

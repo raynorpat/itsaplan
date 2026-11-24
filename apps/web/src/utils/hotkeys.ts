@@ -18,6 +18,7 @@ export type HotkeyId =
   | 'issue.new'
   | 'team.new'
   | 'team.settings'
+  | 'settings.open'
   | 'board.select-all';
 
 // `scope` decides when the binding is live. A 'global' one fires even while the
@@ -72,6 +73,13 @@ export const HOTKEYS: HotkeyDef[] = [
     group: 'General',
     combo: 's',
     scope: 'app',
+  },
+  {
+    id: 'settings.open',
+    label: 'Open settings',
+    group: 'General',
+    combo: 'mod+,',
+    scope: 'global',
   },
   { id: 'view.kanban', label: 'Board layout', group: 'Issues', combo: '1', scope: 'app' },
   { id: 'view.table', label: 'Table layout', group: 'Issues', combo: '2', scope: 'app' },
