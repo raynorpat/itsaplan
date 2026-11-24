@@ -2,7 +2,8 @@ import { db, issue, team, user } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
 import { and, eq, getTableColumns, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
-import { paginate, type PageArgs } from '../connection';
+import { paginate, paginateByValue, type PageArgs } from '../connection';
+import { requesterCountSql } from '../../feedback/store';
 import { gqlError } from '../errors';
 import { loaders } from '../loaders';
 import { issueFilterSql } from '../issue-filter';
@@ -96,7 +97,30 @@ export async function findIssue(idOrIdentifier: string, userId: string): Promise
   return rows[0];
 }
 
-type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ConnectionArgs = PageArgs & {
+  filter?: unknown;
+  includeArchived?: boolean | null;
+  sort?: Record<string, { order?: string | null } | null>[] | null;
+};
+
+// Linear's IssueSortInput: only the counts of people asking (customerCount,
+// customerImportantCount; feedback/store.ts) are supported, one at a time. Null when
+// no sort is given.
+function countSort(sort: ConnectionArgs['sort']) {
+  if (!sort || sort.length === 0) return null;
+  const keys = sort.flatMap((entry) => Object.keys(entry ?? {}).filter((k) => entry?.[k] != null));
+  const [key] = keys;
+  if (keys.length !== 1 || (key !== 'customerCount' && key !== 'customerImportantCount'))
+    throw gqlError(
+      'INVALID_INPUT',
+      'sort supports one of customerCount or customerImportantCount only',
+    );
+  const order = sort.find((e) => e?.[key] != null)![key]!.order;
+  return {
+    value: requesterCountSql(key === 'customerImportantCount'),
+    direction: order === 'Ascending' ? ('asc' as const) : ('desc' as const),
+  };
+}
 
 // The viewer's visible issues matching `where`, the filter and includeArchived.
 function issueScope(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
@@ -108,8 +132,26 @@ function issueScope(where: SQL | undefined, args: ConnectionArgs, viewerId: stri
   );
 }
 
-// One page of the issues issueScope selects.
+// One page of the issues issueScope selects, in Linear's order or by a count sort.
 export function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
+  const sorted = countSort(args.sort);
+  if (sorted)
+    return paginateByValue(
+      args,
+      { id: issue.id, createdAt: issue.createdAt },
+      sorted.value,
+      sorted.direction,
+      issueScope(where, args, viewerId),
+      (w, order, limit) =>
+        db
+          .select({ ...issueColumns, sortValue: sorted.value })
+          .from(issue)
+          .innerJoin(team, eq(team.id, issue.teamId))
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => toIssue(row),
+    );
   return paginate(
     args,
     { id: issue.id, createdAt: issue.createdAt, updatedAt: issue.updatedAt },

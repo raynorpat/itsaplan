@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { trustedOrigins } from '@repo/auth';
 import { attachment, db, issue } from '@repo/db';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { deleteObject } from '../shared/s3';
@@ -22,6 +23,8 @@ export interface AttachmentRow {
   sourceType: string | null;
   groupBySource: boolean;
   creatorUserId: string | null;
+  // The person outside the workspace it is from (feedback's requester).
+  externalUserCreatorId: string | null;
   // File columns: all set for an upload, all null for a link.
   publicId: string | null;
   s3Key: string | null;
@@ -44,6 +47,7 @@ export function mapAttachment(row: typeof attachment.$inferSelect): AttachmentRo
     sourceType: row.sourceType,
     groupBySource: row.groupBySource,
     creatorUserId: row.creatorUserId,
+    externalUserCreatorId: row.externalUserCreatorId,
     publicId: row.publicId,
     s3Key: row.s3Key,
     filename: row.filename,
@@ -296,6 +300,64 @@ export async function deleteAttachment(
   }
   await sendAttachmentEvent('remove', deleted, actorUserId);
   return deleted;
+}
+
+// A feedback item's source attachment (sourceType `feedback`): the requester as its
+// external creator, `url` a link to the item in the web app (the attachment's own id
+// keeps it unique on the issue).
+export async function createFeedbackAttachment(input: {
+  issueId: string;
+  externalUserCreatorId: string;
+  title: string;
+  subtitle: string;
+  creatorUserId: string | null;
+}): Promise<AttachmentRow> {
+  const id = randomUUID();
+  const [row] = await db
+    .insert(attachment)
+    .values({
+      id,
+      issueId: input.issueId,
+      url: feedbackUrl(input.issueId, id),
+      title: cleanTitle(input.title),
+      subtitle: input.subtitle,
+      sourceType: 'feedback',
+      groupBySource: true,
+      creatorUserId: input.creatorUserId,
+      externalUserCreatorId: input.externalUserCreatorId,
+    })
+    .returning();
+  const created = mapAttachment(row!);
+  await sendAttachmentEvent('create', created, input.creatorUserId);
+  return created;
+}
+
+function feedbackUrl(issueId: string, attachmentId: string): string {
+  return `${trustedOrigins[0]}/issue/${issueId}?feedback=${attachmentId}`;
+}
+
+// Moves an attachment to another issue (a feedback item moved with its source). A
+// feedback attachment's link follows the issue.
+export async function moveAttachment(
+  id: string,
+  issueId: string,
+  actorUserId: string | null,
+): Promise<AttachmentRow | null> {
+  const current = await getAttachment(id);
+  if (!current || current.issueId === issueId) return current;
+  const [row] = await db
+    .update(attachment)
+    .set({
+      issueId,
+      ...(current.sourceType === 'feedback' ? { url: feedbackUrl(issueId, id) } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(attachment.id, id))
+    .returning();
+  if (!row) return null;
+  const moved = mapAttachment(row);
+  await sendAttachmentEvent('update', moved, actorUserId, attachmentData(current));
+  return moved;
 }
 
 // The issue's uploaded files (links are served over GraphQL only).

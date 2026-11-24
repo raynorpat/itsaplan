@@ -225,7 +225,8 @@ export type WebhookResourceType =
   | 'Initiative'
   | 'InitiativeUpdate'
   | 'Document'
-  | 'Attachment';
+  | 'Attachment'
+  | 'CustomerNeed';
 
 export interface Webhook {
   id: string;

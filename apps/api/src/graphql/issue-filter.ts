@@ -28,6 +28,11 @@ import { gqlError } from './errors';
 import { cycleFilterHandlers, cycleIdsMatching } from './cycle-filter';
 import { attachmentCollectionSql } from './attachment-filter';
 import { labelCollectionSql } from './label-collection-filter';
+import {
+  customerCountFilter,
+  customerImportantCountFilter,
+  needCollectionFilter,
+} from './customer-need-filter';
 import { shownNameSql } from '../shared/user-name';
 
 // IssueFilter as SQL over the issue table. Supported: id, number, title,
@@ -36,7 +41,9 @@ import { shownNameSql } from '../shared/user-name';
 // email, isMe, null), parent (id, null), project, projectMilestone, cycle,
 // hasBlockingRelations, hasBlockedByRelations, hasDuplicateRelations,
 // hasRelatedRelations, attachments, labels and subscribers (some, every, length and their
-// fields), sourceMetadata (null, workflowDefinitionId), and / or.
+// fields), sourceMetadata (null, workflowDefinitionId), needs (feedback: some, every,
+// length and its fields), customerCount and customerImportantCount (people asking), and
+// / or.
 // Anything else is INVALID_INPUT.
 
 // A NullableUserFilter on one of the issue's user columns. isMe compares with the
@@ -230,6 +237,9 @@ export function issueFilterSql(filter: unknown, viewerId: string): SQL | undefin
     labels: labelCollectionSql,
     subscribers: subscribersFilter(viewerId),
     sourceMetadata: sourceMetadataFilter,
+    needs: needCollectionFilter(viewerId),
+    customerCount: customerCountFilter,
+    customerImportantCount: customerImportantCountFilter,
     project: (v, p) =>
       nullableRef(
         issue.projectId,

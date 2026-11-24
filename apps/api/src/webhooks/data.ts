@@ -1,3 +1,4 @@
+import type { NeedRow } from '../feedback/store';
 import { projectHistories } from '../projects/progress';
 import {
   db,
@@ -234,12 +235,33 @@ export function attachmentData(row: AttachmentRow): WebhookData {
     subtitle: row.subtitle,
     url: attachmentUrl(row),
     creatorId: row.creatorUserId,
-    externalUserCreatorId: null,
+    externalUserCreatorId: row.externalUserCreatorId,
     issueId: row.issueId,
     originalIssueId: null,
     metadata: row.metadata,
     source: null,
     sourceType: row.sourceType,
     groupBySource: row.groupBySource,
+  };
+}
+
+// Linear's CustomerNeedWebhookPayload: feedback on an issue (customers, comments and
+// projects are not used here).
+export function customerNeedData(row: NeedRow): WebhookData {
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+    body: row.body,
+    priority: row.priority,
+    issueId: row.issueId,
+    attachmentId: row.attachmentId,
+    creatorId: row.creatorId,
+    customerId: null,
+    commentId: null,
+    projectId: null,
+    projectAttachmentId: null,
+    originalIssueId: null,
   };
 }

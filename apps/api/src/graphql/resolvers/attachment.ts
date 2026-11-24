@@ -227,7 +227,6 @@ export const attachmentResolvers = {
       userById(a.creatorUserId, ctx.user.id),
     issue: (a: GraphQLAttachment) => issueById(a.issueId),
     originalIssue: () => null,
-    externalUserCreator: () => null,
   },
   Issue: {
     // The issue is already in hand, so its attachments are listed even when it is

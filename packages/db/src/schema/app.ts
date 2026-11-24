@@ -816,6 +816,11 @@ export const attachment = pgTable(
     sourceType: text('source_type'),
     groupBySource: boolean('group_by_source').notNull().default(false),
     creatorUserId: uuid('creator_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // The person outside the workspace the attachment is from (Linear's
+    // externalUserCreator): the requester of a feedback item's source attachment.
+    externalUserCreatorId: uuid('external_user_creator_id').references(() => externalUser.id, {
+      onDelete: 'set null',
+    }),
     publicId: uuid('public_id').unique(),
     s3Key: text('s3_key'),
     filename: text('filename'),
@@ -833,6 +838,61 @@ export const attachment = pgTable(
       'attachment_file_check',
       sql`num_nonnulls(${t.publicId}, ${t.s3Key}, ${t.filename}, ${t.contentType}, ${t.sizeBytes}) in (0, 5)`,
     ),
+  ],
+);
+
+// A person outside the workspace (Linear's ExternalUser): someone who gave feedback.
+// `email` is stored lowercased and is unique when set. A requester merged into another
+// keeps its row with `merged_into_id` set, so old references still resolve.
+export const externalUser = pgTable(
+  'external_user',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    displayName: text('display_name').notNull(),
+    email: text('email'),
+    avatarUrl: text('avatar_url'),
+    createdById: uuid('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+    mergedIntoId: uuid('merged_into_id').references((): AnyPgColumn => externalUser.id, {
+      onDelete: 'set null',
+    }),
+    lastSeen: timestamp('last_seen', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('external_user_email_uq')
+      .on(t.email)
+      .where(sql`${t.email} IS NOT NULL AND ${t.mergedIntoId} IS NULL`),
+    check('external_user_email_lower_check', sql`${t.email} = lower(${t.email})`),
+    check('external_user_name_check', sql`btrim(${t.name}) <> ''`),
+  ],
+);
+
+// Feedback on an issue (Linear's CustomerNeed): `body` is the quote, `priority` 1 marks
+// it important, `attachment_id` its source attachment (whose external creator is the
+// requester), `creator_id` the member who logged it.
+export const customerNeed = pgTable(
+  'customer_need',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    attachmentId: uuid('attachment_id').references(() => attachment.id, {
+      onDelete: 'set null',
+    }),
+    body: text('body'),
+    priority: integer('priority').notNull().default(0),
+    creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('customer_need_issue_idx').on(t.issueId),
+    uniqueIndex('customer_need_attachment_uq').on(t.attachmentId),
+    check('customer_need_priority_check', sql`${t.priority} IN (0, 1)`),
   ],
 );
 

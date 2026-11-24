@@ -96,6 +96,53 @@ export async function paginate<Row extends Keyed, T>(
   };
 }
 
+// One forward page of rows ordered by a computed number (`value`, ascending or
+// descending), then newest first by createdAt and id, as Linear's `sort` options order
+// a list. The cursor carries the value too: base64url of "<value>|<iso timestamp>|<uuid>".
+// `load` must select the value as `sortValue`.
+export async function paginateByValue<Row extends Keyed & { sortValue: number }, T>(
+  args: PageArgs,
+  cols: { id: AnyColumn; createdAt: AnyColumn },
+  value: SQL<number>,
+  direction: 'asc' | 'desc',
+  where: SQL | undefined,
+  load: (where: SQL | undefined, orderBy: SQL[], limit: number) => Promise<Row[]>,
+  map: (row: Row) => T,
+): Promise<Connection<T>> {
+  if (args.last != null || args.before != null)
+    throw gqlError('INVALID_INPUT', 'A sorted list pages forward only (first / after)');
+  const limit = pageSize(args.first, 'first');
+  const key = sql`date_trunc('milliseconds', ${cols.createdAt})`;
+  let after: SQL | undefined;
+  if (args.after) {
+    const [raw, ts, id] = Buffer.from(args.after, 'base64url').toString().split('|');
+    const v = Number(raw);
+    if (!ts || !id || !UUID_RE.test(id) || Number.isNaN(Date.parse(ts)) || !Number.isFinite(v))
+      throw gqlError('INVALID_INPUT', 'Invalid cursor');
+    const beyond = direction === 'desc' ? sql`${value} < ${v}` : sql`${value} > ${v}`;
+    after = sql`(${beyond} OR (${value} = ${v} AND (${key}, ${cols.id}) < (${ts}::timestamptz, ${id}::uuid)))`;
+  }
+  const order = [direction === 'desc' ? desc(value) : asc(value), desc(key), desc(cols.id)];
+  const rows = await load(and(where, after), order, limit + 1);
+  const page = rows.slice(0, limit);
+  const edges = page.map((row) => ({
+    node: map(row),
+    cursor: Buffer.from(`${row.sortValue}|${row.createdAt.toISOString()}|${row.id}`).toString(
+      'base64url',
+    ),
+  }));
+  return {
+    nodes: edges.map((e) => e.node),
+    edges,
+    pageInfo: {
+      hasNextPage: rows.length > limit,
+      hasPreviousPage: args.after != null,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges[edges.length - 1]?.cursor ?? null,
+    },
+  };
+}
+
 // Whether a connection field was asked for its first page with no cursor, filter or
 // backward paging — the case a request-scoped loader can answer from rows it already
 // holds (connectionOf).

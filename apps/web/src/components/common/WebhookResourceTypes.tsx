@@ -15,6 +15,7 @@ const RESOURCE_LABELS: Record<WebhookResourceType, string> = {
   InitiativeUpdate: 'Initiative updates',
   Document: 'Documents',
   Attachment: 'Attachments',
+  CustomerNeed: 'Feedback',
 };
 
 const WEBHOOK_RESOURCE_TYPES = (Object.keys(RESOURCE_LABELS) as WebhookResourceType[]).map(

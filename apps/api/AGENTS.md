@@ -96,6 +96,21 @@ Rules and invariants for this package below; read the code for the walkthrough.
   normalised back before matching. One attachment per URL on an issue:
   `upsertLinkAttachment` updates the existing one. Every write goes through the
   store, which sends the `Attachment` webhooks; the team quota counts uploads only. Access follows the issue's team.
+- **Feedback** (`feedback/`, Linear's `CustomerNeed`): feedback on an issue from a
+  person outside the workspace. The person is a requester (`external_user`, Linear's
+  `ExternalUser`; one per lowercased email, merged ones point at the one kept) and is
+  the `externalUserCreator` of the feedback's source attachment (`source_type`
+  `feedback`, made by `createRequesterAttachment`, since Linear's attachment input
+  cannot name one); `body` is the quote, `priority` 1 marks it important. Owners,
+  admins and members who can see the issue's team read and write it; guests (and app
+  users) see no feedback and no requester (`Issue.needs` empty, `customerNeed` not
+  found, `Attachment.externalUserCreator` null) and cannot write it, but get the
+  counts. `customerCount` / `customerImportantCount` (filter and `sort`) count the
+  distinct requesters of an issue's active feedback (with important feedback);
+  feedback without a requester is not a person. Moving feedback to another issue moves
+  its attachment; deleting it deletes the attachment unless kept; deleting the issue
+  deletes its feedback. Feedback notifies no one and runs no automation; the store
+  sends `CustomerNeed` webhooks.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
@@ -391,7 +406,7 @@ receiver works against the instance.
   one people have only authorized as themselves receives public teams' events; an
   archived or uninstalled one nothing. A webhook lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
-  `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`. Initiative events go to the lead team's
+  `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`, `CustomerNeed`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Webhooks are
   managed by workspace admins and owners: a team webhook by one who can see the team,
   an all-teams webhook by any (`webhooks/access.ts`, checked on every operation). An
@@ -459,8 +474,11 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   user without a name reads as its email's local part in `name` and `displayName`),
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
-  updates) and webhooks
-  have resolvers; `sort` arguments are INVALID_INPUT; the rest of the schema is neutral or NOT_IMPLEMENTED.
+  updates), webhooks
+  and feedback (`customerNeed*`, `Issue.needs`, `ExternalUser` through attachments)
+  have resolvers; `sort` arguments are INVALID_INPUT, except one `customerCount` or
+  `customerImportantCount` sort on issue lists (forward paging only); the rest of the
+  schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
   page newest first, 50 by default, 250 at most.
