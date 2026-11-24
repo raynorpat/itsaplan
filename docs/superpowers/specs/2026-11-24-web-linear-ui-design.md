@@ -138,3 +138,22 @@ order of the work.
   `IssueHistory.fromParent` / `toParent` / `fromParentId` / `toParentId`; the activity
   reads "set parent to ENG-3", "changed parent from ENG-3 to ENG-5", "removed parent
   ENG-3".
+
+## Stage 4b: workflow automations in team settings
+
+- **Where:** an "Automations" entry in each team's settings
+  (`/settings/teams/[teamKey]/automations`), on the instance plugin's
+  `/api/auth/instance/workflows*` endpoints.
+- **List:** each rule with name, a one-line trigger summary, an enabled switch, run
+  count, last run time and the last error; drag to reorder (rules run top to bottom);
+  ⋯ menu with Archive and Delete; a collapsible "Archived" section with Unarchive and
+  Delete. "New automation" only for team owners and workspace admins; each rule's
+  controls only for those its edit access allows (the API's rules in
+  `apps/api/src/workflows/access.ts`).
+- **Editor** (`…/automations/new` and `…/automations/[id]`): name and optional
+  description; When ("an issue is created" / "an issue starts matching the
+  conditions"); If (the views filter builder; empty matches every new issue, the
+  "starts matching" trigger needs at least one condition; a note says "Me" is the rule's
+  owner); Then (actions: set status, assignee, priority, project, cycle, delegate;
+  add / remove labels; add a comment); edit access for team owners and workspace admins
+  only; Save / Cancel; the API's validation message shown next to the form.
