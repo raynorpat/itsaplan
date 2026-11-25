@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { clearListOrder } from '@/utils/issueNavigation';
 import { buildMaps, issueColor, type WorkItemsViewProps } from '@/utils/team';
 import { useTimelineDrag } from '@/hooks/useTimelineDrag';
-import { buildTimeline, LABEL_W, SCALE_DAY_W } from '@/utils/timeline';
-import { TimelineHeader } from './TimelineHeader';
+import { buildTimeline } from '@/utils/timeline';
+import { LABEL_W, SCALE_DAY_W } from '@/utils/timelineScale';
+import { TimelineHeader } from '@/components/common/timeline/TimelineHeader';
 import { TimelineGroupRow } from './TimelineGroupRow';
 import { TimelineIssueRow } from './TimelineIssueRow';
 
@@ -69,7 +70,7 @@ export default function TimelineView({
       collapsedGroups: activeCollapsedGroups,
       viewportW,
       labelW,
-      dayW: DAY_W,
+      zoom: settings.timelineScale,
     });
 
   return (

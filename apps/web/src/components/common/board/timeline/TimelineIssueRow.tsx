@@ -2,8 +2,11 @@ import type { TeamDetail } from '@/types/team';
 import type { Issue } from '@/types/issue';
 import { cn } from '@/lib/utils';
 import IssueContextMenu from '@/components/common/issue/IssueContextMenu';
+import { TimelineBar } from '@/components/common/timeline/TimelineBar';
+import { TimelineTodayLine } from '@/components/common/timeline/TimelineTodayLine';
 import { type TimelineDragMode } from '@/hooks/useTimelineDrag';
-import { ROW_H, type Span } from '@/utils/timeline';
+import { type Span } from '@/utils/timeline';
+import { ROW_H } from '@/utils/timelineScale';
 
 // One issue row: the sticky label on the left and its draggable bar on the day
 // track. The bar moves the issue (rewriting dates and, on a vertical move, the
@@ -67,23 +70,16 @@ export function TimelineIssueRow({
         </div>
       </IssueContextMenu>
       <div className="relative" style={{ width: trackWidth, ...dayLines }}>
-        {todayInRange && (
-          <div
-            className="absolute top-0 bottom-0 z-0 w-px bg-primary/40"
-            style={{ left: todayLeft }}
-          />
-        )}
-        <div
-          onPointerDown={readOnly ? undefined : (e) => onBeginDrag(e, issue, 'move')}
-          onClick={readOnly ? () => onOpen(issue.id) : undefined}
-          className={cn(
-            'group absolute top-1/2 z-10 flex h-6 -translate-y-1/2 items-center rounded px-1.5 text-white select-none',
-            readOnly ? 'cursor-pointer' : active ? 'cursor-grabbing' : 'cursor-grab',
-          )}
+        {todayInRange && <TimelineTodayLine left={todayLeft} />}
+        <TimelineBar
+          rect={rect}
+          color={color}
+          active={active}
+          readOnly={readOnly}
+          resizeEnd
+          onBeginDrag={(e, mode) => onBeginDrag(e, issue, mode === 'end' ? 'end' : 'move')}
+          onClick={() => onOpen(issue.id)}
           style={{
-            left: rect.left,
-            width: rect.width,
-            backgroundColor: color,
             opacity: span.inferredStart ? 0.8 : 1,
             borderLeft: span.inferredStart ? '2px dashed rgba(255,255,255,0.75)' : undefined,
           }}
@@ -92,14 +88,7 @@ export function TimelineIssueRow({
           }
         >
           <span className="truncate text-[11px] leading-none">{issue.title}</span>
-          {!readOnly && (
-            <span
-              onPointerDown={(e) => onBeginDrag(e, issue, 'end')}
-              className="absolute top-0 right-0 h-full w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100"
-              style={{ background: 'rgba(255,255,255,0.4)' }}
-            />
-          )}
-        </div>
+        </TimelineBar>
       </div>
     </div>
   );

@@ -1,16 +1,10 @@
-import { format, startOfDay } from 'date-fns';
+import { startOfDay } from 'date-fns';
 import type { Issue } from '@/types/issue';
 import type { TeamDetail } from '@/types/team';
-import { addDays, daysBetween, parseDate } from '@/utils/dates';
+import { parseDate } from '@/utils/dates';
 import { buildGroups, groupIssues, type IssueGroup } from '@/utils/team';
+import { timelineScale, type MonthLabel } from '@/utils/timelineScale';
 import type { GroupField, TimelineScale } from '@/utils/viewSettings';
-
-// px per day at each zoom level. Wider days keep the per-day numbers legible;
-// narrower days fit longer ranges and fall back to weekly gridlines.
-export const SCALE_DAY_W: Record<TimelineScale, number> = { week: 32, month: 12, quarter: 5 };
-export const LABEL_W = 256; // px, the left issue-label column (matches w-64)
-export const ROW_H = 36; // px, an issue row
-export const GROUP_H = 32; // px, a state group header row
 
 // An issue's bar span. Effective start is when work on it started (startedAt), or
 // its creation date when it has not started (inferredStart), so every issue has a
@@ -44,13 +38,6 @@ export type TimelineRow =
     }
   | { kind: 'issue'; issue: Issue; span: Span; groupKey: string };
 
-// A consecutive same-month run, for the month labels above the day numbers.
-export interface MonthLabel {
-  label: string;
-  left: number;
-  width: number;
-}
-
 // The whole timeline layout derived from the team and the current viewport:
 // the flattened rows, the day columns and their month labels, the track width
 // (extended with trailing days so it always fills the viewport), the today
@@ -73,7 +60,7 @@ export function buildTimeline({
   collapsedGroups,
   viewportW,
   labelW,
-  dayW,
+  zoom,
 }: {
   team: TeamDetail;
   group: GroupField;
@@ -81,7 +68,7 @@ export function buildTimeline({
   collapsedGroups: Set<string>;
   viewportW: number;
   labelW: number;
-  dayW: number;
+  zoom: TimelineScale;
 }): TimelineModel {
   const groups = buildGroups(team, group);
   const issuesByGroup = groupIssues(groups, team.issues, group);
@@ -112,37 +99,9 @@ export function buildTimeline({
     }
   }
 
-  const rangeStart = addDays(min ?? today, -3);
-  const rangeEnd = addDays(max ?? addDays(today, 28), 7);
-  // Extend the range on the right with trailing days so the track always fills
-  // the available width; the day size stays fixed.
-  const naturalDays = Math.max(1, daysBetween(rangeStart, rangeEnd) + 1);
-  const daysToFill = Math.ceil(Math.max(0, viewportW - labelW) / dayW);
-  const totalDays = Math.max(naturalDays, daysToFill);
-  const trackWidth = totalDays * dayW;
-  const days = Array.from({ length: totalDays }, (_, i) => addDays(rangeStart, i));
-
-  const months: MonthLabel[] = [];
-  for (let i = 0; i < days.length; i++) {
-    const label = format(days[i], 'MMMM yyyy');
-    const last = months[months.length - 1];
-    if (last && last.label === label) last.width += dayW;
-    else months.push({ label, left: i * dayW, width: dayW });
-  }
-
-  // Per-day gridlines when days are wide; weekly gridlines when zoomed out, so
-  // narrow days do not turn the track into solid lines.
-  const gridPeriod = dayW >= 20 ? dayW : dayW * 7;
-  const dayLines = {
-    backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${gridPeriod - 1}px, var(--border) ${gridPeriod - 1}px, var(--border) ${gridPeriod}px)`,
-  };
-  const todayLeft = daysBetween(rangeStart, today) * dayW;
-  const todayInRange = today >= rangeStart && today <= rangeEnd;
-
-  const spanToRect = (start: Date, end: Date) => ({
-    left: daysBetween(rangeStart, start) * dayW,
-    width: (daysBetween(start, end) + 1) * dayW,
-  });
+  const { days, months, trackWidth, todayLeft, todayInRange, dayLines, spanToRect } = timelineScale(
+    { from: min, to: max, zoom, viewportW, labelW, today },
+  );
 
   return { rows, days, months, trackWidth, todayLeft, todayInRange, dayLines, spanToRect };
 }

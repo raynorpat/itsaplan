@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DEFAULT_COLOR, type IssueGroup } from '@/utils/team';
 import { cn } from '@/lib/utils';
 import { GroupDot } from '@/components/common/board/shared/GroupDot';
-import { GROUP_H } from '@/utils/timeline';
+import { GROUP_H } from '@/utils/timelineScale';
 
 // A group header row. `data-group-key` marks it as a drop target for the timeline
 // drag, so a vertical move reassigns the selected grouping field.

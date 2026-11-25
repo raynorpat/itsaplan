@@ -1,7 +1,7 @@
 import { startOfDay } from 'date-fns';
 import { daysBetween } from '@/utils/dates';
 import { cn } from '@/lib/utils';
-import { type MonthLabel } from '@/utils/timeline';
+import { type MonthLabel } from '@/utils/timelineScale';
 
 // The sticky timeline header: an empty corner over the label column, month labels,
 // and the day-number row. Day numbers thin out as the day width shrinks.
