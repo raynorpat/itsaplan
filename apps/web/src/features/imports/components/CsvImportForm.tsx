@@ -43,6 +43,9 @@ export default function CsvImportForm() {
   const [jiraHost, setJiraHost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'reading' | 'starting' | null>(null);
+  // Remounts the file input after an import starts: a file input cannot be cleared
+  // through its value, so it would keep showing the last file's name.
+  const [fileInputKey, setFileInputKey] = useState(0);
   const refresh = useRefreshImports();
 
   async function read(picked: File | undefined) {
@@ -83,6 +86,7 @@ export default function CsvImportForm() {
       });
       await refresh();
       setFile(null);
+      setFileInputKey((k) => k + 1);
       setDestination(EMPTY_DESTINATION);
       setJiraHost('');
       toast.success('Import created. Match its statuses and people to start it.');
@@ -97,6 +101,7 @@ export default function CsvImportForm() {
     <div className="grid gap-6">
       <CsvKindPicker value={kind} onChange={setKind} />
       <CsvFileField
+        key={fileInputKey}
         preview={file?.preview ?? null}
         reading={busy === 'reading'}
         disabled={busy != null}
