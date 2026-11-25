@@ -34,139 +34,74 @@ stable release.
 
 ## Features
 
-**Tracking**
+**Track work**
 
-- Configure issues per team: labels and workflow states
-- Kanban, table, timeline, and calendar views, with configurable display fields and two-level grouping
-- Save any view as a reusable template
-- Projects that group work across teams, with statuses, milestones, updates and labels
-- Auto-archive, a notification inbox, role-based access control, and more
-- Comment threads with replies, resolving and emoji reactions (editing, replies, resolving and reactions are API-only for now)
-- Cycles: time-boxed iterations per team with automatic rollover of unfinished work (API-only for now)
-- Initiatives: workspace-level groups of projects with sub-initiatives and status updates (API-only for now)
-- Issue relations: blocks, related and duplicate links between issues, with duplicates closed automatically (API-only for now)
-- Documents: Markdown pages in projects and on issues, with comments (API-only for now)
-- Attachments: links on issues next to uploaded files, as Linear attachments (links API-only for now)
-- Issue subscriptions: subscribers receive an issue's comment and status notifications; the inbox is also served through Linear's notification API (subscriptions API-only for now)
+- Issues with priority, estimates on each team's scale, due dates, labels, sub-issues,
+  relations, templates, attachments, documents and threaded comments with reactions
+- Teams with their own workflow states, labels, cycles, automations and webhooks; public or
+  private
+- List, board, timeline and calendar layouts with grouping and Linear's orderings; saved
+  views, My issues, favorites and an inbox
 
-**Platform**
+**Plan**
 
-- Linear-compatible GraphQL API at `/graphql`, the instance's only data API: point the
-  official `@linear/sdk` at your instance; API keys and Linear-style OAuth applications
-- MCP server with Linear's MCP tool set (`/mcp`, and `/mcp/readonly` for read tools only),
-  signed in with an API key or OAuth
-- Outgoing webhooks in Linear's format: per team or all teams, signed payloads and retries
-- Sign-in with an emailed link, a passkey, or Google; people join by invite or an approved email domain
-- Notifications by email (SMTP or Resend), with per-member preferences
-- Workspace settings: name, sign-in methods, upload types, and who may create teams, manage labels and invite
+- Projects with milestones, updates, health, progress, dependencies and a projects
+  timeline
+- Initiatives, automatic cycles, and release tracking synced from CI
+- Insights and dashboards with CSV export
 
-## Getting started
+**Outside feedback**
 
-### Local development
+- Feedback requests and the people who give them, optionally grouped into customers
+- A client portal where outside people vote, comment and suggest, and intake forms
+- Email updates to requesters when what they asked for changes or ships
 
-Requirements: [Bun](https://bun.sh) 1.3+, Docker.
+**Run it**
 
-```bash
-bun install
-cp .env.example .env
-cp apps/web/.env.example apps/web/.env
+- Linear's GraphQL API at `/graphql`, personal API keys, OAuth applications, the agent API,
+  an MCP server and webhooks in Linear's format
+- Sign-in by emailed link, passkey or Google; owner, admin, member and guest roles; an audit
+  log
+- Workspace settings: name, sign-in methods, upload types, and who may create teams,
+  manage labels and invite
+- Imports from GitHub, GitLab, Gitea, Forgejo, Jira CSV and any CSV
 
-docker compose -f docker-compose.dev.yml up -d   # Postgres + RustFS only
-bun run db:migrate
-bun run dev                                      # api + web together, via Turborepo
-```
+[Linear compared with It's a Plan](docs/linear-comparison.md) lists, area by area, what
+matches Linear and what is not built yet.
 
-api on <http://localhost:3000>, web on <http://localhost:3001>. `bun run dev` runs the
-whole workspace in watch mode from the repo root; the dev compose brings up only the
-backing services and the apps run on the host.
+## Quick start
 
-If host port 5432 is taken, set another and update `DATABASE_URL` in `.env`:
-
-```bash
-POSTGRES_PORT=5433 docker compose -f docker-compose.dev.yml up -d
-```
-
-### Running tests
-
-Tests run against a real test Postgres, not mocks. Prepare a dedicated `*_test`
-database once, then run the suite from the repo root:
-
-```bash
-cp .env.test.example .env.test   # DATABASE_URL must name a *_test database
-bun run db:migrate:test          # migrate the test database
-bun run test                     # run all suites via Turborepo
-```
-
-The dev compose (`docker-compose.dev.yml`) provides Postgres and RustFS for these tests;
-the attachments suite needs the RustFS bucket it creates.
-
-Alternatively, run the same gate CI uses — the suite against a throwaway Postgres in a
-container built from the production image:
-
-```bash
-docker compose -f docker-compose.test.yml build
-docker compose -f docker-compose.test.yml run --rm api-test
-```
-
-`run` starts the dependencies, runs the suite, and exits with its code.
-
-### Deploy on Coolify
-
-Create a **Git Based** resource pointing at the public repository, with **Docker Compose**
-as the build pack and `docker-compose.coolify.yml` as the compose file. Set the branch to
-`release` and the commit SHA to `HEAD`.
-
-`release` is a mirror branch that the release workflow moves to each published release, so
-the deploy runs released versions only. It appears with the first published release; until
-then there is nothing to deploy from.
-
-Coolify supplies the secrets and domains through its own generated variables; nothing else
-to configure.
-
-### Self-hosting (production)
-
-Requirements: Docker and a domain behind a TLS-terminating reverse proxy.
+Requirements: Docker with the Compose plugin.
 
 ```bash
 git clone https://github.com/croffasia/itsaplan.git
 cd itsaplan
 cp .env.example .env
-# Set the public origins: API_URL, APP_URL
-# Generate each secret with `openssl rand -base64 32`:
-#   POSTGRES_PASSWORD, BETTER_AUTH_SECRET, WORKER_INTERNAL_TOKEN,
-#   S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY
-
+# In .env, set API_URL and APP_URL to your public origins, and generate each secret
+# (POSTGRES_PASSWORD, BETTER_AUTH_SECRET, WORKER_INTERNAL_TOKEN, S3_ACCESS_KEY_ID,
+# S3_SECRET_ACCESS_KEY) with: openssl rand -hex 32
 docker compose up -d --build
 ```
 
-One command brings up the whole stack: Postgres, RustFS, api, worker, and web. Every
-service is built from this checkout; web bakes `API_URL` into its bundle because Next.js
-inlines `NEXT_PUBLIC_*` at build time. The API applies migrations on startup, and the
-first account created becomes the workspace owner. Sign in with an emailed link: until an
-email provider is set (`SMTP_*` or `RESEND_API_KEY`), the API writes each sign-in link to
-its log, so the first owner can sign in from there.
+This builds and starts Postgres, RustFS file storage, the API, the worker and the web app.
+Open `APP_URL` and sign in: the first account becomes the workspace owner. Until an email
+provider is set, sign-in links are written to the API log
+(`docker compose logs api | grep "magic link"`).
 
-After an update, rebuild: `git pull` then `docker compose up -d --build`.
+[Self-hosting with Docker](docs/self-hosting.md) covers the reverse proxy, email, upgrades,
+backups and Coolify.
 
-Upgrading from a version with god mode: instance settings now come from environment
-variables. Set the email provider (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
-`SMTP_PASSWORD`, `SMTP_SECURE` or `RESEND_API_KEY`, and `EMAIL_FROM`), Google sign-in
-(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), the approved email domains
-(`APPROVED_EMAIL_DOMAINS`) and the upload limits (`MAX_ATTACHMENT_MB`, `MAX_AVATAR_MB`,
-`TEAM_QUOTA_MB`); see `.env.example`. Passwords are gone: everyone signs in with an
-emailed link, Google or a passkey. The rest of god mode is the Workspace settings page.
+## Documentation
 
-Attachments are stored in RustFS. An instance set up with MinIO switches to it on the next
-`docker compose up -d --build`: the `minio` service keeps its name and its `minio-data`
-volume, and RustFS reads the files MinIO wrote in place, with the same credentials. Nothing
-is copied. The upgrade does not change attachment data, but a copy of the volume before it
-takes one command:
-
-```bash
-docker run --rm -v itsaplan_minio-data:/data -v "$PWD":/out alpine tar czf /out/minio-data.tgz -C /data .
-```
-
-[CONTRIBUTING.md](CONTRIBUTING.md) covers the commands, the layout, and the conventions.
+| Page                                                      | For                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------- |
+| [Self-hosting with Docker](docs/self-hosting.md)          | installing, configuring, upgrading and backing up       |
+| [GraphQL API](docs/graphql-api.md)                        | the API, the Linear SDK, OAuth, webhooks and MCP        |
+| [Linear compared with It's a Plan](docs/linear-comparison.md) | what matches Linear and what is missing             |
+| [Release sync from CI](docs/release-sync.md)              | connecting CI to release tracking                       |
+| [GitHub issue import setup](docs/github-import-setup.md)  | enabling the GitHub importer                            |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                        | developing, testing and opening pull requests           |
+| [AGENTS.md](AGENTS.md)                                    | rules for coding agents working in this repository      |
 
 ## Built with
 

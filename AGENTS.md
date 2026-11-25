@@ -8,6 +8,17 @@ Prefer the most specific `AGENTS.md` for the area being changed: every app and s
 have their own, and it wins over this file. The `CLAUDE.md` next to it is a pointer, not a
 second source.
 
+## Boundaries
+
+A summary of the rules below; the sections hold the details.
+
+- **Always:** use `bun` from the repo root; follow the nearest `AGENTS.md`; write a test that
+  fails without the change; run `format:check`, `lint`, `typecheck` and the affected tests;
+  update the `docs/` page a behaviour change affects.
+- **Ask first:** committing or pushing (see Commits and releases).
+- **Never:** edit `apps/api/src/graphql/schema.graphql` (Linear's vendored SDL); edit a merged
+  migration; import `@repo/*` packages from `apps/web`; use npm, yarn or pnpm.
+
 ## Core Coding Principles
 
 **IMPORTANT — always follow, no exceptions:** Follow KISS and YAGNI. Write the simplest
@@ -71,6 +82,19 @@ packages/eslint-config @repo/eslint-config — shared ESLint config
 
 Dependency graph: `api → @repo/auth → @repo/db`. **The web app never imports packages
 directly** — it talks to the API over HTTP (better-auth client + fetch).
+
+## Documentation
+
+User-facing documentation is in `docs/` (index: `docs/README.md`): self-hosting
+(`docs/self-hosting.md`), the GraphQL API (`docs/graphql-api.md`), the comparison with Linear
+(`docs/linear-comparison.md`), release sync and the GitHub import setup. The root
+`README.md` summarises the features and links there; `CONTRIBUTING.md` covers development.
+
+A change to behaviour that one of those pages describes updates the page in the same change.
+
+The API coverage numbers and lists in `docs/linear-comparison.md` and
+`docs/graphql-api.md` come from the resolvers registered in `apps/api/src/graphql/mount.ts`
+compared with the schema's root fields; recount them when resolvers are added.
 
 ## Commands (from root)
 

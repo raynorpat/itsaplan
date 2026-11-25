@@ -49,6 +49,9 @@ or pnpm: the lockfile is `bun.lock`.
 | `bun run typecheck`   | `tsc --noEmit` across the workspace          |
 | `bun run lint`        | ESLint                                       |
 | `bun run format`      | Prettier, writes                             |
+| `bun run format:check`| Prettier, checks only (CI runs this)         |
+| `bun run test`        | every app's test suite                       |
+| `bun run build`       | build every app                              |
 | `bun run db:generate` | generate a migration from the Drizzle schema |
 | `bun run db:migrate`  | apply migrations                             |
 
@@ -66,8 +69,9 @@ packages/mailer SMTP and Resend transport
 Dependency direction is `api → @repo/auth → @repo/db`. The web app never imports the
 packages directly, it talks to the API over HTTP.
 
-Each app and package has a `AGENTS.md` with the rules that apply inside it. Read the one
-for the area you are changing.
+Each app and package has an `AGENTS.md` with the rules that apply inside it. Read the one
+for the area you are changing. User-facing documentation is in [`docs/`](docs/README.md);
+update the page your change affects in the same pull request.
 
 ## Code conventions
 
@@ -94,22 +98,35 @@ run `bun run auth:generate` first, then generate the migration.
 
 ### Tests
 
-`apps/api` has an integration suite that runs against a real Postgres, not mocks. See
-`apps/api/AGENTS.md` for how to write one.
+Every change to behaviour comes with a test that fails without the change.
+
+- `apps/api` has an integration suite that runs against a real Postgres and RustFS, not
+  mocks. `apps/api/AGENTS.md` explains how to write one.
+- `apps/web` and `apps/worker` have unit tests for their logic (`bun test`).
+
+The API suite needs the dev compose running (`docker compose -f docker-compose.dev.yml up
+-d`), which provides Postgres and the RustFS bucket, and a test database on that Postgres.
+The test database's name must contain `test`; the reset between tests refuses any other.
 
 ```bash
+docker compose -f docker-compose.dev.yml exec postgres createdb -U itsaplan itsaplan_test
 cp .env.test.example .env.test
-bun run db:migrate:test
-bun run test
+# In .env.test, point DATABASE_URL at it, for example:
+#   postgres://itsaplan:itsaplan@localhost:5432/itsaplan_test
+bun run db:migrate:test          # once, and after every new migration
+bun run test                     # all suites
 ```
 
-CI runs the same suite through `docker-compose.test.yml` against a throwaway database.
-You can run the full gate locally:
+CI runs the API suite through `docker-compose.test.yml`, in a container built from the
+production image against a throwaway database. Run the same gate locally:
 
 ```bash
-docker compose -f docker-compose.test.yml up --build \
-  --abort-on-container-exit --exit-code-from api-test
+docker compose -f docker-compose.test.yml build
+docker compose -f docker-compose.test.yml run --rm api-test
 ```
+
+`run` exits with the suite's code. Do not use `up --abort-on-container-exit`: it stops the
+stack when the one-shot bucket service exits, before the tests start.
 
 ## Pull requests
 
@@ -121,7 +138,7 @@ docker compose -f docker-compose.test.yml up --build \
 4. Before pushing, make sure these pass:
 
    ```bash
-   bun run format:check && bun run lint && bun run typecheck
+   bun run format:check && bun run lint && bun run typecheck && bun run test
    ```
 
 5. Fill in the pull request template, link the issue (`Closes #123`), and add
