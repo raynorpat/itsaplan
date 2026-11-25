@@ -843,7 +843,14 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   issue's attachments that are not feedback sources); text keys order without regard to
   case; an issue with several labels or customers sorts by its lowest ascending and its
   highest descending; customers sort as empty for a viewer who cannot read them or
-  while Customers is off; ties go to the manual order, then newest first.
+  while Customers is off; ties go to the manual order, then newest first. Users,
+  projects, initiatives, documents, custom views, releases and release pipelines take
+  their `sort` keys too (`list-sorts.ts`, `resolvers/team.ts`): health by the latest
+  update (on track, at risk, off track, then none), lead / owner / creator by shown name,
+  project status by its position, a release's stage by type (planned, started,
+  completed, canceled) then position, priority with no priority after Low unless
+  `noPriorityFirst`; ties go newest first. Text keys of every list order without regard
+  to case (`parseCaselessSort`).
 - **MCP** (`mcp/`): `/mcp` (every tool) and `/mcp/readonly` (read tools only) take
   an API key or an OAuth access token as `Authorization: Bearer` (no cookie). A 401
   carries `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`

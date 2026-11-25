@@ -13,13 +13,15 @@ import {
   user,
 } from '@repo/db';
 import { trustedOrigins } from '@repo/auth';
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
 import { connectionOf, isFirstPage, paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql } from '../filter';
 import { projectFilterSql } from '../project-filter';
+import { projectSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { UUID_RE } from '../../shared/lib';
 import { projectsInTeams } from '../../projects/access';
 import { getProjectsByIds, type ProjectRow } from '../../projects/store';
@@ -35,7 +37,11 @@ import { guard } from './mutations';
 
 const PRIORITY_LABEL = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
 
-type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ConnectionArgs = PageArgs & {
+  filter?: unknown;
+  includeArchived?: boolean | null;
+  sort?: unknown;
+};
 
 const readable = (ctx: GraphQLContext) => visibleTeamIdList(ctx.user.id);
 
@@ -108,29 +114,56 @@ export async function listProjects(
   );
 }
 
-async function paginateProjects(where: SQL | undefined, args: PageArgs, teams: string[]) {
+// The page's projects with their progress, health and visible teams, in `keys` order.
+async function withProjects<K extends { id: string }>(keys: K[], teams: string[]) {
+  const rows = new Map(
+    (
+      await getProjectsByIds(
+        keys.map((k) => k.id),
+        teams,
+      )
+    ).map((p) => [p.id, p]),
+  );
+  return keys.map((k) => ({ ...k, project: rows.get(k.id)! }));
+}
+
+async function paginateProjects(where: SQL | undefined, args: ConnectionArgs, teams: string[]) {
+  const sortKeys = projectSortKeys(args.sort);
+  if (sortKeys)
+    return paginateSorted(
+      args,
+      sortKeys,
+      tieBreaks.project,
+      sql`${project.id}`,
+      where,
+      async (w, order, limit, select) =>
+        withProjects(
+          await db
+            .select({ id: project.id, sortValues: select })
+            .from(project)
+            .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
+            .where(w)
+            .orderBy(...order)
+            .limit(limit),
+          teams,
+        ),
+      (row) => toProject(row.project),
+    );
   return paginate(
     args,
     { id: project.id, createdAt: project.createdAt, updatedAt: project.updatedAt },
     where,
-    async (w, order, limit) => {
-      const keys = await db
-        .select({ id: project.id, createdAt: project.createdAt, updatedAt: project.updatedAt })
-        .from(project)
-        .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-        .where(w)
-        .orderBy(...order)
-        .limit(limit);
-      const rows = new Map(
-        (
-          await getProjectsByIds(
-            keys.map((k) => k.id),
-            teams,
-          )
-        ).map((p) => [p.id, p]),
-      );
-      return keys.map((k) => ({ ...k, project: rows.get(k.id)! }));
-    },
+    async (w, order, limit) =>
+      withProjects(
+        await db
+          .select({ id: project.id, createdAt: project.createdAt, updatedAt: project.updatedAt })
+          .from(project)
+          .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+        teams,
+      ),
     (row) => toProject(row.project),
   );
 }

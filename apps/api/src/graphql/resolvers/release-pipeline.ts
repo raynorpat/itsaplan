@@ -1,5 +1,5 @@
 import { db, releasePipeline, releasePipelineTeam, releaseStage, team } from '@repo/db';
-import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   archivePipeline,
   createPipeline,
@@ -30,6 +30,8 @@ import {
 } from '../../releases/stages';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
+import { pipelineSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { gqlError } from '../errors';
 import { guard, lastSyncId, onlySupported } from './mutations';
@@ -37,7 +39,7 @@ import { teamFilter, toTeam } from './team';
 
 // Linear's ReleasePipeline and ReleaseStage (releases/pipelines.ts, stages.ts).
 
-type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null; sort?: unknown };
 
 const PIPELINE_CREATE_FIELDS = [
   'id',
@@ -89,6 +91,28 @@ export function stageFilterSql(filter: unknown): SQL | undefined {
 }
 
 export function listPipelines(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
+  const scope = and(
+    listablePipelinesSql(ctx.user.id, !!args.includeArchived),
+    where,
+    pipelineFilterSql(args.filter),
+  );
+  const keys = pipelineSortKeys(args.sort);
+  if (keys)
+    return paginateSorted(
+      args,
+      keys,
+      tieBreaks.pipeline,
+      sql`${releasePipeline.id}`,
+      scope,
+      (w, order, limit, select) =>
+        db
+          .select({ ...getTableColumns(releasePipeline), sortValues: select })
+          .from(releasePipeline)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => mapPipeline(row),
+    );
   return paginate(
     args,
     {
@@ -96,11 +120,7 @@ export function listPipelines(where: SQL | undefined, args: ListArgs, ctx: Graph
       createdAt: releasePipeline.createdAt,
       updatedAt: releasePipeline.updatedAt,
     },
-    and(
-      listablePipelinesSql(ctx.user.id, !!args.includeArchived),
-      where,
-      pipelineFilterSql(args.filter),
-    ),
+    scope,
     (w, order, limit) =>
       db
         .select()

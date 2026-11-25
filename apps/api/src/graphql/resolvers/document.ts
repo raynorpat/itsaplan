@@ -1,5 +1,5 @@
 import { db, document } from '@repo/db';
-import { and, eq, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
 import {
   assertDocumentParentAccess,
   visibleDocumentsSql,
@@ -21,6 +21,8 @@ import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { documentFilterSql } from '../document-filter';
+import { documentSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { gqlError } from '../errors';
 import { issueById, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
@@ -32,7 +34,7 @@ import { findProject } from './project';
 
 export const toDocument = (row: DocumentRow) => ({ ...row, documentContentId: row.id });
 
-type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null; sort?: unknown };
 
 // Without includeArchived: the document and its parent are not archived.
 export const openOnly = and(
@@ -48,15 +50,33 @@ export const openOnly = and(
 )!;
 
 async function listDocuments(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
+  const scope = and(
+    await visibleDocumentsSql(ctx.user.id),
+    where,
+    args.includeArchived ? undefined : openOnly,
+    documentFilterSql(args.filter),
+  );
+  const keys = documentSortKeys(args.sort);
+  if (keys)
+    return paginateSorted(
+      args,
+      keys,
+      tieBreaks.document,
+      sql`${document.id}`,
+      scope,
+      (w, order, limit, select) =>
+        db
+          .select({ ...getTableColumns(document), sortValues: select })
+          .from(document)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => toDocument(mapDocument(row)),
+    );
   return paginate(
     args,
     { id: document.id, createdAt: document.createdAt, updatedAt: document.updatedAt },
-    and(
-      await visibleDocumentsSql(ctx.user.id),
-      where,
-      args.includeArchived ? undefined : openOnly,
-      documentFilterSql(args.filter),
-    ),
+    scope,
     (w, order, limit) =>
       db
         .select()

@@ -1,5 +1,5 @@
 import { db, issue, team, teamView } from '@repo/db';
-import { and, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { HttpError } from '../../shared/lib';
 import {
@@ -27,6 +27,8 @@ import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { compare, compareId, filterSql, refFilter, type FieldHandlers } from '../filter';
 import { issueFilterSql } from '../issue-filter';
+import { customViewSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { getOrganization } from './organization';
 import { listIssues, userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
@@ -162,15 +164,37 @@ export const customViewResolvers = {
       }),
     customView: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => toCustomView(await findView(id, ctx))),
-    customViews: (_: unknown, args: PageArgs & { filter?: unknown }, ctx: GraphQLContext) =>
-      paginate(
+    customViews: (
+      _: unknown,
+      args: PageArgs & { filter?: unknown; sort?: unknown },
+      ctx: GraphQLContext,
+    ) => {
+      const scope = and(
+        inArray(teamView.teamId, visibleTeamIds(ctx.user.id)),
+        viewSharedWith(ctx.user.id),
+        filterSql(args.filter, customViewFilter),
+      );
+      const keys = customViewSortKeys(args.sort);
+      if (keys)
+        return paginateSorted(
+          args,
+          keys,
+          tieBreaks.customView,
+          sql`${teamView.id}`,
+          scope,
+          (w, order, limit, select) =>
+            db
+              .select({ ...getTableColumns(teamView), sortValues: select })
+              .from(teamView)
+              .where(w)
+              .orderBy(...order)
+              .limit(limit),
+          (row) => toCustomView(mapView(row)),
+        );
+      return paginate(
         args,
         { id: teamView.id, createdAt: teamView.createdAt, updatedAt: teamView.updatedAt },
-        and(
-          inArray(teamView.teamId, visibleTeamIds(ctx.user.id)),
-          viewSharedWith(ctx.user.id),
-          filterSql(args.filter, customViewFilter),
-        ),
+        scope,
         (w, order, limit) =>
           db
             .select()
@@ -179,7 +203,8 @@ export const customViewResolvers = {
             .orderBy(...order)
             .limit(limit),
         (row) => toCustomView(mapView(row)),
-      ),
+      );
+    },
   },
   CustomView: {
     team: async (v: GraphQLCustomView, _: unknown, ctx: GraphQLContext) =>

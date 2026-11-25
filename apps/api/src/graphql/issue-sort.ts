@@ -17,7 +17,7 @@ import {
 import { sql, type SQL } from 'drizzle-orm';
 import { customerCountSql } from '../feedback/store';
 import { shownNameSql } from '../shared/user-name';
-import { parseSortInput, type SortBuilder, type SortKey } from './sort';
+import { parseCaselessSort, parseSortInput, type SortBuilder, type SortKey } from './sort';
 
 // Linear's IssueSortInput as sort keys (graphql/sort.ts). Each key reads a column of
 // the issue row the builders are given, so `rootIssue` can apply any key to an issue's
@@ -183,9 +183,7 @@ function builders(col: IssueColumn, readsCustomers: boolean): Record<string, Sor
 // The keys a `sort: [IssueSortInput!]` argument asks for on the outer `issue` row, or
 // null when it asks for none. `slaStatus` is INVALID_INPUT (no SLAs here).
 export function issueSortKeys(input: unknown, readsCustomers: boolean): SortKey[] | null {
-  const keys = parseSortInput(input, builders(outerIssue, readsCustomers));
-  // Text orders without regard to case, as Linear's lists do.
-  return keys && keys.map((k) => (k.type === 'text' ? { ...k, sql: sql`lower(${k.sql})` } : k));
+  return parseCaselessSort(input, builders(outerIssue, readsCustomers));
 }
 
 // After the keys: the manual order, then newest first (and the id, added by

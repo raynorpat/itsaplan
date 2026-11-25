@@ -11,7 +11,7 @@ import {
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
-import { newestFirst, paginateSorted, parseSortInput, type SortBuilder } from '../sort';
+import { newestFirst, paginateSorted, parseCaselessSort, type SortBuilder } from '../sort';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
@@ -121,7 +121,7 @@ const userSorts: Record<string, SortBuilder> = {
 };
 
 export function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
-  const keys = parseSortInput(args.sort, userSorts);
+  const keys = parseCaselessSort(args.sort, userSorts);
   if (keys)
     return paginateSorted(
       args,

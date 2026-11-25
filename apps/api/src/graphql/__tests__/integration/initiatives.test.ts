@@ -111,15 +111,15 @@ describe('graphql initiatives', () => {
     expect(await names(`{ leadTeam: { id: { eq: "${mkt}" } } }`)).toEqual(['L']);
   });
 
-  it('rejects sort and unsupported input, and accepts empty labelIds', async () => {
+  it('refuses backward paging with a sort and unsupported input, and accepts empty labelIds', async () => {
     const { owner, client } = await setup();
     const created = (await (await client.createInitiative({ name: 'Q1' })).initiative)!;
     const sorted = await gql(
       { cookie: owner.cookie },
-      '{ initiatives(sort: [{ name: { order: Ascending } }]) { nodes { id } } }',
+      '{ initiatives(sort: [{ name: { order: Ascending } }], last: 1) { nodes { id } } }',
     );
     expect(errorCode(sorted)).toBe('INVALID_INPUT');
-    expect(errorMessage(sorted)).toContain('sort');
+    expect(errorMessage(sorted)).toContain('forward');
     const reminders = await gql(
       { cookie: owner.cookie },
       `mutation { initiativeUpdate(id: "${created.id}", input: { updateRemindersDay: Monday }) { success } }`,

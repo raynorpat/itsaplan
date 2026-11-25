@@ -66,6 +66,17 @@ export function parseSortInput(
   return keys.length > 0 ? keys : null;
 }
 
+// parseSortInput with text keys compared without regard to case, as Linear's lists
+// order names and titles.
+export function parseCaselessSort(
+  input: unknown,
+  builders: Record<string, SortBuilder>,
+  path = 'sort',
+): SortKey[] | null {
+  const keys = parseSortInput(input, builders, path);
+  return keys && keys.map((k) => (k.type === 'text' ? { ...k, sql: sql`lower(${k.sql})` } : k));
+}
+
 const CAST: Record<SortType, SQL> = {
   number: sql`numeric`,
   text: sql`text`,

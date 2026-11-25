@@ -8,7 +8,7 @@ import {
   releasePipeline,
   releaseStage,
 } from '@repo/db';
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import { iso } from '../../shared/lib';
 import {
   addIssueToRelease,
@@ -46,6 +46,8 @@ import {
 import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
+import { releaseSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { compare, compareId, filterSql } from '../filter';
 import { gqlError } from '../errors';
 import { issueById, listIssues, userById } from './issue';
@@ -54,7 +56,7 @@ import { pipelineFilterSql, stageFilterSql, wholeConnection } from './release-pi
 
 // Linear's Release and IssueToRelease (releases/store.ts, issues.ts, progress.ts).
 
-type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null; sort?: unknown };
 type IssueArgs = ListArgs & { sort?: null };
 
 const CREATE_FIELDS = [
@@ -116,14 +118,32 @@ export function releaseFilterSql(filter: unknown): SQL | undefined {
 }
 
 function listReleases(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
+  const scope = and(
+    listableReleasesSql(ctx.user.id, !!args.includeArchived),
+    where,
+    releaseFilterSql(args.filter),
+  );
+  const keys = releaseSortKeys(args.sort);
+  if (keys)
+    return paginateSorted(
+      args,
+      keys,
+      tieBreaks.release,
+      sql`${release.id}`,
+      scope,
+      (w, order, limit, select) =>
+        db
+          .select({ ...getTableColumns(release), sortValues: select })
+          .from(release)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => mapRelease(row),
+    );
   return paginate(
     args,
     { id: release.id, createdAt: release.createdAt, updatedAt: release.updatedAt },
-    and(
-      listableReleasesSql(ctx.user.id, !!args.includeArchived),
-      where,
-      releaseFilterSql(args.filter),
-    ),
+    scope,
     (w, order, limit) =>
       db
         .select()

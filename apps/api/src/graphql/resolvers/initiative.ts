@@ -7,7 +7,7 @@ import {
   initiativeUpdate,
   project,
 } from '@repo/db';
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { projectsInTeams } from '../../projects/access';
 import { assertInitiativeAccess, visibleInitiativesSql } from '../../initiatives/access';
 import {
@@ -31,6 +31,8 @@ import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
 import { UUID_RE } from '../../shared/lib';
 import { initiativeFilterSql, initiativeUpdateFilterSql } from '../initiative-filter';
+import { initiativeSortKeys, tieBreaks } from '../list-sorts';
+import { paginateSorted } from '../sort';
 import { userById } from './issue';
 import { guard } from './mutations';
 import { getOrganization } from './organization';
@@ -61,25 +63,36 @@ export function toInitiative(row: InitiativeRow) {
 
 export type GraphQLInitiative = ReturnType<typeof toInitiative>;
 
-// Custom sort orders are not supported; connections order by createdAt or
-// updatedAt.
-export function rejectSort(args: { sort?: unknown }): void {
-  if (args.sort != null) throw gqlError('INVALID_INPUT', 'Argument sort is not supported');
-}
-
 // One page of the viewer's visible initiatives matching `where`, the filter and
 // includeArchived.
 export async function listInitiatives(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext) {
-  rejectSort(args);
+  const scope = and(
+    await visibleInitiativesSql(ctx.user.id),
+    where,
+    args.includeArchived ? undefined : isNull(initiative.archivedAt),
+    initiativeFilterSql(args.filter),
+  );
+  const keys = initiativeSortKeys(args.sort);
+  if (keys)
+    return paginateSorted(
+      args,
+      keys,
+      tieBreaks.initiative,
+      sql`${initiative.id}`,
+      scope,
+      (w, order, limit, select) =>
+        db
+          .select({ ...getTableColumns(initiative), sortValues: select })
+          .from(initiative)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => toInitiative(mapInitiative(row)),
+    );
   return paginate(
     args,
     { id: initiative.id, createdAt: initiative.createdAt, updatedAt: initiative.updatedAt },
-    and(
-      await visibleInitiativesSql(ctx.user.id),
-      where,
-      args.includeArchived ? undefined : isNull(initiative.archivedAt),
-      initiativeFilterSql(args.filter),
-    ),
+    scope,
     (w, order, limit) =>
       db
         .select()
@@ -320,7 +333,6 @@ export const initiativeResolvers = {
     // Projects of the initiative and, unless includeSubInitiatives is false, of its
     // visible descendants; only projects the viewer can see.
     projects: async (i: GraphQLInitiative, args: ListArgs, ctx: GraphQLContext) => {
-      rejectSort(args);
       const ids =
         args.includeSubInitiatives === false
           ? [i.id]
