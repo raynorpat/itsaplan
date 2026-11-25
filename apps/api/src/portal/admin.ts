@@ -243,7 +243,9 @@ async function validated(
       throw new HttpError(400, "A board of a customer's requests has no team or project");
   } else if (!board.teamId === !board.projectId)
     throw new HttpError(400, 'A board shows exactly one team or one project');
-  if (board.access === 'customer') {
+  // A disabled board is not served, so it may keep a customer that is gone or Customer
+  // access while Customers is off; enabling it checks them again.
+  if (board.access === 'customer' && board.enabled !== false) {
     await assertCustomersEnabled();
     if (!board.customerId) throw new HttpError(400, 'customerId is required for Customer access');
     const [row] = await db
@@ -251,7 +253,7 @@ async function validated(
       .from(customer)
       .where(eq(customer.id, board.customerId));
     if (!row) throw new HttpError(400, 'customerId is not a customer');
-  } else board = { ...board, customerId: null };
+  } else if (board.access !== 'customer') board = { ...board, customerId: null };
   if (board.teamId) await assertPublicTeam(board.teamId, 'teamId');
   if (board.projectId) {
     const [row] = await db

@@ -1,5 +1,5 @@
 import { customer, customerStatus, customerTier, db } from '@repo/db';
-import { asc, eq, ne, sql } from 'drizzle-orm';
+import { asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import {
   assertWorkspaceRole,
   NON_GUEST_ROLES,
@@ -199,6 +199,18 @@ export async function deleteItem(kind: ListKind, user: AuthUser, id: string): Pr
 }
 
 // A status or tier by id with no access check, for resolving a customer's fields.
+// Statuses or tiers by id, in one query (the GraphQL loaders).
+export async function itemsByIds(kind: ListKind, ids: readonly string[]): Promise<ListItemDto[]> {
+  if (ids.length === 0) return [];
+  const table = tableOf(kind);
+  return (
+    await db
+      .select()
+      .from(table)
+      .where(inArray(table.id, [...ids]))
+  ).map(toDto);
+}
+
 export async function itemById(kind: ListKind, id: string | null): Promise<ListItemDto | null> {
   if (!id) return null;
   const table = tableOf(kind);
@@ -206,9 +218,9 @@ export async function itemById(kind: ListKind, id: string | null): Promise<ListI
   return row ? toDto(row) : null;
 }
 
-// A tier by name (case-insensitive), created with a grey colour when missing:
-// customerUpsert's tierName.
-export async function tierIdByName(name: string): Promise<string> {
+// A tier by name (case-insensitive): customerUpsert's tierName. A missing tier is
+// created with a grey colour only for owners and admins, who manage tiers.
+export async function tierIdByName(name: string, actor: AuthUser): Promise<string> {
   const clean = cleanName(name, 'tierName');
   const [found] = await db
     .select({ id: customerTier.id })
@@ -216,6 +228,9 @@ export async function tierIdByName(name: string): Promise<string> {
     .where(sql`lower(${customerTier.name}) = lower(${clean})`)
     .limit(1);
   if (found) return found.id;
+  const role = await workspaceRole(actor.id);
+  if (role !== 'owner' && role !== 'admin')
+    throw new HttpError(400, `There is no tier named ${clean}`);
   const [last] = await db
     .select({ max: sql<number | null>`max(${customerTier.position})` })
     .from(customerTier);

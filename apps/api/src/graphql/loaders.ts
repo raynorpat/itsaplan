@@ -19,8 +19,8 @@ import {
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { sessionsOfComments } from '../agents/store';
 import { mapAttachment } from '../attachments/store';
-import { readsCustomers } from '../customers/statuses';
-import { mapCustomer } from '../customers/store';
+import { itemsByIds, readsCustomers } from '../customers/statuses';
+import { customerIssueCounts, mapCustomer } from '../customers/store';
 import { readsFeedback } from '../feedback/access';
 import { mapCycle } from '../cycles/store';
 import { projectsInTeams } from '../projects/access';
@@ -104,6 +104,16 @@ function createLoaders(ctx: GraphQLContext) {
         keys,
       ),
     ),
+    customerStatus: new DataLoader(async (keys: readonly string[]) =>
+      byId(await itemsByIds('status', keys), keys),
+    ),
+    customerTier: new DataLoader(async (keys: readonly string[]) =>
+      byId(await itemsByIds('tier', keys), keys),
+    ),
+    customerIssueCount: new DataLoader(async (keys: readonly string[]) => {
+      const counts = await customerIssueCounts(viewerId, keys);
+      return keys.map((k) => counts.get(k) ?? 0);
+    }),
     attachment: new DataLoader(async (keys: readonly string[]) =>
       byId(
         (

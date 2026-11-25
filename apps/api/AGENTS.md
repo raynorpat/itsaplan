@@ -143,7 +143,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   (`customers/domains.ts`); external ids are unique; uniqueness is checked under an
   advisory lock. There is no archive (`archivedAt` is always null). Deleting a status
   moves its customers to the default status (lowest position; the last status cannot be
-  deleted); deleting a tier clears it. `customerMerge` moves the source's requests,
+  deleted); deleting a tier clears it; `customerUpsert`'s `tierName` creates a missing tier
+  only for owners and admins, after the rest of the input is valid. `customers` takes
+  Linear's `sorts` (name, createdAt, revenue, size, owner, status, tier,
+  approximateNeedCount; one field per entry; forward paging by offset).
+  `approximateNeedCount` is the number of active issues in teams the viewer can see with
+  the customer's active requests (request loaders batch it, the status and the tier).
+  `/api/auth/instance/customers/people-counts` gives the number of people of each
+  customer. `customerMerge` moves the source's requests,
   people, domains, external ids and portal boards to the target and deletes the source;
   deleting a customer clears it from its people, requests and boards. `Customer`
   webhooks go to all-teams webhooks. A requester belongs to at most one customer
@@ -164,7 +171,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   completed more than 30 days ago are not shown). A board cannot target a private team.
   Access (`portal/access.ts`) is `public`, `restricted` (email domains and addresses)
   or `customer` (`customer_id`: people whose current customer it is; a board whose
-  customer was deleted is read by no one; Customers must be on to set it). On a board
+  customer was deleted is read by no one; Customers must be on to set it, except on a
+  disabled board, which is not served). On a board
   with Customer access the vote count is the board customer's people asking
   (`boardVotesSql`), and threads show only when their root is by a member or one of the
   customer's people, without comments by people outside the customer
@@ -309,7 +317,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   in a public team. Access is the person's at `until`: a status change when an enabled
   board their email may read covers the issue (its team or project and labels, whatever
   the status) or when they have form or team-logged feedback on it; a reply only from a
-  thread of such a board. Statuses: planned, in progress, done (however long ago),
+  thread of such a board, and only one the board shows (`boardCommentsSql`: on a board
+  with Customer access, nothing by people outside the customer). Statuses: planned, in progress, done (however long ago),
   closed (canceled, with the duplicated issue when one is related). Links go to the
   first readable board, by name, showing the issue. `requestersWithChangesSince` lists
   the people with updates on, an email, not blocked or merged, who may have something

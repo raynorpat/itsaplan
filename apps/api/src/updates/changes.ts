@@ -19,6 +19,7 @@ import {
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { personMayRead, type PersonAccess } from '../portal/access';
 import { boardShowsIssue, type BoardRow } from '../portal/boards';
+import { boardCommentsSql } from '../portal/issues';
 import type { PublicStatus } from '../portal/status';
 import { webOrigin } from '../portal/session';
 import { customersOnSql } from '../feedback/store';
@@ -321,6 +322,19 @@ async function replies(
     return board && info && covers(board, { ...info, direct: false });
   });
   if (usable.length === 0) return [];
+  // Only what the thread's board shows: on a board with Customer access, threads and
+  // comments of people outside the customer are left out, as on the portal.
+  const shownByBoard = or(
+    ...[...new Set(usable.map((t) => t.boardId))].map((boardId) =>
+      and(
+        inArray(
+          sql`coalesce(${comment.parentId}, ${comment.id})`,
+          usable.filter((t) => t.boardId === boardId).map((t) => t.rootId),
+        ),
+        boardCommentsSql(boards.find((b) => b.id === boardId)!),
+      ),
+    ),
+  );
   const rows = await db
     .select({
       rootId: sql<string>`coalesce(${comment.parentId}, ${comment.id})`,
@@ -336,10 +350,7 @@ async function replies(
     .leftJoin(externalUser, eq(externalUser.id, comment.externalUserId))
     .where(
       and(
-        inArray(
-          sql`coalesce(${comment.parentId}, ${comment.id})`,
-          usable.map((t) => t.rootId),
-        ),
+        shownByBoard,
         gt(comment.createdAt, since),
         lte(comment.createdAt, until),
         or(isNull(comment.externalUserId), ne(comment.externalUserId, requesterId)),

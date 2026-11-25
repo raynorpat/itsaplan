@@ -175,6 +175,42 @@ describe('customers', () => {
     ).toBe('INVALID_INPUT');
   });
 
+  it('customers sorts by name, revenue and size', async () => {
+    const { owner } = await setup();
+    await create(owner, { name: 'beta', revenue: 10, size: 3 });
+    await create(owner, { name: 'Alpha', revenue: 30 });
+    await create(owner, { name: 'Gamma', revenue: 20, size: 1 });
+    const names = async (sorts: unknown, first?: number, after?: string) => {
+      const data = await gqlData(
+        owner,
+        `query($sorts: [CustomerSortInput!], $first: Int, $after: String) {
+          customers(sorts: $sorts, first: $first, after: $after) {
+            nodes { name } pageInfo { hasNextPage endCursor } } }`,
+        { sorts, first, after },
+      );
+      return data.customers as {
+        nodes: { name: string }[];
+        pageInfo: { hasNextPage: boolean; endCursor: string };
+      };
+    };
+    const list = async (sorts: unknown) => (await names(sorts)).nodes.map((n) => n.name);
+    expect(await list([{ name: { order: 'Ascending' } }])).toEqual(['Alpha', 'beta', 'Gamma']);
+    expect(await list([{ revenue: { order: 'Descending' } }])).toEqual(['Alpha', 'Gamma', 'beta']);
+    expect(await list([{ size: { order: 'Ascending', nulls: 'last' } }])).toEqual([
+      'Gamma',
+      'beta',
+      'Alpha',
+    ]);
+    const page = await names([{ name: { order: 'Ascending' } }], 2);
+    expect(page.nodes.map((n) => n.name)).toEqual(['Alpha', 'beta']);
+    expect(page.pageInfo.hasNextPage).toBe(true);
+    const next = await names([{ name: { order: 'Ascending' } }], 2, page.pageInfo.endCursor);
+    expect(next.nodes.map((n) => n.name)).toEqual(['Gamma']);
+    expect(
+      await errorCode(owner, `{ customers(sorts: [{ name: {}, revenue: {} }]) { nodes { id } } }`),
+    ).toBe('INVALID_INPUT');
+  });
+
   it('a guest sees no customers', async () => {
     const { owner } = await setup();
     const c = await create(owner, { name: 'Acme' });
@@ -213,6 +249,27 @@ describe('customers', () => {
     expect(await errorCode(owner, UPSERT, { input: { externalId: 'crm-10' } })).toBe(
       'INVALID_INPUT',
     );
+  });
+
+  it('customerUpsert creates a tier only for owners and admins, after the input is valid', async () => {
+    const { owner } = await setup();
+    const member = await signUpAs('member');
+    const tiers = async () =>
+      (await gqlData(owner, `{ customerTiers { nodes { name } } }`)).customerTiers.nodes;
+    expect(await errorCode(member, UPSERT, { input: { name: 'Acme', tierName: 'Gold' } })).toBe(
+      'INVALID_INPUT',
+    );
+    expect(
+      await errorCode(owner, UPSERT, { input: { name: 'Acme', tierName: 'Gold', revenue: -1 } }),
+    ).toBe('INVALID_INPUT');
+    expect(await tiers()).toEqual([]);
+    const made = (await gqlData(owner, UPSERT, { input: { name: 'Acme', tierName: 'Gold' } }))
+      .customerUpsert.customer;
+    expect(made.tier.name).toBe('Gold');
+    const byMember = (
+      await gqlData(member, UPSERT, { input: { name: 'Initech', tierName: 'gold' } })
+    ).customerUpsert.customer;
+    expect(byMember.tier.name).toBe('Gold');
   });
 
   it('merge moves domains and external ids and deletes the source', async () => {

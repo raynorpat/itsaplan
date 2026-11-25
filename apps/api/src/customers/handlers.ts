@@ -1,9 +1,12 @@
 import { getActiveSession, type CustomersHandlers } from '@repo/auth';
 import { HttpError } from '../shared/lib';
 import { getCustomersSettings, saveCustomersSettings } from './settings';
+import { customerPeopleCounts } from './store';
 
-// The instance plugin's Customers endpoints (/api/auth/instance/customers-settings*):
-// the switch and the revenue currency, which Linear's OrganizationUpdateInput lacks.
+// The instance plugin's Customers endpoints: the switch and the revenue currency
+// (/api/auth/instance/customers-settings*), which Linear's OrganizationUpdateInput
+// lacks, and the people count of each customer (/customers/people-counts), which
+// Linear's Customer type lacks.
 
 async function signedIn(headers: Headers) {
   const session = await getActiveSession(headers);
@@ -18,4 +21,5 @@ export const customersHandlers: CustomersHandlers = {
   settings: async (headers) => getCustomersSettings((await signedIn(headers)).id),
   saveSettings: async (headers, body) =>
     saveCustomersSettings(await signedIn(headers), fields(body)),
+  peopleCounts: async (headers) => customerPeopleCounts(await signedIn(headers)),
 };

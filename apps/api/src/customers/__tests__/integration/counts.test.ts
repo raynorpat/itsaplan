@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createIssue, createTeam, gqlData } from '../../../__tests__/helpers/graphql';
+import {
+  archiveIssue,
+  createIssue,
+  createTeam,
+  gqlData,
+  makePrivate,
+  signUpAs,
+} from '../../../__tests__/helpers/graphql';
+import { countStatements } from '../../../__tests__/helpers/statements';
 import { instance, ok, type Json } from '../../../portal/__tests__/helpers';
 
 // Linear's customerCount and customerImportantCount count customers while Customers is
@@ -130,6 +138,54 @@ describe('customer counts', () => {
       },
     );
     expect(data.customer.approximateNeedCount).toBe(2);
+  });
+
+  it('approximateNeedCount leaves out archived issues and issues the viewer cannot see', async () => {
+    const { owner, eng, issue } = await setup();
+    const ops = await createTeam(owner, { key: 'OPS' });
+    const hidden = await createIssue(owner, { teamId: ops.team.id, title: 'Secret' });
+    const old = await createIssue(owner, { teamId: eng.team.id, title: 'Old' });
+    const acme = await customer(owner, 'Acme', ['acme.com']);
+    const ann = await person(owner, 'Ann', 'ann@acme.com');
+    await feedback(owner, issue.id, ann);
+    await feedback(owner, hidden.id, ann);
+    await feedback(owner, old.id, ann);
+    await archiveIssue(owner, old.id);
+    await makePrivate(owner, 'OPS');
+    const member = await signUpAs('member');
+    const count = async (as: TestUser) =>
+      (
+        await gqlData(as, `query($id: String!) { customer(id: $id) { approximateNeedCount } }`, {
+          id: acme,
+        })
+      ).customer.approximateNeedCount;
+    expect(await count(owner)).toBe(2);
+    expect(await count(member)).toBe(1);
+  });
+
+  it('a customer list reads statuses, tiers and counts in a bounded number of queries', async () => {
+    const { owner, issue } = await setup();
+    const tier = await gqlData(
+      owner,
+      `mutation { customerTierCreate(input: { name: "Enterprise", color: "#ff0000" }) { tier { id } } }`,
+    );
+    for (const name of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      const id = await customer(owner, name, [`${name.toLowerCase()}.com`]);
+      await gqlData(
+        owner,
+        `mutation($id: String!, $tierId: String) { customerUpdate(id: $id, input: { tierId: $tierId }) { success } }`,
+        { id, tierId: tier.customerTierCreate.tier.id },
+      );
+      await feedback(owner, issue.id, await person(owner, name, `x@${name.toLowerCase()}.com`));
+    }
+    const list = () =>
+      gqlData(
+        owner,
+        `{ customers { nodes { id status { name } tier { name } approximateNeedCount } } }`,
+      );
+    const few = await countStatements(list);
+    expect((await list()).customers.nodes).toHaveLength(6);
+    expect(few).toBeLessThanOrEqual(12);
   });
 
   it('the customer need filter matches nothing while Customers is off', async () => {

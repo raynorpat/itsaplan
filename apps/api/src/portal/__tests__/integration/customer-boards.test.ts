@@ -143,6 +143,9 @@ describe('customer access', () => {
       customerId: null,
       customer: null,
     });
+    const acmeBoard = boards.find((b) => b.slug === 'acme')!;
+    const off = await instance('portal/boards/update', owner, { id: acmeBoard.id, enabled: false });
+    expect(off.status).toBe(200);
   });
 
   it('moves the board to the customer it is merged into', async () => {
@@ -164,6 +167,14 @@ describe('customer access', () => {
     expect(await linkSent(`new-${run}@acme.com`, 'acme')).toBe(false);
     const { boards } = await ok(await instance(`portal/issue-boards?issueId=${first.id}`, owner));
     expect((boards as Json[]).map((b) => b.slug)).toEqual(['open']);
+    // An enabled customer board cannot be edited while off, but it can be turned off.
+    const all = (await ok(await instance('portal/boards', owner))).boards as Json[];
+    const acmeBoard = all.find((b) => b.slug === 'acme')!;
+    const update = async (patch: Json) =>
+      (await instance('portal/boards/update', owner, { id: acmeBoard.id, ...patch })).status;
+    expect(await update({ name: 'Acme 2' })).toBe(400);
+    expect(await update({ enabled: false })).toBe(200);
+    expect(await update({ enabled: true })).toBe(400);
   });
 });
 
@@ -299,5 +310,25 @@ describe("the customer's activity only", () => {
     const [forGail] = await requesterChanges(gail.requesterId, since, until);
     expect(forAlice).toMatchObject({ url: expect.stringContaining(`/portal/acme/`) });
     expect(forGail).toMatchObject({ url: expect.stringContaining(`/portal/open/`) });
+  });
+
+  it('leaves replies the customer board hides out of requester updates', async () => {
+    const { owner, globex, first, alice, adam } = await setup();
+    const post = (cookie: string, body: Json) =>
+      portal(`boards/acme/issues/${first.identifier}/comments`, { cookie, body });
+    const root = (await ok(await post(alice.cookie, { body: 'From Alice' }))).comment;
+    const since = await dbNow();
+    await Bun.sleep(5);
+    await ok(await post(adam.cookie, { body: 'Adam reply', parentId: root.id }));
+    await Bun.sleep(5);
+    const bodies = async () =>
+      (await requesterChanges(alice.requesterId, since, await dbNow())).map(
+        (c) => (c as { body?: string }).body,
+      );
+    expect(await bodies()).toContain('Adam reply');
+    // Adam moves to Globex: the Acme board no longer shows his reply.
+    await pick(owner, adam.requesterId, globex);
+    await Bun.sleep(5);
+    expect(await bodies()).not.toContain('Adam reply');
   });
 });

@@ -1,10 +1,10 @@
-import { customer, customerNeed, db } from '@repo/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { customer, customerNeed, customerStatus, customerTier, db, user } from '@repo/db';
+import { and, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { readsFeedback, visibleNeedsSql } from '../../feedback/access';
 import { mapNeed } from '../../feedback/store';
 import {
   createCustomer,
-  customerIssueCount,
+  customerIssueCountSql,
   deleteCustomer,
   getCustomer,
   mapCustomer,
@@ -18,7 +18,6 @@ import {
   createItem,
   deleteItem,
   getItem,
-  itemById,
   listItems,
   updateItem,
   type ListItemDto,
@@ -27,7 +26,7 @@ import {
 } from '../../customers/statuses';
 import type { GraphQLContext } from '../context';
 import { loaders } from '../loaders';
-import { paginate, type PageArgs } from '../connection';
+import { pageSize, paginate, type PageArgs } from '../connection';
 import { customerFilterSql } from '../customer-filter';
 import { gqlError } from '../errors';
 import { toNeed } from './customer-need';
@@ -124,21 +123,93 @@ const customerPayload = (dto: CustomerDto) => ({
 
 type ListArgs = PageArgs & { filter?: unknown; sorts?: unknown; includeArchived?: boolean | null };
 
+// Linear's CustomerSortInput: one key per entry, applied in order, then newest first.
+function sortOrder(sorts: unknown, viewerId: string): SQL[] {
+  if (!Array.isArray(sorts)) throw gqlError('INVALID_INPUT', 'sorts must be a list');
+  const order: SQL[] = [];
+  for (const entry of sorts) {
+    const keys = entry && typeof entry === 'object' ? Object.keys(entry) : [];
+    if (keys.length !== 1) throw gqlError('INVALID_INPUT', 'Each sort names exactly one field');
+    const key = keys[0]!;
+    const opts = (entry as Record<string, { order?: string; nulls?: string } | null>)[key] ?? {};
+    const value = SORT_VALUES[key]?.(viewerId);
+    if (!value) throw gqlError('INVALID_INPUT', `Sorting by ${key} is not supported`);
+    const dir = opts.order === 'Descending' ? sql`DESC` : sql`ASC`;
+    const nulls = opts.nulls === 'first' ? sql`NULLS FIRST` : sql`NULLS LAST`;
+    order.push(sql`${value} ${dir} ${nulls}`);
+  }
+  return order;
+}
+
+const SORT_VALUES: Record<string, (viewerId: string) => SQL> = {
+  name: () => sql`lower(${customer.name})`,
+  createdAt: () => sql`${customer.createdAt}`,
+  revenue: () => sql`${customer.revenue}`,
+  size: () => sql`${customer.size}`,
+  owner: () =>
+    sql`(SELECT lower(coalesce(nullif(trim(${user.name}), ''), ${user.email})) FROM ${user} WHERE ${user.id} = ${customer.ownerId})`,
+  status: () =>
+    sql`(SELECT ${customerStatus.position} FROM ${customerStatus} WHERE ${customerStatus.id} = ${customer.statusId})`,
+  tier: () =>
+    sql`(SELECT ${customerTier.position} FROM ${customerTier} WHERE ${customerTier.id} = ${customer.tierId})`,
+  approximateNeedCount: (viewerId) => customerIssueCountSql(viewerId, sql`${customer.id}`),
+};
+
+// A sorted list pages by position: the cursor is the offset of the next row.
+function offsetOf(after: string | null | undefined): number {
+  if (after == null) return 0;
+  const raw = Buffer.from(after, 'base64url').toString();
+  const n = raw.startsWith('o:') ? Number(raw.slice(2)) : NaN;
+  if (!Number.isInteger(n) || n < 0) throw gqlError('INVALID_INPUT', 'Invalid cursor');
+  return n;
+}
+
 async function listCustomers(args: ListArgs, ctx: GraphQLContext) {
-  if (args.sorts != null) throw gqlError('INVALID_INPUT', 'Argument sorts is not supported');
-  return paginate(
-    args,
-    { id: customer.id, createdAt: customer.createdAt, updatedAt: customer.updatedAt },
-    and(await visibleCustomersSql(ctx.user.id), customerFilterSql(args.filter, ctx.user.id)),
-    (w, order, limit) =>
-      db
-        .select()
-        .from(customer)
-        .where(w)
-        .orderBy(...order)
-        .limit(limit),
-    (row) => toCustomer(mapCustomer(row)),
+  const where = and(
+    await visibleCustomersSql(ctx.user.id),
+    customerFilterSql(args.filter, ctx.user.id),
   );
+  const map = (row: typeof customer.$inferSelect) => toCustomer(mapCustomer(row));
+  if (args.sorts == null)
+    return paginate(
+      args,
+      { id: customer.id, createdAt: customer.createdAt, updatedAt: customer.updatedAt },
+      where,
+      (w, order, limit) =>
+        db
+          .select()
+          .from(customer)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      map,
+    );
+  if (args.last != null || args.before != null)
+    throw gqlError('INVALID_INPUT', 'A sorted list pages forward only (first / after)');
+  const order = sortOrder(args.sorts, ctx.user.id);
+  const limit = pageSize(args.first, 'first');
+  const offset = offsetOf(args.after);
+  const rows = await db
+    .select()
+    .from(customer)
+    .where(where)
+    .orderBy(...order, desc(customer.createdAt), desc(customer.id))
+    .limit(limit + 1)
+    .offset(offset);
+  const edges = rows.slice(0, limit).map((row, i) => ({
+    node: map(row),
+    cursor: Buffer.from(`o:${offset + i + 1}`).toString('base64url'),
+  }));
+  return {
+    nodes: edges.map((e) => e.node),
+    edges,
+    pageInfo: {
+      hasNextPage: rows.length > limit,
+      hasPreviousPage: offset > 0,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges[edges.length - 1]?.cursor ?? null,
+    },
+  };
 }
 
 const statusMutations = listMutations('status', 'status');
@@ -210,10 +281,13 @@ export const customerResolvers = {
     },
   },
   Customer: {
-    status: (c: CustomerDto) => itemById('status', c.statusId),
-    tier: (c: CustomerDto) => itemById('tier', c.tierId),
+    status: (c: CustomerDto, _: unknown, ctx: GraphQLContext) =>
+      loaders(ctx).customerStatus.load(c.statusId),
+    tier: (c: CustomerDto, _: unknown, ctx: GraphQLContext) =>
+      c.tierId ? loaders(ctx).customerTier.load(c.tierId) : null,
     owner: (c: CustomerDto, _: unknown, ctx: GraphQLContext) => userFor(ctx, c.ownerId),
-    approximateNeedCount: (c: CustomerDto) => customerIssueCount(c.id),
+    approximateNeedCount: (c: CustomerDto, _: unknown, ctx: GraphQLContext) =>
+      loaders(ctx).customerIssueCount.load(c.id),
     // The customer's active requests on issues the viewer can see.
     needs: async (c: CustomerDto, _: unknown, ctx: GraphQLContext) => {
       if (!(await readsFeedback(ctx.user.id))) return [];

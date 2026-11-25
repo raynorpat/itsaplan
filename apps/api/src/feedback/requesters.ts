@@ -206,6 +206,8 @@ export async function listRequesters(
   await assertMember(userId);
   const customerId =
     query.customerId === undefined ? null : requireId(query.customerId, 'customerId');
+  // While Customers is off no one belongs to a customer.
+  if (customerId && !(await customersEnabled())) return { requesters: [], nextCursor: null };
   const offset =
     typeof query.cursor === 'string' && /^\d+$/.test(query.cursor) ? Number(query.cursor) : 0;
   const q = typeof query.q === 'string' ? query.q.trim() : '';

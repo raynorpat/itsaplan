@@ -47,7 +47,7 @@ function decode(cursor: string): { ts: string; id: string } {
   return { ts, id };
 }
 
-function pageSize(n: number | null | undefined, name: string): number {
+export function pageSize(n: number | null | undefined, name: string): number {
   if (n == null) return DEFAULT_PAGE;
   if (n < 0 || n > MAX_PAGE)
     throw gqlError('INVALID_INPUT', `${name} must be between 0 and ${MAX_PAGE}`);

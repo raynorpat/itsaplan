@@ -6,12 +6,13 @@ import {
   customerTier,
   db,
   externalUser,
+  issue,
   portalBoard,
   user,
 } from '@repo/db';
 import { randomBytes } from 'node:crypto';
-import { and, eq, ne, or, sql, type SQL } from 'drizzle-orm';
-import { assertWorkspaceRole, type AuthUser } from '../shared/access';
+import { and, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { assertWorkspaceRole, visibleTeamIds, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
 import { cleanDomains, matchPeople } from './domains';
@@ -324,6 +325,7 @@ export async function deleteCustomer(actor: AuthUser, id: string): Promise<strin
   const row = await rowById(id);
   if (!row) throw new HttpError(404, 'Customer not found');
   await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('customer-keys'))`);
     // The foreign key clears customer_id; how it was set goes with it.
     await tx
       .update(externalUser)
@@ -416,7 +418,11 @@ export async function upsertCustomer(actor: AuthUser, input: UpsertInput): Promi
       );
     found = row ?? null;
   }
-  const tierId = tierName != null ? await tierIdByName(String(tierName)) : fields.tierId;
+  if (!found && fields.name == null)
+    throw new HttpError(400, 'name is required to create a customer');
+  // The rest of the input is checked before a missing tier is created.
+  await patchOf(fields);
+  const tierId = tierName != null ? await tierIdByName(String(tierName), actor) : fields.tierId;
   const withTier = { ...fields, ...(tierId !== undefined ? { tierId } : {}) };
   if (found) {
     const externalIds =
@@ -437,12 +443,57 @@ export async function upsertCustomer(actor: AuthUser, input: UpsertInput): Promi
 }
 
 // The number of distinct issues with the customer's active requests.
-export async function customerIssueCount(customerId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(DISTINCT ${customerNeed.issueId})::int` })
+// SQL: the number of distinct active issues, in teams the viewer can see, with active
+// requests of the customer `customerId` names (Linear's approximateNeedCount).
+export function customerIssueCountSql(viewerId: string, customerId: SQL | string): SQL<number> {
+  return sql<number>`(
+    SELECT count(DISTINCT ${customerNeed.issueId})::int
+    FROM ${customerNeed}
+    JOIN ${issue} ON ${issue.id} = ${customerNeed.issueId}
+    WHERE ${customerNeed.customerId} = ${customerId}
+      AND ${customerNeed.archivedAt} IS NULL
+      AND ${issue.archivedAt} IS NULL
+      AND ${inArray(issue.teamId, visibleTeamIds(viewerId))}
+  )`;
+}
+
+// approximateNeedCount of several customers in one query.
+export async function customerIssueCounts(
+  viewerId: string,
+  customerIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (customerIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      id: customerNeed.customerId,
+      n: sql<number>`count(DISTINCT ${customerNeed.issueId})::int`,
+    })
     .from(customerNeed)
-    .where(and(eq(customerNeed.customerId, customerId), sql`${customerNeed.archivedAt} IS NULL`));
-  return row?.n ?? 0;
+    .innerJoin(issue, eq(issue.id, customerNeed.issueId))
+    .where(
+      and(
+        inArray(customerNeed.customerId, [...customerIds]),
+        isNull(customerNeed.archivedAt),
+        isNull(issue.archivedAt),
+        inArray(issue.teamId, visibleTeamIds(viewerId)),
+      ),
+    )
+    .groupBy(customerNeed.customerId);
+  return new Map(rows.map((r) => [r.id!, r.n]));
+}
+
+// The number of people (not merged) of each customer, for the Customers list.
+export async function customerPeopleCounts(
+  actor: AuthUser,
+): Promise<{ counts: Record<string, number> }> {
+  await assertCustomersEnabled();
+  await assertWorkspaceRole(actor, 'member');
+  const rows = await db
+    .select({ id: externalUser.customerId, n: sql<number>`count(*)::int` })
+    .from(externalUser)
+    .where(and(isNull(externalUser.mergedIntoId), sql`${externalUser.customerId} IS NOT NULL`))
+    .groupBy(externalUser.customerId);
+  return { counts: Object.fromEntries(rows.map((r) => [r.id!, r.n])) };
 }
 
 // The id of the customer with this external id, or null.

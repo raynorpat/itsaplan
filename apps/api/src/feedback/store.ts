@@ -205,7 +205,8 @@ export async function addPortalVote(issueId: string, requesterId: string): Promi
         attachmentId: source!.id,
         body: null,
         creatorId: null,
-        customerId: requester.customerId,
+        // Read in the insert, so a pick or match that committed meanwhile is used.
+        customerId: personCustomerSql(requester.id),
       })
       .returning();
     return { source: mapAttachment(source!), need: mapNeed(need!) };
@@ -290,6 +291,16 @@ async function requesterCustomer(attachmentId: string | null): Promise<string | 
   return row ? row.customerId : undefined;
 }
 
+// SQL: the current customer of the person `personId` names.
+const personCustomerSql = (personId: string): SQL<string | null> =>
+  sql`(SELECT ${externalUser.customerId} FROM ${externalUser} WHERE ${externalUser.id} = ${personId})`;
+
+// SQL: the current customer of the person who gave the feedback in `attachmentId`.
+const attachmentCustomerSql = (attachmentId: string): SQL<string | null> =>
+  sql`(SELECT ${externalUser.customerId} FROM ${attachment}
+    JOIN ${externalUser} ON ${externalUser.id} = ${attachment.externalUserCreatorId}
+    WHERE ${attachment.id} = ${attachmentId})`;
+
 // The customer a feedback item gets: a requester's customer always wins (a different
 // `given` one is refused); without a requester, the `given` customer, which must exist.
 async function needCustomer(
@@ -325,7 +336,12 @@ export async function createNeed(input: NeedInput): Promise<NeedRow> {
     if (!source || source.issueId !== input.issueId)
       throw new HttpError(400, 'attachmentId must name an attachment on the issue');
   }
-  const customerId = (await needCustomer(input.attachmentId ?? null, input.customerId)) ?? null;
+  const checked = (await needCustomer(input.attachmentId ?? null, input.customerId)) ?? null;
+  // A requester's feedback reads the requester's customer in the insert itself, so a
+  // pick or match that committed after the check is used.
+  const hasRequester =
+    input.attachmentId != null && (await requesterCustomer(input.attachmentId)) !== undefined;
+  const customerId = hasRequester ? attachmentCustomerSql(input.attachmentId!) : checked;
   let row;
   try {
     [row] = await db

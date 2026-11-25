@@ -285,6 +285,27 @@ describe('customer matching', () => {
     expect(none.customerNeeds.nodes.length).toBe(1);
   });
 
+  it('people counts per customer leave out merged people', async () => {
+    const { owner } = await setup();
+    const acme = await customer(owner, 'Acme', ['acme.com']);
+    const globex = await customer(owner, 'Globex', ['globex.com']);
+    const ann = await person(owner, 'Ann', 'ann@acme.com');
+    const bob = await person(owner, 'Bob', 'bob@acme.com');
+    await person(owner, 'Gail', 'gail@globex.com');
+    await person(owner, 'Ole', 'ole@other.com');
+    expect((await ok(await instance('customers/people-counts', owner))).counts).toEqual({
+      [acme]: 2,
+      [globex]: 1,
+    });
+    await ok(await instance('requesters/merge', owner, { fromId: bob.id, intoId: ann.id }));
+    expect((await ok(await instance('customers/people-counts', owner))).counts).toEqual({
+      [acme]: 1,
+      [globex]: 1,
+    });
+    await turn(owner, false);
+    expect((await instance('customers/people-counts', owner)).status).toBe(400);
+  });
+
   it('the requesters list filters by customer', async () => {
     const { owner } = await setup();
     const acme = await customer(owner, 'Acme', ['acme.com']);
@@ -293,6 +314,10 @@ describe('customer matching', () => {
     const list = (await ok(await instance(`requesters?customerId=${acme}`, owner)))
       .requesters as Json[];
     expect(list.map((r) => r.id)).toEqual([bob.id]);
+    await turn(owner, false);
+    const off = (await ok(await instance(`requesters?customerId=${acme}`, owner)))
+      .requesters as Json[];
+    expect(off).toEqual([]);
   });
 
   it('with Customers off a person’s customer is hidden and cannot be picked', async () => {

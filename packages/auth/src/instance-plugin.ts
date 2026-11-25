@@ -52,6 +52,8 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 // - GET  /instance/customers-settings and POST /instance/customers-settings/save
 //   { enabled?, revenueCurrency? }  Customers on or off and the revenue currency
 //   (apps/api src/customers/settings.ts); members read, owners and admins change.
+// - GET  /instance/customers/people-counts  { counts: { [customerId]: n } }  the number
+//   of people (not merged) of each customer; owners, admins and members, Customers on.
 //   Same Origin rule for the POST.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
@@ -194,6 +196,7 @@ export interface DashboardsHandlers {
 export interface CustomersHandlers {
   settings(headers: Headers): Promise<object>;
   saveSettings(headers: Headers, body: unknown): Promise<object>;
+  peopleCounts(headers: Headers): Promise<object>;
 }
 
 export interface InstanceHandlers {
@@ -583,6 +586,12 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         { method: 'GET' },
         async (ctx) =>
           ctx.json(await run((h) => h.customers.settings(ctx.headers ?? new Headers()))),
+      ),
+      instanceCustomersPeopleCounts: createAuthEndpoint(
+        '/instance/customers/people-counts',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(await run((h) => h.customers.peopleCounts(ctx.headers ?? new Headers()))),
       ),
       instanceCustomersSettingsSave: customersWrite(
         '/instance/customers-settings/save',

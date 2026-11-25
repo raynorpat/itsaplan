@@ -76,6 +76,10 @@ const emailDomain = sql`lower(split_part(p.email, '@', 2))`;
 // by hand keep their customer. The changed people's requests move with them.
 export async function matchPeople(tx: Runner, scope: { personIds?: string[] } = {}): Promise<void> {
   if (scope.personIds && scope.personIds.length === 0) return;
+  // Customer writes hold this lock exclusively while they change domains and match
+  // everyone; a person write waits for them here, so neither misses the other's rows.
+  if (scope.personIds)
+    await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(hashtext('customer-keys'))`);
   const inScope: SQL = scope.personIds ? sql`AND p.id IN (${idList(scope.personIds)})` : sql``;
   const unlinked = await tx.execute<{ id: string }>(sql`
     UPDATE external_user p SET customer_id = NULL, customer_source = NULL
