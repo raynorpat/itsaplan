@@ -151,4 +151,34 @@ describe('team estimates', () => {
     await updateTeam(owner, 'ENG', { issueEstimationType: 'fibonacci' });
     expect(await estimateOf(owner, issue.id)).toBe(8);
   });
+
+  it('takes the estimate settings in teamCreate, with the same checks', async () => {
+    const create = (input: Record<string, unknown>) =>
+      gql(
+        { cookie: owner.cookie },
+        `mutation ($input: TeamCreateInput!) { teamCreate(input: $input) { team { key ${SETTINGS} } } }`,
+        { input },
+      );
+    const ok = await create({
+      name: 'Design',
+      key: 'DES',
+      issueEstimationType: 'tShirt',
+      issueEstimationExtended: true,
+      issueEstimationAllowZero: true,
+      defaultIssueEstimate: 2,
+    });
+    expect(ok.body.errors).toBeUndefined();
+    expect((ok.body.data as { teamCreate: { team: unknown } }).teamCreate.team).toMatchObject({
+      issueEstimationType: 'tShirt',
+      issueEstimationExtended: true,
+      issueEstimationAllowZero: true,
+      defaultIssueEstimate: 2,
+    });
+    expect(code(await create({ name: 'Bad', key: 'BAD', issueEstimationType: 'hours' }))).toBe(
+      'INVALID_INPUT',
+    );
+    expect(code(await create({ name: 'Neg', key: 'NEG', defaultIssueEstimate: -1 }))).toBe(
+      'INVALID_INPUT',
+    );
+  });
 });

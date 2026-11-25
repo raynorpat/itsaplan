@@ -16,6 +16,8 @@ export const strList = (description: string) => ({
 });
 // A string that may also be null, to clear the field.
 export const nullableStr = (description: string) => ({ type: ['string', 'null'], description });
+// An integer that may also be null, to clear the field.
+export const nullableInt = (description: string) => ({ type: ['integer', 'null'], description });
 
 export function object(
   properties: Record<string, unknown>,

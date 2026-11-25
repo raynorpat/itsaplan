@@ -6,6 +6,7 @@ import { HttpError, iso } from '../shared/lib';
 import { emitEvent, type WebhookAction } from '../webhooks/event';
 import { updateIssue } from '../issues/store';
 import { currentCycleStart, cycleEnd, nextCycleStart, type CycleSettings } from './schedule';
+import { usedDefaultEstimateSql, usedEstimateSql } from '../teams/estimates';
 
 // Team cycles (Linear's Cycle). A team with cycles enabled always has a current
 // cycle and `upcoming` cycles ahead; cycles never overlap. Upkeep (closing,
@@ -314,8 +315,8 @@ export type CycleProgress = Progress;
 export async function cycleProgress(cycleId: string): Promise<CycleProgress> {
   const rows = await db
     .select({
-      estimate: issue.estimate,
-      defaultEstimate: team.defaultIssueEstimate,
+      estimate: usedEstimateSql(),
+      defaultEstimate: usedDefaultEstimateSql(),
       type: workflowState.stateType,
     })
     .from(issue)

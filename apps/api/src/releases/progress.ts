@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { visibleTeamIds } from '../shared/access';
 import { weighProgress, type Progress } from '../shared/progress';
 import { inReleaseSql } from './issues';
+import { usedDefaultEstimateSql, usedEstimateSql } from '../teams/estimates';
 
 // Linear's Release.currentProgress: the project progress rule (shared/progress.ts) over
 // the release's active issues the viewer can see, with the issue count per state type.
@@ -17,8 +18,8 @@ export async function releaseProgress(
 ): Promise<ReleaseProgress> {
   const rows = await db
     .select({
-      estimate: issue.estimate,
-      defaultEstimate: team.defaultIssueEstimate,
+      estimate: usedEstimateSql(),
+      defaultEstimate: usedDefaultEstimateSql(),
       type: workflowState.stateType,
     })
     .from(issue)

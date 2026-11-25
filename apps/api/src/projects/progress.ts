@@ -1,6 +1,7 @@
 import { db, issue, issueActivity, project, projectStatus, team, workflowState } from '@repo/db';
 import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { weighProgress, weighTotals, type Progress, type ProgressIssue } from '../shared/progress';
+import { usedDefaultEstimateSql, usedEstimateSql } from '../teams/estimates';
 
 // Linear's project progress (Project.progress, scope and the five history arrays).
 // Progress follows the cycles' rule (shared/progress.ts) over the project's issues.
@@ -76,7 +77,7 @@ const sameHistory = (a: ProjectHistory, b: ProjectHistory) =>
 export async function liveProgressMany(projectIds: string[]): Promise<Map<string, Progress>> {
   const out = new Map<string, Progress>();
   const counted = sql`${workflowState.stateType} <> 'canceled'`;
-  const weight = sql`coalesce(${issue.estimate}, ${team.defaultIssueEstimate})`;
+  const weight = sql`coalesce(${usedEstimateSql()}, ${usedDefaultEstimateSql()})`;
   const rows = await inBatches(projectIds, (batch) =>
     db
       .select({
@@ -87,7 +88,7 @@ export async function liveProgressMany(projectIds: string[]): Promise<Map<string
         weightedSum: sql<number>`coalesce(sum(${weight}) filter (where ${counted}), 0)`,
         completedWeight: sql<number>`coalesce(sum(${weight}) filter (where ${workflowState.stateType} = 'completed'), 0)`,
         startedWeight: sql<number>`coalesce(sum(${weight}) filter (where ${workflowState.stateType} = 'started'), 0)`,
-        anyEstimate: sql<boolean>`coalesce(bool_or(${issue.estimate} > 0) filter (where ${counted}), false)`,
+        anyEstimate: sql<boolean>`coalesce(bool_or(${usedEstimateSql()} > 0) filter (where ${counted}), false)`,
         anyOpen: sql<boolean>`coalesce(bool_or(true) filter (where ${workflowState.stateType} not in ('canceled', 'completed')), false)`,
       })
       .from(issue)
@@ -222,8 +223,8 @@ async function loadTimelines(ids: string[]) {
         id: issue.id,
         projectId: issue.projectId,
         stateId: issue.stateId,
-        estimate: issue.estimate,
-        defaultEstimate: team.defaultIssueEstimate,
+        estimate: usedEstimateSql(),
+        defaultEstimate: usedDefaultEstimateSql(),
         createdAt: issue.createdAt,
       })
       .from(issue)

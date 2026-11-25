@@ -609,9 +609,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   scale is `issueEstimationType` (`notUsed`, the default for every team, `exponential`
   1, 2, 4, 8, 16, `fibonacci` 1, 2, 3, 5, 8, `linear` 1–5, `tShirt` stored as 1, 2, 3,
   5, 8), `issueEstimationExtended` (adds 32, 64 / 13, 21 / 6, 7 / 13, 21) and
-  `issueEstimationAllowZero` (adds 0), set by team managers through `teamUpdate`;
+  `issueEstimationAllowZero` (adds 0), set by team managers through `teamUpdate` or on
+  `teamCreate` (the same checks, before the team is created);
   `defaultIssueEstimate` (at least 0, default 1) is what an unestimated issue of the team
-  counts in weighted progress (cycles, projects and their histories, releases);
+  counts in weighted progress (cycles, projects and their histories, releases); a team
+  that does not use estimates has its stored estimates ignored there and counts each
+  issue as 1 (`usedEstimateSql` / `usedDefaultEstimateSql`). Changing the settings
+  changes live figures and later snapshots; stored history days keep the values of
+  their day;
   `inheritIssueEstimation` reads false and true is INVALID_INPUT (no sub-teams).
   `createIssue` and every `updateIssue` path (`checkPatch`, so a batch is refused
   before its first write) refuse an estimate off the team's scale, or any estimate
@@ -691,7 +696,7 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Project progress** (`projects/progress.ts`): `Project.progress` and `scope` follow
   the cycles' rule (`shared/progress.ts`: completed 1, started 0.25, canceled left out,
   weighted by estimate when any issue has one, an unestimated issue counting its team's
-  `defaultIssueEstimate`). The five history arrays hold one value
+  `defaultIssueEstimate`, and each issue of a team not using estimates counting 1). The five history arrays hold one value
   per UTC day from `history_start`: built from `issue_activity` (project and status
   changes by id, worked back from each issue's current values; current estimates for
   past days) the first time they are read or snapshotted, and again only when the

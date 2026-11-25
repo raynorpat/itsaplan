@@ -164,6 +164,20 @@ describe('MCP tools on GraphQL', () => {
     expect(ann.userId).toBeTruthy();
   });
 
+  it('sets an estimate on the team scale, refuses one off it and clears with null', async () => {
+    await updateTeam(owner, 'ENG', { issueEstimationType: 'fibonacci' });
+    const created = await toolJson(key, 'create_issue', { team: 'ENG', title: 'Sized' });
+    const off = await callTool(key, 'update_issue', { id: created.identifier, estimate: 4 });
+    expect(off.isError).toBe(true);
+    expect(off.content[0]!.text).toContain('estimate must be one of 1, 2, 3, 5, 8');
+    expect(
+      (await toolJson(key, 'update_issue', { id: created.identifier, estimate: 5 })).estimate,
+    ).toBe(5);
+    expect(
+      (await toolJson(key, 'update_issue', { id: created.identifier, estimate: null })).estimate,
+    ).toBeNull();
+  });
+
   it('changes nothing and lists the candidates for an ambiguous status or label', async () => {
     await createState(owner, { teamId: 'ENG', name: 'Doing', type: 'started' });
     await createState(owner, { teamId: 'ENG', name: 'doing', type: 'started' });

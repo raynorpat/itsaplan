@@ -23,6 +23,7 @@ import { userById } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { getOrganization } from './organization';
 import { findTeam, teamFilter, toTeam } from './team';
+import { setEstimateSettings, validateEstimateSettings } from '../../teams/estimates';
 
 // Linear's workspace administration over GraphQL: team memberships, role changes and
 // suspension, organization invites and teamCreate. The rules are the stores'; this
@@ -274,10 +275,25 @@ export const workspaceResolvers = {
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
-        onlySupported(input, ['name', 'key', 'description'], 'input');
+        onlySupported(
+          input,
+          [
+            'name',
+            'key',
+            'description',
+            'issueEstimationType',
+            'issueEstimationExtended',
+            'issueEstimationAllowZero',
+            'defaultIssueEstimate',
+            'inheritIssueEstimation',
+          ],
+          'input',
+        );
         if (copySettingsFromTeamId != null)
           throw gqlError('INVALID_INPUT', 'copySettingsFromTeamId is not supported');
         const actor = await assertAllowedTo(ctx.user, 'teamCreation');
+        // Checked before the team exists, so a bad value creates nothing.
+        const estimates = validateEstimateSettings(input);
         const name = typeof input.name === 'string' ? input.name.trim() : '';
         if (!name) throw gqlError('INVALID_INPUT', 'input.name must be a non-empty string');
         const key = input.key == null ? keyFromName(name) : String(input.key);
@@ -294,6 +310,7 @@ export const workspaceResolvers = {
           },
           actor.id,
         ).catch((err) => rethrowDuplicate(err, 'team key'));
+        await setEstimateSettings(created.id, estimates);
         const [row] = await db.select().from(team).where(eq(team.id, created.id));
         return { success: true, lastSyncId: lastSyncId(), team: toTeam(row!) };
       }),

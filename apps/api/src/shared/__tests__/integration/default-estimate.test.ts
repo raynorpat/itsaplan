@@ -87,4 +87,34 @@ describe("progress uses the team's default estimate", () => {
     await createIssue(owner, { teamId, cycleId: cycle.id, stateId: states.unstarted! });
     expect((await cycleProgress(cycle.id)).scope).toBe(3);
   });
+
+  it('ignores the stored estimates of a team that turned estimates off', async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const { teamId, states } = await team(owner, 'ENG', 0);
+    const p = await createProject(owner, { name: 'P', teamIds: [teamId] });
+    await createIssue(owner, { teamId, projectId: p.id, stateId: states.completed!, estimate: 8 });
+    await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted! });
+    await updateTeam(owner, 'ENG', { issueEstimationType: 'notUsed' });
+    // Counted by issue: 2 issues, 1 completed; the hidden 8 and the default 0 play no part.
+    expect(await projectScope(owner, p.id)).toBe(2);
+    const histories = await projectHistories([p.id], new Date());
+    expect(histories.get(p.id)!.scopeHistory.at(-1)).toBe(2);
+  });
+
+  it('counts a team with estimates off by issue inside a weighted project', async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const a = await team(owner, 'AAA', 1);
+    const b = await team(owner, 'BBB', 0);
+    await updateTeam(owner, 'BBB', { issueEstimationType: 'notUsed' });
+    const p = await createProject(owner, { name: 'P', teamIds: [a.teamId, b.teamId] });
+    await createIssue(owner, {
+      teamId: a.teamId,
+      projectId: p.id,
+      stateId: a.states.unstarted!,
+      estimate: 5,
+    });
+    await createIssue(owner, { teamId: b.teamId, projectId: p.id, stateId: b.states.unstarted! });
+    // 5 from AAA, and BBB's issue counts 1 (by issue), not its team's default of 0.
+    expect(await projectScope(owner, p.id)).toBe(6);
+  });
 });

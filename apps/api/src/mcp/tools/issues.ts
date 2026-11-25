@@ -14,6 +14,7 @@ import {
   bool,
   int,
   nextCursor,
+  nullableInt,
   nullableStr,
   object,
   PAGE_INFO,
@@ -262,7 +263,9 @@ const ISSUE_FIELD_SCHEMA = {
   cycle: nullableStr('Cycle number, name or id, or "current" / "next"; null to remove'),
   parent: nullableStr('Parent issue identifier or id; null to remove'),
   dueDate: nullableStr('Due date (YYYY-MM-DD); null to clear'),
-  estimate: int('Estimate points'),
+  estimate: nullableInt(
+    "Estimate on the team's scale (Team.issueEstimationType: exponential 1–16, fibonacci 1–8, linear 1–5, tShirt XS–XL as 1, 2, 3, 5, 8; extended and zero if the team allows them); null to clear. Refused while the team does not use estimates.",
+  ),
 };
 
 const createIssue: McpTool = {

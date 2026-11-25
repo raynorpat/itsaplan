@@ -1,5 +1,5 @@
-import { db, team } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { db, issue, team } from '@repo/db';
+import { eq, sql } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
 
 // Linear's team estimate scales (Team.issueEstimationType). T-shirt sizes are stored
@@ -45,6 +45,19 @@ export function estimateScale(settings: EstimateSettings): number[] | null {
     ...(settings.issueEstimationExtended ? scale.extended : []),
   ];
 }
+
+// Progress inputs for an issue joined with its team: a team that does not use
+// estimates has its stored estimates ignored and counts each issue as 1 (by issue),
+// as Linear hides estimates entirely while they are off.
+const estimatesOff = sql`${team.issueEstimationType} = 'notUsed'`;
+export const usedEstimateSql = () =>
+  sql<number | null>`CASE WHEN ${estimatesOff} THEN NULL ELSE ${issue.estimate} END`.mapWith(
+    Number,
+  );
+export const usedDefaultEstimateSql = () =>
+  sql<number>`CASE WHEN ${estimatesOff} THEN 1 ELSE ${team.defaultIssueEstimate} END`.mapWith(
+    Number,
+  );
 
 export function isValidEstimate(settings: EstimateSettings, value: number): boolean {
   return estimateScale(settings)?.includes(value) ?? false;
