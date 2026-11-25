@@ -34,6 +34,7 @@ export default function AuditLogPage() {
         .sort((a, b) => a.name.localeCompare(b.name)),
     [users.data],
   );
+  const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p.name])), [people]);
 
   return (
     <SectionPageView
@@ -65,6 +66,7 @@ export default function AuditLogPage() {
             <AuditLogTable
               entries={entries.data ?? []}
               descriptions={descriptions}
+              people={peopleById}
               hasMore={entries.hasNextPage}
               loadingMore={entries.isFetchingNextPage}
               onLoadMore={() => void entries.fetchNextPage()}

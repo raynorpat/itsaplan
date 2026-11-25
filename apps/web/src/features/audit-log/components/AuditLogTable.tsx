@@ -11,18 +11,21 @@ import AuditLogRow from './AuditLogRow';
 export default function AuditLogTable({
   entries,
   descriptions,
+  people,
   hasMore,
   loadingMore,
   onLoadMore,
 }: {
   entries: AuditEntry[];
   descriptions: Map<string, string>;
+  // User ids to names, for entries about a person.
+  people: Map<string, string>;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
 }) {
   const [open, setOpen] = useState<AuditEntry | null>(null);
-  const summary = (e: AuditEntry) => describeEntry(e, descriptions.get(e.type) ?? null);
+  const summary = (e: AuditEntry) => describeEntry(e, descriptions.get(e.type) ?? null, people);
   if (entries.length === 0)
     return <p className="py-6 text-sm text-muted-foreground">No entries match.</p>;
   return (

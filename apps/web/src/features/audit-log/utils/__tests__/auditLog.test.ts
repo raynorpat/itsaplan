@@ -14,6 +14,59 @@ const entry = (type: string, metadata: Record<string, unknown> | null) => ({
 });
 
 describe('describeEntry', () => {
+  it('names the person whose role changed', () => {
+    const people = new Map([['u1', 'Milo Member']]);
+    assert.equal(
+      describeEntry(
+        entry('userRoleChanged', {
+          from: 'admin',
+          to: 'member',
+          entityType: 'user',
+          entityId: 'u1',
+        }),
+        "Changed a person's workspace role",
+        people,
+      ),
+      "Changed a person's workspace role: Milo Member, admin → member",
+    );
+  });
+
+  it('writes sign-in methods and refusal reasons in words', () => {
+    assert.equal(
+      describeEntry(entry('login', { method: 'magicLink' }), 'Signed in'),
+      'Signed in: with a magic link',
+    );
+    assert.equal(
+      describeEntry(
+        entry('loginFailed', { address: 'a@b.c', reason: 'notInvited', attempts: 2 }),
+        'Refused',
+      ),
+      'Refused: a@b.c (not invited), 2 attempts',
+    );
+  });
+
+  it('shows who was invited and as what', () => {
+    assert.equal(
+      describeEntry(
+        entry('inviteCreated', { email: 'milo@example.com', role: 'member' }),
+        'Invited',
+      ),
+      'Invited: milo@example.com as member',
+    );
+  });
+
+  it('lists changed settings', () => {
+    assert.equal(
+      describeEntry(
+        entry('organizationUpdated', {
+          changes: { name: { from: 'Workspace', to: 'Raynor Studio' } },
+        }),
+        'Changed the workspace',
+      ),
+      'Changed the workspace: name Workspace → Raynor Studio',
+    );
+  });
+
   it('shows a change as from → to after the action', () => {
     assert.equal(
       describeEntry(entry('userRoleChanged', { from: 'member', to: 'admin' }), 'Role changed'),
@@ -31,7 +84,7 @@ describe('describeEntry', () => {
         }),
         'Sign-in failed',
       ),
-      'Sign-in failed: eve@example.com (unknownAddress), 25 attempts',
+      'Sign-in failed: eve@example.com (unknown address), 25 attempts',
     );
   });
 
@@ -41,7 +94,7 @@ describe('describeEntry', () => {
         entry('loginFailed', { address: '', reason: 'badLink', attempts: 1 }),
         'Sign-in failed',
       ),
-      'Sign-in failed: (badLink)',
+      'Sign-in failed: (bad link)',
     );
   });
 
@@ -65,7 +118,7 @@ describe('describeEntry', () => {
   it('notes entries that were not recorded', () => {
     assert.equal(
       describeEntry(entry('login', { method: 'magicLink', missedEntries: 2 }), 'Signed in'),
-      'Signed in: magicLink (2 earlier entries were not recorded)',
+      'Signed in: with a magic link (2 earlier entries were not recorded)',
     );
   });
 
@@ -122,7 +175,7 @@ describe('describeEntry for many addresses from one IP', () => {
         entry('loginFailed', { scope: 'ip', reason: 'notInvited', addresses: 5, attempts: 5 }),
         'Sign-in failed',
       ),
-      'Sign-in failed: 5 more addresses from this IP (notInvited), 5 attempts',
+      'Sign-in failed: 5 more addresses from this IP (not invited), 5 attempts',
     );
   });
 });
