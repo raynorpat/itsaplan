@@ -27,7 +27,7 @@ import { dateTimeInput, guard, lastSyncId, onlySupported } from './mutations';
 // who can see the issue's team read and write feedback; guests see none of it
 // (feedback/access.ts) and get only the counts on issues.
 
-const toNeed = (row: NeedRow) => ({
+export const toNeed = (row: NeedRow) => ({
   ...row,
   // Linear's content is the feedback's text.
   content: row.body,

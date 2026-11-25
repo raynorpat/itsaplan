@@ -73,8 +73,8 @@ describe('graphql endpoint', () => {
 
   it('answers an operation that is not implemented with NOT_IMPLEMENTED', async () => {
     const user = await signUpTestUser();
-    const res = await gql({ cookie: user.cookie }, '{ customers { nodes { id } } }');
+    const res = await gql({ cookie: user.cookie }, '{ roadmaps { nodes { id } } }');
     expect(res.body.errors?.[0].extensions?.code).toBe('NOT_IMPLEMENTED');
-    expect(res.body.errors?.[0].message).toContain('customers');
+    expect(res.body.errors?.[0].message).toContain('roadmaps');
   });
 });

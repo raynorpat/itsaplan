@@ -198,6 +198,34 @@ export async function deleteItem(kind: ListKind, user: AuthUser, id: string): Pr
   });
 }
 
+// A status or tier by id with no access check, for resolving a customer's fields.
+export async function itemById(kind: ListKind, id: string | null): Promise<ListItemDto | null> {
+  if (!id) return null;
+  const table = tableOf(kind);
+  const [row] = await db.select().from(table).where(eq(table.id, id));
+  return row ? toDto(row) : null;
+}
+
+// A tier by name (case-insensitive), created with a grey colour when missing:
+// customerUpsert's tierName.
+export async function tierIdByName(name: string): Promise<string> {
+  const clean = cleanName(name, 'tierName');
+  const [found] = await db
+    .select({ id: customerTier.id })
+    .from(customerTier)
+    .where(sql`lower(${customerTier.name}) = lower(${clean})`)
+    .limit(1);
+  if (found) return found.id;
+  const [last] = await db
+    .select({ max: sql<number | null>`max(${customerTier.position})` })
+    .from(customerTier);
+  const [row] = await db
+    .insert(customerTier)
+    .values({ name: clean, color: '#95a2b3', position: (last?.max ?? -1000) + 1000 })
+    .returning({ id: customerTier.id });
+  return row!.id;
+}
+
 // The status new customers get: the first by position.
 export async function defaultStatusId(): Promise<string> {
   const [row] = await db
