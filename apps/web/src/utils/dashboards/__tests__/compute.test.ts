@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { computeWidget, sliceItems } from '../compute';
-import { ctx, cycle, issue, NOW, project, request, widget } from './fixtures';
+import { ACME, ctx, customer, cycle, issue, NOW, project, request, widget } from './fixtures';
 
 const bars = (r: ReturnType<typeof computeWidget>) => {
   assert.equal(r.kind, 'bars');
@@ -466,5 +466,112 @@ describe('sliceItems', () => {
     assert.equal(sliceItems(w, { issues }, ctx(), 'all').length, 3);
     const sliced = widget('chart', { data: 'issues', measure: 'open', slice: 'status' });
     assert.deepEqual(sliceItems(sliced, { issues }, ctx(), 'nope'), []);
+  });
+});
+
+describe('customers', () => {
+  const a = issue({ id: '1' });
+  const b = issue({ id: '2' });
+  const requests = [
+    request('r1', a, { requesterId: 'jane', customer: ACME }),
+    request('r2', a, { requesterId: 'bob', customer: ACME }),
+    request('r3', b, { requesterId: 'sam' }),
+  ];
+
+  it('counts a customer once and a person without a customer once', () => {
+    const w = widget('number', { data: 'requests', measure: 'customers' });
+    assert.deepEqual(num(computeWidget(w, { requests }, ctx()))[0], 2);
+  });
+
+  it('splits requests by customer tier, with no tier last', () => {
+    const w = widget('chart', { data: 'requests', measure: 'requests', slice: 'tier' });
+    assert.deepEqual(bars(computeWidget(w, { requests }, ctx())), [
+      ['Enterprise', 2],
+      ['No tier', 1],
+    ]);
+  });
+
+  it('splits requests by customer, with no customer last', () => {
+    const w = widget('chart', { data: 'requests', measure: 'requests', slice: 'customer' });
+    assert.deepEqual(bars(computeWidget(w, { requests }, ctx())), [
+      ['Acme', 2],
+      ['No customer', 1],
+    ]);
+  });
+
+  it('sums the revenue of the customers asking on open issues once', () => {
+    const revenue = { customerKeys: ['c:acme'], customerRevenue: { acme: 1000 } };
+    const issues = [
+      issue({
+        id: '1',
+        requests: { count: 1, requesterIds: ['jane'], importantRequesterIds: [], ...revenue },
+      }),
+      issue({
+        id: '2',
+        requests: { count: 1, requesterIds: ['bob'], importantRequesterIds: [], ...revenue },
+      }),
+    ];
+    const w = widget('number', { data: 'issues', measure: 'customerRevenue' });
+    assert.deepEqual(num(computeWidget(w, { issues }, ctx()))[0], 1000);
+    const c = widget('number', { data: 'issues', measure: 'customers' });
+    assert.deepEqual(num(computeWidget(c, { issues }, ctx()))[0], 1);
+  });
+
+  it('counts customers by tier and tables them by requests', () => {
+    const customers = [
+      customer({
+        id: 'a',
+        name: 'Acme',
+        tierId: 't1',
+        tierName: 'Enterprise',
+        tierPosition: 1,
+        requests: 5,
+        revenue: 900,
+      }),
+      customer({ id: 'b', name: 'Beta', requests: 9 }),
+      customer({
+        id: 'c',
+        name: 'Core',
+        tierId: 't1',
+        tierName: 'Enterprise',
+        tierPosition: 1,
+        requests: 1,
+      }),
+    ];
+    const chart = widget('chart', {
+      data: 'customers',
+      measure: 'customers',
+      slice: 'tier',
+      filter: {},
+    });
+    assert.deepEqual(bars(computeWidget(chart, { customers }, ctx())), [
+      ['Enterprise', 2],
+      ['No tier', 1],
+    ]);
+    const t = widget('table', {
+      data: 'customers',
+      measure: 'customers',
+      filter: {},
+      table: { columns: ['name', 'requests', 'revenue'], limit: 10, sort: 'requests:desc' },
+    });
+    const r = computeWidget(t, { customers }, ctx());
+    assert.equal(r.kind, 'table');
+    if (r.kind === 'table') {
+      assert.deepEqual(
+        r.rows.map((x) => x.cells.name),
+        ['Beta', 'Acme', 'Core'],
+      );
+      assert.equal(r.rows[0]!.href, '/feedback/customers/b-abc123');
+    }
+  });
+
+  it('keeps customers when a dashboard team is picked and filters by tier', () => {
+    const customers = [customer({ id: 'a', tierId: 't1' }), customer({ id: 'b' })];
+    const w = widget('number', {
+      data: 'customers',
+      measure: 'customers',
+      filter: { tierIds: ['t1'] },
+    });
+    assert.deepEqual(num(computeWidget(w, { customers }, ctx({ teamId: 't-eng' })))[0], 1);
   });
 });

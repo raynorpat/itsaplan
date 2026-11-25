@@ -1,6 +1,7 @@
 import type { InsightIssue, InsightsContext } from '@/utils/insights/slices';
 import type { Widget, WidgetConfig, WidgetKind } from '../config';
 import type { ComputeContext } from '../compute';
+import type { CustomerRow } from '../customerMeasures';
 import type { CycleRow } from '../cycleMeasures';
 import type { RequestRow } from '../feedbackMeasures';
 import type { ProjectRow } from '../projectMeasures';
@@ -58,6 +59,7 @@ export function request(
     important: false,
     source: 'team',
     requesterId: `p-${id}`,
+    customer: null,
     issueArchived: false,
     issue: of,
     ...over,
@@ -106,5 +108,32 @@ export function widget(
     kind,
     width: 'half',
     config: { title: 'T', filter: [], slice: null, segment: null, ...config },
+  };
+}
+
+export const ACME = {
+  id: 'acme',
+  name: 'Acme',
+  revenue: 1000,
+  tier: { id: 'tier-ent', name: 'Enterprise', position: 1 },
+  status: { id: 'st-active', name: 'Active', position: 0 },
+};
+
+export function customer(over: Partial<CustomerRow> & { id: string }): CustomerRow {
+  return {
+    slugId: `${over.id}-abc123`,
+    name: `Customer ${over.id}`,
+    statusId: 'st-active',
+    statusName: 'Active',
+    statusPosition: 0,
+    tierId: null,
+    tierName: null,
+    tierPosition: null,
+    ownerId: null,
+    ownerName: null,
+    revenue: null,
+    requests: 0,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    ...over,
   };
 }

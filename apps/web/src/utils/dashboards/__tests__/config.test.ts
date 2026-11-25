@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { MEASURES, measureDef, parseWidgets, SLICES } from '../config';
+import { MEASURES, measureDef, parseWidgets, requiresCustomers, SLICES } from '../config';
 
 const good = {
   id: 'w1',
@@ -88,5 +88,62 @@ describe('measures', () => {
     assert.equal(measureDef('issues', 'open')?.basis, 'current');
     assert.ok(SLICES.requests.includes('source'));
     assert.ok(SLICES.projects.includes('health'));
+  });
+});
+
+describe('customers', () => {
+  const customers = {
+    id: 'c1',
+    kind: 'chart',
+    width: 'half',
+    config: {
+      title: 'Customers by tier',
+      data: 'customers',
+      filter: { tierIds: ['t1'] },
+      measure: 'customers',
+      slice: 'tier',
+      segment: null,
+    },
+  };
+
+  it('parses a customers widget unchanged', () => {
+    assert.deepEqual(parseWidgets([customers]), [customers]);
+  });
+
+  it('refuses a customer slice on issues', () => {
+    const bad = {
+      ...good,
+      config: { ...good.config, data: 'issues', measure: 'open', slice: 'tier' },
+    };
+    assert.deepEqual(parseWidgets([bad]), []);
+  });
+
+  it('knows which widgets need Customers', () => {
+    const cfg = (over: Record<string, unknown>) =>
+      ({ ...good.config, ...over }) as Parameters<typeof requiresCustomers>[0];
+    assert.equal(
+      requiresCustomers(cfg({ data: 'customers', measure: 'customers', slice: null })),
+      true,
+    );
+    assert.equal(requiresCustomers(cfg({ measure: 'customers', slice: null })), true);
+    assert.equal(
+      requiresCustomers(cfg({ data: 'issues', measure: 'customerRevenue', slice: null })),
+      true,
+    );
+    assert.equal(requiresCustomers(cfg({ slice: 'tier' })), true);
+    assert.equal(requiresCustomers(cfg({ slice: 'source', segment: 'customerStatus' })), true);
+    assert.equal(requiresCustomers(cfg({ slice: 'customer' })), true);
+    assert.equal(
+      requiresCustomers(
+        cfg({
+          data: 'issues',
+          measure: 'open',
+          slice: null,
+          table: { columns: ['title', 'customers'], limit: 10, sort: 'title:asc' },
+        }),
+      ),
+      true,
+    );
+    assert.equal(requiresCustomers(cfg({})), false);
   });
 });

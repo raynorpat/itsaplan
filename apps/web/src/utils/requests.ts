@@ -5,22 +5,43 @@ import type { Issue, RequestSummary } from '@/types/issue';
 // filter, ordering and Insights.
 
 export interface NeedRef {
+  id?: string;
   issueId: string;
   priority: number;
   requesterId: string | null;
+  // Null while Customers is off or the request has no customer.
+  customerId?: string | null;
+  customerRevenue?: number | null;
+}
+
+// What the customer count counts for one request (the server's customerCountSql).
+export function customerKey(n: Pick<NeedRef, 'id' | 'requesterId' | 'customerId'>): string {
+  if (n.customerId) return `c:${n.customerId}`;
+  if (n.requesterId) return `p:${n.requesterId}`;
+  return `n:${n.id ?? ''}`;
+}
+
+interface Building {
+  count: number;
+  people: Set<string>;
+  important: Set<string>;
+  customers: Set<string>;
+  revenue: Record<string, number>;
 }
 
 // One summary per issue that has feedback. Feedback without a requester counts as an
 // item but not as a person, as on the server.
 export function summarizeNeeds(needs: readonly NeedRef[]): Map<string, RequestSummary> {
-  const out = new Map<string, { count: number; people: Set<string>; important: Set<string> }>();
+  const out = new Map<string, Building>();
   for (const n of needs) {
     let s = out.get(n.issueId);
     if (!s) {
-      s = { count: 0, people: new Set(), important: new Set() };
+      s = { count: 0, people: new Set(), important: new Set(), customers: new Set(), revenue: {} };
       out.set(n.issueId, s);
     }
     s.count += 1;
+    s.customers.add(customerKey(n));
+    if (n.customerId && n.customerRevenue != null) s.revenue[n.customerId] = n.customerRevenue;
     if (n.requesterId) {
       s.people.add(n.requesterId);
       if (n.priority === 1) s.important.add(n.requesterId);
@@ -29,7 +50,13 @@ export function summarizeNeeds(needs: readonly NeedRef[]): Map<string, RequestSu
   return new Map(
     [...out].map(([id, s]) => [
       id,
-      { count: s.count, requesterIds: [...s.people], importantRequesterIds: [...s.important] },
+      {
+        count: s.count,
+        requesterIds: [...s.people],
+        importantRequesterIds: [...s.important],
+        customerKeys: [...s.customers],
+        customerRevenue: s.revenue,
+      },
     ]),
   );
 }

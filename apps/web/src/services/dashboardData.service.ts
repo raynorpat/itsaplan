@@ -9,6 +9,7 @@ import {
 } from '@/services/insightIssues.service';
 import type { WidgetRows } from '@/utils/dashboards/compute';
 import type { ProjectHealth } from '@/utils/dashboards/config';
+import type { CustomerRow } from '@/utils/dashboards/customerMeasures';
 import type { CycleRow } from '@/utils/dashboards/cycleMeasures';
 import type { RequestRow, RequestSource } from '@/utils/dashboards/feedbackMeasures';
 import { DASHBOARD_ROW_LIMIT, pagedLoad, type LoadSpec } from '@/utils/dashboards/loads';
@@ -41,6 +42,21 @@ const RequestsPage = graphql(
               id
             }
           }
+          customer {
+            id
+            name
+            revenue
+            status {
+              id
+              displayName
+              position
+            }
+            tier {
+              id
+              displayName
+              position
+            }
+          }
           issue {
             archivedAt
             ...InsightIssueFields
@@ -55,6 +71,39 @@ const RequestsPage = graphql(
   `,
   [InsightIssueFields],
 );
+
+const CustomersPage = graphql(`
+  query DashboardCustomers($after: String, $first: Int) {
+    customers(first: $first, after: $after) {
+      nodes {
+        id
+        slugId
+        name
+        revenue
+        approximateNeedCount
+        createdAt
+        status {
+          id
+          displayName
+          position
+        }
+        tier {
+          id
+          displayName
+          position
+        }
+        owner {
+          id
+          displayName
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
 
 const ProjectsPage = graphql(`
   query DashboardProjects($after: String, $first: Int) {
@@ -216,6 +265,25 @@ async function loadRequests(filter: Record<string, unknown>): Promise<LoadedRows
             important: n.priority >= 1,
             source: sourceOf(n.attachment?.metadata),
             requesterId: n.attachment?.externalUserCreator?.id ?? null,
+            customer: n.customer
+              ? {
+                  id: n.customer.id,
+                  name: n.customer.name,
+                  revenue: n.customer.revenue ?? null,
+                  status: {
+                    id: n.customer.status.id,
+                    name: n.customer.status.displayName,
+                    position: n.customer.status.position,
+                  },
+                  tier: n.customer.tier
+                    ? {
+                        id: n.customer.tier.id,
+                        name: n.customer.tier.displayName,
+                        position: n.customer.tier.position,
+                      }
+                    : null,
+                }
+              : null,
             issueArchived: n.issue.archivedAt != null,
             issue: toInsightIssue(n.issue, names),
           },
@@ -223,6 +291,30 @@ async function loadRequests(filter: Record<string, unknown>): Promise<LoadedRows
       : [],
   );
   return { requests, names, capped };
+}
+
+async function loadCustomers(): Promise<LoadedRows> {
+  const { nodes, capped } = await pagedLoad(async (after, first) => {
+    const data = await gqlRequest(CustomersPage, { after, first });
+    return data.customers;
+  });
+  const customers = nodes.map((c): CustomerRow => ({
+    id: c.id,
+    slugId: c.slugId,
+    name: c.name,
+    statusId: c.status.id,
+    statusName: c.status.displayName,
+    statusPosition: c.status.position,
+    tierId: c.tier?.id ?? null,
+    tierName: c.tier?.displayName ?? null,
+    tierPosition: c.tier?.position ?? null,
+    ownerId: c.owner?.id ?? null,
+    ownerName: c.owner?.displayName ?? null,
+    revenue: c.revenue ?? null,
+    requests: c.approximateNeedCount,
+    createdAt: isoString(c.createdAt) ?? '',
+  }));
+  return { customers, names: EMPTY_CONTEXT, capped };
 }
 
 async function loadProjects(): Promise<LoadedRows> {
@@ -278,6 +370,8 @@ export async function loadRows(spec: LoadSpec): Promise<LoadedRows> {
       return loadRequests(spec.filter);
     case 'projects':
       return loadProjects();
+    case 'customers':
+      return loadCustomers();
     case 'cycles':
       return loadCycles(spec.filter);
     case 'none':
@@ -286,6 +380,7 @@ export async function loadRows(spec: LoadSpec): Promise<LoadedRows> {
         requests: [],
         projects: [],
         cycles: [],
+        customers: [],
         names: EMPTY_CONTEXT,
         capped: false,
       };

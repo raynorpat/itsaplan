@@ -1,9 +1,12 @@
-// How widget figures read: days to one decimal ("3.5 d"), percentages whole, other
-// figures to one decimal; "–" for no figure.
+const REVENUE = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+// How widget figures read: days to one decimal ("3.5 d"), percentages whole, revenue
+// compact ("1.3M"), other figures to one decimal; "–" for no figure.
 export function formatValue(value: number | null, unit: string): string {
   if (value == null || !Number.isFinite(value)) return '–';
   if (unit === 'days') return `${Math.round(value * 10) / 10} d`;
   if (unit === 'percent') return `${Math.round(value)}%`;
+  if (unit === 'revenue') return REVENUE.format(value);
   return String(Math.round(value * 10) / 10);
 }
 

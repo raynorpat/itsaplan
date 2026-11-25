@@ -1,4 +1,4 @@
-import { cyclePath, projectPath, teamPath } from '@/utils/paths';
+import { cyclePath, feedbackCustomerPath, projectPath, teamPath } from '@/utils/paths';
 
 // The app pages a widget's rows open.
 
@@ -12,6 +12,8 @@ export function issueHref(identifier: string): string | null {
 export const projectHref = (id: string): string => projectPath(null, id);
 
 export const cycleHref = (teamKey: string, number: number): string => cyclePath(teamKey, number);
+
+export const customerHref = (slugId: string): string => feedbackCustomerPath(slugId);
 
 // "2026-11-24T10:00:00Z" → "2026-11-24".
 export const dateCell = (at: string | null | undefined): string | null =>

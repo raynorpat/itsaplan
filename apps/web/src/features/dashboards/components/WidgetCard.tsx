@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useCustomersSettings } from '@/services/customers.service';
 import { sliceItems, type TableRow } from '@/utils/dashboards/compute';
 import { toCsv } from '@/utils/dashboards/csv';
-import type { Widget } from '@/utils/dashboards/config';
+import { requiresCustomers, type Widget } from '@/utils/dashboards/config';
 import type { DashboardState } from '@/utils/dashboards/loads';
 import { cn } from '@/lib/utils';
 import { useWidgetResult } from '../hooks/useWidgetResult';
@@ -14,7 +15,8 @@ import WidgetMenu, { type WidgetActions } from './WidgetMenu';
 import WidgetSlicePanel from './WidgetSlicePanel';
 
 // One widget: its title and menu, its figures for the dashboard's period and team,
-// the notes on cut or left-out rows, and the side panel of a clicked slice.
+// the notes on cut or left-out rows, and the side panel of a clicked slice. A widget of
+// customer data loads nothing until Customers is known to be on.
 export default function WidgetCard({
   widget,
   dashboard,
@@ -26,7 +28,14 @@ export default function WidgetCard({
   actions: WidgetActions | null;
   className?: string;
 }) {
-  const { rows, ctx, result, isPending, error } = useWidgetResult(widget, dashboard, true);
+  const settings = useCustomersSettings();
+  const needsCustomers = requiresCustomers(widget.config);
+  const customersOff = needsCustomers && settings.data?.enabled === false;
+  const { rows, ctx, result, isPending, error } = useWidgetResult(
+    widget,
+    dashboard,
+    !needsCustomers || settings.data?.enabled === true,
+  );
   const [panel, setPanel] = useState<{ title: string; rows: TableRow[] } | null>(null);
 
   const openSlice = (key: string, label: string) => {
@@ -48,13 +57,15 @@ export default function WidgetCard({
           widget={widget}
           actions={actions}
           onExport={
-            result
+            result && !customersOff
               ? () => downloadText(csvFileName(widget.config.title), toCsv(widget, result))
               : null
           }
         />
       </header>
-      {error ? (
+      {customersOff ? (
+        <p className="py-6 text-sm text-muted-foreground">Customers are off</p>
+      ) : error ? (
         <p className="py-6 text-sm text-destructive">This widget could not be loaded.</p>
       ) : isPending || !result ? (
         <p className="py-6 text-sm text-muted-foreground">Loading…</p>
@@ -63,7 +74,7 @@ export default function WidgetCard({
       ) : (
         <WidgetBody widget={widget} result={result} onSlice={openSlice} />
       )}
-      {result && (result.capped || result.excluded > 0) && (
+      {result && !customersOff && (result.capped || result.excluded > 0) && (
         <p className="mt-2 text-xs text-muted-foreground">
           {[
             result.capped ? 'Showing the first 5,000' : null,

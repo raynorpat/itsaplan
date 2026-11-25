@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import type { FilterCondition } from '@/utils/filters';
 import type { IssueFilter } from '@/utils/viewFilters';
+import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
 import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { useInsightsData } from '../hooks/useInsightsData';
 import { INSIGHTS_ISSUE_LIMIT } from '../services/insightsIssues.service';
@@ -62,7 +63,13 @@ export default function InsightsPanel({
   });
   const hasEstimates = data.issues.some((i) => (i.estimate ?? 0) > 0);
   const hasRequests = data.issues.some((i) => i.requests != null);
-  const shown = effectiveSettings(settings, { hasEstimates, hasRequests, spansTeams });
+  const hasCustomers = useCustomersEnabled();
+  const shown = effectiveSettings(settings, {
+    hasEstimates,
+    hasRequests,
+    hasCustomers,
+    spansTeams,
+  });
   const measureLabel = MEASURE_LABELS[shown.measure];
 
   const content = useMemo(() => {
@@ -102,7 +109,7 @@ export default function InsightsPanel({
     >
       <InsightsControls
         settings={shown}
-        measures={measureOptions({ hasEstimates, hasRequests })}
+        measures={measureOptions({ hasEstimates, hasRequests, hasCustomers })}
         fields={sliceOptions({ spansTeams })}
         onChange={onChange}
         onClose={() => onChange({ open: false })}

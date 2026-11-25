@@ -3,7 +3,7 @@ import type { FilterCondition } from '@/utils/filters';
 // The shape of a dashboard widget as stored by the API (which checks only the outer
 // shape) and the measures and slices each kind of data offers.
 
-export type DataKind = 'issues' | 'requests' | 'projects' | 'cycles';
+export type DataKind = 'issues' | 'requests' | 'projects' | 'cycles' | 'customers';
 export type WidgetKind = 'chart' | 'number' | 'table';
 export type WidgetWidth = 'half' | 'full';
 export type DashboardPeriod = '30d' | '90d' | '6m' | '12m';
@@ -33,6 +33,11 @@ export interface CycleFilter {
   teamIds?: string[];
 }
 
+export interface CustomerFilter {
+  statusIds?: string[];
+  tierIds?: string[];
+}
+
 export interface TableConfig {
   columns: string[];
   // 5 to 50 rows.
@@ -44,8 +49,9 @@ export interface TableConfig {
 export interface WidgetConfig {
   title: string;
   data: DataKind;
-  // The issue view filter for issues and requests; an object for projects and cycles.
-  filter: FilterCondition[] | ProjectFilter | CycleFilter;
+  // The issue view filter for issues and requests; an object for projects, cycles and
+  // customers.
+  filter: FilterCondition[] | ProjectFilter | CycleFilter | CustomerFilter;
   measure: string;
   // A second measure drawn beside the first on an over-time chart without a slice.
   compareMeasure?: string | null;
@@ -64,8 +70,9 @@ export interface Widget {
 
 // current: the state now, whatever the period; events: what happened in the period.
 export type Basis = 'current' | 'events';
-// scope: points or issues, the cycles' unit (the cycles' scope rule).
-export type Unit = 'count' | 'points' | 'days' | 'percent' | 'scope';
+// scope: points or issues, the cycles' unit (the cycles' scope rule); revenue: whole
+// units of the workspace's revenue currency.
+export type Unit = 'count' | 'points' | 'days' | 'percent' | 'scope' | 'revenue';
 
 export interface MeasureDef {
   id: string;
@@ -86,10 +93,18 @@ export const MEASURES: Record<DataKind, MeasureDef[]> = {
     { id: 'age', label: 'Issue age', basis: 'current', unit: 'days' },
     { id: 'requests', label: 'Requests on open issues', basis: 'current', unit: 'count' },
     { id: 'requesters', label: 'Requesters on open issues', basis: 'current', unit: 'count' },
+    { id: 'customers', label: 'Customers on open issues', basis: 'current', unit: 'count' },
+    {
+      id: 'customerRevenue',
+      label: 'Customer revenue on open issues',
+      basis: 'current',
+      unit: 'revenue',
+    },
   ],
   requests: [
     { id: 'requests', label: 'Requests', basis: 'events', unit: 'count' },
     { id: 'people', label: 'People', basis: 'events', unit: 'count' },
+    { id: 'customers', label: 'Customers', basis: 'events', unit: 'count' },
     { id: 'newPeople', label: 'New people', basis: 'events', unit: 'count' },
     { id: 'importantShare', label: 'Marked important', basis: 'events', unit: 'percent' },
     { id: 'timeToStart', label: 'Time to start', basis: 'events', unit: 'days' },
@@ -108,13 +123,29 @@ export const MEASURES: Record<DataKind, MeasureDef[]> = {
     { id: 'carriedOver', label: 'Carried over', basis: 'events', unit: 'count' },
     { id: 'currentProgress', label: 'Current cycle progress', basis: 'current', unit: 'percent' },
   ],
+  customers: [
+    { id: 'customers', label: 'Customers', basis: 'current', unit: 'count' },
+    { id: 'revenue', label: 'Revenue', basis: 'current', unit: 'revenue' },
+    { id: 'requests', label: 'Issues requested', basis: 'current', unit: 'count' },
+  ],
 };
 
 export const SLICES: Record<DataKind, string[]> = {
   issues: ['status', 'assignee', 'priority', 'label', 'project', 'cycle', 'creator', 'team'],
-  requests: ['source', 'important', 'status', 'label', 'project', 'team'],
+  requests: [
+    'source',
+    'important',
+    'customer',
+    'tier',
+    'customerStatus',
+    'status',
+    'label',
+    'project',
+    'team',
+  ],
   projects: ['health', 'status', 'lead', 'team'],
   cycles: ['cycle', 'team'],
+  customers: ['status', 'tier', 'owner'],
 };
 
 export const SLICE_LABELS: Record<string, string> = {
@@ -130,6 +161,10 @@ export const SLICE_LABELS: Record<string, string> = {
   important: 'Important',
   health: 'Health',
   lead: 'Lead',
+  customer: 'Customer',
+  tier: 'Tier',
+  customerStatus: 'Customer status',
+  owner: 'Owner',
 };
 
 export interface ColumnDef {
@@ -147,6 +182,8 @@ export const TABLE_COLUMNS: Record<DataKind, ColumnDef[]> = {
     { id: 'estimate', label: 'Estimate' },
     { id: 'requests', label: 'Requests' },
     { id: 'people', label: 'People' },
+    { id: 'customers', label: 'Customers' },
+    { id: 'customerRevenue', label: 'Customer revenue' },
     { id: 'createdAt', label: 'Created' },
     { id: 'completedAt', label: 'Completed' },
     { id: 'ageDays', label: 'Age (days)' },
@@ -156,6 +193,7 @@ export const TABLE_COLUMNS: Record<DataKind, ColumnDef[]> = {
     { id: 'title', label: 'Title' },
     { id: 'status', label: 'Status' },
     { id: 'people', label: 'People' },
+    { id: 'customers', label: 'Customers' },
     { id: 'requests', label: 'Requests' },
     { id: 'important', label: 'Important' },
     { id: 'firstRequestAt', label: 'First request' },
@@ -180,9 +218,37 @@ export const TABLE_COLUMNS: Record<DataKind, ColumnDef[]> = {
     { id: 'carriedOver', label: 'Carried over' },
     { id: 'progress', label: 'Progress (%)' },
   ],
+  customers: [
+    { id: 'name', label: 'Customer' },
+    { id: 'status', label: 'Status' },
+    { id: 'tier', label: 'Tier' },
+    { id: 'owner', label: 'Owner' },
+    { id: 'revenue', label: 'Revenue' },
+    { id: 'requests', label: 'Issues requested' },
+  ],
 };
 
-const DATA_KINDS: DataKind[] = ['issues', 'requests', 'projects', 'cycles'];
+const DATA_KINDS: DataKind[] = ['issues', 'requests', 'projects', 'cycles', 'customers'];
+
+// The measures, table columns and slices of issues and requests that show customer data.
+export const CUSTOMER_MEASURES = new Set(['customers', 'customerRevenue']);
+export const CUSTOMER_SLICES = new Set(['customer', 'tier', 'customerStatus']);
+
+// Whether a widget shows customer data (the customers kind, a customer measure, slice
+// or table column), so it shows nothing while Customers is off.
+export function requiresCustomers(config: WidgetConfig): boolean {
+  if (config.data === 'customers') return true;
+  if (CUSTOMER_MEASURES.has(config.measure)) return true;
+  if (config.compareMeasure && CUSTOMER_MEASURES.has(config.compareMeasure)) return true;
+  if (CUSTOMER_SLICES.has(config.slice ?? '') || CUSTOMER_SLICES.has(config.segment ?? ''))
+    return true;
+  const table = config.table;
+  if (!table) return false;
+  return (
+    table.columns.some((c) => CUSTOMER_MEASURES.has(c)) ||
+    CUSTOMER_MEASURES.has(table.sort.split(':')[0] ?? '')
+  );
+}
 const WIDGET_KINDS: WidgetKind[] = ['chart', 'number', 'table'];
 const WIDTHS: WidgetWidth[] = ['half', 'full'];
 const CHART_STYLES: ChartStyle[] = ['bars', 'overTimeBars', 'overTimeLine'];

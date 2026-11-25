@@ -75,6 +75,23 @@ function select(
           .flatMap((i) => (i.requests?.requesterIds ?? []).map((p) => ({ ...item(i), key: p }))),
         excluded: 0,
       };
+    case 'customers':
+      return {
+        items: issues
+          .filter(isOpen)
+          .flatMap((i) => (i.requests?.customerKeys ?? []).map((k) => ({ ...item(i), key: k }))),
+        excluded: 0,
+      };
+    case 'customerRevenue':
+      return {
+        items: issues.filter(isOpen).flatMap((i) =>
+          Object.entries(i.requests?.customerRevenue ?? {}).map(([id, revenue]) => ({
+            ...item(i, revenue),
+            key: id,
+          })),
+        ),
+        excluded: 0,
+      };
     default:
       return { items: [], excluded: 0 };
   }
@@ -102,6 +119,11 @@ function table(
         estimate: i.estimate ?? null,
         requests: i.requests?.count ?? 0,
         people: i.requests?.requesterIds.length ?? 0,
+        customers: i.requests?.customerKeys?.length ?? 0,
+        customerRevenue: Object.values(i.requests?.customerRevenue ?? {}).reduce(
+          (a, b) => a + b,
+          0,
+        ),
         createdAt: dateCell(i.createdAt),
         completedAt: dateCell(i.completedAt),
         ageDays: isOpen(i) ? Math.floor(daysBetween(i.createdAt, ctx.now.getTime())) : null,
@@ -120,7 +142,8 @@ export const issueAdapter: Adapter<InsightIssue> = {
   select,
   aggregate: (measure) => {
     if (measure === 'cycleTime' || measure === 'leadTime' || measure === 'age') return 'median';
-    if (measure === 'requesters') return 'distinct';
+    if (measure === 'requesters' || measure === 'customers') return 'distinct';
+    if (measure === 'customerRevenue') return 'distinctSum';
     return 'sum';
   },
   slice: (issues, field, ctx) =>

@@ -1,4 +1,5 @@
 import { sliceIssues, type InsightIssue, type SliceField } from '@/utils/insights/slices';
+import { customerKey } from '@/utils/requests';
 import type { Adapter, ComputeContext, Item, Selection, SliceGroup, TableRow } from './compute';
 import { dateCell, issueHref } from './links';
 import { daysBetween, inRange } from './periods';
@@ -8,12 +9,22 @@ import { daysBetween, inRange } from './periods';
 
 export type RequestSource = 'team' | 'portal' | 'form';
 
+export interface RequestCustomer {
+  id: string;
+  name: string;
+  revenue: number | null;
+  tier: { id: string; name: string; position: number } | null;
+  status: { id: string; name: string; position: number };
+}
+
 export interface RequestRow {
   id: string;
   createdAt: string;
   important: boolean;
   source: RequestSource;
   requesterId: string | null;
+  // Null while Customers is off or the request has no customer.
+  customer: RequestCustomer | null;
   // The issue is archived (auto-archive archives closed issues): its requests still
   // count for what happened in a period, not for the current state.
   issueArchived: boolean;
@@ -72,6 +83,15 @@ function select(
       return { items: inPeriod.map((r) => item(r)), excluded: 0 };
     case 'people':
       return { items: inPeriod.map((r) => item(r, 1, { key: r.requesterId })), excluded: 0 };
+    case 'customers':
+      return {
+        items: inPeriod.map((r) =>
+          item(r, 1, {
+            key: customerKey({ id: r.id, requesterId: r.requesterId, customerId: r.customer?.id }),
+          }),
+        ),
+        excluded: 0,
+      };
     case 'newPeople':
       return {
         items: inPeriod
@@ -132,7 +152,44 @@ function select(
   }
 }
 
+interface CustomerGroup {
+  key: string;
+  label: string;
+  order: number;
+}
+
+// The customer, tier or customer status of a request; requests without one last.
+function customerGroup(r: RequestRow, field: string): CustomerGroup {
+  const c = r.customer;
+  if (field === 'customer')
+    return c
+      ? { key: c.id, label: c.name, order: 0 }
+      : { key: 'none', label: 'No customer', order: Infinity };
+  if (field === 'tier')
+    return c?.tier
+      ? { key: c.tier.id, label: c.tier.name, order: c.tier.position }
+      : { key: 'none', label: 'No tier', order: Infinity };
+  return c
+    ? { key: c.status.id, label: c.status.name, order: c.status.position }
+    : { key: 'none', label: 'No customer', order: Infinity };
+}
+
+function customerSlice(rows: RequestRow[], field: string): SliceGroup[] {
+  const groups = new Map<string, CustomerGroup & { rowIds: Set<string> }>();
+  for (const r of rows) {
+    const g = customerGroup(r, field);
+    const entry = groups.get(g.key) ?? { ...g, rowIds: new Set<string>() };
+    entry.rowIds.add(r.id);
+    groups.set(g.key, entry);
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+    .map(({ key, label, rowIds }) => ({ key, label, rowIds }));
+}
+
 function slice(rows: RequestRow[], field: string, ctx: ComputeContext): SliceGroup[] {
+  if (field === 'customer' || field === 'tier' || field === 'customerStatus')
+    return customerSlice(rows, field);
   const groups = (keyOf: (r: RequestRow) => string, order: { key: string; label: string }[]) =>
     order
       .map((o) => ({
@@ -184,6 +241,11 @@ function table(items: Item<RequestRow>[], rows: RequestRow[], ctx: ComputeContex
         title: g.issue.title,
         status: ctx.insights.states.get(g.issue.stateId)?.name ?? null,
         people: new Set(g.rows.map((r) => r.requesterId).filter(Boolean)).size,
+        customers: new Set(
+          g.rows.map((r) =>
+            customerKey({ id: r.id, requesterId: r.requesterId, customerId: r.customer?.id }),
+          ),
+        ).size,
         requests: g.rows.length,
         important: g.rows.filter((r) => r.important).length,
         firstRequestAt: dateCell(g.first.createdAt),
@@ -205,7 +267,12 @@ export const requestAdapter: Adapter<RequestRow> = {
   matches: () => true,
   select,
   aggregate: (measure) => {
-    if (measure === 'people' || measure === 'newPeople' || measure === 'deliveredPeople')
+    if (
+      measure === 'people' ||
+      measure === 'customers' ||
+      measure === 'newPeople' ||
+      measure === 'deliveredPeople'
+    )
       return 'distinct';
     if (measure === 'timeToStart' || measure === 'timeToDone' || measure === 'waiting')
       return 'median';

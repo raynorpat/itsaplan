@@ -112,4 +112,19 @@ describe('toCsv', () => {
       'Measure,Period start,Period end,Value,Previous\r\nPeople,2026-10-25,2026-11-24,4,\r\n',
     );
   });
+
+  it('writes revenue as the raw whole number', () => {
+    const w = widget('number', { data: 'customers', measure: 'revenue', filter: {} });
+    const csv = toCsv(w, {
+      kind: 'number',
+      value: 1250000,
+      previous: null,
+      unit: 'revenue',
+      start: '2026-10-01T00:00:00.000Z',
+      end: '2026-11-01T00:00:00.000Z',
+      excluded: 0,
+      capped: false,
+    });
+    assert.ok(csv.includes(',1250000,'), csv);
+  });
 });

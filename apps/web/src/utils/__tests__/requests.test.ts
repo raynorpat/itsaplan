@@ -169,3 +169,47 @@ describe('requests on lists', () => {
     assert.ok(!fields('guest').includes('requests'));
   });
 });
+
+describe('summarizeNeeds with customers', () => {
+  const summaries = summarizeNeeds([
+    {
+      id: 'n1',
+      issueId: 'a',
+      priority: 0,
+      requesterId: 'jane',
+      customerId: 'acme',
+      customerRevenue: 500,
+    },
+    {
+      id: 'n2',
+      issueId: 'a',
+      priority: 0,
+      requesterId: 'bob',
+      customerId: 'acme',
+      customerRevenue: 500,
+    },
+    { id: 'n3', issueId: 'a', priority: 0, requesterId: 'sam', customerId: null },
+    { id: 'n4', issueId: 'a', priority: 0, requesterId: null, customerId: null },
+    {
+      id: 'n5',
+      issueId: 'a',
+      priority: 0,
+      requesterId: 'kim',
+      customerId: 'globex',
+      customerRevenue: null,
+    },
+  ]);
+
+  it('counts each customer once, people without one and requests with neither each once', () => {
+    assert.deepEqual([...summaries.get('a')!.customerKeys!].sort(), [
+      'c:acme',
+      'c:globex',
+      'n:n4',
+      'p:sam',
+    ]);
+  });
+
+  it('keeps the revenue of each customer asking once', () => {
+    assert.deepEqual(summaries.get('a')!.customerRevenue, { acme: 500 });
+  });
+});

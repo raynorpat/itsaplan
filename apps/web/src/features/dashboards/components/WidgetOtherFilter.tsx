@@ -20,7 +20,7 @@ export default function WidgetOtherFilter({
   filter,
   onChange,
 }: {
-  data: Exclude<DataKind, 'issues' | 'requests'>;
+  data: Exclude<DataKind, 'issues' | 'requests' | 'customers'>;
   filter: ProjectFilter | CycleFilter;
   onChange: (filter: ProjectFilter | CycleFilter) => void;
 }) {

@@ -351,6 +351,7 @@ const RequestRefsPage = graphql(`
       includeArchived: $includeArchived
     ) {
       nodes {
+        id
         priority
         issue {
           id
@@ -359,6 +360,10 @@ const RequestRefsPage = graphql(`
           externalUserCreator {
             id
           }
+        }
+        customer {
+          id
+          revenue
         }
       }
       pageInfo {
@@ -392,9 +397,12 @@ export async function fetchRequestSummaries(
       n.issue
         ? [
             {
+              id: n.id,
               issueId: n.issue.id,
               priority: n.priority,
               requesterId: n.attachment?.externalUserCreator?.id ?? null,
+              customerId: n.customer?.id ?? null,
+              customerRevenue: n.customer?.revenue ?? null,
             },
           ]
         : [],

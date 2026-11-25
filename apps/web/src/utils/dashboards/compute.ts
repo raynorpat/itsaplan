@@ -11,6 +11,7 @@ import {
   type Widget,
   type WidgetConfig,
 } from './config';
+import { customerAdapter, type CustomerRow } from './customerMeasures';
 import { cycleAdapter, type CycleRow } from './cycleMeasures';
 import { requestAdapter, type RequestRow } from './feedbackMeasures';
 import { issueAdapter } from './issueMeasures';
@@ -27,6 +28,7 @@ export interface WidgetRows {
   requests?: RequestRow[];
   projects?: ProjectRow[];
   cycles?: CycleRow[];
+  customers?: CustomerRow[];
   // The load stopped at its row limit.
   capped?: boolean;
 }
@@ -56,7 +58,8 @@ export interface Selection<R> {
   excluded: number;
 }
 
-export type Aggregate = 'sum' | 'distinct' | 'median' | 'mean' | 'share';
+// distinctSum: the values of distinct keys added once (each customer's revenue once).
+export type Aggregate = 'sum' | 'distinct' | 'distinctSum' | 'median' | 'mean' | 'share';
 
 export interface SliceGroup {
   key: string;
@@ -87,7 +90,7 @@ export interface Adapter<R> {
   scopeUnit?(rows: R[]): 'points' | 'issues';
 }
 
-export type ResultUnit = 'count' | 'points' | 'days' | 'percent' | 'issues';
+export type ResultUnit = 'count' | 'points' | 'days' | 'percent' | 'issues' | 'revenue';
 
 interface ResultBase {
   excluded: number;
@@ -122,6 +125,7 @@ const ADAPTERS: Record<DataKind, Adapter<unknown>> = {
   requests: requestAdapter as Adapter<unknown>,
   projects: projectAdapter as Adapter<unknown>,
   cycles: cycleAdapter as Adapter<unknown>,
+  customers: customerAdapter as Adapter<unknown>,
 };
 
 export function aggregate<R>(items: Item<R>[], how: Aggregate): number | null {
@@ -130,6 +134,11 @@ export function aggregate<R>(items: Item<R>[], how: Aggregate): number | null {
       return items.reduce((n, i) => n + i.value, 0);
     case 'distinct':
       return new Set(items.map((i) => i.key).filter((k): k is string => k != null)).size;
+    case 'distinctSum': {
+      const byKey = new Map<string, number>();
+      for (const i of items) if (i.key != null) byKey.set(i.key, i.value);
+      return [...byKey.values()].reduce((n, v) => n + v, 0);
+    }
     case 'median':
       return timeStats(items.map((i) => i.value))?.median ?? null;
     case 'mean':
@@ -173,7 +182,7 @@ function sortedTable(rows: TableRow[], sort: string, limit: number): TableRow[] 
     .slice(0, limit);
 }
 
-const hasShares = (how: Aggregate) => how === 'sum' || how === 'distinct';
+const hasShares = (how: Aggregate) => how === 'sum' || how === 'distinct' || how === 'distinctSum';
 
 // `unitLabels`: bars of several teams' scope, each labelled with its team's unit.
 function bars<R>(

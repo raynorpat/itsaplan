@@ -27,6 +27,8 @@ export type LoadSpec =
   // since time to start and waiting count from an issue's first request.
   | { data: 'requests'; filter: IssueFilter }
   | { data: 'projects' }
+  // Every customer: customers have no period and no team.
+  | { data: 'customers' }
   // Cycles that end after the start of the previous period, and those still running.
   | { data: 'cycles'; filter: Record<string, unknown> }
   // The widget's teams and the dashboard's team rule each other out.
@@ -34,8 +36,8 @@ export type LoadSpec =
 
 const OPEN = { state: { type: { nin: ['completed', 'canceled'] } } };
 
-const REQUEST_MEASURES = new Set(['requests', 'requesters']);
-const REQUEST_COLUMNS = new Set(['requests', 'people']);
+const REQUEST_MEASURES = new Set(['requests', 'requesters', 'customers', 'customerRevenue']);
+const REQUEST_COLUMNS = new Set(['requests', 'people', 'customers', 'customerRevenue']);
 
 // Whether an issue widget shows feedback counts (its measure, a table column or the
 // table's sort), which the issue load then fetches alongside.
@@ -128,6 +130,8 @@ export function loadSpecFor(widget: Widget, dashboard: DashboardState, now: Date
     }
     case 'projects':
       return { data: 'projects' };
+    case 'customers':
+      return { data: 'customers' };
     case 'cycles': {
       const teamIds = (config.filter as CycleFilter).teamIds ?? [];
       const { teamId } = dashboard;

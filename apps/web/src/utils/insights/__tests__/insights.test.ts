@@ -227,6 +227,41 @@ describe('request measures', () => {
     importantRequesterIds: important,
   });
 
+  it('counts customers and their revenue once per slice', () => {
+    const withCustomers = (keys: string[], revenue: Record<string, number>) => ({
+      ...req([]),
+      customerKeys: keys,
+      customerRevenue: revenue,
+    });
+    const issues = [
+      issue({
+        id: '1',
+        stateId: 's-todo',
+        requests: withCustomers(['c:acme', 'p:sam'], { acme: 100 }),
+      }),
+      issue({ id: '2', stateId: 's-todo', requests: withCustomers(['c:acme'], { acme: 100 }) }),
+      issue({ id: '3', stateId: 's-done' }),
+    ];
+    assert.equal(measureValue(issues[0]!, 'customers', new Date()), 2);
+    assert.equal(measureValue(issues[0]!, 'customerRevenue', new Date()), 100);
+    const customers = breakdown(issues, { ...BASE, measure: 'customers' }, ctx);
+    assert.deepEqual(
+      customers.map((r) => [r.label, r.value]),
+      [
+        ['Todo', 2],
+        ['Done', 0],
+      ],
+    );
+    const revenue = breakdown(issues, { ...BASE, measure: 'customerRevenue' }, ctx);
+    assert.deepEqual(
+      revenue.map((r) => [r.label, r.value]),
+      [
+        ['Todo', 100],
+        ['Done', 0],
+      ],
+    );
+  });
+
   it('counts feedback items and distinct people per slice', () => {
     const issues = [
       // Two feedback items from one person: 2 requests, 1 requester.

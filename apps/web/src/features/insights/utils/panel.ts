@@ -15,6 +15,8 @@ export const MEASURE_LABELS: Record<Measure, string> = {
   points: 'Estimate points',
   requests: 'Requests',
   requesters: 'Requesters',
+  customers: 'Customers asking',
+  customerRevenue: 'Customer revenue',
   cycleTime: 'Cycle time',
   leadTime: 'Lead time',
   age: 'Issue age',
@@ -49,18 +51,26 @@ export function formatDays(days: number): string {
   return `${Math.round(days)} d`;
 }
 
-// The measures a view offers: points only when its issues have estimates; requests
-// and requesters only when its issues carry their feedback (members, not guests).
+const REQUEST_MEASURES: Measure[] = ['requests', 'requesters', 'customers', 'customerRevenue'];
+const CUSTOMER_MEASURES: Measure[] = ['customers', 'customerRevenue'];
+
+// The measures a view offers: points only when its issues have estimates; the
+// feedback measures only when its issues carry their feedback (members, not guests);
+// the customer measures only while Customers is on.
 export function measureOptions({
   hasEstimates,
   hasRequests,
+  hasCustomers = false,
 }: {
   hasEstimates: boolean;
   hasRequests: boolean;
+  hasCustomers?: boolean;
 }): Measure[] {
   return MEASURES.filter(
     (m) =>
-      (m !== 'points' || hasEstimates) && ((m !== 'requests' && m !== 'requesters') || hasRequests),
+      (m !== 'points' || hasEstimates) &&
+      (!REQUEST_MEASURES.includes(m) || hasRequests) &&
+      (!CUSTOMER_MEASURES.includes(m) || hasCustomers),
   );
 }
 
@@ -73,7 +83,12 @@ export function sliceOptions({ spansTeams }: { spansTeams: boolean }): SliceFiel
 // not offer falls back to the default, and a segment equal to the slice is dropped.
 export function effectiveSettings(
   settings: InsightsSettings,
-  opts: { hasEstimates: boolean; hasRequests: boolean; spansTeams: boolean },
+  opts: {
+    hasEstimates: boolean;
+    hasRequests: boolean;
+    hasCustomers?: boolean;
+    spansTeams: boolean;
+  },
 ): InsightsSettings {
   const measures = measureOptions(opts);
   const fields = sliceOptions(opts);

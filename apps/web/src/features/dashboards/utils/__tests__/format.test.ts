@@ -48,3 +48,10 @@ describe('axisLabel', () => {
     assert.equal(axisLabel('A very long project name indeed'), 'A very long projec…');
   });
 });
+
+describe('formatValue revenue', () => {
+  it('shows revenue compact', () => {
+    assert.equal(formatValue(1250000, 'revenue'), '1.3M');
+    assert.equal(formatValue(900, 'revenue'), '900');
+  });
+});

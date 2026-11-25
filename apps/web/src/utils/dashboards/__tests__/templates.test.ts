@@ -57,6 +57,19 @@ describe('Feedback template', () => {
     assert.deepEqual(status?.values, ['backlog', 'unstarted']);
   });
 
+  it('splits requests by customer tier and lists the top customers by requests', () => {
+    const tier = widgets.find((x) => x.config.slice === 'tier');
+    assert.ok(tier);
+    assert.equal(tier.config.data, 'requests');
+    assert.equal(tier.config.title, 'Requests by customer tier');
+    const top = widgets.find((x) => x.config.data === 'customers');
+    assert.ok(top);
+    assert.equal(top.kind, 'table');
+    assert.equal(top.config.title, 'Top customers by requests');
+    assert.equal(top.config.table?.sort, 'requests:desc');
+    assert.equal(top.config.table?.limit, 10);
+  });
+
   it('shows the median time to start and to done as numbers', () => {
     const numbers = widgets.filter((x) => x.kind === 'number').map((x) => x.config.measure);
     assert.ok(numbers.includes('timeToStart'));

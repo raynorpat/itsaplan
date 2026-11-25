@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  CUSTOMER_MEASURES,
+  CUSTOMER_SLICES,
   MEASURES,
   SLICE_LABELS,
   SLICES,
@@ -13,20 +15,29 @@ import DashboardSelect from './DashboardSelect';
 const NONE = 'none';
 
 // What a widget measures and how it splits it; a chart also picks bars or weekly
-// bars / a line, and an over-time chart without a split may add a second measure.
+// bars / a line, and an over-time chart without a split may add a second measure. The
+// customer measures and splits are offered only while Customers is on.
 export default function WidgetMeasureFields({
   kind,
   config,
+  customersOn,
   onChange,
 }: {
   kind: WidgetKind;
   config: WidgetConfig;
+  customersOn: boolean;
   onChange: (patch: Partial<WidgetConfig>) => void;
 }) {
-  const measures = MEASURES[config.data].map((m) => ({ value: m.id, label: m.label }));
+  const offered = (id: string, customerIds: Set<string>) =>
+    customersOn || config.data === 'customers' || !customerIds.has(id);
+  const measures = MEASURES[config.data]
+    .filter((m) => offered(m.id, CUSTOMER_MEASURES))
+    .map((m) => ({ value: m.id, label: m.label }));
   const slices = [
     { value: NONE, label: 'No split' },
-    ...SLICES[config.data].map((s) => ({ value: s, label: SLICE_LABELS[s] ?? s })),
+    ...SLICES[config.data]
+      .filter((s) => offered(s, CUSTOMER_SLICES))
+      .map((s) => ({ value: s, label: SLICE_LABELS[s] ?? s })),
   ];
   const overTime = config.chart === 'overTimeBars' || config.chart === 'overTimeLine';
   const fromNone = (v: string) => (v === NONE ? null : v);

@@ -2,20 +2,28 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { TABLE_COLUMNS, type DataKind, type TableConfig } from '@/utils/dashboards/config';
+import {
+  CUSTOMER_MEASURES,
+  TABLE_COLUMNS,
+  type DataKind,
+  type TableConfig,
+} from '@/utils/dashboards/config';
 import DashboardSelect from './DashboardSelect';
 
-// A table widget's columns, number of rows (5 to 50) and sort.
+// A table widget's columns, number of rows (5 to 50) and sort; the customer columns of
+// issues and requests only while Customers is on.
 export default function WidgetTableFields({
   data,
   table,
+  customersOn,
   onChange,
 }: {
   data: DataKind;
   table: TableConfig;
+  customersOn: boolean;
   onChange: (table: TableConfig) => void;
 }) {
-  const all = TABLE_COLUMNS[data];
+  const all = TABLE_COLUMNS[data].filter((c) => customersOn || !CUSTOMER_MEASURES.has(c.id));
   const [sortColumn = '', direction = 'desc'] = table.sort.split(':');
   const toggle = (id: string) => {
     const columns = table.columns.includes(id)

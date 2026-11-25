@@ -2,7 +2,15 @@ import { sliceIssues, type InsightIssue, type InsightsContext, type SliceField }
 
 // The figures the Insights panel measures issues by.
 export type Measure =
-  'count' | 'points' | 'requests' | 'requesters' | 'cycleTime' | 'leadTime' | 'age';
+  | 'count'
+  | 'points'
+  | 'requests'
+  | 'requesters'
+  | 'customers'
+  | 'customerRevenue'
+  | 'cycleTime'
+  | 'leadTime'
+  | 'age';
 
 const DAY_MS = 86_400_000;
 
@@ -20,6 +28,8 @@ function daysBetween(from: string, to: number): number {
 //   the panel offers points only when the issues have estimates);
 // - requests: the issue's feedback items; requesters: the distinct people asking
 //   (a slice's total counts each person once, see total);
+// - customers: the customer count (RequestSummary.customerKeys); customerRevenue: the
+//   revenue of the customers asking (each customer once in a slice's total);
 // - cycleTime: days from start to completion (completed issues with a start);
 // - leadTime: days from creation to completion (completed issues);
 // - age: days from creation to `now` (open issues: neither completed nor canceled).
@@ -33,6 +43,10 @@ export function measureValue(issue: InsightIssue, measure: Measure, now: Date): 
       return issue.requests?.count ?? 0;
     case 'requesters':
       return issue.requests?.requesterIds.length ?? 0;
+    case 'customers':
+      return issue.requests?.customerKeys?.length ?? 0;
+    case 'customerRevenue':
+      return Object.values(issue.requests?.customerRevenue ?? {}).reduce((a, b) => a + b, 0);
     case 'cycleTime':
       if (!issue.startedAt || !issue.completedAt) return null;
       return daysBetween(issue.startedAt, new Date(issue.completedAt).getTime());
@@ -65,6 +79,13 @@ function total(issues: InsightIssue[], measure: Measure, now: Date): number {
   // A person asking on several issues of a slice counts once.
   if (measure === 'requesters')
     return new Set(issues.flatMap((i) => i.requests?.requesterIds ?? [])).size;
+  if (measure === 'customers')
+    return new Set(issues.flatMap((i) => i.requests?.customerKeys ?? [])).size;
+  if (measure === 'customerRevenue') {
+    const revenue: Record<string, number> = {};
+    for (const i of issues) Object.assign(revenue, i.requests?.customerRevenue);
+    return Object.values(revenue).reduce((a, b) => a + b, 0);
+  }
   return issues.reduce((n, i) => n + (measureValue(i, measure, now) ?? 0), 0);
 }
 

@@ -43,6 +43,7 @@ const DEFAULTS: Record<DataKind, { measure: string; slice: string | null; title:
   requests: { measure: 'requests', slice: 'source', title: 'Requests by source' },
   projects: { measure: 'projects', slice: 'health', title: 'Projects by health' },
   cycles: { measure: 'completedScope', slice: 'cycle', title: 'Completed scope per cycle' },
+  customers: { measure: 'customers', slice: 'tier', title: 'Customers by tier' },
 };
 
 export function newWidget(data: DataKind): Widget {

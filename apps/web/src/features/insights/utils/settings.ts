@@ -31,6 +31,8 @@ export const MEASURES: Measure[] = [
   'points',
   'requests',
   'requesters',
+  'customers',
+  'customerRevenue',
   'cycleTime',
   'leadTime',
   'age',

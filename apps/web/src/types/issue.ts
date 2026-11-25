@@ -57,6 +57,10 @@ export interface RequestSummary {
   count: number;
   requesterIds: string[];
   importantRequesterIds: string[];
+  // While Customers is on: what Linear's customerCount counts (`c:<customer>`, else
+  // `p:<requester>`, else `n:<request>`), and the revenue of each customer asking.
+  customerKeys?: string[];
+  customerRevenue?: Record<string, number>;
 }
 
 export interface Attachment {

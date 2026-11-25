@@ -108,6 +108,22 @@ function feedbackWidgets(): Widget[] {
         20,
       ),
     }),
+    // These two show "Customers are off" until Customers is turned on.
+    widget('fb-by-tier', 'chart', 'half', 'requests', 'Requests by customer tier', 'requests', {
+      slice: 'tier',
+      chart: 'bars',
+    }),
+    widget(
+      'fb-top-customers',
+      'table',
+      'half',
+      'customers',
+      'Top customers by requests',
+      'customers',
+      {
+        table: table(['name', 'tier', 'requests', 'revenue'], 'requests:desc', 10),
+      },
+    ),
   ];
 }
 
