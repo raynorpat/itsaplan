@@ -36,3 +36,16 @@ export function isoString(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString();
   return typeof value === 'string' ? value : null;
 }
+
+// The line under "Keep this person updated" on a person's page.
+export function personUpdatesHint(person: {
+  email: string | null;
+  updates: { enabled: boolean; unsubscribed: boolean };
+}): string {
+  if (person.email == null) return 'Add an email address to send updates.';
+  if (person.updates.enabled)
+    return 'Emails about the issues they asked for, with an unsubscribe link.';
+  if (person.updates.unsubscribed)
+    return 'Unsubscribed. Only they can turn updates on again, from the portal.';
+  return 'No emails are sent to this person.';
+}

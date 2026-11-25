@@ -3,7 +3,7 @@
 // operation that creates or finds an ExternalUser.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { gqlRequest, graphql, readFragment, type ResultOf } from '@/lib/graphql';
+import { ApiError, gqlRequest, graphql, readFragment, type ResultOf } from '@/lib/graphql';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 import type { FeedbackItem, FeedbackRequester } from '@/utils/feedback';
@@ -228,13 +228,24 @@ export function useRequesterSearchQuery(q: string, opts: { enabled: boolean }) {
   });
 }
 
+// Creates the person; with `keepUpdated` (and an email) also turns on their email
+// updates ("Keep this person updated"). An email that already belongs to someone who
+// unsubscribed returns that person with updates left off (the API answers 409).
 export function useCreateRequester() {
   return useMutation({
-    mutationFn: async (input: { name: string; email: string | null }) => {
+    mutationFn: async (input: { name: string; email: string | null; keepUpdated?: boolean }) => {
       const res = await instanceFetch<{ requester: RequesterDto }>('/instance/requesters/create', {
         method: 'POST',
         body: { name: input.name, email: input.email },
       });
+      if (input.keepUpdated && input.email) {
+        await instanceFetch('/instance/requesters/updates', {
+          method: 'POST',
+          body: { requesterId: res.requester.id, enabled: true },
+        }).catch((error: unknown) => {
+          if (!(error instanceof ApiError && error.status === 409)) throw error;
+        });
+      }
       return toRequester(res.requester);
     },
   });

@@ -13,12 +13,13 @@ import EditPersonDialog from './components/EditPersonDialog';
 import MergePeopleDialog from './components/MergePeopleDialog';
 import PersonFeedback from './components/PersonFeedback';
 import PersonPortalBlockButton from './components/PersonPortalBlockButton';
+import PersonUpdatesSwitch from './components/PersonUpdatesSwitch';
 import { usePersonQuery } from './services/people.service';
 import { canMergePeople, feedbackCountText } from './utils/people';
 
-// One person who gave feedback: their name and email, edit (members), merge into
-// another person and block them from the portal (owners and admins), and their
-// feedback grouped by issue. A merged
+// One person who gave feedback: their name and email, edit and "Keep this person
+// updated" (members), merge into another person and block them from the portal
+// (owners and admins), and their feedback grouped by issue. A merged
 // person's id leads to the person kept (the API follows the merge).
 export default function PersonPage() {
   const params = useParams();
@@ -84,6 +85,7 @@ export default function PersonPage() {
         )}
         {canMergePeople(role) && <PersonPortalBlockButton person={person} />}
       </div>
+      <PersonUpdatesSwitch person={person} />
       <h2 className="px-4 pt-2 pb-1 text-sm font-medium">Feedback</h2>
       <PersonFeedback groups={issues} />
       {editing && <EditPersonDialog person={person} onClose={() => setEditing(false)} />}

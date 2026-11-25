@@ -6,6 +6,7 @@ import {
   lastFeedbackText,
   mergeConfirmText,
   isoString,
+  personUpdatesHint,
 } from '../people';
 
 const NOW = new Date('2026-11-24T15:00:00.000Z');
@@ -56,5 +57,37 @@ describe('isoString', () => {
     assert.equal(isoString(new Date('2026-11-24T00:00:00.000Z')), '2026-11-24T00:00:00.000Z');
     assert.equal(isoString('2026-11-24T00:00:00.000Z'), '2026-11-24T00:00:00.000Z');
     assert.equal(isoString(null), null);
+  });
+});
+
+describe('personUpdatesHint', () => {
+  const person = (email: string | null, updates: { enabled: boolean; unsubscribed: boolean }) => ({
+    email,
+    updates,
+  });
+
+  it('says what an opted-in person gets', () => {
+    assert.equal(
+      personUpdatesHint(person('jo@acme.com', { enabled: true, unsubscribed: false })),
+      'Emails about the issues they asked for, with an unsubscribe link.',
+    );
+  });
+  it('says nothing is sent while off', () => {
+    assert.equal(
+      personUpdatesHint(person('jo@acme.com', { enabled: false, unsubscribed: false })),
+      'No emails are sent to this person.',
+    );
+  });
+  it('explains an unsubscribed person', () => {
+    assert.equal(
+      personUpdatesHint(person('jo@acme.com', { enabled: false, unsubscribed: true })),
+      'Unsubscribed. Only they can turn updates on again, from the portal.',
+    );
+  });
+  it('needs an email', () => {
+    assert.equal(
+      personUpdatesHint(person(null, { enabled: false, unsubscribed: false })),
+      'Add an email address to send updates.',
+    );
   });
 });

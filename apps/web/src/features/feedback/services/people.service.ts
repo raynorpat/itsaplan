@@ -17,6 +17,9 @@ export interface Person {
   lastFeedbackAt: string | null;
   // Blocked from the portal (set on a person's page only).
   portalBlocked: boolean;
+  // Email updates: on, and whether the person unsubscribed (then only they can turn
+  // them on again).
+  updates: { enabled: boolean; unsubscribed: boolean };
 }
 
 export interface PersonIssueFeedback {
@@ -45,6 +48,7 @@ interface PersonDto {
   feedbackCount: number;
   lastFeedbackAt: unknown;
   portalBlocked?: boolean;
+  updates?: { enabled: boolean; unsubscribed: boolean };
 }
 
 interface PersonIssueDto {
@@ -66,6 +70,7 @@ const toPerson = (r: PersonDto): Person => ({
   feedbackCount: r.feedbackCount,
   lastFeedbackAt: isoString(r.lastFeedbackAt),
   portalBlocked: r.portalBlocked ?? false,
+  updates: r.updates ?? { enabled: false, unsubscribed: false },
 });
 
 const toIssueFeedback = (g: PersonIssueDto): PersonIssueFeedback => ({
@@ -161,6 +166,21 @@ export function useSetPortalBlocked() {
   return useMutation({
     mutationFn: (input: { requesterId: string; blocked: boolean }) =>
       instanceFetch('/instance/portal/block', { method: 'POST', body: input }),
+    onSuccess: (_d, { requesterId }) =>
+      void qc.invalidateQueries({ queryKey: qk.requester(requesterId) }),
+  });
+}
+
+// "Keep this person updated": a member turns a person's email updates on or off. The
+// API refuses turning them on for a person who unsubscribed.
+export function useSetPersonUpdates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { requesterId: string; enabled: boolean }) =>
+      instanceFetch<{ requester: PersonDto }>('/instance/requesters/updates', {
+        method: 'POST',
+        body: input,
+      }),
     onSuccess: (_d, { requesterId }) =>
       void qc.invalidateQueries({ queryKey: qk.requester(requesterId) }),
   });

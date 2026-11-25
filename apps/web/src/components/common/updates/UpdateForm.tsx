@@ -1,25 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ProjectHealth } from '@/types/project';
 import { Button } from '@/components/ui/button';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import HealthSelect from './HealthSelect';
 
 // The health and Markdown body of a new project or initiative update, or of one
-// being edited. A new update starts from the item's current health.
+// being edited. A new update starts from the item's current health. `extra` sits
+// beside the health picker (a project's "Send to requesters" switch).
 export default function UpdateForm({
   initial,
   submitLabel,
   busy,
   onSubmit,
   onCancel,
+  extra,
 }: {
   initial: { body: string; health: ProjectHealth };
   submitLabel: string;
   busy: boolean;
   onSubmit: (input: { body: string; health: ProjectHealth }) => Promise<void>;
   onCancel?: () => void;
+  extra?: ReactNode;
 }) {
   const [health, setHealth] = useState(initial.health);
   const [body, setBody] = useState(initial.body);
@@ -43,7 +46,10 @@ export default function UpdateForm({
         onChange={setBody}
       />
       <div className="flex items-center justify-between gap-2">
-        <HealthSelect value={health} onChange={setHealth} />
+        <div className="flex items-center gap-4">
+          <HealthSelect value={health} onChange={setHealth} />
+          {extra}
+        </div>
         <div className="flex gap-2">
           {onCancel && (
             <Button variant="ghost" size="sm" onClick={onCancel}>

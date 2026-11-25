@@ -42,6 +42,7 @@ describe('settingsNav', () => {
         'import',
         'portal',
         'forms',
+        'ai',
         'mcp',
         'labels',
         'project-labels',

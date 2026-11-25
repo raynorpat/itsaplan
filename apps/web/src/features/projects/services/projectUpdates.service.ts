@@ -6,6 +6,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ProjectHealth } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
+import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
 import { invalidateProject, type ProjectDetail } from '@/services/projects.service';
 import { buildThreadsNewestFirst, type FeedEntry } from '@/utils/commentThreads';
@@ -231,4 +232,17 @@ export function useUnarchiveProjectUpdate(projectId: string) {
   return useProjectUpdateMutation(projectId, (id: string) =>
     gqlRequest(ProjectUpdateUnarchive, { id }),
   );
+}
+
+// "Send to requesters": emails a posted update to the people who gave feedback on the
+// project's issues, through the instance plugin (Linear's ProjectUpdateCreateInput has
+// no such field). The requester updates job sends it on its next run.
+export function useShareProjectUpdate() {
+  return useMutation({
+    mutationFn: (projectUpdateId: string) =>
+      instanceFetch<{ shared: true }>('/instance/project-updates/share', {
+        method: 'POST',
+        body: { projectUpdateId },
+      }),
+  });
 }

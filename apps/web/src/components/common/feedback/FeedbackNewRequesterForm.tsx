@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useCreateRequester } from '@/services/feedback.service';
 import type { FeedbackRequester } from '@/utils/feedback';
 
-// Creates the person who gave the feedback: a name and an optional email. An email
+// Creates the person who gave the feedback: a name, an optional email and "Keep this
+// person updated" (off: the team logged them, they never asked for email). An email
 // that already belongs to someone returns that person (the API's rule).
 export default function FeedbackNewRequesterForm({
   initialName,
@@ -19,6 +22,7 @@ export default function FeedbackNewRequesterForm({
 }) {
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState('');
+  const [keepUpdated, setKeepUpdated] = useState(false);
   const create = useCreateRequester();
 
   return (
@@ -27,7 +31,11 @@ export default function FeedbackNewRequesterForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return;
-        create.mutate({ name: name.trim(), email: email.trim() || null }, { onSuccess: onCreated });
+        const address = email.trim() || null;
+        create.mutate(
+          { name: name.trim(), email: address, keepUpdated: keepUpdated && address != null },
+          { onSuccess: onCreated },
+        );
       }}
     >
       <Input
@@ -44,6 +52,17 @@ export default function FeedbackNewRequesterForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="new-requester-updates"
+          checked={keepUpdated && email.trim() !== ''}
+          disabled={email.trim() === ''}
+          onCheckedChange={(checked) => setKeepUpdated(checked === true)}
+        />
+        <Label htmlFor="new-requester-updates" className="text-sm font-normal">
+          Keep this person updated by email
+        </Label>
+      </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
           Back
