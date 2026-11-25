@@ -11,7 +11,9 @@ messages since the previous release.
   frozen stage takes no new issues, and they go to the next open release.
 
 Issues of teams outside the pipeline, archived issues and unknown identifiers are
-skipped. A sync that runs twice for the same commit adds nothing new.
+skipped and listed in the response (see below). A sync that runs twice for the same
+commit adds nothing new. A sync naming the version of an archived or deleted release is
+refused until the release is restored.
 
 ## Create an access key
 
@@ -59,10 +61,12 @@ else
 fi
 
 # Each issue identifier (team key, dash, number) in those commit messages, once, with
-# the newest commit that mentions it.
+# the newest commit that mentions it. `|| true`: a commit that names no issue makes grep
+# exit 1, which would stop the script under `set -e`. The pattern has no `\b`, so
+# busybox grep (Alpine) reads it the same way as GNU grep.
 REFERENCES=$(for commit in $COMMITS; do
   git log -1 --format=%B "$commit" |
-    grep -oE '\b[A-Z][A-Z0-9]+-[0-9]+\b' |
+    { grep -oE '[A-Z][A-Z0-9]+-[0-9]+' || true; } |
     sort -u |
     sed "s/\$/\t$commit/"
 done | sort -s -u -t "$(printf '\t')" -k1,1 |
@@ -74,8 +78,19 @@ PAYLOAD=$(jq -n --arg sha "$SHA" --argjson refs "$REFERENCES" '{
   variables: { input: { commitSha: $sha, issueReferences: $refs } }
 }')
 
-graphql "$PAYLOAD" | jq '.data.releaseSyncByAccessKey // .'
+RESULT=$(graphql "$PAYLOAD")
+echo "$RESULT" | jq '.data.releaseSyncByAccessKey // .'
+# What the sync added and skipped (a typo such as ENG-1O shows here as notFound).
+echo "$RESULT" | jq '.extensions.releaseSync // empty'
 ```
+
+The response's `extensions.releaseSync` lists what the sync did:
+
+- `added`: the identifiers added to the release;
+- `skipped`: `{ identifier, reason }` for each one left out, with `reason` `notFound`,
+  `archived` or `otherTeam`;
+- `redirectedFrom`: the version of a release in a frozen stage when the issues went to
+  the next open release instead, else null.
 
 Optional fields of the input:
 

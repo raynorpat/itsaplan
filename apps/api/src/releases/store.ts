@@ -230,13 +230,19 @@ async function stageOfPipeline(pipelineId: string, stageId: unknown): Promise<St
   return stage;
 }
 
+type StageTime = Date | SQL | null;
+
+// The database's clock for the times a stage move sets: shipped updates (shipped.ts)
+// compare them with times the database stamps (issue_to_release.created_at).
+const dbNow = () => sql`now()`;
+
 // The times a move to `stage` sets, from the release's current ones. Reopening a
 // completed or canceled release clears those times.
 function stageTimes(
   stage: StageRow,
   current: Pick<Row, 'startedAt' | 'completedAt' | 'canceledAt'>,
-  now: Date,
-): Pick<Row, 'startedAt' | 'completedAt' | 'canceledAt'> {
+  now: SQL,
+): { startedAt: StageTime; completedAt: StageTime; canceledAt: StageTime } {
   switch (stage.type as StageType) {
     case 'planned':
       return { startedAt: current.startedAt, completedAt: null, canceledAt: null };
@@ -257,7 +263,13 @@ function stageTimes(
   }
 }
 
-function rethrowVersion(err: unknown): never {
+// One sync, by-pipeline update or completion of a pipeline at a time, so each reads
+// the releases the one before it left.
+export async function lockPipeline(tx: Tx, pipelineId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`release-sync:${pipelineId}`}))`);
+}
+
+export function rethrowVersion(err: unknown): never {
   if (pgErrorCode(err) === '23505')
     throw new HttpError(409, 'The id, or the version in this pipeline, is already used');
   throw err;
@@ -280,7 +292,11 @@ export async function createRelease(
   const createdAt = cleanTime(input.createdAt, 'createdAt');
   if (createdAt && createdAt.getTime() > now.getTime())
     throw new HttpError(400, 'createdAt must be in the past');
-  const times = stageTimes(stage, { startedAt: null, completedAt: null, canceledAt: null }, now);
+  const times = stageTimes(
+    stage,
+    { startedAt: null, completedAt: null, canceledAt: null },
+    dbNow(),
+  );
   const startedAt = cleanTime(input.startedAt, 'startedAt');
   const completedAt = cleanTime(input.completedAt, 'completedAt');
   let row: Row;
@@ -320,10 +336,14 @@ async function moveToStage(
   stage: StageRow,
   extra: Partial<typeof release.$inferInsert> = {},
 ): Promise<Row> {
-  const now = new Date();
   const [row] = await tx
     .update(release)
-    .set({ ...stageTimes(stage, current, now), ...extra, stageId: stage.id, updatedAt: now })
+    .set({
+      ...stageTimes(stage, current, dbNow()),
+      ...extra,
+      stageId: stage.id,
+      updatedAt: new Date(),
+    })
     .where(eq(release.id, current.id))
     .returning();
   const completing = stage.type === 'completed' && current.completedAt === null;
@@ -562,19 +582,21 @@ export async function updateByPipeline(
   pipeline: PipelineRow,
   input: ByPipelineInput,
 ): Promise<Row> {
-  const current = await releaseForPipeline(pipeline.id, input.version, { planned: true });
-  if (!current) throw new HttpError(404, 'No release of the pipeline matches');
-  let stage: StageRow | null = null;
-  if (input.stage) {
-    const wanted = input.stage.trim().toLowerCase();
-    stage = (await stagesOf(pipeline.id)).find((s) => s.name.toLowerCase() === wanted) ?? null;
-    if (!stage) throw new HttpError(400, `The pipeline has no stage named ${input.stage}`);
-  }
   const set: Partial<typeof release.$inferInsert> = {};
   if (input.name !== undefined && input.name !== null) set.name = cleanName(input.name);
   if (input.description !== undefined)
     set.description = cleanText(input.description, 'description', 100_000);
   return db.transaction(async (tx) => {
+    await lockPipeline(tx, pipeline.id);
+    const current = await releaseForPipeline(pipeline.id, input.version, { planned: true }, tx);
+    if (!current) throw new HttpError(404, 'No release of the pipeline matches');
+    let stage: StageRow | null = null;
+    if (input.stage) {
+      const wanted = input.stage.trim().toLowerCase();
+      stage =
+        (await stagesOf(pipeline.id, tx)).find((s) => s.name.toLowerCase() === wanted) ?? null;
+      if (!stage) throw new HttpError(400, `The pipeline has no stage named ${input.stage}`);
+    }
     let row: Row;
     if (stage && stage.id !== current.stageId)
       row = await moveToStage(tx, current, pipeline, stage, set);
@@ -618,30 +640,34 @@ export async function completeByPipeline(
   input: CompleteInput,
 ): Promise<Row> {
   const sha = cleanText(input.commitSha, 'commitSha', 64);
-  let current = await releaseForPipeline(pipeline.id, input.version, { planned: false });
-  if (!current && !input.version && sha) {
-    const [retry] = await db
-      .select()
-      .from(release)
-      .where(
-        and(
-          activeReleaseOf(pipeline.id),
-          eq(release.commitSha, sha),
-          sql`${release.completedAt} IS NOT NULL`,
-        ),
-      )
-      .limit(1);
-    if (retry) return retry;
-  }
-  if (!current) throw new HttpError(404, 'No release of the pipeline to complete');
-  const completed = await stageOfType(pipeline.id, 'completed');
-  const set: Partial<typeof release.$inferInsert> = {};
-  if (input.name !== undefined && input.name !== null) set.name = cleanName(input.name);
-  if (input.description !== undefined)
-    set.description = cleanText(input.description, 'description', 100_000);
-  if (sha && (!input.version || !current.commitSha)) set.commitSha = sha;
+  const name = input.name !== undefined && input.name !== null ? cleanName(input.name) : null;
+  const description =
+    input.description !== undefined
+      ? cleanText(input.description, 'description', 100_000)
+      : undefined;
   return db.transaction(async (tx) => {
-    current = current!;
+    await lockPipeline(tx, pipeline.id);
+    const current = await releaseForPipeline(pipeline.id, input.version, { planned: false }, tx);
+    if (!current && !input.version && sha) {
+      const [retry] = await tx
+        .select()
+        .from(release)
+        .where(
+          and(
+            activeReleaseOf(pipeline.id),
+            eq(release.commitSha, sha),
+            sql`${release.completedAt} IS NOT NULL`,
+          ),
+        )
+        .limit(1);
+      if (retry) return retry;
+    }
+    if (!current) throw new HttpError(404, 'No release of the pipeline to complete');
+    const completed = await stageOfType(pipeline.id, 'completed', tx);
+    const set: Partial<typeof release.$inferInsert> = {};
+    if (name !== null) set.name = name;
+    if (description !== undefined) set.description = description;
+    if (sha && (!input.version || !current.commitSha)) set.commitSha = sha;
     const row =
       current.stageId === completed.id
         ? (

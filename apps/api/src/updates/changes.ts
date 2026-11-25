@@ -395,6 +395,12 @@ async function replies(
   return out;
 }
 
+// The shipments among `changes`: what an email or a visit told the person about.
+export const shipmentsIn = (changes: Change[]) =>
+  changes.flatMap((c) =>
+    c.kind === 'shipped' ? [{ issueId: c.issueId, releaseId: c.releaseId }] : [],
+  );
+
 async function shipped(
   requesterId: string,
   issues: FollowedIssue[],

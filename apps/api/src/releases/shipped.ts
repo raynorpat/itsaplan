@@ -4,24 +4,27 @@ import {
   issueToRelease,
   release,
   releasePipeline,
+  releaseStage,
   requesterShipped,
   workflowState,
 } from '@repo/db';
 import { and, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 
 // When an issue shipped (spec: release tracking, "Shipped" updates): it is in a release
-// of a production pipeline, the release is completed (and not canceled), and the issue
-// is completed. It ships at the latest of the three moments, so an issue completed after
+// of a production pipeline, the release is in a completed stage, and the issue is
+// completed. It ships at the latest of the three moments, so an issue completed after
 // its release, or added to a completed release, ships then.
 
 export const shippedAtSql: SQL<Date> = sql<Date>`greatest(
   ${issueToRelease.createdAt}, ${release.completedAt}, ${issue.completedAt})`;
 
-// The conditions on issue_to_release joined with release, release_pipeline, issue and
-// the issue's workflow state.
+// The conditions on issue_to_release joined with release, its stage, release_pipeline,
+// issue and the issue's workflow state. A `completedAt` set on a release still in
+// progress (releaseUpdate takes one) is not a completion.
 const shippedSql: SQL = and(
   eq(releasePipeline.isProduction, true),
   eq(releasePipeline.trashed, false),
+  eq(releaseStage.type, 'completed'),
   isNotNull(release.completedAt),
   isNull(release.canceledAt),
   eq(release.trashed, false),
@@ -48,6 +51,7 @@ function shipments(where: SQL) {
     .select(shipmentColumns)
     .from(issueToRelease)
     .innerJoin(release, eq(release.id, issueToRelease.releaseId))
+    .innerJoin(releaseStage, eq(releaseStage.id, release.stageId))
     .innerJoin(releasePipeline, eq(releasePipeline.id, release.pipelineId))
     .innerJoin(issue, eq(issue.id, issueToRelease.issueId))
     .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
@@ -94,6 +98,7 @@ export async function latestShipment(issueId: string): Promise<Shipment | null> 
 export const shippedAfterSql = (issueIdSql: SQL, after: string): SQL =>
   sql`EXISTS (SELECT 1 FROM issue_to_release itr
     JOIN release r ON r.id = itr.release_id
+    JOIN release_stage rs ON rs.id = r.stage_id AND rs.type = 'completed'
     JOIN release_pipeline p ON p.id = r.pipeline_id
     JOIN issue i ON i.id = itr.issue_id
     JOIN workflow_state s ON s.id = i.state_id

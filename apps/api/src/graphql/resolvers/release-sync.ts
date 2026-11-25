@@ -13,7 +13,15 @@ import {
   type CompleteInput,
   type ReleaseRow,
 } from '../../releases/store';
-import { syncRelease, type SyncInput } from '../../releases/sync';
+import { syncRelease, type SyncInput, type SyncResult } from '../../releases/sync';
+
+// What a sync added and skipped, sent in the response's `extensions.releaseSync`
+// (Linear's payload has no field for it), so a CI log shows a mistyped identifier.
+const syncReport = (r: SyncResult) => ({
+  added: r.added,
+  skipped: r.skipped,
+  redirectedFrom: r.redirectedFrom,
+});
 import type { GraphQLContext } from '../context';
 import { gqlError } from '../errors';
 import { guard, lastSyncId } from './mutations';
@@ -127,12 +135,14 @@ export const releaseSyncResolvers = {
         if (typeof pipelineId !== 'string') throw new HttpError(400, 'pipelineId is required');
         const pipeline = await assertPipelineWrite(user, pipelineId);
         const result = await syncRelease(pipeline, rest, user.id);
+        ctx.extensions.releaseSync = syncReport(result);
         return { success: true, lastSyncId: lastSyncId(), release: mapRelease(result.release) };
       }),
     releaseSyncByAccessKey: (_: unknown, { input }: InputArg<SyncInput>, ctx: GraphQLContext) =>
       guard(async () => {
         const pipeline = await accessKeyPipeline(requireAccessKey(ctx));
         const result = await syncRelease(pipeline, plain(input), null);
+        ctx.extensions.releaseSync = syncReport(result);
         return keyPayload(result.release);
       }),
     releaseUpdateByPipelineByAccessKey: (

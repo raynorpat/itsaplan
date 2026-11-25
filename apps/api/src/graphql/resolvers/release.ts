@@ -21,7 +21,7 @@ import {
   visibleLinksSql,
   type IssueToReleaseDto,
 } from '../../releases/issues';
-import { mapPipeline, type PipelineDto } from '../../releases/pipelines';
+import { mapPipeline, pipelineUrl, type PipelineDto } from '../../releases/pipelines';
 import { releaseProgress } from '../../releases/progress';
 import { mapStage, type StageDto } from '../../releases/stages';
 import {
@@ -44,6 +44,7 @@ import {
   type ReleaseInput,
 } from '../../releases/store';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { compare, compareId, filterSql } from '../filter';
 import { gqlError } from '../errors';
@@ -263,24 +264,26 @@ export const releaseResolvers = {
       ),
   },
   Release: {
-    url: (r: ReleaseDto) => releaseUrl(r),
+    url: async (r: ReleaseDto, _: unknown, ctx: GraphQLContext) => {
+      const l = loaders(ctx);
+      const [pipeline, teamKey] = await Promise.all([
+        l.releasePipeline.load(r.pipelineId),
+        l.pipelineTeamKey.load(r.pipelineId),
+      ]);
+      return `${pipelineUrl(teamKey, pipeline?.slugId ?? '')}/${r.slugId}`;
+    },
     autoArchivedAt: () => null,
-    pipeline: async (r: ReleaseDto): Promise<PipelineDto> => {
-      const [row] = await db
-        .select()
-        .from(releasePipeline)
-        .where(eq(releasePipeline.id, r.pipelineId));
-      return mapPipeline(row!);
-    },
-    stage: async (r: ReleaseDto): Promise<StageDto> => {
-      const [row] = await db.select().from(releaseStage).where(eq(releaseStage.id, r.stageId));
-      return mapStage(row!);
-    },
+    pipeline: async (r: ReleaseDto, _: unknown, ctx: GraphQLContext): Promise<PipelineDto> =>
+      mapPipeline((await loaders(ctx).releasePipeline.load(r.pipelineId))!),
+    stage: async (r: ReleaseDto, _: unknown, ctx: GraphQLContext): Promise<StageDto> =>
+      mapStage((await loaders(ctx).releaseStage.load(r.stageId))!),
     creator: (r: ReleaseDto, _: unknown, ctx: GraphQLContext) => userById(r.creatorId, ctx.user.id),
     issues: (r: ReleaseDto, args: IssueArgs, ctx: GraphQLContext) =>
       guard(() => listIssues(inReleaseSql(r.id), args, ctx.user.id)),
     issueCount: (r: ReleaseDto, args: { includeArchived?: boolean | null }, ctx: GraphQLContext) =>
-      releaseIssueCount(r.id, ctx.user.id, !!args.includeArchived),
+      args.includeArchived
+        ? releaseIssueCount(r.id, ctx.user.id, true)
+        : loaders(ctx).releaseIssueCount.load(r.id),
     currentProgress: (r: ReleaseDto, _: unknown, ctx: GraphQLContext) =>
       releaseProgress(r.id, ctx.user.id),
     // Progress snapshots over time are not kept for releases.

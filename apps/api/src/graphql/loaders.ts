@@ -27,6 +27,9 @@ import { projectsInTeams } from '../projects/access';
 import { getProjectsByIds } from '../projects/store';
 import { projectHistories } from '../projects/progress';
 import { listReactions, type ReactionRow } from '../reactions/store';
+import { releaseIssueCounts } from '../releases/issues';
+import { firstTeamKeys, pipelinesByIds } from '../releases/pipelines';
+import { stagesByIds } from '../releases/stages';
 import { visibleTeamIdList } from '../shared/access';
 import type { GraphQLContext } from './context';
 import { visibleLabels } from './resolvers/issue-label';
@@ -273,6 +276,22 @@ function createLoaders(ctx: GraphQLContext) {
         keys,
       ),
     ),
+    // Release fields read for each row of a release list. The release itself was
+    // checked visible, so its pipeline and stage are too.
+    releasePipeline: new DataLoader(async (keys: readonly string[]) =>
+      byId(await pipelinesByIds(keys), keys),
+    ),
+    releaseStage: new DataLoader(async (keys: readonly string[]) =>
+      byId(await stagesByIds(keys), keys),
+    ),
+    pipelineTeamKey: new DataLoader(async (keys: readonly string[]) => {
+      const found = await firstTeamKeys(keys);
+      return keys.map((k) => found.get(k) ?? null);
+    }),
+    releaseIssueCount: new DataLoader(async (keys: readonly string[]) => {
+      const counts = await releaseIssueCounts(keys, viewerId);
+      return keys.map((k) => counts.get(k) ?? 0);
+    }),
   };
 }
 

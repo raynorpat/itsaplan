@@ -317,7 +317,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `issue_to_release` (an issue that shipped in the window, "Shipped in <release>",
   from production pipelines only; a shipment already sent at or before the window's
   start, recorded in `requester_shipped` when a change email or summary with it is
-  marked sent, is not news again, so a reopened and completed issue ships once). A person
+  marked sent, or as of the visit when "Since your last visit" shows it, is not news
+  again, so a reopened and completed issue ships once). A person
   follows the issues of their active feedback and of their portal threads, active and
   in a public team. Access is the person's at `until`: a status change or a shipment
   when an enabled
@@ -414,9 +415,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `releaseSync` (a team member's session or API key) and the `*ByAccessKey` operations
   take Linear's input; issue references match identifiers case-insensitively, and
   unknown, archived and other-team issues are skipped; a repeated sync adds nothing
-  twice. **Access keys** (`keys.ts`): `itpr_` keys stored as SHA-256, created and revoked
-  by workspace owners and admins through `/api/auth/instance/access-keys*`, shown once;
-  `graphql/context.ts` resolves one to its pipeline without better-auth, and it may run
+  twice; a sync naming the version of an archived or trashed release is INVALID_INPUT
+  until it is restored. A sync, a by-pipeline update and a completion of one pipeline
+  run one at a time (an advisory lock), each reading the releases inside its
+  transaction. What a sync added and skipped (`added`, `skipped` with `notFound`,
+  `archived` or `otherTeam`, `redirectedFrom` for a frozen release) is in the
+  response's `extensions.releaseSync`, since Linear's payload has no field for it (a
+  resolver adds response extensions through `context.extensions`). Release and stage
+  times are stamped on the database's clock. **Access keys** (`keys.ts`): `itpr_` keys
+  stored as SHA-256, created and revoked by workspace owners and admins through
+  `/api/auth/instance/access-keys*`, shown once; `graphql/context.ts` reads the
+  credential and `graphql/mount.ts` resolves it to its pipeline (`keys.ts`) without
+  better-auth, and it may run
   only the six `*ByAccessKey` operations (any other field is AUTHENTICATION_ERROR); a
   revoked key, or one of an archived or trashed pipeline, is refused. **Release notes**
   (`notes.ts`): Markdown for one or more releases of a pipeline (exactly one on a
@@ -424,8 +434,10 @@ Rules and invariants for this package below; read the code for the walkthrough.
   (`/api/auth/instance/releases/note-draft?releaseId=`) lists the release's completed
   issues under Features, Bug fixes and Other by label name; with
   `autoGenerateReleaseNotesOnCompletion` a completed release with completed issues and
-  no note gets that draft. An issue **ships** (`shipped.ts`) when it is in a completed,
-  not canceled release of a production pipeline and is completed itself, at the latest
+  no note gets that draft, listing public-team issues only (a note is read by anyone
+  who sees the pipeline). An issue **ships** (`shipped.ts`) when it is in a release in a
+  completed stage (not canceled) of a production pipeline and is completed itself, at
+  the latest
   of the three times (Requester changes above; the portal issue page's `shipped`, the
   latest such release).
 - **Dashboards** (`dashboards/`, `dashboard`): pages of Insights widgets, stored here

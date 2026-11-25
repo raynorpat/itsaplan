@@ -311,7 +311,9 @@ export async function draftNoteContent(
       and(
         eq(issueToRelease.releaseId, releaseId),
         eq(workflowState.stateType, 'completed'),
-        viewerId ? inArray(issue.teamId, visibleTeamIds(viewerId)) : undefined,
+        // Without a viewer (the automatic draft, read by anyone who sees the pipeline)
+        // only public-team issues are listed.
+        viewerId ? inArray(issue.teamId, visibleTeamIds(viewerId)) : eq(team.visibility, 'public'),
       ),
     )
     .orderBy(asc(team.key), asc(issue.sequenceNumber));

@@ -68,10 +68,11 @@ async function syncOk(key: string, input: Record<string, unknown>) {
     .release;
 }
 
+// With archived issues too, so a test of the archived skip fails if one were linked.
 async function releaseIssues(as: TestUser, id: string): Promise<string[]> {
   const data = await gqlData(
     as,
-    `query($id: String!) { release(id: $id) { issues { nodes { identifier } } } }`,
+    `query($id: String!) { release(id: $id) { issues(includeArchived: true) { nodes { identifier } } } }`,
     { id },
   );
   return data.release.issues.nodes.map((n: { identifier: string }) => n.identifier).sort();
@@ -194,11 +195,42 @@ describe('continuous sync', () => {
     await archiveIssue(s.owner, gone.id);
     await createTeam(s.owner, { key: 'OPS' });
     await createIssue(s.owner, { teamId: 'OPS', title: 'Elsewhere' });
-    const r = await syncOk(s.key, {
+    const res = await sync(s.key, {
       commitSha: SHA,
       issueReferences: [ref('eng-1'), ref('ENG-2'), ref('OPS-1'), ref('NOPE-9')],
     });
+    expect(res.body.errors).toBeUndefined();
+    const r = (res.body.data as Data).releaseSyncByAccessKey.release;
     expect(await releaseIssues(s.owner, r.id)).toEqual(['ENG-1']);
+    // The sync's report in the response's extensions (Linear's payload has no field).
+    expect((res.body as { extensions?: Data }).extensions?.releaseSync).toEqual({
+      added: ['ENG-1'],
+      skipped: [
+        { identifier: 'ENG-2', reason: 'archived' },
+        { identifier: 'OPS-1', reason: 'otherTeam' },
+        { identifier: 'NOPE-9', reason: 'notFound' },
+      ],
+      redirectedFrom: null,
+    });
+  });
+
+  it('refuses a version of an archived or deleted release', async () => {
+    const s = await setup('continuous');
+    const r = await syncOk(s.key, { commitSha: SHA });
+    await gqlData(s.owner, `mutation($id: String!) { releaseDelete(id: $id) { success } }`, {
+      id: r.id,
+    });
+    const res = await sync(s.key, { commitSha: SHA });
+    expect(res.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
+    expect(res.body.errors?.[0]?.message).toContain(
+      `Release ${SHA.slice(0, 7)} is archived or deleted; restore it first`,
+    );
+    const second = await syncOk(s.key, { commitSha: SHA2, version: '2.0' });
+    await gqlData(s.owner, `mutation($id: String!) { releaseArchive(id: $id) { success } }`, {
+      id: second.id,
+    });
+    const archived = await sync(s.key, { commitSha: SHA2, version: '2.0' });
+    expect(archived.body.errors?.[0]?.message).toContain('Release 2.0 is archived or deleted');
   });
 
   it('refuses a repeated version with another commit', async () => {
@@ -289,11 +321,13 @@ describe('scheduled sync', () => {
       version: '2.3',
       stageId: qa.releaseStageCreate.releaseStage.id,
     });
-    const r = await syncOk(s.key, {
+    const res = await sync(s.key, {
       commitSha: SHA,
       version: '2.3',
       issueReferences: [ref('ENG-1')],
     });
+    const r = (res.body.data as Data).releaseSyncByAccessKey.release;
+    expect((res.body as { extensions?: Data }).extensions?.releaseSync?.redirectedFrom).toBe('2.3');
     expect(r.id).not.toBe(frozen);
     expect(r.stage.type).toBe('planned');
     expect(await releaseIssues(s.owner, frozen)).toEqual([]);
@@ -346,6 +380,17 @@ describe('by-pipeline operations', () => {
     const release = (done.body.data as Data).releaseCompleteByAccessKey.release;
     expect(release.stage.type).toBe('completed');
     expect(release.completedAt).toBeTruthy();
+    // A CI retry of the completion keeps the first completion time.
+    const again = await gql(
+      withKey(s.key),
+      `mutation($input: ReleaseCompleteInputBase!) {
+        releaseCompleteByAccessKey(input: $input) { release { completedAt } }
+      }`,
+      { input: { version: '2.3' } },
+    );
+    expect((again.body.data as Data).releaseCompleteByAccessKey.release.completedAt).toBe(
+      release.completedAt,
+    );
   });
 
   it('lets a team member run releaseSync with their session', async () => {

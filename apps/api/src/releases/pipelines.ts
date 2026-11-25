@@ -61,6 +61,28 @@ export async function firstTeamKey(pipelineId: string): Promise<string | null> {
   return row?.key ?? null;
 }
 
+// The first team key (alphabetical) of each pipeline, for many pipelines at once.
+export async function firstTeamKeys(pipelineIds: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (pipelineIds.length === 0) return out;
+  const rows = await db
+    .select({ pipelineId: releasePipelineTeam.pipelineId, key: team.key })
+    .from(releasePipelineTeam)
+    .innerJoin(team, eq(team.id, releasePipelineTeam.teamId))
+    .where(inArray(releasePipelineTeam.pipelineId, [...pipelineIds]))
+    .orderBy(asc(team.key));
+  for (const r of rows) if (!out.has(r.pipelineId)) out.set(r.pipelineId, r.key);
+  return out;
+}
+
+export async function pipelinesByIds(ids: readonly string[]): Promise<Row[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(releasePipeline)
+    .where(inArray(releasePipeline.id, [...ids]));
+}
+
 export const pipelineUrl = (teamKey: string | null, slugId: string) =>
   `${trustedOrigins[0]}/team/${teamKey ?? ''}/releases/${slugId}`;
 

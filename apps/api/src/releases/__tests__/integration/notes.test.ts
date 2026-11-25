@@ -275,6 +275,33 @@ describe('release notes', () => {
     expect(await notesOf(owner, v1.id)).toHaveLength(1);
   });
 
+  it('leaves private-team issues out of the automatic draft', async () => {
+    const owner = await signUpTestUser();
+    const eng = await createTeam(owner, { key: 'ENG' });
+    const sec = await createTeam(owner, { key: 'SEC', private: true });
+    const pipeline = await pipelineFor(owner, eng, {
+      autoGenerateReleaseNotesOnCompletion: true,
+      teamIds: [eng.team.id, sec.team.id],
+    });
+    const v1 = await createRelease(owner, { name: 'v1', pipelineId: pipeline.id });
+    const open = await createIssue(owner, {
+      teamId: 'ENG',
+      title: 'Dark mode',
+      stateId: statesByType(eng).completed,
+    });
+    const secret = await createIssue(owner, {
+      teamId: 'SEC',
+      title: 'Patch auth bypass',
+      stateId: statesByType(sec).completed,
+    });
+    await link(owner, open.id, v1.id);
+    await link(owner, secret.id, v1.id);
+    await complete(owner, v1.id, pipeline.stages.Completed);
+    const [note] = await notesOf(owner, v1.id);
+    expect(note!.documentContent.content).toContain('Dark mode');
+    expect(note!.documentContent.content).not.toContain('Patch auth bypass');
+  });
+
   it('creates no draft when the pipeline does not ask for one', async () => {
     const { owner, pipeline, v1 } = await labeledRelease();
     await complete(owner, v1.id, pipeline.stages.Completed);

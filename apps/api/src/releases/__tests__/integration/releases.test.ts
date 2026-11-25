@@ -9,6 +9,7 @@ import {
   type TeamView,
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
+import { countStatements } from '../../../__tests__/helpers/statements';
 
 // Linear's releases and their issues (releases/store.ts, issues.ts, progress.ts).
 
@@ -406,6 +407,29 @@ describe('releases', () => {
       await errorCode(member, `query($id: String!) { release(id: $id) { id } }`, { id: r.id }),
     ).toBe('ENTITY_NOT_FOUND');
     expect((await gqlData(member, `{ releases { nodes { id } } }`)).releases.nodes).toEqual([]);
+  });
+});
+
+describe('release lists', () => {
+  beforeEach(resetDb);
+
+  it("reads a pipeline's releases with a bounded number of statements", async () => {
+    const { owner, pipeline } = await setup('continuous');
+    for (let n = 0; n < 8; n++)
+      await createRelease(owner, { name: `r${n}`, version: `${n}`, pipelineId: pipeline.id });
+    const query = () =>
+      gqlData(
+        owner,
+        `query($id: String!) { releasePipeline(id: $id) {
+          releases { nodes { id name url issueCount stage { id name type color } pipeline { id } } }
+        } }`,
+        { id: pipeline.id },
+      );
+    const data = await query();
+    expect(data.releasePipeline.releases.nodes).toHaveLength(8);
+    expect(data.releasePipeline.releases.nodes[0].url).toContain('/releases/');
+    // A per-release query would add at least 8 statements per field.
+    expect(await countStatements(query)).toBeLessThanOrEqual(16);
   });
 });
 

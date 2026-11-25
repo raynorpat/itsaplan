@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { and, eq, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { aiConfigured, aiSummary } from './ai';
 import { dbNow } from './clock';
-import { requesterChanges, type Change } from './changes';
+import { requesterChanges, shipmentsIn, type Change } from './changes';
+import { recordShipped } from '../releases/shipped';
 import { roundUp, type SummaryText } from './render';
 
 // "Since your last visit" on the portal (spec: requester updates). A visit is recorded
@@ -124,12 +125,20 @@ export async function sinceLastVisit(
 ): Promise<SummaryText> {
   const now = at ?? (await dbNow());
   const [person] = await db
-    .select({ displayName: externalUser.displayName, since: externalUser.previousVisitAt })
+    .select({
+      displayName: externalUser.displayName,
+      since: externalUser.previousVisitAt,
+      visit: externalUser.lastVisitAt,
+    })
     .from(externalUser)
     .where(eq(externalUser.id, requesterId));
   if (!person?.since) return { paragraph: null, lines: [] };
   const changes = await requesterChanges(requesterId, person.since, now);
   if (changes.length === 0) return { paragraph: null, lines: [] };
+  // The shipments shown count as told, as of this visit: the next visit's window starts
+  // at it, so an issue reopened and completed again is not shown again; a reload within
+  // this visit still shows them.
+  await recordShipped(requesterId, shipmentsIn(changes), person.visit ?? now);
   return {
     paragraph: await cachedParagraph(
       requesterId,

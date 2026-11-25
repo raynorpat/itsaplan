@@ -15,7 +15,9 @@ import {
   cleanName,
   cleanText,
   freeReleaseSlug,
+  lockPipeline,
   releaseForPipeline,
+  rethrowVersion,
   stageOfType,
   stagesOf,
   type ReleaseContent,
@@ -65,7 +67,8 @@ export interface SyncResult {
   release: ReleaseRow;
   added: string[];
   skipped: { identifier: string; reason: SkipReason }[];
-  // Set when the sync aimed at a release in a frozen stage and went to this one.
+  // The version (else name) of the release in a frozen stage the sync aimed at, when it
+  // went to the next open release instead.
   redirectedFrom: string | null;
 }
 
@@ -95,15 +98,15 @@ function repositoryOf(value: unknown): Record<string, unknown> | null {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
 
-async function lockPipeline(tx: Tx, pipelineId: string): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`release-sync:${pipelineId}`}))`);
-}
-
+// The release with this version. An archived or trashed one keeps its version (the
+// unique index covers it), so a sync naming it is refused until it is restored.
 async function byVersion(tx: Tx, pipelineId: string, version: string) {
   const [row] = await tx
     .select()
     .from(release)
     .where(and(eq(release.pipelineId, pipelineId), eq(release.version, version)));
+  if (row && (row.archivedAt || row.trashed))
+    throw new HttpError(400, `Release ${version} is archived or deleted; restore it first`);
   return row ?? null;
 }
 
@@ -113,22 +116,28 @@ async function insertRelease(
   stage: StageRow,
   values: { name: string; version: string | null; creatorId: string | null },
 ): Promise<ReleaseRow> {
-  const now = new Date();
+  // The database's clock: shipped updates (shipped.ts) compare these times with times
+  // the database stamps (issue_to_release.created_at).
+  const now = sql`now()`;
   const started = stage.type === 'started' || stage.type === 'completed';
-  const [row] = await tx
-    .insert(release)
-    .values({
-      slugId: await freeReleaseSlug(values.name, tx),
-      pipelineId: pipeline.id,
-      stageId: stage.id,
-      name: values.name,
-      version: values.version,
-      creatorId: values.creatorId,
-      startedAt: started ? now : null,
-      completedAt: stage.type === 'completed' ? now : null,
-    })
-    .returning();
-  return row!;
+  try {
+    const [row] = await tx
+      .insert(release)
+      .values({
+        slugId: await freeReleaseSlug(values.name, tx),
+        pipelineId: pipeline.id,
+        stageId: stage.id,
+        name: values.name,
+        version: values.version,
+        creatorId: values.creatorId,
+        startedAt: started ? now : null,
+        completedAt: stage.type === 'completed' ? now : null,
+      })
+      .returning();
+    return row!;
+  } catch (err) {
+    rethrowVersion(err);
+  }
 }
 
 const isFrozen = (stages: StageRow[], row: ReleaseRow) =>
@@ -222,7 +231,7 @@ async function scheduledTarget(
   }
   if (!isFrozen(stages, row)) return { row, redirectedFrom: null };
   const next = await nextOpenRelease(tx, pipeline, stages, row.id, creatorId);
-  return { row: next, redirectedFrom: row.id };
+  return { row: next, redirectedFrom: row.version ?? row.name };
 }
 
 // The issues the references name, by lowercased identifier.

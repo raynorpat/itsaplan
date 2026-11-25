@@ -99,6 +99,19 @@ const depthLimit: Plugin = {
   onValidate: ({ addValidationRule }) => addValidationRule(maxDepthRule),
 };
 
+// Copies what resolvers put in `context.extensions` into the response's `extensions`.
+const resultExtensions: Plugin<GraphQLContext> = {
+  onExecute({ args }) {
+    return {
+      onExecuteDone({ result, setResult }) {
+        const added = args.contextValue.extensions;
+        if (!added || Object.keys(added).length === 0 || Symbol.asyncIterator in result) return;
+        setResult({ ...result, extensions: { ...result.extensions, ...added } });
+      },
+    };
+  },
+};
+
 const AUTH_MESSAGE = 'Authentication required, not authenticated';
 
 const unauthenticated = () =>
@@ -130,8 +143,8 @@ export function mountGraphql(app: any): void {
     graphqlEndpoint: '/graphql',
     graphiql: false,
     landingPage: false,
-    context: ({ user, auth, accessKey }) => ({ user, auth, accessKey }),
-    plugins: [depthLimit, scopeCheck],
+    context: ({ user, auth, accessKey }) => ({ user, auth, accessKey, extensions: {} }),
+    plugins: [depthLimit, scopeCheck, resultExtensions],
     maskedErrors: {
       // A value Postgres cannot store or read (bad uuid/date/number text, a value
       // out of range, a violated check) is the client's error, not an internal one.

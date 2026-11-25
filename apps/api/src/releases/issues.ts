@@ -177,6 +177,29 @@ export async function removeIssueFromRelease(
 }
 
 // The number of issues in the release the viewer can see (archived ones on request).
+// releaseIssueCount for many releases at once (active issues only).
+export async function releaseIssueCounts(
+  releaseIds: readonly string[],
+  viewerId: string,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (releaseIds.length === 0) return out;
+  const rows = await db
+    .select({ releaseId: issueToRelease.releaseId, n: sql<number>`count(*)::int` })
+    .from(issueToRelease)
+    .innerJoin(issue, eq(issue.id, issueToRelease.issueId))
+    .where(
+      and(
+        inArray(issueToRelease.releaseId, [...releaseIds]),
+        inArray(issue.teamId, visibleTeamIds(viewerId)),
+        sql`${issue.archivedAt} IS NULL`,
+      ),
+    )
+    .groupBy(issueToRelease.releaseId);
+  for (const r of rows) out.set(r.releaseId, r.n);
+  return out;
+}
+
 export async function releaseIssueCount(
   releaseId: string,
   viewerId: string,

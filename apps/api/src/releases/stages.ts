@@ -1,5 +1,5 @@
 import { db, release, releasePipeline, releaseStage } from '@repo/db';
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { assertPipelineRead, assertPipelineWrite, visiblePipelinesSql } from './access';
@@ -35,6 +35,14 @@ export interface StageInput {
 }
 
 type Row = typeof releaseStage.$inferSelect;
+
+export async function stagesByIds(ids: readonly string[]): Promise<Row[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(releaseStage)
+    .where(inArray(releaseStage.id, [...ids]));
+}
 
 export const mapStage = (row: Row): StageDto => ({
   id: row.id,

@@ -5,7 +5,7 @@ import { and, eq, isNotNull, isNull, lt, lte, min, notInArray, or, type SQL } fr
 import { webOrigin } from '../portal/session';
 import { recordShipped } from '../releases/shipped';
 import { aiConfigured, aiSummary } from './ai';
-import { requesterChanges, requestersWithChangesSince, type Change } from './changes';
+import { requesterChanges, requestersWithChangesSince, shipmentsIn, type Change } from './changes';
 import { renderChangeEmail, renderSummaryEmail, roundUp, type SummaryText } from './render';
 import { unsubscribeToken } from './unsubscribe';
 
@@ -222,12 +222,6 @@ async function changeEmailFor(
     throw error;
   }
 }
-
-// The shipments an email told the person about.
-const shipmentsIn = (changes: Change[]) =>
-  changes.flatMap((c) =>
-    c.kind === 'shipped' ? [{ issueId: c.issueId, releaseId: c.releaseId }] : [],
-  );
 
 // After a sent email: the person's marker (when given) and the shipments it told them
 // about, at the run's `until`. A failed write here means the same changes go out again

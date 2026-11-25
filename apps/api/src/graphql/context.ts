@@ -19,6 +19,9 @@ export interface GraphQLContext {
   // Set instead of a user for a request made with a release pipeline access key, which
   // reaches only the access key operations (anonymous.ts ACCESS_KEY_FIELDS).
   accessKey?: ResolvedAccessKey;
+  // Entries a resolver adds to the response's top-level `extensions` (mount.ts
+  // resultExtensions), for data Linear's payload types have no field for.
+  extensions: Record<string, unknown>;
 }
 
 // The release pipeline access key a request carries (`Authorization: Bearer itpr_…`,

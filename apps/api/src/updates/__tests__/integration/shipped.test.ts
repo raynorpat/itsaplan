@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { db, externalUser } from '@repo/db';
+import { eq, sql } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
@@ -183,6 +185,19 @@ describe('shipped changes', () => {
     expect(shipped(await requesterChanges(v.requesterId, w.since, w.until))).toEqual([]);
   });
 
+  it('does not ship an issue while its release is in progress, whatever completedAt says', async () => {
+    const { owner, member, states, issue, v, releaseId } = await setup();
+    const w = await window(async () => {
+      await updateIssue(member, issue.id, { stateId: states.completed });
+      await gqlData(
+        owner,
+        `mutation($id: String!, $input: ReleaseUpdateInput!) { releaseUpdate(id: $id, input: $input) { success } }`,
+        { id: releaseId, input: { completedAt: new Date(Date.now() - 1000).toISOString() } },
+      );
+    });
+    expect(shipped(await requesterChanges(v.requesterId, w.since, w.until))).toEqual([]);
+  });
+
   it('shows the release on the portal issue page', async () => {
     const { owner, member, states, issue, v, pipelineId } = await setup();
     const before = (await ok(
@@ -228,5 +243,41 @@ describe('shipped emails', () => {
     tomorrow.setUTCHours(9, 0, 0, 0);
     expect(await runSummaries(tomorrow)).toEqual({ sent: 1 });
     expect(mailsTo(v.email)[1]!.text).toContain('Dark mode shipped in v1.0');
+  });
+});
+
+describe('shipped since your last visit', () => {
+  const sinceLastVisit = async (cookie: string) =>
+    (await ok(await portal('me/since-last-visit', { cookie }))) as { lines: string[] };
+
+  it('shows a shipment once, not again after the issue is reopened and completed', async () => {
+    const { owner, member, states, issue, v, pipelineId } = await setup();
+    await sinceLastVisit(v.cookie);
+    // The person last came two hours ago; the next request is a new visit.
+    await db
+      .update(externalUser)
+      .set({ lastVisitAt: new Date(Date.now() - 2 * 3_600_000) })
+      .where(eq(externalUser.id, v.requesterId));
+    await updateIssue(member, issue.id, { stateId: states.completed });
+    await complete(owner, pipelineId);
+    // The issue's completion is stamped on the API's clock, which may run ahead of the
+    // database's (the visit's `until`); wait past the difference.
+    await Bun.sleep(200);
+    expect((await sinceLastVisit(v.cookie)).lines).toContain('Dark mode shipped in v1.0');
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await updateIssue(member, issue.id, { stateId: states.completed });
+    // Two hours pass for the visit (and what it showed) and the new completion; the
+    // next request is a new visit.
+    await db.execute(
+      sql`UPDATE external_user SET last_visit_at = last_visit_at - interval '2 hours' WHERE id = ${v.requesterId}`,
+    );
+    await db.execute(
+      sql`UPDATE issue SET completed_at = completed_at - interval '2 hours' WHERE id = ${issue.id}`,
+    );
+    await db.execute(
+      sql`UPDATE requester_shipped SET sent_at = sent_at - interval '2 hours' WHERE requester_id = ${v.requesterId}`,
+    );
+    const again = (await sinceLastVisit(v.cookie)).lines;
+    expect(again).not.toContain('Dark mode shipped in v1.0');
   });
 });
