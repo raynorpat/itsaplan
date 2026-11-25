@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { type FeedComment } from '@/utils/commentThreads';
-import { buildFeed, historyToFeedItems, type FeedHistory } from '../feed';
+import { buildFeed, historyToFeedItems, importSourceLabel, type FeedHistory } from '../feed';
 
 // buildFeed: the issue's comments and history (Linear's IssueHistory) as the feed the
 // issue page renders, newest first, with replies under their thread and resolved
@@ -215,5 +215,13 @@ describe('history made by a workflow', () => {
     );
     assert.equal(item!.actorName, 'Auto-close');
     assert.equal(item!.actorWorkflow, true);
+  });
+});
+
+describe('importSourceLabel', () => {
+  it('names every import source, CSV and Jira included', () => {
+    assert.equal(importSourceLabel('github'), 'GitHub');
+    assert.equal(importSourceLabel('jira'), 'Jira');
+    assert.equal(importSourceLabel('csv'), 'a CSV file');
   });
 });

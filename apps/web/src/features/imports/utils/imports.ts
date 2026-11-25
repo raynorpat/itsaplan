@@ -55,10 +55,18 @@ function waitingUntil(imp: ImportView): Date | null {
   return at.getTime() > Date.now() ? at : null;
 }
 
+// The step an import waits on before processing: a CSV import (Jira or other) also
+// maps its statuses to the team's states.
+export function matchStepLabel(imp: Pick<ImportView, 'service'>): string {
+  return imp.service === 'csv' || imp.service === 'jira'
+    ? 'Match statuses and people'
+    : 'Match people';
+}
+
 export function importStatusText(imp: ImportView): string {
   switch (imp.status) {
     case 'inProgress': {
-      if (imp.awaitingPeople) return 'Match people to continue';
+      if (imp.awaitingPeople) return `${matchStepLabel(imp)} to continue`;
       const until = waitingUntil(imp);
       return until
         ? `Waiting for the source's rate limit until ${clock(until)}`

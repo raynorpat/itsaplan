@@ -6,6 +6,7 @@ import {
   NEW_TEAM,
   importStatusText,
   importSummaryText,
+  matchStepLabel,
   peopleMappingInput,
   rerunInput,
   type ImportView,
@@ -44,6 +45,15 @@ describe('importStatusText', () => {
 
   it('asks for people matching once fetched', () => {
     assert.equal(importStatusText({ ...base, awaitingPeople: true }), 'Match people to continue');
+  });
+
+  it('asks for statuses and people for a CSV import', () => {
+    for (const service of ['csv', 'jira'] as const) {
+      const imp = { ...base, service, awaitingPeople: true };
+      assert.equal(importStatusText(imp), 'Match statuses and people to continue');
+      assert.equal(matchStepLabel(imp), 'Match statuses and people');
+    }
+    assert.equal(matchStepLabel(base), 'Match people');
   });
 
   it('counts processed issues while creating records', () => {

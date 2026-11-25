@@ -27,7 +27,7 @@ export default function ImportPage() {
   return (
     <SectionPageView
       title="Import"
-      description="Bring the issues of a GitHub, GitLab, Gitea or Forgejo repository into a team, with their labels and comments. Each import runs once; running it again skips issues already imported."
+      description="Bring the issues of a GitHub, GitLab, Gitea or Forgejo repository, a Jira export or any other CSV file into a team, with their labels and comments. Each import runs once; running it again skips issues already imported."
     >
       {isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
       {!isPending && !isAdmin && (

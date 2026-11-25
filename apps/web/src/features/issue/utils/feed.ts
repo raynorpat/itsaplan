@@ -285,6 +285,8 @@ const IMPORT_SOURCES: Record<string, string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+  jira: 'Jira',
+  csv: 'a CSV file',
 };
 
 export function importSourceLabel(service: string): string {

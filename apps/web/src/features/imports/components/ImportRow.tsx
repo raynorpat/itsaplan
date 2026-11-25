@@ -6,6 +6,7 @@ import {
   importIsRunning,
   importStatusText,
   importSummaryText,
+  matchStepLabel,
   rerunInput,
   SERVICE_LABEL,
   type ImportService,
@@ -43,7 +44,7 @@ export default function ImportRow({
         </div>
         {imp.awaitingPeople ? (
           <Button size="sm" onClick={onMatchPeople}>
-            Match people
+            {matchStepLabel(imp)}
           </Button>
         ) : (
           <span

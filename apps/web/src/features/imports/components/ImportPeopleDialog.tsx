@@ -15,7 +15,7 @@ import {
   statusMappingInput,
   statusValues,
 } from '../utils/csvImport';
-import { peopleMappingInput, type ImportView } from '../utils/imports';
+import { matchStepLabel, peopleMappingInput, type ImportView } from '../utils/imports';
 import ImportStatusFields from './ImportStatusFields';
 
 const UNMATCHED = '__none__';
@@ -66,7 +66,7 @@ export default function ImportPeopleDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl">
-        <DialogTitle>{csv ? 'Match statuses and people' : 'Match people'}</DialogTitle>
+        <DialogTitle>{matchStepLabel(imp)}</DialogTitle>
         <DialogDescription>
           {csv ? 'Choose the state each status in the file becomes, and ' : 'Choose '}
           the member each person&apos;s issues and comments belong to. Unmatched people&apos;s
