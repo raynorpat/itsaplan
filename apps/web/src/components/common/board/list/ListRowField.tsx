@@ -8,6 +8,7 @@ import {
   LabelBadge,
 } from '@/components/common/issue/IssueBadges';
 import { RequestsBadge } from '@/components/common/issue/RequestsBadge';
+import { EstimateBadge } from '@/components/common/issue/EstimateBadge';
 import type { ListRowData } from './ListRowContent';
 
 // One right-hand field of a list row. Empty fields render nothing except the
@@ -38,6 +39,8 @@ export function ListRowField({ field, data }: { field: ListField; data: ListRowD
           <span className="truncate">{data.cycle}</span>
         </span>
       ) : null;
+    case 'estimate':
+      return <EstimateBadge estimate={data.estimate} />;
     case 'dueDate':
       return data.dueDate ? (
         <span className="shrink-0">

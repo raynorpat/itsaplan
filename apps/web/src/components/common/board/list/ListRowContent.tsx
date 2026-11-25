@@ -15,6 +15,7 @@ export interface ListRowData {
   labels: { id: string; name: string; color: string }[];
   project: string | null;
   cycle: string | null;
+  estimate: number | null;
   dueDate: { date: string; overdue: boolean } | null;
   assignee: { name: string; image: string | null } | null;
   delegate: { name: string; image: string | null } | null;

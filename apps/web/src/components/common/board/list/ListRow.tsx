@@ -34,6 +34,7 @@ function rowData(issue: Issue, maps: Maps): ListRowData {
     }),
     project: issue.project ? projectDisplayName(issue.project) : null,
     cycle: cycle ? cycleLabel(cycle) : null,
+    estimate: issue.estimate,
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, state?.stateType) }
       : null,

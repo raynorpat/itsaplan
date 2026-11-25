@@ -4,7 +4,12 @@ import type { Issue } from '@/types/issue';
 import { positionAt, type IssueGroup } from '../team';
 import { buildListItems, listDropPatch, listRowProperties, rangeIds, toggledKeys } from '../list';
 import { displayToPreferences, preferencesToDisplay } from '../viewPreferences';
-import { defaultViewSettings, normalizeSavedDisplay, normalizeViewSettings } from '../viewSettings';
+import {
+  DISPLAY_PROPERTIES,
+  defaultViewSettings,
+  normalizeSavedDisplay,
+  normalizeViewSettings,
+} from '../viewSettings';
 import { toLayout } from '../viewTypes';
 
 const issue = (id: string, position: number, stateId = 's1') =>
@@ -54,6 +59,18 @@ describe('listRowProperties', () => {
     );
     assert.deepEqual(r.leading, { priority: true, id: true, status: true });
     assert.deepEqual(r.trailing, ['labels', 'cycle', 'dueDate', 'assignee', 'created']);
+  });
+
+  it('places the estimate before the due date', () => {
+    const r = listRowProperties(['dueDate', 'estimate', 'labels'], true);
+    assert.deepEqual(r.trailing, ['labels', 'estimate', 'dueDate']);
+  });
+
+  it('shows the estimate by default on lists and boards, after priority in the menu', () => {
+    assert.ok(defaultViewSettings('list').properties.includes('estimate'));
+    assert.ok(defaultViewSettings('kanban').properties.includes('estimate'));
+    const order = DISPLAY_PROPERTIES.map((p) => p.value);
+    assert.equal(order.indexOf('estimate'), order.indexOf('priority') + 1);
   });
 
   it('drops the cycle while the team’s cycles are off', () => {

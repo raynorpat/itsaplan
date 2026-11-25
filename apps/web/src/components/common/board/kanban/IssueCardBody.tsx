@@ -1,5 +1,6 @@
 import { CalendarClock, CalendarPlus, History, RefreshCcw, Target } from 'lucide-react';
 import { RequestsBadge } from '@/components/common/issue/RequestsBadge';
+import { EstimateBadge } from '@/components/common/issue/EstimateBadge';
 import { requesterCount } from '@/utils/requests';
 import type { Issue } from '@/types/issue';
 import { type Maps } from '@/utils/team';
@@ -44,6 +45,7 @@ export function IssueCardBody({
   const showDelegate = has('delegate') && delegate;
   const propertiesShown =
     (has('priority') && issue.priority > 0) ||
+    (has('estimate') && issue.estimate != null) ||
     (has('dueDate') && issue.dueDate) ||
     (has('project') && project) ||
     (has('cycle') && cycle) ||
@@ -97,6 +99,7 @@ export function IssueCardBody({
       {propertiesShown && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {has('priority') && issue.priority > 0 && <PriorityBadge priority={issue.priority} />}
+          {has('estimate') && <EstimateBadge estimate={issue.estimate} />}
           {has('dueDate') && issue.dueDate && (
             <DateBadge
               icon={<CalendarClock className="size-2.5" />}

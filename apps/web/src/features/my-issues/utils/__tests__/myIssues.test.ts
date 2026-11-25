@@ -285,6 +285,11 @@ describe('myIssueRow', () => {
     assert.deepEqual(row.assignee, { name: 'Pat', image: null });
   });
 
+  it('carries the estimate, empty when the issue has none', () => {
+    assert.equal(myIssueRow(base).estimate, null);
+    assert.equal(myIssueRow({ ...base, estimate: 3 }).estimate, 3);
+  });
+
   it('marks a project in the trash as deleted', () => {
     const row = myIssueRow({
       ...base,

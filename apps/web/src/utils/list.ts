@@ -18,6 +18,7 @@ const TRAILING_ORDER: ListField[] = [
   'labels',
   'project',
   'cycle',
+  'estimate',
   'dueDate',
   'delegate',
   'assignee',

@@ -67,6 +67,7 @@ const FIELD: Partial<Record<PropertyKey, string>> = {
   id: 'fieldId',
   status: 'fieldStatus',
   priority: 'fieldPriority',
+  estimate: 'fieldEstimate',
   assignee: 'fieldAssignee',
   project: 'fieldProject',
   cycle: 'fieldCycle',
@@ -105,6 +106,7 @@ export interface ViewPreferenceValues {
   fieldLabels?: boolean | null;
   fieldCustomerCount?: boolean | null;
   fieldDueDate?: boolean | null;
+  fieldEstimate?: boolean | null;
   fieldDateCreated?: boolean | null;
   fieldDateUpdated?: boolean | null;
 }

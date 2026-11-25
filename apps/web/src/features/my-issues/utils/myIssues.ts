@@ -280,6 +280,7 @@ export function myIssueRow(issue: MyIssue): ListRowData {
       ? projectDisplayName({ title: issue.project.name, deleted: issue.project.archivedAt != null })
       : null,
     cycle: issue.cycle ? cycleLabel(issue.cycle) : null,
+    estimate: issue.estimate ?? null,
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, type) }
       : null,

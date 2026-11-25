@@ -20,6 +20,7 @@ export type DisplayProperty =
   | 'id'
   | 'status'
   | 'priority'
+  | 'estimate'
   | 'assignee'
   | 'delegate'
   | 'project'
@@ -37,6 +38,7 @@ export const DISPLAY_PROPERTIES: { value: DisplayProperty; label: string }[] = [
   { value: 'id', label: 'ID' },
   { value: 'status', label: 'State' },
   { value: 'priority', label: 'Priority' },
+  { value: 'estimate', label: 'Estimate' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'delegate', label: 'Delegate' },
   { value: 'project', label: 'Project' },
@@ -118,13 +120,14 @@ const DEFAULT_PROPERTIES: Record<WorkItemsView, DisplayProperty[]> = {
     'id',
     'status',
     'labels',
+    'estimate',
     'project',
     'cycle',
     'dueDate',
     'assignee',
     'created',
   ],
-  kanban: ['id', 'status', 'priority', 'dueDate', 'labels', 'assignee'],
+  kanban: ['id', 'status', 'priority', 'estimate', 'dueDate', 'labels', 'assignee'],
   timeline: [],
   calendar: [],
 };
