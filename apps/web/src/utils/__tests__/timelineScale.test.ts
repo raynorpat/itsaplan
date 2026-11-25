@@ -8,6 +8,19 @@ const d = (s: string) => {
   return new Date(y!, m! - 1, day!);
 };
 
+// Runs `fn` with the process in time zone `tz`, so a daylight saving change happens
+// inside the dates tested whatever the machine's zone (CI runs in UTC).
+function inTimeZone(tz: string, fn: () => void) {
+  const before = process.env.TZ;
+  process.env.TZ = tz;
+  try {
+    fn();
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
+}
+
 describe('timelineScale', () => {
   const today = d('2026-11-25');
 
@@ -115,14 +128,17 @@ describe('dragDates', () => {
   });
 
   it('moves across a daylight saving change by whole days', () => {
-    const r = dragDates({
-      mode: 'move',
-      start: d('2026-03-07'),
-      end: d('2026-03-10'),
-      deltaDays: 2,
+    // The United States falls back on 1 November 2026 (a 25-hour day).
+    inTimeZone('America/New_York', () => {
+      const r = dragDates({
+        mode: 'move',
+        start: d('2026-10-31'),
+        end: d('2026-11-03'),
+        deltaDays: 2,
+      });
+      assert.equal(toDateStr(r.start), '2026-11-02');
+      assert.equal(toDateStr(r.end), '2026-11-05');
     });
-    assert.equal(toDateStr(r.start), '2026-03-09');
-    assert.equal(toDateStr(r.end), '2026-03-12');
   });
 
   it('resizes the end, never before the start', () => {

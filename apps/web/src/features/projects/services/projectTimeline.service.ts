@@ -5,7 +5,12 @@ import { qk } from '@/services/queryKeys';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { toProjectFilter, type ProjectListFilters } from '@/utils/projectFilter';
 import type { ProjectStatus, ProjectHealth } from '@/types/project';
-import type { ProjectDates, TimelineProject } from '../utils/projectTimeline';
+import {
+  patchTimeline,
+  revertTimelineWrite,
+  type TimelineDateWrite,
+  type TimelineProject,
+} from '../utils/projectTimeline';
 
 const TimelineProjectsQuery = graphql(`
   query TimelineProjects($filter: ProjectFilter, $first: Int!, $after: String) {
@@ -21,6 +26,7 @@ const TimelineProjectsQuery = graphql(`
         }
         lead {
           id
+          name
         }
         teams {
           nodes {
@@ -95,6 +101,7 @@ export function useTimelineProjects(filters: ProjectListFilters, enabled: boolea
         startDate: p.startDate ?? null,
         targetDate: p.targetDate ?? null,
         leadUserId: p.lead?.id ?? null,
+        leadName: p.lead?.name ?? null,
         teams: p.teams.nodes.map((t) => ({ id: t.id, name: t.name })),
         initiatives: p.initiatives.nodes.map((i) => ({ id: i.id, name: i.name })),
         milestones: p.projectMilestones.nodes.map((m) => ({
@@ -108,30 +115,13 @@ export function useTimelineProjects(filters: ProjectListFilters, enabled: boolea
   });
 }
 
-type DateWrite =
-  | { kind: 'project'; projectId: string; dates: ProjectDates }
-  | { kind: 'milestone'; projectId: string; milestoneId: string; targetDate: string };
-
-function patchTimeline(list: TimelineProject[], write: DateWrite): TimelineProject[] {
-  return list.map((p) => {
-    if (p.id !== write.projectId) return p;
-    if (write.kind === 'project') return { ...p, ...write.dates };
-    return {
-      ...p,
-      milestones: p.milestones.map((m) =>
-        m.id === write.milestoneId ? { ...m, targetDate: write.targetDate } : m,
-      ),
-    };
-  });
-}
-
 // A dragged bar or milestone: the timeline shows the new dates at once, rolls back
 // and shows the error when the change fails, and every project list (the table, the
 // tab counts, the dependency warnings) refreshes once it settles.
 export function useTimelineDateWrite(key: QueryKey) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (write: DateWrite) => {
+    mutationFn: async (write: TimelineDateWrite) => {
       if (write.kind === 'project')
         await gqlRequest(ProjectDatesUpdate, { id: write.projectId, input: write.dates });
       else
@@ -140,14 +130,18 @@ export function useTimelineDateWrite(key: QueryKey) {
           input: { targetDate: write.targetDate },
         });
     },
+    // The new dates are set before anything is awaited, so a dropped bar never shows its
+    // old dates for a moment; a failure undoes only this write.
     onMutate: async (write) => {
-      await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<TimelineProject[]>(key);
       if (previous) qc.setQueryData(key, patchTimeline(previous, write));
+      await qc.cancelQueries({ queryKey: key });
       return { previous };
     },
-    onError: (err, _write, context) => {
-      if (context?.previous) qc.setQueryData(key, context.previous);
+    onError: (err, write, context) => {
+      const current = qc.getQueryData<TimelineProject[]>(key);
+      if (context?.previous && current)
+        qc.setQueryData(key, revertTimelineWrite(current, context.previous, write));
       toast.error(err instanceof Error ? err.message : 'The dates were not changed');
     },
     onSettled: (_data, _err, write) => {

@@ -1,5 +1,5 @@
 import { isConflict, type ProjectRelationItem, type RelationEnd } from '@/utils/projectRelations';
-import type { ProjectPosition, ProjectPositions } from './projectTimeline';
+import type { ProjectPosition, ProjectPositions, ShownDates } from './projectTimeline';
 
 // Dependency arrows over the projects timeline: each relation whose two projects are
 // on the timeline is a path from the blocking anchor to the blocked anchor; a relation
@@ -19,6 +19,27 @@ export function anchorX(pos: ProjectPosition, end: RelationEnd): number | null {
     case 'milestone':
       return end.milestone ? (pos.milestoneX.get(end.milestone.id) ?? null) : null;
   }
+}
+
+// A relation end with the dates the timeline shows for its project (a drag in
+// progress), when known.
+function asShown(end: RelationEnd, dates: ShownDates | undefined): RelationEnd {
+  if (!dates) return end;
+  const milestone = end.milestone && {
+    ...end.milestone,
+    targetDate: dates.milestones.has(end.milestone.id)
+      ? (dates.milestones.get(end.milestone.id) ?? null)
+      : end.milestone.targetDate,
+  };
+  return { ...end, startDate: dates.startDate, targetDate: dates.targetDate, milestone };
+}
+
+function shownConflict(
+  r: ProjectRelationItem,
+  from: ProjectPosition | undefined,
+  to: ProjectPosition | undefined,
+): boolean {
+  return isConflict({ ...r, from: asShown(r.from, from?.dates), to: asShown(r.to, to?.dates) });
 }
 
 export interface ArrowPath {
@@ -49,7 +70,7 @@ export function arrowPaths(
       fromId: r.from.projectId,
       toId: r.to.projectId,
       d: `M ${x1} ${from.y} H ${turn} V ${to.y} H ${x2}`,
-      conflict: isConflict(r),
+      conflict: shownConflict(r, from, to),
     });
   }
   return arrows;
@@ -88,7 +109,7 @@ export function offscreenMarkers(
       otherName: other.projectName,
       x,
       y: pos.y,
-      conflict: isConflict(r),
+      conflict: shownConflict(r, from, to),
     });
   }
   return markers;

@@ -81,6 +81,11 @@ const FIELD: Partial<Record<PropertyKey, string>> = {
 // Linear's timelineZoomScale is a number; the timeline's three scales are 1, 2 and 3.
 const ZOOM: Record<TimelineScale, number> = { week: 1, month: 2, quarter: 3 };
 
+export const zoomToPreference = (scale: TimelineScale): number => ZOOM[scale];
+
+export const zoomFromPreference = (value: number | null | undefined): TimelineScale | undefined =>
+  value == null ? undefined : invert(ZOOM).get(value);
+
 // The ViewPreferencesValues fields the web reads back; the GraphQL selection in
 // views.service.ts asks for exactly these.
 export interface ViewPreferenceValues {
@@ -128,7 +133,7 @@ export function displayToPreferences(d: SavedViewDisplay): ViewPreferenceValues 
     hiddenGroupsList: d.collapsedGroups,
     hiddenRows: d.collapsedSwimlanes,
     columnOrderList: d.properties,
-    timelineZoomScale: ZOOM[d.timelineScale],
+    timelineZoomScale: zoomToPreference(d.timelineScale),
     showCompletedIssues: d.completedIssues,
     showSubIssues: d.showSubIssues,
   };
@@ -157,8 +162,7 @@ export function preferencesToDisplay(p: ViewPreferenceValues | null | undefined)
     collapsedGroups: prefs.hiddenGroupsList ?? undefined,
     collapsedSwimlanes: prefs.hiddenRows ?? undefined,
     properties: prefs.columnOrderList ? properties : undefined,
-    timelineScale:
-      prefs.timelineZoomScale == null ? undefined : invert(ZOOM).get(prefs.timelineZoomScale),
+    timelineScale: zoomFromPreference(prefs.timelineZoomScale),
     // Linear's other windows (day, currentCycle) are not offered here and read as all.
     completedIssues: prefs.showCompletedIssues ?? undefined,
     showSubIssues: prefs.showSubIssues ?? undefined,

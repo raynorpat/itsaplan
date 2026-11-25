@@ -20,6 +20,8 @@ export interface TimelineProject {
   startDate: string | null;
   targetDate: string | null;
   leadUserId: string | null;
+  // The lead's name as the API gives it (people outside the current team included).
+  leadName?: string | null;
   teams: { id: string; name: string }[];
   initiatives: { id: string; name: string }[];
   milestones: TimelineMilestone[];
@@ -73,7 +75,7 @@ function groupKeysOf(
       return [{ key: p.status, label: STATUS_META[p.status].label }];
     case 'lead':
       return p.leadUserId
-        ? [{ key: p.leadUserId, label: leadName(p.leadUserId) }]
+        ? [{ key: p.leadUserId, label: p.leadName ?? leadName(p.leadUserId) }]
         : [{ key: NONE_KEY, label: 'No lead' }];
     case 'team':
       return p.teams.length > 0
@@ -226,6 +228,14 @@ export interface ProjectPosition {
   startX: number;
   endX: number;
   milestoneX: Map<string, number>;
+  // The dates as shown, including a drag in progress, so a conflict follows the drag.
+  dates?: ShownDates;
+}
+
+export interface ShownDates {
+  startDate: string | null;
+  targetDate: string | null;
+  milestones: Map<string, string | null>;
 }
 
 export type ProjectPositions = Map<string, ProjectPosition>;
@@ -252,6 +262,11 @@ export function projectPositions(
       startX: xOf(span.start),
       endX: xOf(span.end) + dayW,
       milestoneX,
+      dates: {
+        startDate: p.startDate,
+        targetDate: p.targetDate,
+        milestones: new Map(p.milestones.map((m) => [m.id, m.targetDate])),
+      },
     });
   }
   return positions;
@@ -305,4 +320,68 @@ export function withPreview(
     targetDate: p.targetDate ? toDateStr(bar.end) : null,
     milestones,
   };
+}
+
+// A date change from the timeline: a project's dates or one milestone's target date.
+export type TimelineDateWrite =
+  | { kind: 'project'; projectId: string; dates: ProjectDates }
+  | { kind: 'milestone'; projectId: string; milestoneId: string; targetDate: string };
+
+// The list with `write` applied, as the timeline shows it before the server answers.
+export function patchTimeline(
+  list: TimelineProject[],
+  write: TimelineDateWrite,
+): TimelineProject[] {
+  return list.map((p) => {
+    if (p.id !== write.projectId) return p;
+    if (write.kind === 'project') return { ...p, ...write.dates };
+    return {
+      ...p,
+      milestones: p.milestones.map((m) =>
+        m.id === write.milestoneId ? { ...m, targetDate: write.targetDate } : m,
+      ),
+    };
+  });
+}
+
+// `current` with only `write` undone, taking the written values from `before`, so a
+// failed drag does not also undo another drag made while it was saving.
+export function revertTimelineWrite(
+  current: TimelineProject[],
+  before: TimelineProject[],
+  write: TimelineDateWrite,
+): TimelineProject[] {
+  const old = before.find((p) => p.id === write.projectId);
+  if (!old) return current;
+  return current.map((p) => {
+    if (p.id !== write.projectId) return p;
+    if (write.kind === 'project')
+      return { ...p, startDate: old.startDate, targetDate: old.targetDate };
+    const oldMilestone = old.milestones.find((m) => m.id === write.milestoneId);
+    if (!oldMilestone) return p;
+    return {
+      ...p,
+      milestones: p.milestones.map((m) =>
+        m.id === write.milestoneId ? { ...m, targetDate: oldMilestone.targetDate } : m,
+      ),
+    };
+  });
+}
+
+// The collapsed group keys of each grouping: every grouping has its own "none" group
+// (No team, No lead, …), so one collapsed there stays apart from the others.
+export type CollapsedGroups = Partial<Record<ProjectGrouping, string[]>>;
+
+export const collapsedGroups = (state: CollapsedGroups, grouping: ProjectGrouping) =>
+  new Set(state[grouping] ?? []);
+
+export function toggleCollapsedGroup(
+  state: CollapsedGroups,
+  grouping: ProjectGrouping,
+  key: string,
+): CollapsedGroups {
+  const keys = collapsedGroups(state, grouping);
+  if (keys.has(key)) keys.delete(key);
+  else keys.add(key);
+  return { ...state, [grouping]: [...keys] };
 }

@@ -59,15 +59,19 @@ export default function AddDependencyDialog({
             { id: project.id, anchor: thisAnchor },
             { id: otherId, anchor: otherAnchor },
           ];
-    await create.mutateAsync({
-      projectId: blocking.id,
-      anchorType: blocking.anchor.anchorType,
-      projectMilestoneId: blocking.anchor.milestoneId,
-      relatedProjectId: blocked.id,
-      relatedAnchorType: blocked.anchor.anchorType,
-      relatedProjectMilestoneId: blocked.anchor.milestoneId,
-    });
-    onClose();
+    try {
+      await create.mutateAsync({
+        projectId: blocking.id,
+        anchorType: blocking.anchor.anchorType,
+        projectMilestoneId: blocking.anchor.milestoneId,
+        relatedProjectId: blocked.id,
+        relatedAnchorType: blocked.anchor.anchorType,
+        relatedProjectMilestoneId: blocked.anchor.milestoneId,
+      });
+      onClose();
+    } catch {
+      // The mutation shows the error as a toast; the dialog stays open to try again.
+    }
   };
 
   return (

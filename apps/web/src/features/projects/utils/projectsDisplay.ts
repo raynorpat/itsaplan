@@ -1,5 +1,9 @@
 import type { TimelineScale } from '@/utils/viewSettings';
-import type { ViewPreferenceValues } from '@/utils/viewPreferences';
+import {
+  zoomFromPreference,
+  zoomToPreference,
+  type ViewPreferenceValues,
+} from '@/utils/viewPreferences';
 import { PROJECT_GROUPINGS, type ProjectGrouping } from './projectTimeline';
 
 // The projects list's display, kept per person as Linear's `projects` view
@@ -14,13 +18,11 @@ export interface ProjectsDisplay {
   zoom: TimelineScale;
 }
 
-const ZOOMS: TimelineScale[] = ['week', 'month', 'quarter'];
-
 export function displayFromPreferences(
   prefs: ViewPreferenceValues | null | undefined,
 ): ProjectsDisplay {
   const grouping = PROJECT_GROUPINGS.find((g) => g.value === prefs?.projectGrouping)?.value;
-  const zoom = prefs?.timelineZoomScale ? ZOOMS[prefs.timelineZoomScale - 1] : undefined;
+  const zoom = zoomFromPreference(prefs?.timelineZoomScale);
   return {
     layout: prefs?.projectLayout === 'timeline' ? 'timeline' : 'table',
     grouping: grouping ?? 'none',
@@ -32,6 +34,6 @@ export function preferencesFromDisplay(d: ProjectsDisplay): ViewPreferenceValues
   return {
     projectLayout: d.layout === 'timeline' ? 'timeline' : 'list',
     projectGrouping: d.grouping,
-    timelineZoomScale: ZOOMS.indexOf(d.zoom) + 1,
+    timelineZoomScale: zoomToPreference(d.zoom),
   };
 }

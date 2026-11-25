@@ -22,6 +22,11 @@ export function toWorkspaceRole(value: unknown): WorkspaceRole {
 
 export const atLeast = (role: WorkspaceRole, minimum: WorkspaceRole) => RANK[role] >= RANK[minimum];
 
+// Who changes a project plan: dates on the projects timeline and dependencies. Guests
+// only read them (the API refuses a guest's dependency writes).
+export const plansProjects = (role: WorkspaceRole | null) =>
+  role != null && atLeast(role, 'member');
+
 // Owners and admins administer the workspace (settings, webhooks, users).
 export const isWorkspaceAdmin = (role: WorkspaceRole) => atLeast(role, 'admin');
 

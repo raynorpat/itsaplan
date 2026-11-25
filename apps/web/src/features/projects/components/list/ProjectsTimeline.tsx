@@ -8,12 +8,15 @@ import { useProjectTimelineDrag } from '../../hooks/useProjectTimelineDrag';
 import type { ProjectsDisplay } from '../../utils/projectsDisplay';
 import {
   buildProjectTimeline,
+  collapsedGroups,
   dropDates,
   flattenTimelineRows,
   projectPositions,
   rowsHeight,
   timelineRange,
+  toggleCollapsedGroup,
   withPreview,
+  type CollapsedGroups,
   type ProjectPositions,
   type TimelineProject,
 } from '../../utils/projectTimeline';
@@ -64,7 +67,7 @@ export default function ProjectsTimeline({
     setViewportW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsedState, setCollapsedState] = useState<CollapsedGroups>({});
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
   const labelW = viewportW < 640 ? 140 : LABEL_W;
@@ -80,15 +83,11 @@ export default function ProjectsTimeline({
     ]),
   );
   const layout = buildProjectTimeline(projects, { grouping: display.grouping, leadName });
+  const collapsed = collapsedGroups(collapsedState, display.grouping);
   const rows = flattenTimelineRows(layout, { collapsed, headers: display.grouping !== 'none' });
 
   const toggleGroup = (key: string) =>
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setCollapsedState((current) => toggleCollapsedGroup(current, display.grouping, key));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -129,7 +128,9 @@ export default function ProjectsTimeline({
               onToggleGroup={toggleGroup}
             />
             {overlay && (
-              <div className="pointer-events-none absolute top-0" style={{ left: labelW }}>
+              // Above the bars (z-10), so markers on a bar's anchor stay visible and
+              // hoverable; the layer itself lets the pointer through.
+              <div className="pointer-events-none absolute top-0 z-20" style={{ left: labelW }}>
                 {overlay({
                   positions: projectPositions(rows, shown, scale.xOf, scale.dayWidth),
                   trackWidth: scale.trackWidth,

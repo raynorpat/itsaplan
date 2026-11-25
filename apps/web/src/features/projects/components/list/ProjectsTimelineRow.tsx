@@ -12,7 +12,9 @@ import ProjectsTimelineMilestone from './ProjectsTimelineMilestone';
 // One project on the timeline: its name and health on the left, and on the track a
 // bar in its status colour from start to target date (a project with one date is a
 // one-day point), with its milestones as diamonds. The bar's body moves both dates
-// and its ends change one; a point only moves.
+// and its ends change one; a point only moves. Dragging works with the pointer only;
+// keyboard users change a project's dates and milestones, and its dependencies, on the
+// project page, and the name is the row's keyboard-reachable link.
 export default function ProjectsTimelineRow({
   project,
   rect,

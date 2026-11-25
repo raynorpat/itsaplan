@@ -124,3 +124,40 @@ describe('offscreenMarkers', () => {
     );
   });
 });
+
+describe('conflict while dragging', () => {
+  it('colours an arrow from the dates shown on the timeline, not the saved ones', () => {
+    // Saved: A ends on 10 March, B starts on 20 March, no conflict. A is being dragged
+    // to end on 25 March.
+    const shown: ProjectPositions = new Map([
+      [
+        'a',
+        {
+          y: 18,
+          startX: 100,
+          endX: 200,
+          milestoneX: new Map(),
+          dates: { startDate: '2026-03-01', targetDate: '2026-03-25', milestones: new Map() },
+        },
+      ],
+      [
+        'b',
+        {
+          y: 90,
+          startX: 260,
+          endX: 400,
+          milestoneX: new Map(),
+          dates: { startDate: '2026-03-20', targetDate: '2026-03-30', milestones: new Map() },
+        },
+      ],
+    ]);
+    const r = relation(
+      'r1',
+      end('a', 'end', { targetDate: '2026-03-10' }),
+      end('b', 'start', { startDate: '2026-03-20', targetDate: '2026-03-30' }),
+    );
+    assert.equal(arrowPaths([r], shown)[0]!.conflict, true);
+    const markerOnly: ProjectPositions = new Map([['a', shown.get('a')!]]);
+    assert.equal(offscreenMarkers([r], markerOnly)[0]!.conflict, true);
+  });
+});

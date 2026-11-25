@@ -5,7 +5,11 @@ import {
   dropDates,
   flattenTimelineRows,
   projectPositions,
+  patchTimeline,
   projectSpan,
+  revertTimelineWrite,
+  toggleCollapsedGroup,
+  collapsedGroups,
   rowsHeight,
   shiftProjectDates,
   withPreview,
@@ -27,6 +31,19 @@ const project = (id: string, over: Partial<TimelineProject> = {}): TimelineProje
 });
 
 const leadName = (id: string) => ({ u1: 'Ana', u2: 'Ben' })[id] ?? 'Unknown';
+
+// Runs `fn` with the process in time zone `tz`, so a daylight saving change happens
+// inside the dates tested whatever the machine's zone (CI runs in UTC).
+function inTimeZone(tz: string, fn: () => void) {
+  const before = process.env.TZ;
+  process.env.TZ = tz;
+  try {
+    fn();
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
+}
 
 describe('buildProjectTimeline', () => {
   it('puts every dated project in one group without grouping', () => {
@@ -143,14 +160,17 @@ describe('shiftProjectDates', () => {
   });
 
   it('moves both dates by the same days across a daylight saving change', () => {
-    assert.deepEqual(
-      shiftProjectDates({ startDate: '2026-03-27', targetDate: '2026-03-30' }, 'move', 2),
-      { startDate: '2026-03-29', targetDate: '2026-04-01' },
-    );
-    assert.deepEqual(
-      shiftProjectDates({ startDate: '2026-10-23', targetDate: '2026-10-26' }, 'move', 7),
-      { startDate: '2026-10-30', targetDate: '2026-11-02' },
-    );
+    // Europe changes on 29 March and 25 October 2026.
+    inTimeZone('Europe/London', () => {
+      assert.deepEqual(
+        shiftProjectDates({ startDate: '2026-03-27', targetDate: '2026-03-30' }, 'move', 2),
+        { startDate: '2026-03-29', targetDate: '2026-04-01' },
+      );
+      assert.deepEqual(
+        shiftProjectDates({ startDate: '2026-10-23', targetDate: '2026-10-26' }, 'move', 7),
+        { startDate: '2026-10-30', targetDate: '2026-11-02' },
+      );
+    });
   });
 
   it('changes one end and never passes the other', () => {
@@ -253,5 +273,82 @@ describe('withPreview and rowsHeight', () => {
       32 + 36 + 36,
     );
     assert.equal(rowsHeight([]), 0);
+  });
+});
+
+describe('patchTimeline and revertTimelineWrite', () => {
+  it('undoes only the failed write when two drags overlap', () => {
+    const before = [
+      project('a'),
+      project('b', { milestones: [{ id: 'm1', name: 'M1', targetDate: '2026-03-10' }] }),
+    ];
+    const first = {
+      kind: 'project' as const,
+      projectId: 'a',
+      dates: { startDate: '2026-03-05', targetDate: '2026-04-04' },
+    };
+    const second = {
+      kind: 'milestone' as const,
+      projectId: 'b',
+      milestoneId: 'm1',
+      targetDate: '2026-03-20',
+    };
+    const afterFirst = patchTimeline(before, first);
+    const afterBoth = patchTimeline(afterFirst, second);
+    const reverted = revertTimelineWrite(afterBoth, before, first);
+    assert.deepEqual(
+      reverted.map((p) => [p.startDate, p.targetDate, p.milestones[0]?.targetDate ?? null]),
+      [
+        ['2026-03-01', '2026-03-31', null],
+        ['2026-03-01', '2026-03-31', '2026-03-20'],
+      ],
+    );
+  });
+
+  it('undoes a failed milestone move and keeps the project dates', () => {
+    const before = [
+      project('b', { milestones: [{ id: 'm1', name: 'M1', targetDate: '2026-03-10' }] }),
+    ];
+    const move = {
+      kind: 'milestone' as const,
+      projectId: 'b',
+      milestoneId: 'm1',
+      targetDate: '2026-03-20',
+    };
+    const dates = {
+      kind: 'project' as const,
+      projectId: 'b',
+      dates: { startDate: '2026-03-02', targetDate: '2026-04-01' },
+    };
+    const now = patchTimeline(patchTimeline(before, move), dates);
+    const reverted = revertTimelineWrite(now, before, move);
+    assert.deepEqual(reverted[0]!.milestones[0]!.targetDate, '2026-03-10');
+    assert.deepEqual(
+      [reverted[0]!.startDate, reverted[0]!.targetDate],
+      ['2026-03-02', '2026-04-01'],
+    );
+  });
+});
+
+describe('collapsed groups', () => {
+  it('keeps each grouping its own collapsed groups', () => {
+    let state = toggleCollapsedGroup({}, 'team', 'none');
+    assert.deepEqual([...collapsedGroups(state, 'team')], ['none']);
+    assert.deepEqual([...collapsedGroups(state, 'lead')], []);
+    state = toggleCollapsedGroup(state, 'team', 'none');
+    assert.deepEqual([...collapsedGroups(state, 'team')], []);
+  });
+});
+
+describe('lead groups', () => {
+  it("names a lead from the project itself when the list's people do not include them", () => {
+    const layout = buildProjectTimeline(
+      [project('a', { leadUserId: 'u9', leadName: 'Zoe' }), project('b', { leadUserId: 'u1' })],
+      { grouping: 'lead', leadName },
+    );
+    assert.deepEqual(
+      layout.groups.map((g) => g.label),
+      ['Ana', 'Zoe'],
+    );
   });
 });

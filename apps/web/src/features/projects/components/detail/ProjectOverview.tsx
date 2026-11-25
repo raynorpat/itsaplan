@@ -2,6 +2,7 @@
 
 import type { TeamDetail } from '@/types/team';
 import { usePermissions } from '@/hooks/usePermissions';
+import { plansProjects } from '@/utils/workspaceRoles';
 import type { ProjectDetail } from '@/services/projects.service';
 import ProjectActivityFeed from './ProjectActivityFeed';
 import ProjectActiveWork from './ProjectActiveWork';
@@ -56,7 +57,11 @@ export default function ProjectOverview({
         </div>
 
         <div className="mt-8">
-          <ProjectDependencies project={project} teamKey={team.team.key} canEdit={canEdit} />
+          <ProjectDependencies
+            project={project}
+            teamKey={team.team.key}
+            canEdit={canEdit && plansProjects(permissions.workspaceRole)}
+          />
         </div>
 
         {canSeeFeedback(permissions.workspaceRole) && (

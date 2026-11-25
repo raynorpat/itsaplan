@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useShell } from '@/context/shellContext';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePermissions } from '@/hooks/usePermissions';
+import { plansProjects } from '@/utils/workspaceRoles';
 import {
   PROJECT_SORTS,
   type ProjectCounts,
@@ -77,7 +78,7 @@ function tabCount(counts: ProjectCounts | undefined, tab: ProjectsTab): number |
 // every matching project at once, with no paging; the Deleted tab is always a table.
 export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const { team } = useShell();
-  const { can } = usePermissions();
+  const { can, workspaceRole } = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [creating, setCreating] = useState(false);
@@ -201,7 +202,7 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
             onDisplay={updateDisplay}
             teamKey={team.team.key}
             leadName={leadName}
-            readOnly={!can('projects', 'edit')}
+            readOnly={!can('projects', 'edit') || !plansProjects(workspaceRole)}
             queryKey={timelineProjectsKey(listFilters)}
             overlay={(layer) => <ProjectsTimelineDependencies layer={layer} />}
           />
