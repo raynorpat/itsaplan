@@ -101,6 +101,7 @@ export const qk = {
   releasePipeline: (idOrSlug: string) => ['releasePipelines', 'one', idOrSlug] as const,
   anyReleasePipelines: ['releasePipelines'] as const,
   release: (idOrSlug: string) => ['releases', idOrSlug] as const,
+  teamOpenReleases: (teamId: string) => ['releases', 'open', teamId] as const,
   anyReleases: ['releases'] as const,
   issueReleases: (issueId: string) => ['issueReleases', issueId] as const,
   anyIssueReleases: ['issueReleases'] as const,

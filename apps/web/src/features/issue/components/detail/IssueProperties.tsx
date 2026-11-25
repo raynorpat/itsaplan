@@ -16,6 +16,7 @@ import ProjectSelect from '@/components/common/fields/ProjectSelect';
 import IssueMilestoneName from '../fields/IssueMilestoneName';
 import IssueAgentStatus from '../agent/IssueAgentStatus';
 import IssuePortalInfo from './IssuePortalInfo';
+import IssueReleaseProperty from './IssueReleaseProperty';
 import { projectDisplayName } from '@/utils/projectMeta';
 
 // One property in Linear's flat list: the control alone (its pill shows the icon and the
@@ -29,7 +30,7 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
 }
 
 // The issue's properties as Linear lists them: status, assignee, delegate, priority,
-// project and milestone, cycle, due date and labels, each editable inline. In a
+// project and milestone, cycle, release, due date and labels, each editable inline. In a
 // sidebar they are one flat column; in the panel a wrapping row under the content.
 export default function IssueProperties({
   team,
@@ -141,6 +142,17 @@ export default function IssueProperties({
             value={issue.cycleId}
             onChange={(id) => onPatch({ cycleId: id })}
             readOnly={readOnly}
+          />
+        </PropertyRow>
+      )}
+
+      {/* Hidden read-only: the releases need the authenticated release queries. */}
+      {!readOnly && (
+        <PropertyRow label="Release">
+          <IssueReleaseProperty
+            issueId={issue.id}
+            teamId={team.team.id}
+            readOnly={team.viewer.workspaceRole === 'guest'}
           />
         </PropertyRow>
       )}

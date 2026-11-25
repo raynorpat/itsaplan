@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, PackageCheck } from 'lucide-react';
 import MarkdownEditor from '@/components/common/editor/MarkdownEditor';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePortalBoard, usePortalIssue } from './services/portal.service';
@@ -10,6 +10,7 @@ import PortalComments from './components/issue/PortalComments';
 import PortalMessage from './components/PortalMessage';
 import PortalStatusBadge from './components/PortalStatusBadge';
 import PortalVoteButton from './components/PortalVoteButton';
+import { shippedLabel } from './utils/portal';
 
 // /portal/<slug>/<identifier>: one issue with its vote, description (when the board
 // shows descriptions) and comments.
@@ -24,6 +25,7 @@ export default function PortalIssuePage() {
       <PortalMessage title="Request not found" text="It may have been removed from this board." />
     );
   const signedIn = !!board.visitor;
+  const shipped = shippedLabel(issue.data.shipped ?? null);
 
   return (
     <article className="flex flex-col gap-6">
@@ -38,8 +40,14 @@ export default function PortalIssuePage() {
         <PortalVoteButton slug={slug} issue={issue.data} signedIn={signedIn} />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h1 className="text-xl font-semibold">{issue.data.title}</h1>
-          <div>
+          <div className="flex flex-wrap items-center gap-3">
             <PortalStatusBadge status={issue.data.status} underReview={issue.data.underReview} />
+            {shipped && (
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <PackageCheck className="size-4" aria-hidden />
+                {shipped}
+              </span>
+            )}
           </div>
         </div>
       </header>

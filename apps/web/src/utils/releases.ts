@@ -31,3 +31,28 @@ export function stageOrder<S extends ReleaseStageLike>(stages: S[]): S[] {
 export function releaseLabel(r: { name: string; version: string | null }): string {
   return r.name.trim() || r.version?.trim() || 'Untitled release';
 }
+
+const OPEN_STAGE_ORDER: Record<string, number> = { started: 0, planned: 1 };
+
+// The releases an issue can be added to by hand: open ones (planned or started) it is
+// not in yet; started before planned, releases in a frozen stage last, then by pipeline
+// and release name.
+export function openReleasesFor<
+  R extends {
+    id: string;
+    name: string;
+    version: string | null;
+    stage: ReleaseStageLike;
+    pipeline: { name: string };
+  },
+>(releases: R[], inReleaseIds: ReadonlySet<string>): R[] {
+  return releases
+    .filter((r) => r.stage.type in OPEN_STAGE_ORDER && !inReleaseIds.has(r.id))
+    .sort(
+      (a, b) =>
+        Number(a.stage.frozen) - Number(b.stage.frozen) ||
+        OPEN_STAGE_ORDER[a.stage.type]! - OPEN_STAGE_ORDER[b.stage.type]! ||
+        a.pipeline.name.localeCompare(b.pipeline.name) ||
+        releaseLabel(a).localeCompare(releaseLabel(b)),
+    );
+}

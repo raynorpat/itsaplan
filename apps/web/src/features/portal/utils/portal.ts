@@ -1,6 +1,8 @@
 // Display helpers for the portal pages. `PortalIssue` mirrors the API's
 // /portal/boards/:slug/issues rows.
 
+import { formatDate } from '@/utils/dates';
+
 export type PublicStatus = 'planned' | 'inProgress' | 'done';
 
 export interface PortalIssue {
@@ -42,4 +44,15 @@ export function roadmapColumns(issues: PortalIssue[]): Record<PublicStatus, Port
 export function optimisticVote(issue: PortalIssue, voted: boolean): PortalIssue {
   if (issue.voted === voted) return issue;
   return { ...issue, voted, votes: Math.max(0, issue.votes + (voted ? 1 : -1)) };
+}
+
+// The release an issue shipped in (the API's `shipped` on an issue's detail).
+export interface PortalShipped {
+  releaseName: string;
+  at: string;
+}
+
+// "Shipped in v2.3 on Nov 20, 2026", or null when the issue has not shipped.
+export function shippedLabel(shipped: PortalShipped | null): string | null {
+  return shipped ? `Shipped in ${shipped.releaseName} on ${formatDate(shipped.at)}` : null;
 }

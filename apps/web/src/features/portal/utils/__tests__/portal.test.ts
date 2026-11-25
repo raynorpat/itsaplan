@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   optimisticVote,
   roadmapColumns,
+  shippedLabel,
   statusLabel,
   voteLabel,
   type PortalIssue,
@@ -75,5 +76,18 @@ describe('optimisticVote', () => {
   it('leaves the issue unchanged when the vote state already matches', () => {
     const voted = issue({ voted: true, votes: 4 });
     assert.equal(optimisticVote(voted, true), voted);
+  });
+});
+
+describe('shippedLabel', () => {
+  it('names the release and the day it shipped', () => {
+    assert.equal(
+      shippedLabel({ releaseName: 'v2.3', at: '2026-11-20T12:00:00.000Z' }),
+      'Shipped in v2.3 on Nov 20, 2026',
+    );
+  });
+
+  it('is null when the issue has not shipped', () => {
+    assert.equal(shippedLabel(null), null);
   });
 });

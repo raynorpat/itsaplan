@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { portalFetch } from '@/services/portalFetch.service';
 import type { Answers, PublicFormField } from '@/utils/formAnswers';
-import { optimisticVote, type PortalIssue } from '../utils/portal';
+import { optimisticVote, type PortalIssue, type PortalShipped } from '../utils/portal';
 import type { SummaryCadence, UpdatePrefs } from '../utils/updates';
 
 // The portal boards' queries and mutations, on the portal's own API routes
@@ -28,6 +28,8 @@ export interface PortalBoard {
 
 export interface PortalIssueDetail extends PortalIssue {
   description: string | null;
+  // The latest production release the issue shipped in, or null.
+  shipped: PortalShipped | null;
 }
 
 export interface PortalComment {

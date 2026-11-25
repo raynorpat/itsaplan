@@ -558,3 +558,42 @@ export function useIssueReleases(issueId: string | null) {
     enabled: issueId != null,
   });
 }
+
+const TeamOpenReleasesQuery = graphql(
+  `
+    query TeamOpenReleases($filter: ReleaseFilter) {
+      releases(filter: $filter, first: 250) {
+        nodes {
+          ...ReleaseListFields
+          pipeline {
+            id
+            slugId
+            name
+          }
+        }
+      }
+    }
+  `,
+  [ReleaseListFields],
+);
+
+// The planned and started releases of a team's pipelines (the issue's Release
+// property offers them).
+export function useTeamOpenReleases(teamId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: qk.teamOpenReleases(teamId ?? ''),
+    queryFn: async (): Promise<IssueRelease[]> => {
+      const data = await gqlRequest(TeamOpenReleasesQuery, {
+        filter: {
+          pipeline: { teams: { some: { id: { eq: teamId } } } },
+          stage: { type: { in: ['planned', 'started'] } },
+        },
+      });
+      return data.releases.nodes.map((r) => ({
+        ...toReleaseListItem(r),
+        pipeline: { id: r.pipeline.id, slugId: r.pipeline.slugId, name: r.pipeline.name },
+      }));
+    },
+    enabled: enabled && teamId != null,
+  });
+}
