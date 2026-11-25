@@ -28,6 +28,8 @@ export const qk = {
   insightsCompleted: (viewKey: string, filter: string, since: string) =>
     ['insightsCompleted', viewKey, filter, since] as const,
   insightsOpen: (viewKey: string, filter: string) => ['insightsOpen', viewKey, filter] as const,
+  dashboardRows: (loadKey: string) => ['dashboardRows', loadKey] as const,
+  dashboardFirstFeedback: ['dashboardFirstFeedback'] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   // A team's workflow automation rules, archived ones included (team settings →
