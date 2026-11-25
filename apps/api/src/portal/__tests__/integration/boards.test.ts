@@ -128,6 +128,8 @@ describe('portal boards', () => {
     const bad = async (body: Json) =>
       (await call('boards/create', { as: admin, body: { name: 'B', ...body } })).status;
     expect(await bad({ slug: 'Has Space', teamId: eng.team.id })).toBe(400);
+    // /portal/unsubscribe is the web app's unsubscribe page, not a board.
+    expect(await bad({ slug: 'unsubscribe', teamId: eng.team.id })).toBe(400);
     expect(await bad({ slug: 'ok' })).toBe(400);
     const project = await createProject(owner, { name: 'P', teamIds: ['ENG'] });
     expect(await bad({ slug: 'ok', teamId: eng.team.id, projectId: project.id })).toBe(400);

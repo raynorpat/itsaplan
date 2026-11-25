@@ -37,6 +37,8 @@ export interface BoardDto {
 }
 
 const SLUG_RE = /^[a-z0-9-]{1,48}$/;
+// Paths under /portal/ in the web app that are not boards.
+const RESERVED_SLUGS = new Set(['unsubscribe']);
 const DOMAIN_RE = /^[a-z0-9.-]+\.[a-z]{2,}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME = 255;
@@ -128,6 +130,7 @@ function parseFields(body: Record<string, unknown>): Partial<BoardFields> {
     const slug = typeof body.slug === 'string' ? body.slug.trim() : '';
     if (!SLUG_RE.test(slug))
       throw new HttpError(400, 'slug must be 1–48 lowercase letters, digits or dashes');
+    if (RESERVED_SLUGS.has(slug)) throw new HttpError(400, `"${slug}" cannot be a board's slug`);
     out.slug = slug;
   }
   if ('name' in body) out.name = text(body.name, 'name', MAX_NAME, true);
