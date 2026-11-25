@@ -46,15 +46,15 @@ export function auditEntryFilter(f: AuditLogFilters): Record<string, unknown> | 
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-// The query string of the CSV export endpoint for the same filters (`to` is inclusive).
-export function auditExportQuery(f: AuditLogFilters): string {
-  const params = new URLSearchParams();
-  if (f.type) params.set('type', f.type);
-  if (f.actorId) params.set('actorId', f.actorId);
-  if (f.ip.trim()) params.set('ip', f.ip.trim());
-  if (f.from) params.set('from', startOf(f.from));
-  if (f.to) params.set('to', endOf(f.to));
-  return params.toString();
+// The CSV export's POST body for the same filters (`to` is inclusive).
+export function auditExportBody(f: AuditLogFilters): Record<string, string> {
+  const body: Record<string, string> = {};
+  if (f.type) body.type = f.type;
+  if (f.actorId) body.actorId = f.actorId;
+  if (f.ip.trim()) body.ip = f.ip.trim();
+  if (f.from) body.from = startOf(f.from);
+  if (f.to) body.to = endOf(f.to);
+  return body;
 }
 
 const text = (v: unknown): string | null =>
@@ -65,8 +65,13 @@ function details(type: string, m: Record<string, unknown>): string | null {
   if (type === 'loginFailed') {
     const attempts =
       typeof m.attempts === 'number' && m.attempts > 1 ? `, ${m.attempts} attempts` : '';
+    const reason = `(${text(m.reason) ?? 'unknown'})`;
+    if (m.scope === 'ip') {
+      const n = typeof m.addresses === 'number' ? m.addresses : 1;
+      return `${n} more ${n === 1 ? 'address' : 'addresses'} from this IP ${reason}${attempts}`;
+    }
     const address = text(m.address) ?? '';
-    return `${address ? `${address} ` : ''}(${text(m.reason) ?? 'unknown'})${attempts}`;
+    return `${address ? `${address} ` : ''}${reason}${attempts}`;
   }
   if (type === 'dataExported') {
     const what = [text(m.kind), text(m.name)].filter(Boolean).join(' ');

@@ -7,7 +7,7 @@ import { qk } from '@/services/queryKeys';
 import { downloadBlob } from '@/utils/download';
 import {
   auditEntryFilter,
-  auditExportQuery,
+  auditExportBody,
   type AuditLogFilters,
   type AuditRetention,
 } from '../utils/auditLog';
@@ -110,10 +110,12 @@ export function useSaveAuditRetention() {
 
 // Downloads the filtered entries as CSV. The API records the export in the log.
 export async function exportAuditLog(filters: AuditLogFilters): Promise<void> {
-  const query = auditExportQuery(filters);
-  const res = await fetch(`${API_URL}/api/auth/instance/audit/export${query ? `?${query}` : ''}`, {
+  const res = await fetch(`${API_URL}/api/auth/instance/audit/export`, {
+    method: 'POST',
     credentials: 'include',
     cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(auditExportBody(filters)),
   });
   if (!res.ok) throw new ApiError(res.status, (await res.text()) || res.statusText);
   const name =

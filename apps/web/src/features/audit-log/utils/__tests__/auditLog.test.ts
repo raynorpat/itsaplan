@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import {
   AUDIT_RETENTIONS,
   auditEntryFilter,
-  auditExportQuery,
+  auditExportBody,
   describeEntry,
   type AuditLogFilters,
 } from '../auditLog';
@@ -100,11 +100,29 @@ describe('auditEntryFilter', () => {
   });
 });
 
-describe('auditExportQuery', () => {
-  it('builds the export endpoint query from the same filters', () => {
+describe('auditExportBody', () => {
+  it('sends the same filters as the POST body of the export', () => {
+    assert.deepEqual(
+      auditExportBody({
+        type: 'login',
+        actorId: null,
+        ip: ' 203.0.113.7 ',
+        from: '2026-11-01',
+        to: '',
+      }),
+      { type: 'login', ip: '203.0.113.7', from: '2026-11-01T00:00:00.000Z' },
+    );
+  });
+});
+
+describe('describeEntry for many addresses from one IP', () => {
+  it('names the number of other addresses tried', () => {
     assert.equal(
-      auditExportQuery({ type: 'login', actorId: null, ip: '', from: '2026-11-01', to: '' }),
-      'type=login&from=2026-11-01T00%3A00%3A00.000Z',
+      describeEntry(
+        entry('loginFailed', { scope: 'ip', reason: 'notInvited', addresses: 5, attempts: 5 }),
+        'Sign-in failed',
+      ),
+      'Sign-in failed: 5 more addresses from this IP (notInvited), 5 attempts',
     );
   });
 });
