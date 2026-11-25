@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { db, externalUser } from '@repo/db';
+import { db, externalUser, portalSummaryCache } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -24,6 +24,7 @@ import {
 import { aiSummary } from '../../ai';
 import type { Change } from '../../changes';
 import { runSummaries } from '../../run';
+import { sinceLastVisit as sinceLastVisitOf } from '../../visits';
 
 // The AI endpoint (an OpenAI-compatible chat completions server set up by an admin)
 // writes the summaries' paragraph; any failure falls back to the round-up. The portal
@@ -178,6 +179,39 @@ describe('AI settings', () => {
     expect(bad.status).toBe(400);
   });
 
+  it('asks for the key again when the address moves to another host', async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    await ok(await configure(owner));
+    const moved = await instance('ai/save', owner, {
+      baseUrl: 'https://elsewhere.example/v1',
+      model: 'test-model',
+      apiKey: '',
+    });
+    expect(moved.status).toBe(400);
+    await ok(
+      await instance('ai/save', owner, {
+        baseUrl: `${stub.url}/`,
+        model: 'test-model',
+        apiKey: '',
+      }),
+    );
+    await ok(
+      await instance('ai/save', owner, {
+        baseUrl: 'https://elsewhere.example/v1',
+        model: 'test-model',
+        apiKey: 'sk-new',
+      }),
+    );
+  });
+
+  it('refuses an address with a user name, password or query string', async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    for (const baseUrl of ['https://user:pass@example.com/v1', 'https://example.com/v1?x=1']) {
+      const res = await instance('ai/save', owner, { baseUrl, model: 'm', apiKey: 'k' });
+      expect(res.status).toBe(400);
+    }
+  });
+
   it('deletes the endpoint', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
     await ok(await configure(owner));
@@ -287,6 +321,25 @@ describe('summary emails with an AI endpoint', () => {
   });
 });
 
+describe('a failing AI endpoint during a summary run', () => {
+  it('is asked once, and the rest of the run uses the round-up', async () => {
+    const { owner, member, states, issue, v } = await setup();
+    const kim = await visitor('acme', 'Kim');
+    await ok(
+      await portal(`boards/acme/issues/${issue.identifier}/vote`, { cookie: kim.cookie, body: {} }),
+    );
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await ok(await configure(owner));
+    stub.mode = 'error';
+    sink.use();
+    expect(await runSummaries(nextMonday(new Date()))).toEqual({ sent: 2 });
+    expect(stub.requests).toHaveLength(1);
+    expect(
+      sink.mails.filter((m) => m.to.includes(v.email) || m.to.includes(kim.email)),
+    ).toHaveLength(2);
+  });
+});
+
 describe('since your last visit', () => {
   const sinceLastVisit = async (cookie: string) =>
     ok(await portal('me/since-last-visit', { cookie }));
@@ -317,6 +370,53 @@ describe('since your last visit', () => {
     const again = await sinceLastVisit(v.cookie);
     expect(again).toEqual(first);
     expect(stub.requests).toHaveLength(1);
+  });
+
+  it("shows only the round-up when the day's paragraph no longer matches the changes", async () => {
+    const { owner, member, states, issue, v } = await setup();
+    await ok(await configure(owner));
+    await sinceLastVisit(v.cookie);
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await visitedHoursAgo(v.requesterId, 2);
+    expect((await sinceLastVisit(v.cookie)).paragraph).toBe('Dark mode is now being worked on.');
+    await updateIssue(member, issue.id, { stateId: states.completed });
+    const later = await sinceLastVisit(v.cookie);
+    expect(later.paragraph).toBeNull();
+    expect(later.lines).toEqual(['Dark mode moved to Done']);
+    expect(stub.requests).toHaveLength(1);
+  });
+
+  it('asks the model once when two tabs load at the same time', async () => {
+    const { owner, member, states, issue, v } = await setup();
+    await ok(await configure(owner));
+    await sinceLastVisit(v.cookie);
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await visitedHoursAgo(v.requesterId, 2);
+    await sinceLastVisit(v.cookie);
+    await db
+      .update(externalUser)
+      .set({ previousVisitAt: new Date(Date.now() - 3 * 3_600_000) })
+      .where(eq(externalUser.id, v.requesterId));
+    stub.requests = [];
+    await db.delete(portalSummaryCache);
+    await Promise.all([sinceLastVisit(v.cookie), sinceLastVisit(v.cookie)]);
+    expect(stub.requests).toHaveLength(1);
+  });
+
+  it('answers without waiting long for a slow model and fills the paragraph in later', async () => {
+    const { owner, member, states, issue, v } = await setup();
+    await ok(await configure(owner));
+    await sinceLastVisit(v.cookie);
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await visitedHoursAgo(v.requesterId, 2);
+    await sinceLastVisit(v.cookie);
+    stub.mode = 'hang';
+    await db.delete(portalSummaryCache);
+    const started = Date.now();
+    const quick = await sinceLastVisitOf(v.requesterId, new Date(), { waitMs: 100 });
+    expect(Date.now() - started).toBeLessThan(1_500);
+    expect(quick.paragraph).toBeNull();
+    expect(quick.lines).toEqual(['Dark mode moved to In progress']);
   });
 
   it('needs a signed-in visitor', async () => {

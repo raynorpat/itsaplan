@@ -939,6 +939,9 @@ export const portalSummaryCache = pgTable('portal_summary_cache', {
     .references(() => externalUser.id, { onDelete: 'cascade' }),
   day: date('day').notNull(),
   text: text('text'),
+  // A hash of the changes and the visit the paragraph was written for; a paragraph is
+  // shown only while they still match.
+  changesHash: text('changes_hash'),
 });
 
 // Feedback on an issue (Linear's CustomerNeed): `body` is the quote, `priority` 1 marks

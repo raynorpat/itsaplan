@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { db, externalUser } from '@repo/db';
+import { eq, sql } from 'drizzle-orm';
 import { app } from '../../../app';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
@@ -13,6 +15,7 @@ import {
 import { startSmtpSink, type SmtpSink } from '../../../__tests__/helpers/smtp';
 import { createBoard, ok, portal, visitor } from '../../../portal/__tests__/helpers';
 import { runChangeEmails, runSummaries } from '../../run';
+import { later } from '../helpers';
 
 // Change emails and summaries: the worker-triggered runs that mail each person with
 // updates on what changed on what they follow, through the instance mail provider.
@@ -45,6 +48,14 @@ async function setup() {
   return { owner, member, states, issue, v };
 }
 
+const markerOf = async (id: string) =>
+  (
+    await db
+      .select({ at: externalUser.changesSentUntil })
+      .from(externalUser)
+      .where(eq(externalUser.id, id))
+  )[0]!.at;
+
 const mailsTo = (email: string) => sink.mails.filter((m) => m.to.includes(email));
 
 // The next Monday at 09:00 UTC after `d`.
@@ -68,6 +79,7 @@ describe('change emails', () => {
     const { member, states, issue, v } = await setup();
     sink.use();
     await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
     expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
     const mails = mailsTo(v.email);
     expect(mails).toHaveLength(1);
@@ -84,11 +96,13 @@ describe('change emails', () => {
     const { member, states, issue, v } = await setup();
     sink.use();
     await updateIssue(member, issue.id, { stateId: states.started });
-    const first = new Date();
-    await runChangeEmails(first);
+    await later(6);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
     await updateIssue(member, issue.id, { stateId: states.completed });
-    expect(await runChangeEmails(new Date(first.getTime() + MINUTE))).toEqual({ sent: 0 });
-    expect(await runChangeEmails(new Date(first.getTime() + 11 * MINUTE))).toEqual({ sent: 1 });
+    await later(1);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
+    await later(10);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
     const mails = mailsTo(v.email);
     expect(mails).toHaveLength(2);
     expect(mails[1]!.text).toContain('Dark mode moved to Done');
@@ -99,6 +113,7 @@ describe('change emails', () => {
     const { member, states, issue, v } = await setup();
     sink.use();
     await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
     const now = new Date();
     await Promise.all([runChangeEmails(now), runChangeEmails(now)]);
     expect(mailsTo(v.email)).toHaveLength(1);
@@ -108,6 +123,7 @@ describe('change emails', () => {
     const { member, states, issue, v } = await setup();
     sink.use();
     await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
     sink.fail = true;
     expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
     sink.fail = false;
@@ -120,6 +136,7 @@ describe('change emails', () => {
   it('sends and marks nothing without a mail provider', async () => {
     const { member, states, issue, v } = await setup();
     await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
     expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
     sink.use();
     expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
@@ -155,6 +172,80 @@ describe('change emails', () => {
   });
 });
 
+describe('change email timing', () => {
+  it('sends nothing for flips over 9 minutes that end where they started', async () => {
+    const { member, states, issue, v } = await setup();
+    sink.use();
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await later(1);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
+    await later(4);
+    await updateIssue(member, issue.id, { stateId: states.completed });
+    await later(4);
+    await updateIssue(member, issue.id, { stateId: states.unstarted });
+    await later(11);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
+    expect(mailsTo(v.email)).toHaveLength(0);
+  });
+
+  it('sends one change once the person has had 5 quiet minutes', async () => {
+    const { member, states, issue, v } = await setup();
+    sink.use();
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await later(2);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
+    await later(4);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
+    expect(mailsTo(v.email)).toHaveLength(1);
+  });
+
+  it('leaves a change from the last 30 seconds for the next run', async () => {
+    const { member, states, issue, v } = await setup();
+    sink.use();
+    await updateIssue(member, issue.id, { stateId: states.started });
+    // A run whose clock is 10 minutes ahead of the change's own run, but whose last 30
+    // seconds still hold the change: it covers everything up to 30 seconds before now.
+    await later(5);
+    await db.execute(
+      sql`UPDATE issue_activity SET created_at = now() - interval '10 seconds' WHERE action = 'status'`,
+    );
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 0 });
+    await later(6);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
+    expect(mailsTo(v.email)[0]!.text).toContain('Dark mode moved to In progress');
+  });
+
+  it('mails someone who only wrote in a portal thread about a status change', async () => {
+    const { member, states, issue } = await setup();
+    const kim = await visitor('acme', 'Kim');
+    await ok(
+      await portal(`boards/acme/issues/${issue.identifier}/comments`, {
+        cookie: kim.cookie,
+        body: { body: 'Any news on this?' },
+      }),
+    );
+    // The comment is old news: written before anyone's window starts.
+    await db.execute(sql`UPDATE comment SET created_at = created_at - interval '2 hours'`);
+    sink.use();
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
+    await runChangeEmails(new Date());
+    const mails = mailsTo(kim.email);
+    expect(mails).toHaveLength(1);
+    expect(mails[0]!.text).toContain('Dark mode moved to In progress');
+  });
+
+  it('moves the window on for people with nothing new', async () => {
+    const { v } = await setup();
+    sink.use();
+    await later(60);
+    const before = await markerOf(v.requesterId);
+    await runChangeEmails(new Date());
+    const after = await markerOf(v.requesterId);
+    expect(after!.getTime()).toBeGreaterThan(before!.getTime() + 59 * MINUTE);
+  });
+});
+
 describe('summaries', () => {
   it('sends the weekly summary once on Monday after 08:00, not again that week', async () => {
     const { member, states, issue, v } = await setup();
@@ -179,7 +270,8 @@ describe('summaries', () => {
     await ok(await portal('me/updates', { cookie: v.cookie, body: { summary: 'daily' } }));
     sink.use();
     await updateIssue(member, issue.id, { stateId: states.started });
-    await runChangeEmails(new Date());
+    await later(6);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
     const tomorrow = new Date();
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
     tomorrow.setUTCHours(9, 0, 0, 0);

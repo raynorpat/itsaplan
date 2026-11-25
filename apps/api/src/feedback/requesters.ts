@@ -370,6 +370,14 @@ export async function mergeRequesters(
       externalUserCreatorId: into.id,
     });
     const takeEmail = !into.email && from.email;
+    // An unsubscribe by either person stays with the person kept (they are one person),
+    // so the merge never turns emails back on for an address that asked to stop.
+    const lockedFrom = locked.find((r) => r.id === from.id)!;
+    const lockedInto = locked.find((r) => r.id === into.id)!;
+    const unsubscribedAt = lockedInto.updatesUnsubscribedAt ?? lockedFrom.updatesUnsubscribedAt;
+    const keepUnsubscribe = unsubscribedAt
+      ? { updatesEnabled: false, updatesUnsubscribedAt: unsubscribedAt }
+      : {};
     // Both people sign in to the portal again, as the person kept.
     await tx.delete(portalSession).where(inArray(portalSession.externalUserId, [from.id, into.id]));
     await tx
@@ -383,7 +391,11 @@ export async function mergeRequesters(
       .where(eq(externalUser.mergedIntoId, from.id));
     const [row] = await tx
       .update(externalUser)
-      .set({ ...(takeEmail ? { email: from.email } : {}), updatedAt: sql`now()` })
+      .set({
+        ...(takeEmail ? { email: from.email } : {}),
+        ...keepUnsubscribe,
+        updatedAt: sql`now()`,
+      })
       .where(eq(externalUser.id, into.id))
       .returning();
     return { kept: row!, announce: sendEvents };

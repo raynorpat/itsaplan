@@ -33,7 +33,10 @@ its mutations, and the Import page reads the GitHub connection and its repositor
 here (`GET imports/github`, `GET imports/github/repositories`, `POST
 imports/github/disconnect`). The people who give feedback, Linear's `ExternalUser`
 (`GET requesters?q=&cursor=`, `GET requester?id=`, `POST requesters/{create, update,
-merge}`; members, merge for owners and admins, never guests), and the attachment that
+merge}`; members, merge for owners and admins, never guests), a person's email updates
+(`POST requesters/updates`), "Send to requesters" on a project update (`POST
+project-updates/share`, and `GET project-updates/shared?projectId=` for the ids already
+sent), and the attachment that
 names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`),
 and the number of people asking on an issue (`GET feedback/count?issueId=`, `{ people }`,
 for anyone who can see the issue, guests included) are here because Linear's schema has no mutation for them

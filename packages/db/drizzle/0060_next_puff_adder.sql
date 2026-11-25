@@ -1,0 +1,1 @@
+ALTER TABLE "portal_summary_cache" ADD COLUMN "changes_hash" text;

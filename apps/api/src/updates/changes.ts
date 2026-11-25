@@ -436,16 +436,25 @@ export async function requestersWithChangesSince(since: Date): Promise<string[]>
         ),
       ),
     );
+  // People who wrote in a portal thread follow its issue too: a new comment in the
+  // thread, a status change of the issue or a shared update of its project.
   const viaThreads = db
     .selectDistinct({ id: comment.externalUserId })
     .from(comment)
     .where(
       and(
         isNotNull(comment.externalUserId),
-        sql`EXISTS (SELECT 1 FROM comment c WHERE c.created_at > ${after}
-          AND coalesce(c.parent_id, c.id) = coalesce(${comment.parentId}, ${comment.id}))`,
         sql`EXISTS (SELECT 1 FROM comment r WHERE r.id = coalesce(${comment.parentId}, ${comment.id})
           AND r.portal_thread)`,
+        or(
+          sql`EXISTS (SELECT 1 FROM comment c WHERE c.created_at > ${after}
+            AND coalesce(c.parent_id, c.id) = coalesce(${comment.parentId}, ${comment.id}))`,
+          sql`EXISTS (SELECT 1 FROM issue_activity a WHERE a.issue_id = ${comment.issueId}
+            AND a.action = 'status' AND a.created_at > ${after})`,
+          sql`EXISTS (SELECT 1 FROM issue i JOIN project_update pu ON pu.project_id = i.project_id
+            JOIN project_update_share s ON s.project_update_id = pu.id
+            WHERE i.id = ${comment.issueId} AND s.shared_at > ${after})`,
+        ),
       ),
     );
   const ids = [

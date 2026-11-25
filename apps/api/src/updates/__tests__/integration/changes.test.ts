@@ -297,6 +297,23 @@ describe('project updates', () => {
     ]);
   });
 
+  it("lists a project's shared updates for members and refuses guests", async () => {
+    const { owner, member, post, project } = await projectSetup();
+    const guest = await signUpAs('guest', { name: 'Guest' });
+    await addMember(owner, 'ENG', guest.userId);
+    const shared = await post('Beta ships Friday.');
+    await post('Internal: staffing.');
+    await ok(await instance('project-updates/share', member, { projectUpdateId: shared }));
+    expect(
+      await ok(await instance(`project-updates/shared?projectId=${project.id}`, member)),
+    ).toEqual({
+      ids: [shared],
+    });
+    expect((await instance(`project-updates/shared?projectId=${project.id}`, guest)).status).toBe(
+      403,
+    );
+  });
+
   it('shares once however often it is asked, and refuses guests', async () => {
     const { owner, member, v, post } = await projectSetup();
     const guest = await signUpAs('guest', { name: 'Guest' });

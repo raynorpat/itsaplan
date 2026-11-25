@@ -1,5 +1,6 @@
 import { db, externalUser, portalSummaryCache } from '@repo/db';
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { and, eq, isNull, lt, ne, or } from 'drizzle-orm';
 import { aiConfigured, aiSummary } from './ai';
 import { requesterChanges, type Change } from './changes';
 import { roundUp, type SummaryText } from './render';
@@ -38,28 +39,87 @@ export async function recordVisit(
 
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 
+// How long the page waits for the day's paragraph; a slower model fills the cache for
+// the next load and this answer shows the round-up alone.
+const PARAGRAPH_WAIT_MS = 5_000;
+
+const changesHash = (since: Date, changes: Change[]): string =>
+  createHash('sha256')
+    .update(
+      JSON.stringify([
+        since.toISOString(),
+        changes.map((c) => [
+          c.kind,
+          c.at.toISOString(),
+          'issueId' in c ? c.issueId : c.projectName,
+        ]),
+      ]),
+    )
+    .digest('hex');
+
+// The day's paragraph for these changes. The model is asked at most once per person per
+// UTC day: the first request of the day claims the cache row, so a second tab waits for
+// nothing and shows the round-up. A paragraph is shown only while the changes and the
+// visit it was written for are still the ones on screen.
 async function cachedParagraph(
   requesterId: string,
+  since: Date,
   changes: Change[],
   person: { displayName: string },
   now: Date,
+  waitMs: number,
 ): Promise<string | null> {
   if (!(await aiConfigured())) return null;
   const today = utcDay(now);
+  const hash = changesHash(since, changes);
   const [cached] = await db
     .select()
     .from(portalSummaryCache)
     .where(eq(portalSummaryCache.requesterId, requesterId));
-  if (cached?.day === today) return cached.text;
-  const text = await aiSummary(changes, person);
-  await db
+  if (cached?.day === today) return cached.changesHash === hash ? cached.text : null;
+  const [claimed] = await db
     .insert(portalSummaryCache)
-    .values({ requesterId, day: today, text })
-    .onConflictDoUpdate({ target: portalSummaryCache.requesterId, set: { day: today, text } });
-  return text;
+    .values({ requesterId, day: today, text: null, changesHash: hash })
+    .onConflictDoUpdate({
+      target: portalSummaryCache.requesterId,
+      set: { day: today, text: null, changesHash: hash },
+      setWhere: ne(portalSummaryCache.day, today),
+    })
+    .returning();
+  if (!claimed) return null;
+  const written = aiSummary(changes, person).then(async (text) => {
+    try {
+      await db
+        .update(portalSummaryCache)
+        .set({ text })
+        .where(
+          and(
+            eq(portalSummaryCache.requesterId, requesterId),
+            eq(portalSummaryCache.day, today),
+            eq(portalSummaryCache.changesHash, hash),
+          ),
+        );
+    } catch (error) {
+      console.error('[updates] caching the portal summary failed:', error);
+    }
+    return text;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), waitMs);
+  });
+  try {
+    return await Promise.race([written, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-export async function sinceLastVisit(requesterId: string, now = new Date()): Promise<SummaryText> {
+export async function sinceLastVisit(
+  requesterId: string,
+  now = new Date(),
+  options: { waitMs?: number } = {},
+): Promise<SummaryText> {
   const [person] = await db
     .select({ displayName: externalUser.displayName, since: externalUser.previousVisitAt })
     .from(externalUser)
@@ -68,7 +128,14 @@ export async function sinceLastVisit(requesterId: string, now = new Date()): Pro
   const changes = await requesterChanges(requesterId, person.since, now);
   if (changes.length === 0) return { paragraph: null, lines: [] };
   return {
-    paragraph: await cachedParagraph(requesterId, changes, person, now),
+    paragraph: await cachedParagraph(
+      requesterId,
+      person.since,
+      changes,
+      person,
+      now,
+      options.waitMs ?? PARAGRAPH_WAIT_MS,
+    ),
     lines: roundUp(changes),
   };
 }

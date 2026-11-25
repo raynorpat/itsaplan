@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { app } from '../../../app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
@@ -157,6 +158,68 @@ describe('unsubscribing', () => {
     });
   });
 
+  it('keeps updates off after the person turns them off in the portal', async () => {
+    const { owner } = await setup();
+    const v = await visitor('acme', 'Jo');
+    const off = await ok(
+      await portal('me/updates', { cookie: v.cookie, body: { enabled: false } }),
+    );
+    expect(off).toMatchObject({ enabled: false, unsubscribed: true });
+    await visitor('acme', 'Jo', v.email);
+    expect((await myUpdates(v.cookie)).enabled).toBe(false);
+    const refused = await instance('requesters/updates', owner, {
+      requesterId: v.requesterId,
+      enabled: true,
+    });
+    expect(refused.status).toBe(409);
+    // The "Keep this person updated" checkbox on an existing address goes the same way.
+    const again = (
+      await ok(await instance('requesters/create', owner, { name: 'Jo', email: v.email }))
+    ).requester as Json;
+    expect(again.id).toBe(v.requesterId);
+    const checkbox = await instance('requesters/updates', owner, {
+      requesterId: again.id,
+      enabled: true,
+    });
+    expect(checkbox.status).toBe(409);
+    expect((await requester(owner, v.requesterId)).updates).toEqual({
+      enabled: false,
+      unsubscribed: true,
+    });
+  });
+
+  it('keeps an unsubscribe through a merge that hands the address to another person', async () => {
+    const { owner } = await setup();
+    const a = await visitor('acme', 'Ann');
+    await ok(await portal('unsubscribe', { body: { token: unsubscribeToken(a.requesterId) } }));
+    const b = (await ok(await instance('requesters/create', owner, { name: 'Ann (call notes)' })))
+      .requester as Json;
+    await ok(await instance('requesters/merge', owner, { fromId: a.requesterId, intoId: b.id }));
+    const kept = await requester(owner, b.id as string);
+    expect(kept.email).toBe(a.email);
+    expect(kept.updates).toEqual({ enabled: false, unsubscribed: true });
+    const refused = await instance('requesters/updates', owner, {
+      requesterId: b.id,
+      enabled: true,
+    });
+    expect(refused.status).toBe(409);
+  });
+
+  it("unsubscribes the person kept when a merged person's old link is used", async () => {
+    const { owner } = await setup();
+    const a = await visitor('acme', 'Ann');
+    const b = await visitor('acme', 'Bea');
+    const oldLink = unsubscribeToken(a.requesterId);
+    await ok(
+      await instance('requesters/merge', owner, { fromId: a.requesterId, intoId: b.requesterId }),
+    );
+    expect((await oneClick(oldLink)).status).toBe(200);
+    expect((await requester(owner, b.requesterId)).updates).toEqual({
+      enabled: false,
+      unsubscribed: true,
+    });
+  });
+
   it('lets the person turn updates back on from the portal', async () => {
     await setup();
     const v = await visitor('acme', 'Jo');
@@ -195,6 +258,16 @@ describe('unsubscribing', () => {
     await ok(await portal('unsubscribe', { body: { token: unsubscribeToken(a.requesterId) } }));
     expect((await myUpdates(b.cookie)).enabled).toBe(true);
     expect((await myUpdates(a.cookie)).enabled).toBe(false);
+  });
+
+  it('signs links with a key of their own, not the raw instance secret', async () => {
+    await setup();
+    const v = await visitor('acme', 'Jo');
+    const raw = createHmac('sha256', process.env.BETTER_AUTH_SECRET!)
+      .update(`unsubscribe:${v.requesterId}`)
+      .digest('base64url');
+    expect((await oneClick(`${v.requesterId}.${raw}`)).status).toBe(400);
+    expect((await myUpdates(v.cookie)).enabled).toBe(true);
   });
 
   it('shows a masked address on the unsubscribe page', async () => {

@@ -128,6 +128,8 @@ export interface RequestersHandlers {
   feedbackAttachment(headers: Headers, body: unknown): Promise<object>;
   // "Send to requesters" on a project update: the author or an admin marks it shared.
   shareProjectUpdate(headers: Headers, body: unknown): Promise<object>;
+  // The ids of a project's updates already sent to requesters.
+  sharedProjectUpdates(headers: Headers, query: Record<string, unknown>): Promise<object>;
   // The number of people asking on an issue, for anyone who can see it (guests too).
   feedbackCount(headers: Headers, query: Record<string, unknown>): Promise<object>;
 }
@@ -394,6 +396,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/project-updates/share',
         options.trustedOrigins,
         (h, headers, body) => h.shareProjectUpdate(headers, body),
+      ),
+      instanceProjectUpdatesShared: createAuthEndpoint(
+        '/instance/project-updates/shared',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) =>
+              h.requesters.sharedProjectUpdates(ctx.headers ?? new Headers(), { ...ctx.query }),
+            ),
+          ),
       ),
       instanceFeedbackAttachment: requestersWrite(
         '/instance/feedback/attachment',

@@ -1,7 +1,6 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { db, externalUser } from '@repo/db';
-import { eq } from 'drizzle-orm';
-import { HttpError } from '../shared/lib';
+import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
+import { activeRequester } from '../feedback/store';
+import { HttpError, UUID_RE } from '../shared/lib';
 import {
   prefsOf,
   setPrefs,
@@ -15,14 +14,16 @@ import {
 // someone else. The token does not expire: an old email's link keeps working, as
 // RFC 8058 one-click unsubscribe expects.
 
-function secret(): string {
+// The signing key is derived from BETTER_AUTH_SECRET with HKDF (info "unsubscribe"), so
+// it is separate from the key better-auth signs its cookies with.
+function key(): Buffer {
   const value = process.env.BETTER_AUTH_SECRET;
   if (!value) throw new Error('BETTER_AUTH_SECRET is not set');
-  return value;
+  return Buffer.from(hkdfSync('sha256', value, '', 'unsubscribe', 32));
 }
 
 const mac = (requesterId: string): Buffer =>
-  createHmac('sha256', secret()).update(`unsubscribe:${requesterId}`).digest();
+  createHmac('sha256', key()).update(`unsubscribe:${requesterId}`).digest();
 
 export function unsubscribeToken(requesterId: string): string {
   return `${requesterId}.${mac(requesterId).toString('base64url')}`;
@@ -40,11 +41,11 @@ export function verifyUnsubscribeToken(token: unknown): string | null {
   return requesterId;
 }
 
+// The person the token was made for; a link of someone merged into another person
+// acts on the person kept, who now gets that address's emails.
 async function requesterOf(token: unknown) {
-  const requesterId = verifyUnsubscribeToken(token);
-  const [row] = requesterId
-    ? await db.select().from(externalUser).where(eq(externalUser.id, requesterId))
-    : [];
+  const tokenId = verifyUnsubscribeToken(token);
+  const row = tokenId && UUID_RE.test(tokenId) ? await activeRequester(tokenId) : null;
   if (!row) throw new HttpError(400, 'This link is not valid');
   return row;
 }

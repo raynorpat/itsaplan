@@ -181,6 +181,8 @@ function cleanBaseUrl(value: unknown): string {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:')
     throw new HttpError(400, 'baseUrl must be an http or https address');
+  if (url.username || url.password || url.search || url.hash)
+    throw new HttpError(400, 'baseUrl must not hold a user name, password or query string');
   return url.toString().replace(/\/+$/, '');
 }
 
@@ -203,7 +205,10 @@ async function saveSettings(userId: string, body: Record<string, unknown>) {
   const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
   if (apiKey.length > MAX_KEY) throw new HttpError(400, `apiKey is at most ${MAX_KEY} characters`);
   const stored = await storedRow();
-  // An empty key keeps the stored one.
+  // An empty key keeps the stored one, but only for the same host: the key is never sent
+  // to an address the admin did not enter it for.
+  if (!apiKey && stored && new URL(stored.baseUrl).origin !== new URL(baseUrl).origin)
+    throw new HttpError(400, 'Enter the API key again for a new address');
   const apiKeyCiphertext = apiKey ? seal(apiKey) : stored?.apiKeyCiphertext;
   if (!apiKeyCiphertext) throw new HttpError(400, 'apiKey is required');
   const values = { baseUrl, model, apiKeyCiphertext, updatedById: userId, updatedAt: new Date() };

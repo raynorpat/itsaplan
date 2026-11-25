@@ -83,8 +83,12 @@ export function parsePatch(body: Record<string, unknown>, by: 'person' | 'team')
   return patch;
 }
 
+const unsubscribedError = () =>
+  new HttpError(409, 'This person unsubscribed; only they can turn updates on');
+
 // `team` (a member) may only set the main switch, and not for a person who
-// unsubscribed (409). `person` turning it on clears their unsubscribe.
+// unsubscribed (409). `person` turning it on clears their unsubscribe; turning it off
+// records one.
 export async function setPrefs(
   requesterId: string,
   patch: PrefsPatch,
@@ -93,21 +97,30 @@ export async function setPrefs(
   const row = await load(requesterId);
   if (by === 'team' && (patch.changeEmails !== undefined || patch.summary !== undefined))
     throw new HttpError(400, 'Only the person can change these preferences');
-  if (by === 'team' && patch.enabled && row.updatesUnsubscribedAt)
-    throw new HttpError(409, 'This person unsubscribed; only they can turn updates on');
+  if (by === 'team' && patch.enabled && row.updatesUnsubscribedAt) throw unsubscribedError();
   const now = new Date();
   const values: Partial<Row> = { updatedAt: now };
   if (patch.enabled === true && !row.updatesEnabled) Object.assign(values, turnedOn(now));
   if (patch.enabled === true && by === 'person') values.updatesUnsubscribedAt = null;
   if (patch.enabled === false) values.updatesEnabled = false;
+  // The person turning updates off is their choice, kept like an unsubscribe: a later
+  // sign-in or a member does not turn them on again.
+  if (patch.enabled === false && by === 'person') values.updatesUnsubscribedAt = now;
   if (patch.changeEmails !== undefined) values.changeEmails = patch.changeEmails;
   if (patch.summary !== undefined) values.summaryCadence = patch.summary;
   const [updated] = await db
     .update(externalUser)
     .set(values)
-    .where(eq(externalUser.id, requesterId))
+    .where(
+      and(
+        eq(externalUser.id, requesterId),
+        // An unsubscribe that lands between the read above and this write still wins.
+        by === 'team' && patch.enabled ? isNull(externalUser.updatesUnsubscribedAt) : undefined,
+      ),
+    )
     .returning();
-  return prefsOf(updated!);
+  if (!updated) throw unsubscribedError();
+  return prefsOf(updated);
 }
 
 // Unsubscribing: every update off, recorded so neither a sign-in nor a member turns

@@ -2,9 +2,7 @@ import { db, projectUpdate, projectUpdateShare } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { assertProjectAccess } from '../projects/access';
 import { atLeast, workspaceRole } from '../shared/access';
-import { HttpError } from '../shared/lib';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { HttpError, UUID_RE } from '../shared/lib';
 
 // "Send to requesters" on a project update (Linear's ProjectUpdateCreateInput has no such
 // field): marks the update shared, once; the requester updates job then sends it to the
@@ -34,4 +32,24 @@ export async function shareProjectUpdate(
     .values({ projectUpdateId: id, sharedById: userId })
     .onConflictDoNothing();
   return { shared: true };
+}
+
+// The ids of a project's updates sent to requesters, so the web can offer "Send to
+// requesters" on the ones that are not. Members who can see the project; not guests.
+export async function sharedProjectUpdateIds(
+  userId: string,
+  query: { projectId?: unknown },
+): Promise<{ ids: string[] }> {
+  const projectId = query.projectId;
+  if (typeof projectId !== 'string' || !UUID_RE.test(projectId))
+    throw new HttpError(400, 'projectId is required');
+  if ((await workspaceRole(userId)) === 'guest')
+    throw new HttpError(403, 'Guests cannot see what was sent to requesters');
+  await assertProjectAccess(projectId, userId);
+  const rows = await db
+    .select({ id: projectUpdateShare.projectUpdateId })
+    .from(projectUpdateShare)
+    .innerJoin(projectUpdate, eq(projectUpdate.id, projectUpdateShare.projectUpdateId))
+    .where(eq(projectUpdate.projectId, projectId));
+  return { ids: rows.map((r) => r.id) };
 }

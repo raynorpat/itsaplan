@@ -421,6 +421,13 @@
       "when": 1795574882266,
       "tag": "0059_flawless_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795577339011,
+      "tag": "0060_next_puff_adder",
+      "breakpoints": true
     }
   ]
 }

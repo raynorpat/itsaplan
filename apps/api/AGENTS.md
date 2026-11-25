@@ -249,13 +249,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   (`optIn`); a member turns it on or off (`/api/auth/instance/requesters/updates`), but
   not on for a person who unsubscribed (409). Turning it on starts the change and
   summary windows at that moment. The person sets `change_emails` and the summary
-  cadence (`weekly`, `daily`, `off`) on `/portal/me/updates`. Unsubscribe links carry
-  `<requesterId>.<HMAC-SHA256(BETTER_AUTH_SECRET)>` (`updates/unsubscribe.ts`, no
-  expiry): `GET /portal/unsubscribe` shows the masked address and preferences, `POST
+  cadence (`weekly`, `daily`, `off`) on `/portal/me/updates`; the person turning updates
+  off there counts as unsubscribing. Unsubscribe links carry `<requesterId>.<HMAC-SHA256>`
+  under a key derived from `BETTER_AUTH_SECRET` with HKDF (info `unsubscribe`;
+  `updates/unsubscribe.ts`, no expiry; a merged person's link acts on the person kept):
+  `GET /portal/unsubscribe` shows the masked address and preferences, `POST
   /portal/unsubscribe` turns everything off (or, with `summary`, changes only the
   cadence), and `POST /portal/unsubscribe/one-click` (RFC 8058) does the same without
   an Origin or cookie; unsubscribing records `updates_unsubscribed_at`, after which only
-  the person turns updates on again.
+  the person turns updates on again. A merge keeps either person's unsubscribe on the
+  person kept.
 - **Requester changes** (`updates/changes.ts`): `requesterChanges(id, since, until)` is
   the one "what changed" lookup, read from `issue_activity` (status changes by state
   id: the status before the first and after the last change in the window, so a change
@@ -269,26 +272,35 @@ Rules and invariants for this package below; read the code for the walkthrough.
   closed (canceled, with the duplicated issue when one is related). Links go to the
   first readable board, by name, showing the issue. `requestersWithChangesSince` lists
   the people with updates on, an email, not blocked or merged, who may have something
-  new. "Send to requesters" on a project update is
-  `/api/auth/instance/project-updates/share` (`updates/share.ts`; the author or an
-  admin, not guests; once).
+  new (through their feedback or their portal threads). "Send to requesters" on a
+  project update is `/api/auth/instance/project-updates/share` (`updates/share.ts`; the
+  author or an admin, not guests; once); `GET /api/auth/instance/project-updates/shared?projectId=`
+  lists a project's shared update ids for members.
 - **Requester change emails and summaries** (`updates/run.ts`, `render.ts`): the worker
   calls `/internal/requester-updates/changes` every 2 minutes and
-  `/internal/requester-updates/summaries` every 15. A change email lists every change
-  since the person's `changes_sent_until`, at most one per person per 10 minutes
-  (`last_change_email_at`); a summary (weekly: Mondays, daily: every day, 08:00 UTC) the
-  round-up since `summary_sent_until`, including changes a change email already sent,
-  and only when there is something. Each person is claimed by a conditional UPDATE on
-  their own marker before anything is sent, no transaction is held while sending, and
-  a failed send puts the claim back so the next run sends the same changes. A crash
-  between a send and its mark can repeat that email. Without a mail provider nothing is
+  `/internal/requester-updates/summaries` every 15, without waiting for them in its
+  tick and never two of one job at once. A run's clock is the database's `now()`, and
+  it covers changes up to 30 seconds before it (a change still being committed goes to
+  the next run). A change email lists every change since the person's
+  `changes_sent_until`, at most one per person per 10 minutes (`last_change_email_at`),
+  sent once their latest change is 5 minutes old or their first unsent one 30 minutes
+  old; ready people with nothing new have their window moved on. A summary (weekly:
+  Mondays, daily: every day, 08:00 UTC) is the round-up since `summary_sent_until`,
+  including changes a change email already sent, and only when there is something;
+  after the AI endpoint fails once in a run, the rest of the run uses the round-up.
+  Each person is claimed by a conditional UPDATE on their own marker (by range, not an
+  exact value) before anything is sent, no transaction is held while sending, a failed
+  send or any error puts the claim back so the next run sends the same changes, and one
+  person's error does not stop the run. A crash between a send and its mark, or a failed
+  mark (logged), can repeat that email. Without a mail provider nothing is
   sent or marked. Every email carries the unsubscribe page link and the RFC 8058
   `List-Unsubscribe` / `List-Unsubscribe-Post` headers (the one-click URL on `API_URL`),
   is sent with the workspace name as the sender name, and has no images.
 - **AI summaries and "Since your last visit"** (`updates/ai.ts`, `visits.ts`): owners
-  and admins set an OpenAI-compatible chat completions endpoint (base URL, model, API
-  key) through `/api/auth/instance/ai` (GET, without the key), `/ai/save` (an empty key
-  keeps the stored one), `/ai/delete` and `/ai/test`. One `ai_settings` row; the key is
+  and admins set an OpenAI-compatible chat completions endpoint (base URL without a user
+  name, password or query string, model, API key) through `/api/auth/instance/ai` (GET,
+  without the key), `/ai/save` (an empty key keeps the stored one, only for the same
+  host: a new host needs the key again), `/ai/delete` and `/ai/test`. One `ai_settings` row; the key is
   sealed with AES-256-GCM under a key derived from `BETTER_AUTH_SECRET`
   (`shared/secret-box.ts`; rotating the secret means entering the key again) and never
   returned. `aiSummary` sends the model only the `Change` facts (titles, public statuses,
@@ -298,7 +310,11 @@ Rules and invariants for this package below; read the code for the walkthrough.
   is recorded by `visitorFromRequest` at most once an hour per person (a request within
   the hour writes nothing): `last_visit_at` moves to `previous_visit_at`. `GET
   /portal/me/since-last-visit` is the round-up of changes since the previous visit and
-  the AI paragraph, written at most once per UTC day per person (`portal_summary_cache`).
+  the AI paragraph, written at most once per UTC day per person (`portal_summary_cache`:
+  the first request of the day claims the row, so concurrent tabs ask once). The
+  paragraph is shown only while the changes and the visit it was written for match
+  (`changes_hash`), and the answer waits at most 5 seconds for it; a slower paragraph
+  is stored for the next load.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
