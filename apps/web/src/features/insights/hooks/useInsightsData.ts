@@ -10,6 +10,7 @@ import { fetchCompletedIssues, fetchOpenIssues } from '../services/insightsIssue
 import { mergeInsightIssues, periodStart, withinPeriod } from '@/utils/insights/data';
 import { EMPTY_CONTEXT, mergeContext } from '@/utils/insights/context';
 import type { InsightIssue, InsightsContext } from '@/utils/insights/slices';
+import { withTeamEstimate } from '@/utils/insights/measures';
 
 // The issues an Insights panel reads: the view's own issues (after its filters) that
 // are open or closed in the period, plus the view's issues completed in the period
@@ -69,12 +70,20 @@ export function useInsightsData({
     () =>
       withRequests(
         mergeInsightIssues(
-          withinPeriod(mergeInsightIssues(viewIssues, open.data?.issues ?? []), since),
+          withinPeriod(
+            mergeInsightIssues(
+              // The view's own issues as their team's estimate settings show them (the
+              // fetched ones are already, toInsightIssue).
+              viewIssues.map((i) => withTeamEstimate(i, baseContext.teamEstimates?.get(i.teamId))),
+              open.data?.issues ?? [],
+            ),
+            since,
+          ),
           completed.data?.issues ?? [],
         ),
         requests.data,
       ),
-    [viewIssues, open.data, completed.data, since, requests.data],
+    [viewIssues, baseContext, open.data, completed.data, since, requests.data],
   );
   const context = useMemo(
     () =>

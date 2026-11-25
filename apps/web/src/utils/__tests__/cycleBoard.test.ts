@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import type { Cycle, TeamDetail } from '@/types/team';
 import type { Issue } from '@/types/issue';
 import { buildGroups, groupIssues, groupKeyOf, buildMaps } from '../team';
-import { cycleSafeSettings, defaultViewSettings } from '../viewSettings';
+import { cycleSafeSettings, defaultViewSettings, estimateSafeSettings } from '../viewSettings';
 import { applyFilters } from '../filters';
 import { buildFieldSpecs } from '../filterFields';
 
@@ -149,6 +149,30 @@ describe('cycles turned off', () => {
     assert.equal(off.group, 'status');
     assert.equal(off.subgroup, 'none');
     assert.equal(cycleSafeSettings(settings, 'kanban', true).group, 'cycle');
+  });
+
+  it('falls back from cycle ordering to the default ordering while cycles are off', () => {
+    const settings = {
+      ...defaultViewSettings('list'),
+      sort: { field: 'cycle', dir: 'asc' },
+    } as const;
+    assert.deepEqual(
+      cycleSafeSettings(settings, 'list', false).sort,
+      defaultViewSettings('list').sort,
+    );
+    assert.equal(cycleSafeSettings(settings, 'list', true).sort.field, 'cycle');
+  });
+
+  it('falls back from estimate ordering while the team does not use estimates', () => {
+    const settings = {
+      ...defaultViewSettings('list'),
+      sort: { field: 'estimate', dir: 'asc' },
+    } as const;
+    assert.deepEqual(
+      estimateSafeSettings(settings, 'list', false).sort,
+      defaultViewSettings('list').sort,
+    );
+    assert.equal(estimateSafeSettings(settings, 'list', true).sort.field, 'estimate');
   });
 });
 

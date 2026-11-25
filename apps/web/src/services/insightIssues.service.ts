@@ -3,6 +3,8 @@ import { cycleLabel } from '@/utils/cycles';
 import { fetchPagesUpTo } from '@/utils/fetchAllPages';
 import type { InsightIssue, InsightsContext } from '@/utils/insights/slices';
 import type { IssueFilter } from '@/utils/viewFilters';
+import type { EstimationType, TeamEstimateSettings } from '@/utils/estimates';
+import { withTeamEstimate } from '@/utils/insights/measures';
 
 // The issues the Insights panel and dashboard widgets fetch, with only the fields they
 // read and the names they show. Archived issues are included: auto-archive moves old
@@ -24,6 +26,10 @@ export const InsightIssueFields = graphql(`
     team {
       id
       name
+      issueEstimationType
+      issueEstimationExtended
+      issueEstimationAllowZero
+      defaultIssueEstimate
     }
     state {
       id
@@ -95,6 +101,7 @@ export function emptyNames(): {
   labels: Map<string, string>;
   cycles: Map<string, string>;
   teams: Map<string, string>;
+  teamEstimates: Map<string, TeamEstimateSettings>;
 } {
   return {
     states: new Map(),
@@ -102,6 +109,7 @@ export function emptyNames(): {
     labels: new Map(),
     cycles: new Map(),
     teams: new Map(),
+    teamEstimates: new Map(),
   };
 }
 
@@ -127,6 +135,13 @@ export function toInsightIssue(
 ): InsightIssue {
   const n = readFragment(InsightIssueFields, data);
   names.teams.set(n.team.id, n.team.name);
+  const estimates: TeamEstimateSettings = {
+    type: n.team.issueEstimationType as EstimationType,
+    extended: n.team.issueEstimationExtended,
+    allowZero: n.team.issueEstimationAllowZero,
+    defaultEstimate: n.team.defaultIssueEstimate,
+  };
+  names.teamEstimates.set(n.team.id, estimates);
   names.states.set(n.state.id, {
     name: n.state.name,
     type: n.state.type,
@@ -137,24 +152,27 @@ export function toInsightIssue(
   if (n.creator) names.users.set(n.creator.id, n.creator.displayName);
   if (n.cycle) names.cycles.set(n.cycle.id, cycleLabel(n.cycle));
   for (const l of n.labels.nodes) names.labels.set(l.id, l.name);
-  return {
-    id: n.id,
-    teamId: n.team.id,
-    identifier: n.identifier,
-    title: n.title,
-    stateId: n.state.id,
-    assigneeUserId: n.assignee?.id ?? null,
-    creatorUserId: n.creator?.id ?? null,
-    priority: n.priority,
-    estimate: n.estimate ?? null,
-    labelIds: n.labels.nodes.map((l) => l.id),
-    project: n.project
-      ? { id: n.project.id, title: n.project.name, deleted: n.project.archivedAt != null }
-      : null,
-    cycleId: n.cycle?.id ?? null,
-    startedAt: n.startedAt ?? null,
-    completedAt: n.completedAt ?? null,
-    canceledAt: n.canceledAt ?? null,
-    createdAt: n.createdAt,
-  };
+  return withTeamEstimate(
+    {
+      id: n.id,
+      teamId: n.team.id,
+      identifier: n.identifier,
+      title: n.title,
+      stateId: n.state.id,
+      assigneeUserId: n.assignee?.id ?? null,
+      creatorUserId: n.creator?.id ?? null,
+      priority: n.priority,
+      estimate: n.estimate ?? null,
+      labelIds: n.labels.nodes.map((l) => l.id),
+      project: n.project
+        ? { id: n.project.id, title: n.project.name, deleted: n.project.archivedAt != null }
+        : null,
+      cycleId: n.cycle?.id ?? null,
+      startedAt: n.startedAt ?? null,
+      completedAt: n.completedAt ?? null,
+      canceledAt: n.canceledAt ?? null,
+      createdAt: n.createdAt,
+    },
+    estimates,
+  );
 }

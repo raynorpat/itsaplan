@@ -17,6 +17,7 @@ export function contextFromTeam(team: TeamDetail): InsightsContext {
     labels: new Map(team.labels.map((l) => [l.id, l.name])),
     cycles: new Map(team.teamCycles.map((c) => [c.id, cycleLabel(c)])),
     teams: new Map([[team.team.id, team.team.name]]),
+    teamEstimates: new Map([[team.team.id, team.estimates]]),
   };
 }
 
@@ -33,6 +34,7 @@ export function mergeContext(base: InsightsContext, extra: InsightsContext): Ins
     labels: merged(base.labels, extra.labels),
     cycles: merged(base.cycles, extra.cycles),
     teams: merged(base.teams, extra.teams),
+    teamEstimates: merged(base.teamEstimates ?? new Map(), extra.teamEstimates ?? new Map()),
   };
 }
 

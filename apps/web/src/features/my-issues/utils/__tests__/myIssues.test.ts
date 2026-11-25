@@ -152,6 +152,30 @@ describe('myIssuesGrouping', () => {
 });
 
 describe('sortMyIssues', () => {
+  it('orders the hidden estimate of a team without estimates as empty', () => {
+    const at = (id: string, estimate: number, estimationType: string) => ({
+      id,
+      title: id,
+      identifier: 'ENG-1',
+      priority: 0,
+      dueDate: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      state: { type: 'started' },
+      assignee: null,
+      estimate,
+      estimationType,
+    });
+    const sorted = sortMyIssues([at('off', 1, 'notUsed'), at('on', 5, 'linear')], {
+      field: 'estimate',
+      dir: 'asc',
+    });
+    assert.deepEqual(
+      sorted.map((i) => i.id),
+      ['on', 'off'],
+    );
+  });
+
   const issue = (
     id: string,
     fields: Partial<{
@@ -272,6 +296,7 @@ describe('myIssueRow', () => {
     project: { id: 'm', name: 'Mobile' },
     cycle: { number: 3, name: null, startsAt: null },
     estimate: null,
+    estimationType: 'fibonacci' as const,
     dueDate: '2020-01-01',
   };
 
@@ -288,6 +313,16 @@ describe('myIssueRow', () => {
   it('carries the estimate, empty when the issue has none', () => {
     assert.equal(myIssueRow(base).estimate, null);
     assert.equal(myIssueRow({ ...base, estimate: 3 }).estimate, 3);
+  });
+
+  it("shows a T-shirt team's estimate as its size", () => {
+    const row = myIssueRow({ ...base, estimate: 3, estimationType: 'tShirt' });
+    assert.equal(row.estimate, 3);
+    assert.equal(row.estimateLabel, 'M');
+  });
+
+  it('hides the stored estimate of a team that does not use estimates', () => {
+    assert.equal(myIssueRow({ ...base, estimate: 3, estimationType: 'notUsed' }).estimate, null);
   });
 
   it('marks a project in the trash as deleted', () => {

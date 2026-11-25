@@ -8,6 +8,7 @@ import { compareKeys, extremeText } from '@/utils/team';
 import type { Sort, SortField } from '@/utils/viewTypes';
 import type { ListRowData } from '@/components/common/board/list/ListRowContent';
 import type { MyIssue } from '../services/myIssues.service';
+import { DEFAULT_ESTIMATE_SETTINGS, estimateLabel } from '@/utils/estimates';
 
 // Linear's "My issues" tabs and the IssueFilter each one asks for.
 export type MyIssuesTab = 'assigned' | 'created' | 'subscribed' | 'activity';
@@ -189,6 +190,7 @@ interface SortableIssue {
   assignee: { name: string } | null;
   completedAt?: string | null;
   estimate?: number | null;
+  estimationType?: string;
   project?: { name: string } | null;
   cycle?: { startsAt: string | null } | null;
   labels?: { name: string }[];
@@ -246,7 +248,7 @@ export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): 
       case 'created':
         return i.createdAt;
       case 'estimate':
-        return i.estimate ?? null;
+        return shownEstimate(i);
       case 'completed':
         return i.completedAt ?? null;
       case 'cycle':
@@ -265,6 +267,13 @@ export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): 
   return [...issues].sort((a, b) => compareKeys(key(a), key(b), sign));
 }
 
+// The estimate the issue shows: none while its team does not use estimates (the
+// stored value is kept but hidden, as in Linear).
+export const shownEstimate = (i: {
+  estimate?: number | null;
+  estimationType?: string;
+}): number | null => (i.estimationType === 'notUsed' ? null : (i.estimate ?? null));
+
 // A My issues issue as a row of the shared list. The identifier (KEY-N) names the
 // issue's team, so lists that span teams need no separate team column.
 export function myIssueRow(issue: MyIssue): ListRowData {
@@ -280,7 +289,14 @@ export function myIssueRow(issue: MyIssue): ListRowData {
       ? projectDisplayName({ title: issue.project.name, deleted: issue.project.archivedAt != null })
       : null,
     cycle: issue.cycle ? cycleLabel(issue.cycle) : null,
-    estimate: issue.estimate ?? null,
+    estimate: shownEstimate(issue),
+    estimateLabel:
+      issue.estimate == null
+        ? undefined
+        : estimateLabel(
+            { ...DEFAULT_ESTIMATE_SETTINGS, type: issue.estimationType },
+            issue.estimate,
+          ),
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, type) }
       : null,

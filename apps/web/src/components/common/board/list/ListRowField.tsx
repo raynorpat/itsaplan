@@ -43,7 +43,7 @@ export function ListRowField({ field, data }: { field: ListField; data: ListRowD
       return data.estimateChip !== undefined ? (
         data.estimateChip
       ) : (
-        <EstimateBadge estimate={data.estimate} />
+        <EstimateBadge estimate={data.estimate} label={data.estimateLabel} />
       );
     case 'dueDate':
       return data.dueDate ? (

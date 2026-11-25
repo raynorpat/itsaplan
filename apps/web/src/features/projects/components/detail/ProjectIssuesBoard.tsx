@@ -8,7 +8,7 @@ import { PreferencesError } from '@/components/common/page/PreferencesError';
 import { applyFilters } from '@/utils/filters';
 import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import { cyclesVisible } from '@/utils/cycles';
-import { cycleSafeSettings } from '@/utils/viewSettings';
+import { cycleSafeSettings, estimateSafeSettings } from '@/utils/viewSettings';
 import FilterBar from '@/components/layout/FilterBar';
 import DisplayPopover from '@/components/layout/DisplayPopover';
 import KanbanBoard from '@/components/common/board/kanban/KanbanBoard';
@@ -45,7 +45,11 @@ export default function ProjectIssuesBoard({ projectId }: { projectId: string })
   // defaults.
   if (board.error) return <PreferencesError message={board.error} onRetry={board.retry} />;
   if (!team || !viewTeam || !board.ready) return null;
-  const settings = cycleSafeSettings(board.settings, board.view, cyclesVisible(team));
+  const settings = estimateSafeSettings(
+    cycleSafeSettings(board.settings, board.view, cyclesVisible(team)),
+    board.view,
+    estimatesUsed(team.estimates),
+  );
 
   const viewProps = {
     team: viewTeam,

@@ -222,19 +222,35 @@ export function normalizeViewSettings(
   };
 }
 
-// The settings a board uses for a team whose cycles may be off: grouping by cycle
-// (kept from when they were on, locally or in a saved view) falls back to the
-// view's default grouping, since the Display popover no longer offers it.
+// The settings a board uses for a team whose cycles may be off: grouping and ordering
+// by cycle (kept from when they were on, locally or in a saved view) fall back to the
+// view's defaults, since the Display popover no longer offers them.
 export function cycleSafeSettings(
   settings: ViewSettings,
   view: WorkItemsView,
   cyclesOn: boolean,
 ): ViewSettings {
-  if (cyclesOn || (settings.group !== 'cycle' && settings.subgroup !== 'cycle')) return settings;
-  const group = settings.group === 'cycle' ? defaultViewSettings(view).group : settings.group;
-  const subgroup =
-    settings.subgroup === 'cycle' || settings.subgroup === group ? 'none' : settings.subgroup;
-  return { ...settings, group, subgroup };
+  if (cyclesOn) return settings;
+  let out = settings;
+  if (out.group === 'cycle' || out.subgroup === 'cycle') {
+    const group = out.group === 'cycle' ? defaultViewSettings(view).group : out.group;
+    const subgroup = out.subgroup === 'cycle' || out.subgroup === group ? 'none' : out.subgroup;
+    out = { ...out, group, subgroup };
+  }
+  if (out.sort.field === 'cycle') out = { ...out, sort: defaultViewSettings(view).sort };
+  return out;
+}
+
+// The settings a board uses for a team that may not use estimates: an Estimate
+// ordering (kept from when they were on) falls back to the view's default ordering,
+// since the Display popover does not offer it and the estimates are hidden.
+export function estimateSafeSettings(
+  settings: ViewSettings,
+  view: WorkItemsView,
+  estimatesOn: boolean,
+): ViewSettings {
+  if (estimatesOn || settings.sort.field !== 'estimate') return settings;
+  return { ...settings, sort: defaultViewSettings(view).sort };
 }
 
 // A saved view's display snapshot: which layout is active plus that layout's

@@ -186,6 +186,7 @@ export default function FlatBoard({
         issues={team.issues}
         maps={maps}
         properties={settings.properties}
+        estimates={team.estimates}
       />
     </DndContext>
   );

@@ -135,28 +135,71 @@ describe('liveCycleProgress', () => {
   ] as const);
   const at = (id: string, stateId: string, estimate: number | null = null) =>
     ({ id, cycleId: 'c1', stateId, estimate }) as Issue;
+  // A team that uses estimates, with Linear's default estimate of 1.
+  const used = {
+    type: 'fibonacci' as const,
+    extended: false,
+    allowZero: false,
+    defaultEstimate: 1,
+  };
 
   it('weights like the API: completed 1, started 0.25, canceled left out', () => {
     const p = liveCycleProgress(
       [at('a', 'todo'), at('b', 'doing'), at('c', 'done'), at('d', 'done'), at('e', 'gone')],
       states,
+      used,
     );
     assert.deepEqual(p, { percent: 56, scope: 4, started: 1, completed: 2 });
   });
 
   it('weights by estimate when any issue has one, 1 for an issue without', () => {
-    const p = liveCycleProgress([at('a', 'done', 3), at('b', 'todo')], states);
+    const p = liveCycleProgress([at('a', 'done', 3), at('b', 'todo')], states, used);
     assert.deepEqual(p, { percent: 75, scope: 4, started: 0, completed: 3 });
   });
 
+  it("counts an unestimated issue as the team's default estimate", () => {
+    const team = (defaultEstimate: number) => ({
+      type: 'fibonacci' as const,
+      extended: false,
+      allowZero: false,
+      defaultEstimate,
+    });
+    const issues = [at('a', 'done', 3), at('b', 'todo')];
+    assert.deepEqual(liveCycleProgress(issues, states, team(0)), {
+      percent: 99,
+      scope: 3,
+      started: 0,
+      completed: 3,
+    });
+    assert.deepEqual(liveCycleProgress(issues, states, team(2)), {
+      percent: 60,
+      scope: 5,
+      started: 0,
+      completed: 3,
+    });
+  });
+
+  it('ignores the stored estimates of a team with estimates off and counts by issue', () => {
+    const off = { type: 'notUsed' as const, extended: false, allowZero: false, defaultEstimate: 0 };
+    assert.deepEqual(liveCycleProgress([at('a', 'done', 3), at('b', 'todo')], states, off), {
+      percent: 50,
+      scope: 2,
+      started: 0,
+      completed: 1,
+    });
+  });
+
   it('is 0 with no issues, and never 100 while open issues remain', () => {
-    assert.deepEqual(liveCycleProgress([], states), {
+    assert.deepEqual(liveCycleProgress([], states, used), {
       percent: 0,
       scope: 0,
       started: 0,
       completed: 0,
     });
-    assert.equal(liveCycleProgress([at('a', 'done', 2), at('b', 'todo', 0)], states).percent, 99);
+    assert.equal(
+      liveCycleProgress([at('a', 'done', 2), at('b', 'todo', 0)], states, used).percent,
+      99,
+    );
   });
 });
 

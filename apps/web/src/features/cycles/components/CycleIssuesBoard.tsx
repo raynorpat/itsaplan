@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { estimatesUsed } from '@/utils/estimates';
+import { estimateSafeSettings } from '@/utils/viewSettings';
 import { useShell } from '@/context/shellContext';
 import { useListBoardSettings } from '@/hooks/useListBoardSettings';
 import { PreferencesError } from '@/components/common/page/PreferencesError';
@@ -60,10 +61,11 @@ export default function CycleIssuesBoard({
   // defaults.
   if (board.error) return <PreferencesError message={board.error} onRetry={board.retry} />;
   if (!team || !viewTeam || !board.ready) return null;
+  const settings = estimateSafeSettings(board.settings, board.view, estimatesUsed(team.estimates));
 
   const viewProps = {
     team: viewTeam,
-    settings: board.settings,
+    settings,
     onSettingsChange: board.changeSettings,
     onOpenIssue,
     onPeekIssue: (id: string) => onOpenIssue(id, 'panel'),
@@ -100,7 +102,7 @@ export default function CycleIssuesBoard({
           <DisplayPopover
             view={board.view}
             onViewChange={board.changeView}
-            settings={board.settings}
+            settings={settings}
             onSettingsChange={board.changeSettings}
             cyclesOn
             requestsOn={team.viewer.workspaceRole !== 'guest'}

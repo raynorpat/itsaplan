@@ -1,6 +1,7 @@
 import type { Issue } from '@/types/issue';
 import type { StateType } from '@/types/team';
 import { appendPage } from '@/utils/appendPage';
+import { estimatesUsed, type TeamEstimateSettings } from '@/utils/estimates';
 
 // The fields of a cycle the progress numbers and the chart read. The histories hold
 // one value per day since the cycle started, recorded by the API's daily upkeep.
@@ -51,15 +52,22 @@ const toPercent = (progress: number) => Math.floor(progress * 100);
 // A current or upcoming cycle's numbers from its issues on the board, weighted as the
 // API's cycleProgress weighs them: completed issues count 1, started 0.25, canceled
 // issues are left out; by estimate when any issue has one (an issue without counts
-// 1), otherwise by issue count; 0.999 instead of 1 while open issues remain.
+// the team's default estimate), otherwise by issue count; 0.999 instead of 1 while
+// open issues remain. A team that does not use estimates is counted by issue.
 export function liveCycleProgress(
   issues: Issue[],
   stateTypeById: ReadonlyMap<string, StateType>,
+  estimates: TeamEstimateSettings,
 ): CycleProgress {
-  const typed = issues.map((i) => ({ estimate: i.estimate, type: stateTypeById.get(i.stateId) }));
+  const used = estimatesUsed(estimates);
+  const fallback = used ? estimates.defaultEstimate : 1;
+  const typed = issues.map((i) => ({
+    estimate: used ? i.estimate : null,
+    type: stateTypeById.get(i.stateId),
+  }));
   const counted = typed.filter((r) => r.type !== 'canceled');
   const weighted = counted.some((r) => (r.estimate ?? 0) > 0);
-  const weight = (r: { estimate: number | null }) => (weighted ? (r.estimate ?? 1) : 1);
+  const weight = (r: { estimate: number | null }) => (weighted ? (r.estimate ?? fallback) : 1);
   const sum = (list: typeof counted) => list.reduce((n, r) => n + weight(r), 0);
   const scope = sum(counted);
   const completed = sum(counted.filter((r) => r.type === 'completed'));
@@ -101,14 +109,18 @@ export function mergeCyclePages<T extends { id: string; number: number }>(pages:
     .sort((a, b) => b.number - a.number);
 }
 
-type BoardTeam = { issues: Issue[]; states: { id: string; stateType: StateType }[] };
+type BoardTeam = {
+  issues: Issue[];
+  states: { id: string; stateType: StateType }[];
+  estimates: TeamEstimateSettings;
+};
 
 const isPastCycle = (cycle: { endsAt: string }, now: Date) =>
   new Date(cycle.endsAt).getTime() <= now.getTime();
 
 function boardProgress(cycleId: string, team: BoardTeam): CycleProgress {
   const stateTypes = new Map(team.states.map((s) => [s.id, s.stateType]));
-  return liveCycleProgress(cycleIssues(team.issues, cycleId), stateTypes);
+  return liveCycleProgress(cycleIssues(team.issues, cycleId), stateTypes, team.estimates);
 }
 
 // The numbers a cycle's page shows: live from the board's issues while it is current

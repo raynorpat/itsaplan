@@ -64,3 +64,7 @@ Next.js App Router, SSR (not SPA). Tailwind v4 + shadcn/ui. See root `AGENTS.md`
   image depends on them.
 - When touching `localStorage`/`window` in a render path (e.g. a `useState` initializer), guard
   with `typeof window === 'undefined'` — client components still server-render.
+- Estimates (`utils/estimates.ts`): the web offers only the team's scale and shows
+  T-shirt teams' values as sizes; a team that does not use estimates shows no estimate,
+  picker or Estimate ordering. Guests see estimates read-only in the web, while the API
+  lets them set one (Linear lets guests edit issues); keep the two as they are.

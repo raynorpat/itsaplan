@@ -2,6 +2,7 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { gqlRequest, graphql } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { myIssuesFilter, type MyIssuesTab } from '../utils/myIssues';
+import type { EstimationType } from '@/utils/estimates';
 
 const MyIssuesPage = graphql(`
   query MyIssues($filter: IssueFilter, $after: String, $first: Int) {
@@ -23,6 +24,7 @@ const MyIssuesPage = graphql(`
         }
         team {
           key
+          issueEstimationType
         }
         state {
           name
@@ -85,6 +87,8 @@ export type MyIssue = {
   project: { id: string; name: string; archivedAt?: string | null } | null;
   cycle: { number: number; name: string | null; startsAt: string | null } | null;
   estimate: number | null;
+  // The issue's team estimate scale (Linear's Team.issueEstimationType).
+  estimationType: EstimationType;
 };
 
 // Issues per page: 50 when paging on request, the API's 250 when the whole set is
@@ -106,7 +110,7 @@ type MyIssueNode = {
   parent?: { id: string } | null;
   dueDate?: string | null;
   estimate?: number | null;
-  team: { key: string };
+  team: { key: string; issueEstimationType: string };
   state: { name: string; type: string; color: string };
   assignee: NodePerson;
   delegate?: NodePerson;
@@ -145,6 +149,7 @@ function toMyIssue(n: MyIssueNode): MyIssue {
         }
       : null,
     estimate: n.estimate ?? null,
+    estimationType: n.team.issueEstimationType as EstimationType,
   };
 }
 

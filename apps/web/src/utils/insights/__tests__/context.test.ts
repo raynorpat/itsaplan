@@ -12,6 +12,7 @@ describe('insights context', () => {
       mentionCandidates: [{ userId: 'a', name: 'Bot' }],
       labels: [{ id: 'l', name: 'Bug' }],
       teamCycles: [{ id: 'c', number: 3, name: null }],
+      estimates: { type: 'tShirt', extended: false, allowZero: false, defaultEstimate: 2 },
     } as unknown as TeamDetail;
     const ctx = contextFromTeam(team);
     assert.deepEqual(ctx.states.get('s'), {
@@ -25,6 +26,12 @@ describe('insights context', () => {
     assert.equal(ctx.labels.get('l'), 'Bug');
     assert.equal(ctx.cycles.get('c'), 'Cycle 3');
     assert.equal(ctx.teams.get('t'), 'Engineering');
+    assert.deepEqual(ctx.teamEstimates?.get('t'), {
+      type: 'tShirt',
+      extended: false,
+      allowZero: false,
+      defaultEstimate: 2,
+    });
   });
   it('fills gaps from fetched names, the base winning', () => {
     const base = {

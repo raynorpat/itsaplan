@@ -7,7 +7,7 @@ import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { buildGroups, groupIssues } from '@/utils/team';
 import { cyclesVisible } from '@/utils/cycles';
-import { cycleSafeSettings, type ViewSettings } from '@/utils/viewSettings';
+import { cycleSafeSettings, estimateSafeSettings, type ViewSettings } from '@/utils/viewSettings';
 import { closedStateIds, visibleIssues } from '@/utils/completedIssues';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -81,7 +81,11 @@ export default function WorkItemsPage() {
   // client-side); only persisting is gated.
   const canSaveView = can('views', editor.activeView ? 'edit' : 'create');
 
-  const settings = cycleSafeSettings(editor.settings, editor.view, cyclesVisible(team));
+  const settings = estimateSafeSettings(
+    cycleSafeSettings(editor.settings, editor.view, cyclesVisible(team)),
+    editor.view,
+    estimatesUsed(team.estimates),
+  );
   const changeSettings = (next: ViewSettings) => editor.changeSettings(next);
 
   const timelineGroups = buildGroups(shownTeam, settings.group);

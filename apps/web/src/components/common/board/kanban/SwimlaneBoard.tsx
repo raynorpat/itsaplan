@@ -260,6 +260,7 @@ export default function SwimlaneBoard({
         issues={team.issues}
         maps={maps}
         properties={settings.properties}
+        estimates={team.estimates}
       />
     </DndContext>
   );

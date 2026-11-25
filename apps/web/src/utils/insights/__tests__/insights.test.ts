@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { InsightIssue, InsightsContext } from '../slices';
-import { breakdown, measureValue } from '../measures';
+import { breakdown, measureValue, withTeamEstimate } from '../measures';
 import { sliceIssues, sliceFilter } from '../slices';
 import { timeRows, timeStats } from '../stats';
 import { weeklyCreatedCompleted } from '../overTime';
@@ -217,6 +217,38 @@ describe('breakdown', () => {
         ['Done', 1],
       ],
     );
+  });
+});
+
+describe("points with the team's estimate settings", () => {
+  const fib = (defaultEstimate: number) => ({
+    type: 'fibonacci' as const,
+    extended: false,
+    allowZero: false,
+    defaultEstimate,
+  });
+
+  it("counts an unestimated issue as its team's default estimate", () => {
+    const now = new Date('2026-11-25T00:00:00Z');
+    const unestimated = withTeamEstimate(issue({ id: '1' }), fib(0));
+    assert.equal(measureValue(unestimated, 'points', now), 0);
+    assert.equal(measureValue(withTeamEstimate(issue({ id: '2' }), fib(2)), 'points', now), 2);
+    assert.equal(
+      measureValue(withTeamEstimate(issue({ id: '3', estimate: 5 }), fib(0)), 'points', now),
+      5,
+    );
+  });
+
+  it('hides the stored estimate of a team that does not use estimates', () => {
+    const off = { type: 'notUsed' as const, extended: false, allowZero: false, defaultEstimate: 0 };
+    const hidden = withTeamEstimate(issue({ id: '1', estimate: 8 }), off);
+    assert.equal(hidden.estimate, null);
+    assert.equal(measureValue(hidden, 'points', new Date()), 1);
+  });
+
+  it('leaves an issue unchanged without settings for its team', () => {
+    const plain = issue({ id: '1', estimate: 3 });
+    assert.equal(withTeamEstimate(plain, undefined), plain);
   });
 });
 

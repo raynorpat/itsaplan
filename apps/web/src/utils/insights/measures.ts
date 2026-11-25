@@ -1,3 +1,4 @@
+import { estimatesUsed, type TeamEstimateSettings } from '@/utils/estimates';
 import { sliceIssues, type InsightIssue, type InsightsContext, type SliceField } from './slices';
 
 // The figures the Insights panel measures issues by.
@@ -22,10 +23,23 @@ function daysBetween(from: string, to: number): number {
   return (to - new Date(from).getTime()) / DAY_MS;
 }
 
+// The issue as its team's estimate settings show it: the stored estimate hidden while
+// the team does not use estimates (counted by issue, 1), else an unestimated issue
+// counting the team's default estimate, as cycle and project progress count it.
+export function withTeamEstimate<T extends InsightIssue>(
+  issue: T,
+  settings: TeamEstimateSettings | undefined,
+): T {
+  if (!settings) return issue;
+  if (!estimatesUsed(settings)) return { ...issue, estimate: null, defaultEstimate: 1 };
+  return { ...issue, defaultEstimate: settings.defaultEstimate };
+}
+
 // One issue's value for a measure, or null when the measure does not apply to it:
 // - count: 1;
-// - points: the estimate, an unestimated issue counting 1 (the project progress rule;
-//   the panel offers points only when the issues have estimates);
+// - points: the estimate, an unestimated issue counting its team's default estimate
+//   (as progress does; withTeamEstimate), else 1; the panel offers points only when
+//   the issues have estimates;
 // - requests: the issue's feedback items; requesters: the distinct people asking
 //   (a slice's total counts each person once, see total);
 // - customers: the customer count (RequestSummary.customerKeys); customerRevenue: the
@@ -38,7 +52,7 @@ export function measureValue(issue: InsightIssue, measure: Measure, now: Date): 
     case 'count':
       return 1;
     case 'points':
-      return issue.estimate ?? 1;
+      return issue.estimate ?? issue.defaultEstimate ?? 1;
     case 'requests':
       return issue.requests?.count ?? 0;
     case 'requesters':

@@ -1,4 +1,5 @@
 import type { Issue } from '@/types/issue';
+import type { TeamEstimateSettings } from '@/utils/estimates';
 import type { FilterCondition } from '@/utils/filters';
 import { PRIORITY_ORDER, priorityLabel } from '@/utils/fieldOptions';
 
@@ -23,7 +24,11 @@ export type InsightIssue = Pick<
   | 'canceledAt'
   | 'createdAt'
   | 'requests'
->;
+> & {
+  // What the issue counts in points when it has no estimate: its team's default
+  // estimate, or 1 (withTeamEstimate).
+  defaultEstimate?: number;
+};
 
 // Names the panel shows for the ids on an issue.
 export interface InsightsContext {
@@ -32,6 +37,8 @@ export interface InsightsContext {
   labels: ReadonlyMap<string, string>;
   cycles: ReadonlyMap<string, string>;
   teams: ReadonlyMap<string, string>;
+  // How each team estimates, for points (withTeamEstimate); absent when unknown.
+  teamEstimates?: ReadonlyMap<string, TeamEstimateSettings>;
   // A view spanning teams (My issues) shows one status slice per state name, since
   // each team has its own "In Progress".
   groupStatesByName?: boolean;

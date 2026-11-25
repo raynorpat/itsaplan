@@ -17,6 +17,9 @@ export interface ListRowData {
   project: string | null;
   cycle: string | null;
   estimate: number | null;
+  // How the plain estimate chip shows the estimate (a T-shirt size); the number when
+  // absent.
+  estimateLabel?: string;
   // Shown in place of the plain estimate chip (a team row's picker chip).
   estimateChip?: ReactNode;
   dueDate: { date: string; overdue: boolean } | null;
