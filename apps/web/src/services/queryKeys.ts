@@ -65,6 +65,7 @@ export const qk = {
   project: (id: string) => ['project', id] as const,
   projectActivity: (id: string) => ['projectActivity', id] as const,
   projectUpdates: (id: string) => ['projectUpdates', id] as const,
+  sharedProjectUpdates: (projectId: string) => ['sharedProjectUpdates', projectId] as const,
   projectDocuments: (id: string) => ['projectDocuments', id] as const,
   projectLabels: ['projectLabels'] as const,
   // The workspace labels and groups (labels without a team), retired ones included.

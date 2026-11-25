@@ -3,10 +3,10 @@
 // operation that creates or finds an ExternalUser.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError, gqlRequest, graphql, readFragment, type ResultOf } from '@/lib/graphql';
+import { gqlRequest, graphql, readFragment, type ResultOf } from '@/lib/graphql';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
-import type { FeedbackItem, FeedbackRequester } from '@/utils/feedback';
+import { isUnsubscribedRefusal, type FeedbackItem, type FeedbackRequester } from '@/utils/feedback';
 import { fetchAllPages } from '@/utils/fetchAllPages';
 import { summarizeNeeds } from '@/utils/requests';
 import { addFeedbackWithSource } from '@/services/feedbackCreate';
@@ -230,7 +230,8 @@ export function useRequesterSearchQuery(q: string, opts: { enabled: boolean }) {
 
 // Creates the person; with `keepUpdated` (and an email) also turns on their email
 // updates ("Keep this person updated"). An email that already belongs to someone who
-// unsubscribed returns that person with updates left off (the API answers 409).
+// unsubscribed returns that person with updates left off (the API answers 409), and
+// `updatesRefused` says so.
 export function useCreateRequester() {
   return useMutation({
     mutationFn: async (input: { name: string; email: string | null; keepUpdated?: boolean }) => {
@@ -238,15 +239,17 @@ export function useCreateRequester() {
         method: 'POST',
         body: { name: input.name, email: input.email },
       });
+      let updatesRefused = false;
       if (input.keepUpdated && input.email) {
         await instanceFetch('/instance/requesters/updates', {
           method: 'POST',
           body: { requesterId: res.requester.id, enabled: true },
         }).catch((error: unknown) => {
-          if (!(error instanceof ApiError && error.status === 409)) throw error;
+          if (!isUnsubscribedRefusal(error)) throw error;
+          updatesRefused = true;
         });
       }
-      return toRequester(res.requester);
+      return { requester: toRequester(res.requester), updatesRefused };
     },
   });
 }

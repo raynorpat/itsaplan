@@ -7,6 +7,7 @@ import {
   guestFeedbackText,
   groupFeedbackByIssue,
   isFeedbackAttachment,
+  isUnsubscribedRefusal,
   type FeedbackItem,
 } from '../feedback';
 
@@ -94,5 +95,14 @@ describe('canSeeFeedback', () => {
     assert.equal(canSeeFeedback('member'), true);
     assert.equal(canSeeFeedback('guest'), false);
     assert.equal(canSeeFeedback(null), false);
+  });
+});
+
+describe('isUnsubscribedRefusal', () => {
+  it('is the API refusing to turn updates on for someone who unsubscribed', () => {
+    const apiError = (status: number) => Object.assign(new Error('refused'), { status });
+    assert.equal(isUnsubscribedRefusal(apiError(409)), true);
+    assert.equal(isUnsubscribedRefusal(apiError(403)), false);
+    assert.equal(isUnsubscribedRefusal(new Error('network')), false);
   });
 });

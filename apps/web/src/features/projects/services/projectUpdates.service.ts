@@ -3,7 +3,7 @@
 // Posting sets the project's health, so it patches the project at once and
 // refreshes the lists that show health.
 
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProjectHealth } from '@/types/project';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { instanceFetch } from '@/lib/auth-client';
@@ -237,12 +237,31 @@ export function useUnarchiveProjectUpdate(projectId: string) {
 // "Send to requesters": emails a posted update to the people who gave feedback on the
 // project's issues, through the instance plugin (Linear's ProjectUpdateCreateInput has
 // no such field). The requester updates job sends it on its next run.
-export function useShareProjectUpdate() {
+export function useShareProjectUpdate(projectId: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (projectUpdateId: string) =>
       instanceFetch<{ shared: true }>('/instance/project-updates/share', {
         method: 'POST',
         body: { projectUpdateId },
       }),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.sharedProjectUpdates(projectId) }),
+  });
+}
+
+// The ids of the project's updates already sent to requesters (members only), so a card
+// offers "Send to requesters" on the others.
+export function useSharedProjectUpdatesQuery(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.sharedProjectUpdates(projectId),
+    enabled,
+    queryFn: async () =>
+      new Set(
+        (
+          await instanceFetch<{ ids: string[] }>(
+            `/instance/project-updates/shared?projectId=${encodeURIComponent(projectId)}`,
+          )
+        ).ids,
+      ),
   });
 }

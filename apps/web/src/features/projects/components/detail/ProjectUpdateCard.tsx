@@ -14,20 +14,28 @@ import {
   useEditProjectUpdate,
   type ProjectUpdateItem,
 } from '../../services/projectUpdates.service';
+import type { WorkspaceRole } from '@/types/workspace';
+import { canSendToRequesters } from '../../utils/updateSharing';
 import ProjectUpdateActions from './ProjectUpdateActions';
 import ProjectUpdateComments from './ProjectUpdateComments';
 import UpdateForm from '@/components/common/updates/UpdateForm';
 
 // One project update: author, age, health and Markdown body; its reactions and
-// comments below. The author edits or archives it from the menu.
+// comments below. The author edits or archives it from the menu; the author or an admin
+// sends it to requesters there when it was not sent when posted.
 export default function ProjectUpdateCard({
   projectId,
   update,
   team,
+  role,
+  shared,
 }: {
   projectId: string;
   update: ProjectUpdateItem;
   team: TeamDetail;
+  role: WorkspaceRole | null;
+  // Whether the update was sent to requesters (true while that is unknown).
+  shared: boolean;
 }) {
   const viewerId = useSession().data?.user.id ?? null;
   const [editing, setEditing] = useState(false);
@@ -36,6 +44,7 @@ export default function ProjectUpdateCard({
   const author = update.user?.name ?? 'a removed user';
   const image = team.assignees.find((a) => a.userId === update.user?.id)?.image ?? null;
   const own = viewerId != null && update.user?.id === viewerId;
+  const canSend = role != null && canSendToRequesters({ shared, own, role });
 
   return (
     <li className="flex flex-col gap-3 rounded-lg border px-4 py-3">
@@ -48,10 +57,12 @@ export default function ProjectUpdateCard({
         </span>
         <span className="ml-auto flex items-center gap-2">
           <HealthBadge health={update.health} />
-          {own && (
+          {(own || canSend) && (
             <ProjectUpdateActions
               projectId={projectId}
               updateId={update.id}
+              canEdit={own}
+              canSend={canSend}
               onEdit={() => setEditing(true)}
             />
           )}

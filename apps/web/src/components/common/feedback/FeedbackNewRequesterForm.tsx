@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -34,7 +35,12 @@ export default function FeedbackNewRequesterForm({
         const address = email.trim() || null;
         create.mutate(
           { name: name.trim(), email: address, keepUpdated: keepUpdated && address != null },
-          { onSuccess: onCreated },
+          {
+            onSuccess: ({ requester, updatesRefused }) => {
+              if (updatesRefused) toast('This person unsubscribed; updates stay off');
+              onCreated(requester);
+            },
+          },
         );
       }}
     >

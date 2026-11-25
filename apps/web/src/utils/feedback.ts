@@ -72,3 +72,8 @@ export function groupFeedbackByIssue(items: readonly FeedbackItem[]): FeedbackGr
 // users, read as guests) none, so the web shows them nothing.
 export const canSeeFeedback = (role: WorkspaceRole | null): boolean =>
   role !== null && role !== 'guest';
+
+// The API refusing to turn on email updates for a person who unsubscribed (an ApiError
+// with status 409): only they can turn them on again.
+export const isUnsubscribedRefusal = (error: unknown): boolean =>
+  error instanceof Error && (error as { status?: unknown }).status === 409;
