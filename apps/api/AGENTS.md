@@ -826,12 +826,24 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   feedback (`customerNeed*`, `Issue.needs`, `ExternalUser` through attachments) and
   customers (`customer*`, `customerStatus*`, `customerTier*`; not `customerUnsync`) and
   releases (`releasePipeline*`, `releaseStage*`, `release*`, `releaseNote*`,
-  `issueToRelease*`, `Issue.releases`) have resolvers; `sort` arguments are INVALID_INPUT, except one `customerCount` or
-  `customerImportantCount` sort on issue lists (forward paging only); the rest of the
-  schema is neutral or NOT_IMPLEMENTED.
+  `issueToRelease*`, `Issue.releases`) have resolvers; the rest of the schema is
+  neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported
   filter fields; any other key is `INVALID_INPUT`. Connections (`connection.ts`)
-  page newest first, 50 by default, 250 at most.
+  page newest first, 50 by default, 250 at most. A `sort` argument (`sort.ts`) is a
+  list of one-key objects applied in order, each with `order` (Ascending by default) and
+  `nulls` (`last` by default), then the list's tie-break and the id; a sorted list pages
+  forward only (`last` / `before` is INVALID_INPUT) with a cursor of the row's sort
+  values, and `sort` wins over `orderBy`. Issue sorts (`issue-sort.ts`) take every
+  `IssueSortInput` key except `slaStatus`, read as Linear's schema describes them
+  (cycle by start date with `currentCycleFirst`, project by name, milestone by target
+  date, release by the most recent completed release, customer by name, customer
+  revenue by the largest customer's revenue, label group by the issue's label in that
+  group, `rootIssue` by its nested sort on the issue's top ancestor, link count by the
+  issue's attachments that are not feedback sources); text keys order without regard to
+  case; an issue with several labels or customers sorts by its lowest ascending and its
+  highest descending; customers sort as empty for a viewer who cannot read them or
+  while Customers is off; ties go to the manual order, then newest first.
 - **MCP** (`mcp/`): `/mcp` (every tool) and `/mcp/readonly` (read tools only) take
   an API key or an OAuth access token as `Authorization: Bearer` (no cookie). A 401
   carries `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`

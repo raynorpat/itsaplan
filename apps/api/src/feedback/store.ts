@@ -453,12 +453,15 @@ export async function deleteNeed(
 // With `importantOnly`, those with important feedback. Linear's customerCount and
 // customerImportantCount while Customers is off (customerCountSql), and the portal's
 // vote count.
-export function requesterCountSql(importantOnly = false): SQL<number> {
+export function requesterCountSql(
+  importantOnly = false,
+  issueId: SQL = sql`${issue.id}`,
+): SQL<number> {
   return sql<number>`(
     SELECT count(DISTINCT ${attachment.externalUserCreatorId})::int
     FROM ${customerNeed}
     JOIN ${attachment} ON ${attachment.id} = ${customerNeed.attachmentId}
-    WHERE ${customerNeed.issueId} = ${issue.id}
+    WHERE ${customerNeed.issueId} = ${issueId}
       AND ${customerNeed.archivedAt} IS NULL
       AND ${attachment.externalUserCreatorId} IS NOT NULL
       ${importantOnly ? sql`AND ${customerNeed.priority} = 1` : sql``}
@@ -470,11 +473,14 @@ export function requesterCountSql(importantOnly = false): SQL<number> {
 export const customersOnSql = sql<boolean>`COALESCE((SELECT ${organization.customersEnabled} FROM ${organization} LIMIT 1), false)`;
 
 // Linear's customerCount and customerImportantCount, correlated with the outer `issue`
-// row. While Customers is on: the distinct customers of the issue's active feedback,
+// row (or the issue `issueId` names). While Customers is on: the distinct customers of the issue's active feedback,
 // each person without a customer once, and each feedback item with neither once
 // (Linear: "Requests without a customer record each count separately"). While off: the
 // people asking (requesterCountSql).
-export function customerCountSql(importantOnly = false): SQL<number> {
+export function customerCountSql(
+  importantOnly = false,
+  issueId: SQL = sql`${issue.id}`,
+): SQL<number> {
   return sql<number>`(CASE WHEN ${customersOnSql} THEN (
     SELECT count(DISTINCT COALESCE(
       'c:' || ${customerNeed.customerId}::text,
@@ -482,10 +488,10 @@ export function customerCountSql(importantOnly = false): SQL<number> {
       'n:' || ${customerNeed.id}::text))::int
     FROM ${customerNeed}
     LEFT JOIN ${attachment} ON ${attachment.id} = ${customerNeed.attachmentId}
-    WHERE ${customerNeed.issueId} = ${issue.id}
+    WHERE ${customerNeed.issueId} = ${issueId}
       AND ${customerNeed.archivedAt} IS NULL
       ${importantOnly ? sql`AND ${customerNeed.priority} = 1` : sql``}
-  ) ELSE ${requesterCountSql(importantOnly)} END)`;
+  ) ELSE ${requesterCountSql(importantOnly, issueId)} END)`;
 }
 
 // The feedback on an issue, read before the issue is deleted (its feedback goes with
