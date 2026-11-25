@@ -94,3 +94,9 @@ export function withData(widget: Widget, data: DataKind): Widget {
     widget.kind,
   );
 }
+
+// Weekly bars stack the slices of one measure; two compared measures (created and
+// completed) are drawn side by side, since their sum means nothing.
+export function overTimeStacked(widget: Widget): boolean {
+  return !widget.config.compareMeasure;
+}

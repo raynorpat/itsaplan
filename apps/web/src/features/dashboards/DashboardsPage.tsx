@@ -36,7 +36,7 @@ export default function DashboardsPage() {
       ) : (
         <DashboardList dashboards={query.data ?? []} />
       )}
-      {creating && <NewDashboardDialog bugLabelId={null} onClose={() => setCreating(false)} />}
+      {creating && <NewDashboardDialog onClose={() => setCreating(false)} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { canSeeFeedback } from '@/utils/feedback';
 import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { Input } from '@/components/ui/input';
+import FeedbackNav from '@/components/common/page/FeedbackNav';
 import PeopleList from './components/PeopleList';
 import { usePeopleQuery } from './services/people.service';
 
@@ -23,6 +24,7 @@ export default function PeoplePage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
+      <FeedbackNav />
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <h1 className="text-lg font-semibold">People</h1>
         <div className="relative w-64">

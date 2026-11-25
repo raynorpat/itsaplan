@@ -111,6 +111,8 @@ export const dashboardPath = (id: string) => `/dashboards/${encodeURIComponent(i
 
 // The people who gave feedback (requesters), and one person's page.
 export const feedbackPeoplePath = () => '/feedback/people';
+// The workspace's Feedback dashboard.
+export const feedbackReportsPath = () => '/feedback/reports';
 export const feedbackPersonPath = (id: string) => `/feedback/people/${encodeURIComponent(id)}`;
 
 export const manageTeamsPath = () => '/settings/account/teams';

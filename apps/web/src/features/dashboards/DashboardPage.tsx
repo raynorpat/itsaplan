@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
+import FeedbackNav from '@/components/common/page/FeedbackNav';
 import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { canSeeFeedback } from '@/utils/feedback';
 import { dashboardPath, dashboardsPath } from '@/utils/paths';
@@ -15,6 +16,7 @@ import { useDashboardFilters } from './hooks/useDashboardFilters';
 import {
   useDashboardQuery,
   useDeleteDashboard,
+  useFeedbackDashboard,
   useDuplicateDashboard,
   useUpdateDashboard,
 } from './services/dashboards.service';
@@ -22,13 +24,18 @@ import { newWidget } from './utils/layout';
 
 // One dashboard: its widgets for the chosen period and team, and edit mode (add,
 // configure, resize, drag and remove widgets, then Save) for its editors. Guests have
-// no dashboards.
-export default function DashboardPage({ dashboardId }: { dashboardId: string }) {
+// no dashboards. With `report="feedback"` it shows the workspace's Feedback report
+// (Feedback → Reports), created on its first open.
+export default function DashboardPage(
+  props: { dashboardId: string; report?: never } | { report: 'feedback'; dashboardId?: never },
+) {
   const router = useRouter();
   const viewer = useViewerWorkspaceQuery();
   const visible = canSeeFeedback(viewer.data?.workspaceRole ?? null);
+  const report = useFeedbackDashboard(visible && props.report === 'feedback');
+  const dashboardId = props.report === 'feedback' ? (report.data ?? null) : props.dashboardId;
   const query = useDashboardQuery(visible ? dashboardId : null);
-  const [state, setState] = useDashboardFilters(dashboardId);
+  const [state, setState] = useDashboardFilters(dashboardId ?? '');
   const [draft, setDraft] = useState<Widget[] | null>(null);
   const [editing, setEditing] = useState<{ widget: Widget; adding: boolean } | null>(null);
   const [dialog, setDialog] = useState<'share' | 'delete' | null>(null);
@@ -36,7 +43,7 @@ export default function DashboardPage({ dashboardId }: { dashboardId: string }) 
   const duplicate = useDuplicateDashboard();
   const remove = useDeleteDashboard();
 
-  if (viewer.isPending || (visible && query.isPending)) return null;
+  if (viewer.isPending || (visible && (report.isLoading || query.isLoading))) return null;
   const dashboard = query.data;
   if (!visible || !dashboard)
     return <p className="px-6 py-8 text-sm text-muted-foreground">Dashboard not found.</p>;
@@ -54,6 +61,7 @@ export default function DashboardPage({ dashboardId }: { dashboardId: string }) 
 
   return (
     <div className="flex-1 overflow-y-auto">
+      {props.report === 'feedback' && <FeedbackNav />}
       <div className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6">
         <DashboardHeader
           dashboard={dashboard}

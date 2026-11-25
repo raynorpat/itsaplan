@@ -5,30 +5,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instanceFetch } from '@/lib/auth-client';
 import { qk } from '@/services/queryKeys';
-import { parseWidgets, type Widget } from '@/utils/dashboards/config';
+import type { Widget } from '@/utils/dashboards/config';
+import { findTemplate } from '@/utils/dashboards/templates';
+import {
+  readDashboard,
+  type DashboardResponse,
+  type DashboardSharing,
+  type DashboardSummary,
+} from '../utils/response';
 
-export type DashboardSharing = 'workspace' | 'teams';
-
-export interface DashboardSummary {
-  id: string;
-  name: string;
-  description: string;
-  ownerId: string | null;
-  ownerName: string | null;
-  systemKey: string | null;
-  sharedWith: DashboardSharing;
-  teamIds: string[];
-  canEdit: boolean;
-  updatedAt: string;
-}
-
-export interface Dashboard extends DashboardSummary {
-  widgets: Widget[];
-}
-
-type DashboardDto = DashboardSummary & { widgets: unknown };
-
-const toDashboard = (d: DashboardDto): Dashboard => ({ ...d, widgets: parseWidgets(d.widgets) });
+export type { Dashboard, DashboardSharing, DashboardSummary } from '../utils/response';
 
 export function useDashboardsQuery(enabled: boolean) {
   return useQuery({
@@ -43,8 +29,8 @@ export function useDashboardQuery(id: string | null) {
   return useQuery({
     queryKey: qk.dashboard(id ?? ''),
     queryFn: async () =>
-      toDashboard(
-        await instanceFetch<DashboardDto>(`/instance/dashboard?id=${encodeURIComponent(id!)}`),
+      readDashboard(
+        await instanceFetch<DashboardResponse>(`/instance/dashboard?id=${encodeURIComponent(id!)}`),
       ),
     enabled: id != null,
     retry: false,
@@ -63,7 +49,9 @@ function useDashboardWrite<V>(path: string, toBody: (v: V) => Record<string, unk
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (v: V) =>
-      toDashboard(await instanceFetch<DashboardDto>(path, { method: 'POST', body: toBody(v) })),
+      readDashboard(
+        await instanceFetch<DashboardResponse>(path, { method: 'POST', body: toBody(v) }),
+      ),
     onSuccess: (d) => {
       qc.setQueryData(qk.dashboard(d.id), d);
       void qc.invalidateQueries({ queryKey: qk.dashboards });
@@ -94,5 +82,27 @@ export function useDeleteDashboard() {
       qc.removeQueries({ queryKey: qk.dashboard(id) });
       void qc.invalidateQueries({ queryKey: qk.dashboards });
     },
+  });
+}
+
+// The workspace's Feedback report (Feedback → Reports): the API returns it, creating it
+// from the Feedback template on the first open (one per workspace, owned by no one).
+export function useFeedbackDashboard(enabled: boolean) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: qk.feedbackDashboard,
+    queryFn: async () => {
+      const widgets = findTemplate('feedback')!.widgets({ bugLabelIds: [] });
+      const d = readDashboard(
+        await instanceFetch<DashboardResponse>('/instance/dashboards/feedback', {
+          method: 'POST',
+          body: { widgets },
+        }),
+      );
+      qc.setQueryData(qk.dashboard(d.id), d);
+      return d.id;
+    },
+    enabled,
+    retry: false,
   });
 }

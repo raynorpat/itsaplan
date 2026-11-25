@@ -1,5 +1,6 @@
 import { measureDef, SLICE_LABELS, type Widget } from '@/utils/dashboards/config';
 import type { WidgetResult } from '@/utils/dashboards/compute';
+import { overTimeStacked } from '../utils/layout';
 import WidgetBars from './WidgetBars';
 import WidgetNumber from './WidgetNumber';
 import WidgetOverTime from './WidgetOverTime';
@@ -32,6 +33,7 @@ export default function WidgetBody({
           series={result.series}
           weeks={result.weeks}
           line={widget.config.chart === 'overTimeLine'}
+          stacked={overTimeStacked(widget)}
         />
       );
     case 'number':

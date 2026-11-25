@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseWidgets, type Widget } from '@/utils/dashboards/config';
-import { dashboardFilterKey, moveWidget, newWidget, rowsOf, withData, withKind } from '../layout';
+import {
+  dashboardFilterKey,
+  moveWidget,
+  newWidget,
+  overTimeStacked,
+  rowsOf,
+  withData,
+  withKind,
+} from '../layout';
 
 const w = (id: string, width: Widget['width']): Widget => ({
   id,
@@ -102,5 +110,24 @@ describe('withData', () => {
     assert.equal(next.width, 'full');
     assert.equal(next.config.title, 'Mine');
     assert.deepEqual(parseWidgets([next]), [next]);
+  });
+});
+
+describe('overTimeStacked', () => {
+  const chart = (patch: Partial<Widget['config']>): Widget => ({
+    ...w('x', 'full'),
+    kind: 'chart',
+    config: { ...w('x', 'full').config, chart: 'overTimeBars', ...patch },
+  });
+
+  it('stacks the series of a split', () => {
+    assert.equal(overTimeStacked(chart({ slice: 'status' })), true);
+  });
+
+  it('draws two compared measures side by side', () => {
+    assert.equal(
+      overTimeStacked(chart({ measure: 'created', compareMeasure: 'completed' })),
+      false,
+    );
   });
 });

@@ -4,6 +4,7 @@ import { computeWidget, type ComputeContext } from '@/utils/dashboards/compute';
 import type { Widget } from '@/utils/dashboards/config';
 import type { DashboardState } from '@/utils/dashboards/loads';
 import { EMPTY_CONTEXT } from '@/utils/insights/context';
+import { widgetInsightsContext } from '../utils/context';
 
 // A widget's loaded rows and figures for the dashboard's period and team. "New people"
 // also needs each person's first request (the People list).
@@ -19,7 +20,7 @@ export function useWidgetResult(widget: Widget, dashboard: DashboardState, enabl
             now: new Date(),
             period: dashboard.period,
             teamId: dashboard.teamId,
-            insights: rows.data?.names ?? EMPTY_CONTEXT,
+            insights: widgetInsightsContext(rows.data?.names ?? EMPTY_CONTEXT, dashboard.teamId),
             firstFeedback: first.data ?? new Map(),
           }
         : null,

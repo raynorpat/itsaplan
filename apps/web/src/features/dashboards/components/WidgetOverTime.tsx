@@ -19,15 +19,18 @@ const COLORS = [
   'var(--chart-5)',
 ];
 
-// Weekly bars (stacked by series) or lines over the dashboard's period.
+// Weekly bars (stacked by series, or side by side for compared measures) or lines over
+// the dashboard's period.
 export default function WidgetOverTime({
   series,
   weeks,
   line,
+  stacked,
 }: {
   series: { key: string; label: string }[];
   weeks: { week: string; values: Record<string, number> }[];
   line: boolean;
+  stacked: boolean;
 }) {
   if (series.length === 0 || weeks.length === 0)
     return <p className="py-6 text-sm text-muted-foreground">Nothing to show.</p>;
@@ -79,7 +82,7 @@ export default function WidgetOverTime({
             <Bar
               key={i}
               dataKey={`s_${i}`}
-              stackId="w"
+              stackId={stacked ? 'w' : undefined}
               fill={`var(--color-s_${i})`}
               isAnimationActive={false}
             />
