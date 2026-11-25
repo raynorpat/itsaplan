@@ -11,7 +11,7 @@ import { priorityLabel } from '@/utils/fieldOptions';
 // list rows (ListView) so both render the same pill/icon/avatar.
 
 // Outline pill styling shared by the label and date badges.
-const PILL = 'text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]';
+export const PILL = 'text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]';
 
 // Priority glyph with a "<priority> priority" tooltip.
 export function PriorityBadge({
