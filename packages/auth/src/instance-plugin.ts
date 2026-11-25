@@ -1,5 +1,6 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthEndpoint, getSessionFromCtx } from 'better-auth/api';
+import { auditRecord } from './audit';
 import { signInOptions } from './instance';
 import { authorizedApplications, consentClient, revokeAuthorization } from './oauth-authorized';
 import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
@@ -801,8 +802,14 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
             throw new APIError('FORBIDDEN', {
               message: 'Only a workspace admin or owner can uninstall an application',
             });
-          if (!(await uninstallApplication(requiredClientId(ctx.body))))
+          const clientId = requiredClientId(ctx.body);
+          if (!(await uninstallApplication(clientId)))
             throw new APIError('NOT_FOUND', { message: 'Application not found' });
+          await auditRecord(
+            'appUninstalled',
+            { entityType: 'oauthApplication', entityId: clientId },
+            session.user.id,
+          );
           return ctx.json({ success: true });
         },
       ),
@@ -864,7 +871,13 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
           assertTrustedOrigin(ctx.headers, options.trustedOrigins);
           const session = await getSessionFromCtx(ctx);
           if (!session) throw new APIError('UNAUTHORIZED', { message: 'Authentication required' });
-          await revokeAuthorization(session.user.id, requiredClientId(ctx.body));
+          const clientId = requiredClientId(ctx.body);
+          await revokeAuthorization(session.user.id, clientId);
+          await auditRecord(
+            'oauthRevoked',
+            { entityType: 'oauthApplication', entityId: clientId },
+            session.user.id,
+          );
           return ctx.json({ success: true });
         },
       ),

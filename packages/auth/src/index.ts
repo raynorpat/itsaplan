@@ -22,6 +22,7 @@ import { instancePlugin } from './instance-plugin';
 import { OAUTH_DISABLED_PATHS, oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
 import { APP_ROLE, isAppUser } from './oauth-install';
 import { auditAfterHook, auditBeforeHook, auditRefusal } from './audit-hooks';
+import { auditRecord } from './audit';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -431,6 +432,17 @@ export const auth = betterAuth({
                 .onConflictDoNothing();
           }
           await db.delete(schema.workspaceInvite).where(eq(schema.workspaceInvite.id, invite.id));
+          await auditRecord(
+            'inviteAccepted',
+            {
+              entityType: 'invite',
+              entityId: invite.id,
+              email: user.email.toLowerCase(),
+              role: invite.role,
+              teamIds: invite.teamIds,
+            },
+            user.id,
+          );
         },
       },
     },

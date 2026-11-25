@@ -4,6 +4,7 @@ import * as schema from '@repo/db/schema';
 import { eq } from 'drizzle-orm';
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { jwt } from 'better-auth/plugins';
+import { auditRecord } from './audit';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { isLoopbackHost } from '@better-auth/core/utils/host';
 import { base64 } from '@better-auth/utils/base64';
@@ -319,12 +320,14 @@ async function beforeConsent(ctx: HookContext): Promise<void> {
   if (key) pendingInstalls.set(key, { userId: session!.user.id, selection });
 }
 
-// Installs the application once the plugin has accepted an app-actor consent.
+// Installs the application once the plugin has accepted an app-actor consent, and
+// records the accepted consent in the audit log (after the plugin's write: there is no
+// transaction to share).
 async function afterConsent(ctx: HookContext): Promise<void> {
   const key = requestKey(ctx);
   const pending = key ? pendingInstalls.get(key) : undefined;
-  if (!pending) return;
-  pendingInstalls.delete(key!);
+  if (pending) pendingInstalls.delete(key!);
+  if ((ctx.body as { accept?: unknown } | undefined)?.accept !== true) return;
   if (!(await returnedJson(ctx))) return;
   const scopes = consentedScopes(ctx);
   const query = new URLSearchParams(
@@ -332,12 +335,29 @@ async function afterConsent(ctx: HookContext): Promise<void> {
   );
   const clientId = query.get('client_id');
   if (!clientId) return;
+  const target = { entityType: 'oauthApplication', entityId: clientId };
+  if (!pending) {
+    const session = await getSessionFromCtx(ctx);
+    if (session) await auditRecord('oauthAuthorized', { ...target, scopes }, session.user.id);
+    return;
+  }
+  const appScopes = scopes.filter((s) => s !== APP_ACTOR_SCOPE && s !== OFFLINE);
   await installApplication({
     clientId,
     installedByUserId: pending.userId,
-    scopes: scopes.filter((s) => s !== APP_ACTOR_SCOPE && s !== OFFLINE),
+    scopes: appScopes,
     selection: pending.selection,
   });
+  await auditRecord(
+    'appInstalled',
+    {
+      ...target,
+      scopes: appScopes,
+      publicTeams: pending.selection.publicTeams,
+      teamIds: pending.selection.teamIds,
+    },
+    pending.userId,
+  );
 }
 
 interface PendingAuthorization {

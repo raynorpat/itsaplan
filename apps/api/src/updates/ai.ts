@@ -6,6 +6,7 @@ import { assertWorkspaceRole } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { open, seal } from '../shared/secret-box';
 import type { Change } from './changes';
+import { recordAudit } from '../audit/store';
 
 // The instance's AI endpoint for requester summaries (spec: requester updates): an
 // OpenAI-compatible chat completions server (OpenAI, Claude's OpenAI-compatible API,
@@ -214,10 +215,18 @@ async function saveSettings(userId: string, body: Record<string, unknown>) {
   const apiKeyCiphertext = apiKey ? seal(apiKey) : stored?.apiKeyCiphertext;
   if (!apiKeyCiphertext) throw new HttpError(400, 'apiKey is required');
   const values = { baseUrl, model, apiKeyCiphertext, updatedById: userId, updatedAt: new Date() };
-  await db
-    .insert(aiSettings)
-    .values({ id: ROW_ID, ...values })
-    .onConflictDoUpdate({ target: aiSettings.id, set: values });
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(aiSettings)
+      .values({ id: ROW_ID, ...values })
+      .onConflictDoUpdate({ target: aiSettings.id, set: values });
+    // The address and model only: the API key is never recorded.
+    await recordAudit(
+      'aiSettingsChanged',
+      { action: 'saved', baseUrl, model, keyChanged: Boolean(apiKey) },
+      { tx, actorId: userId },
+    );
+  });
   return getSettings();
 }
 
@@ -254,8 +263,11 @@ export const aiHandlers: AiHandlers = {
   },
   save: async (headers, body) => saveSettings((await admin(headers)).id, fields(body)),
   remove: async (headers) => {
-    await admin(headers);
-    await db.delete(aiSettings).where(eq(aiSettings.id, ROW_ID));
+    const user = await admin(headers);
+    await db.transaction(async (tx) => {
+      await tx.delete(aiSettings).where(eq(aiSettings.id, ROW_ID));
+      await recordAudit('aiSettingsChanged', { action: 'removed' }, { tx, actorId: user.id });
+    });
     return getSettings();
   },
   test: async (headers) => {

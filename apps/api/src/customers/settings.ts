@@ -9,6 +9,7 @@ import {
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
 import { matchPeople } from './domains';
+import { recordAudit } from '../audit/store';
 
 // The Customers switch (Linear's Organization.customersEnabled) and the revenue
 // currency (customersConfiguration). Linear's OrganizationUpdateInput has neither, so
@@ -85,6 +86,19 @@ export async function saveCustomersSettings(
         .values(DEFAULT_STATUSES.map((s, i) => ({ ...s, position: i * 1000 })));
     // Every write keeps people matched; turning Customers on checks everyone once more.
     if (patch.customersEnabled === true) await matchPeople(tx);
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (patch.customersEnabled !== undefined && patch.customersEnabled !== org.customersEnabled)
+      changes.enabled = { from: org.customersEnabled, to: patch.customersEnabled };
+    if (
+      patch.customersRevenueCurrency !== undefined &&
+      patch.customersRevenueCurrency !== org.customersRevenueCurrency
+    )
+      changes.revenueCurrency = {
+        from: org.customersRevenueCurrency,
+        to: patch.customersRevenueCurrency,
+      };
+    if (Object.keys(changes).length > 0)
+      await recordAudit('customersSettingsChanged', { changes }, { tx, actorId: user.id });
   });
   return settingsOf(await getOrganization());
 }

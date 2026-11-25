@@ -9,6 +9,7 @@ import {
 } from '../shared/access';
 import { HttpError, iso, pgErrorCode } from '../shared/lib';
 import { assertAllowedTo } from '../organization/store';
+import { recordAudit } from '../audit/store';
 import { shownNameSql } from '../shared/user-name';
 
 // Workspace invites (Linear's organization invites). An invite gives an address the
@@ -93,30 +94,26 @@ export async function createInvite(input: {
     .delete(workspaceInvite)
     .where(and(eq(workspaceInvite.email, email), lte(workspaceInvite.expiresAt, sql`now()`)));
   let row;
+  const teamIds = [...new Set(input.teamIds)];
   try {
-    [row] = await db
-      .insert(workspaceInvite)
-      .values({
-        email,
-        role: input.role,
-        teamIds: [...new Set(input.teamIds)],
-        invitedByUserId: input.invitedByUserId,
-      })
-      .returning({ id: workspaceInvite.id });
+    row = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(workspaceInvite)
+        .values({ email, role: input.role, teamIds, invitedByUserId: input.invitedByUserId })
+        .returning({ id: workspaceInvite.id });
+      await recordAudit(
+        'inviteCreated',
+        { entityType: 'invite', entityId: inserted!.id, email, role: input.role, teamIds },
+        { tx, actorId: input.invitedByUserId },
+      );
+      return inserted;
+    });
   } catch (err) {
     if (pgErrorCode(err) === '23505')
       throw new HttpError(409, 'A pending invite for this email already exists');
     throw err;
   }
   return (await getInvite(row!.id))!;
-}
-
-export async function deleteInvite(id: string): Promise<boolean> {
-  const deleted = await db
-    .delete(workspaceInvite)
-    .where(eq(workspaceInvite.id, id))
-    .returning({ id: workspaceInvite.id });
-  return deleted.length > 0;
 }
 
 // What a pending, unexpired invite shows on Linear's organizationInviteDetails, by its
@@ -172,5 +169,12 @@ export async function revokeInvite(id: string, actor: AuthUser): Promise<void> {
   const invite = await getInvite(id);
   if (!invite) throw new HttpError(404, 'Invite not found');
   if (invite.invitedByUserId !== actor.id) await assertWorkspaceRole(actor, 'admin');
-  await deleteInvite(invite.id);
+  await db.transaction(async (tx) => {
+    await tx.delete(workspaceInvite).where(eq(workspaceInvite.id, invite.id));
+    await recordAudit(
+      'inviteRevoked',
+      { entityType: 'invite', entityId: invite.id, email: invite.email, role: invite.role },
+      { tx, actorId: actor.id },
+    );
+  });
 }

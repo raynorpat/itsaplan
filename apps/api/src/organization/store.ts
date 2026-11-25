@@ -8,6 +8,7 @@ import {
   type WorkspaceRole,
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
+import { recordAudit } from '../audit/store';
 
 // The workspace (Linear's Organization): one row, created with defaults on first
 // read. Owners and admins change it; everyone signed in reads it. Instance secrets and
@@ -116,6 +117,28 @@ function validatePatch(patch: OrganizationPatch): Partial<typeof organization.$i
   return set;
 }
 
+const IDENTITY_FIELDS = ['name', 'urlKey', 'logoUrl'] as const;
+const SECURITY_FIELDS = [
+  'allowedAuthServices',
+  'allowedFileUploadContentTypes',
+  'teamCreationRole',
+  'labelManagementRole',
+  'invitationsRole',
+] as const;
+
+// The fields that changed, each as { from, to }, or null when none did.
+function changesOf(
+  before: OrganizationRow,
+  after: OrganizationRow,
+  fields: readonly (keyof OrganizationRow)[],
+): Record<string, { from: unknown; to: unknown }> | null {
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  for (const field of fields)
+    if (JSON.stringify(before[field]) !== JSON.stringify(after[field]))
+      changes[field] = { from: before[field], to: after[field] };
+  return Object.keys(changes).length > 0 ? changes : null;
+}
+
 // Owners and admins only.
 export async function updateOrganization(
   patch: OrganizationPatch,
@@ -125,11 +148,24 @@ export async function updateOrganization(
   const set = validatePatch(patch);
   const current = await getOrganization();
   if (Object.keys(set).length === 0) return current;
-  const [row] = await db
-    .update(organization)
-    .set({ ...set, updatedAt: sql`now()` })
-    .returning();
-  return row!;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(organization)
+      .set({ ...set, updatedAt: sql`now()` })
+      .returning();
+    // Identity (name, URL key, logo) and security settings are separate audit types.
+    const identity = changesOf(current, row!, IDENTITY_FIELDS);
+    const security = changesOf(current, row!, SECURITY_FIELDS);
+    if (identity)
+      await recordAudit('organizationUpdated', { changes: identity }, { tx, actorId: actor!.id });
+    if (security)
+      await recordAudit(
+        'securitySettingsChanged',
+        { changes: security },
+        { tx, actorId: actor!.id },
+      );
+    return row!;
+  });
 }
 
 // The minimum workspace role for an action (owner > admin > member; guests never).

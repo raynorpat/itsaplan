@@ -9,7 +9,8 @@ import type { AuditType } from './types';
 // directly, and a failed write lets the action go ahead: the failure is logged and the
 // next entry written in this process says how many were missed.
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type AuditTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Tx = AuditTx;
 
 // Failed sign-ins from one address and IP within this window are one entry.
 const FOLD_MS = 10 * 60_000;

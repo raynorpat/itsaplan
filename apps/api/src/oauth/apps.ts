@@ -21,6 +21,7 @@ import {
   type WebhookResourceType,
 } from '../webhooks/store';
 import { validateWebhookUrl } from '../webhooks/url';
+import { recordAudit } from '../audit/store';
 
 // The workspace's OAuth applications (Linear's OAuth applications), managed by its
 // admins and owners through the instance plugin (@repo/auth instance-plugin.ts):
@@ -278,6 +279,20 @@ async function create(headers: Headers, body: unknown) {
     });
     webhookSecret = set.createdSecret ?? undefined;
   }
+  // better-auth's client creation has no transaction to share: recorded after it.
+  await recordAudit(
+    'oauthAppCreated',
+    {
+      entityType: 'oauthApplication',
+      entityId: created.client_id,
+      name,
+      publicClient,
+      clientCredentials,
+      redirectUris: uris,
+      webhook: webhook ? true : false,
+    },
+    { actorId: admin.id },
+  );
   return {
     application: await view(await application(created.client_id)),
     ...(created.client_secret ? { clientSecret: created.client_secret } : {}),
@@ -342,6 +357,16 @@ async function update(headers: Headers, body: unknown) {
     });
     webhookSecret = result.createdSecret ?? undefined;
   }
+  await recordAudit(
+    'oauthAppUpdated',
+    {
+      entityType: 'oauthApplication',
+      entityId: row.clientId,
+      name: set.name ?? row.name,
+      changed: Object.keys(body).filter((key) => key !== 'clientId'),
+    },
+    { actorId: admin.id },
+  );
   return {
     application: await view(await application(row.clientId)),
     ...(webhookSecret ? { webhookSecret } : {}),
@@ -349,7 +374,7 @@ async function update(headers: Headers, body: unknown) {
 }
 
 async function rotateSecret(headers: Headers, body: unknown) {
-  await requireAdmin(headers);
+  const admin = await requireAdmin(headers);
   const row = await activeApplication(clientIdOf(body));
   if (row.public || !row.clientSecret) throw new HttpError(400, 'A public client has no secret');
   const { secret, stored } = newClientSecret();
@@ -363,21 +388,31 @@ async function rotateSecret(headers: Headers, body: unknown) {
     await tx
       .delete(oauthAccessToken)
       .where(and(eq(oauthAccessToken.clientId, row.clientId), isNull(oauthAccessToken.userId)));
+    await recordAudit(
+      'oauthAppSecretRotated',
+      { entityType: 'oauthApplication', entityId: row.clientId, name: row.name },
+      { tx, actorId: admin.id },
+    );
   });
   return { clientSecret: secret };
 }
 
 async function rotateAppWebhookSecret(headers: Headers, body: unknown) {
-  await requireAdmin(headers);
+  const admin = await requireAdmin(headers);
   const row = await activeApplication(clientIdOf(body));
   const webhook = await getApplicationWebhook(row.clientId);
   if (!webhook) throw new HttpError(404, 'The application has no webhook');
   const rotated = await rotateWebhookSecret(webhook.id);
+  await recordAudit(
+    'oauthAppSecretRotated',
+    { entityType: 'oauthApplication', entityId: row.clientId, name: row.name, secret: 'webhook' },
+    { actorId: admin.id },
+  );
   return { webhookSecret: rotated!.secret };
 }
 
 async function archive(headers: Headers, body: unknown) {
-  await requireAdmin(headers);
+  const admin = await requireAdmin(headers);
   const row = await application(clientIdOf(body));
   await uninstallApplication(row.clientId);
   await db
@@ -386,6 +421,11 @@ async function archive(headers: Headers, body: unknown) {
     .where(eq(oauthClient.clientId, row.clientId));
   const webhook = await getApplicationWebhook(row.clientId);
   if (webhook) await updateWebhook(webhook.id, { enabled: false });
+  await recordAudit(
+    'oauthAppDeleted',
+    { entityType: 'oauthApplication', entityId: row.clientId, name: row.name },
+    { actorId: admin.id },
+  );
   return { success: true };
 }
 

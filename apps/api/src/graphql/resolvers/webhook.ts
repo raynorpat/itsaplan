@@ -2,6 +2,7 @@ import { db, team, webhook, webhookDelivery } from '@repo/db';
 import { and, desc, eq, inArray, or, type SQL } from 'drizzle-orm';
 import { assertTeamWebhookAccess, visibleTeamIdList, workspaceRole } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
+import { recordAudit } from '../../audit/store';
 
 import {
   assertAllTeamsManager,
@@ -132,6 +133,18 @@ type UpdateInput = Record<string, unknown> & {
   enabled?: boolean | null;
 };
 
+// What an audit entry says about a webhook: never its secret.
+function webhookAudit(w: WebhookRow): Record<string, unknown> {
+  return {
+    entityType: 'webhook',
+    entityId: w.id,
+    url: w.url,
+    teamId: w.teamId,
+    allPublicTeams: w.allPublicTeams,
+    resourceTypes: w.resourceTypes,
+    enabled: w.enabled,
+  };
+}
 export const webhookResolvers = {
   Query: {
     webhooks: (_: unknown, args: PageArgs, ctx: GraphQLContext) =>
@@ -198,6 +211,7 @@ export const webhookResolvers = {
           enabled: input.enabled ?? true,
           creatorUserId: ctx.user.id,
         });
+        await recordAudit('webhookCreated', webhookAudit(created), { actorId: ctx.user.id });
         return { success: true, lastSyncId: lastSyncId(), webhook: toWebhook(created) };
       }),
 
@@ -217,13 +231,20 @@ export const webhookResolvers = {
           secret: input.secret ?? undefined,
           enabled: input.enabled ?? undefined,
         });
+        await recordAudit(
+          'webhookUpdated',
+          // The names of the changed fields; a new secret is named, never stored.
+          { ...webhookAudit(updated!), changed: Object.keys(input) },
+          { actorId: ctx.user.id },
+        );
         return { success: true, lastSyncId: lastSyncId(), webhook: toWebhook(updated!) };
       }),
 
     webhookDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
       guard(async () => {
-        await webhookFor(id, ctx, 'delete');
+        const existing = await webhookFor(id, ctx, 'delete');
         await deleteWebhook(id);
+        await recordAudit('webhookDeleted', webhookAudit(existing), { actorId: ctx.user.id });
         return { success: true, lastSyncId: lastSyncId(), entityId: id };
       }),
 
@@ -231,6 +252,11 @@ export const webhookResolvers = {
       guard(async () => {
         await webhookFor(id, ctx, 'edit');
         const rotated = await rotateWebhookSecret(id);
+        await recordAudit(
+          'webhookUpdated',
+          { ...webhookAudit(rotated!), changed: ['secret'] },
+          { actorId: ctx.user.id },
+        );
         return { success: true, lastSyncId: lastSyncId(), secret: rotated!.secret };
       }),
   },

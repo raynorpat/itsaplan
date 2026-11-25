@@ -8,6 +8,7 @@ import {
   type AuthUser,
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
+import { recordAudit, type AuditTx } from '../audit/store';
 
 // Data access for team membership. A member is a team owner or a plain member
 // (`team_member.owner`); the DTO's `role` reports which. Access itself is decided in
@@ -32,8 +33,9 @@ export async function upsertMember(
   teamId: string,
   userId: string,
   role: MemberRole,
+  ex: AuditTx | typeof db = db,
 ): Promise<void> {
-  await db
+  await ex
     .insert(teamMember)
     .values({ teamId, userId, owner: role === 'owner' })
     .onConflictDoUpdate({
@@ -48,8 +50,9 @@ export async function setMembership(
   teamId: string,
   userId: string,
   role: MemberRole,
+  ex: AuditTx | typeof db = db,
 ): Promise<boolean> {
-  const updated = await db
+  const updated = await ex
     .update(teamMember)
     .set({ owner: role === 'owner' })
     .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)))
@@ -57,8 +60,12 @@ export async function setMembership(
   return updated.length > 0;
 }
 
-export async function removeMember(teamId: string, userId: string): Promise<void> {
-  await db
+export async function removeMember(
+  teamId: string,
+  userId: string,
+  ex: AuditTx | typeof db = db,
+): Promise<void> {
+  await ex
     .delete(teamMember)
     .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)));
 }
@@ -74,7 +81,15 @@ export async function assertNotAppUser(...userIds: string[]): Promise<void> {
 // Joins a team oneself (Linear's teamMembershipCreate for oneself); the caller has checked that the user can see the team.
 export async function joinTeam(teamId: string, userId: string): Promise<void> {
   await assertNotAppUser(userId);
-  if (!(await isTeamMember(teamId, userId))) await upsertMember(teamId, userId, 'member');
+  if (await isTeamMember(teamId, userId)) return;
+  await db.transaction(async (tx) => {
+    await upsertMember(teamId, userId, 'member', tx);
+    await recordAudit(
+      'teamMemberAdded',
+      { entityType: 'team', entityId: teamId, userId, owner: false },
+      { tx, actorId: userId },
+    );
+  });
 }
 
 // Adds someone to a team (Linear's teamMembershipCreate). Any team member
@@ -99,7 +114,14 @@ export async function addTeamMember(
     .where(eq(user.id, targetUserId));
   if (!target) throw new HttpError(404, 'User not found');
   if (target.suspendedAt) throw new HttpError(400, 'This user is suspended');
-  await upsertMember(teamRow.id, targetUserId, owner ? 'owner' : 'member');
+  await db.transaction(async (tx) => {
+    await upsertMember(teamRow.id, targetUserId, owner ? 'owner' : 'member', tx);
+    await recordAudit(
+      'teamMemberAdded',
+      { entityType: 'team', entityId: teamRow.id, userId: targetUserId, owner },
+      { tx, actorId: actor.id },
+    );
+  });
 }
 
 // Makes a member a team owner or a plain member: a team manager, never on oneself.
@@ -112,8 +134,15 @@ export async function changeTeamOwner(
   await assertTeamAccess(teamId, actor, 'manage');
   await assertNotAppUser(actor.id, targetUserId);
   if (targetUserId === actor.id) throw new HttpError(400, 'You cannot change your own role');
-  const ok = await setMembership(teamId, targetUserId, owner ? 'owner' : 'member');
-  if (!ok) throw new HttpError(404, 'Member not found');
+  await db.transaction(async (tx) => {
+    const ok = await setMembership(teamId, targetUserId, owner ? 'owner' : 'member', tx);
+    if (!ok) throw new HttpError(404, 'Member not found');
+    await recordAudit(
+      'teamOwnerChanged',
+      { entityType: 'team', entityId: teamId, userId: targetUserId, owner },
+      { tx, actorId: actor.id },
+    );
+  });
 }
 
 // Removes a member: anyone may leave; removing someone else needs a team manager.
@@ -125,5 +154,12 @@ export async function removeTeamMember(
   if (targetUserId !== actor.id) await assertTeamAccess(teamId, actor, 'manage');
   await assertNotAppUser(actor.id, targetUserId);
   if (!(await getMembership(teamId, targetUserId))) throw new HttpError(404, 'Member not found');
-  await removeMember(teamId, targetUserId);
+  await db.transaction(async (tx) => {
+    await removeMember(teamId, targetUserId, tx);
+    await recordAudit(
+      'teamMemberRemoved',
+      { entityType: 'team', entityId: teamId, userId: targetUserId },
+      { tx, actorId: actor.id },
+    );
+  });
 }

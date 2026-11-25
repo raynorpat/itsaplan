@@ -12,6 +12,7 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { deleteObjects } from '../shared/s3';
 import { HttpError, iso } from '../shared/lib';
 import { atLeast, visibleTeamIds, workspaceRole } from '../shared/access';
+import { recordAudit } from '../audit/store';
 
 // Data access for teams: the top-level container that groups its own columns,
 // labels, assignees, issues and saved views. Access is by membership (team_member): the creator becomes an
@@ -112,6 +113,18 @@ export async function createTeam(
       .returning();
     // Linear: whoever creates a team owns it.
     await tx.insert(teamMember).values({ teamId: row.id, userId: ownerId, owner: true });
+    await recordAudit(
+      'teamCreated',
+      {
+        entityType: 'team',
+        entityId: row.id,
+        entityIdentifier: row.key,
+        key: row.key,
+        name: row.name,
+        visibility: row.visibility,
+      },
+      { tx, actorId: ownerId },
+    );
     for (const [position, column] of DEFAULT_COLUMNS.entries()) {
       await tx.insert(workflowState).values({
         teamId: row.id,
@@ -137,8 +150,28 @@ export async function updateTeam(
   if (patch.description !== undefined) values.description = patch.description;
   if (patch.visibility !== undefined) values.visibility = patch.visibility;
   if (Object.keys(values).length === 0) return getTeamById(teamId);
-  const [row] = await db.update(team).set(values).where(eq(team.id, teamId)).returning();
-  return row ? mapTeam(row) : null;
+  return db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ visibility: team.visibility })
+      .from(team)
+      .where(eq(team.id, teamId));
+    const [row] = await tx.update(team).set(values).where(eq(team.id, teamId)).returning();
+    if (!row) return null;
+    if (before && before.visibility !== row.visibility)
+      await recordAudit(
+        'teamVisibilityChanged',
+        {
+          entityType: 'team',
+          entityId: row.id,
+          entityIdentifier: row.key,
+          name: row.name,
+          from: before.visibility,
+          to: row.visibility,
+        },
+        { tx },
+      );
+    return mapTeam(row);
+  });
 }
 
 // Linear's auto-archive period in months (team.auto_archive_period): the worker
@@ -174,6 +207,22 @@ export async function deleteTeam(teamId: string): Promise<void> {
     .innerJoin(issue, eq(issue.id, attachment.issueId))
     .where(and(eq(issue.teamId, teamId), isNotNull(attachment.s3Key)));
   await db.transaction(async (tx) => {
+    const [deleted] = await tx
+      .select({ key: team.key, name: team.name })
+      .from(team)
+      .where(eq(team.id, teamId));
+    if (deleted)
+      await recordAudit(
+        'teamDeleted',
+        {
+          entityType: 'team',
+          entityId: teamId,
+          entityIdentifier: deleted.key,
+          key: deleted.key,
+          name: deleted.name,
+        },
+        { tx },
+      );
     await tx.execute(sql`
       DELETE FROM ${project} WHERE ${project.id} IN (
         SELECT ${projectTeam.projectId} FROM ${projectTeam}

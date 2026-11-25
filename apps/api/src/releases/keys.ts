@@ -5,6 +5,7 @@ import { assertWorkspaceRole, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { shownName } from '../shared/user-name';
 import { assertPipelineRead } from './access';
+import { recordAudit } from '../audit/store';
 
 // Release pipeline access keys (Linear's AccessKey): the credential a CI job uses for
 // the *ByAccessKey operations of one pipeline. Workspace owners and admins create and
@@ -38,10 +39,23 @@ export async function createAccessKey(
   const pipeline = await assertPipelineRead(user, pipelineIdOf(pipelineId));
   if (pipeline.trashed) throw new HttpError(404, `Release pipeline ${pipeline.id} not found`);
   const key = `${ACCESS_KEY_PREFIX}${randomBytes(32).toString('base64url')}`;
-  const [row] = await db
-    .insert(releaseAccessKey)
-    .values({ pipelineId: pipeline.id, keyHash: hashKey(key), creatorId: user!.id })
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(releaseAccessKey)
+      .values({ pipelineId: pipeline.id, keyHash: hashKey(key), creatorId: user!.id })
+      .returning();
+    await recordAudit(
+      'releaseAccessKeyCreated',
+      {
+        entityType: 'releaseAccessKey',
+        entityId: inserted!.id,
+        pipelineId: pipeline.id,
+        pipelineName: pipeline.name,
+      },
+      { tx, actorId: user!.id },
+    );
+    return inserted;
+  });
   const [creator] = await db
     .select({ name: userTable.name, email: userTable.email })
     .from(userTable)
@@ -104,10 +118,17 @@ export async function revokeAccessKey(
   } catch {
     throw notFound;
   }
-  await db
-    .update(releaseAccessKey)
-    .set({ revokedAt: new Date() })
-    .where(eq(releaseAccessKey.id, id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(releaseAccessKey)
+      .set({ revokedAt: new Date() })
+      .where(eq(releaseAccessKey.id, id));
+    await recordAudit(
+      'releaseAccessKeyRevoked',
+      { entityType: 'releaseAccessKey', entityId: id, pipelineId: row.pipelineId },
+      { tx, actorId: user!.id },
+    );
+  });
 }
 
 export interface ResolvedAccessKey {
