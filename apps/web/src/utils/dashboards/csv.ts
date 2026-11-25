@@ -63,3 +63,21 @@ export function toCsv(widget: Widget, result: WidgetResult): string {
     }
   }
 }
+
+// The number of data rows in a CSV this module wrote (records after the header; a
+// newline inside a quoted cell does not end a record).
+export function csvRowCount(csv: string): number {
+  let records = 0;
+  let quoted = false;
+  let inRecord = false;
+  for (let i = 0; i < csv.length; i++) {
+    const c = csv[i];
+    if (c === '"') quoted = !quoted;
+    if (!quoted && (c === '\n' || (c === '\r' && csv[i + 1] !== '\n'))) {
+      if (inRecord) records++;
+      inRecord = false;
+    } else if (c !== '\r') inRecord = true;
+  }
+  if (inRecord) records++;
+  return Math.max(0, records - 1);
+}

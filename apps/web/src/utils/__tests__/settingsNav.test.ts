@@ -43,6 +43,7 @@ describe('settingsNav', () => {
         'portal',
         'forms',
         'ai',
+        'audit-log',
         'customers',
         'mcp',
         'labels',

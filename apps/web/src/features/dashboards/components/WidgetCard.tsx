@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useCustomersSettings } from '@/services/customers.service';
 import { sliceItems, type TableRow } from '@/utils/dashboards/compute';
-import { toCsv } from '@/utils/dashboards/csv';
+import { csvRowCount, toCsv } from '@/utils/dashboards/csv';
 import { requiresCustomers, type Widget } from '@/utils/dashboards/config';
 import type { DashboardState } from '@/utils/dashboards/loads';
 import { cn } from '@/lib/utils';
 import { useWidgetResult } from '../hooks/useWidgetResult';
-import { csvFileName, downloadText } from '../utils/download';
+import { downloadText } from '@/utils/download';
+import { csvFileName } from '../utils/download';
+import { reportWidgetExport } from '../services/exportReport.service';
 import { excludedText } from '../utils/format';
 import WidgetBody from './WidgetBody';
 import WidgetMenu, { type WidgetActions } from './WidgetMenu';
@@ -61,7 +63,15 @@ export default function WidgetCard({
           actions={actions}
           onExport={
             result && !customersOff
-              ? () => downloadText(csvFileName(widget.config.title), toCsv(widget, result))
+              ? () => {
+                  const csv = toCsv(widget, result);
+                  reportWidgetExport({
+                    id: widget.id,
+                    name: widget.config.title,
+                    rows: csvRowCount(csv),
+                  });
+                  downloadText(csvFileName(widget.config.title), csv);
+                }
               : null
           }
         />

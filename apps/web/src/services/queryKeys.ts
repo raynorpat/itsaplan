@@ -152,6 +152,11 @@ export const qk = {
   issuePortalBoards: (issueId: string) => ['portal', 'issue', issueId] as const,
   // The AI endpoint for summaries (Settings → Workspace → AI, owners and admins).
   aiSettings: ['aiSettings'] as const,
+  // The workspace audit log (Settings → Workspace → Audit log, owners and admins): its
+  // entries by filter, the action types and the retention setting.
+  auditEntries: (filter: unknown) => ['audit', 'entries', filter] as const,
+  auditEntryTypes: ['audit', 'types'] as const,
+  auditSettings: ['audit', 'settings'] as const,
   // Customers: the settings (switch and currency), statuses, tiers, the list and one
   // customer by id or slug.
   customersSettings: ['customers', 'settings'] as const,

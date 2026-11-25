@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { toCsv } from '../csv';
+import { csvRowCount, toCsv } from '../csv';
 import { widget } from './fixtures';
 
 describe('toCsv', () => {
@@ -126,5 +126,15 @@ describe('toCsv', () => {
       capped: false,
     });
     assert.ok(csv.includes(',1250000,'), csv);
+  });
+});
+
+describe('csvRowCount', () => {
+  it('counts data rows, not lines inside quoted cells', () => {
+    assert.equal(csvRowCount('Name,Notes\r\nA,"two\r\nlines"\r\nB,x\r\n'), 2);
+  });
+
+  it('is 0 for a header alone', () => {
+    assert.equal(csvRowCount('Name\r\n'), 0);
   });
 });
