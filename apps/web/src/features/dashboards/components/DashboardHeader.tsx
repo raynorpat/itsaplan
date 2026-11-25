@@ -6,6 +6,7 @@ import { DASHBOARD_PERIODS, PERIOD_LABELS, type DashboardPeriod } from '@/utils/
 import type { DashboardState } from '@/utils/dashboards/loads';
 import type { Dashboard } from '../services/dashboards.service';
 import DashboardSelect from './DashboardSelect';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 export interface DashboardHeaderActions {
   onEdit: () => void;
@@ -40,7 +41,10 @@ export default function DashboardHeader({
     <header className="mb-6 grid gap-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold">{dashboard.name}</h1>
+          <div className="flex items-center gap-1">
+            <h1 className="text-lg font-semibold">{dashboard.name}</h1>
+            <FavoriteStarButton target={{ kind: 'dashboard', id: dashboard.id }} />
+          </div>
           {dashboard.description && (
             <p className="mt-0.5 text-sm text-muted-foreground">{dashboard.description}</p>
           )}

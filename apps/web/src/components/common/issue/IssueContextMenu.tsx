@@ -33,6 +33,7 @@ import { toDateStr } from '@/utils/dates';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
 import { StateIcon } from './IssueIcons';
+import FavoriteMenuItem from '@/components/common/favorites/FavoriteMenuItem';
 import { dueDatePresets, formatPreset } from '@/utils/dueDatePresets';
 import {
   ContextMenu,
@@ -129,6 +130,7 @@ export default function IssueContextMenu({
             <SquareArrowOutUpRight />
             Go to issue
           </ContextMenuItem>
+          <FavoriteMenuItem target={{ kind: 'issue', id: issue.id }} />
 
           <ContextMenuSeparator />
 

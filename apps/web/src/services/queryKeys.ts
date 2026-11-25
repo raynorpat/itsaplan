@@ -29,6 +29,8 @@ export const qk = {
     ['insightsCompleted', viewKey, filter, since] as const,
   insightsOpen: (viewKey: string, filter: string) => ['insightsOpen', viewKey, filter] as const,
   dashboards: ['dashboards'] as const,
+  // The viewer's favorites (the sidebar's Favorites section and the page stars).
+  favorites: ['favorites'] as const,
   dashboard: (id: string) => ['dashboard', id] as const,
   feedbackDashboard: ['dashboards', 'feedback-report'] as const,
   labelChoices: ['dashboards', 'label-choices'] as const,

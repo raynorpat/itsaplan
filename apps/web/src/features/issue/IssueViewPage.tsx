@@ -8,6 +8,7 @@ import { teamPath } from '@/utils/paths';
 import { useExitOnEscape } from '@/hooks/useExitOnEscape';
 import { useIssueBySeqQuery, useIssueQuery } from '@/services/issues.service';
 import PageHeaderPortal from '@/components/layout/PageHeaderPortal';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 import { Button } from '@/components/ui/button';
 import { useHotkeyCombos } from '@/context/useHotkeys';
 import {
@@ -92,6 +93,7 @@ export default function IssueViewPage() {
                 </Button>
               </div>
             )}
+            <FavoriteStarButton target={{ kind: 'issue', id: issue.id }} />
             <IssueActionsMenu team={team} issue={issue} onDeleted={exit} />
           </div>
         </PageHeaderPortal>

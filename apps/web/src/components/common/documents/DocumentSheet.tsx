@@ -16,6 +16,7 @@ import {
 } from '@/services/documents.service';
 import DraftMarkdownEditor from '../editor/DraftMarkdownEditor';
 import DocumentComments from './DocumentComments';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 // One document (of an issue or a project) opened in a side sheet: its title and Markdown body (saved on
 // blur), its comments, and Delete (moves it to the trash, with Undo). Without edit
@@ -80,6 +81,7 @@ export default function DocumentSheet({
                   update.mutate({ id: document.id, patch: { title: next } });
               }}
             />
+            <FavoriteStarButton target={{ kind: 'document', id: document.id }} />
             {canEdit && (
               <Button variant="ghost" size="icon" aria-label="Delete document" onClick={remove}>
                 <Trash2 className="size-4" />

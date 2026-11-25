@@ -5,6 +5,7 @@ import Avatar from '@/components/common/Avatar';
 import { Button } from '@/components/ui/button';
 import { useUpdateCustomer, type Customer } from '@/services/customers.service';
 import CustomerTextField from './CustomerTextField';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 // The customer's logo and name (renamed in place), with Merge into… and Delete.
 export default function CustomerHeader({
@@ -28,6 +29,7 @@ export default function CustomerHeader({
         parse={(text) => (text.trim() ? text.trim() : undefined)}
         onSave={(name) => update.mutate({ id: customer.id, input: { name } })}
       />
+      <FavoriteStarButton target={{ kind: 'customer', id: customer.id }} />
       <span className="flex-1" />
       <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={onMerge}>
         <Merge className="size-3.5" />

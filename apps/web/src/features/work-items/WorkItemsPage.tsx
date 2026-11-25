@@ -27,6 +27,7 @@ import { useInsightsSettings } from '@/features/insights/hooks/useInsightsSettin
 import { insightsViewKey } from '@/features/insights/utils/settings';
 import { contextFromTeam, EMPTY_CONTEXT } from '@/utils/insights/context';
 import { insightsScope, withSliceFilter } from '@/features/insights/utils/panel';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 interface TimelineCollapseState {
   scope: string;
@@ -166,6 +167,13 @@ export default function WorkItemsPage() {
           onToggleFilter={editor.toggleFilters}
           displayControl={
             <>
+              <FavoriteStarButton
+                target={
+                  editor.activeViewId
+                    ? { kind: 'customView', id: editor.activeViewId }
+                    : { kind: 'team', id: team.team.id }
+                }
+              />
               <InsightsButton
                 open={insights.settings.open}
                 onToggle={() => insights.update({ open: !insights.settings.open })}

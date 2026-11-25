@@ -22,6 +22,7 @@ import {
 import SidebarNavItem from '@/components/layout/SidebarNavItem';
 import SidebarTeamSection from '@/components/layout/SidebarTeamSection';
 import SidebarTrySection from '@/components/layout/SidebarTrySection';
+import SidebarFavorites from '@/components/layout/SidebarFavorites';
 
 const ICONS: Record<string, LucideIcon> = {
   inbox: Inbox,
@@ -67,6 +68,8 @@ export default function SidebarMainNav({
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+
+      <SidebarFavorites />
 
       <SidebarGroup>
         <SidebarGroupLabel>Workspace</SidebarGroupLabel>

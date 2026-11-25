@@ -10,6 +10,7 @@ import CycleChart from './CycleChart';
 import CycleDates from './CycleDates';
 import CycleEditDialog from './CycleEditDialog';
 import CycleProgressBar from './CycleProgressBar';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -34,6 +35,7 @@ export default function CycleHeader({
     <header className="flex flex-col gap-3 border-b px-6 py-4">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold">{cycleLabel(cycle)}</h1>
+        <FavoriteStarButton target={{ kind: 'cycle', id: cycle.id }} />
         {cycle.archivedAt && (
           <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             Archived

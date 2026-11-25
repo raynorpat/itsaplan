@@ -7,6 +7,7 @@ import HealthBadge from '@/components/common/updates/HealthBadge';
 import HealthInfoPopover from '../shared/HealthInfoPopover';
 import ProgressRing from '../shared/ProgressRing';
 import ProjectActions from './ProjectActions';
+import FavoriteStarButton from '@/components/common/favorites/FavoriteStarButton';
 
 // The project detail header on every tab: the name, the health of the latest update,
 // progress and the overflow menu. The properties are edited on the Overview.
@@ -19,7 +20,10 @@ export default function ProjectHeader({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b px-6 py-2.5">
-      <span className="truncate text-sm font-semibold">{project.name}</span>
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate text-sm font-semibold">{project.name}</span>
+        <FavoriteStarButton target={{ kind: 'project', id: project.id }} />
+      </span>
       <div className="flex shrink-0 items-center gap-3">
         <div className="flex items-center gap-1">
           <HealthInfoPopover />
