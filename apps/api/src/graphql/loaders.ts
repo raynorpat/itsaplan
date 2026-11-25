@@ -5,24 +5,28 @@ import {
   cycle,
   db,
   externalUser,
+  initiative,
+  initiativeToProject,
   issue,
   issueLabel,
   label,
   project,
   projectMilestone,
+  projectStatus,
   reaction,
   team,
   user,
   workflowState,
   projectMember,
 } from '@repo/db';
-import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, isNull } from 'drizzle-orm';
 import { sessionsOfComments } from '../agents/store';
 import { mapAttachment } from '../attachments/store';
 import { itemsByIds, readsCustomers } from '../customers/statuses';
 import { customerIssueCounts, mapCustomer } from '../customers/store';
 import { readsFeedback } from '../feedback/access';
 import { mapCycle } from '../cycles/store';
+import { visibleInitiativesSql } from '../initiatives/access';
 import { projectsInTeams } from '../projects/access';
 import { getProjectsByIds } from '../projects/store';
 import { projectHistories } from '../projects/progress';
@@ -222,6 +226,46 @@ function createLoaders(ctx: GraphQLContext) {
       sessionsOfComments(keys, viewerId),
     ),
     project: project_,
+    // Project statuses by id (six seeded rows).
+    projectStatus: new DataLoader(async (keys: readonly string[]) =>
+      byId(
+        await db
+          .select()
+          .from(projectStatus)
+          .where(inArray(projectStatus.id, [...keys])),
+        keys,
+      ),
+    ),
+    // Each project's active milestones (Project.projectMilestones' first page). Callers
+    // pass ids of projects the viewer already sees.
+    milestonesByProject: new DataLoader(async (keys: readonly string[]) => {
+      const rows = await db
+        .select()
+        .from(projectMilestone)
+        .where(
+          and(inArray(projectMilestone.projectId, [...keys]), isNull(projectMilestone.archivedAt)),
+        );
+      return grouped(rows, (r) => r.projectId, keys);
+    }),
+    // Each project's active initiatives the viewer can see (Project.initiatives' first
+    // page).
+    initiativesByProject: new DataLoader(async (keys: readonly string[]) => {
+      const rows = await db
+        .select({
+          projectId: initiativeToProject.projectId,
+          initiative: getTableColumns(initiative),
+        })
+        .from(initiativeToProject)
+        .innerJoin(initiative, eq(initiative.id, initiativeToProject.initiativeId))
+        .where(
+          and(
+            inArray(initiativeToProject.projectId, [...keys]),
+            isNull(initiative.archivedAt),
+            await visibleInitiativesSql(viewerId),
+          ),
+        );
+      return grouped(rows, (r) => r.projectId, keys).map((group) => group.map((r) => r.initiative));
+    }),
     // A milestone is visible when its project is.
     milestone: new DataLoader(async (keys: readonly string[]) => {
       const rows = await db

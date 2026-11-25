@@ -220,6 +220,80 @@ describe('project relations', () => {
     expect(code(del)).toBe('FORBIDDEN');
   });
 
+  const UPDATE = `mutation ($id: String!, $input: ProjectRelationUpdateInput!) {
+    projectRelationUpdate(id: $id, input: $input) { projectRelation { id project { id } relatedProject { id } } } }`;
+
+  it('reverses a relation in place without a false cycle', async () => {
+    const { owner, a, b } = await setup();
+    const created = await relate(owner, { projectId: a.id, relatedProjectId: b.id });
+    const id = (created.body.data as Data).projectRelationCreate.projectRelation.id;
+    const res = await gql({ cookie: owner.cookie }, UPDATE, {
+      id,
+      input: { projectId: b.id, relatedProjectId: a.id },
+    });
+    expect(res.body.errors).toBeUndefined();
+    expect((res.body.data as Data).projectRelationUpdate.projectRelation).toEqual({
+      id,
+      project: { id: b.id },
+      relatedProject: { id: a.id },
+    });
+  });
+
+  it('refuses a guest update and an update to a project the user cannot see', async () => {
+    const { owner, eng, a, b } = await setup();
+    const created = await relate(owner, { projectId: a.id, relatedProjectId: b.id });
+    const id = (created.body.data as Data).projectRelationCreate.projectRelation.id;
+
+    const guest = await signUpAs('guest');
+    await gqlData(
+      owner,
+      `mutation ($input: TeamMembershipCreateInput!) { teamMembershipCreate(input: $input) { success } }`,
+      { input: { teamId: eng.team.id, userId: guest.userId } },
+    );
+    const byGuest = await gql({ cookie: guest.cookie }, UPDATE, {
+      id,
+      input: { anchorType: 'start' },
+    });
+    expect(code(byGuest)).toBe('FORBIDDEN');
+
+    const sec = await createTeam(owner, { key: 'SEC', private: true });
+    const hidden = await createProject(owner, { name: 'Hidden', teamIds: [sec.team.id] });
+    const member = await signUpAs('member');
+    const toHidden = await gql({ cookie: member.cookie }, UPDATE, {
+      id,
+      input: { relatedProjectId: hidden.id },
+    });
+    expect(code(toHidden)).toBe('ENTITY_NOT_FOUND');
+  });
+
+  it('refuses a relation to an archived or trashed project', async () => {
+    const { owner, a, b, c } = await setup();
+    await gqlData(owner, `mutation ($id: String!) { projectArchive(id: $id) { success } }`, {
+      id: b.id,
+    });
+    await gqlData(owner, `mutation ($id: String!) { projectDelete(id: $id) { success } }`, {
+      id: c.id,
+    });
+    expect(code(await relate(owner, { projectId: a.id, relatedProjectId: b.id }))).toBe(
+      'INVALID_INPUT',
+    );
+    expect(code(await relate(owner, { projectId: c.id, relatedProjectId: a.id }))).toBe(
+      'INVALID_INPUT',
+    );
+  });
+
+  it('reports a reused id as a used id, not as a duplicate dependency', async () => {
+    const { owner, a, b, c } = await setup();
+    const id = crypto.randomUUID();
+    expect(
+      (await relate(owner, { id, projectId: a.id, relatedProjectId: b.id })).body.errors,
+    ).toBeUndefined();
+    const again = await relate(owner, { id, projectId: a.id, relatedProjectId: c.id });
+    expect(code(again)).toBe('CONFLICT');
+    expect(again.body.errors?.[0]?.message).toContain('id');
+    expect(again.body.errors?.[0]?.message).not.toContain('already have this dependency');
+  });
+
   it('updates the anchors and deletes a relation', async () => {
     const { owner, a, b } = await setup();
     const created = await relate(owner, { projectId: a.id, relatedProjectId: b.id });

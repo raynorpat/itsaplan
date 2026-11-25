@@ -69,12 +69,16 @@ async function findRelation(id: string, ctx: GraphQLContext): Promise<RelationRo
   return mapRelation(row);
 }
 
-// Both projects visible (ENTITY_NOT_FOUND), then a role above guest (FORBIDDEN).
+// Both projects visible (ENTITY_NOT_FOUND), then a role above guest (FORBIDDEN), then
+// neither archived nor trashed (INVALID_INPUT).
 async function assertCanRelate(projectId: string, relatedProjectId: string, ctx: GraphQLContext) {
   const a = await findProject(projectId, ctx);
   const b = await findProject(relatedProjectId, ctx);
   if ((await workspaceRole(ctx.user.id)) === 'guest')
     throw new HttpError(403, 'Guests cannot change project dependencies');
+  // An archived or trashed project's relations are hidden, so none is added to one.
+  if (a.archivedAt || b.archivedAt)
+    throw new HttpError(400, 'An archived or deleted project cannot have dependencies');
   return { projectId: a.id, relatedProjectId: b.id };
 }
 

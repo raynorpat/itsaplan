@@ -27,7 +27,8 @@ import {
   type InitiativeUpdateRow,
 } from '../../initiatives/updates';
 import type { GraphQLContext } from '../context';
-import { paginate, type PageArgs } from '../connection';
+import { connectionOf, isFirstPage, paginate, type PageArgs } from '../connection';
+import { loaders } from '../loaders';
 import { gqlError } from '../errors';
 import { UUID_RE } from '../../shared/lib';
 import { initiativeFilterSql, initiativeUpdateFilterSql } from '../initiative-filter';
@@ -372,17 +373,22 @@ export const initiativeResolvers = {
   Project: {
     initiativeToProjects: (p: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
       listProjectLinks(eq(initiativeToProject.projectId, p.id), args, ctx),
-    initiatives: (p: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
-      listInitiatives(
-        inArray(
-          initiative.id,
-          db
-            .select({ id: initiativeToProject.initiativeId })
-            .from(initiativeToProject)
-            .where(eq(initiativeToProject.projectId, p.id)),
-        ),
-        args,
-        ctx,
-      ),
+    // The first page loads in a batch across the projects of a list.
+    initiatives: async (p: { id: string }, args: ListArgs, ctx: GraphQLContext) =>
+      isFirstPage(args) && !args.includeArchived && args.sort == null
+        ? connectionOf(await loaders(ctx).initiativesByProject.load(p.id), args, (row) =>
+            toInitiative(mapInitiative(row)),
+          )
+        : listInitiatives(
+            inArray(
+              initiative.id,
+              db
+                .select({ id: initiativeToProject.initiativeId })
+                .from(initiativeToProject)
+                .where(eq(initiativeToProject.projectId, p.id)),
+            ),
+            args,
+            ctx,
+          ),
   },
 };

@@ -149,8 +149,11 @@ async function write<T>(run: (tx: Tx) => Promise<T>): Promise<T> {
       return run(tx);
     });
   } catch (err) {
-    if (pgErrorCode(err) === '23505')
-      throw new HttpError(409, 'These projects already have this dependency');
+    const code = pgErrorCode(err);
+    if (code === '23505') throw new HttpError(409, 'These projects already have this dependency');
+    // A project or milestone deleted while the relation was being written.
+    if (code === '23503')
+      throw new HttpError(400, 'The project or milestone of this dependency no longer exists');
     throw err;
   }
 }
@@ -163,8 +166,15 @@ export async function createRelation(
   userId: string,
   input: RelationInput & { id?: string | null },
 ): Promise<RelationRow> {
-  const values = await checked(input);
   return write(async (tx) => {
+    const values = await checked(input);
+    if (input.id) {
+      const [taken] = await tx
+        .select({ id: projectRelation.id })
+        .from(projectRelation)
+        .where(eq(projectRelation.id, input.id));
+      if (taken) throw new HttpError(409, 'The id is already used by another project relation');
+    }
     assertNoCycle(await blocks(tx, values.relatedProjectId, values.projectId));
     const [row] = await tx
       .insert(projectRelation)
@@ -179,7 +189,7 @@ export async function updateRelation(
   current: RelationRow,
   patch: Partial<RelationInput>,
 ): Promise<RelationRow> {
-  const values = await checked({
+  const next = {
     type: patch.type ?? current.type,
     projectId: patch.projectId ?? current.projectId,
     anchorType: patch.anchorType ?? current.anchorType,
@@ -197,8 +207,9 @@ export async function updateRelation(
         : (patch.relatedAnchorType ?? current.relatedAnchorType) === 'milestone'
           ? current.relatedProjectMilestoneId
           : null,
-  });
+  };
   return write(async (tx) => {
+    const values = await checked(next);
     assertNoCycle(await blocks(tx, values.relatedProjectId, values.projectId, current.id));
     const [row] = await tx
       .update(projectRelation)

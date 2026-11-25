@@ -428,14 +428,28 @@ export const projectResolvers = {
       history(p, ctx).then((h) => h.completedScopeHistory),
     inProgressScopeHistory: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
       history(p, ctx).then((h) => h.inProgressScopeHistory),
-    status: async (p: GraphQLProject) => {
-      const [row] = await db.select().from(projectStatus).where(eq(projectStatus.id, p.statusId));
-      return toStatus(row!);
+    // status, lead, the first page of teams and of milestones load in batches across the
+    // projects of a list (request loaders), so a list's cost does not grow per project.
+    status: async (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
+      toStatus((await loaders(ctx).projectStatus.load(p.statusId))!),
+    lead: async (p: GraphQLProject, _: unknown, ctx: GraphQLContext) => {
+      if (!p.leadUserId) return null;
+      const row = await loaders(ctx).user.load(p.leadUserId);
+      return row ? toGraphQLUser(row, ctx.user.id) : null;
     },
-    lead: (p: GraphQLProject, _: unknown, ctx: GraphQLContext) =>
-      userById(p.leadUserId, ctx.user.id),
-    teams: (p: GraphQLProject, args: ConnectionArgs) =>
-      paginate(
+    teams: async (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) => {
+      if (isFirstPage(args)) {
+        const rows = await loaders(ctx).team.loadMany(p.visibleTeamIds);
+        const teams = rows.filter(
+          (r): r is typeof team.$inferSelect => r != null && !(r instanceof Error),
+        );
+        return connectionOf(
+          teams.map((r) => ({ ...r, updatedAt: r.createdAt })),
+          args,
+          (row) => toTeam(row),
+        );
+      }
+      return paginate(
         args,
         { id: team.id, createdAt: team.createdAt, updatedAt: team.createdAt },
         inArray(team.id, p.visibleTeamIds.length ? p.visibleTeamIds : [UUID_NONE]),
@@ -448,11 +462,14 @@ export const projectResolvers = {
             .limit(limit)
             .then((rows) => rows.map((r) => ({ ...r, updatedAt: r.createdAt }))),
         (row) => toTeam(row),
-      ),
+      );
+    },
     issues: (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) =>
       listIssues(eq(issue.projectId, p.id), args, ctx.user.id),
-    projectMilestones: (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) =>
-      listMilestones(eq(projectMilestone.projectId, p.id), args, ctx),
+    projectMilestones: async (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) =>
+      isFirstPage(args) && !args.includeArchived
+        ? connectionOf(await loaders(ctx).milestonesByProject.load(p.id), args, toMilestone)
+        : listMilestones(eq(projectMilestone.projectId, p.id), args, ctx),
     projectUpdates: (p: GraphQLProject, args: ConnectionArgs, ctx: GraphQLContext) =>
       listUpdates(eq(projectUpdate.projectId, p.id), args, ctx),
     labels: (p: GraphQLProject, args: ConnectionArgs) =>
