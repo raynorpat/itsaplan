@@ -130,7 +130,11 @@ export function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId
       sql`${user.id}`,
       and(where, filterSql(args.filter, userFilter)),
       (w, values) => db.select(values).from(user).where(w),
-      (ids) => db.select().from(user).where(inArray(user.id, ids)),
+      (ids, w) =>
+        db
+          .select()
+          .from(user)
+          .where(and(w, inArray(user.id, ids))),
       (row) => toGraphQLUser(row, viewerId),
     );
   return paginate(

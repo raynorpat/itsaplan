@@ -130,7 +130,7 @@ export async function listIssues(where: SQL | undefined, args: ConnectionArgs, v
       issueScope(where, args, viewerId),
       (w, values) =>
         db.select(values).from(issue).innerJoin(team, eq(team.id, issue.teamId)).where(w),
-      (ids) => issueSelect().where(inArray(issue.id, ids)),
+      (ids, w) => issueSelect().where(and(w, inArray(issue.id, ids))),
       (row) => toIssue(row),
     );
   return paginate(

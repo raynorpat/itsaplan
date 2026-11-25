@@ -105,7 +105,11 @@ export function listPipelines(where: SQL | undefined, args: ListArgs, ctx: Graph
       sql`${releasePipeline.id}`,
       scope,
       (w, values) => db.select(values).from(releasePipeline).where(w),
-      (ids) => db.select().from(releasePipeline).where(inArray(releasePipeline.id, ids)),
+      (ids, w) =>
+        db
+          .select()
+          .from(releasePipeline)
+          .where(and(w, inArray(releasePipeline.id, ids))),
       (row) => mapPipeline(row),
     );
   return paginate(

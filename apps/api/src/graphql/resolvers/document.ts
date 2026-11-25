@@ -65,7 +65,11 @@ async function listDocuments(where: SQL | undefined, args: ListArgs, ctx: GraphQ
       sql`${document.id}`,
       scope,
       (w, values) => db.select(values).from(document).where(w),
-      (ids) => db.select().from(document).where(inArray(document.id, ids)),
+      (ids, w) =>
+        db
+          .select()
+          .from(document)
+          .where(and(w, inArray(document.id, ids))),
       (row) => toDocument(mapDocument(row)),
     );
   return paginate(

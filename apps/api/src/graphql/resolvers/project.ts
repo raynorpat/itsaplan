@@ -125,7 +125,12 @@ async function withProjects<K extends { id: string }>(keys: K[], teams: string[]
       )
     ).map((p) => [p.id, p]),
   );
-  return keys.map((k) => ({ ...k, project: rows.get(k.id)! }));
+  // A project missing from `getProjectsByIds` (deleted, or out of `teams`, since the ids
+  // were read) is left out rather than mapped from undefined.
+  return keys.flatMap((k) => {
+    const found = rows.get(k.id);
+    return found ? [{ ...k, project: found }] : [];
+  });
 }
 
 async function paginateProjects(
@@ -148,9 +153,13 @@ async function paginateProjects(
           .from(project)
           .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
           .where(w),
-      (ids) =>
+      async (ids, w) =>
         withProjects(
-          ids.map((id) => ({ id })),
+          await db
+            .select({ id: project.id })
+            .from(project)
+            .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
+            .where(and(w, inArray(project.id, ids))),
           teams,
         ),
       (row) => toProject(row.project),

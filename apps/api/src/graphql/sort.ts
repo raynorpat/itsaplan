@@ -169,8 +169,9 @@ function decodeCursor(cursor: string, keys: SortKey[]): unknown[] {
 // selecting `values` (the sort expressions, aliased `s0`, `s1`, …); this runs it as an
 // inner query behind `OFFSET 0`, which keeps Postgres from inlining it, so each sort
 // value is worked out once per row and the order and the cursor condition read the
-// aliases. `rows(ids)` then loads the page's rows (in any order). The cursor carries
-// the sort values and the id as a JSON array.
+// aliases. `rows(ids, where)` then loads the page's rows (in any order) under the same
+// `where`, so a row that left the list between the two queries is not returned. The
+// cursor carries the sort values and the id as a JSON array.
 export async function paginateSorted<Row extends { id: string }, T>(
   args: PageArgs,
   keys: SortKey[],
@@ -178,7 +179,7 @@ export async function paginateSorted<Row extends { id: string }, T>(
   id: SQL,
   where: SQL | undefined,
   base: (where: SQL | undefined, values: Record<string, SQL.Aliased>) => SQLWrapper,
-  rows: (ids: string[]) => Promise<Row[]>,
+  rows: (ids: string[], where: SQL | undefined) => Promise<Row[]>,
   map: (row: Row) => T,
 ): Promise<Connection<T>> {
   if (args.last != null || args.before != null)
@@ -210,7 +211,7 @@ export async function paginateSorted<Row extends { id: string }, T>(
   `);
   const page = [...found].slice(0, limit).map((r) => r.sort_values);
   const ids = page.map((v) => v[v.length - 1] as string);
-  const byId = new Map((ids.length > 0 ? await rows(ids) : []).map((r) => [r.id, r]));
+  const byId = new Map((ids.length > 0 ? await rows(ids, where) : []).map((r) => [r.id, r]));
   const edges = page.flatMap((v, i) => {
     const row = byId.get(ids[i]!);
     return row ? [{ node: map(row), cursor: encodeCursor(v) }] : [];

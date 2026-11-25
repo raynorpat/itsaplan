@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { db, user } from '@repo/db';
-import { getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, ne, sql } from 'drizzle-orm';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { newestFirst, paginateSorted, type SortKey } from '../../sort';
@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS sort_once_calls`);
   await db.execute(sql`
     CREATE OR REPLACE FUNCTION sort_once_value(x uuid) RETURNS int
-    LANGUAGE plpgsql VOLATILE AS $$ BEGIN PERFORM nextval('sort_once_calls'); RETURN 1; END $$
+    LANGUAGE plpgsql STABLE AS $$ BEGIN PERFORM nextval('sort_once_calls'); RETURN 1; END $$
   `);
 });
 
@@ -79,5 +79,45 @@ describe('sorted paging', () => {
     expect(values).toHaveLength(3);
     expect(values[0]).toBe(1);
     expect(values[2]).toBe(edges[0]!.node);
+  });
+
+  it('pages after a cursor built outside the helper, in the stored format', async () => {
+    for (let i = 0; i < 6; i++) await signUpTestUser({ name: `U${i}` });
+    const first = await page();
+    const third = first.nodes[2]!;
+    // The format every cursor has had: a JSON array of the sort values then the id,
+    // read here straight from the row, not from the helper.
+    const [row] = await db.execute<{ v: unknown[] }>(
+      sql`SELECT json_build_array(1, ${user.createdAt}, ${user.id}) AS v FROM ${user} WHERE ${user.id} = ${third}`,
+    );
+    const handMade = Buffer.from(JSON.stringify(row!.v)).toString('base64url');
+    const next = await page(handMade);
+    const fromHelper = await page(first.pageInfo.endCursor!);
+    expect(next.nodes).toEqual(fromHelper.nodes);
+    expect(next.nodes).toHaveLength(3);
+  });
+
+  it('loads the page rows under the same where, leaving out a row that left the list', async () => {
+    for (let i = 0; i < 4; i++) await signUpTestUser({ name: `U${i}` });
+    const where = ne(user.name, 'Gone');
+    const result = await paginateSorted(
+      { first: 3 },
+      [counted],
+      newestFirst(sql`${user.createdAt}`),
+      sql`${user.id}`,
+      where,
+      (w, values) => db.select(values).from(user).where(w),
+      async (ids, w) => {
+        // The first row leaves the list between the two queries.
+        await db.update(user).set({ name: 'Gone' }).where(eq(user.id, ids[0]!));
+        return db
+          .select(getTableColumns(user))
+          .from(user)
+          .where(and(w, inArray(user.id, ids)));
+      },
+      (row) => row.id,
+    );
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges.map((e) => e.node)).toEqual(result.nodes);
   });
 });

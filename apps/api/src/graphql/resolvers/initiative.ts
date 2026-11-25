@@ -81,7 +81,11 @@ export async function listInitiatives(where: SQL | undefined, args: ListArgs, ct
       sql`${initiative.id}`,
       scope,
       (w, values) => db.select(values).from(initiative).where(w),
-      (ids) => db.select().from(initiative).where(inArray(initiative.id, ids)),
+      (ids, w) =>
+        db
+          .select()
+          .from(initiative)
+          .where(and(w, inArray(initiative.id, ids))),
       (row) => toInitiative(mapInitiative(row)),
     );
   return paginate(

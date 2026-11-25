@@ -132,7 +132,11 @@ function listReleases(where: SQL | undefined, args: ListArgs, ctx: GraphQLContex
       sql`${release.id}`,
       scope,
       (w, values) => db.select(values).from(release).where(w),
-      (ids) => db.select().from(release).where(inArray(release.id, ids)),
+      (ids, w) =>
+        db
+          .select()
+          .from(release)
+          .where(and(w, inArray(release.id, ids))),
       (row) => mapRelease(row),
     );
   return paginate(

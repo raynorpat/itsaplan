@@ -183,7 +183,11 @@ export const customViewResolvers = {
           sql`${teamView.id}`,
           scope,
           (w, values) => db.select(values).from(teamView).where(w),
-          (ids) => db.select().from(teamView).where(inArray(teamView.id, ids)),
+          (ids, w) =>
+            db
+              .select()
+              .from(teamView)
+              .where(and(w, inArray(teamView.id, ids))),
           (row) => toCustomView(mapView(row)),
         );
       return paginate(
