@@ -1,5 +1,5 @@
 import { db, releasePipeline, releasePipelineTeam, releaseStage, team } from '@repo/db';
-import { and, asc, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   archivePipeline,
   createPipeline,
@@ -104,13 +104,8 @@ export function listPipelines(where: SQL | undefined, args: ListArgs, ctx: Graph
       tieBreaks.pipeline,
       sql`${releasePipeline.id}`,
       scope,
-      (w, order, limit, select) =>
-        db
-          .select({ ...getTableColumns(releasePipeline), sortValues: select })
-          .from(releasePipeline)
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) => db.select(values).from(releasePipeline).where(w),
+      (ids) => db.select().from(releasePipeline).where(inArray(releasePipeline.id, ids)),
       (row) => mapPipeline(row),
     );
   return paginate(

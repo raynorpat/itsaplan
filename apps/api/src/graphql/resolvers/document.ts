@@ -1,5 +1,5 @@
 import { db, document } from '@repo/db';
-import { and, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import {
   assertDocumentParentAccess,
   visibleDocumentsSql,
@@ -64,13 +64,8 @@ async function listDocuments(where: SQL | undefined, args: ListArgs, ctx: GraphQ
       tieBreaks.document,
       sql`${document.id}`,
       scope,
-      (w, order, limit, select) =>
-        db
-          .select({ ...getTableColumns(document), sortValues: select })
-          .from(document)
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) => db.select(values).from(document).where(w),
+      (ids) => db.select().from(document).where(inArray(document.id, ids)),
       (row) => toDocument(mapDocument(row)),
     );
   return paginate(

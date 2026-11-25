@@ -1,5 +1,5 @@
 import { db, issue, team, teamView } from '@repo/db';
-import { and, eq, getTableColumns, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { assertTeamAccess, visibleTeamIds } from '../../shared/access';
 import { HttpError } from '../../shared/lib';
 import {
@@ -182,13 +182,8 @@ export const customViewResolvers = {
           tieBreaks.customView,
           sql`${teamView.id}`,
           scope,
-          (w, order, limit, select) =>
-            db
-              .select({ ...getTableColumns(teamView), sortValues: select })
-              .from(teamView)
-              .where(w)
-              .orderBy(...order)
-              .limit(limit),
+          (w, values) => db.select(values).from(teamView).where(w),
+          (ids) => db.select().from(teamView).where(inArray(teamView.id, ids)),
           (row) => toCustomView(mapView(row)),
         );
       return paginate(

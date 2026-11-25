@@ -1,4 +1,5 @@
-import { and, or, sql, type SQL } from 'drizzle-orm';
+import { db } from '@repo/db';
+import { and, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { gqlError } from './errors';
 import { pageSize, type Connection, type PageArgs } from './connection';
 import { UUID_RE } from '../shared/lib';
@@ -164,20 +165,20 @@ function decodeCursor(cursor: string, keys: SortKey[]): unknown[] {
 }
 
 // One forward page of rows in the order of `keys`, then `tieBreak`, then `id`
-// descending. `load` must select `select` as `sortValues` (the keys' values in order, a
-// JSON array) next to the row; the cursor carries those values and the id.
-export async function paginateSorted<Row extends { id: string; sortValues: unknown[] }, T>(
+// descending. `base(where, values)` is the list's query without ordering or limit,
+// selecting `values` (the sort expressions, aliased `s0`, `s1`, …); this runs it as an
+// inner query behind `OFFSET 0`, which keeps Postgres from inlining it, so each sort
+// value is worked out once per row and the order and the cursor condition read the
+// aliases. `rows(ids)` then loads the page's rows (in any order). The cursor carries
+// the sort values and the id as a JSON array.
+export async function paginateSorted<Row extends { id: string }, T>(
   args: PageArgs,
   keys: SortKey[],
   tieBreak: SortKey[],
   id: SQL,
   where: SQL | undefined,
-  load: (
-    where: SQL | undefined,
-    orderBy: SQL[],
-    limit: number,
-    select: SQL<unknown[]>,
-  ) => Promise<Row[]>,
+  base: (where: SQL | undefined, values: Record<string, SQL.Aliased>) => SQLWrapper,
+  rows: (ids: string[]) => Promise<Row[]>,
   map: (row: Row) => T,
 ): Promise<Connection<T>> {
   if (args.last != null || args.before != null)
@@ -188,19 +189,37 @@ export async function paginateSorted<Row extends { id: string; sortValues: unkno
     ...tieBreak,
     { sql: id, order: 'desc', nulls: 'last', type: 'uuid' },
   ];
-  const select = sql<unknown[]>`json_build_array(${sql.join(
-    all.map((k) => k.sql),
-    sql`, `,
-  )})`;
-  const after = args.after ? afterCursor(all, decodeCursor(args.after, all)) : undefined;
-  const rows = await load(and(where, after), all.map(orderSql), limit + 1, select);
-  const page = rows.slice(0, limit);
-  const edges = page.map((row) => ({ node: map(row), cursor: encodeCursor(row.sortValues) }));
+  const aliases = all.map((_, i) => `s${i}`);
+  const values = Object.fromEntries(
+    all.map((k, i) => [aliases[i]!, sql`${k.sql}`.as(aliases[i]!)]),
+  );
+  const outer = all.map((k, i) => ({
+    ...k,
+    sql: sql`${sql.identifier('sorted')}.${sql.identifier(aliases[i]!)}`,
+  }));
+  const after = args.after ? afterCursor(outer, decodeCursor(args.after, all)) : undefined;
+  const found = await db.execute<{ sort_values: unknown[] }>(sql`
+    SELECT json_build_array(${sql.join(
+      outer.map((k) => k.sql),
+      sql`, `,
+    )}) AS sort_values
+    FROM (${base(where, values)} OFFSET 0) ${sql.identifier('sorted')}
+    ${after ? sql`WHERE ${after}` : sql``}
+    ORDER BY ${sql.join(outer.map(orderSql), sql`, `)}
+    LIMIT ${limit + 1}
+  `);
+  const page = [...found].slice(0, limit).map((r) => r.sort_values);
+  const ids = page.map((v) => v[v.length - 1] as string);
+  const byId = new Map((ids.length > 0 ? await rows(ids) : []).map((r) => [r.id, r]));
+  const edges = page.flatMap((v, i) => {
+    const row = byId.get(ids[i]!);
+    return row ? [{ node: map(row), cursor: encodeCursor(v) }] : [];
+  });
   return {
     nodes: edges.map((e) => e.node),
     edges,
     pageInfo: {
-      hasNextPage: rows.length > limit,
+      hasNextPage: found.length > limit,
       hasPreviousPage: args.after != null,
       startCursor: edges[0]?.cursor ?? null,
       endCursor: edges[edges.length - 1]?.cursor ?? null,

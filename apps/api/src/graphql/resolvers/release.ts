@@ -8,7 +8,7 @@ import {
   releasePipeline,
   releaseStage,
 } from '@repo/db';
-import { and, asc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { iso } from '../../shared/lib';
 import {
   addIssueToRelease,
@@ -131,13 +131,8 @@ function listReleases(where: SQL | undefined, args: ListArgs, ctx: GraphQLContex
       tieBreaks.release,
       sql`${release.id}`,
       scope,
-      (w, order, limit, select) =>
-        db
-          .select({ ...getTableColumns(release), sortValues: select })
-          .from(release)
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) => db.select(values).from(release).where(w),
+      (ids) => db.select().from(release).where(inArray(release.id, ids)),
       (row) => mapRelease(row),
     );
   return paginate(

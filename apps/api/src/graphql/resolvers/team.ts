@@ -1,6 +1,6 @@
 import { APP_ROLE } from '@repo/auth';
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, getTableColumns, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import {
   memberTeamIds,
   publicTeamAppUserIds,
@@ -129,13 +129,8 @@ export function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId
       newestFirst(sql`${user.createdAt}`),
       sql`${user.id}`,
       and(where, filterSql(args.filter, userFilter)),
-      (w, order, limit, select) =>
-        db
-          .select({ ...getTableColumns(user), sortValues: select })
-          .from(user)
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) => db.select(values).from(user).where(w),
+      (ids) => db.select().from(user).where(inArray(user.id, ids)),
       (row) => toGraphQLUser(row, viewerId),
     );
   return paginate(

@@ -128,14 +128,9 @@ export async function listIssues(where: SQL | undefined, args: ConnectionArgs, v
       issueTieBreak,
       sql`${issue.id}`,
       issueScope(where, args, viewerId),
-      (w, order, limit, select) =>
-        db
-          .select({ ...issueColumns, sortValues: select })
-          .from(issue)
-          .innerJoin(team, eq(team.id, issue.teamId))
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) =>
+        db.select(values).from(issue).innerJoin(team, eq(team.id, issue.teamId)).where(w),
+      (ids) => issueSelect().where(inArray(issue.id, ids)),
       (row) => toIssue(row),
     );
   return paginate(

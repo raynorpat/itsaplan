@@ -142,15 +142,15 @@ async function paginateProjects(
       tieBreaks.project,
       sql`${project.id}`,
       where,
-      async (w, order, limit, select) =>
+      (w, values) =>
+        db
+          .select(values)
+          .from(project)
+          .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
+          .where(w),
+      (ids) =>
         withProjects(
-          await db
-            .select({ id: project.id, sortValues: select })
-            .from(project)
-            .innerJoin(projectStatus, eq(projectStatus.id, project.statusId))
-            .where(w)
-            .orderBy(...order)
-            .limit(limit),
+          ids.map((id) => ({ id })),
           teams,
         ),
       (row) => toProject(row.project),

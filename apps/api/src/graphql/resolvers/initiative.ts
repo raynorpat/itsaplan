@@ -7,7 +7,7 @@ import {
   initiativeUpdate,
   project,
 } from '@repo/db';
-import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { projectsInTeams } from '../../projects/access';
 import { assertInitiativeAccess, visibleInitiativesSql } from '../../initiatives/access';
 import {
@@ -80,13 +80,8 @@ export async function listInitiatives(where: SQL | undefined, args: ListArgs, ct
       tieBreaks.initiative,
       sql`${initiative.id}`,
       scope,
-      (w, order, limit, select) =>
-        db
-          .select({ ...getTableColumns(initiative), sortValues: select })
-          .from(initiative)
-          .where(w)
-          .orderBy(...order)
-          .limit(limit),
+      (w, values) => db.select(values).from(initiative).where(w),
+      (ids) => db.select().from(initiative).where(inArray(initiative.id, ids)),
       (row) => toInitiative(mapInitiative(row)),
     );
   return paginate(
