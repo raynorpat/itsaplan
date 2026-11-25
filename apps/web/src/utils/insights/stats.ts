@@ -1,5 +1,4 @@
-import { measureValue } from './measures';
-import type { Measure } from './settings';
+import { measureValue, type Measure } from './measures';
 import { sliceIssues, type InsightIssue, type InsightsContext, type SliceField } from './slices';
 
 export interface TimeStats {

@@ -1,11 +1,10 @@
-import type { SliceField } from './slices';
+import type { Measure } from '@/utils/insights/measures';
+import type { SliceField } from '@/utils/insights/slices';
 
 // The Insights panel's settings for one view, kept in this browser per view. Linear's
 // view preferences accept an `insights` value but no query returns it, so the settings
 // do not follow the user to other devices.
 
-export type Measure =
-  'count' | 'points' | 'requests' | 'requesters' | 'cycleTime' | 'leadTime' | 'age';
 export type PeriodMonths = 1 | 3 | 6 | 12;
 export type InsightsTab = 'breakdown' | 'overTime';
 

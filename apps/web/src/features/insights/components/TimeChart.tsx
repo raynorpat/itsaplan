@@ -5,10 +5,10 @@ import { Scatter, ScatterChart, XAxis, YAxis, ZAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart';
 import { formatShortDate } from '@/utils/dates';
 import type { FilterCondition } from '@/utils/filters';
-import type { TimeRowsResult } from '../utils/stats';
-import { sliceFilter, type InsightsState, type SliceField } from '../utils/slices';
+import type { TimeRowsResult } from '@/utils/insights/stats';
+import { sliceFilter, type InsightsState, type SliceField } from '@/utils/insights/slices';
 import { formatDays } from '../utils/panel';
-import { sliceColor } from '../utils/palette';
+import { sliceColor } from '@/utils/insights/palette';
 
 // A time measure: a scatter of issues by date and duration, one colour per slice
 // (clicking a dot opens the issue), and per slice the median and the 25th to 75th

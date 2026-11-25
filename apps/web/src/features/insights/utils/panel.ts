@@ -5,10 +5,10 @@ import {
   MEASURES,
   SLICE_FIELDS,
   type InsightsSettings,
-  type Measure,
   type PeriodMonths,
 } from './settings';
-import type { SliceField } from './slices';
+import type { Measure } from '@/utils/insights/measures';
+import type { SliceField } from '@/utils/insights/slices';
 
 export const MEASURE_LABELS: Record<Measure, string> = {
   count: 'Issue count',

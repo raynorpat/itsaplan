@@ -1,5 +1,8 @@
-import type { InsightsSettings, Measure } from './settings';
-import { sliceIssues, type InsightIssue, type InsightsContext } from './slices';
+import { sliceIssues, type InsightIssue, type InsightsContext, type SliceField } from './slices';
+
+// The figures the Insights panel measures issues by.
+export type Measure =
+  'count' | 'points' | 'requests' | 'requesters' | 'cycleTime' | 'leadTime' | 'age';
 
 const DAY_MS = 86_400_000;
 
@@ -71,7 +74,7 @@ function total(issues: InsightIssue[], measure: Measure, now: Date): number {
 // row has none, so the stack and legend order is the same for all rows.
 export function breakdown(
   issues: InsightIssue[],
-  settings: Pick<InsightsSettings, 'measure' | 'slice' | 'segment'>,
+  settings: { measure: Measure; slice: SliceField; segment: SliceField | null },
   ctx: InsightsContext,
   now: Date = new Date(),
 ): BreakdownRow[] {

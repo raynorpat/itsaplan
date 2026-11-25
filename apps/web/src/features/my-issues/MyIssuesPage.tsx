@@ -14,8 +14,8 @@ import InsightsButton from '@/features/insights/components/InsightsButton';
 import InsightsPanel from '@/features/insights/components/InsightsPanel';
 import { useInsightsSettings } from '@/features/insights/hooks/useInsightsSettings';
 import { insightsViewKey } from '@/features/insights/utils/settings';
-import { EMPTY_CONTEXT } from '@/features/insights/utils/context';
-import type { InsightIssue } from '@/features/insights/utils/slices';
+import { EMPTY_CONTEXT } from '@/utils/insights/context';
+import type { InsightIssue } from '@/utils/insights/slices';
 
 // My issues' rows are not in the panel's form, so the panel fetches the tab's open
 // issues itself.

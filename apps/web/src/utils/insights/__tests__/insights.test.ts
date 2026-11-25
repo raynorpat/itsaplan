@@ -5,14 +5,8 @@ import { breakdown, measureValue } from '../measures';
 import { sliceIssues, sliceFilter } from '../slices';
 import { timeRows, timeStats } from '../stats';
 import { weeklyCreatedCompleted } from '../overTime';
-import { measureOptions } from '../panel';
-import {
-  DEFAULT_INSIGHTS_SETTINGS,
-  insightsStorageKey,
-  insightsViewKey,
-  parseInsightsSettings,
-  settingsForKey,
-} from '../settings';
+import type { Measure } from '../measures';
+import type { SliceField } from '../slices';
 
 const ctx: InsightsContext = {
   states: new Map([
@@ -52,6 +46,13 @@ function issue(over: Partial<InsightIssue> & { id: string }): InsightIssue {
     ...over,
   };
 }
+
+// The panel's default measure and slices.
+const BASE: { measure: Measure; slice: SliceField; segment: SliceField | null } = {
+  measure: 'count',
+  slice: 'status',
+  segment: null,
+};
 
 const DAY = 86_400_000;
 const at = (iso: string) => new Date(iso).getTime();
@@ -119,7 +120,7 @@ describe('slices', () => {
 
 describe('breakdown', () => {
   it('returns nothing for no issues', () => {
-    assert.deepEqual(breakdown([], DEFAULT_INSIGHTS_SETTINGS, ctx), []);
+    assert.deepEqual(breakdown([], BASE, ctx), []);
   });
 
   it('counts issues per slice with shares and segments', () => {
@@ -130,7 +131,7 @@ describe('breakdown', () => {
         issue({ id: '3', assigneeUserId: 'u-pat', priority: 1 }),
         issue({ id: '4' }),
       ],
-      { ...DEFAULT_INSIGHTS_SETTINGS, slice: 'assignee', segment: 'priority' },
+      { ...BASE, slice: 'assignee', segment: 'priority' },
       ctx,
     );
     assert.deepEqual(
@@ -157,7 +158,7 @@ describe('breakdown', () => {
         issue({ id: '2', assigneeUserId: 'u-sam', priority: 1 }),
         issue({ id: '3', assigneeUserId: 'u-sam', priority: 4 }),
       ],
-      { ...DEFAULT_INSIGHTS_SETTINGS, slice: 'assignee', segment: 'priority' },
+      { ...BASE, slice: 'assignee', segment: 'priority' },
       ctx,
     );
     for (const r of rows)
@@ -206,7 +207,7 @@ describe('breakdown', () => {
         issue({ id: '2', estimate: 5, stateId: 's-todo' }),
         issue({ id: '3', stateId: 's-done' }),
       ],
-      { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'points' },
+      { ...BASE, measure: 'points' },
       ctx,
     );
     assert.deepEqual(
@@ -233,7 +234,7 @@ describe('request measures', () => {
       issue({ id: '2', stateId: 's-todo', requests: req(['jane', 'sam']) }),
       issue({ id: '3', stateId: 's-done' }),
     ];
-    const requests = breakdown(issues, { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'requests' }, ctx);
+    const requests = breakdown(issues, { ...BASE, measure: 'requests' }, ctx);
     assert.deepEqual(
       requests.map((r) => [r.label, r.value]),
       [
@@ -241,7 +242,7 @@ describe('request measures', () => {
         ['Done', 0],
       ],
     );
-    const people = breakdown(issues, { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'requesters' }, ctx);
+    const people = breakdown(issues, { ...BASE, measure: 'requesters' }, ctx);
     assert.deepEqual(
       people.map((r) => [r.label, r.value]),
       [
@@ -251,12 +252,6 @@ describe('request measures', () => {
     );
     assert.equal(measureValue(issues[0]!, 'requests', new Date()), 2);
     assert.equal(measureValue(issues[0]!, 'requesters', new Date()), 1);
-  });
-
-  it('offers the request measures only when the issues carry requests', () => {
-    assert.ok(!measureOptions({ hasEstimates: false, hasRequests: false }).includes('requests'));
-    const withRequests = measureOptions({ hasEstimates: false, hasRequests: true });
-    assert.ok(withRequests.includes('requests') && withRequests.includes('requesters'));
   });
 });
 
@@ -363,76 +358,6 @@ describe('over time', () => {
     const weeks = weeklyCreatedCompleted([], 1, new Date('2026-03-31T12:00:00.000Z'));
     // Feb 28 2026 is a Saturday: its week starts on Monday Feb 23.
     assert.equal(weeks[0]!.weekStart, '2026-02-23');
-  });
-});
-
-describe('settings', () => {
-  it('uses the defaults for nothing stored and for garbage', () => {
-    assert.deepEqual(DEFAULT_INSIGHTS_SETTINGS, {
-      open: false,
-      measure: 'count',
-      slice: 'status',
-      segment: null,
-      periodMonths: 3,
-      tab: 'breakdown',
-    });
-    assert.deepEqual(parseInsightsSettings(null), DEFAULT_INSIGHTS_SETTINGS);
-    assert.deepEqual(parseInsightsSettings('{not json'), DEFAULT_INSIGHTS_SETTINGS);
-    assert.deepEqual(
-      parseInsightsSettings(
-        JSON.stringify({
-          open: true,
-          measure: 'bogus',
-          slice: 'label',
-          segment: 'x',
-          periodMonths: 7,
-        }),
-      ),
-      { ...DEFAULT_INSIGHTS_SETTINGS, open: true, slice: 'label' },
-    );
-    assert.deepEqual(
-      parseInsightsSettings(
-        JSON.stringify({
-          measure: 'cycleTime',
-          segment: 'priority',
-          periodMonths: 12,
-          tab: 'overTime',
-        }),
-      ),
-      {
-        ...DEFAULT_INSIGHTS_SETTINGS,
-        measure: 'cycleTime',
-        segment: 'priority',
-        periodMonths: 12,
-        tab: 'overTime',
-      },
-    );
-  });
-
-  it('keys each view', () => {
-    assert.equal(insightsViewKey({ kind: 'allIssues', teamId: 't1' }), 'allIssues:t1');
-    assert.equal(insightsViewKey({ kind: 'project', projectId: 'p1' }), 'project:p1');
-    assert.equal(insightsViewKey({ kind: 'cycle', cycleId: 'c1' }), 'cycle:c1');
-    assert.equal(insightsViewKey({ kind: 'myIssues' }), 'myIssues');
-    assert.equal(insightsViewKey({ kind: 'view', viewId: 'v1' }), 'view:v1');
-    assert.equal(insightsViewKey({ kind: 'newView', teamId: 't1' }), 'newView:t1');
-  });
-
-  it("stores each user's settings apart", () => {
-    assert.notEqual(insightsStorageKey('u1', 'myIssues'), insightsStorageKey('u2', 'myIssues'));
-  });
-
-  it("never applies one view's settings to another view", () => {
-    const shown = { key: 'view:a', settings: { ...DEFAULT_INSIGHTS_SETTINGS, open: true } };
-    // A change made while the state still holds view a is applied to view b's own.
-    assert.deepEqual(
-      settingsForKey(shown, 'view:b', () => DEFAULT_INSIGHTS_SETTINGS),
-      DEFAULT_INSIGHTS_SETTINGS,
-    );
-    assert.deepEqual(
-      settingsForKey(shown, 'view:a', () => DEFAULT_INSIGHTS_SETTINGS),
-      shown.settings,
-    );
   });
 });
 

@@ -7,9 +7,9 @@ import { fetchRequestSummaries } from '@/services/feedback.service';
 import { withRequests } from '@/utils/requests';
 import type { IssueFilter } from '@/utils/viewFilters';
 import { fetchCompletedIssues, fetchOpenIssues } from '../services/insightsIssues.service';
-import { mergeInsightIssues, periodStart, withinPeriod } from '../utils/data';
-import { EMPTY_CONTEXT, mergeContext } from '../utils/context';
-import type { InsightIssue, InsightsContext } from '../utils/slices';
+import { mergeInsightIssues, periodStart, withinPeriod } from '@/utils/insights/data';
+import { EMPTY_CONTEXT, mergeContext } from '@/utils/insights/context';
+import type { InsightIssue, InsightsContext } from '@/utils/insights/slices';
 
 // The issues an Insights panel reads: the view's own issues (after its filters) that
 // are open or closed in the period, plus the view's issues completed in the period

@@ -11,8 +11,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { MEASURE_LABELS, PERIOD_LABELS, SLICE_LABELS } from '../utils/panel';
-import { PERIODS, type InsightsSettings, type Measure, type PeriodMonths } from '../utils/settings';
-import type { SliceField } from '../utils/slices';
+import { PERIODS, type InsightsSettings, type PeriodMonths } from '../utils/settings';
+import type { Measure } from '@/utils/insights/measures';
+import type { SliceField } from '@/utils/insights/slices';
 
 const NONE = 'none';
 

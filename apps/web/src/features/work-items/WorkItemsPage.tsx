@@ -25,7 +25,7 @@ import InsightsButton from '@/features/insights/components/InsightsButton';
 import InsightsPanel from '@/features/insights/components/InsightsPanel';
 import { useInsightsSettings } from '@/features/insights/hooks/useInsightsSettings';
 import { insightsViewKey } from '@/features/insights/utils/settings';
-import { contextFromTeam, EMPTY_CONTEXT } from '@/features/insights/utils/context';
+import { contextFromTeam, EMPTY_CONTEXT } from '@/utils/insights/context';
 import { insightsScope, withSliceFilter } from '@/features/insights/utils/panel';
 
 interface TimelineCollapseState {

@@ -11,9 +11,9 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import type { FilterCondition } from '@/utils/filters';
-import type { BreakdownRow } from '../utils/measures';
-import { sliceFilter, type InsightsState, type SliceField } from '../utils/slices';
-import { sliceColor } from '../utils/palette';
+import type { BreakdownRow } from '@/utils/insights/measures';
+import { sliceFilter, type InsightsState, type SliceField } from '@/utils/insights/slices';
+import { sliceColor } from '@/utils/insights/palette';
 
 const VALUE = 'value';
 

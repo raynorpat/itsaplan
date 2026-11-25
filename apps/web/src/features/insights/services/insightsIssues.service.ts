@@ -2,8 +2,8 @@ import { graphql, gqlRequest, readFragment, type FragmentOf } from '@/lib/graphq
 import { fetchPagesUpTo } from '@/utils/fetchAllPages';
 import type { IssueFilter } from '@/utils/viewFilters';
 import { cycleLabel } from '@/utils/cycles';
-import { completedIssuesFilter } from '../utils/data';
-import type { InsightIssue, InsightsContext } from '../utils/slices';
+import { completedIssuesFilter } from '@/utils/insights/data';
+import type { InsightIssue, InsightsContext } from '@/utils/insights/slices';
 
 // The issues an Insights panel fetches, with only the fields it reads and the names
 // it shows. Archived issues are included: auto-archive moves old completed issues out

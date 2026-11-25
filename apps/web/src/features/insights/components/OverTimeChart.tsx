@@ -10,7 +10,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { formatShortDate } from '@/utils/dates';
-import type { WeekCount } from '../utils/overTime';
+import type { WeekCount } from '@/utils/insights/overTime';
 
 const CONFIG: ChartConfig = {
   created: { label: 'Created', color: 'var(--muted-foreground)' },
