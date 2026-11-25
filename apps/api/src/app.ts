@@ -1,7 +1,7 @@
 import { auditRequestFrom, withAuditRequest } from './audit/context';
 import { registerAuditHook } from './audit/auth-hook';
 import { internalAuditRoutes } from './audit/internal-routes';
-import { auth, trustedOrigins } from '@repo/auth';
+import { auth, CLIENT_IP_HEADER, trustedOrigins } from '@repo/auth';
 import { cors } from '@elysiajs/cors';
 import { Elysia } from 'elysia';
 import { httpErrors } from './shared/http-errors';
@@ -48,9 +48,16 @@ export const app = new Elysia()
   .use(httpErrors)
   // better-auth: forward every /api/auth/* request to its handler, with the request's
   // details readable by the audit log (sign-ins and the instance endpoints record there).
-  .all('/api/auth/*', ({ request, server }) =>
-    withAuditRequest(auditRequestFrom(request, server), () => auth.handler(request)),
-  )
+  .all('/api/auth/*', ({ request, server }) => {
+    const details = auditRequestFrom(request, server);
+    // better-auth reads the client address from this header (packages/auth), so its rate
+    // limits and sessions follow TRUST_PROXY like the audit log; a client's own value is
+    // dropped.
+    const headers = new Headers(request.headers);
+    headers.delete(CLIENT_IP_HEADER);
+    if (details.ip) headers.set(CLIENT_IP_HEADER, details.ip);
+    return withAuditRequest(details, () => auth.handler(new Request(request, { headers })));
+  })
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
   .use(uploadRoutes)

@@ -15,9 +15,17 @@ export interface AuditRequestDetails {
   method: AuditMethod;
   oauthApp?: { id: string; name: string | null };
   pipelineId?: string;
-  // The route path, or the GraphQL operation name.
+  // The route path, or the GraphQL operation name (at most 200 characters).
   operation?: string | null;
+  // Reads the GraphQL operation name, the first time an entry needs it.
+  pendingOperation?: () => Promise<string | null>;
+  // Set once a refused sign-in is recorded with its address, so better-auth's after
+  // hook does not record the same refusal again without one.
+  refusalRecorded?: boolean;
 }
+
+// The longest GraphQL operation name an entry keeps: the client chooses it.
+export const MAX_OPERATION = 200;
 
 const storage = new AsyncLocalStorage<AuditRequestDetails>();
 
@@ -28,6 +36,24 @@ export function withAuditRequest<T>(details: AuditRequestDetails, run: () => T):
 // The current request's details; a system action outside any request otherwise.
 export function currentAuditRequest(): AuditRequestDetails {
   return storage.getStore() ?? { ip: null, countryCode: null, userAgent: null, method: 'system' };
+}
+
+// The details of the request this one runs inside, when there is one (MCP's tools call
+// /graphql in process): its client is the one that matters.
+export function outerAuditRequest(): AuditRequestDetails | undefined {
+  return storage.getStore();
+}
+
+const WORKER: AuditRequestDetails = {
+  ip: null,
+  countryCode: null,
+  userAgent: null,
+  method: 'worker',
+};
+
+// Runs a worker's internal route with the worker as the request's method.
+export function asWorker<T>(run: () => T): T {
+  return storage.run({ ...WORKER }, run);
 }
 
 // Adds what is learnt after the details were set (the authenticated method, the GraphQL

@@ -101,6 +101,7 @@ services:
       APP_URL: ${APP_URL:?public origin of the web app, e.g. https://app.example.com}
       # true when a reverse proxy in front of the api sets X-Forwarded-For.
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      AUDIT_COUNTRY_HEADER: ${AUDIT_COUNTRY_HEADER:-CF-IPCountry}
       # Set COOKIE_DOMAIN only to override the parent domain derived from
       # APP_URL (multi-label TLDs, deep subdomains).
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}

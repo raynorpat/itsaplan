@@ -676,30 +676,45 @@ Rules and invariants for this package below; read the code for the walkthrough.
   inside the action's transaction when it has one (the action and its entry succeed or
   fail together); without one a failed write is logged (`[audit] entry not written`)
   and the action goes ahead, and the next entry the process writes carries
-  `metadata.missedEntries`. `recordLoginFailed(address, reason)` folds attempts for one
-  address and IP within 10 minutes into one entry (`metadata.attempts`). The actor is the
-  request's user unless given; the request details (`audit/context.ts`: IP and country,
-  user agent, how the request authenticated, the route or GraphQL operation, the OAuth
-  application or release pipeline) are set around GraphQL, every `/api/auth/*` request
-  and the worker's audit route. The IP follows the portal's rule (`shared/client-ip.ts`:
-  proxy headers only when `TRUST_PROXY=true`), and the country is `CF-IPCountry` only
-  then. Metadata holds ids, names and what changed, never secrets or issue content.
+  `metadata.missedEntries` (the misses it reports; misses counted meanwhile stay for the
+  next one). `recordLoginFailed(address, reason)` folds attempts for one address and IP
+  within 10 minutes into one entry (`metadata.attempts`; `reason` is the latest,
+  `reasons` every one given; the address is kept to 320 characters); past 20 addresses
+  from one IP in the window, further addresses add to one entry for the IP (`scope:
+  'ip'`, `addresses`, `attempts`), so neither repeating nor changing the address floods
+  the log. It marks the request (`refusalRecorded`) so better-auth's after hook adds no
+  second entry. Instance-plugin actions pass their user as the actor; otherwise the
+  actor is the request's user. The request details (`audit/context.ts`: IP and country,
+  user agent, how the request authenticated, the route or GraphQL operation, at most 200
+  characters and read only when an entry is written, the OAuth application or release
+  pipeline) are set around GraphQL, every `/api/auth/*` request, MCP (whose tools' in-
+  process GraphQL requests keep MCP's client) and the worker's audit and project purge
+  routes (`asWorker`). The IP follows the portal's rule (`shared/client-ip.ts`: proxy
+  headers only when `TRUST_PROXY=true`, anything not an IP address read as null), and
+  the country is `AUDIT_COUNTRY_HEADER` (`CF-IPCountry` by default) only then.
+  `/api/auth/*` requests reach better-auth with that address in `x-itsaplan-client-ip`
+  (a client's own value dropped), which better-auth's rate limits and sessions read.
+  Metadata holds ids, names and what changed, never secrets or issue content (a
+  webhook's URL only as its origin).
   Retention (`audit/retention.ts`, `organization.audit_retention`): 30 days by default,
   or 90 days, 1, 2 or 3 years, or forever; owners and admins read it and owners change
   it through `/api/auth/instance/audit-settings*` (the change is recorded); the worker
-  calls `/internal/audit/cleanup` on its cleanup interval, which deletes older entries.
+  calls `/internal/audit/cleanup` on its cleanup interval, which deletes older entries
+  in batches of 10,000, each its own statement.
   Data events are written in the action's transaction: an import started
-  (`createImport`), finished or failed (`setImportStatus`, and the restart sweep), a
+  (`createImport`), finished or failed (`setImportStatus`, once: setting a finished
+  status again records nothing, and the restart sweep), a
   project trashed (`projectDeleted`) or purged by the worker (`projectPurged`, no
   actor), an issue, dashboard or customer deleted, customers or requesters merged
   (names only, never a requester's email), portal boards created, changed (the changed
   settings; the allowed addresses only as a count) and deleted, requesters blocked or
   unblocked, and a form's settings saved or the form deleted (`formSettingsChanged`).
   Exports are `dataExported`: `audit/export.ts` builds the filtered audit log as CSV
-  (`GET /api/auth/instance/audit/export?type&actorId&ip&from&to`, owners and admins;
-  RFC 4180 with CRLF, every data cell quoted, a cell starting with `= + - @` or a tab
-  prefixed with `'`; newest first, at most 100,000 entries) and records it with its
-  filters and row count; `POST /api/auth/instance/audit/export-recorded { kind:
+  (`POST /api/auth/instance/audit/export { type?, actorId?, ip?, from?, to? }` behind
+  the Origin check, owners and admins; RFC 4180 with CRLF, every data cell quoted, a
+  cell starting with `= + - @` or a tab prefixed with `'`; newest first, at most 100,000
+  entries, streamed in batches of 500 by (created_at, id)) and records it with its
+  filters and row count first; `POST /api/auth/instance/audit/export-recorded { kind:
   'dashboard' | 'widget', id, name, rows }` (members and up) records a CSV the web built
   itself.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in

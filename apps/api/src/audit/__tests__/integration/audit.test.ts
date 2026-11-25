@@ -10,6 +10,7 @@ import { bearer, createClient, obtainTokens, ORIGIN } from '../../../__tests__/h
 import { cleanupAuditEntries } from '../../retention';
 import { recordAudit, recordLoginFailed } from '../../store';
 import { withAuditRequest } from '../../context';
+import { countStatements } from '../../../__tests__/helpers/statements';
 
 // The audit log core: entries read through Linear's auditEntries / auditEntryTypes by
 // owners and admins, the retention setting (/api/auth/instance/audit-settings*,
@@ -82,6 +83,10 @@ describe('audit log', () => {
     await clearEntries();
     await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'One' }));
     await withAuditRequest(system, () => recordAudit('teamDeleted', { name: 'Two' }));
+    // Two entries written within one millisecond tie on time; the first is moved back.
+    await db.execute(
+      sql`UPDATE ${auditEntry} SET created_at = created_at - interval '1 second' WHERE type = 'teamCreated'`,
+    );
     for (const as of [owner, admin]) {
       const list = await entries(as);
       expect(list.map((e) => e.type)).toEqual(['teamDeleted', 'teamCreated']);
@@ -264,5 +269,88 @@ describe('audit log', () => {
       address: 'someone@example.com',
       reason: 'unknownAddress',
     });
+  });
+
+  it('deletes old entries in batches', async () => {
+    await signUpTestUser();
+    await clearEntries();
+    for (let i = 0; i < 25; i += 1)
+      await withAuditRequest(system, () => recordAudit('teamCreated', { name: `Old ${i}` }));
+    await db.execute(sql`UPDATE ${auditEntry} SET created_at = now() - interval '40 days'`);
+    let removed = 0;
+    const deletes = await countStatements(async () => {
+      removed = await cleanupAuditEntries(new Date(), { batchSize: 10 });
+    }, 'delete');
+    expect(removed).toBe(25);
+    expect(deletes).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps an entry just inside the period and removes one just outside it', async () => {
+    await signUpTestUser();
+    await clearEntries();
+    const now = new Date();
+    await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'Inside' }));
+    await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'Outside' }));
+    const day = 86_400_000;
+    const inside = new Date(now.getTime() - 30 * day + 60_000);
+    const outside = new Date(now.getTime() - 30 * day - 60_000);
+    await db.execute(
+      sql`UPDATE ${auditEntry} SET created_at = ${inside.toISOString()}::timestamptz WHERE metadata->>'name' = 'Inside'`,
+    );
+    await db.execute(
+      sql`UPDATE ${auditEntry} SET created_at = ${outside.toISOString()}::timestamptz WHERE metadata->>'name' = 'Outside'`,
+    );
+    expect(await cleanupAuditEntries(now)).toBe(1);
+    const left = await db.select({ metadata: auditEntry.metadata }).from(auditEntry);
+    expect(left.map((r) => (r.metadata as { name: string }).name)).toEqual(['Inside']);
+  });
+
+  it('keeps at most 200 characters of a GraphQL operation name', async () => {
+    const owner = await signUpTestUser();
+    const name = `Op${'x'.repeat(498)}`;
+    const res = await app.handle(
+      new Request('http://localhost/graphql', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: owner.cookie },
+        body: JSON.stringify({
+          operationName: name,
+          query: `mutation ${name} { teamCreate(input: { name: "Ops", key: "OPS" }) { success } }`,
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [entry] = await db
+      .select()
+      .from(auditEntry)
+      .where(sql`type = 'teamCreated'`);
+    const operation = (entry!.requestInformation as { operation: string }).operation;
+    expect(operation).toBe(name.slice(0, 200));
+  });
+
+  it('keeps the outer request details for a GraphQL call made inside another request', async () => {
+    const owner = await signUpTestUser();
+    const outer = {
+      ...system,
+      ip: '198.51.100.77',
+      userAgent: 'mcp-client',
+      method: 'apiKey' as const,
+    };
+    await withAuditRequest(outer, () =>
+      app.handle(
+        new Request('http://localhost/graphql', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie: owner.cookie },
+          body: JSON.stringify({
+            query: 'mutation { teamCreate(input: { name: "Ops", key: "OPS" }) { success } }',
+          }),
+        }),
+      ),
+    );
+    const [entry] = await db
+      .select()
+      .from(auditEntry)
+      .where(sql`type = 'teamCreated'`);
+    expect(entry!.ip).toBe('198.51.100.77');
+    expect(entry!.requestInformation).toMatchObject({ userAgent: 'mcp-client' });
   });
 });

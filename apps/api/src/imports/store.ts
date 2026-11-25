@@ -70,6 +70,13 @@ export async function setImportStatus(
   } = {},
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    // The status before this write, so an import that is already finished records nothing
+    // again when its status is set a second time.
+    const [before] = await tx
+      .select({ status: issueImport.status })
+      .from(issueImport)
+      .where(eq(issueImport.id, id))
+      .for('update');
     const [row] = await tx
       .update(issueImport)
       .set({
@@ -84,6 +91,7 @@ export async function setImportStatus(
       .where(eq(issueImport.id, id))
       .returning();
     if (!row || (status !== 'complete' && status !== 'error')) return;
+    if (before?.status === status) return;
     // A finished import runs in the background: it has no actor of its own.
     const base = { entityType: 'issueImport', entityId: row.id, service: row.service };
     if (status === 'complete') {

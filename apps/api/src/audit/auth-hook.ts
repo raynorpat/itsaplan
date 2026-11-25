@@ -1,4 +1,5 @@
 import { setAuditHook } from '@repo/auth';
+import { currentAuditRequest } from './context';
 import { recordAudit, recordLoginFailed } from './store';
 import type { AuditType } from './types';
 
@@ -8,5 +9,6 @@ export function registerAuditHook(): void {
   setAuditHook({
     record: (type, metadata, actorId) => recordAudit(type as AuditType, metadata, { actorId }),
     loginFailed: (address, reason) => recordLoginFailed(address, reason),
+    refusalRecorded: () => currentAuditRequest().refusalRecorded === true,
   });
 }

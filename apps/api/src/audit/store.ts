@@ -1,7 +1,12 @@
 import { auditEntry, db, oauthClient } from '@repo/db';
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { currentAuth } from '../shared/request-auth';
-import { currentAuditRequest, type AuditRequestDetails } from './context';
+import {
+  currentAuditRequest,
+  MAX_OPERATION,
+  noteAuditRequest,
+  type AuditRequestDetails,
+} from './context';
 import type { AuditType } from './types';
 
 // Writes the audit log (Linear's AuditEntry). An action with a transaction records its
@@ -14,6 +19,11 @@ type Tx = AuditTx;
 
 // Failed sign-ins from one address and IP within this window are one entry.
 const FOLD_MS = 10 * 60_000;
+// Past this many addresses from one IP in the window, further addresses add to one
+// entry for the IP, so changing the address cannot flood the log either.
+const MAX_ADDRESSES_PER_IP = 20;
+// The longest attempted address kept (an email address is at most 320 characters).
+const MAX_ADDRESS = 320;
 
 let missed = 0;
 
@@ -41,6 +51,15 @@ function requestInformation(details: AuditRequestDetails): Record<string, unknow
   return info;
 }
 
+// The GraphQL operation name, read the first time an entry of the request needs it.
+async function resolveOperation(details: AuditRequestDetails): Promise<void> {
+  const pending = details.pendingOperation;
+  if (!pending) return;
+  details.pendingOperation = undefined;
+  const name = await pending().catch(() => null);
+  details.operation = name ? name.slice(0, MAX_OPERATION) : null;
+}
+
 async function entryValues(
   type: AuditType,
   metadata: Record<string, unknown> | null,
@@ -49,6 +68,7 @@ async function entryValues(
 ) {
   const details = currentAuditRequest();
   await oauthAppName(details, executor);
+  await resolveOperation(details);
   return {
     type,
     actorId: actorId === undefined ? (currentAuth()?.userId ?? null) : actorId,
@@ -71,10 +91,12 @@ export async function recordAudit(
       .values(await entryValues(type, metadata, opts.actorId, opts.tx));
     return;
   }
-  const note = missed > 0 ? { ...(metadata ?? {}), missedEntries: missed } : metadata;
+  // The misses this entry reports; misses counted meanwhile stay for the next one.
+  const reported = missed;
+  const note = reported > 0 ? { ...(metadata ?? {}), missedEntries: reported } : metadata;
   try {
     await db.insert(auditEntry).values(await entryValues(type, note, opts.actorId, db));
-    if (note !== metadata) missed = 0;
+    missed -= reported;
   } catch (err) {
     missed += 1;
     console.error('[audit] entry not written:', type, err);
@@ -82,43 +104,80 @@ export async function recordAudit(
 }
 
 // Records a refused sign-in. Attempts for the same address from the same IP within 10
-// minutes add to one entry's `attempts`, so repeated attempts cannot flood the log.
+// minutes add to one entry's `attempts` (the latest reason is its `reason`, every reason
+// given is in `reasons`). Past 20 addresses from one IP in the window, further addresses
+// add to one entry for the IP (`scope: 'ip'`, `addresses` counting the attempts with an
+// address that has no entry of its own), so neither repeating nor changing the address
+// floods the log. The request is marked so better-auth's after hook adds no second entry.
 export async function recordLoginFailed(address: string, reason: string): Promise<void> {
-  const normalized = address.trim().toLowerCase();
+  const normalized = address.trim().toLowerCase().slice(0, MAX_ADDRESS);
   const ip = currentAuditRequest().ip;
+  noteAuditRequest({ refusalRecorded: true });
   try {
     await db.transaction(async (tx) => {
-      // One writer per address and IP, so two attempts at once do not both add an entry.
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtext(${`audit-login:${normalized}:${ip ?? ''}`}))`,
-      );
+      // One writer per IP, so concurrent attempts count addresses and attempts once.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`audit-login:${ip ?? ''}`}))`);
       const since = new Date(Date.now() - FOLD_MS);
-      const [existing] = await tx
-        .select({ id: auditEntry.id })
-        .from(auditEntry)
-        .where(
-          and(
-            eq(auditEntry.type, 'loginFailed'),
-            ip == null ? sql`${auditEntry.ip} IS NULL` : eq(auditEntry.ip, ip),
-            sql`${auditEntry.metadata}->>'address' = ${normalized}`,
-            gt(auditEntry.createdAt, since),
-          ),
-        )
-        .orderBy(desc(auditEntry.createdAt))
-        .limit(1);
-      if (existing) {
+      const recent = and(
+        eq(auditEntry.type, 'loginFailed'),
+        ip == null ? sql`${auditEntry.ip} IS NULL` : eq(auditEntry.ip, ip),
+        gt(auditEntry.createdAt, since),
+      );
+      const fold = async (id: string, metadata: unknown, extra: Record<string, unknown>) => {
+        const current = (metadata ?? {}) as Record<string, unknown>;
+        const reasons = Array.isArray(current.reasons)
+          ? (current.reasons as string[])
+          : typeof current.reason === 'string'
+            ? [current.reason]
+            : [];
         await tx
           .update(auditEntry)
           .set({
-            metadata: sql`jsonb_set(${auditEntry.metadata}, '{attempts}', to_jsonb(COALESCE((${auditEntry.metadata}->>'attempts')::int, 1) + 1))`,
+            metadata: {
+              ...current,
+              ...extra,
+              reason,
+              reasons: reasons.includes(reason) ? reasons : [...reasons, reason],
+              attempts: Number(current.attempts ?? 1) + 1,
+            },
             updatedAt: new Date(),
           })
-          .where(eq(auditEntry.id, existing.id));
+          .where(eq(auditEntry.id, id));
+      };
+      const [own] = await tx
+        .select({ id: auditEntry.id, metadata: auditEntry.metadata })
+        .from(auditEntry)
+        .where(and(recent, sql`${auditEntry.metadata}->>'address' = ${normalized}`))
+        .orderBy(desc(auditEntry.createdAt))
+        .limit(1);
+      if (own) return fold(own.id, own.metadata, {});
+      const [{ count }] = (await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(auditEntry)
+        .where(and(recent, sql`${auditEntry.metadata}->>'address' IS NOT NULL`))) as [
+        { count: number },
+      ];
+      if (count < MAX_ADDRESSES_PER_IP) {
+        await recordAudit(
+          'loginFailed',
+          { address: normalized, reason, reasons: [reason], attempts: 1 },
+          { tx, actorId: null },
+        );
         return;
+      }
+      const [forIp] = await tx
+        .select({ id: auditEntry.id, metadata: auditEntry.metadata })
+        .from(auditEntry)
+        .where(and(recent, sql`${auditEntry.metadata}->>'scope' = 'ip'`))
+        .orderBy(desc(auditEntry.createdAt))
+        .limit(1);
+      if (forIp) {
+        const addresses = Number((forIp.metadata as Record<string, unknown>).addresses ?? 1) + 1;
+        return fold(forIp.id, forIp.metadata, { addresses });
       }
       await recordAudit(
         'loginFailed',
-        { address: normalized, reason, attempts: 1 },
+        { scope: 'ip', reason, reasons: [reason], addresses: 1, attempts: 1 },
         { tx, actorId: null },
       );
     });

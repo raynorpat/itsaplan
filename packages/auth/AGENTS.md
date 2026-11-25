@@ -60,8 +60,9 @@ customers-settings/save` for owners and admins) are here because Linear's
 The audit log's retention period (`GET audit-settings` for owners and admins, `POST
 audit-settings/save { retention }` for owners: `30d`, `90d`, `1y`, `2y`, `3y` or
 `forever`) is here because Linear's schema has no field for it
-(`apps/api/src/audit/retention.ts`), and so are the audit log's CSV export (`GET
-audit/export`, owners and admins; the handler returns the CSV `Response` itself) and
+(`apps/api/src/audit/retention.ts`), and so are the audit log's CSV export (`POST
+audit/export` with the filters as the body, behind the Origin check, owners and admins;
+the handler returns the streamed CSV `Response` itself) and
 the record of a dashboard or widget CSV the web built (`POST audit/export-recorded`,
 members and up) (`apps/api/src/audit/export.ts`).
 Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
@@ -90,11 +91,15 @@ record a `login` (with `metadata.method`: `magicLink`, `google`, `passkey`) when
 sign-in endpoint creates a session, a `loginFailed` for every refusal (the magic-link
 request's silent refusals, the verify refusals, and the user- and session-create
 refusals record it with the address; the after hook records refusals with no address
-at hand, such as a bad link or passkey, and skips the codes already recorded), `logout`
+at hand, such as a bad link or passkey, and skips a request whose refusal the API has
+already recorded (the hook's `refusalRecorded()`, since better-auth may pass the
+refusal on as a code or, after an OAuth callback, as its message)), `logout`
 and `sessionRevoked` in `hooks.before` while the session is still readable, and
 `passkeyAdded` / `passkeyRemoved` and `apiKeyCreated` / `apiKeyDeleted` (ids and names,
 never the key). The writers are fail open: an entry that cannot be written never fails
-the request.
+the request. better-auth reads the client address from `x-itsaplan-client-ip`
+(`advanced.ipAddress.ipAddressHeaders`, `CLIENT_IP_HEADER`), which the API sets on every
+request it forwards from `TRUST_PROXY`'s rule and drops from clients.
 
 ## OAuth server (`src/oauth.ts`)
 

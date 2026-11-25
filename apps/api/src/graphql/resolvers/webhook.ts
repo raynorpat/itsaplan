@@ -133,12 +133,23 @@ type UpdateInput = Record<string, unknown> & {
   enabled?: boolean | null;
 };
 
-// What an audit entry says about a webhook: never its secret.
+// A webhook URL's origin: Slack- and Discord-style URLs carry their secret in the path,
+// and audit entries outlive the webhook.
+function urlOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+// What an audit entry says about a webhook: never its secret, and of its URL only the
+// origin.
 function webhookAudit(w: WebhookRow): Record<string, unknown> {
   return {
     entityType: 'webhook',
     entityId: w.id,
-    url: w.url,
+    url: urlOrigin(w.url),
     teamId: w.teamId,
     allPublicTeams: w.allPublicTeams,
     resourceTypes: w.resourceTypes,

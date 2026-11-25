@@ -1,5 +1,5 @@
 import { auditEntry, db, user } from '@repo/db';
-import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { type AuthUser, assertWorkspaceRole } from '../shared/access';
 import { HttpError, UUID_RE } from '../shared/lib';
 import { shownNameSql } from '../shared/user-name';
@@ -60,54 +60,104 @@ function whereOf(f: AuditExportFilters): SQL | undefined {
   );
 }
 
+// Entries read per query while streaming an export.
+const EXPORT_BATCH = 500;
+
+function csvLine(row: {
+  createdAt: Date;
+  type: string;
+  actorName: string | null;
+  actorEmail: string | null;
+  ip: string | null;
+  countryCode: string | null;
+  requestInformation: unknown;
+  metadata: unknown;
+}): string {
+  const info = (row.requestInformation ?? {}) as { method?: unknown };
+  return [
+    row.createdAt.toISOString(),
+    row.type,
+    row.actorName,
+    row.actorEmail,
+    row.ip,
+    row.countryCode,
+    info.method,
+    row.metadata ? JSON.stringify(row.metadata) : '',
+  ]
+    .map(cell)
+    .join(',');
+}
+
 // The filtered entries, newest first, as RFC 4180 CSV (CRLF line ends, every data cell
-// quoted). The export itself is recorded with its filters and row count.
+// quoted), streamed in batches of 500 read by (created_at, id) so a large export never
+// sits in memory whole. The export is recorded first, with its filters and row count.
 export async function exportAuditCsv(
   actor: AuthUser,
   query: Record<string, unknown>,
-): Promise<{ csv: string; rows: number; filters: AuditExportFilters }> {
+): Promise<{ stream: ReadableStream<Uint8Array>; rows: number; filters: AuditExportFilters }> {
   await assertWorkspaceRole(actor, 'admin');
   const filters = readFilters(query);
-  const found = await db
-    .select({
-      createdAt: auditEntry.createdAt,
-      type: auditEntry.type,
-      actorName: shownNameSql,
-      actorEmail: user.email,
-      ip: auditEntry.ip,
-      countryCode: auditEntry.countryCode,
-      requestInformation: auditEntry.requestInformation,
-      metadata: auditEntry.metadata,
-    })
-    .from(auditEntry)
-    .leftJoin(user, eq(user.id, auditEntry.actorId))
-    .where(whereOf(filters))
-    .orderBy(desc(auditEntry.createdAt))
-    .limit(MAX_EXPORT_ROWS);
-  const lines = [HEADERS.join(',')];
-  for (const row of found) {
-    const info = (row.requestInformation ?? {}) as { method?: unknown };
-    lines.push(
-      [
-        row.createdAt.toISOString(),
-        row.type,
-        row.actorName,
-        row.actorEmail,
-        row.ip,
-        row.countryCode,
-        info.method,
-        row.metadata ? JSON.stringify(row.metadata) : '',
-      ]
-        .map(cell)
-        .join(','),
-    );
-  }
+  const where = whereOf(filters);
+  const [{ count }] = (await db.select({ count: sql<number>`count(*)::int` }).from(
+    db
+      .select({ one: sql`1` })
+      .from(auditEntry)
+      .where(where)
+      .limit(MAX_EXPORT_ROWS)
+      .as('picked'),
+  )) as [{ count: number }];
   await recordAudit(
     'dataExported',
-    { kind: 'auditLog', rows: found.length, filters },
+    { kind: 'auditLog', rows: count, filters },
     { actorId: actor.id },
   );
-  return { csv: `${lines.join('\r\n')}\r\n`, rows: found.length, filters };
+  const encoder = new TextEncoder();
+  let sent = 0;
+  // The last row sent: its time as Postgres text, since a JS Date drops microseconds.
+  let after: { at: string; id: string } | null = null;
+  let headerSent = false;
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (!headerSent) {
+        headerSent = true;
+        controller.enqueue(encoder.encode(`${HEADERS.join(',')}\r\n`));
+        return;
+      }
+      const take = Math.min(EXPORT_BATCH, count - sent);
+      if (take <= 0) return controller.close();
+      const page = await db
+        .select({
+          id: auditEntry.id,
+          at: sql<string>`${auditEntry.createdAt}::text`,
+          createdAt: auditEntry.createdAt,
+          type: auditEntry.type,
+          actorName: shownNameSql,
+          actorEmail: user.email,
+          ip: auditEntry.ip,
+          countryCode: auditEntry.countryCode,
+          requestInformation: auditEntry.requestInformation,
+          metadata: auditEntry.metadata,
+        })
+        .from(auditEntry)
+        .leftJoin(user, eq(user.id, auditEntry.actorId))
+        .where(
+          and(
+            where,
+            after
+              ? sql`(${auditEntry.createdAt}, ${auditEntry.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`
+              : undefined,
+          ),
+        )
+        .orderBy(desc(auditEntry.createdAt), desc(auditEntry.id))
+        .limit(take);
+      if (page.length === 0) return controller.close();
+      sent += page.length;
+      const last = page[page.length - 1]!;
+      after = { at: last.at, id: last.id };
+      controller.enqueue(encoder.encode(page.map((r) => `${csvLine(r)}\r\n`).join('')));
+    },
+  });
+  return { stream, rows: count, filters };
 }
 
 const EXPORT_KINDS = new Set(['dashboard', 'widget']);

@@ -13,7 +13,6 @@ import {
 } from '../../../__tests__/helpers/graphql';
 import { ORIGIN } from '../../../__tests__/helpers/oauth';
 import { createImport, setImportStatus } from '../../../imports/store';
-import { purgeTrashedProjects } from '../../../projects/store';
 import { recordAudit } from '../../store';
 
 // Data events and exports: deleting, merging, importing and exporting data each leave an
@@ -114,6 +113,20 @@ describe('imports', () => {
     });
   });
 
+  it('records a failed import once, however often its status is set to error', async () => {
+    const eng = await createTeam(owner, { name: 'Engineering', key: 'ENG' });
+    const job = await createImport({
+      service: 'csv',
+      teamId: eng.team.id,
+      creatorId: owner.userId,
+      displayName: 'export.csv',
+      serviceMetadata: {},
+    });
+    await setImportStatus(job.id, 'error', { error: 'First' });
+    await setImportStatus(job.id, 'error', { error: 'Second' });
+    expect(await rows('importFailed')).toHaveLength(1);
+  });
+
   it('records nothing for an import that is only moving along', async () => {
     const eng = await createTeam(owner, { name: 'Engineering', key: 'ENG' });
     const job = await createImport({
@@ -147,8 +160,21 @@ describe('deletions', () => {
       .update(project)
       .set({ archivedAt: new Date(Date.now() - 40 * 86_400_000) })
       .where(eq(project.id, made.id));
-    await purgeTrashedProjects(new Date());
+    const previous = process.env.WORKER_INTERNAL_TOKEN;
+    process.env.WORKER_INTERNAL_TOKEN = 'test-worker-token';
+    try {
+      const res = await app.handle(
+        new Request('http://localhost/internal/projects/purge', {
+          method: 'POST',
+          headers: { 'x-worker-token': 'test-worker-token' },
+        }),
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      process.env.WORKER_INTERNAL_TOKEN = previous;
+    }
     const purged = await only('projectPurged');
+    expect(purged.requestInformation).toMatchObject({ method: 'worker' });
     expect(purged.actorId).toBeNull();
     expect(meta(purged)).toMatchObject({ entityId: made.id, name: 'Billing' });
   });
@@ -291,6 +317,7 @@ describe('portal and forms', () => {
       )
     ).requester as Json;
     await ok(await instance('portal/block', owner, { requesterId: person.id, blocked: true }));
+    expect((await only('requesterBlocked')).actorId).toBe(owner.userId);
     expect(meta(await only('requesterBlocked'))).toMatchObject({
       entityType: 'requester',
       entityId: person.id,
@@ -298,6 +325,7 @@ describe('portal and forms', () => {
     });
     await ok(await instance('portal/block', owner, { requesterId: person.id, blocked: false }));
     expect(meta(await only('requesterUnblocked'))).toMatchObject({ entityId: person.id });
+    expect((await only('requesterUnblocked')).actorId).toBe(owner.userId);
   });
 
   it("records a form's settings changed", async () => {
@@ -340,7 +368,7 @@ describe('exports', () => {
   it('exports the filtered audit log as CSV and records it', async () => {
     const quoted = await signUpTestUser({ name: '=1+1' });
     await recordAudit('teamCreated', { name: 'Ops, "Night"' }, { actorId: quoted.userId });
-    const res = await instance('audit/export?type=teamCreated', owner);
+    const res = await instance('audit/export', owner, { type: 'teamCreated' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/csv');
     const text = await res.text();
@@ -362,8 +390,31 @@ describe('exports', () => {
   });
 
   it('refuses the audit export to members', async () => {
-    expect((await instance('audit/export', member)).status).toBe(403);
+    expect((await instance('audit/export', member, {})).status).toBe(403);
     expect(await rows('dataExported')).toEqual([]);
+  });
+
+  it('exports only by POST with a trusted Origin', async () => {
+    expect((await instance('audit/export', owner)).status).not.toBe(200);
+    const noOrigin = await app.handle(
+      new Request('http://localhost/api/auth/instance/audit/export', {
+        method: 'POST',
+        headers: { cookie: owner.cookie, 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    );
+    expect(noOrigin.status).toBe(403);
+    expect(await rows('dataExported')).toEqual([]);
+  });
+
+  it('exports every entry newest first across batches', async () => {
+    for (let i = 0; i < 1200; i += 1)
+      await recordAudit('teamCreated', { name: `T${i}` }, { actorId: owner.userId });
+    const res = await instance('audit/export', owner, { type: 'teamCreated' });
+    const lines = (await res.text()).trim().split('\r\n');
+    expect(lines).toHaveLength(1201);
+    expect(lines[1]).toContain('T1199');
+    expect(lines[1200]).toContain('T0');
   });
 
   it('records a dashboard CSV download reported by the web', async () => {

@@ -1,6 +1,9 @@
 import { t } from 'elysia';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import { OAUTH_ACCESS_TOKEN_PREFIX } from '@repo/auth';
+import { auditRequestFrom, withAuditRequest } from '../audit/context';
 import { resolveGraphQLAuth } from '../graphql/context';
+import type { ConnectionInfo } from '../shared/client-ip';
 import { buildMcpServer } from './server';
 import type { McpApp } from './types';
 
@@ -44,10 +47,12 @@ export function mountMcp(app: any): void {
         request,
         body,
         set,
+        server: connection,
       }: {
         request: Request;
         body: unknown;
         set: { status?: number; headers: Record<string, string> };
+        server: ConnectionInfo;
       }) => {
         const credential = extractCredential(request);
         if (credential && (await isValid(credential))) {
@@ -57,7 +62,12 @@ export function mountMcp(app: any): void {
           });
           await server.connect(transport);
           // Pass the body Elysia already parsed so the request stream is not read twice.
-          return transport.handleRequest(request, { parsedBody: body });
+          // The tools' in-process GraphQL requests keep this request's client details
+          // for the audit log (graphql/mount.ts).
+          const method = credential.startsWith(OAUTH_ACCESS_TOKEN_PREFIX) ? 'oauth' : 'apiKey';
+          return withAuditRequest(auditRequestFrom(request, connection, method), () =>
+            transport.handleRequest(request, { parsedBody: body }),
+          );
         }
         set.status = 401;
         set.headers['www-authenticate'] =

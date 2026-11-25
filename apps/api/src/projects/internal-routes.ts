@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import { asWorker } from '../audit/context';
 import { workerTokenValid } from '../shared/http';
 import { snapshotProjects } from './progress';
 import { purgeTrashedProjects } from './store';
@@ -12,7 +13,7 @@ export const internalProjectRoutes = new Elysia({ name: 'internal-projects' })
       set.status = 401;
       return { error: 'Unauthorized' };
     }
-    return { removed: await purgeTrashedProjects(new Date()) };
+    return { removed: await asWorker(() => purgeTrashedProjects(new Date())) };
   })
   .post('/internal/projects/snapshot', async ({ headers, set }) => {
     if (!workerTokenValid(headers)) {

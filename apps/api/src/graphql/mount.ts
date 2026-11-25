@@ -5,7 +5,13 @@ import type { SessionUser } from './context';
 import { accessKeyCredential, resolveGraphQLAuth, type GraphQLContext } from './context';
 import { scopeCheck } from './scopes';
 import { runWithAuth, type RequestAuth } from '../shared/request-auth';
-import { auditRequestFrom, withAuditRequest } from '../audit/context';
+import {
+  auditRequestFrom,
+  outerAuditRequest,
+  withAuditRequest,
+  type AuditMethod,
+  type AuditRequestDetails,
+} from '../audit/context';
 import type { ConnectionInfo } from '../shared/client-ip';
 import { isAccessKeyRequest, isAnonymousRequest } from './anonymous';
 import { resolveAccessKey, touchAccessKey, type ResolvedAccessKey } from '../releases/keys';
@@ -183,8 +189,7 @@ export function mountGraphql(app: any): void {
         if (!key || !(await isAccessKeyRequest(request))) return unauthenticated();
         await touchAccessKey(key.id);
         const keyDetails = {
-          ...auditRequestFrom(request, server, 'accessKey'),
-          operation: await operationName(request),
+          ...requestDetails(request, server, 'accessKey'),
           pipelineId: key.pipelineId,
         };
         return withAuditRequest(keyDetails, () =>
@@ -207,8 +212,7 @@ export function mountGraphql(app: any): void {
       // The request's credentials stay readable for the whole execution (the role
       // checks apply an OAuth token's scopes, shared/request-auth.ts).
       const details = {
-        ...auditRequestFrom(request, server, resolved.auth.kind),
-        operation: await operationName(request),
+        ...requestDetails(request, server, resolved.auth.kind),
         ...(resolved.auth.kind === 'oauth'
           ? { oauthApp: { id: resolved.auth.clientId, name: null } }
           : {}),
@@ -222,15 +226,30 @@ export function mountGraphql(app: any): void {
   );
 }
 
-// The GraphQL operation name of a request, for the audit log: from the query string of
-// a GET, else from a copy of the JSON body (Yoga reads the original). Null when the
-// request names none or the body is not an object.
-async function operationName(request: Request): Promise<string | null> {
-  if (request.method === 'GET') return new URL(request.url).searchParams.get('operationName');
-  try {
-    const body = (await request.clone().json()) as { operationName?: unknown };
-    return typeof body?.operationName === 'string' ? body.operationName : null;
-  } catch {
-    return null;
-  }
+// A GraphQL request's audit details. The operation name is read only when an entry is
+// written (from a copy of the body taken now, since Yoga reads the original). A request
+// made inside another one (MCP's tools call /graphql in process) keeps the outer
+// request's client: its address, country and user agent.
+function requestDetails(
+  request: Request,
+  server: ConnectionInfo,
+  method: AuditMethod,
+): AuditRequestDetails {
+  const own = auditRequestFrom(request, server, method);
+  const outer = outerAuditRequest();
+  const copy = request.method === 'GET' ? null : request.clone();
+  return {
+    ...own,
+    ...(outer ? { ip: outer.ip, countryCode: outer.countryCode, userAgent: outer.userAgent } : {}),
+    operation: null,
+    pendingOperation: async () => {
+      if (!copy) return new URL(request.url).searchParams.get('operationName');
+      try {
+        const body = (await copy.json()) as { operationName?: unknown };
+        return typeof body?.operationName === 'string' ? body.operationName : null;
+      } catch {
+        return null;
+      }
+    },
+  };
 }

@@ -1,5 +1,5 @@
 import { auditEntry, db, organization } from '@repo/db';
-import { eq, lt } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getOrganization } from '../organization/store';
 import { assertWorkspaceRole, type AuthUser } from '../shared/access';
 import { HttpError } from '../shared/lib';
@@ -50,14 +50,28 @@ export async function setAuditRetention(
   return { retention: to };
 }
 
-// Deletes entries older than the retention period; returns how many.
-export async function cleanupAuditEntries(now: Date): Promise<number> {
+// Deletes entries older than the retention period; returns how many. Deletes in
+// batches, each its own statement, so a large clean-up (after shortening the period)
+// holds no long transaction and loads no ids.
+export async function cleanupAuditEntries(
+  now: Date,
+  opts: { batchSize?: number } = {},
+): Promise<number> {
   const retention = await getAuditRetention();
   if (retention === 'forever') return 0;
   const cutoff = new Date(now.getTime() - DAYS[retention] * 86_400_000);
-  const removed = await db
-    .delete(auditEntry)
-    .where(lt(auditEntry.createdAt, cutoff))
-    .returning({ id: auditEntry.id });
-  return removed.length;
+  const batch = opts.batchSize ?? 10_000;
+  let removed = 0;
+  for (;;) {
+    const result = await db.execute(
+      sql`DELETE FROM ${auditEntry} WHERE ${auditEntry.id} IN (
+        SELECT ${auditEntry.id} FROM ${auditEntry}
+        WHERE ${auditEntry.createdAt} < ${cutoff.toISOString()}::timestamptz
+        LIMIT ${batch}
+      )`,
+    );
+    const count = (result as unknown as { count?: number }).count ?? 0;
+    removed += count;
+    if (count < batch) return removed;
+  }
 }

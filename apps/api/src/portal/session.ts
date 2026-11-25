@@ -297,9 +297,13 @@ export async function updateDisplayName(visitor: Visitor, value: unknown): Promi
   return toVisitor(updated, visitor.email);
 }
 
-// Blocks (ending the requester's sessions) or unblocks a requester. The caller checks
-// the role.
-export async function setPortalBlocked(requesterId: unknown, blocked: unknown): Promise<void> {
+// Blocks (ending the requester's sessions) or unblocks a requester, as `actorId`. The
+// caller checks the role.
+export async function setPortalBlocked(
+  actorId: string,
+  requesterId: unknown,
+  blocked: unknown,
+): Promise<void> {
   if (typeof requesterId !== 'string' || !UUID_RE.test(requesterId))
     throw new HttpError(400, 'requesterId must be an id');
   if (typeof blocked !== 'boolean') throw new HttpError(400, 'blocked must be true or false');
@@ -315,7 +319,7 @@ export async function setPortalBlocked(requesterId: unknown, blocked: unknown): 
     await recordAudit(
       blocked ? 'requesterBlocked' : 'requesterUnblocked',
       { entityType: 'requester', entityId: requester.id, name: requester.name },
-      { tx },
+      { tx, actorId },
     );
   });
 }

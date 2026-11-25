@@ -20,10 +20,12 @@ export const auditHandlers: AuditHandlers = {
       await signedIn(headers),
       body && typeof body === 'object' ? (body as Record<string, unknown>).retention : undefined,
     ),
-  exportCsv: async (headers, query) => {
-    const { csv } = await exportAuditCsv(await signedIn(headers), query);
+  exportCsv: async (headers, body) => {
+    const filters =
+      body && typeof body === 'object' ? { ...(body as Record<string, unknown>) } : {};
+    const { stream } = await exportAuditCsv(await signedIn(headers), filters);
     const day = new Date().toISOString().slice(0, 10);
-    return new Response(csv, {
+    return new Response(stream, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="audit-log-${day}.csv"`,

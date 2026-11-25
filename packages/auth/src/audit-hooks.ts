@@ -2,8 +2,8 @@ import { APIError, type createAuthMiddleware } from 'better-auth/api';
 import {
   auditLoginFailed,
   auditRecord,
+  auditRefusalRecorded,
   reasonOf,
-  RECORDED_REFUSALS,
   resultErrorCode,
 } from './audit';
 
@@ -15,7 +15,8 @@ type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 type SessionReader = (ctx: HookContext) => Promise<{ user: { id: string } } | null>;
 
 // A refused sign-in whose address is known (the database hooks and the magic-link
-// checks): recorded under the address, so the after hook skips its code.
+// checks): recorded under the address, and the request marked so the after hook skips
+// it.
 export async function auditRefusal(address: string, code: string): Promise<void> {
   await auditLoginFailed(address, reasonOf(code));
 }
@@ -79,7 +80,7 @@ export async function auditAfterHook(ctx: HookContext, readSession: SessionReade
     if (session && !code) {
       const userId = session.user.id;
       await auditRecord('login', { method, entityType: 'user', entityId: userId }, userId);
-    } else if (code && !RECORDED_REFUSALS.has(code)) {
+    } else if (code && !auditRefusalRecorded()) {
       // A refusal with no address at hand: a bad link, passkey or Google answer.
       await auditLoginFailed('', reasonOf(code));
     }

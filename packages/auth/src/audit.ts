@@ -12,9 +12,16 @@ export interface AuditHook {
     actorId: string | null,
   ): Promise<void>;
   loginFailed(address: string, reason: string): Promise<void>;
+  // Whether this request already recorded a refused sign-in with its address.
+  refusalRecorded(): boolean;
 }
 
 let hook: AuditHook | null = null;
+
+// The header the API sets on each request it hands better-auth with the client address
+// it works out (TRUST_PROXY decides whether proxy headers count); better-auth reads the
+// address from it for rate limits and sessions.
+export const CLIENT_IP_HEADER = 'x-itsaplan-client-ip';
 
 export function setAuditHook(next: AuditHook): void {
   hook = next;
@@ -32,14 +39,13 @@ export async function auditLoginFailed(address: string, reason: string): Promise
   await hook?.loginFailed(address, reason);
 }
 
-// The refusal codes the database hooks record themselves (they know the address), so
-// the after hook does not record the same refusal again.
-export const RECORDED_REFUSALS = new Set([
-  'NOT_INVITED',
-  'EMAIL_NOT_VERIFIED',
-  'ACCOUNT_SUSPENDED',
-  'APP_USER',
-]);
+// Whether this request already recorded a refused sign-in under its address (the
+// database hooks and the magic-link checks know it), so the after hook adds no second
+// entry without one. better-auth may hand the after hook the refusal as a code or, after
+// an OAuth callback, as its message, so the request is marked instead of matching codes.
+export function auditRefusalRecorded(): boolean {
+  return hook?.refusalRecorded() ?? false;
+}
 
 // A refusal code as the audit log stores it: NOT_INVITED → notInvited.
 export function reasonOf(code: string): string {

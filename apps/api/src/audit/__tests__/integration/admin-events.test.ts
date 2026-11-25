@@ -239,12 +239,14 @@ describe('integrations and keys', () => {
   it('records webhook changes without the signing secret', async () => {
     const created = await gqlData(
       { cookie: owner.cookie },
-      `mutation { webhookCreate(input: { url: "https://example.com/h", allPublicTeams: true,
+      `mutation { webhookCreate(input: { url: "https://hooks.example.com/services/T1/B2/s3cr3t", allPublicTeams: true,
         resourceTypes: ["Issue"], secret: "whsec-test-secret" }) { webhook { id } } }`,
     );
     const id = created.webhookCreate.webhook.id;
     const entry = await only('webhookCreated');
     expect(meta(entry)).toMatchObject({ entityType: 'webhook', entityId: id });
+    expect(meta(entry).url).toBe('https://hooks.example.com');
+    expect(JSON.stringify(entry)).not.toContain('s3cr3t');
     expect(JSON.stringify(entry)).not.toContain('whsec-test-secret');
     await gqlData(
       { cookie: owner.cookie },

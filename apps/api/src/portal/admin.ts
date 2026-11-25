@@ -391,9 +391,9 @@ export const portalHandlers: PortalHandlers = {
     return { success: true };
   },
   block: async (headers, body) => {
-    await admin(headers);
+    const user = await admin(headers);
     const input = fields(body);
-    await setPortalBlocked(input.requesterId, input.blocked);
+    await setPortalBlocked(user.id, input.requesterId, input.blocked);
     return { success: true };
   },
   issueBoards: async (headers, query) => {

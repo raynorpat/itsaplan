@@ -22,7 +22,7 @@ import { instancePlugin } from './instance-plugin';
 import { OAUTH_DISABLED_PATHS, oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
 import { APP_ROLE, isAppUser } from './oauth-install';
 import { auditAfterHook, auditBeforeHook, auditRefusal } from './audit-hooks';
-import { auditRecord } from './audit';
+import { auditRecord, CLIENT_IP_HEADER } from './audit';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -546,6 +546,10 @@ export const auth = betterAuth({
     // Every id is a UUID, as in Linear's API. The columns are uuid in
     // packages/db/src/schema/auth.ts.
     database: { generateId: 'uuid' },
+    // The client address for rate limits and sessions: the API sets this header on every
+    // request it forwards (apps/api app.ts), from the proxy headers only when
+    // TRUST_PROXY=true, else from the connection, and drops any value a client sent.
+    ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
     // Share the session cookie across subdomains when COOKIE_DOMAIN is the parent
     // domain (e.g. ".itsaplan.dev" for app.itsaplan.dev + api.itsaplan.dev). Without
     // it the cookie is host-only for the api origin, so the SSR web app on another
@@ -607,7 +611,7 @@ export {
   signInOptions,
 } from './instance';
 export { sendAuthEmail } from './mail';
-export { setAuditHook } from './audit';
+export { CLIENT_IP_HEADER, setAuditHook } from './audit';
 export type { AuditHook } from './audit';
 export { provideInstanceHandlers } from './instance-plugin';
 export type {

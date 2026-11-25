@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { auth } from '@repo/auth';
-import { auditEntry, db, passkey } from '@repo/db';
+import { auditEntry, db, passkey, session, workspaceInvite } from '@repo/db';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { app } from '../../../app';
 import { requestMagicLink, signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gqlData } from '../../../__tests__/helpers/graphql';
 import { ORIGIN } from '../../../__tests__/helpers/oauth';
+import { currentAuditRequest, withAuditRequest } from '../../context';
+import { recordLoginFailed } from '../../store';
 
 // Sign-in and account events (better-auth hooks and the extra email store): each
 // sign-in, refused sign-in, sign-out, session revoke, passkey and API key change, and
@@ -61,15 +63,31 @@ async function signInByLink(email: string, ip: string): Promise<Response> {
   );
 }
 
-function requestLink(email: string, ip: string): Promise<Response> {
+function requestLink(
+  email: string,
+  ip: string,
+  extra: Record<string, string> = {},
+): Promise<Response> {
   return app.handle(
     new Request('http://localhost/api/auth/sign-in/magic-link', {
       method: 'POST',
-      headers: { origin: ORIGIN, 'content-type': 'application/json', 'x-forwarded-for': ip },
+      headers: {
+        origin: ORIGIN,
+        'content-type': 'application/json',
+        'x-forwarded-for': ip,
+        ...extra,
+      },
       body: JSON.stringify({ email }),
     }),
   );
 }
+
+const details = (ip: string | null) => ({
+  ip,
+  countryCode: null,
+  userAgent: null,
+  method: 'session' as const,
+});
 
 describe('audit: sign-in and account events', () => {
   let owner: TestUser;
@@ -223,5 +241,96 @@ describe('audit: sign-in and account events', () => {
       expect(entry?.metadata).toMatchObject({ email: 'second@example.org' });
       expect(JSON.stringify(entry)).not.toContain(token);
     }
+  });
+
+  it('records a refused sign-up once, under its address', async () => {
+    await gqlData(
+      owner,
+      'mutation { organizationInviteCreate(input: { email: "late@x.test", role: user }) { success } }',
+    );
+    const token = await requestMagicLink('late@x.test');
+    await db.delete(workspaceInvite);
+    await app.handle(
+      new Request(`http://localhost/api/auth/magic-link/verify?token=${token}`, {
+        headers: { 'x-forwarded-for': '198.51.100.30' },
+        redirect: 'manual',
+      }),
+    );
+    const refused = await rows('loginFailed');
+    expect(refused).toHaveLength(1);
+    expect(refused[0]!.metadata).toMatchObject({ address: 'late@x.test', reason: 'notInvited' });
+  });
+
+  it('marks the request once a refusal is recorded, so the after hook adds no second one', async () => {
+    await withAuditRequest(details('198.51.100.31'), async () => {
+      await recordLoginFailed('someone@not-approved.test', 'notInvited');
+      expect(currentAuditRequest().refusalRecorded).toBe(true);
+    });
+  });
+
+  it('folds addresses past 20 from one IP into one entry for the IP', async () => {
+    for (let i = 0; i < 25; i += 1)
+      await requestLink(`spray-${i}@not-approved.test`, '198.51.100.40');
+    const refused = (await rows('loginFailed')).filter((r) => r.ip === '198.51.100.40');
+    const byAddress = refused.filter((r) => (r.metadata as Record<string, unknown>).address);
+    expect(byAddress).toHaveLength(20);
+    const forIp = refused.filter((r) => (r.metadata as Record<string, unknown>).scope === 'ip');
+    expect(forIp).toHaveLength(1);
+    expect(forIp[0]!.metadata).toMatchObject({ addresses: 5, attempts: 5 });
+  });
+
+  it('keeps at most 320 characters of an attempted address', async () => {
+    await withAuditRequest(details('198.51.100.41'), () =>
+      recordLoginFailed(`${'a'.repeat(400)}@x.test`, 'notInvited'),
+    );
+    const [entry] = await rows('loginFailed');
+    expect(((entry!.metadata as Record<string, string>).address ?? '').length).toBe(320);
+  });
+
+  it('keeps every reason a folded attempt gave, the latest as its reason', async () => {
+    await withAuditRequest(details('198.51.100.42'), async () => {
+      await recordLoginFailed('mixed@not-approved.test', 'notInvited');
+      await recordLoginFailed('mixed@not-approved.test', 'badPasskey');
+    });
+    const [entry] = await rows('loginFailed');
+    expect(entry!.metadata).toMatchObject({
+      reason: 'badPasskey',
+      reasons: ['notInvited', 'badPasskey'],
+      attempts: 2,
+    });
+  });
+
+  it('ignores a forwarded IP without TRUST_PROXY, in the log and in better-auth', async () => {
+    process.env.TRUST_PROXY = 'false';
+    const res = await signInByLink(owner.email, '203.0.113.50');
+    expect(res.status).toBeLessThan(400);
+    const [login] = (await rows('login')).slice(-1);
+    expect(login!.ip).toBeNull();
+    const ips = (await db.select({ ip: session.ipAddress }).from(session)).map((r) => r.ip);
+    expect(ips).not.toContain('203.0.113.50');
+
+    await requestLink('spoof@not-approved.test', '198.51.100.60');
+    await requestLink('spoof@not-approved.test', '198.51.100.61');
+    const refused = await rows('loginFailed');
+    expect(refused).toHaveLength(1);
+    expect(refused[0]!.ip).toBeNull();
+    expect(refused[0]!.metadata).toMatchObject({ attempts: 2 });
+  });
+
+  it('records no IP that is not an address, and the country from the configured header', async () => {
+    const previous = process.env.AUDIT_COUNTRY_HEADER;
+    process.env.AUDIT_COUNTRY_HEADER = 'x-geo-country';
+    try {
+      await requestLink('geo@not-approved.test', 'not-an-ip', {
+        'x-geo-country': 'de',
+        'cf-ipcountry': 'FR',
+      });
+    } finally {
+      if (previous === undefined) delete process.env.AUDIT_COUNTRY_HEADER;
+      else process.env.AUDIT_COUNTRY_HEADER = previous;
+    }
+    const [entry] = await rows('loginFailed');
+    expect(entry!.ip).toBeNull();
+    expect(entry!.countryCode).toBe('DE');
   });
 });

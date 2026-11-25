@@ -52,6 +52,9 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   imports read through (Linear's GraphQL mutations start and process those).
 // - GET  /instance/audit-settings and POST /instance/audit-settings/save { retention }
 //   how long audit log entries are kept (owners and admins read, owners change)
+// - POST /instance/audit/export { type?, actorId?, ip?, from?, to? }  the filtered audit
+//   log as a streamed CSV (owners and admins), and POST /instance/audit/export-recorded
+//   { kind, id, name, rows }  records a CSV the web built (members and up)
 // - GET  /instance/customers-settings and POST /instance/customers-settings/save
 //   { enabled?, revenueCurrency? }  Customers on or off and the revenue currency
 //   (apps/api src/customers/settings.ts); members read, owners and admins change.
@@ -235,8 +238,9 @@ export interface AccessKeysHandlers {
 export interface AuditHandlers {
   settings(headers: Headers): Promise<object>;
   saveSettings(headers: Headers, body: unknown): Promise<object>;
-  // The filtered audit log as a CSV download (owners and admins).
-  exportCsv(headers: Headers, query: Record<string, unknown>): Promise<Response>;
+  // The filtered audit log as a CSV download (owners and admins); the filters are the
+  // POST body.
+  exportCsv(headers: Headers, body: unknown): Promise<Response>;
   // Records a CSV export the web built (a dashboard or a widget).
   exportRecorded(headers: Headers, body: unknown): Promise<object>;
 }
@@ -677,11 +681,15 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         options.trustedOrigins,
         (h, headers, body) => h.saveSettings(headers, body),
       ),
+      // A POST behind the Origin check, so another site cannot make an admin's browser
+      // run an export.
       instanceAuditExport: createAuthEndpoint(
         '/instance/audit/export',
-        { method: 'GET' },
-        async (ctx) =>
-          run((h) => h.audit.exportCsv(ctx.headers ?? new Headers(), { ...ctx.query })),
+        { method: 'POST' },
+        async (ctx) => {
+          assertTrustedOrigin(ctx.headers, options.trustedOrigins);
+          return run((h) => h.audit.exportCsv(ctx.headers ?? new Headers(), ctx.body));
+        },
       ),
       instanceAuditExportRecorded: auditWrite(
         '/instance/audit/export-recorded',
