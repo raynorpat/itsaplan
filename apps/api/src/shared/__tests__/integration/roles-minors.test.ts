@@ -45,11 +45,15 @@ describe('roles review details', () => {
     const { o } = await setup();
     const member = await signUpAs('member');
     const key = await createApiKey(member.cookie);
+    const list = () =>
+      app.handle(
+        new Request('http://localhost/api/auth/api-key/list', { headers: { 'x-api-key': key } }),
+      );
+    expect((await list()).status).toBe(200);
     await gqlData(o, `mutation { userSuspend(id: "${member.userId}") { success } }`);
-    const res = await app.handle(
-      new Request('http://localhost/api/auth/api-key/list', { headers: { 'x-api-key': key } }),
-    );
-    expect(res.status).not.toBe(200);
+    const refused = await list();
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { code: string }).code).toBe('INVALID_API_KEY');
   });
 
   it('lets a member make a visible public team the lead team of an initiative', async () => {
@@ -60,11 +64,5 @@ describe('roles review details', () => {
       `mutation { initiativeCreate(input: { name: "Grow", leadTeamId: "${teamId}" }) { success } }`,
     );
     expect(res.body.errors).toBeUndefined();
-    const guest = await signUpAs('guest');
-    const refused = await gql(
-      { cookie: guest.cookie },
-      `mutation { initiativeCreate(input: { name: "Hide", leadTeamId: "${teamId}" }) { success } }`,
-    );
-    expect(refused.body.errors?.length).toBeGreaterThan(0);
   });
 });

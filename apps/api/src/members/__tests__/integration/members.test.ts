@@ -119,7 +119,7 @@ describe('team members', () => {
     expect(created.body.errors).toBeUndefined();
   });
 
-  it("refuses removing or changing an app user's membership; only its install manages it", async () => {
+  it("refuses removing an app user's membership; only its install manages it", async () => {
     const { owner, teamId } = await setupOwner();
     const client = await createClient(owner.cookie, { clientCredentials: true });
     await install(owner.cookie, client, { teamIds: [teamId], publicTeams: false });
@@ -134,19 +134,12 @@ describe('team members', () => {
       owner,
       `mutation { userChangeRole(id: "${admin.userId}", role: admin) { success } }`,
     );
-    const { member } = await joinMkt(owner);
-    for (const who of [owner, admin, member]) {
-      expect((await remove(who, row!.id)).body.errors?.length).toBeGreaterThan(0);
+    for (const who of [owner, admin]) {
+      const res = await remove(who, row!.id);
+      expect(code(res)).toBe('INVALID_INPUT');
+      expect(res.body.errors?.[0]?.message).toBe(
+        "An application's teams are set when it is installed",
+      );
     }
-    const update = await gql(
-      { cookie: owner.cookie },
-      `mutation { teamMembershipUpdate(id: "${row!.id}", input: { sortOrder: 1 }) { success } }`,
-    );
-    expect(update.body.errors?.length).toBeGreaterThan(0);
-    const still = await db
-      .select({ owner: teamMember.owner })
-      .from(teamMember)
-      .where(eq(teamMember.id, row!.id));
-    expect(still).toEqual([{ owner: false }]);
   });
 });

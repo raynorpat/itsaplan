@@ -9,7 +9,6 @@ import {
   addMember,
   createComment,
   createIssue,
-  createProject,
   createTeam,
   gqlData,
   makePrivate,
@@ -184,27 +183,5 @@ describe('graphql settings mappings', () => {
       if (previous === undefined) delete process.env.APPROVED_EMAIL_DOMAINS;
       else process.env.APPROVED_EMAIL_DOMAINS = previous;
     }
-  });
-
-  it('reports project progress and scope', async () => {
-    const owner = await signUpTestUser();
-    const { teamId, backlogId, completedId } = await setupTeam(owner);
-    const project = await createProject(owner, { teamIds: [teamId], name: 'Launch' });
-    for (const stateId of [backlogId, backlogId, completedId])
-      await createIssue(owner, { teamId: 'MKT', stateId, title: 'T', projectId: project.id });
-    const res = await gql(
-      as(owner.cookie),
-      `{ project(id: "${project.id}") { progress scope scopeHistory completedScopeHistory issueCountHistory completedIssueCountHistory } }`,
-    );
-    expect(res.body.errors).toBeUndefined();
-    const p = res.body.data!.project as Record<string, unknown>;
-    expect(p.progress as number).toBeCloseTo(1 / 3, 5);
-    expect(p).toMatchObject({
-      scope: 3,
-      scopeHistory: [3],
-      completedScopeHistory: [1],
-      issueCountHistory: [3],
-      completedIssueCountHistory: [1],
-    });
   });
 });

@@ -6,7 +6,6 @@ import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
 import {
   REDIRECT_URI,
-  authPost,
   authorizeRequest,
   bearer,
   clientCredentials,
@@ -346,52 +345,18 @@ describe('oauth actor=app installs', () => {
     const { client_id } = (await reg.json()) as { client_id: string };
     const owner = await signUpTestUser({ name: 'Owner' });
     const { challenge } = pkce();
-    const consent = await consentAsApp(
-      owner.cookie,
-      { clientId: client_id, clientSecret: '' },
-      challenge,
-    ).catch(() => null);
-    expect(consent === null || consent.status !== 200).toBe(true);
-  });
-
-  it('gives a confidential application that skips PKCE a refresh token', async () => {
-    const { owner, client } = await setup();
+    // `actor:app` is not among the scopes the client registered with.
     const authorize = await authorizeRequest(owner.cookie, {
-      client_id: client.clientId,
+      client_id,
       redirect_uri: REDIRECT_URI,
       response_type: 'code',
-      scope: 'read',
+      scope: 'read,write',
+      actor: 'app',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
     });
-    let target = new URL(await redirectTarget(authorize));
-    if (!target.searchParams.get('code')) {
-      const consent = await authPost('/oauth2/consent', owner.cookie, {
-        accept: true,
-        oauth_query: target.search.slice(1),
-      });
-      target = new URL(await redirectTarget(consent));
-    }
-    const res = await tokenRequest({
-      grant_type: 'authorization_code',
-      code: target.searchParams.get('code')!,
-      redirect_uri: REDIRECT_URI,
-      client_id: client.clientId,
-      client_secret: client.clientSecret,
-    });
-    expect(res.status).toBe(200);
-    const tokens = (await res.json()) as TokenSet;
-    expect(tokens.refresh_token?.startsWith('itpr_')).toBe(true);
-    expect(tokens.scope).toBe('read');
-
-    const refreshed = await tokenRequest({
-      grant_type: 'refresh_token',
-      refresh_token: tokens.refresh_token!,
-      client_id: client.clientId,
-      client_secret: client.clientSecret,
-    });
-    expect(refreshed.status).toBe(200);
-    const next = (await refreshed.json()) as TokenSet;
-    expect(next.refresh_token).toBeTruthy();
-    expect((await viewer(next.access_token)).id).toBe(owner.userId);
-    expect((await gql(bearer(tokens.access_token), VIEWER)).body.data?.viewer).toBeFalsy();
+    const target = new URL(await redirectTarget(authorize));
+    expect(target.searchParams.get('error')).toBe('invalid_scope');
+    expect(target.searchParams.get('error_description')).toContain('actor:app');
   });
 });

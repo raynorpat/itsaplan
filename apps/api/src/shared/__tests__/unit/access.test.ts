@@ -5,11 +5,6 @@ import { HttpError } from '../../lib';
 // Only requireUser is a pure function. The rest of access.ts resolves membership
 // from the database and is covered by the GraphQL integration tests.
 describe('requireUser', () => {
-  it('returns the user when a session is present', () => {
-    const user = { id: 'u1' };
-    expect(requireUser(user)).toBe(user);
-  });
-
   it('throws 401 when the user is missing', () => {
     for (const absent of [null, undefined]) {
       try {

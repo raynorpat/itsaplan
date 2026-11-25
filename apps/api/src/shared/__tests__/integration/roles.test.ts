@@ -5,8 +5,11 @@ import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
   addMember,
+  createDocument,
   createIssue,
+  createProject,
   createTeam,
+  gqlData,
   makePrivate,
   signUpAs,
 } from '../../../__tests__/helpers/graphql';
@@ -47,16 +50,19 @@ describe('workspace roles and team visibility', () => {
 
   it('private teams are members only, even for admins', async () => {
     const { o, issueId } = await setup();
+    const project = await createProject(o, { name: 'Launch', teamIds: ['MKT'] });
+    const doc = await createDocument(o, { title: 'Plan', projectId: project.id });
     await makePrivate(o, 'MKT');
     const admin = await signUpAs('admin');
+    const documentIds = async () =>
+      (await gqlData(admin, '{ documents { nodes { id } } }')).documents.nodes.map(
+        (d: { id: string }) => d.id,
+      );
     expect(code(await readIssue(admin, issueId))).toBe('ENTITY_NOT_FOUND');
-    const doc = await gql(
-      { cookie: admin.cookie },
-      `{ issue(id: "${issueId}") { id } documents { nodes { id } } }`,
-    );
-    expect(code(doc)).toBe('ENTITY_NOT_FOUND');
+    expect(await documentIds()).not.toContain(doc.id);
     await addMember(o, 'MKT', admin.userId);
     expect((await readIssue(admin, issueId)).body.errors).toBeUndefined();
+    expect(await documentIds()).toContain(doc.id);
   });
 
   it('guests see only their teams', async () => {

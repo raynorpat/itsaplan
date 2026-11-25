@@ -48,7 +48,7 @@ describe('account time zone', () => {
       `mutation ($id: String!) { userUpdate(id: $id, input: { timezone: "Europe/Paris" }) { success } }`,
       { id: a.userId },
     );
-    expect(other.body.errors?.length).toBeGreaterThan(0);
+    expect(other.body.errors?.[0]?.extensions?.code).toBe('FORBIDDEN');
     expect(await timezoneOf(a)).toBe('Asia/Tokyo');
   });
 });

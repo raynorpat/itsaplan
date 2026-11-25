@@ -4,7 +4,6 @@ import { app } from '../../app';
 import { signUpTestUser, type TestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { createTeam, gqlData } from '../helpers/graphql';
-import { createApiKey } from '../helpers/linear';
 import { callTool, mcp } from '../helpers/mcp';
 import {
   REDIRECT_URI,
@@ -178,13 +177,21 @@ describe('MCP sign-in with OAuth', () => {
   });
 
   it('applies the token scopes GraphQL applies, admin included', async () => {
-    // A token without `admin` reads an owner as a member, as on GraphQL: the owner can
-    // still create issues, and the tool result matches what GraphQL returns.
+    // A token without `admin` reads an owner as a member, as on GraphQL: with workspace
+    // labels limited to admins, only the token with `admin` may create one.
+    await gqlData(
+      owner,
+      'mutation { organizationUpdate(input: { securitySettings: { labelManagementRole: admin } }) { success } }',
+    );
     const client = await createClient(owner.cookie);
     const plain = await obtainTokens(owner.cookie, client, 'read,write');
-    const made = await callTool(plain.access_token, 'create_issue', { team: 'ENG', title: 'Ok' });
+    const refused = await callTool(plain.access_token, 'create_issue_label', { name: 'Plain' });
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0]!.text).toContain('You cannot manage workspace labels');
+
+    const admin = await obtainTokens(owner.cookie, client, 'read,write,admin');
+    const made = await callTool(admin.access_token, 'create_issue_label', { name: 'Admin' });
     expect(made.isError).toBeFalsy();
-    expect(await titles(owner, 'ENG')).toContain('Ok');
   });
 
   it('runs an app token as the app user, within its teams', async () => {
@@ -198,17 +205,5 @@ describe('MCP sign-in with OAuth', () => {
     const teams = await callTool(m2m.access_token, 'list_teams');
     expect(teams.content[0]!.text).toContain('MKT');
     expect(teams.content[0]!.text).not.toContain('ENG');
-  });
-
-  it('accepts an OAuth token on /mcp only, and keeps API keys working', async () => {
-    const token = await mcpClientToken(owner);
-    // There is no REST data API: a former REST path is 404 with the token too.
-    const rest = await app.handle(
-      new Request('http://localhost/teams', { headers: { authorization: `Bearer ${token}` } }),
-    );
-    expect(rest.status).toBe(404);
-
-    const key = await createApiKey(owner.cookie);
-    expect((await callTool(key, 'list_teams')).isError).toBeFalsy();
   });
 });

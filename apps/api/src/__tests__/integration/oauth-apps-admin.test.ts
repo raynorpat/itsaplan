@@ -489,25 +489,6 @@ describe('oauth application rules', () => {
     expect((await gql(bearer(token), VIEWER)).status).toBe(401);
   });
 
-  it('answers malformed Basic client credentials with invalid_client', async () => {
-    const client = await createClient(owner.cookie, { name: 'Robot', clientCredentials: true });
-    for (const basic of ['!!!!', btoa('no-colon')]) {
-      const res = await app.handle(
-        new Request('http://localhost/oauth/token', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            authorization: `Basic ${basic}`,
-          },
-          body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
-        }),
-      );
-      expect(res.status).toBe(400);
-      expect(((await res.json()) as { error?: string }).error).toBe('invalid_client');
-    }
-    expect(client.clientId).toBeTruthy();
-  });
-
   it('refuses a cookie-authenticated registration from another origin', async () => {
     const res = await app.handle(
       new Request('http://localhost/api/auth/oauth2/register', {

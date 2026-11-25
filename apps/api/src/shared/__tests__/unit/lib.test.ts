@@ -1,20 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { HttpError, iso, num, pgErrorCode, rethrowDuplicate } from '../../lib';
-
-describe('HttpError', () => {
-  it('carries a status and message and is an Error', () => {
-    const err = new HttpError(404, 'not found');
-    expect(err).toBeInstanceOf(Error);
-    expect(err.status).toBe(404);
-    expect(err.message).toBe('not found');
-  });
-});
-
-describe('iso', () => {
-  it('renders a Date as an ISO string', () => {
-    expect(iso(new Date('2026-01-02T03:04:05.000Z'))).toBe('2026-01-02T03:04:05.000Z');
-  });
-});
+import { HttpError, num, pgErrorCode, rethrowDuplicate } from '../../lib';
 
 describe('pgErrorCode', () => {
   it('reads the code off the error itself', () => {
@@ -73,9 +58,5 @@ describe('num', () => {
 
   it('coerces a numeric string to a number', () => {
     expect(num('12.5')).toBe(12.5);
-  });
-
-  it('passes a number through', () => {
-    expect(num(3)).toBe(3);
   });
 });

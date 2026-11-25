@@ -1,25 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { provideInstanceHandlers, signInOptions } from '@repo/auth';
+import { signInOptions } from '@repo/auth';
 import { app } from '../../app';
-import { registerInstanceHandlers } from '../../instance/handlers';
 import { signUpTestUser, type TestUser } from '../helpers/auth';
 import { addMember, createTeam, signUpAs, teamView } from '../helpers/graphql';
 import { resetDb } from '../helpers/db';
 import { getStorageSettings } from '../../settings/storage';
 import { getAppVersion } from '../../settings/version';
-import { oauthAppsHandlers } from '../../oauth/apps';
-import { importsHandlers } from '../../imports/handlers';
-import { requestersHandlers } from '../../feedback/handlers';
-import { formsHandlers } from '../../forms/admin';
-import { aiHandlers } from '../../updates/ai';
-import { dashboardsHandlers } from '../../dashboards/handlers';
-import { customersHandlers } from '../../customers/handlers';
-import { favoritesHandlers } from '../../favorites/handlers';
-import { accessKeysHandlers, releasesHandlers } from '../../releases/handlers';
-import { portalHandlers } from '../../portal/admin';
-import { workflowsHandlers } from '../../workflows/handlers';
-import { accountEmailsHandlers } from '../../accounts/handlers';
-import { auditHandlers } from '../../audit/handlers';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
 // sign-in options (public), the app version and upload limits (signed in), and the
@@ -145,41 +131,6 @@ describe('instance plugin', () => {
 describe('instance plugin errors and origin checks', () => {
   beforeEach(async () => {
     await resetDb();
-  });
-
-  it("answers a handler's HTTP status as is, beyond the common ones", async () => {
-    const tooLarge = Object.assign(new Error('Too large'), { status: 413 });
-    provideInstanceHandlers({
-      version: async () => {
-        throw tooLarge;
-      },
-      uploadLimits: async () => ({}),
-      setTeamOwner: async () => {
-        throw tooLarge;
-      },
-      oauthApps: oauthAppsHandlers,
-      agentSessionStop: async () => ({ success: true }),
-      workflows: workflowsHandlers,
-      accountEmails: accountEmailsHandlers,
-      imports: importsHandlers,
-      requesters: requestersHandlers,
-      portal: portalHandlers,
-      forms: formsHandlers,
-      ai: aiHandlers,
-      dashboards: dashboardsHandlers,
-      customers: customersHandlers,
-      favorites: favoritesHandlers,
-      accessKeys: accessKeysHandlers,
-      releases: releasesHandlers,
-      audit: auditHandlers,
-    });
-    try {
-      const res = await call('version');
-      expect(res.status).toBe(413);
-      expect(((await res.json()) as { message: string }).message).toBe('Too large');
-    } finally {
-      registerInstanceHandlers();
-    }
   });
 
   it('refuses a cookie-authenticated owner change from a foreign origin or none', async () => {

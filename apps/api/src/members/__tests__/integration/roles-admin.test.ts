@@ -31,7 +31,7 @@ async function setup() {
 const join = (who: TestUser, teamId: string) =>
   gql(
     { cookie: who.cookie },
-    `mutation { teamMembershipCreate(input: { teamId: "${teamId}", userId: "${who.userId}" }) { success } }`,
+    `mutation { teamMembershipCreate(input: { teamId: "${teamId}", userId: "${who.userId}" }) { success teamMembership { owner user { id } } } }`,
   );
 const changeRole = (who: TestUser, id: string, role: string) =>
   gql(
@@ -49,7 +49,12 @@ describe('roles administration', () => {
   it('anyone but a guest can join a public team', async () => {
     const { owner, mkt, sec } = await setup();
     const member = await signUpAs('member');
-    expect((await join(member, mkt)).body.errors).toBeUndefined();
+    const joined = await join(member, mkt);
+    expect(joined.body.errors).toBeUndefined();
+    // Joining oneself does not make a team owner.
+    expect(
+      (joined.body.data?.teamMembershipCreate as { teamMembership: unknown }).teamMembership,
+    ).toEqual({ owner: false, user: { id: member.userId } });
     const members = await gqlData(
       owner,
       `{ team(id: "${mkt}") { memberships { nodes { user { id } } } } }`,
@@ -114,9 +119,14 @@ describe('roles administration', () => {
     await suspend(owner, member.userId);
     await createIssue(owner, { teamId: mkt, title: 'T', assigneeId: member.userId });
     await suspend(owner, member.userId, 'userUnsuspend');
+    // Once unsuspended, the same assignment notifies them: only the second issue is there.
+    const second = await createIssue(owner, { teamId: mkt, title: 'U', assigneeId: member.userId });
     const again = await signUpTestUser({ email: member.email });
-    const inbox = await gqlData(again, '{ notifications { nodes { id } } }');
-    expect(inbox.notifications.nodes).toHaveLength(0);
+    const inbox = await gqlData(
+      again,
+      '{ notifications { nodes { ... on IssueNotification { issue { id } } } } }',
+    );
+    expect(inbox.notifications.nodes).toEqual([{ issue: { id: second.id } }]);
   });
 
   it('admins and owners can add themselves to a private team; members and guests cannot', async () => {

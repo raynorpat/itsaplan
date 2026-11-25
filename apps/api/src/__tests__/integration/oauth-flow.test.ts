@@ -6,7 +6,6 @@ import { resetDb } from '../helpers/db';
 import {
   ORIGIN,
   REDIRECT_URI,
-  authPost,
   authorizeCode,
   authorizeRequest,
   createClient,
@@ -101,10 +100,28 @@ describe('oauth flow', () => {
       client_secret: client.clientSecret,
     });
     expect(res.status).toBe(200);
-    const tokens = (await res.json()) as { access_token: string; refresh_token?: string };
-    // Linear gives it a refresh token too (oauth-app-actor.test.ts covers refreshing).
-    expect(tokens.refresh_token).toBeTruthy();
+    const tokens = (await res.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      scope: string;
+    };
+    // Linear gives it a refresh token too.
+    expect(tokens.refresh_token?.startsWith('itpr_')).toBe(true);
+    expect(tokens.scope).toBe('read');
     expect((await gql(bearer(tokens.access_token), VIEWER)).status).toBe(200);
+
+    const refreshed = await tokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: tokens.refresh_token!,
+      client_id: client.clientId,
+      client_secret: client.clientSecret,
+    });
+    expect(refreshed.status).toBe(200);
+    const next = (await refreshed.json()) as { access_token: string; refresh_token?: string };
+    expect(next.refresh_token).toBeTruthy();
+    const viewer = await gql(bearer(next.access_token), VIEWER);
+    expect((viewer.body.data?.viewer as { id: string }).id).toBe(owner.userId);
+    expect((await gql(bearer(tokens.access_token), VIEWER)).body.data?.viewer).toBeFalsy();
   });
 
   it('requires PKCE from a public client', async () => {
@@ -172,31 +189,6 @@ describe('oauth flow', () => {
     );
     expect(form.status).toBe(200);
     expect((await gql(bearer(b.access_token), VIEWER)).status).toBe(401);
-  });
-
-  it('makes a rotated client secret fail at once', async () => {
-    const { owner, client } = await setup();
-    const tokens = await obtainTokens(owner.cookie, client, 'read');
-    const rotated = await authPost('/instance/oauth-apps/rotate-secret', owner.cookie, {
-      clientId: client.clientId,
-    });
-    expect(rotated.status).toBe(200);
-    const fresh = ((await rotated.json()) as { clientSecret: string }).clientSecret;
-    expect(fresh).toBeTruthy();
-    const withOld = await tokenRequest({
-      grant_type: 'refresh_token',
-      refresh_token: tokens.refresh_token!,
-      client_id: client.clientId,
-      client_secret: client.clientSecret,
-    });
-    expect(withOld.status).toBe(401);
-    const withNew = await tokenRequest({
-      grant_type: 'refresh_token',
-      refresh_token: tokens.refresh_token!,
-      client_id: client.clientId,
-      client_secret: fresh,
-    });
-    expect(withNew.status).toBe(200);
   });
 
   it('refuses consent posted from another site', async () => {

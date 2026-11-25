@@ -68,11 +68,11 @@ describe('oauth install grants', () => {
     const { owner, client, mktId } = await setup();
     const tokens = await installOnlyMkt(owner, client, mktId);
     expect(tokens.refresh_token).toBeTruthy();
-    for (const scope of ['read', 'read write admin offline_access']) {
+    for (const scope of ['read write admin offline_access', 'read']) {
       const res = await refresh(client, tokens.refresh_token!, scope);
-      // A narrower refresh either keeps the app actor or is refused; it never becomes
-      // the installing admin.
-      if (res.status !== 200) continue;
+      // The granted scopes, then only `read`: the token keeps the app actor and never
+      // becomes the installing admin.
+      expect(res.status).toBe(200);
       const next = (await res.json()) as TokenSet;
       const me = await viewer(next.access_token);
       expect(me?.id).not.toBe(owner.userId);
@@ -153,13 +153,8 @@ describe('oauth install grants', () => {
       target = new URL(await redirectTarget(consent));
     }
     expect(target.searchParams.get('iss')).toBe(meta.issuer);
-    // The plugin's own metadata endpoint is not served with a second issuer.
-    const own = await app.handle(
-      new Request('http://localhost/api/auth/.well-known/oauth-authorization-server'),
-    );
-    if (own.status === 200)
-      expect(((await own.json()) as { issuer: string }).issuer).toBe(meta.issuer);
   });
+
   it("treats prompt values other than Linear's consent as absent", async () => {
     const { owner, client } = await setup();
     // Signed in: the request goes on to consent or a code, not back to the sign-in page.

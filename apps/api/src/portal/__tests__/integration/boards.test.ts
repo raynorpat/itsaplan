@@ -136,7 +136,15 @@ describe('portal boards', () => {
     const priv = await createTeam(owner, { key: 'SEC', private: true });
     expect(await bad({ slug: 'ok', teamId: priv.team.id })).toBe(400);
     await createBoard(admin, { slug: 'taken', name: 'T', teamId: eng.team.id });
-    expect(await bad({ slug: 'taken', teamId: eng.team.id })).toBe(409);
+    // A handler's status beyond the common ones reaches the client with its message.
+    const taken = await call('boards/create', {
+      as: admin,
+      body: { name: 'B', slug: 'taken', teamId: eng.team.id },
+    });
+    expect(taken.status).toBe(409);
+    expect(((await taken.json()) as { message: string }).message).toBe(
+      'This board address is taken',
+    );
   });
 
   it('gives suggestions a Portal label on the suggestion team by default', async () => {

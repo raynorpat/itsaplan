@@ -41,6 +41,23 @@ describe('routes', () => {
       ['GET', '/settings/version'],
       ['POST', `/issues/${issue.id}/attachments`],
       ['POST', `/issues/${issue.id}/attachments/import`],
+      // One path per feature Linear does not have, which this instance removed.
+      ['GET', '/teams/MKT/note-boards'],
+      ['GET', '/teams/MKT/analytics/stats'],
+      ['POST', `/issues/${issue.id}/share`],
+      ['GET', `/share/issue/${issue.id}`],
+      ['POST', '/webhook-test/sink'],
+      ['POST', '/teams/MKT/copy'],
+      ['GET', '/telegram/account'],
+      ['GET', '/teams/MKT/notification-settings'],
+      ['GET', '/teams/MKT/actions'],
+      ['POST', '/teams/MKT/issue-types'],
+      ['GET', '/teams/MKT/custom-fields'],
+      ['GET', '/teams/MKT/ai-agents'],
+      ['GET', '/integrations'],
+      ['GET', '/god/users'],
+      ['GET', '/god/updates'],
+      ['GET', '/settings/hotkeys'],
     ];
     for (const headers of [{ cookie: owner.cookie }, {}] as Record<string, string>[])
       for (const [method, path] of removed)

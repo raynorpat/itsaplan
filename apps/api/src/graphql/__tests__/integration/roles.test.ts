@@ -250,37 +250,6 @@ describe('graphql roles', () => {
     expect(code(guestCreate)).toBe('FORBIDDEN');
   });
 
-  it('lets a member join a public team they are not in', async () => {
-    const { ids } = await setup();
-    const member = await signUpAs('member');
-    const joined = await gql(
-      { cookie: member.cookie },
-      `mutation { teamMembershipCreate(input: { teamId: "${ids.OPS}", userId: "${member.userId}" }) { success teamMembership { owner user { id } } } }`,
-    );
-    expect(joined.body.errors).toBeUndefined();
-    expect(
-      data<{ teamMembershipCreate: { teamMembership: { owner: boolean; user: { id: string } } } }>(
-        joined,
-      ).teamMembershipCreate.teamMembership,
-    ).toMatchObject({ owner: false, user: { id: member.userId } });
-  });
-
-  it('lets an admin add themselves to a private team', async () => {
-    const { ids } = await setup();
-    const admin = await signUpAs('admin');
-    const member = await signUpAs('member');
-    const create = (cookie: string, userId: string) =>
-      gql(
-        { cookie },
-        `mutation { teamMembershipCreate(input: { teamId: "${ids.SEC}", userId: "${userId}" }) { success } }`,
-      );
-    const refused = await create(member.cookie, member.userId);
-    expect(refused.body.errors?.[0]?.extensions?.code).toBe('ENTITY_NOT_FOUND');
-    const joined = await create(admin.cookie, admin.userId);
-    expect(joined.body.errors).toBeUndefined();
-    expect(await teamKeys(admin.cookie)).toContain('SEC');
-  });
-
   it('keeps project labels from guests', async () => {
     await setup();
     const guest = await signUpAs('guest');

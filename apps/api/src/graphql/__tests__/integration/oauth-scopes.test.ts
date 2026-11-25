@@ -133,13 +133,4 @@ describe('oauth scopes on graphql', () => {
     });
     expect(code(notAdmin)).toBe('FORBIDDEN');
   });
-
-  it('keeps full access for a session', async () => {
-    const { owner, issueId } = await setup();
-    const update = await gql({ cookie: owner.cookie }, ISSUE_UPDATE, {
-      id: issueId,
-      input: { title: 'Changed' },
-    });
-    expect((update.body.data?.issueUpdate as { success: boolean }).success).toBe(true);
-  });
 });
