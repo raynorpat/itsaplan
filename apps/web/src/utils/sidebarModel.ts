@@ -4,6 +4,7 @@ import { canSeeInitiatives } from '@/utils/workspaceRoles';
 import { canSeeFeedback } from '@/utils/feedback';
 import {
   cyclesPath,
+  teamReleasesPath,
   dashboardsPath,
   feedbackPeoplePath,
   inboxPath,
@@ -69,6 +70,7 @@ export function sidebarModel({
         if (team.cyclesEnabled) {
           items.push({ key: 'cycles', label: 'Cycles', href: cyclesPath(team.key) });
         }
+        items.push({ key: 'releases', label: 'Releases', href: teamReleasesPath(team.key) });
         items.push({ key: 'projects', label: 'Projects', href: projectsPath(team.key) });
         items.push({ key: 'views', label: 'Views', href: teamViewsPath(team.key) });
         return { team, items };

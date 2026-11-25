@@ -37,6 +37,12 @@ export const viewsPath = () => '/views';
 // The team's issues with a new view started from them (see WorkItemsPage).
 export const newViewPath = (key: string) => `${teamPath(key)}?new-view=1`;
 export const cyclePath = (key: string, number: number) => `${cyclesPath(key)}/${number}`;
+// A team's release pipelines, one pipeline's releases, and one release, by slug.
+export const teamReleasesPath = (key: string) => `${teamPath(key)}/releases`;
+export const pipelinePath = (key: string, pipelineSlug: string) =>
+  `${teamReleasesPath(key)}/${encodeURIComponent(pipelineSlug)}`;
+export const releasePath = (key: string, pipelineSlug: string, releaseSlug: string) =>
+  `${pipelinePath(key, pipelineSlug)}/${encodeURIComponent(releaseSlug)}`;
 
 // Issues are addressed in the URL by their team-scoped number (the "42" in
 // "MKT-42"), not the internal database id: /team/MKT/issue/42.

@@ -21,11 +21,12 @@ export async function assertPipelineRead(
 ): Promise<typeof releasePipeline.$inferSelect> {
   const viewer = requireUser(user);
   const notFound = new HttpError(404, `Release pipeline ${id} not found`);
-  if (!UUID_RE.test(id)) throw notFound;
+  // Linear's id arguments also take the slug.
+  const key = UUID_RE.test(id) ? eq(releasePipeline.id, id) : eq(releasePipeline.slugId, id);
   const [row] = await db
     .select()
     .from(releasePipeline)
-    .where(and(eq(releasePipeline.id, id), visiblePipelinesSql(viewer.id)));
+    .where(and(key, visiblePipelinesSql(viewer.id)));
   if (!row) throw notFound;
   return row;
 }

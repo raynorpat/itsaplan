@@ -129,8 +129,9 @@ export async function assertReleaseRead(
   id: string,
 ): Promise<Row> {
   const notFound = new HttpError(404, `Release ${id} not found`);
-  if (!UUID_RE.test(id)) throw notFound;
-  const [row] = await db.select().from(release).where(eq(release.id, id));
+  // Linear's id arguments also take the slug.
+  const key = UUID_RE.test(id) ? eq(release.id, id) : eq(release.slugId, id);
+  const [row] = await db.select().from(release).where(key);
   if (!row) throw notFound;
   try {
     await assertPipelineRead(user, row.pipelineId);

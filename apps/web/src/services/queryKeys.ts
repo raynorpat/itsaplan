@@ -96,6 +96,14 @@ export const qk = {
   cycleArchivedIssues: (cycleId: string) => ['cycle', 'archived-issues', cycleId] as const,
   anyCycle: ['cycle'] as const,
   anyCycles: ['cycles'] as const,
+  // Release tracking: a team's pipelines, one pipeline, one release, an issue's releases.
+  releasePipelines: (teamId: string) => ['releasePipelines', teamId] as const,
+  releasePipeline: (idOrSlug: string) => ['releasePipelines', 'one', idOrSlug] as const,
+  anyReleasePipelines: ['releasePipelines'] as const,
+  release: (idOrSlug: string) => ['releases', idOrSlug] as const,
+  anyReleases: ['releases'] as const,
+  issueReleases: (issueId: string) => ['issueReleases', issueId] as const,
+  anyIssueReleases: ['issueReleases'] as const,
   attachments: (id: string) => ['attachments', id] as const,
   issueRelations: (id: string) => ['issueRelations', id] as const,
   // An issue's parent and sub-issues; issue writes refresh every entry by the prefix.

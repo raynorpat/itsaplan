@@ -408,3 +408,22 @@ describe('releases', () => {
     expect((await gqlData(member, `{ releases { nodes { id } } }`)).releases.nodes).toEqual([]);
   });
 });
+
+describe('slug lookups', () => {
+  beforeEach(resetDb);
+
+  it('reads a pipeline and a release by their slugs', async () => {
+    const { owner, pipeline } = await setup('scheduled');
+    const created = await createRelease(owner, { name: 'v1.0', pipelineId: pipeline.id });
+    const data = await gqlData(
+      owner,
+      `query($p: String!, $r: String!) {
+        releasePipeline(id: $p) { id }
+        release(id: $r) { id }
+      }`,
+      { p: pipeline.slugId, r: created.slugId },
+    );
+    expect(data.releasePipeline.id).toBe(pipeline.id);
+    expect(data.release.id).toBe(created.id);
+  });
+});

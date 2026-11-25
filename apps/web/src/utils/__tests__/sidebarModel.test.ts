@@ -64,18 +64,20 @@ describe('sidebarModel', () => {
     const [eng, des] = model.teams;
     assert.deepEqual(
       eng.items.map((i) => i.key),
-      ['issues', 'cycles', 'projects', 'views'],
+      ['issues', 'cycles', 'releases', 'projects', 'views'],
     );
     assert.deepEqual(
       des.items.map((i) => i.key),
-      ['issues', 'projects', 'views'],
+      ['issues', 'releases', 'projects', 'views'],
     );
     assert.equal(eng.items[0].label, 'Issues');
     assert.equal(eng.items[0].href, '/team/ENG');
     assert.equal(eng.items[1].href, '/team/ENG/cycles');
-    assert.equal(eng.items[2].href, '/projects?team=ENG');
-    assert.equal(eng.items[3].label, 'Views');
-    assert.equal(eng.items[3].href, '/team/ENG/views');
+    assert.equal(eng.items[2].label, 'Releases');
+    assert.equal(eng.items[2].href, '/team/ENG/releases');
+    assert.equal(eng.items[3].href, '/projects?team=ENG');
+    assert.equal(eng.items[4].label, 'Views');
+    assert.equal(eng.items[4].href, '/team/ENG/views');
   });
 
   it('links the workspace Views page', () => {
