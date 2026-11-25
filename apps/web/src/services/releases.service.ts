@@ -37,8 +37,12 @@ export interface PipelineSummary {
 }
 
 export interface Pipeline extends PipelineSummary {
+  // The newest PIPELINE_RELEASE_LIMIT releases; `releasesCapped` when there are more.
   releases: ReleaseListItem[];
+  releasesCapped: boolean;
 }
+
+export const PIPELINE_RELEASE_LIMIT = 250;
 
 export interface ReleaseIssueRow {
   id: string;
@@ -151,6 +155,9 @@ const PipelineQuery = graphql(
         releases(first: 250) {
           nodes {
             ...ReleaseListFields
+          }
+          pageInfo {
+            hasNextPage
           }
         }
       }
@@ -297,7 +304,11 @@ export function usePipeline(idOrSlug: string | null) {
     queryFn: async (): Promise<Pipeline | null> => {
       const data = await gqlRequest(PipelineQuery, { id: idOrSlug! });
       const p = data.releasePipeline;
-      return { ...toPipelineSummary(p), releases: p.releases.nodes.map(toReleaseListItem) };
+      return {
+        ...toPipelineSummary(p),
+        releases: p.releases.nodes.map(toReleaseListItem),
+        releasesCapped: p.releases.pageInfo.hasNextPage,
+      };
     },
     enabled: idOrSlug != null,
     retry: false,

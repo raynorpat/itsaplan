@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useShell } from '@/context/shellContext';
 import { Button } from '@/components/ui/button';
-import { usePipeline } from '@/services/releases.service';
+import { PIPELINE_RELEASE_LIMIT, usePipeline } from '@/services/releases.service';
 import PipelineNewReleaseDialog from './components/pipeline/PipelineNewReleaseDialog';
 import PipelineReleaseRow from './components/pipeline/PipelineReleaseRow';
 import PipelineStageBoard from './components/pipeline/PipelineStageBoard';
@@ -64,6 +64,11 @@ export default function PipelinePage() {
                 pipelineSlug={pipeline.slugId}
               />
             ))
+          )}
+          {pipeline.releasesCapped && (
+            <p className="px-6 py-3 text-xs text-muted-foreground">
+              Showing the newest {PIPELINE_RELEASE_LIMIT} releases.
+            </p>
           )}
         </div>
       )}
