@@ -10,6 +10,17 @@ export function formatValue(value: number | null, unit: string): string {
   return String(Math.round(value * 10) / 10);
 }
 
+const REVENUE_COLUMNS = new Set(['revenue', 'customerRevenue']);
+
+// A table cell as shown: revenue columns compact, like the figures; the CSV keeps the
+// raw value.
+export function cellText(columnId: string, cell: string | number | null | undefined): string {
+  if (cell == null) return '–';
+  if (typeof cell === 'number' && REVENUE_COLUMNS.has(columnId))
+    return formatValue(cell, 'revenue');
+  return String(cell);
+}
+
 // A number widget's line under its figure; null when there is nothing to compare.
 export function changeText(value: number | null, previous: number | null): string | null {
   if (value == null || previous == null) return null;

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ColumnDef } from '@/utils/dashboards/config';
 import type { TableRow } from '@/utils/dashboards/compute';
+import { cellText } from '../utils/format';
 
 // The top rows of a table widget; a row with a link opens its issue, project or cycle.
 export default function WidgetTable({ columns, rows }: { columns: ColumnDef[]; rows: TableRow[] }) {
@@ -26,8 +27,7 @@ export default function WidgetTable({ columns, rows }: { columns: ColumnDef[]; r
           {rows.map((r) => (
             <tr key={r.id} className="border-t">
               {columns.map((c, i) => {
-                const cell = r.cells[c.id];
-                const text = cell == null ? '–' : String(cell);
+                const text = cellText(c.id, r.cells[c.id]);
                 return (
                   <td key={c.id} className="py-1 pr-3 whitespace-nowrap tabular-nums">
                     {i === 0 && r.href ? (
