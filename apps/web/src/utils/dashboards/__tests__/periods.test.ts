@@ -9,10 +9,8 @@ describe('periodRange', () => {
     const r = periodRange('30d', now);
     assert.equal(r.start.toISOString(), '2026-10-25T00:00:00.000Z');
     assert.equal(r.end.toISOString(), now.toISOString());
-    assert.equal(
-      r.previousStart.getTime(),
-      r.start.getTime() - (now.getTime() - r.start.getTime()),
-    );
+    // 30 days and 15.5 hours before the start.
+    assert.equal(r.previousStart.toISOString(), '2026-09-24T08:30:00.000Z');
     assert.equal(periodRange('90d', now).start.toISOString(), '2026-08-26T00:00:00.000Z');
     assert.equal(periodRange('6m', now).start.toISOString(), '2026-05-24T00:00:00.000Z');
     assert.equal(periodRange('12m', now).start.toISOString(), '2025-11-24T00:00:00.000Z');

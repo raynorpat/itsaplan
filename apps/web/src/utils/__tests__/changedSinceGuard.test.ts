@@ -19,7 +19,7 @@ describe('changed-since guard', () => {
     assert.equal(guard.isCurrent('list', token), false);
   });
 
-  it('tracks each list on its own and shares one record per list', () => {
+  it('tracks each list on its own', () => {
     const guard = createChangedSinceGuard();
     const a = guard.begin('a');
     guard.reloaded('b');

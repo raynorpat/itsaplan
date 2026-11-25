@@ -68,19 +68,30 @@ describe('timelineScale', () => {
   });
 
   it('maps dates to x and back on day boundaries', () => {
-    const s = timelineScale({
-      from: d('2026-01-01'),
-      to: d('2026-12-31'),
-      zoom: 'quarter',
-      viewportW: 0,
-      labelW: 0,
-      today,
+    // Europe changes on 29 March and 25 October 2026.
+    inTimeZone('Europe/Berlin', () => {
+      const s = timelineScale({
+        from: d('2026-01-01'),
+        to: d('2026-12-31'),
+        zoom: 'quarter',
+        viewportW: 0,
+        labelW: 0,
+        today,
+      });
+      for (const day of [
+        '2026-01-31',
+        '2026-02-28',
+        '2026-03-29',
+        '2026-03-30',
+        '2026-10-25',
+        '2026-10-26',
+        '2026-12-31',
+      ]) {
+        assert.equal(toDateStr(s.dateOf(s.xOf(d(day)))), day);
+        // Anywhere inside the day's column maps to that day.
+        assert.equal(toDateStr(s.dateOf(s.xOf(d(day)) + s.dayWidth - 1)), day);
+      }
     });
-    for (const day of ['2026-01-31', '2026-02-28', '2026-03-29', '2026-10-25', '2026-12-31']) {
-      assert.equal(toDateStr(s.dateOf(s.xOf(d(day)))), day);
-      // Anywhere inside the day's column maps to that day.
-      assert.equal(toDateStr(s.dateOf(s.xOf(d(day)) + s.dayWidth - 1)), day);
-    }
   });
 
   it('places a span as a rect covering both end days', () => {

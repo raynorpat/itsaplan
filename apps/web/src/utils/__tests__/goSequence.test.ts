@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { GO_TARGETS, goSequenceStep } from '@/utils/goSequence';
+import { goSequenceStep } from '@/utils/goSequence';
 
 describe('goSequenceStep', () => {
   it('goes to the inbox on G then I', () => {
@@ -13,7 +13,6 @@ describe('goSequenceStep', () => {
     const g = goSequenceStep(null, 'g', 0).pending;
     assert.equal(goSequenceStep(g, 'm', 10).target, 'my-issues');
     assert.equal(goSequenceStep(g, 'p', 10).target, 'projects');
-    assert.deepEqual(Object.keys(GO_TARGETS).sort(), ['i', 'm', 'p']);
   });
 
   it('forgets the G after a second', () => {

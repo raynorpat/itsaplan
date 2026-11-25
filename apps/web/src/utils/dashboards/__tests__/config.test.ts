@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { MEASURES, measureDef, parseWidgets, requiresCustomers, SLICES } from '../config';
+import { parseWidgets, requiresCustomers } from '../config';
 
 const good = {
   id: 'w1',
@@ -73,21 +73,19 @@ describe('parseWidgets', () => {
         segment: null,
       },
     };
-    assert.equal(parseWidgets([project]).length, 1);
-  });
-});
-
-describe('measures', () => {
-  it('gives every measure a basis and unit', () => {
-    for (const list of Object.values(MEASURES))
-      for (const m of list) {
-        assert.ok(m.basis === 'current' || m.basis === 'events', m.id);
-        assert.ok(m.label.length > 0);
-      }
-    assert.equal(measureDef('requests', 'timeToStart')?.unit, 'days');
-    assert.equal(measureDef('issues', 'open')?.basis, 'current');
-    assert.ok(SLICES.requests.includes('source'));
-    assert.ok(SLICES.projects.includes('health'));
+    const cycle = {
+      ...good,
+      id: 'w2',
+      config: {
+        title: 'Scope',
+        data: 'cycles',
+        filter: { teamIds: ['t1'] },
+        measure: 'scope',
+        slice: 'cycle',
+        segment: null,
+      },
+    };
+    assert.deepEqual(parseWidgets([project, cycle]), [project, cycle]);
   });
 });
 

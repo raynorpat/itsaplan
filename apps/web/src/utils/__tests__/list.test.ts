@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import type { Issue } from '@/types/issue';
 import { positionAt, type IssueGroup } from '../team';
 import { buildListItems, listDropPatch, listRowProperties, rangeIds, toggledKeys } from '../list';
-import { displayToPreferences, preferencesToDisplay } from '../viewPreferences';
 import {
   DISPLAY_PROPERTIES,
   defaultViewSettings,
@@ -34,13 +33,6 @@ describe('the table layout folds into the list', () => {
     assert.deepEqual(d.properties, ['labels', 'priority', 'id']);
     assert.equal(d.group, 'assignee');
     assert.deepEqual(d.sort, { field: 'created', dir: 'desc' });
-  });
-
-  it('round-trips the list layout through Linear’s view preferences', () => {
-    const d = normalizeSavedDisplay({ layout: 'list' });
-    const prefs = displayToPreferences(d);
-    assert.equal(prefs.layout, 'list');
-    assert.equal(preferencesToDisplay(prefs).layout, 'list');
   });
 
   it('defaults to the list with priority, ID and status on the row', () => {

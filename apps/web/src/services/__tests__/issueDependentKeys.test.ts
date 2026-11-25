@@ -15,8 +15,10 @@ describe('ISSUE_DEPENDENT_KEYS', () => {
   });
 
   it('keeps refreshing project and cycle progress', () => {
-    assert.equal(covers(qk.anyProject), true);
-    assert.equal(covers(qk.anyCycles), true);
+    assert.equal(covers(qk.project('p1')), true);
+    assert.equal(covers(qk.projects('ENG')), true);
+    assert.equal(covers(qk.cycles('t1', 'open')), true);
+    assert.equal(covers(qk.cycle('t1', 1)), true);
   });
 
   it('refreshes every issue’s parent and sub-issues', () => {

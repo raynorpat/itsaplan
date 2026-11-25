@@ -1,5 +1,5 @@
 // Linear's two-key navigation: press G, then a letter within a second.
-export const GO_TARGETS = {
+const GO_TARGETS = {
   i: 'inbox',
   m: 'my-issues',
   p: 'projects',

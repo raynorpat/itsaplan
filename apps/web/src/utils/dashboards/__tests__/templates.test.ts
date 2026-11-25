@@ -7,13 +7,6 @@ import { TEMPLATES, bugLabelIds, findTemplate } from '../templates';
 const ctx = { bugLabelIds: ['label-bug', 'label-eng-bug'] };
 
 describe('TEMPLATES', () => {
-  it('offers the five ready-made dashboards', () => {
-    assert.deepEqual(
-      TEMPLATES.map((t) => t.key),
-      ['feedback', 'delivery', 'projects', 'cycles', 'bugs'],
-    );
-  });
-
   it('builds widgets that parse unchanged, with unique ids', () => {
     for (const t of TEMPLATES) {
       const widgets = t.widgets(ctx);

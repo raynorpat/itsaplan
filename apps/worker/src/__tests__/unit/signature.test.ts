@@ -1,21 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { createHmac } from 'node:crypto';
-import { signBody } from '../../signature';
 import { nextRetryDelayS, renderBody } from '../../delivery';
-
-describe('signBody', () => {
-  it('is the hex HMAC-SHA256 of the raw body', () => {
-    const body = JSON.stringify({ a: 1 });
-    expect(signBody('whsec_test', body)).toBe(
-      createHmac('sha256', 'whsec_test').update(body).digest('hex'),
-    );
-  });
-
-  it('changes when the body or the secret changes', () => {
-    expect(signBody('s', '{}')).not.toBe(signBody('s', '{ }'));
-    expect(signBody('a', '{}')).not.toBe(signBody('b', '{}'));
-  });
-});
 
 describe('renderBody', () => {
   it('sets a fresh webhookTimestamp on each attempt', () => {

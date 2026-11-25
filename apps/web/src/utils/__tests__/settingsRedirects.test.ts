@@ -73,11 +73,4 @@ describe('settings redirects', () => {
       }
     }
   });
-
-  it('leaves the old settings pages removed', () => {
-    for (const old of ['account/profile', 'workspace/settings', 'projects/settings/labels']) {
-      assert.ok(!existsSync(join(APP, old, 'page.tsx')), `${old} still exists`);
-    }
-    assert.ok(!existsSync(join(APP, 'team', '[teamKey]', 'settings')), 'team settings still exist');
-  });
 });

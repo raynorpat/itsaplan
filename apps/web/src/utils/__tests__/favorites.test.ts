@@ -132,6 +132,7 @@ describe('dropTarget', () => {
     const t = dropTarget(tree, 'a', 'folder');
     assert.deepEqual(t, { parentId: 'folder', index: 2, siblings: [1000, 2000] });
     assert.equal(sortOrderForDrop(t!.siblings, t!.index), 3000);
+    assert.deepEqual(dropTarget(tree, 'a', 'folder', 'into'), t);
   });
 
   it('moves a favorite into a folder at a child position', () => {
@@ -193,14 +194,6 @@ describe('dropTarget zones on a folder row', () => {
   it('puts a favorite below a folder from the bottom of its row', () => {
     const t = dropTarget(tree, 'a', 'folder', 'after');
     assert.deepEqual(t, { parentId: null, index: 1, siblings: [1000] });
-  });
-
-  it('puts it into the folder from the middle', () => {
-    assert.deepEqual(dropTarget(tree, 'a', 'folder', 'into'), {
-      parentId: 'folder',
-      index: 1,
-      siblings: [1000],
-    });
   });
 });
 

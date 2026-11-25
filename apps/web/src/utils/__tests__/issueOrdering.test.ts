@@ -275,12 +275,23 @@ describe('issue orderings', () => {
       ...extra,
     });
     const list = [
-      my('a', { estimate: 5, project: { name: 'Zeta' }, labels: [{ name: 'ui' }] }),
-      my('b', { estimate: 2, project: { name: 'alpha' }, labels: [{ name: 'API' }] }),
+      my('a', {
+        estimate: 5,
+        cycle: { startsAt: '2026-11-16T00:00:00Z' },
+        project: { name: 'Zeta' },
+        labels: [{ name: 'ui' }],
+      }),
+      my('b', {
+        estimate: 2,
+        cycle: { startsAt: '2026-11-02T00:00:00Z' },
+        project: { name: 'alpha' },
+        labels: [{ name: 'API' }],
+      }),
     ];
     const order = (field: string, dir: 'asc' | 'desc') =>
       sortMyIssues(list, { field: field as never, dir }).map((i) => i.id);
     assert.deepEqual(order('estimate', 'asc'), ['b', 'a']);
+    assert.deepEqual(order('cycle', 'asc'), ['b', 'a']);
     assert.deepEqual(order('project', 'asc'), ['b', 'a']);
     assert.deepEqual(order('label', 'asc'), ['b', 'a']);
   });

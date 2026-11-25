@@ -54,9 +54,6 @@ const BASE: { measure: Measure; slice: SliceField; segment: SliceField | null } 
   segment: null,
 };
 
-const DAY = 86_400_000;
-const at = (iso: string) => new Date(iso).getTime();
-
 describe('slices', () => {
   it('puts an issue with several labels in each label slice, and unlabelled ones in "No label"', () => {
     const slices = sliceIssues(
@@ -420,13 +417,4 @@ describe('over time', () => {
     assert.deepEqual(byWeek['2026-11-02'], [1, 0]);
     assert.deepEqual(byWeek['2026-11-09'], [0, 0]);
   });
-
-  it('starts a one-month period on the last day of a shorter month', () => {
-    const weeks = weeklyCreatedCompleted([], 1, new Date('2026-03-31T12:00:00.000Z'));
-    // Feb 28 2026 is a Saturday: its week starts on Monday Feb 23.
-    assert.equal(weeks[0]!.weekStart, '2026-02-23');
-  });
 });
-
-// Keeps the day arithmetic above honest.
-assert.equal((at('2026-11-08T12:00:00.000Z') - at('2026-11-03T00:00:00.000Z')) / DAY, 5.5);

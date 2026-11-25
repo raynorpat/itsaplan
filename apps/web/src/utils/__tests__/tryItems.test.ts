@@ -29,9 +29,11 @@ describe('tryItems', () => {
 });
 
 describe('meetsMinimumRole', () => {
-  it('reads Linear’s `user` as a member', () => {
+  it('reads Linear’s `user` as a member, below an admin and an owner', () => {
     assert.equal(meetsMinimumRole('member', 'user'), true);
     assert.equal(meetsMinimumRole('member', 'admin'), false);
+    assert.equal(meetsMinimumRole('admin', 'admin'), true);
+    assert.equal(meetsMinimumRole('owner', 'admin'), true);
   });
   it('refuses a guest, an unknown role and an unknown setting', () => {
     assert.equal(meetsMinimumRole('guest', 'guest'), false);

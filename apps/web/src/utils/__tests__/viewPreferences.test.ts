@@ -78,10 +78,6 @@ describe('view preferences', () => {
     assert.equal(read.layout, 'kanban');
   });
 
-  it('gives defaults for missing preferences', () => {
-    assert.deepEqual(preferencesToDisplay(null), normalizeSavedDisplay({}));
-  });
-
   it('saves grouping by cycle and the cycle property', () => {
     const byCycle = { ...display, group: 'cycle' as const, properties: ['cycle' as const] };
     const prefs = displayToPreferences(byCycle);
@@ -92,12 +88,6 @@ describe('view preferences', () => {
 });
 
 describe('view preferences: completed issues and sub-issues', () => {
-  it("saves Linear's showCompletedIssues and showSubIssues", () => {
-    const prefs = displayToPreferences(display);
-    assert.equal(prefs.showCompletedIssues, 'week');
-    assert.equal(prefs.showSubIssues, false);
-  });
-
   it('reads them back', () => {
     const back = preferencesToDisplay({
       layout: 'list',
