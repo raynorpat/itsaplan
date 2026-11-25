@@ -1037,6 +1037,8 @@ export const formSubmission = pgTable(
   },
   (t) => [
     uniqueIndex('form_submission_token_hash_uq').on(t.tokenHash),
+    // Expired rows are deleted by expiry when a new submission is stored.
+    index('form_submission_expires_at_idx').on(t.expiresAt),
     check('form_submission_email_lower_check', sql`${t.email} = lower(${t.email})`),
   ],
 );

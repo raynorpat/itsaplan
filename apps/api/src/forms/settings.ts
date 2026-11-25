@@ -130,7 +130,7 @@ export function validateAnswers(form: FormRow, raw: unknown): Answers {
   return answers;
 }
 
-function answerText(field: FormField, answer: string | string[] | boolean): string {
+export function answerText(field: FormField, answer: string | string[] | boolean): string {
   const optionLabel = (id: string) => field.options?.find((o) => o.id === id)?.label ?? id;
   if (typeof answer === 'boolean') return answer ? 'Yes' : 'No';
   if (Array.isArray(answer)) return answer.map(optionLabel).join(', ');
@@ -149,6 +149,30 @@ export function formIssueDescription(form: FormRow, answers: Answers): string {
     blocks.push(`**${field.label}**\n\n${answerText(field, answer)}`);
   }
   return blocks.join('\n\n');
+}
+
+// The answered questions in form order, as plain text: option labels, "Yes" / "No".
+export function answerList(form: FormRow, answers: Answers): { label: string; answer: string }[] {
+  return fieldsOf(form).flatMap((field) => {
+    const answer = answers[field.id];
+    return answer === undefined ? [] : [{ label: field.label, answer: answerText(field, answer) }];
+  });
+}
+
+// Stored answers checked against the form as it is now: answers to questions removed
+// since are dropped; a question that became required, or an option that is gone, makes
+// them unusable (400 "This form has changed").
+export function storedAnswers(form: FormRow, raw: unknown): Answers {
+  const known = new Set(fieldsOf(form).map((f) => f.id));
+  const kept =
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw).filter(([id]) => known.has(id)))
+      : {};
+  try {
+    return validateAnswers(form, kept);
+  } catch {
+    throw new HttpError(400, 'This form has changed. Fill it in again.');
+  }
 }
 
 // The options chosen in the answers, in form order.

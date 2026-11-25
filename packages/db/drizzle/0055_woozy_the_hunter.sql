@@ -1,0 +1,1 @@
+CREATE INDEX "form_submission_expires_at_idx" ON "form_submission" USING btree ("expires_at");

@@ -202,13 +202,15 @@ Rules and invariants for this package below; read the code for the walkthrough.
   option may add a label and set a priority); unknown keys are refused. A team
   template is managed by the team's members and by workspace admins and owners, a
   workspace template by admins and owners; guests and app users manage none
-  (`assertTemplateManage`); a template that is a form only by admins and owners.
+  (`assertTemplateManage`); a template that is a form only by admins and owners, and its
+  team cannot be changed (INVALID_INPUT).
   `templates` is the viewer's whole list, `templateSearch` takes the filter,
   `Team.templates` and `Organization.templates` (workspace templates) page.
 - **Forms** (`forms/`): a team issue template of a public team with a `form_settings`
   row (slug for `/forms/<slug>`, intro, link on or off, the portal boards it is shown
   on: team boards of its team or project boards whose project includes it). Owners and
-  admins manage the settings through `/api/auth/instance/forms*` (`forms/admin.ts`);
+  admins manage the settings through `/api/auth/instance/forms*` (`forms/admin.ts`;
+  `validateOnly` checks the settings, for a new form by `teamId`, and stores nothing);
   deleting the form deletes its template. A form whose template is archived or whose
   team is private is not found (`getFormBySlug`). Answers (`validateAnswers`) are keyed
   by field id: required questions answered, options only from the field, text at most
@@ -223,15 +225,19 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Public forms** (`forms/public.ts`, under the portal routes): `GET /portal/forms/:slug`
   serves a form whose link is on (options without their labels and priority). Someone
   not signed in to the portal submits with email and name (`POST /portal/forms/:slug`):
-  the answer is always `{ status: 'pending' }`, and only an address that is not blocked
-  and within the sign-in link limit (shared with portal sign-in links) gets a
-  `form_submission` row (token stored hashed, 24 hours, once) and the mailed link
+  the answer is always `{ status: 'pending' }`, given before the rest runs (so its timing
+  tells nothing either), and only an address that is not blocked and within the sign-in
+  link limit (shared with portal sign-in links) gets a `form_submission` row (token
+  stored hashed, 24 hours, once) and the mailed link listing the answers
   (logged as `[portal] form confirmation link for` when no mail provider sends it); 20
   submissions per client address an hour (429). The link opens the web's confirm page,
-  whose button posts the token (`/portal/forms/confirm`): it checks the form still takes
-  requests (link on, team public), the stored answers still fit it and the requester
-  is not blocked before claiming the token, then creates the requester when new, the
-  issue and its feedback, and a portal session for the address. A signed-in visitor's
+  which shows the stored answers (`confirm-info`); its button posts the token
+  (`/portal/forms/confirm`): it checks the form still takes requests (link on, team
+  public, a state for the issue), the stored answers still fit it (answers to removed
+  questions are dropped) and the requester is not blocked before claiming the token,
+  then creates the requester when new, the issue and its feedback, and a portal session
+  for the address; if that fails after the claim, the token is released and a requester
+  it created is removed. A signed-in visitor's
   submission is created at once. On a board, `GET /portal/boards/:slug/forms` lists the
   forms placed on it that still fit it (`boardMayShowForm`), and only signed-in
   visitors submit (`POST /portal/boards/:slug/forms/:formSlug`; the issue records the

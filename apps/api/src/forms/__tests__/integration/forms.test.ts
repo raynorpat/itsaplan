@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { db, issue as issueTable } from '@repo/db';
+import { sql } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
@@ -217,6 +221,36 @@ describe('form settings', () => {
     expect(
       errorCode(await gql(headers(owner), UPDATE, { id: template.id, input: { name: 'Y' } })),
     ).toBeUndefined();
+  });
+
+  it('refuses moving a form template to another team, or to no team', async () => {
+    const { owner, ops, template } = await setup();
+    await makeForm(owner, template.id);
+    for (const teamId of [ops.team.id, null]) {
+      const res = await gql(headers(owner), UPDATE, { id: template.id, input: { teamId } });
+      expect(errorCode(res)).toBe('INVALID_INPUT');
+    }
+    expect((await getFormBySlug('bugs'))!.template.teamId).not.toBeNull();
+  });
+
+  it('checks the settings of a new form before its template exists', async () => {
+    const { owner, eng, ops, template } = await setup();
+    await makeForm(owner, template.id);
+    const opsBoard = await createBoard(owner, { slug: 'ops', name: 'Ops', teamId: ops.team.id });
+    const check = (body: Json) =>
+      saveSettings(owner, { validateOnly: true, teamId: eng.team.id, linkEnabled: true, ...body });
+    expect((await check({ slug: 'bugs' })).status).toBe(409);
+    expect((await check({ slug: 'ideas', boardIds: [opsBoard.id] })).status).toBe(400);
+    expect((await check({ slug: 'BAD' })).status).toBe(400);
+    expect(await ok(await check({ slug: 'ideas' }))).toEqual({ success: true });
+    // Checking stores nothing.
+    expect(await getFormBySlug('ideas')).toBeNull();
+    // An edited form's own slug is not "taken".
+    expect(
+      await ok(
+        await saveSettings(owner, { validateOnly: true, templateId: template.id, slug: 'bugs' }),
+      ),
+    ).toEqual({ success: true });
   });
 
   it('deletes a form with its template', async () => {
@@ -460,5 +494,60 @@ describe('portal suggestions and their board', () => {
       [made.identifier, true],
     ]);
     expect(await list('b')).toEqual([]);
+  });
+});
+
+describe('the source board backfill', () => {
+  beforeEach(resetDb);
+
+  // The migration that records the board of portal suggestions made before
+  // issue.portal_source_board_id existed.
+  const backfill = () => {
+    const dir = join(import.meta.dir, '../../../../../../packages/db/drizzle');
+    const file = readdirSync(dir).find((f) => f.endsWith('_portal_source_board_backfill.sql'));
+    if (!file) throw new Error('no backfill migration');
+    return db.execute(sql.raw(readFileSync(join(dir, file), 'utf8')));
+  };
+
+  it("sets the board of a suggestion when exactly one board takes the team's suggestions", async () => {
+    const { owner, eng, ops, states } = await setup();
+    const filter = await createLabel(owner, { name: 'roadmap', teamId: 'ENG' });
+    await createBoard(owner, {
+      slug: 'a',
+      name: 'A',
+      teamId: eng.team.id,
+      labelIds: [filter.id],
+      suggestionsEnabled: true,
+      suggestionTeamId: eng.team.id,
+      suggestionStateId: states.backlog,
+    });
+    const opsStates = statesByType(ops);
+    const opsFilter = await createLabel(owner, { name: 'roadmap', teamId: 'OPS' });
+    for (const slug of ['o1', 'o2'])
+      await createBoard(owner, {
+        slug,
+        name: slug,
+        teamId: ops.team.id,
+        labelIds: [opsFilter.id],
+        suggestionsEnabled: true,
+        suggestionTeamId: ops.team.id,
+        suggestionStateId: opsStates.backlog,
+      });
+    const jane = await visitor('a', 'Jane');
+    const one = await ok(
+      await portal('boards/a/suggestions', { cookie: jane.cookie, body: { title: 'Dark mode' } }),
+    );
+    const two = await ok(
+      await portal('boards/o1/suggestions', { cookie: jane.cookie, body: { title: 'Ops idea' } }),
+    );
+    await db.update(issueTable).set({ portalSourceBoardId: null });
+    await backfill();
+    const list = async (slug: string) =>
+      (await ok(await portal(`boards/${slug}/issues`, { cookie: jane.cookie }))).issues as Json[];
+    expect((await list('a')).map((i) => i.identifier)).toEqual([one.identifier]);
+    // Two boards take OPS suggestions: which one it came from is unknown, so none.
+    expect(two.identifier).toMatch(/^OPS-/);
+    expect(await list('o1')).toEqual([]);
+    expect(await list('o2')).toEqual([]);
   });
 });

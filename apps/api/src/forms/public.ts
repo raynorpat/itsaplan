@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { db, formSettings, formSubmission, team, template } from '@repo/db';
-import { and, arrayContains, asc, eq, gt, isNull, lt } from 'drizzle-orm';
+import { db, externalUser, formSettings, formSubmission, team, template } from '@repo/db';
+import { and, arrayContains, asc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { requesterByEmail } from '../feedback/requesters';
 import { canReadBoard } from '../portal/access';
 import { boardsShowingIssue, type BoardRow } from '../portal/boards';
@@ -18,13 +18,16 @@ import {
 import { HttpError } from '../shared/lib';
 import type { FormField, IssueTemplateData } from '../templates/data';
 import {
+  answerList,
   boardMayShowForm,
   getFormBySlug,
   getFormByTemplateId,
+  storedAnswers,
   validateAnswers,
+  type Answers,
   type FormRow,
 } from './settings';
-import { submitForm } from './submit';
+import { formDestination, submitForm } from './submit';
 
 // The public side of forms, under the portal's routes. On its link (`/forms/<slug>`),
 // someone not signed in to the portal submits with their email and name; nothing is
@@ -90,10 +93,11 @@ function submissionLimit(visitor: Visitor): void {
 
 // A submission on the form's link. A signed-in visitor's creates the issue at once.
 // Otherwise the answers, email and name are checked and the answer is always
-// `pending`: the confirmation link is stored and mailed only when the address is not
-// blocked and within its link limit (it shares the portal's sign-in link limit). `ip`
-// is the client address when known (over its limit: 429, which tells nothing about
-// the address).
+// `pending`, given before anything else happens: storing the confirmation link and
+// mailing it run after the response, and only for an address that is not blocked and
+// within its link limit (shared with the portal's sign-in links), so neither the answer
+// nor its timing tells anything about the address. `ip` is the client address when
+// known (over its limit: 429, which tells nothing about the address).
 export async function submitOnLink(
   slug: string,
   input: Record<string, unknown>,
@@ -114,13 +118,38 @@ export async function submitOnLink(
 
   const email = cleanEmail(input.email);
   const name = cleanName(input.name, 'name');
-  const { formSubmissions, linksPerAddress } = LIMITS;
+  const { formSubmissions } = LIMITS;
   if (ip && !allow(`form-ip:${ip}`, formSubmissions.limit, formSubmissions.windowMs))
     throw new HttpError(429, 'Too many requests. Try again later.');
-  if (!allow(`link:${email}`, linksPerAddress.limit, linksPerAddress.windowMs))
-    return { status: 'pending' };
+  void storeSubmission(form, answers, email, name).catch((err) =>
+    console.error(
+      '[portal] storing a form submission failed:',
+      err instanceof Error ? err.message : err,
+    ),
+  );
+  return { status: 'pending' };
+}
+
+// The confirmation email: what is being confirmed, then the link.
+export function confirmationText(form: FormRow, answers: Answers): string {
+  const lines = answerList(form, answers).map((a) => `${a.label}:\n${a.answer}`);
+  return [
+    `Confirm your request on the ${form.template.name} form with the link below. It works once and expires in 24 hours.`,
+    'Your answers:',
+    ...lines,
+  ].join('\n\n');
+}
+
+async function storeSubmission(
+  form: FormRow,
+  answers: Answers,
+  email: string,
+  name: string,
+): Promise<void> {
+  const { linksPerAddress } = LIMITS;
+  if (!allow(`link:${email}`, linksPerAddress.limit, linksPerAddress.windowMs)) return;
   const known = await requesterByEmail(email);
-  if (known?.portalBlockedAt) return { status: 'pending' };
+  if (known?.portalBlockedAt) return;
 
   const token = randomBytes(32).toString('base64url');
   await db.delete(formSubmission).where(lt(formSubmission.expiresAt, new Date()));
@@ -135,11 +164,10 @@ export async function submitOnLink(
   mailPortalLink({
     to: email,
     subject: `Confirm your request: ${form.template.name}`,
-    text: 'Confirm your request with the link below. It works once and expires in 24 hours.',
+    text: confirmationText(form, answers),
     url: `${webOrigin()}/forms/${form.settings.slug}/confirm?token=${token}`,
     logPrefix: '[portal] form confirmation link for',
   });
-  return { status: 'pending' };
 }
 
 const invalidLink = (): never => {
@@ -168,27 +196,48 @@ async function submissionForm(templateId: string): Promise<FormRow> {
   return form;
 }
 
-// What the confirm page shows before its button is pressed.
-export async function confirmInfo(token: unknown): Promise<{ formName: string }> {
+// What the confirm page shows before its button is pressed: the form and the answers
+// the request carries, so the person sees what they confirm.
+export async function confirmInfo(
+  token: unknown,
+): Promise<{ formName: string; answers: { label: string; answer: string }[] }> {
   const row = await usableSubmission(token);
-  return { formName: (await submissionForm(row.templateId)).template.name };
+  const form = await submissionForm(row.templateId);
+  return {
+    formName: form.template.name,
+    answers: answerList(form, storedAnswers(form, row.answers)),
+  };
 }
 
-// Uses the confirmation link (once): checks the form still takes requests and its
-// answers still fit it, and that the address's requester is not blocked, before
-// anything is created; then creates the requester when new, the issue and its
-// feedback, and a portal session for the address.
+// Removes a requester the confirmation created when the confirmation failed, unless
+// something already names it.
+async function dropUnusedRequester(id: string): Promise<void> {
+  await db
+    .delete(externalUser)
+    .where(
+      and(
+        eq(externalUser.id, id),
+        sql`NOT EXISTS (SELECT 1 FROM attachment WHERE external_user_creator_id = ${id})`,
+        sql`NOT EXISTS (SELECT 1 FROM issue WHERE external_user_creator_id = ${id})`,
+        sql`NOT EXISTS (SELECT 1 FROM comment WHERE external_user_id = ${id})`,
+        sql`NOT EXISTS (SELECT 1 FROM portal_session WHERE external_user_id = ${id})`,
+      ),
+    );
+}
+
+// Uses the confirmation link (once): checks the form still takes requests, its team
+// can take the issue, the answers still fit it, and the address's requester is not
+// blocked, before the token is claimed; then creates the requester when new, the issue
+// and its feedback, and a portal session for the address. When creating the issue
+// fails after the claim, the token is released and a requester it created is removed,
+// so the link can be used again.
 export async function confirmSubmission(
   token: unknown,
 ): Promise<Created & { sessionToken: string }> {
   const pending = await usableSubmission(token);
   const form = await submissionForm(pending.templateId);
-  let answers;
-  try {
-    answers = validateAnswers(form, pending.answers);
-  } catch {
-    throw new HttpError(400, 'This form has changed. Fill it in again.');
-  }
+  const answers = storedAnswers(form, pending.answers);
+  await formDestination(form);
   let requester = await requesterByEmail(pending.email);
   if (requester?.portalBlockedAt) return invalidLink();
 
@@ -205,9 +254,17 @@ export async function confirmSubmission(
     .returning({ id: formSubmission.id });
   if (!claimed) return invalidLink();
 
-  requester ??= await requesterFor(pending.email, pending.name);
-  if (requester.portalBlockedAt) return invalidLink();
-  const issue = await submitForm(form, answers, requester.id, { boardId: null, projectId: null });
+  const isNew = !requester;
+  let issue;
+  try {
+    requester ??= await requesterFor(pending.email, pending.name);
+    if (requester.portalBlockedAt) return invalidLink();
+    issue = await submitForm(form, answers, requester.id, { boardId: null, projectId: null });
+  } catch (err) {
+    await db.update(formSubmission).set({ usedAt: null }).where(eq(formSubmission.id, pending.id));
+    if (isNew && requester) await dropUnusedRequester(requester.id);
+    throw err;
+  }
   const sessionToken = await startSession(requester.id, pending.email);
   const visitor: Visitor = {
     requesterId: requester.id,

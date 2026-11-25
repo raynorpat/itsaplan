@@ -1,11 +1,12 @@
 import { db, template } from '@repo/db';
 import { and, asc, eq, isNull, type SQL } from 'drizzle-orm';
-import { UUID_RE } from '../../shared/lib';
+import { HttpError, UUID_RE } from '../../shared/lib';
 import { hasFormFields } from '../../templates/data';
 import {
   assertTemplateManage,
   createTemplate,
   deleteTemplate,
+  isFormTemplate,
   updateTemplate,
   visibleTemplatesSql,
   type TemplateRow,
@@ -209,8 +210,12 @@ export const templateResolvers = {
         await assertTemplateManage({ teamId: existing.teamId, id: existing.id }, ctx.user);
         const teamId =
           input.teamId === undefined ? undefined : await teamIdInput(input.teamId, ctx);
-        if (teamId !== undefined && teamId !== existing.teamId)
+        if (teamId !== undefined && teamId !== existing.teamId) {
+          // A form's state, labels and boards belong to its team.
+          if (await isFormTemplate(existing.id))
+            throw new HttpError(400, "A form's team cannot be changed");
           await assertTemplateManage({ teamId, id: existing.id }, ctx.user);
+        }
         const row = await updateTemplate(
           existing,
           {

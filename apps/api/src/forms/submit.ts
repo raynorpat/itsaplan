@@ -65,15 +65,23 @@ async function stateFor(teamId: string, stateId: string | undefined): Promise<st
   return fallback;
 }
 
+// The form's team and the state its issues get, or an HttpError when the form cannot
+// take an issue now (its team gone or private, no state to put the issue in). The
+// link's confirmation checks this before it uses the token.
+export async function formDestination(form: FormRow) {
+  const teamId = form.template.teamId;
+  const team = teamId ? await getTeamById(teamId) : null;
+  if (!team || team.visibility !== 'public') throw new HttpError(404, 'Form not found');
+  return { team, stateId: await stateFor(team.id, form.data.stateId) };
+}
+
 export async function submitForm(
   form: FormRow,
   answers: Answers,
   requesterId: string,
   origin: FormOrigin,
 ): Promise<{ issueId: string; identifier: string }> {
-  const teamId = form.template.teamId;
-  const team = teamId ? await getTeamById(teamId) : null;
-  if (!team || team.visibility !== 'public') throw new HttpError(404, 'Form not found');
+  const { team, stateId } = await formDestination(form);
   const requester = await activeRequester(requesterId);
   if (!requester) throw new HttpError(404, 'Requester not found');
 
@@ -93,7 +101,7 @@ export async function submitForm(
   const created = await createIssue(
     team,
     {
-      stateId: await stateFor(team.id, form.data.stateId),
+      stateId,
       title,
       description: formIssueDescription(form, answers),
       labelIds,

@@ -98,19 +98,41 @@ export const formsHandlers: FormsHandlers = {
     }));
     return { forms };
   },
+  // With `validateOnly`, checks the settings and stores nothing; for a form not created
+  // yet it takes the team (`teamId`) instead of `templateId`, so the editor can check
+  // the address and boards before it creates the template.
   saveSettings: async (headers, body) => {
     await admin(headers);
     const input = fields(body);
-    const found = await getTemplate(templateId(input.templateId));
-    if (!found) throw new HttpError(404, 'Template not found');
-    if (!found.teamId) throw new HttpError(400, 'A form must be a team template');
-    const [owner] = await db.select().from(team).where(eq(team.id, found.teamId));
+    const validateOnly = input.validateOnly === true;
+    let id: string | null = null;
+    let teamId: string;
+    if (validateOnly && input.templateId === undefined) {
+      if (typeof input.teamId !== 'string' || !UUID_RE.test(input.teamId))
+        throw new HttpError(400, 'teamId must be a team id');
+      teamId = input.teamId;
+    } else {
+      const found = await getTemplate(templateId(input.templateId));
+      if (!found) throw new HttpError(404, 'Template not found');
+      if (!found.teamId) throw new HttpError(400, 'A form must be a team template');
+      id = found.id;
+      teamId = found.teamId;
+    }
+    const [owner] = await db.select().from(team).where(eq(team.id, teamId));
     if (!owner || owner.visibility !== 'public')
       throw new HttpError(400, "A form's team must be public");
-    const values = await parseSettings(input, found.teamId);
+    const values = await parseSettings(input, teamId);
+    if (validateOnly) {
+      const [taken] = await db
+        .select({ templateId: formSettings.templateId })
+        .from(formSettings)
+        .where(eq(formSettings.slug, values.slug));
+      if (taken && taken.templateId !== id) throw new HttpError(409, 'This form address is taken');
+      return { success: true };
+    }
     await db
       .insert(formSettings)
-      .values({ templateId: found.id, ...values })
+      .values({ templateId: id!, ...values })
       .onConflictDoUpdate({
         target: formSettings.templateId,
         set: { ...values, updatedAt: new Date() },

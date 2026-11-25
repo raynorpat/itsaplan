@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, formSubmission, projectTeam } from '@repo/db';
-import { and, eq } from 'drizzle-orm';
+import { db, formSubmission, projectTeam, workflowState } from '@repo/db';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
@@ -89,6 +89,16 @@ async function confirmToken(email: string): Promise<string> {
 
 const pendingRows = (email: string) =>
   db.select().from(formSubmission).where(eq(formSubmission.email, email));
+
+// The submission rows for `email` once the background work has stored `count` of them.
+async function pendingRowsEventually(email: string, count: number) {
+  let rows = await pendingRows(email);
+  for (let i = 0; rows.length < count && i < 100; i++) {
+    await Bun.sleep(10);
+    rows = await pendingRows(email);
+  }
+  return rows;
+}
 
 beforeEach(async () => {
   await resetDb();
@@ -223,11 +233,105 @@ describe('a form on its link', () => {
     // Confirmation mails count towards the address's link limit (5 an hour).
     const email = 'busy@example.com';
     for (let i = 0; i < 5; i++) await ok(await submit({ answers: ANSWERS, email, name: 'Busy' }));
-    expect(await pendingRows(email)).toHaveLength(5);
+    expect(await pendingRowsEventually(email, 5)).toHaveLength(5);
     expect(await ok(await submit({ answers: ANSWERS, email, name: 'Busy' }))).toEqual({
       status: 'pending',
     });
+    await Bun.sleep(50);
     expect(await pendingRows(email)).toHaveLength(5);
+  });
+
+  it('answers before the submission is stored or mailed', async () => {
+    const { owner, template } = await setup();
+    await settings(owner, template.id);
+    const email = 'slow@example.com';
+    // Another transaction holds the submissions table, so storing a submission waits.
+    let answeredIn = Infinity;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE form_submission IN ACCESS EXCLUSIVE MODE`);
+      const started = Date.now();
+      const res = await Promise.race([
+        submit({ answers: ANSWERS, email, name: 'Slow' }),
+        Bun.sleep(1000).then(() => null),
+      ]);
+      if (res) {
+        expect(await ok(res)).toEqual({ status: 'pending' });
+        answeredIn = Date.now() - started;
+      }
+    });
+    expect(answeredIn).toBeLessThan(1000);
+    // Once the table is free, the submission is stored and its link mailed.
+    expect(await pendingRowsEventually(email, 1)).toHaveLength(1);
+    expect(await confirmToken(email)).toBeString();
+  });
+
+  it('shows the submitted answers before the request is confirmed', async () => {
+    const { owner, template } = await setup();
+    await settings(owner, template.id);
+    await ok(await submit({ answers: ANSWERS, email: 'sh@example.com', name: 'Sh' }));
+    const token = await confirmToken('sh@example.com');
+    expect(await ok(await portal(`forms/confirm-info?token=${token}`))).toEqual({
+      formName: 'Bug report',
+      answers: [
+        { label: 'Summary', answer: 'Export is broken' },
+        { label: 'Details', answer: 'The CSV is empty.' },
+      ],
+    });
+  });
+
+  it('keeps the link usable and creates no one when the team cannot take the issue', async () => {
+    const { owner, eng, template } = await setup();
+    await settings(owner, template.id);
+    await ok(await submit({ answers: ANSWERS, email: 'st@example.com', name: 'St' }));
+    const token = await confirmToken('st@example.com');
+    const open = (
+      await db
+        .select({ id: workflowState.id })
+        .from(workflowState)
+        .where(
+          and(
+            eq(workflowState.teamId, eng.team.id),
+            inArray(workflowState.stateType, ['backlog', 'unstarted']),
+          ),
+        )
+    ).map((r) => r.id);
+    await db
+      .update(workflowState)
+      .set({ archivedAt: new Date() })
+      .where(inArray(workflowState.id, open));
+    expect((await portal('forms/confirm', { body: { token } })).status).toBe(400);
+    expect(await issues(owner)).toHaveLength(0);
+    expect((await ok(await instance('requesters?q=st@example.com', owner))).requesters).toEqual([]);
+    await db.update(workflowState).set({ archivedAt: null }).where(inArray(workflowState.id, open));
+    expect((await ok(await portal('forms/confirm', { body: { token } }))).identifier).toBe('ENG-1');
+  });
+
+  it('confirms after an optional question was removed, not after a required one was added', async () => {
+    const { owner, template } = await setup();
+    await settings(owner, template.id);
+    const update = (formFields: Json[]) =>
+      gqlData(
+        owner,
+        `mutation ($id: String!, $input: TemplateUpdateInput!) {
+          templateUpdate(id: $id, input: $input) { success } }`,
+        { id: template.id, input: { templateData: { formFields } } },
+      );
+    await ok(await submit({ answers: ANSWERS, email: 'r1@example.com', name: 'R1' }));
+    await ok(await submit({ answers: ANSWERS, email: 'r2@example.com', name: 'R2' }));
+    const first = await confirmToken('r1@example.com');
+    const second = await confirmToken('r2@example.com');
+
+    await update([FIELDS[0]!]);
+    const confirmed = await ok(await portal('forms/confirm', { body: { token: first } }));
+    expect(confirmed.identifier).toBe('ENG-1');
+
+    await update([
+      FIELDS[0]!,
+      { id: 'version', type: 'shortText', label: 'Version', required: true },
+    ]);
+    const refused = await portal('forms/confirm', { body: { token: second } });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toBe('This form has changed. Fill it in again.');
   });
 
   it('checks the answers, the email and the name before anything is stored', async () => {
