@@ -240,7 +240,7 @@ describe('continuous sync', () => {
     expect(res.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
   });
 
-  it('keeps links, documents, notes and the repository of the sync', async () => {
+  it('keeps links, documents and notes of the sync', async () => {
     const s = await setup('continuous');
     const r = await syncOk(s.key, {
       commitSha: SHA,
@@ -261,6 +261,7 @@ describe('continuous sync', () => {
       s.owner,
       `query($id: String!) { release(id: $id) {
         links { nodes { url label } } documents { nodes { title content } }
+        releaseNotes { title documentContent { content } }
       } }`,
       { id: r.id },
     );
@@ -268,6 +269,9 @@ describe('continuous sync', () => {
       { url: 'https://ci.example.com/run/42', label: 'CI run' },
     ]);
     expect(data.release.documents.nodes).toEqual([{ title: 'Changelog', content: '- one' }]);
+    expect(data.release.releaseNotes).toEqual([
+      { title: 'Notes', documentContent: { content: 'Shipped one.' } },
+    ]);
   });
 });
 

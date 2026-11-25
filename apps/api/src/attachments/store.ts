@@ -211,10 +211,10 @@ async function findByUrl(issueId: string, url: string): Promise<AttachmentRow | 
 export async function upsertLinkAttachment(
   input: LinkInput,
   actorUserId: string,
-): Promise<{ row: AttachmentRow; created: boolean }> {
+): Promise<AttachmentRow> {
   const url = normalizeAttachmentUrl(input.url);
   const existing = await findByUrl(input.issueId, url);
-  if (existing) return { row: await applyPatch(existing, input, actorUserId), created: false };
+  if (existing) return applyPatch(existing, input, actorUserId);
   validateLinkUrl(url);
   const values = patchValues(input);
   let inserted;
@@ -243,11 +243,11 @@ export async function upsertLinkAttachment(
     // A concurrent create of the same URL won, or the given id is taken.
     const raced = await findByUrl(input.issueId, url);
     if (!raced) throw new HttpError(409, 'Attachment id already in use');
-    return { row: await applyPatch(raced, input, actorUserId), created: false };
+    return applyPatch(raced, input, actorUserId);
   }
   const created = mapAttachment(inserted);
   await sendAttachmentEvent('create', created, actorUserId);
-  return { row: created, created: true };
+  return created;
 }
 
 async function applyPatch(

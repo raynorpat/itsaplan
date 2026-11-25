@@ -222,11 +222,16 @@ describe('graphql cycles', () => {
     });
     const last = (await listCycles(teamId)).at(-1)!;
     const startsAt = new Date(new Date(last.endsAt).getTime() + 7 * DAY);
-    await client.createCycle({ teamId, startsAt, endsAt: new Date(startsAt.getTime() + DAY) });
+    const created = (await (
+      await client.createCycle({ teamId, startsAt, endsAt: new Date(startsAt.getTime() + DAY) })
+    ).cycle)!;
     const items = (await webhookDeliveries(hook.id)).data!.items;
-    expect(items.map((d) => (d.payload as { action: string; type: string }).type)).toContain(
-      'Cycle',
-    );
+    expect(
+      items.map((d) => {
+        const p = d.payload as { action: string; type: string; data: { id: string } };
+        return { type: p.type, action: p.action, id: p.data.id };
+      }),
+    ).toEqual([{ type: 'Cycle', action: 'create', id: created.id }]);
   });
 
   it('rejects a completedAt before the start and a cleared completedAt', async () => {

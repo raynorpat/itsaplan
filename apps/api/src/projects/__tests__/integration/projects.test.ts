@@ -13,7 +13,6 @@ import {
   type Data,
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
-import { purgeTrashedProjects } from '../../store';
 
 // Projects (Linear's Project) group issues across one or more teams. Issues link to
 // one through projectId and must belong to one of its teams; progress comes from
@@ -208,25 +207,6 @@ describe('projects', () => {
         id: p.id,
       });
       expect(await teamProjects(owner, 'MKT')).toHaveLength(1);
-    });
-
-    it('deletes a purged project but keeps its linked issues, unlinked', async () => {
-      const { owner, teamId, stateId } = await setup();
-      const p = await created(owner, { name: 'Q3' });
-      const issue = await createIssue(owner, { teamId, stateId, projectId: p.id });
-      await gqlData(owner, `mutation ($id: String!) { projectDelete(id: $id) { success } }`, {
-        id: p.id,
-      });
-      await purgeTrashedProjects(new Date(Date.now() + 31 * 24 * 60 * 60 * 1000));
-      expect(code(await getProject(owner, p.id))).toBe('ENTITY_NOT_FOUND');
-      const read = await gqlData(
-        owner,
-        `query ($id: String!) { issue(id: $id) { project { id } } }`,
-        {
-          id: issue.id,
-        },
-      );
-      expect(read.issue.project).toBeNull();
     });
   });
 

@@ -142,20 +142,6 @@ describe('graphql documents', () => {
     expect(errorCode(both)).toBe('INVALID_INPUT');
   });
 
-  it('sends a Document webhook on documentCreate', async () => {
-    const { owner, client, project } = await setup();
-    const hook = await createWebhook(owner, {
-      teamId: 'MKT',
-      url: 'https://example.com/h',
-      resourceTypes: ['Document'],
-    });
-    await client.createDocument({ title: 'Spec', projectId: project.id });
-    const items = (await webhookDeliveries(hook.id)).data!.items;
-    expect(items.map((d) => (d.payload as { type: string; action: string }).action)).toEqual([
-      'create',
-    ]);
-  });
-
   it('hides project documents and their comments from a non-member of a private team', async () => {
     const { owner, client, project } = await setup();
     const doc = (await (

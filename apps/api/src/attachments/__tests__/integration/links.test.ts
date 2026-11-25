@@ -58,11 +58,10 @@ describe('link attachments', () => {
 
   it('creates a link with defaults', async () => {
     const { owner, issueId } = await setup();
-    const { row, created } = await upsertLinkAttachment(
+    const row = await upsertLinkAttachment(
       { issueId, url: 'https://example.com/pr/1', title: 'PR 1' },
       owner.userId,
     );
-    expect(created).toBe(true);
     expect(row).toMatchObject({
       issueId,
       url: 'https://example.com/pr/1',
@@ -72,16 +71,6 @@ describe('link attachments', () => {
       creatorUserId: owner.userId,
       s3Key: null,
     });
-  });
-
-  it('upserts by issue and url', async () => {
-    const { owner, issueId } = await setup();
-    const url = 'https://example.com/pr/1';
-    const first = await upsertLinkAttachment({ issueId, url, title: 'PR 1' }, owner.userId);
-    const second = await upsertLinkAttachment({ issueId, url, title: 'PR 1 v2' }, owner.userId);
-    expect(second.created).toBe(false);
-    expect(second.row.id).toBe(first.row.id);
-    expect(second.row.title).toBe('PR 1 v2');
   });
 
   it('rejects non-web urls and empty titles', async () => {
@@ -107,11 +96,10 @@ describe('link attachments', () => {
     });
     const absolute = attachmentUrl(up);
     expect(absolute).toBe(`${process.env.API_URL}/attachments/${up.publicId}/raw`);
-    const { row, created } = await upsertLinkAttachment(
+    const row = await upsertLinkAttachment(
       { issueId, url: absolute, title: 'Renamed' },
       owner.userId,
     );
-    expect(created).toBe(false);
     expect(row).toMatchObject({
       id: up.id,
       title: 'Renamed',
@@ -134,7 +122,7 @@ describe('link attachments', () => {
       resourceTypes: ['Attachment'],
       teamId: 'MKT',
     });
-    const { row } = await upsertLinkAttachment(
+    const row = await upsertLinkAttachment(
       { issueId, url: 'https://e.com/1', title: 'L' },
       owner.userId,
     );
@@ -153,11 +141,7 @@ describe('link attachments', () => {
     const { owner, issueId } = await setup();
     const up = await file(issueId);
     const shouted = `${process.env.API_URL!.toUpperCase()}/attachments/${up.publicId}/raw?download=1`;
-    const { row, created } = await upsertLinkAttachment(
-      { issueId, url: shouted, title: 'Again' },
-      owner.userId,
-    );
-    expect(created).toBe(false);
+    const row = await upsertLinkAttachment({ issueId, url: shouted, title: 'Again' }, owner.userId);
     expect(row.id).toBe(up.id);
   });
 

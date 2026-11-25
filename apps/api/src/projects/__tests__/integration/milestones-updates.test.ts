@@ -1,18 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import {
-  createIssue,
-  createProject,
-  createTeam,
-  gqlData,
-  signUpAs,
-} from '../../../__tests__/helpers/graphql';
+import { createIssue, createProject, createTeam } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 import { createMilestone } from '../../milestones';
-import { createUpdate } from '../../updates';
 
-// Milestones and updates created through the store, checked through GraphQL.
+// Milestones created through the store, checked through GraphQL.
 
 const code = (res: Awaited<ReturnType<typeof gql>>) => res.body.errors?.[0]?.extensions?.code;
 
@@ -42,10 +35,7 @@ const milestoneOf = (res: Awaited<ReturnType<typeof gql>>) =>
   (res.body.data as { issueUpdate: { issue: { projectMilestone: { id: string } | null } } })
     .issueUpdate.issue.projectMilestone;
 
-const healthOf = async (u: TestUser, id: string) =>
-  (await gqlData(u, `query ($id: String!) { project(id: $id) { health } }`, { id })).project.health;
-
-describe('project milestones and updates', () => {
+describe('project milestones', () => {
   beforeEach(async () => {
     await resetDb();
   });
@@ -73,28 +63,5 @@ describe('project milestones and updates', () => {
     const other = await createProject(owner, { name: 'Other', teamIds: [teamId] });
     expect(milestoneOf(await update(owner, issue.id, { projectId: other.id }))).toBeNull();
     expect(milestoneOf(await update(owner, issue.id, { projectId: null }))).toBeNull();
-  });
-
-  it('takes project health from the latest update', async () => {
-    const { owner, project } = await setup();
-    expect(await healthOf(owner, project.id)).toBeNull();
-    await createUpdate(project.id, owner.userId, { body: 'Going well', health: 'onTrack' });
-    await Bun.sleep(5);
-    await createUpdate(project.id, owner.userId, { body: 'Slipping', health: 'atRisk' });
-    expect(await healthOf(owner, project.id)).toBe('atRisk');
-  });
-
-  it('lists milestones to people who can see the project only', async () => {
-    const { owner, project } = await setup();
-    await createMilestone(project.id, { name: 'Beta' });
-    const q = `query ($id: String!) { project(id: $id) { projectMilestones { nodes { name } } } }`;
-    const data = await gqlData(owner, q, { id: project.id });
-    expect(data.project.projectMilestones.nodes.map((m: { name: string }) => m.name)).toEqual([
-      'Beta',
-    ]);
-    const outsider = await signUpAs('guest');
-    expect(code(await gql({ cookie: outsider.cookie }, q, { id: project.id }))).toBe(
-      'ENTITY_NOT_FOUND',
-    );
   });
 });

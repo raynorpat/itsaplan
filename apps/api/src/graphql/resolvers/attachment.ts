@@ -200,7 +200,7 @@ async function createLink(input: Input, ctx: GraphQLContext, commentBody?: unkno
       });
     return payload(row);
   }
-  const { row } = await upsertLinkAttachment(
+  const row = await upsertLinkAttachment(
     {
       ...(input as unknown as LinkInput),
       issueId,

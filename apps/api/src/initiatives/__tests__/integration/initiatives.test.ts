@@ -12,13 +12,7 @@ import {
 } from '../../../__tests__/helpers/graphql';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { assertInitiativeAccess, assertLeadTeamMember, visibleInitiativesSql } from '../../access';
-import {
-  archiveInitiative,
-  createInitiative,
-  getInitiative,
-  unarchiveInitiative,
-  updateInitiative,
-} from '../../store';
+import { archiveInitiative, createInitiative, getInitiative, updateInitiative } from '../../store';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Initiatives: defaults, status timestamps, archive / trash, visibility by lead
@@ -90,18 +84,6 @@ describe('initiatives', () => {
     );
     const proposed = await createInitiative({ name: 'B', status: 'Proposed' }, owner.userId);
     expect(proposed.startedAt).toBeNull();
-  });
-
-  it('archives, deletes to the trash and unarchives', async () => {
-    const { owner } = await setup();
-    const created = await createInitiative({ name: 'A' }, owner.userId);
-    const archived = await archiveInitiative(created.id, owner.userId);
-    expect(archived.archivedAt).toBeTruthy();
-    expect(archived.trashed).toBeNull();
-    const trashed = await archiveInitiative(created.id, owner.userId, { trash: true });
-    expect(trashed.trashed).toBe(true);
-    const restored = await unarchiveInitiative(created.id, owner.userId);
-    expect(restored).toMatchObject({ archivedAt: null, trashed: null });
   });
 
   it('limits a lead-team initiative to that team', async () => {
@@ -206,5 +188,6 @@ describe('initiatives', () => {
     await Bun.sleep(5);
     const again = await archiveInitiative(created.id, owner.userId, { trash: true });
     expect(again.archivedAt).toBe(archived.archivedAt);
+    expect(again.trashed).toBe(true);
   });
 });

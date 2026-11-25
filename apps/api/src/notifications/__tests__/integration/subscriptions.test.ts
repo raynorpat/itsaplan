@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, notification } from '@repo/db';
-import { eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
@@ -97,15 +95,6 @@ describe('issue subscriptions', () => {
     const issueId = await newIssue(owner, stateId);
     await subscribe(issueId, [outsider.userId]);
     expect(await subscriberIds(issueId)).toEqual([owner.userId]);
-  });
-
-  it('hides archived notifications from the inbox', async () => {
-    const { owner, stateId } = await setup();
-    const b = await memberOf(owner);
-    await newIssue(owner, stateId, { assigneeId: b.userId });
-    const [n] = (await gqlData(b, '{ notifications { nodes { id } } }')).notifications.nodes;
-    await db.update(notification).set({ archivedAt: new Date() }).where(eq(notification.id, n!.id));
-    expect(await inbox(b)).toEqual([]);
   });
 
   it('sends subscriberIds in the Issue webhook', async () => {

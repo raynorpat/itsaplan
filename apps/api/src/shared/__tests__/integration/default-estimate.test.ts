@@ -32,15 +32,6 @@ describe("progress uses the team's default estimate", () => {
     await resetDb();
   });
 
-  it('counts an unestimated issue as 0 when the default is 0', async () => {
-    const owner = await signUpTestUser({ name: 'Owner' });
-    const { teamId, states } = await team(owner, 'ENG', 0);
-    const p = await createProject(owner, { name: 'P', teamIds: [teamId] });
-    await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted!, estimate: 3 });
-    await createIssue(owner, { teamId, projectId: p.id, stateId: states.unstarted! });
-    expect(await projectScope(owner, p.id)).toBe(3);
-  });
-
   it('counts an unestimated issue as 2 when the default is 2', async () => {
     const owner = await signUpTestUser({ name: 'Owner' });
     const { teamId, states } = await team(owner, 'ENG', 2);

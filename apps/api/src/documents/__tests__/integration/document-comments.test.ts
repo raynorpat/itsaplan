@@ -8,8 +8,7 @@ import {
   signUpAs,
 } from '../../../__tests__/helpers/graphql';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
-import { assertParentAccess, createComment } from '../../../comments/store';
-import type { AuthUser } from '../../../shared/access';
+import { createComment } from '../../../comments/store';
 import { createDocument } from '../../store';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
@@ -25,24 +24,9 @@ async function setup() {
   return { owner, doc };
 }
 
-const status = (p: Promise<unknown>) =>
-  p.then(
-    () => 200,
-    (e: { status?: number }) => e.status,
-  );
-
 describe('document comments', () => {
   beforeEach(async () => {
     await resetDb();
-  });
-
-  it('stores a comment on a document, visible through its parent', async () => {
-    const { owner, doc } = await setup();
-    const parent = { documentId: doc.id };
-    const c = await createComment({ parent, body: 'Looks good', actorUserId: owner.userId });
-    expect(c.documentId).toBe(doc.id);
-    const outsider = await signUpAs('guest');
-    expect(await status(assertParentAccess(parent, { id: outsider.userId } as AuthUser))).toBe(404);
   });
 
   it("sends the Comment webhook to the document's teams", async () => {

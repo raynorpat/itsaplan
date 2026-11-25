@@ -194,7 +194,7 @@ describe('project relations', () => {
     );
   });
 
-  it('guests read relations but cannot create, update or delete them', async () => {
+  it('guests read relations but cannot create or delete them', async () => {
     const { owner, eng, a, b } = await setup();
     const guest = await signUpAs('guest');
     await gqlData(

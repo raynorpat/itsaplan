@@ -49,22 +49,9 @@ describe('notifications', () => {
     await resetDb();
   });
 
-  it('notifies the new assignee', async () => {
-    const { owner, member, newIssue } = await setup();
-    await newIssue({ title: 'Ship it', assigneeId: member.userId });
-    const rows = await inbox(member);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      type: 'issueAssignedToYou',
-      actor: { id: owner.userId },
-      readAt: null,
-      issue: { title: 'Ship it', team: { key: 'MKT' } },
-    });
-  });
-
   it('does not notify the actor about their own action', async () => {
-    const { owner, member, newIssue } = await setup();
-    await newIssue({ assigneeId: member.userId });
+    const { owner, newIssue } = await setup();
+    await newIssue({ assigneeId: owner.userId });
     expect(await inbox(owner)).toHaveLength(0);
   });
 

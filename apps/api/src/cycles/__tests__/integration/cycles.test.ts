@@ -70,7 +70,7 @@ describe('cycles', () => {
     const end = new Date('2030-01-21T00:00:00Z');
     await expect(
       createCycle(teamId, { startsAt: start, endsAt: end }, owner.userId),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ status: 400 });
     await gqlData(
       owner,
       `mutation ($id: String!) { teamUpdate(id: $id, input: { cyclesEnabled: true }) { success } }`,
@@ -84,6 +84,6 @@ describe('cycles', () => {
         { startsAt: new Date('2030-01-14T00:00:00Z'), endsAt: new Date('2030-01-28T00:00:00Z') },
         owner.userId,
       ),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

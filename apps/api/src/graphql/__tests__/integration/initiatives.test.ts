@@ -56,7 +56,9 @@ describe('graphql initiatives', () => {
     await client.archiveInitiative(created.id);
     expect((await client.initiatives()).nodes).toHaveLength(0);
     expect((await client.initiatives({ includeArchived: true })).nodes).toHaveLength(1);
-    expect((await client.initiative(created.id)).archivedAt).toBeTruthy();
+    const archived = await client.initiative(created.id);
+    expect(archived.archivedAt).toBeTruthy();
+    expect(archived.trashed).toBeFalsy();
   });
 
   it('deletes to the trash and unarchives', async () => {
