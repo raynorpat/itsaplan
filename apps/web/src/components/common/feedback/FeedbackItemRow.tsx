@@ -5,9 +5,10 @@ import { Flame } from 'lucide-react';
 import Avatar from '@/components/common/Avatar';
 import { cn } from '@/lib/utils';
 import { formatShortDate } from '@/utils/dates';
+import CustomerChip from './CustomerChip';
 import type { FeedbackItem } from '@/utils/feedback';
 
-// One feedback item: who asked (avatar and name), the quote, an Important marker, the
+// One feedback item: who asked (avatar, name and customer), the quote, an Important marker, the
 // source and date. `actions` is the ⋯ menu where the viewer may change it; `editor`
 // replaces the quote while it is being edited; `highlighted` marks the item a link
 // opened (/issue/<id>?feedback=<attachmentId>).
@@ -35,6 +36,7 @@ export default function FeedbackItemRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
           <span className="truncate font-medium">{name}</span>
+          <CustomerChip customer={item.customer} />
           {item.important && (
             <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-orange-600 dark:text-orange-400">
               <Flame className="size-3" aria-hidden />

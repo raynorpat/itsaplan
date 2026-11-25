@@ -3,11 +3,18 @@
 
 import type { WorkspaceRole } from '@/types/workspace';
 
+// A person's customer or a feedback item's customer; null while Customers is off.
+export interface FeedbackCustomer {
+  id: string;
+  name: string;
+}
+
 export interface FeedbackRequester {
   id: string;
   name: string;
   email: string | null;
   avatarUrl: string | null;
+  customer?: FeedbackCustomer | null;
 }
 
 export interface FeedbackItem {
@@ -20,6 +27,7 @@ export interface FeedbackItem {
   // Where it came from, as the source attachment's subtitle ("Logged by Pat").
   source: string | null;
   requester: FeedbackRequester | null;
+  customer: FeedbackCustomer | null;
 }
 
 export interface FeedbackGroup {

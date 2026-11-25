@@ -28,6 +28,7 @@ function item(
     requester: requesterId
       ? { id: requesterId, name: requesterId, email: null, avatarUrl: null }
       : null,
+    customer: null,
   };
 }
 

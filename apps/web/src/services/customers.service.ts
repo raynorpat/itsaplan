@@ -366,6 +366,7 @@ function useCustomerWrite<TInput, TResult>(fn: (input: TInput) => Promise<TResul
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.anyCustomers });
       void qc.invalidateQueries({ queryKey: qk.anyRequesters });
+      void qc.invalidateQueries({ queryKey: qk.anyFeedback });
     },
   });
 }

@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useAddFeedback } from '@/services/feedback.service';
 import type { FeedbackRequester } from '@/utils/feedback';
+import CustomerChip from './CustomerChip';
 import FeedbackNewRequesterForm from './FeedbackNewRequesterForm';
 import FeedbackRequesterPicker from './FeedbackRequesterPicker';
 
-// Adds feedback to an issue: pick or create the person, paste what they said, mark it
-// important.
+// Adds feedback to an issue: pick or create the person (their customer shows next to
+// them; the feedback belongs to it), paste what they said, mark it important.
 export default function FeedbackAddDialog({
   issueId,
   onClose,
@@ -35,15 +36,18 @@ export default function FeedbackAddDialog({
   if (requester) {
     step = (
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          className="flex items-center gap-2 self-start rounded text-sm hover:underline"
-          onClick={() => setRequester(null)}
-        >
-          <Avatar name={requester.name} image={requester.avatarUrl} />
-          {requester.name}
-          <span className="text-xs text-muted-foreground">Change</span>
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded text-sm hover:underline"
+            onClick={() => setRequester(null)}
+          >
+            <Avatar name={requester.name} image={requester.avatarUrl} />
+            {requester.name}
+            <span className="text-xs text-muted-foreground">Change</span>
+          </button>
+          <CustomerChip customer={requester.customer ?? null} />
+        </div>
         <Textarea
           autoFocus
           aria-label="What did they say?"

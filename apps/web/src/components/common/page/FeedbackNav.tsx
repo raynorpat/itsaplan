@@ -2,14 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
 import { cn } from '@/lib/utils';
-import { feedbackPeoplePath, feedbackReportsPath } from '@/utils/paths';
+import { feedbackCustomersPath, feedbackPeoplePath, feedbackReportsPath } from '@/utils/paths';
 
-// The Feedback area's two pages, People and Reports, as links above each page.
+// The Feedback area's pages as links above each page: People, Customers (while
+// Customers is on) and Reports.
 export default function FeedbackNav() {
   const pathname = usePathname();
+  const customers = useCustomersEnabled();
   const items = [
     { href: feedbackPeoplePath(), label: 'People' },
+    ...(customers ? [{ href: feedbackCustomersPath(), label: 'Customers' }] : []),
     { href: feedbackReportsPath(), label: 'Reports' },
   ];
   return (

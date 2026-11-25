@@ -4,6 +4,7 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instanceFetch } from '@/lib/auth-client';
+import type { PersonCustomer } from '@/services/customers.service';
 import { qk } from '@/services/queryKeys';
 import type { StateType } from '@/types/team';
 import { isoString } from '../utils/people';
@@ -20,6 +21,8 @@ export interface Person {
   // Email updates: on, and whether the person unsubscribed (then only they can turn
   // them on again).
   updates: { enabled: boolean; unsubscribed: boolean };
+  // The person's customer and how it was set; null while Customers is off.
+  customer: PersonCustomer | null;
 }
 
 export interface PersonIssueFeedback {
@@ -49,6 +52,7 @@ interface PersonDto {
   lastFeedbackAt: unknown;
   portalBlocked?: boolean;
   updates?: { enabled: boolean; unsubscribed: boolean };
+  customer?: PersonCustomer | null;
 }
 
 interface PersonIssueDto {
@@ -71,6 +75,7 @@ const toPerson = (r: PersonDto): Person => ({
   lastFeedbackAt: isoString(r.lastFeedbackAt),
   portalBlocked: r.portalBlocked ?? false,
   updates: r.updates ?? { enabled: false, unsubscribed: false },
+  customer: r.customer ?? null,
 });
 
 const toIssueFeedback = (g: PersonIssueDto): PersonIssueFeedback => ({

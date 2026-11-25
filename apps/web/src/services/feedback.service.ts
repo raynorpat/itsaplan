@@ -19,6 +19,10 @@ const FeedbackFields = graphql(`
     body
     priority
     createdAt
+    customer {
+      id
+      name
+    }
     issue {
       id
       identifier
@@ -138,6 +142,7 @@ function toFeedbackItem(n: FeedbackNode): FeedbackItem | null {
           avatarUrl: creator.avatarUrl ?? null,
         }
       : null,
+    customer: n.customer ? { id: n.customer.id, name: n.customer.name } : null,
   };
 }
 
@@ -205,6 +210,7 @@ interface RequesterDto {
   email: string | null;
   avatarUrl: string | null;
   feedbackCount: number;
+  customer?: { id: string; name: string } | null;
 }
 
 const toRequester = (r: RequesterDto): FeedbackRequester => ({
@@ -212,6 +218,7 @@ const toRequester = (r: RequesterDto): FeedbackRequester => ({
   name: r.displayName || r.name,
   email: r.email,
   avatarUrl: r.avatarUrl,
+  customer: r.customer ? { id: r.customer.id, name: r.customer.name } : null,
 });
 
 export function useRequesterSearchQuery(q: string, opts: { enabled: boolean }) {
