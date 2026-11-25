@@ -41,6 +41,7 @@ describe('settingsNav', () => {
         'applications',
         'import',
         'portal',
+        'forms',
         'mcp',
         'labels',
         'project-labels',
