@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  appendedOrders,
+  applyMove,
   dropTarget,
+  dropZone,
+  outOfFolderTarget,
+  stepTarget,
   favoriteHref,
   favoriteLabel,
   favoriteTree,
@@ -61,13 +64,6 @@ describe('sortOrderForDrop', () => {
   it('clamps an index past either end', () => {
     assert.equal(sortOrderForDrop([1000], 5), 2000);
     assert.equal(sortOrderForDrop([1000], -1), 0);
-  });
-});
-
-describe('appendedOrders', () => {
-  it('puts moved favorites after the last top-level one, in order', () => {
-    assert.deepEqual(appendedOrders([500, 3000], 2), [4000, 5000]);
-    assert.deepEqual(appendedOrders([], 2), [1000, 2000]);
   });
 });
 
@@ -177,5 +173,87 @@ describe('dropTarget', () => {
     const t = dropTarget(t2, 'a', 'f');
     assert.deepEqual(t, { parentId: 'f', index: 0, siblings: [] });
     assert.equal(sortOrderForDrop(t!.siblings, t!.index), 1000);
+  });
+});
+
+describe('dropTarget zones on a folder row', () => {
+  const tree = favoriteTree([
+    fav({ id: 'folder', type: 'folder', folderName: 'Work', sortOrder: 1000 }),
+    fav({ id: 'c1', parentId: 'folder', sortOrder: 1000 }),
+    fav({ id: 'a', sortOrder: 2000 }),
+  ]);
+
+  it('puts a favorite above a folder from the top of its row', () => {
+    const t = dropTarget(tree, 'a', 'folder', 'before');
+    assert.deepEqual(t, { parentId: null, index: 0, siblings: [1000] });
+    assert.ok(sortOrderForDrop(t!.siblings, t!.index) < 1000);
+  });
+
+  it('puts a favorite below a folder from the bottom of its row', () => {
+    const t = dropTarget(tree, 'a', 'folder', 'after');
+    assert.deepEqual(t, { parentId: null, index: 1, siblings: [1000] });
+  });
+
+  it('puts it into the folder from the middle', () => {
+    assert.deepEqual(dropTarget(tree, 'a', 'folder', 'into'), {
+      parentId: 'folder',
+      index: 1,
+      siblings: [1000],
+    });
+  });
+});
+
+describe('dropZone', () => {
+  it('splits a row into quarters', () => {
+    const row = { top: 100, height: 40 };
+    assert.equal(dropZone(row, 105), 'before');
+    assert.equal(dropZone(row, 120), 'into');
+    assert.equal(dropZone(row, 135), 'after');
+  });
+});
+
+describe('stepTarget and outOfFolderTarget', () => {
+  const tree = favoriteTree([
+    fav({ id: 'a', sortOrder: 1000 }),
+    fav({ id: 'b', sortOrder: 2000 }),
+    fav({ id: 'folder', type: 'folder', folderName: 'Work', sortOrder: 3000 }),
+    fav({ id: 'c1', parentId: 'folder', sortOrder: 1000 }),
+    fav({ id: 'c2', parentId: 'folder', sortOrder: 2000 }),
+  ]);
+
+  it('moves a favorite up and down within its list', () => {
+    const up = stepTarget(tree, 'b', 'up')!;
+    assert.deepEqual(up, { parentId: null, index: 0, siblings: [1000, 3000] });
+    assert.ok(sortOrderForDrop(up.siblings, up.index) < 1000);
+    const down = stepTarget(tree, 'c1', 'down')!;
+    assert.deepEqual(down, { parentId: 'folder', index: 1, siblings: [2000] });
+    assert.ok(sortOrderForDrop(down.siblings, down.index) > 2000);
+  });
+
+  it('has no step past either end', () => {
+    assert.equal(stepTarget(tree, 'a', 'up'), null);
+    assert.equal(stepTarget(tree, 'c2', 'down'), null);
+  });
+
+  it('moves a child out of its folder to just below the folder', () => {
+    const t = outOfFolderTarget(tree, 'c1')!;
+    assert.deepEqual(t, { parentId: null, index: 3, siblings: [1000, 2000, 3000] });
+    assert.ok(sortOrderForDrop(t.siblings, t.index) > 3000);
+    assert.equal(outOfFolderTarget(tree, 'a'), null);
+  });
+});
+
+describe('applyMove', () => {
+  it('moves a favorite in the cached list at once', () => {
+    const list = [fav({ id: 'a', sortOrder: 1000 }), fav({ id: 'b', sortOrder: 2000 })];
+    const next = applyMove(list, 'b', { parentId: 'folder', sortOrder: 500 });
+    assert.deepEqual(
+      next.map((f) => [f.id, f.parentId, f.sortOrder]),
+      [
+        ['a', null, 1000],
+        ['b', 'folder', 500],
+      ],
+    );
+    assert.equal(list[1]!.parentId, null);
   });
 });

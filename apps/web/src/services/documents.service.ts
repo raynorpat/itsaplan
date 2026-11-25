@@ -16,6 +16,7 @@ const PAGE = 250;
 const DocumentFields = graphql(`
   fragment DocumentFields on Document {
     id
+    slugId
     title
     content
     updatedAt
@@ -135,6 +136,7 @@ const DocumentUnarchive = graphql(`
 
 export interface DocumentItem {
   id: string;
+  slugId: string;
   title: string;
   content: string | null;
   updatedAt: string;

@@ -62,13 +62,6 @@ export function sortOrderForDrop(siblings: number[], index: number): number {
   return (siblings[at - 1]! + siblings[at]!) / 2;
 }
 
-// Sort orders for `count` favorites appended after the top-level ones, in order (a
-// deleted folder's favorites move to the top level this way).
-export function appendedOrders(topLevel: number[], count: number): number[] {
-  const last = topLevel.length > 0 ? Math.max(...topLevel) : 0;
-  return Array.from({ length: count }, (_, i) => last + STEP * (i + 1));
-}
-
 // The favorite's page in this app: the API's absolute URL made relative. Folders,
 // labels, project labels and people have no page.
 export function favoriteHref(f: FavoriteItem): string | null {
@@ -143,14 +136,28 @@ export interface DropTarget {
   siblings: number[];
 }
 
+// Where on a folder's row a dragged favorite is let go: its top quarter puts it
+// above the folder, its bottom quarter below, the middle into the folder.
+export type DropZone = 'before' | 'into' | 'after';
+
+export function dropZone(row: { top: number; height: number }, pointerY: number): DropZone {
+  const at = (pointerY - row.top) / row.height;
+  if (at < 0.25) return 'before';
+  if (at > 0.75) return 'after';
+  return 'into';
+}
+
 // Where a favorite dragged onto `overId` lands. Within one list it takes the target's
 // place (dnd-kit's arrayMove); into another list it goes before the target. Dropped
-// on a folder's row, a favorite goes to the end of that folder. Folders stay at the
-// top level (they cannot be nested), taking the place of the target's top-level row.
+// on the middle of a folder's row (`zone` 'into', the default), a favorite goes to the
+// end of that folder; on its top or bottom quarter, above or below the folder. Folders
+// stay at the top level (they cannot be nested), taking the place of the target's
+// top-level row.
 export function dropTarget(
   tree: FavoriteNode[],
   activeId: string,
   overId: string,
+  zone: DropZone = 'into',
 ): DropTarget | null {
   if (activeId === overId) return null;
   const top = tree.map((n) => n.favorite);
@@ -175,9 +182,48 @@ export function dropTarget(
     return place(null, overParent ?? overId);
   }
   const over = top.find((f) => f.id === overId);
+  if (over?.type === 'folder' && zone !== 'into') {
+    const siblings = top.filter((f) => f.id !== activeId);
+    const index = siblings.findIndex((f) => f.id === overId) + (zone === 'after' ? 1 : 0);
+    return { parentId: null, index, siblings: siblings.map((f) => f.sortOrder) };
+  }
   if (over?.type === 'folder' && parentOf.get(activeId) !== overId) {
     const siblings = listOf(overId).map((f) => f.sortOrder);
     return { parentId: overId, index: siblings.length, siblings };
   }
   return place(parentOf.get(overId) ?? null, overId);
+}
+
+// The keyboard path: a favorite moved one place up or down within its list (the top
+// level or its folder), or null at either end.
+export function stepTarget(
+  tree: FavoriteNode[],
+  id: string,
+  direction: 'up' | 'down',
+): DropTarget | null {
+  const parent = tree.find((n) => n.children.some((c) => c.id === id));
+  const list = parent ? parent.children : tree.map((n) => n.favorite);
+  const at = list.findIndex((f) => f.id === id);
+  if (at < 0) return null;
+  const index = direction === 'up' ? at - 1 : at + 1;
+  if (index < 0 || index >= list.length) return null;
+  const siblings = list.filter((f) => f.id !== id).map((f) => f.sortOrder);
+  return { parentId: parent?.favorite.id ?? null, index, siblings };
+}
+
+// A folder's favorite moved out to the top level, just below its folder; null for a
+// favorite that is not in a folder.
+export function outOfFolderTarget(tree: FavoriteNode[], id: string): DropTarget | null {
+  const at = tree.findIndex((n) => n.children.some((c) => c.id === id));
+  if (at < 0) return null;
+  return { parentId: null, index: at + 1, siblings: tree.map((n) => n.favorite.sortOrder) };
+}
+
+// The cached list with one favorite moved, for an optimistic update.
+export function applyMove<T extends FavoriteItem>(
+  list: T[],
+  id: string,
+  move: { parentId: string | null; sortOrder: number },
+): T[] {
+  return list.map((f) => (f.id === id ? { ...f, ...move } : f));
 }

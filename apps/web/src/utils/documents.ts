@@ -29,3 +29,9 @@ export function syncDraft(input: {
   if (!editing && draft === synced) return { draft: server, synced: server };
   return { draft, synced };
 }
+
+// The document a `#document-<slugId>` fragment names (Linear's Document.url), or null.
+export function documentSlugFromHash(hash: string): string | null {
+  const match = /^#document-([A-Za-z0-9]+)$/.exec(hash);
+  return match ? match[1]! : null;
+}

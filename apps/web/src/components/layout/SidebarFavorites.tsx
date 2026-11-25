@@ -7,7 +7,9 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { FolderPlus } from 'lucide-react';
 import { useDndSensors } from '@/lib/dnd';
 import { useCollapsedFavoriteFolders } from '@/hooks/useCollapsedFavoriteFolders';
+import { useIsPhone } from '@/hooks/useIsPhone';
 import {
+  moveTo,
   useCreateFolder,
   useDashboardNames,
   useDeleteFavorite,
@@ -17,7 +19,16 @@ import {
   useRenameFolder,
   type Favorite,
 } from '@/services/favorites.service';
-import { dropTarget, favoriteHref, favoriteLabel, favoriteTree } from '@/utils/favorites';
+import {
+  dropTarget,
+  dropZone,
+  favoriteHref,
+  favoriteLabel,
+  favoriteTree,
+  outOfFolderTarget,
+  stepTarget,
+  type DropTarget,
+} from '@/utils/favorites';
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -29,14 +40,15 @@ import SidebarFavoriteFolder from './SidebarFavoriteFolder';
 import SidebarFavoriteRow from './SidebarFavoriteRow';
 
 // The person's Favorites at the top of the sidebar, as in Linear: favorites and
-// folders in their own order, dragged to reorder and into or out of folders. Hidden
-// while the person has none.
+// folders in their own order, dragged to reorder and into or out of folders (or moved
+// from each row's menu). Hidden while the person has none.
 export default function SidebarFavorites() {
   const pathname = usePathname();
   const favorites = useFavorites();
   const list = favorites.data ?? [];
   const dashboards = useDashboardNames(list.some((f) => f.type === 'dashboard'));
   const sensors = useDndSensors();
+  const draggable = !useIsPhone();
   const { collapsed, toggle } = useCollapsedFavoriteFolders();
   const move = useMoveFavorite();
   const remove = useDeleteFavorite();
@@ -50,22 +62,32 @@ export default function SidebarFavorites() {
     collapsed.has(n.favorite.id) ? [n.favorite] : [n.favorite, ...n.children],
   );
 
+  const moveTarget = (id: string) => (target: DropTarget | null) =>
+    target ? () => move.mutate({ id, ...moveTo(target) }) : undefined;
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over) return;
-    const target = dropTarget(tree, String(active.id), String(over.id));
-    if (target) move.mutate({ id: String(active.id), ...target });
+    const dragged = active.rect.current.translated;
+    const zone = dragged ? dropZone(over.rect, dragged.top + dragged.height / 2) : 'into';
+    const target = dropTarget(tree, String(active.id), String(over.id), zone);
+    if (target) move.mutate({ id: String(active.id), ...moveTo(target) });
   };
 
   const row = (f: Favorite, nested: boolean) => {
     const href = favoriteHref(f);
+    const to = moveTarget(f.id);
     return (
       <SidebarFavoriteRow
         key={f.id}
         favorite={f}
         label={favoriteLabel(f, dashboards)}
-        active={href != null && href.split('?')[0] === pathname}
+        active={href != null && href.split(/[?#]/)[0] === pathname}
         nested={nested}
+        draggable={draggable}
         onRemove={() => remove.mutate(f.id)}
+        onMoveUp={to(stepTarget(tree, f.id, 'up'))}
+        onMoveDown={to(stepTarget(tree, f.id, 'down'))}
+        onMoveOut={to(outOfFolderTarget(tree, f.id))}
       />
     );
   };
@@ -93,15 +115,12 @@ export default function SidebarFavorites() {
                     <SidebarFavoriteFolder
                       folder={f}
                       open={open}
+                      draggable={draggable}
                       onToggle={() => toggle(f.id)}
                       onRename={(folderName) => renameFolder.mutate({ id: f.id, folderName })}
-                      onDelete={() =>
-                        deleteFolder.mutate({
-                          folderId: f.id,
-                          children: node.children.map((c) => c.id),
-                          topLevelOrders: tree.map((n) => n.favorite.sortOrder),
-                        })
-                      }
+                      onDelete={() => deleteFolder.mutate(f.id)}
+                      onMoveUp={moveTarget(f.id)(stepTarget(tree, f.id, 'up'))}
+                      onMoveDown={moveTarget(f.id)(stepTarget(tree, f.id, 'down'))}
                     />
                     {open && node.children.map((c) => row(c, true))}
                   </Fragment>

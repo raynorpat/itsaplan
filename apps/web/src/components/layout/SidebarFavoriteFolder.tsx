@@ -5,35 +5,48 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronRight, Folder, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDragClickGuard } from '@/hooks/useDragClickGuard';
 import type { Favorite } from '@/services/favorites.service';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import SidebarFavoriteMoveItems from './SidebarFavoriteMoveItems';
 
 // A favorites folder: its name folds its favorites open and closed. A favorite
-// dropped on the row goes into the folder. Rename edits the name in place; Delete
-// keeps the folder's favorites (moved to the top level).
+// dropped on the middle of the row goes into the folder, on its top or bottom edge
+// above or below it. Its menu (the "…" button or a right-click) renames it in place,
+// moves it up or down, and deletes it, keeping its favorites (moved to the top level).
 export default function SidebarFavoriteFolder({
   folder,
   open,
+  draggable,
   onToggle,
   onRename,
   onDelete,
+  onMoveUp,
+  onMoveDown,
 }: {
   folder: Favorite;
   open: boolean;
+  draggable: boolean;
   onToggle: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const { listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: folder.id,
+    disabled: !draggable,
   });
+  const guard = useDragClickGuard();
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const name = folder.folderName ?? 'Folder';
 
   const finish = (value: string) => {
@@ -48,6 +61,15 @@ export default function SidebarFavoriteFolder({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(isDragging && 'opacity-40')}
       {...(editing ? {} : listeners)}
+      onPointerDown={(e) => {
+        guard.onPointerDown(e);
+        if (!editing) listeners?.onPointerDown?.(e);
+      }}
+      onContextMenu={(e) => {
+        if (editing) return;
+        e.preventDefault();
+        setMenuOpen(true);
+      }}
     >
       {editing ? (
         <input
@@ -66,7 +88,9 @@ export default function SidebarFavoriteFolder({
         <SidebarMenuButton
           tooltip={name}
           aria-expanded={open}
-          onClick={onToggle}
+          onClick={(e) => {
+            if (guard.isClick(e)) onToggle();
+          }}
           className={cn(isOver && 'bg-sidebar-accent')}
         >
           <Folder />
@@ -77,7 +101,7 @@ export default function SidebarFavoriteFolder({
         </SidebarMenuButton>
       )}
       {!editing && (
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuAction showOnHover aria-label={`Options for ${name}`}>
               <MoreHorizontal />
@@ -88,6 +112,8 @@ export default function SidebarFavoriteFolder({
               <Pencil />
               Rename
             </DropdownMenuItem>
+            <SidebarFavoriteMoveItems onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onDelete}>
               <Trash2 />
               Delete folder

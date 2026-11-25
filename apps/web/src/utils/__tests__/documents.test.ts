@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { documentTitle, sortDocuments, syncDraft } from '@/utils/documents';
+import { documentSlugFromHash, documentTitle, sortDocuments, syncDraft } from '@/utils/documents';
 
 describe('documentTitle', () => {
   it('trims the title', () => {
@@ -53,5 +53,14 @@ describe('syncDraft', () => {
       draft: 'mine',
       synced: 'mine',
     });
+  });
+});
+
+describe('documentSlugFromHash', () => {
+  it('reads the slug of a #document- fragment', () => {
+    assert.equal(documentSlugFromHash('#document-6194924108f3'), '6194924108f3');
+    assert.equal(documentSlugFromHash(''), null);
+    assert.equal(documentSlugFromHash('#comment-1'), null);
+    assert.equal(documentSlugFromHash('#document-'), null);
   });
 });

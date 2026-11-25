@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, Plus } from 'lucide-react';
 import type { Assignee } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { type DocumentParent } from '@/utils/documentParent';
+import { documentSlugFromHash } from '@/utils/documents';
 import { useCreateDocument, useDocumentsQuery } from '@/services/documents.service';
 import DocumentRow from './DocumentRow';
 import DocumentSheet from './DocumentSheet';
 
 // The documents of an issue or a project (Linear's issue and project documents): a
 // list that opens each one in a side sheet, and "New document" for someone who may
-// edit the parent. `heading` hides the section title where a page tab names it.
+// edit the parent. `heading` hides the section title where a page tab names it. A
+// `#document-<slugId>` fragment (Linear's Document.url, e.g. from a favorite) opens
+// that document.
 
 export default function DocumentList({
   parent,
@@ -31,6 +34,19 @@ export default function DocumentList({
   const [openId, setOpenId] = useState<string | null>(null);
   const list = documents.data ?? [];
   const open = list.find((d) => d.id === openId) ?? null;
+
+  const loaded = documents.data;
+  useEffect(() => {
+    if (!loaded?.length) return;
+    const openFromHash = () => {
+      const slug = documentSlugFromHash(window.location.hash);
+      const found = slug ? loaded.find((d) => d.slugId === slug) : undefined;
+      if (found) setOpenId(found.id);
+    };
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+  }, [loaded]);
 
   if (list.length === 0 && !canEdit) return null;
 

@@ -1,12 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { instanceFetch, useSession } from '@/lib/auth-client';
 import { gqlRequest, graphql } from '@/lib/graphql';
 import { usePermissions } from '@/hooks/usePermissions';
 import { qk } from '@/services/queryKeys';
 import {
-  appendedOrders,
+  applyMove,
   dashboardIdFromUrl,
   sortOrderForDrop,
   type FavoriteItem,
@@ -200,86 +201,100 @@ function createInput(target: FavoriteTarget): Record<string, string> {
   return { [`${target.kind}Id`]: target.id };
 }
 
-export function useToggleFavorite(target: FavoriteTarget) {
+// Every favorites change refetches the list and says when it failed.
+function useFavoritesChange() {
   const qc = useQueryClient();
+  return {
+    onError: (err: unknown) =>
+      toast.error(err instanceof Error ? err.message : 'Favorites were not changed'),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+  };
+}
+
+export function useToggleFavorite(target: FavoriteTarget) {
+  const change = useFavoritesChange();
   const existing = useFavoriteFor(target);
   return useMutation({
     mutationFn: async () => {
       if (existing) await gqlRequest(FavoriteDelete, { id: existing.id });
       else await gqlRequest(FavoriteCreate, { input: createInput(target) });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+    ...change,
   });
 }
 
 export function useCreateFolder() {
-  const qc = useQueryClient();
+  const change = useFavoritesChange();
   return useMutation({
     mutationFn: (folderName: string) => gqlRequest(FavoriteCreate, { input: { folderName } }),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+    ...change,
   });
 }
 
 export function useRenameFolder() {
-  const qc = useQueryClient();
+  const change = useFavoritesChange();
   return useMutation({
     mutationFn: ({ id, folderName }: { id: string; folderName: string }) =>
       gqlRequest(FavoriteUpdate, { id, input: { folderName } }),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+    ...change,
   });
 }
 
 // Moves a favorite to `index` within `parentId` (null: the top level). `siblings`
-// are the destination's sort orders without the moved favorite.
+// are the destination's sort orders without the moved favorite. The cached list moves
+// at once, so a drop lands where it was let go; an error puts it back.
 export function useMoveFavorite() {
   const qc = useQueryClient();
+  const change = useFavoritesChange();
   return useMutation({
     mutationFn: ({
       id,
       parentId,
-      siblings,
-      index,
+      sortOrder,
     }: {
       id: string;
       parentId: string | null;
-      siblings: number[];
-      index: number;
-    }) =>
-      gqlRequest(FavoriteUpdate, {
-        id,
-        input: { parentId, sortOrder: sortOrderForDrop(siblings, index) },
-      }),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+      sortOrder: number;
+    }) => gqlRequest(FavoriteUpdate, { id, input: { parentId, sortOrder } }),
+    onMutate: async (move) => {
+      await qc.cancelQueries({ queryKey: qk.favorites });
+      const previous = qc.getQueryData<Favorite[]>(qk.favorites);
+      if (previous) qc.setQueryData(qk.favorites, applyMove(previous, move.id, move));
+      return { previous };
+    },
+    onError: (err, _move, ctx) => {
+      if (ctx?.previous) qc.setQueryData(qk.favorites, ctx.previous);
+      change.onError(err);
+    },
+    onSettled: change.onSettled,
   });
 }
+
+// The move to `index` among `siblings` as the parent and sort order to store.
+export const moveTo = (move: { parentId: string | null; siblings: number[]; index: number }) => ({
+  parentId: move.parentId,
+  sortOrder: sortOrderForDrop(move.siblings, move.index),
+});
 
 export function useDeleteFavorite() {
-  const qc = useQueryClient();
+  const change = useFavoritesChange();
   return useMutation({
     mutationFn: (id: string) => gqlRequest(FavoriteDelete, { id }),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+    ...change,
   });
 }
 
-// Deleting a folder through the API deletes its favorites (Linear), so the web first
-// moves them to the top level, after the existing top-level favorites, in order.
+// Deleting a folder through Linear's API deletes its favorites, so the web uses the
+// instance endpoint that moves every favorite in it (hidden ones too) to the top level
+// first, in one request.
 export function useDeleteFolder() {
-  const qc = useQueryClient();
+  const change = useFavoritesChange();
   return useMutation({
-    mutationFn: async ({
-      folderId,
-      children,
-      topLevelOrders,
-    }: {
-      folderId: string;
-      children: string[];
-      topLevelOrders: number[];
-    }) => {
-      const orders = appendedOrders(topLevelOrders, children.length);
-      for (const [i, id] of children.entries())
-        await gqlRequest(FavoriteUpdate, { id, input: { parentId: null, sortOrder: orders[i] } });
-      await gqlRequest(FavoriteDelete, { id: folderId });
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.favorites }),
+    mutationFn: (folderId: string) =>
+      instanceFetch('/instance/favorites/delete-folder', {
+        method: 'POST',
+        body: { id: folderId },
+      }),
+    ...change,
   });
 }
