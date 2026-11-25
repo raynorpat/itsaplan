@@ -834,19 +834,24 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   list of one-key objects applied in order, each with `order` (Ascending by default) and
   `nulls` (`last` by default), then the list's tie-break and the id; a sorted list pages
   forward only (`last` / `before` is INVALID_INPUT) with a cursor of the row's sort
-  values, and `sort` wins over `orderBy`. Issue sorts (`issue-sort.ts`) take every
+  values (each checked against its key's type; a cursor that does not fit the sort is
+  INVALID_INPUT), and `sort` wins over `orderBy`. Issue sorts (`issue-sort.ts`) take every
   `IssueSortInput` key except `slaStatus`, read as Linear's schema describes them
   (cycle by start date with `currentCycleFirst`, project by name, milestone by target
   date, release by the most recent completed release, customer by name, customer
   revenue by the largest customer's revenue, label group by the issue's label in that
-  group, `rootIssue` by its nested sort on the issue's top ancestor, link count by the
-  issue's attachments that are not feedback sources); text keys order without regard to
-  case; an issue with several labels or customers sorts by its lowest ascending and its
-  highest descending; customers sort as empty for a viewer who cannot read them or
-  while Customers is off; ties go to the manual order, then newest first. Users,
+  group, `rootIssue` by its nested sort on the issue's top ancestor with the nested
+  key's `order` / `nulls` or else its own, link count by the issue's attachments that are
+  not feedback sources); text keys order lowercased by code point (`lower(…) COLLATE
+  "C"`, the web app's comparison too), whatever the database's collation; an issue with
+  several labels or customers sorts by its lowest ascending and its highest descending;
+  a related item the viewer cannot see sorts as empty: a person outside the viewer's
+  reach (`visibleUsers`), a release of a pipeline the viewer cannot see, and customers
+  for a viewer who cannot read them or while Customers is off; ties go to the manual order, then newest first. Users,
   projects, initiatives, documents, custom views, releases and release pipelines take
   their `sort` keys too (`list-sorts.ts`, `resolvers/team.ts`): health by the latest
-  update (on track, at risk, off track, then none), lead / owner / creator by shown name,
+  update (on track, at risk, off track, then none), lead / owner / creator by shown name
+  (empty when the viewer cannot see the person),
   project status by its position, a release's stage by type (planned, started,
   completed, canceled) then position, priority with no priority after Low unless
   `noPriorityFirst`; ties go newest first. Text keys of every list order without regard

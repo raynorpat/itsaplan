@@ -9,6 +9,8 @@ import {
   createTeam,
   createView,
   gqlData,
+  removeMember,
+  signUpAs,
   type Data,
 } from '../../../__tests__/helpers/graphql';
 
@@ -224,5 +226,26 @@ describe('release sorts', () => {
       'doing',
       'plan',
     ]);
+  });
+});
+
+describe('people the viewer cannot see', () => {
+  it("sorts a project lead outside a guest's teams as empty", async () => {
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const eng = await createTeam(owner, { name: 'Eng', key: 'ENG' });
+    const aaron = await signUpTestUser({ name: 'Aaron' });
+    const mike = await signUpTestUser({ name: 'Mike' });
+    const guest = await signUpAs('guest', { name: 'Guest' });
+    const aaronMembership = await addMember(owner, eng.team.id, aaron.userId);
+    await addMember(owner, eng.team.id, mike.userId);
+    await addMember(owner, eng.team.id, guest.userId);
+    await createProject(owner, { name: 'P1', teamIds: ['ENG'], leadId: aaron.userId });
+    await createProject(owner, { name: 'P2', teamIds: ['ENG'], leadId: mike.userId });
+    await createProject(owner, { name: 'P3', teamIds: ['ENG'] });
+    await removeMember(owner, aaronMembership);
+    const P = 'ProjectSortInput';
+    expect(await list(owner, 'projects', P, asc('lead'))).toEqual(['P1', 'P2', 'P3']);
+    // Aaron is outside the guest's teams: P1 sorts with the leadless P3, newest first.
+    expect(await list(guest, 'projects', P, asc('lead'))).toEqual(['P2', 'P3', 'P1']);
   });
 });

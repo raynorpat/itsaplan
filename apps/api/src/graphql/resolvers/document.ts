@@ -56,7 +56,7 @@ async function listDocuments(where: SQL | undefined, args: ListArgs, ctx: GraphQ
     args.includeArchived ? undefined : openOnly,
     documentFilterSql(args.filter),
   );
-  const keys = documentSortKeys(args.sort);
+  const keys = documentSortKeys(args.sort, ctx.user.id);
   if (keys)
     return paginateSorted(
       args,

@@ -13,16 +13,18 @@ import {
 } from '@repo/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { shownNameSql } from '../shared/user-name';
+import { visibleUsers } from './resolvers/team';
 import { newestFirst, parseCaselessSort, type SortBuilder } from './sort';
 
 // Linear's sort inputs for the lists other than issues and users (graphql/sort.ts):
 // ProjectSortInput, InitiativeSortInput, DocumentSortInput, CustomViewSortInput,
 // ReleaseSortInput and ReleasePipelineSortInput. Every key reads the outer row of its
 // list's table. Text orders without regard to case, as issue sorts do. Ties go to the
-// newest first, then the id (paginateSorted).
+// newest first, then the id (paginateSorted). A person the viewer cannot see (a lead,
+// owner or creator outside a guest's teams) sorts as empty.
 
-const userName = (column: SQL): SQL =>
-  sql`(SELECT ${shownNameSql} FROM ${user} WHERE ${user.id} = ${column})`;
+const userName = (column: SQL, viewerId: string): SQL =>
+  sql`(SELECT ${shownNameSql} FROM ${user} WHERE ${user.id} = ${column} AND ${visibleUsers(viewerId)})`;
 
 // Linear's priority scale with "no priority" (0) after Low unless asked first.
 const priority =
@@ -48,13 +50,13 @@ const latestInitiativeUpdate = (column: SQL): SQL =>
     WHERE ${initiativeUpdate.initiativeId} = ${initiative.id} AND ${initiativeUpdate.archivedAt} IS NULL
     ORDER BY ${initiativeUpdate.createdAt} DESC LIMIT 1)`;
 
-const projectSorts: Record<string, SortBuilder> = {
+const projectSorts = (viewerId: string): Record<string, SortBuilder> => ({
   createdAt: () => [{ sql: sql`${project.createdAt}`, type: 'timestamp' }],
   updatedAt: () => [{ sql: sql`${project.updatedAt}`, type: 'timestamp' }],
   health: () => [
     { sql: healthRank(latestProjectUpdate(sql`${projectUpdate.health}`)), type: 'number' },
   ],
-  lead: () => [{ sql: userName(sql`${project.leadUserId}`), type: 'text' }],
+  lead: () => [{ sql: userName(sql`${project.leadUserId}`, viewerId), type: 'text' }],
   manual: () => [{ sql: sql`${project.sortOrder}`, type: 'number' }],
   name: () => [{ sql: sql`${project.name}`, type: 'text' }],
   priority: priority(sql`${project.priority}`),
@@ -66,9 +68,9 @@ const projectSorts: Record<string, SortBuilder> = {
       type: 'number',
     },
   ],
-};
+});
 
-const initiativeSorts: Record<string, SortBuilder> = {
+const initiativeSorts = (viewerId: string): Record<string, SortBuilder> => ({
   createdAt: () => [{ sql: sql`${initiative.createdAt}`, type: 'timestamp' }],
   updatedAt: () => [{ sql: sql`${initiative.updatedAt}`, type: 'timestamp' }],
   health: () => [
@@ -79,15 +81,15 @@ const initiativeSorts: Record<string, SortBuilder> = {
   ],
   manual: () => [{ sql: sql`${initiative.sortOrder}`, type: 'number' }],
   name: () => [{ sql: sql`${initiative.name}`, type: 'text' }],
-  owner: () => [{ sql: userName(sql`${initiative.ownerUserId}`), type: 'text' }],
+  owner: () => [{ sql: userName(sql`${initiative.ownerUserId}`, viewerId), type: 'text' }],
   priority: priority(sql`${initiative.priority}`),
   targetDate: () => [{ sql: sql`${initiative.targetDate}`, type: 'date' }],
-};
+});
 
-const documentSorts: Record<string, SortBuilder> = {
+const documentSorts = (viewerId: string): Record<string, SortBuilder> => ({
   createdAt: () => [{ sql: sql`${document.createdAt}`, type: 'timestamp' }],
   updatedAt: () => [{ sql: sql`${document.updatedAt}`, type: 'timestamp' }],
-  creator: () => [{ sql: userName(sql`${document.creatorUserId}`), type: 'text' }],
+  creator: () => [{ sql: userName(sql`${document.creatorUserId}`, viewerId), type: 'text' }],
   // A document's project is visible whenever the document is (documents/access.ts).
   project: () => [
     {
@@ -96,7 +98,7 @@ const documentSorts: Record<string, SortBuilder> = {
     },
   ],
   title: () => [{ sql: sql`${document.title}`, type: 'text' }],
-};
+});
 
 const customViewSorts: Record<string, SortBuilder> = {
   createdAt: () => [{ sql: sql`${teamView.createdAt}`, type: 'timestamp' }],
@@ -125,9 +127,12 @@ const pipelineSorts: Record<string, SortBuilder> = {
   name: () => [{ sql: sql`${releasePipeline.name}`, type: 'text' }],
 };
 
-export const projectSortKeys = (input: unknown) => parseCaselessSort(input, projectSorts);
-export const initiativeSortKeys = (input: unknown) => parseCaselessSort(input, initiativeSorts);
-export const documentSortKeys = (input: unknown) => parseCaselessSort(input, documentSorts);
+export const projectSortKeys = (input: unknown, viewerId: string) =>
+  parseCaselessSort(input, projectSorts(viewerId));
+export const initiativeSortKeys = (input: unknown, viewerId: string) =>
+  parseCaselessSort(input, initiativeSorts(viewerId));
+export const documentSortKeys = (input: unknown, viewerId: string) =>
+  parseCaselessSort(input, documentSorts(viewerId));
 export const customViewSortKeys = (input: unknown) => parseCaselessSort(input, customViewSorts);
 export const releaseSortKeys = (input: unknown) => parseCaselessSort(input, releaseSorts);
 export const pipelineSortKeys = (input: unknown) => parseCaselessSort(input, pipelineSorts);

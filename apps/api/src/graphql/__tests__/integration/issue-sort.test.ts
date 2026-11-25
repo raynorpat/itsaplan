@@ -8,6 +8,7 @@ import {
   createProject,
   createTeam,
   gqlData,
+  removeMember,
   signUpAs,
   statesByType,
   updateIssue,
@@ -403,6 +404,129 @@ describe('issue sorts', () => {
     }
     expect(sizes).toEqual([50, 50, 20]);
     expect(new Set(seen).size).toBe(120);
+  });
+
+  it('sorts an assignee the viewer cannot see as empty', async () => {
+    const { owner, eng } = await setup();
+    const aaron = await signUpTestUser({ name: 'Aaron' });
+    const mike = await signUpTestUser({ name: 'Mike' });
+    const guest = await signUpAs('guest', { name: 'Guest' });
+    const aaronMembership = await addMember(owner, eng.team.id, aaron.userId);
+    await addMember(owner, eng.team.id, mike.userId);
+    await addMember(owner, eng.team.id, guest.userId);
+    await createIssue(owner, { teamId: eng.team.id, title: 'X', assigneeId: aaron.userId });
+    await createIssue(owner, { teamId: eng.team.id, title: 'Y', assigneeId: mike.userId });
+    await createIssue(owner, { teamId: eng.team.id, title: 'Z' });
+    // Aaron leaves the team; the issue keeps him, and the guest can no longer see him.
+    await removeMember(owner, aaronMembership);
+    expect(await titles(owner, [{ assignee: asc() }])).toEqual(['X', 'Y', 'Z']);
+    expect(await titles(guest, [{ assignee: asc() }])).toEqual(['Y', 'X', 'Z']);
+  });
+
+  it('sorts a release the viewer cannot see as empty', async () => {
+    const { owner, eng } = await setup();
+    const sec = await createTeam(owner, { key: 'SEC', name: 'Security', private: true });
+    const member = await signUpTestUser({ name: 'Member' });
+    await addMember(owner, eng.team.id, member.userId);
+    const created = (
+      await gqlData<Data>(
+        owner,
+        `mutation ($input: ReleasePipelineCreateInput!) {
+          releasePipelineCreate(input: $input) { releasePipeline { id } } }`,
+        { input: { name: 'Production', teamIds: [eng.team.id, sec.team.id] } },
+      )
+    ).releasePipelineCreate.releasePipeline.id as string;
+    await createIssue(owner, { teamId: eng.team.id, title: 'B' });
+    const shipped = await createIssue(owner, { teamId: eng.team.id, title: 'A' });
+    // A continuous release is completed when it is created.
+    const releaseId = (
+      await gqlData<Data>(
+        owner,
+        `mutation ($input: ReleaseCreateInput!) { releaseCreate(input: $input) { release { id } } }`,
+        { input: { name: 'r1', version: 'abc1234', pipelineId: created } },
+      )
+    ).releaseCreate.release.id as string;
+    await gqlData(
+      owner,
+      `mutation ($input: IssueToReleaseCreateInput!) { issueToReleaseCreate(input: $input) { success } }`,
+      { input: { issueId: shipped.id, releaseId } },
+    );
+    await gqlData(
+      owner,
+      `mutation ($id: String!, $input: ReleasePipelineUpdateInput!) {
+        releasePipelineUpdate(id: $id, input: $input) { success } }`,
+      { id: created, input: { teamIds: [sec.team.id] } },
+    );
+    expect(await titles(owner, [{ release: desc() }])).toEqual(['A', 'B']);
+    expect(await titles(member, [{ release: desc() }])).toEqual(['B', 'A']);
+  });
+
+  it("uses rootIssue's own order when its nested key has none", async () => {
+    const { owner, eng } = await setup();
+    await createIssue(owner, { teamId: eng.team.id, title: 'A' });
+    await createIssue(owner, { teamId: eng.team.id, title: 'B' });
+    expect(
+      await titles(owner, [{ rootIssue: { order: 'Descending', sort: { title: {} } } }]),
+    ).toEqual(['B', 'A']);
+    expect(
+      await titles(owner, [
+        { rootIssue: { order: 'Descending', sort: { title: { order: 'Ascending' } } } },
+      ]),
+    ).toEqual(['A', 'B']);
+  });
+
+  it('orders text by code point, ignoring case', async () => {
+    const { owner, eng } = await setup();
+    for (const title of ['b', '_x', 'C', 'Issue 10', 'Issue 9'])
+      await createIssue(owner, { teamId: eng.team.id, title });
+    expect(await titles(owner, [{ title: asc() }])).toEqual([
+      '_x',
+      'b',
+      'C',
+      'Issue 10',
+      'Issue 9',
+    ]);
+  });
+
+  it('refuses a cursor whose values do not fit the sort', async () => {
+    const { owner, eng } = await setup();
+    await createIssue(owner, { teamId: eng.team.id, title: 'A', priority: 2 });
+    const page = await gqlData<Data>(owner, ISSUES, { sort: [{ priority: asc() }], first: 1 });
+    const values = JSON.parse(
+      Buffer.from(page.issues.pageInfo.endCursor as string, 'base64url').toString(),
+    ) as unknown[];
+    const tampered = Buffer.from(JSON.stringify(['abc', ...values.slice(1)])).toString('base64url');
+    expect(
+      await code(owner, ISSUES, { sort: [{ priority: asc() }], first: 1, after: tampered }),
+    ).toBe('INVALID_INPUT');
+  });
+
+  it('pages by id when every earlier key is equal', async () => {
+    const { owner, eng } = await setup();
+    const createdAt = '2026-01-01T00:00:00.000Z';
+    for (let i = 0; i < 5; i++)
+      await createIssue(owner, {
+        teamId: eng.team.id,
+        title: `Same ${i}`,
+        priority: 2,
+        sortOrder: 1,
+        createdAt,
+      });
+    const seen: string[] = [];
+    let after: string | null = null;
+    for (;;) {
+      const data: Data = await gqlData<Data>(owner, ISSUES, {
+        sort: [{ priority: asc() }],
+        first: 2,
+        after,
+      });
+      seen.push(...data.issues.nodes.map((n: { id: string }) => n.id));
+      if (!data.issues.pageInfo.hasNextPage) break;
+      after = data.issues.pageInfo.endCursor;
+    }
+    expect(seen.length).toBe(5);
+    expect(new Set(seen).size).toBe(5);
+    expect(seen).toEqual([...seen].sort().reverse());
   });
 
   it('refuses slaStatus and backward paging with a sort', async () => {

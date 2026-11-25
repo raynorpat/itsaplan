@@ -119,7 +119,8 @@ function issueScope(where: SQL | undefined, args: ConnectionArgs, viewerId: stri
 // One page of the issues issueScope selects: in Linear's order (newest first, or
 // `orderBy`), or by the `sort` keys (issue-sort.ts), which page forward only.
 export async function listIssues(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
-  const keys = args.sort == null ? null : issueSortKeys(args.sort, await readsCustomers(viewerId));
+  const keys =
+    args.sort == null ? null : issueSortKeys(args.sort, viewerId, await readsCustomers(viewerId));
   if (keys)
     return paginateSorted(
       args,

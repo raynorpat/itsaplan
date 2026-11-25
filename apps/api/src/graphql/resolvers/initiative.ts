@@ -72,7 +72,7 @@ export async function listInitiatives(where: SQL | undefined, args: ListArgs, ct
     args.includeArchived ? undefined : isNull(initiative.archivedAt),
     initiativeFilterSql(args.filter),
   );
-  const keys = initiativeSortKeys(args.sort);
+  const keys = initiativeSortKeys(args.sort, ctx.user.id);
   if (keys)
     return paginateSorted(
       args,

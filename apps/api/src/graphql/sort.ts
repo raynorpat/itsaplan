@@ -67,14 +67,19 @@ export function parseSortInput(
 }
 
 // parseSortInput with text keys compared without regard to case, as Linear's lists
-// order names and titles.
+// order names and titles, by code point (`COLLATE "C"`), so the order does not depend
+// on the database's collation and the web app (utils/team.ts compareText) orders text
+// the same way.
 export function parseCaselessSort(
   input: unknown,
   builders: Record<string, SortBuilder>,
   path = 'sort',
 ): SortKey[] | null {
   const keys = parseSortInput(input, builders, path);
-  return keys && keys.map((k) => (k.type === 'text' ? { ...k, sql: sql`lower(${k.sql})` } : k));
+  return (
+    keys &&
+    keys.map((k) => (k.type === 'text' ? { ...k, sql: sql`lower(${k.sql}) COLLATE "C"` } : k))
+  );
 }
 
 const CAST: Record<SortType, SQL> = {
@@ -119,15 +124,37 @@ function encodeCursor(values: unknown[]): string {
   return Buffer.from(JSON.stringify(values)).toString('base64url');
 }
 
-function decodeCursor(cursor: string, length: number): unknown[] {
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Whether a cursor value can stand for a key of this type (null stands for empty).
+function fits(type: SortType, value: unknown): boolean {
+  if (value === null) return true;
+  switch (type) {
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'text':
+      return typeof value === 'string';
+    case 'timestamp':
+      return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+    case 'date':
+      return typeof value === 'string' && DATE_RE.test(value);
+    case 'uuid':
+      return typeof value === 'string' && UUID_RE.test(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+  }
+}
+
+// The cursor's values, refused unless each fits its key, so a tampered cursor or one
+// from another sort never reaches the database.
+function decodeCursor(cursor: string, keys: SortKey[]): unknown[] {
   try {
-    const values = JSON.parse(Buffer.from(cursor, 'base64url').toString());
-    const id = Array.isArray(values) ? values[values.length - 1] : undefined;
+    const values: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString());
     if (
       Array.isArray(values) &&
-      values.length === length &&
-      typeof id === 'string' &&
-      UUID_RE.test(id)
+      values.length === keys.length &&
+      values[values.length - 1] !== null &&
+      keys.every((key, i) => fits(key.type, values[i]))
     )
       return values;
   } catch {
@@ -165,7 +192,7 @@ export async function paginateSorted<Row extends { id: string; sortValues: unkno
     all.map((k) => k.sql),
     sql`, `,
   )})`;
-  const after = args.after ? afterCursor(all, decodeCursor(args.after, all.length)) : undefined;
+  const after = args.after ? afterCursor(all, decodeCursor(args.after, all)) : undefined;
   const rows = await load(and(where, after), all.map(orderSql), limit + 1, select);
   const page = rows.slice(0, limit);
   const edges = page.map((row) => ({ node: map(row), cursor: encodeCursor(row.sortValues) }));

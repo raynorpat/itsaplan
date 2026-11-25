@@ -16,7 +16,9 @@ import {
 } from '@repo/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { customerCountSql } from '../feedback/store';
+import { visibleReleasesSql } from '../releases/store';
 import { shownNameSql } from '../shared/user-name';
+import { visibleUsers } from './resolvers/team';
 import { parseCaselessSort, parseSortInput, type SortBuilder, type SortKey } from './sort';
 
 // Linear's IssueSortInput as sort keys (graphql/sort.ts). Each key reads a column of
@@ -24,10 +26,12 @@ import { parseCaselessSort, parseSortInput, type SortBuilder, type SortKey } fro
 // top ancestor. Keys follow the descriptions in Linear's schema: cycle by start date,
 // project by name, milestone by target date, release by the most recent release date,
 // customer by name, customer revenue by revenue. An issue with several values (labels,
-// customers) sorts ascending by its lowest and descending by its highest. Related
-// items reachable from a visible issue are visible to the viewer (a project or cycle
-// includes the issue's team, a release's pipeline includes it), except customers,
-// which sort as empty for a viewer who cannot read them or while Customers is off.
+// customers) sorts ascending by its lowest and descending by its highest. A related item
+// the viewer cannot see sorts as empty: people outside the viewer's reach (an assignee
+// who left the team, for a guest), releases of pipelines the viewer cannot see (a
+// pipeline's teams can change after its issues were added), and customers for a viewer
+// who cannot read them or while Customers is off. Projects and cycles include the
+// issue's team, so they are visible whenever the issue is.
 
 // A column of the issue row being sorted.
 type IssueColumn = (name: string) => SQL;
@@ -43,9 +47,15 @@ const STATE_TYPE_RANK = sql`CASE ${workflowState.stateType}
   WHEN 'triage' THEN 0 WHEN 'backlog' THEN 1 WHEN 'unstarted' THEN 2
   WHEN 'started' THEN 3 WHEN 'completed' THEN 4 WHEN 'canceled' THEN 5 ELSE 6 END`;
 
-function builders(col: IssueColumn, readsCustomers: boolean): Record<string, SortBuilder> {
+interface Viewer {
+  id: string;
+  readsCustomers: boolean;
+}
+
+function builders(col: IssueColumn, viewer: Viewer): Record<string, SortBuilder> {
+  const { readsCustomers } = viewer;
   const userName = (column: string): SQL =>
-    sql`(SELECT ${shownNameSql} FROM ${user} WHERE ${user.id} = ${col(column)})`;
+    sql`(SELECT ${shownNameSql} FROM ${user} WHERE ${user.id} = ${col(column)} AND ${visibleUsers(viewer.id)})`;
   const stateOf = (expr: SQL): SQL =>
     sql`(SELECT ${expr} FROM ${workflowState} WHERE ${workflowState.id} = ${col('state_id')})`;
   const empty = (type: 'text' | 'number'): SQL =>
@@ -118,7 +128,7 @@ function builders(col: IssueColumn, readsCustomers: boolean): Record<string, Sor
     ],
     release: () => [
       {
-        sql: sql`(SELECT max(${release.completedAt}) FROM ${issueToRelease} JOIN ${release} ON ${release.id} = ${issueToRelease.releaseId} WHERE ${issueToRelease.issueId} = ${col('id')} AND ${release.trashed} = false AND ${release.archivedAt} IS NULL)`,
+        sql: sql`(SELECT max(${release.completedAt}) FROM ${issueToRelease} JOIN ${release} ON ${release.id} = ${issueToRelease.releaseId} WHERE ${issueToRelease.issueId} = ${col('id')} AND ${release.trashed} = false AND ${release.archivedAt} IS NULL AND ${visibleReleasesSql(viewer.id)})`,
         type: 'timestamp',
       },
     ],
@@ -160,11 +170,12 @@ function builders(col: IssueColumn, readsCustomers: boolean): Record<string, Sor
   };
 
   // The nested sort applied to the issue's top ancestor (the issue itself without a
-  // parent). The nested key's own order and null placement apply.
+  // parent). The nested key's own order and null placement apply when given, else
+  // RootIssueSort's.
   all.rootIssue = (options) => {
     const nested = parseSortInput(
-      [options.sort],
-      builders(rootIssueColumn, readsCustomers),
+      [withOuterOrder(options.sort, options)],
+      builders(rootIssueColumn, viewer),
       'sort.rootIssue.sort',
     );
     const rootId = sql`(WITH RECURSIVE up(id, parent_id, depth) AS (
@@ -182,8 +193,28 @@ function builders(col: IssueColumn, readsCustomers: boolean): Record<string, Sor
 
 // The keys a `sort: [IssueSortInput!]` argument asks for on the outer `issue` row, or
 // null when it asks for none. `slaStatus` is INVALID_INPUT (no SLAs here).
-export function issueSortKeys(input: unknown, readsCustomers: boolean): SortKey[] | null {
-  return parseCaselessSort(input, builders(outerIssue, readsCustomers));
+export function issueSortKeys(
+  input: unknown,
+  viewerId: string,
+  readsCustomers: boolean,
+): SortKey[] | null {
+  return parseCaselessSort(input, builders(outerIssue, { id: viewerId, readsCustomers }));
+}
+
+// RootIssueSort's nested sort (one key) with `order` / `nulls` taken from the outer sort
+// where the nested key leaves them out.
+function withOuterOrder(nested: unknown, outer: Record<string, unknown>): unknown {
+  if (!nested || typeof nested !== 'object') return nested;
+  return Object.fromEntries(
+    Object.entries(nested as Record<string, unknown>).map(([name, value]) => {
+      if (value == null || typeof value !== 'object') return [name, value];
+      const opts = value as Record<string, unknown>;
+      return [
+        name,
+        { ...opts, order: opts.order ?? outer.order, nulls: opts.nulls ?? outer.nulls },
+      ];
+    }),
+  );
 }
 
 // After the keys: the manual order, then newest first (and the id, added by

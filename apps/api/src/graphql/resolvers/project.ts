@@ -111,6 +111,7 @@ export async function listProjects(
     ),
     args,
     teams,
+    ctx.user.id,
   );
 }
 
@@ -127,8 +128,13 @@ async function withProjects<K extends { id: string }>(keys: K[], teams: string[]
   return keys.map((k) => ({ ...k, project: rows.get(k.id)! }));
 }
 
-async function paginateProjects(where: SQL | undefined, args: ConnectionArgs, teams: string[]) {
-  const sortKeys = projectSortKeys(args.sort);
+async function paginateProjects(
+  where: SQL | undefined,
+  args: ConnectionArgs,
+  teams: string[],
+  viewerId: string,
+) {
+  const sortKeys = projectSortKeys(args.sort, viewerId);
   if (sortKeys)
     return paginateSorted(
       args,
