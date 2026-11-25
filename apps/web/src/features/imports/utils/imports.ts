@@ -1,7 +1,12 @@
 // An issue import as /api/auth/instance/imports* returns it (Linear's IssueImport plus
 // `awaitingPeople`, true once the source is fetched and the people matching is due).
 
-export type ImportService = 'github' | 'gitlab' | 'gitea' | 'forgejo';
+// `csv` is the Import page's CSV source; a CSV import's own service is `jira` (a Jira
+// export) or `csv` (a generic file).
+export type ImportService = 'github' | 'gitlab' | 'gitea' | 'forgejo' | 'csv' | 'jira';
+// The sources the Import page offers (a Jira export is chosen inside the CSV source).
+export type ImportSource = Exclude<ImportService, 'jira'>;
+type TokenSource = 'gitlab' | 'gitea' | 'forgejo';
 export type ImportStatus = 'inProgress' | 'inProcess' | 'complete' | 'error';
 
 export interface ImportSummary {
@@ -35,6 +40,8 @@ export const SERVICE_LABEL: Record<ImportService, string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+  csv: 'CSV',
+  jira: 'Jira',
 };
 
 const clock = (at: Date) =>
@@ -140,7 +147,7 @@ export function destinationInput(form: DestinationForm): ImportDestination | { e
 export type RerunInput =
   | {
       kind: 'token';
-      service: Exclude<ImportService, 'github'>;
+      service: TokenSource;
       host: string;
       repository: string;
       destination: ImportDestination;

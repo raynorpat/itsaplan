@@ -9,7 +9,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useImportPeopleQuery, useProcessImport } from '../services/imports.service';
+import { isCsvImport, statusMappingInput, statusValues } from '../utils/csvImport';
 import { peopleMappingInput, type ImportView } from '../utils/imports';
+import ImportStatusFields from './ImportStatusFields';
 
 const UNMATCHED = '__none__';
 
@@ -27,6 +29,8 @@ export default function ImportPeopleDialog({
   const { data, isPending, error } = useImportPeopleQuery(imp.id);
   const process = useProcessImport();
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const csv = isCsvImport(imp);
 
   useEffect(() => {
     if (data)
@@ -41,7 +45,11 @@ export default function ImportPeopleDialog({
       })),
     );
     try {
-      await process.mutateAsync({ imp, people });
+      await process.mutateAsync({
+        imp,
+        people,
+        ...(csv ? { statuses: statusMappingInput(statuses) } : {}),
+      });
       onClose();
     } catch {
       // The app's mutation error toast reports it; the dialog stays open to retry.
@@ -51,11 +59,20 @@ export default function ImportPeopleDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl">
-        <DialogTitle>Match people</DialogTitle>
+        <DialogTitle>{csv ? 'Match statuses and people' : 'Match people'}</DialogTitle>
         <DialogDescription>
-          Choose the member each person&apos;s issues and comments belong to. Unmatched
-          people&apos;s issues are left unassigned and credited to you.
+          {csv ? 'Choose the state each status in the file becomes, and ' : 'Choose '}
+          the member each person&apos;s issues and comments belong to. Unmatched people&apos;s
+          issues are left unassigned and credited to you.
         </DialogDescription>
+        {csv && (
+          <ImportStatusFields
+            teamId={imp.teamId}
+            statuses={statusValues(imp.serviceMetadata ?? {})}
+            chosen={statuses}
+            onChange={setStatuses}
+          />
+        )}
         {isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         {data && data.people.length === 0 && (

@@ -1,15 +1,15 @@
 import { cn } from '@/lib/utils';
-import { SERVICE_LABEL, type ImportService } from '../utils/imports';
+import { SERVICE_LABEL, type ImportSource } from '../utils/imports';
 
-const SOURCES: ImportService[] = ['github', 'gitlab', 'gitea', 'forgejo'];
+const SOURCES: ImportSource[] = ['github', 'gitlab', 'gitea', 'forgejo', 'csv'];
 
 // The source an import reads from, as a row of toggle buttons.
 export default function ImportSourcePicker({
   value,
   onChange,
 }: {
-  value: ImportService;
-  onChange: (service: ImportService) => void;
+  value: ImportSource;
+  onChange: (service: ImportSource) => void;
 }) {
   return (
     <div role="radiogroup" aria-label="Source" className="flex flex-wrap gap-1.5">

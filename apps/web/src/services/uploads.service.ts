@@ -7,8 +7,8 @@ import { gqlRequest, graphql } from '@/lib/graphql';
 // ApiError with the API's message.
 
 const FileUploadMutation = graphql(`
-  mutation FileUpload($contentType: String!, $filename: String!, $size: Int!) {
-    fileUpload(contentType: $contentType, filename: $filename, size: $size) {
+  mutation FileUpload($contentType: String!, $filename: String!, $size: Int!, $metaData: JSON) {
+    fileUpload(contentType: $contentType, filename: $filename, size: $size, metaData: $metaData) {
       uploadFile {
         uploadUrl
         assetUrl
@@ -26,11 +26,18 @@ async function putError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, body?.error ?? `Upload failed (${res.status})`);
 }
 
-export async function uploadToStorage(file: File, contentType: string): Promise<string> {
+// `metaData: { purpose: 'import' }` stores an import file (a CSV for the Import page),
+// which only the import that takes it reads.
+export async function uploadToStorage(
+  file: File,
+  contentType: string,
+  metaData?: Record<string, unknown>,
+): Promise<string> {
   const { fileUpload } = await gqlRequest(FileUploadMutation, {
     contentType,
     filename: file.name,
     size: file.size,
+    ...(metaData ? { metaData } : {}),
   });
   const signed = fileUpload.uploadFile;
   if (!signed) throw new ApiError(500, 'Upload failed');

@@ -6,11 +6,12 @@ import {
   startTokenImport,
   useRefreshImports,
 } from '../services/imports.service';
-import { destinationInput, type DestinationForm, type ImportService } from '../utils/imports';
+import { destinationInput, type DestinationForm, type ImportSource } from '../utils/imports';
 import ImportSourcePicker from './ImportSourcePicker';
 import GithubSourceFields from './GithubSourceFields';
 import TokenSourceFields, { type TokenSourceForm } from './TokenSourceFields';
 import ImportDestinationFields from './ImportDestinationFields';
+import CsvImportForm from './CsvImportForm';
 
 const EMPTY_DESTINATION: DestinationForm = {
   team: '',
@@ -19,12 +20,12 @@ const EMPTY_DESTINATION: DestinationForm = {
   labels: '',
 };
 
-const hostFor = (service: ImportService) => (service === 'gitlab' ? 'https://gitlab.com' : '');
+const hostFor = (service: ImportSource) => (service === 'gitlab' ? 'https://gitlab.com' : '');
 
 // Starts an import: the source, then the team and filters. The import fetches in the
 // background and then waits in the list below for the people matching.
 export default function NewImportForm() {
-  const [service, setService] = useState<ImportService>('github');
+  const [service, setService] = useState<ImportSource>('github');
   const [repoIds, setRepoIds] = useState<number[]>([]);
   const [source, setSource] = useState<TokenSourceForm>({ host: '', token: '', repository: '' });
   const [destination, setDestination] = useState<DestinationForm>(EMPTY_DESTINATION);
@@ -32,7 +33,7 @@ export default function NewImportForm() {
   const [starting, setStarting] = useState(false);
   const refresh = useRefreshImports();
 
-  function pick(next: ImportService) {
+  function pick(next: ImportSource) {
     setService(next);
     setRepoIds([]);
     setSource({ host: hostFor(next), token: '', repository: '' });
@@ -53,7 +54,7 @@ export default function NewImportForm() {
       if (service === 'github') {
         await startGithubImport({ repoIds, destination: dest });
         setRepoIds([]);
-      } else {
+      } else if (service !== 'csv') {
         await startTokenImport({
           service,
           host: source.host.trim(),
@@ -77,12 +78,14 @@ export default function NewImportForm() {
   return (
     <div className="grid gap-6">
       <ImportSourcePicker value={service} onChange={pick} />
-      {service === 'github' ? (
+      {service === 'csv' ? (
+        <CsvImportForm />
+      ) : service === 'github' ? (
         <GithubSourceFields repoIds={repoIds} onRepoIdsChange={setRepoIds} />
       ) : (
         <TokenSourceFields key={service} service={service} value={source} onChange={setSource} />
       )}
-      {sourceReady && (
+      {service !== 'csv' && sourceReady && (
         <>
           <ImportDestinationFields value={destination} onChange={setDestination} />
           <div className="flex items-center gap-3">

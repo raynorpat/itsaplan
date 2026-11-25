@@ -192,7 +192,12 @@ const ProcessGithubImport = graphql(`
 export function useProcessImport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { imp: ImportView; people: Record<string, string | null> }) => {
+    mutationFn: async (input: {
+      imp: ImportView;
+      people: Record<string, string | null>;
+      // CSV imports: status value → state id or name; values left out use the guess.
+      statuses?: Record<string, string>;
+    }) => {
       if (input.imp.service === 'github') {
         await gqlRequest(ProcessGithubImport, {
           issueImportId: input.imp.id,
@@ -202,7 +207,7 @@ export function useProcessImport() {
       }
       await instanceFetch('/instance/imports/process', {
         method: 'POST',
-        body: { id: input.imp.id, people: input.people },
+        body: { id: input.imp.id, people: input.people, statuses: input.statuses },
       });
     },
     onSettled: (_data, _err, input) => {

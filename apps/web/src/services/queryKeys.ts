@@ -162,6 +162,7 @@ export const qk = {
   customer: (idOrSlug: string) => ['customers', 'one', idOrSlug] as const,
   anyCustomers: ['customers'] as const,
   importPeople: (id: string) => ['imports', 'people', id] as const,
+  importTeamStates: (teamId: string) => ['imports', 'teamStates', teamId] as const,
   githubImport: ['githubImport'] as const,
   githubImportRepositories: ['githubImport', 'repositories'] as const,
   oauthAuthorized: ['oauthAuthorized'] as const,
