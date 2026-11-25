@@ -365,6 +365,22 @@ Rules and invariants for this package below; read the code for the walkthrough.
   paragraph is shown only while the changes and the visit it was written for match
   (`changes_hash`), and the answer waits at most 5 seconds for it; a slower paragraph
   is stored for the next load.
+- **Favorites** (`favorites/`, Linear's `Favorite`): a person's sidebar bookmarks, each
+  pointing at exactly one issue, project, custom view, cycle, document, issue label,
+  project label, customer, dashboard, team or user, a fixed view (`predefinedViewType`,
+  with `predefinedViewTeamId` for a team's), or a folder (`folderName`). Only the owner
+  reads or changes a favorite; another person's is not found (and `favoriteDelete`
+  succeeds without touching it, as Linear's delete does for a missing favorite). One per
+  person and target (partial unique indexes): `favoriteCreate` for an existing one
+  returns it, moved to the folder and `sortOrder` given. Folders are not nested; a
+  folder's delete deletes its favorites, and deleting a target deletes its favorites
+  (foreign keys). New favorites go after their siblings (`max(sort_order) + 1000`).
+  `favorites` and `Favorite.children` list only favorites whose target the viewer can
+  see now and is not archived or trashed (`favorites/access.ts`, one SQL condition;
+  customers only while Customers is on); a target field reads the item through its own
+  query and is null when it cannot be read. `url` is the item's web page (null for
+  folders, labels and users). Linear's create input has no initiative, so initiatives
+  cannot be favorited.
 - **Dashboards** (`dashboards/`, `dashboard`): pages of Insights widgets, stored here
   since Linear's schema has no dashboard type, through `/api/auth/instance/dashboards*`.
   `widgets` is the web's configuration; the API checks only its shape (at most 24
@@ -743,7 +759,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, issue templates, `fileUpload` and `userUpdate` (name, time zone, avatar; a
+  views and view preferences, favorites, issue templates, `fileUpload` and `userUpdate` (name, time zone, avatar; a
   user without a name reads as its email's local part in `name` and `displayName`),
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,

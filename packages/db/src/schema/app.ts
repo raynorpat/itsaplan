@@ -1953,3 +1953,75 @@ export const dashboard = pgTable(
     check('dashboard_system_key_check', sql`${t.systemKey} IS NULL OR ${t.systemKey} = 'feedback'`),
   ],
 );
+
+// A person's favorite (Linear's Favorite): a sidebar bookmark of one item, or a folder
+// (`folder_name`) of bookmarks. Exactly one of the target columns, `folder_name` or
+// `predefined_view_type` is set; `team_id` with `predefined_view_type` names the team
+// of a team's fixed view. Folders are not nested (`parent_id` names a folder; the store
+// checks it). Deleting a target deletes its favorites.
+export const favorite = pgTable(
+  'favorite',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    parentId: uuid('parent_id').references((): AnyPgColumn => favorite.id, {
+      onDelete: 'cascade',
+    }),
+    folderName: text('folder_name'),
+    sortOrder: real('sort_order').notNull(),
+    predefinedViewType: text('predefined_view_type'),
+    issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    customViewId: uuid('custom_view_id').references(() => teamView.id, { onDelete: 'cascade' }),
+    cycleId: uuid('cycle_id').references(() => cycle.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id').references(() => document.id, { onDelete: 'cascade' }),
+    labelId: uuid('label_id').references(() => label.id, { onDelete: 'cascade' }),
+    projectLabelId: uuid('project_label_id').references(() => projectLabel.id, {
+      onDelete: 'cascade',
+    }),
+    customerId: uuid('customer_id').references(() => customer.id, { onDelete: 'cascade' }),
+    dashboardId: uuid('dashboard_id').references(() => dashboard.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('favorite_owner_idx').on(t.ownerId, t.sortOrder),
+    ...(
+      [
+        ['issue', t.issueId],
+        ['project', t.projectId],
+        ['custom_view', t.customViewId],
+        ['cycle', t.cycleId],
+        ['document', t.documentId],
+        ['label', t.labelId],
+        ['project_label', t.projectLabelId],
+        ['customer', t.customerId],
+        ['dashboard', t.dashboardId],
+        ['user', t.userId],
+      ] as const
+    ).map(([name, col]) =>
+      uniqueIndex(`favorite_owner_${name}_uq`)
+        .on(t.ownerId, col)
+        .where(sql`${col} IS NOT NULL`),
+    ),
+    uniqueIndex('favorite_owner_team_uq')
+      .on(t.ownerId, t.teamId)
+      .where(sql`${t.teamId} IS NOT NULL AND ${t.predefinedViewType} IS NULL`),
+    uniqueIndex('favorite_owner_predefined_uq')
+      .on(
+        t.ownerId,
+        t.predefinedViewType,
+        sql`coalesce(${t.teamId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      )
+      .where(sql`${t.predefinedViewType} IS NOT NULL`),
+    check(
+      'favorite_one_target_check',
+      sql`num_nonnulls(${t.folderName}, ${t.predefinedViewType}, ${t.issueId}, ${t.projectId}, ${t.customViewId}, ${t.cycleId}, ${t.documentId}, ${t.labelId}, ${t.projectLabelId}, ${t.customerId}, ${t.dashboardId}, ${t.userId}, CASE WHEN ${t.predefinedViewType} IS NULL THEN ${t.teamId} END) = 1`,
+    ),
+    check('favorite_folder_parent_check', sql`${t.folderName} IS NULL OR ${t.parentId} IS NULL`),
+  ],
+);
