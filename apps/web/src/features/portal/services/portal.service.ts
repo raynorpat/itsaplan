@@ -1,12 +1,12 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { API_URL, ApiError } from '@/lib/graphql';
+import { portalFetch } from '@/services/portalFetch.service';
+import type { Answers, PublicFormField } from '@/utils/formAnswers';
 import { optimisticVote, type PortalIssue } from '../utils/portal';
 
-// The portal's own API routes (/portal/* on the API origin). They accept only the
-// portal session cookie, which the API sets on its own origin, so every request
-// sends credentials. Members' sessions and /graphql are never used here.
+// The portal boards' queries and mutations, on the portal's own API routes
+// (portalFetch). Members' sessions and /graphql are never used here.
 
 export interface PortalVisitor {
   id: string;
@@ -41,20 +41,12 @@ export interface PortalComment {
 
 export type PortalSort = 'top' | 'new';
 
-async function portalFetch<T>(
-  path: string,
-  init?: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: Record<string, unknown> },
-): Promise<T> {
-  const res = await fetch(`${API_URL}/portal${path}`, {
-    method: init?.method ?? 'GET',
-    credentials: 'include',
-    cache: 'no-store',
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
-    body: init?.body ? JSON.stringify(init.body) : undefined,
-  });
-  const data = (await res.json().catch(() => null)) as { error?: string } | null;
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? res.statusText);
-  return data as T;
+// A form placed on the board (it replaces the Suggest box).
+export interface PortalBoardForm {
+  slug: string;
+  name: string;
+  intro: string;
+  fields: PublicFormField[];
 }
 
 const board = (slug: string) => `/boards/${encodeURIComponent(slug)}`;
@@ -70,6 +62,7 @@ export const portalKeys = {
   issue: (slug: string, identifier: string) => ['portal', slug, 'issue', identifier] as const,
   comments: (slug: string, identifier: string) =>
     ['portal', slug, 'issue', identifier, 'comments'] as const,
+  forms: (slug: string) => ['portal', slug, 'forms'] as const,
   linkInfo: (token: string) => ['portal', 'link', token] as const,
 };
 
@@ -183,6 +176,27 @@ export function useSuggest(slug: string) {
       portalFetch<{ identifier: string }>(`${board(slug)}/suggestions`, {
         method: 'POST',
         body: input,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: portalKeys.issues(slug) }),
+  });
+}
+
+export function usePortalBoardForms(slug: string, enabled: boolean) {
+  return useQuery({
+    queryKey: portalKeys.forms(slug),
+    queryFn: async () =>
+      (await portalFetch<{ forms: PortalBoardForm[] }>(`${board(slug)}/forms`)).forms,
+    enabled,
+  });
+}
+
+export function useSubmitBoardForm(slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ form, answers }: { form: string; answers: Answers }) =>
+      portalFetch<{ identifier: string }>(`${board(slug)}/forms/${encodeURIComponent(form)}`, {
+        method: 'POST',
+        body: { answers },
       }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: portalKeys.issues(slug) }),
   });

@@ -8,8 +8,9 @@ const PUBLIC_PATHS = ['/login'];
 // Routes reachable with or without a session, and never bounced: the invite page
 // opens for a logged-out invitee and for someone already signed in, and the email
 // confirmation page works from any browser the mailed link is opened in. Portal
-// boards are for people outside the workspace and have their own sign-in.
-const OPEN_PATHS = ['/invite', '/confirm-email', '/portal'];
+// boards and form links are for people outside the workspace and have their own
+// sign-in.
+const OPEN_PATHS = ['/invite', '/confirm-email', '/portal', '/forms'];
 
 // Gate the whole app behind a session. This is an optimistic check: it only looks
 // for the presence of the better-auth session cookie, not its validity — the API

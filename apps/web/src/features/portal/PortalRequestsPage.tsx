@@ -1,25 +1,29 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { usePortalBoard, usePortalIssues, type PortalSort } from './services/portal.service';
+import {
+  usePortalBoard,
+  usePortalBoardForms,
+  usePortalIssues,
+  type PortalSort,
+} from './services/portal.service';
 import PortalIssueRow from './components/PortalIssueRow';
 import PortalMessage from './components/PortalMessage';
 import PortalRequestsToolbar from './components/requests/PortalRequestsToolbar';
-import PortalSuggestDialog from './components/requests/PortalSuggestDialog';
+import PortalRequestActions from './components/requests/PortalRequestActions';
 
-// /portal/<slug>: the board's issues by votes or by date, with search and Suggest.
+// /portal/<slug>: the board's issues by votes or by date, with search, and the board's
+// forms or its Suggest box.
 export default function PortalRequestsPage() {
   const { slug } = useParams<{ slug: string }>();
   const board = usePortalBoard(slug).data;
   const [sort, setSort] = useState<PortalSort>('top');
   const [q, setQ] = useState('');
   const issues = usePortalIssues(slug, sort, useDebouncedValue(q.trim(), 250), !!board?.canRead);
-  const [suggesting, setSuggesting] = useState(false);
+  const forms = usePortalBoardForms(slug, !!board?.canRead).data ?? [];
   if (!board) return null;
   const signedIn = !!board.visitor;
 
@@ -43,28 +47,23 @@ export default function PortalRequestsPage() {
 
   return (
     <section className="flex flex-col gap-4">
-      {(board.intro || board.suggestionsEnabled) && (
+      {(board.intro || board.suggestionsEnabled || forms.length > 0) && (
         <div className="flex items-start gap-4">
           {board.intro && (
             <p className="flex-1 text-sm whitespace-pre-wrap text-muted-foreground">
               {board.intro}
             </p>
           )}
-          {board.suggestionsEnabled &&
-            (signedIn ? (
-              <Button className="ml-auto" onClick={() => setSuggesting(true)}>
-                Suggest a request
-              </Button>
-            ) : (
-              <Button asChild variant="outline" className="ml-auto">
-                <Link href={`/portal/${slug}/sign-in`}>Sign in to suggest</Link>
-              </Button>
-            ))}
+          <PortalRequestActions
+            slug={slug}
+            forms={forms}
+            suggestionsEnabled={!!board.suggestionsEnabled}
+            signedIn={signedIn}
+          />
         </div>
       )}
       <PortalRequestsToolbar sort={sort} onSort={setSort} q={q} onQ={setQ} />
       {list}
-      {suggesting && <PortalSuggestDialog slug={slug} onClose={() => setSuggesting(false)} />}
     </section>
   );
 }
