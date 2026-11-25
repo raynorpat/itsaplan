@@ -685,7 +685,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   the log. It marks the request (`refusalRecorded`) so better-auth's after hook adds no
   second entry. Instance-plugin actions pass their user as the actor; otherwise the
   actor is the request's user. The request details (`audit/context.ts`: IP and country,
-  user agent, how the request authenticated, the route or GraphQL operation, at most 200
+  user agent, how the request authenticated (`none` on a refused sign-in), the route or
+  GraphQL operation, at most 200
   characters and read only when an entry is written, the OAuth application or release
   pipeline) are set around GraphQL, every `/api/auth/*` request, MCP (whose tools' in-
   process GraphQL requests keep MCP's client) and the worker's audit and project purge

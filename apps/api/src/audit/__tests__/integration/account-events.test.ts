@@ -124,6 +124,8 @@ describe('audit: sign-in and account events', () => {
       reason: 'notInvited',
       attempts: 1,
     });
+    // Nobody authenticated: the entry does not claim a session.
+    expect(entry!.requestInformation).toMatchObject({ method: 'none' });
   });
 
   it('records a sign-in refused because the account is suspended', async () => {

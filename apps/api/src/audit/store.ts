@@ -40,10 +40,15 @@ async function oauthAppName(details: AuditRequestDetails, executor: Tx | typeof 
   app.name = row?.name ?? '';
 }
 
-function requestInformation(details: AuditRequestDetails): Record<string, unknown> {
+// A refused sign-in authenticated nobody, so it records `none` whatever the request's
+// default method is.
+function requestInformation(
+  details: AuditRequestDetails,
+  type: AuditType,
+): Record<string, unknown> {
   const info: Record<string, unknown> = {
     userAgent: details.userAgent,
-    method: details.method,
+    method: type === 'loginFailed' ? 'none' : details.method,
   };
   if (details.oauthApp) info.oauthApp = details.oauthApp;
   if (details.pipelineId) info.pipelineId = details.pipelineId;
@@ -75,7 +80,7 @@ async function entryValues(
     ip: details.ip,
     countryCode: details.countryCode,
     metadata,
-    requestInformation: requestInformation(details),
+    requestInformation: requestInformation(details, type),
   };
 }
 
