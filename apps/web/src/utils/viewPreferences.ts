@@ -95,6 +95,8 @@ export interface ViewPreferenceValues {
   hiddenRows?: readonly string[] | null;
   columnOrderList?: readonly string[] | null;
   timelineZoomScale?: number | null;
+  projectLayout?: string | null;
+  projectGrouping?: string | null;
   showCompletedIssues?: string | null;
   showSubIssues?: boolean | null;
   fieldId?: boolean | null;

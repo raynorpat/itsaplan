@@ -1,7 +1,7 @@
 // The list kinds whose display is one personal record per user on the server
 // (Linear's view types). A setting applies to every list of its kind: every team's
-// All issues, every project's issues, every cycle, My issues.
-export type ListViewType = 'allIssues' | 'project' | 'cycle' | 'myIssues';
+// All issues, every project's issues, every cycle, My issues, and the projects list.
+export type ListViewType = 'allIssues' | 'project' | 'cycle' | 'myIssues' | 'projects';
 
 // Where a list's stored display stands. A change is saved only once the stored
 // display has loaded: before that, or after a failed load, the list holds the

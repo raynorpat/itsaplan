@@ -21,6 +21,10 @@ import ProjectsList from './components/list/ProjectsList';
 import CreateProjectDialog from './components/list/CreateProjectDialog';
 import ProjectTabCount from './components/list/ProjectTabCount';
 import ProjectTeamFilter from './components/list/ProjectTeamFilter';
+import ProjectsLayoutSwitch from './components/list/ProjectsLayoutSwitch';
+import ProjectsTimeline from './components/list/ProjectsTimeline';
+import { timelineProjectsKey, useTimelineProjects } from './services/projectTimeline.service';
+import { useProjectsDisplay } from './hooks/useProjectsDisplay';
 import {
   useDeletedProjects,
   useProjectStatusCounts,
@@ -68,6 +72,8 @@ function tabCount(counts: ProjectCounts | undefined, tab: ProjectsTab): number |
 // first, narrowed by the name search. A sort is applied in the browser, so while one
 // is chosen every page is loaded first. The tab counts are counted separately so they
 // stay correct however much of the list is loaded.
+// The Table / Timeline switch (kept per person) shows the tab as a timeline instead:
+// every matching project at once, with no paging; the Deleted tab is always a table.
 export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const { team } = useShell();
   const { can } = usePermissions();
@@ -89,10 +95,12 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   const dir = sort ? sortDir : undefined;
 
   const isDeleted = tab === 'deleted';
-  const query = useProjectsList(
-    { teamKey: filterKey, statuses: activeTab.statuses, search },
-    !isDeleted,
-  );
+  const { display, ready: displayReady, update: updateDisplay } = useProjectsDisplay();
+  // The Deleted tab is always a table.
+  const timeline = display.layout === 'timeline' && !isDeleted;
+  const listFilters = { teamKey: filterKey, statuses: activeTab.statuses, search };
+  const query = useProjectsList(listFilters, !isDeleted && !timeline);
+  const timelineQuery = useTimelineProjects(listFilters, timeline);
   const deleted = useDeletedProjects({ teamKey: filterKey, search }, isDeleted);
   const restore = useRestoreProject(teamKey ?? '');
   const counts = useProjectStatusCounts(filterKey).data;
@@ -106,6 +114,7 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
   if (!team) return null;
 
   const leadNames = new Map(team.assignees.map((a) => [a.userId, a.name]));
+  const leadName = (id: string) => leadNames.get(id) ?? 'Unknown';
   const items = sortProjects(isDeleted ? (deleted.data ?? []) : query.items, sort, sortDir, (id) =>
     id ? (leadNames.get(id) ?? '') : '',
   );
@@ -150,6 +159,13 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
               className="h-8 w-48 pl-7"
             />
           </div>
+          {!isDeleted && (
+            <ProjectsLayoutSwitch
+              value={display.layout}
+              disabled={!displayReady}
+              onChange={(layout) => updateDisplay({ layout })}
+            />
+          )}
         </div>
         {can('projects', 'create') && (
           <Button size="sm" className="h-8 gap-1.5" onClick={() => setCreating(true)}>
@@ -172,24 +188,42 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
         </Tabs>
       </div>
 
-      <ProjectsList
-        projects={items}
-        team={team}
-        isLoading={isDeleted ? deleted.isLoading : query.isLoading}
-        canCreate={can('projects', 'create')}
-        onCreate={() => setCreating(true)}
-        statusLabel={activeTab.statuses || isDeleted ? activeTab.label : undefined}
-        sort={sort}
-        dir={dir}
-        onSort={changeSort}
-        onRestore={
-          isDeleted && can('projects', 'edit')
-            ? (id) => restore.mutate(id, { onSuccess: () => toast.success('Project restored.') })
-            : undefined
-        }
-      />
+      {timeline ? (
+        timelineQuery.isLoading || timelineQuery.isError ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            {timelineQuery.isError ? 'The timeline could not be loaded.' : 'Loading…'}
+          </p>
+        ) : (
+          <ProjectsTimeline
+            projects={timelineQuery.data ?? []}
+            display={display}
+            onDisplay={updateDisplay}
+            teamKey={team.team.key}
+            leadName={leadName}
+            readOnly={!can('projects', 'edit')}
+            queryKey={timelineProjectsKey(listFilters)}
+          />
+        )
+      ) : (
+        <ProjectsList
+          projects={items}
+          team={team}
+          isLoading={isDeleted ? deleted.isLoading : query.isLoading}
+          canCreate={can('projects', 'create')}
+          onCreate={() => setCreating(true)}
+          statusLabel={activeTab.statuses || isDeleted ? activeTab.label : undefined}
+          sort={sort}
+          dir={dir}
+          onSort={changeSort}
+          onRestore={
+            isDeleted && can('projects', 'edit')
+              ? (id) => restore.mutate(id, { onSuccess: () => toast.success('Project restored.') })
+              : undefined
+          }
+        />
+      )}
 
-      {!isDeleted && query.hasNextPage && !sort && (
+      {!isDeleted && !timeline && query.hasNextPage && !sort && (
         <div className="flex justify-center px-4 py-3">
           <Button
             size="sm"

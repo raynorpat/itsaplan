@@ -39,6 +39,8 @@ export const ViewPreferenceFields = graphql(`
     hiddenRows
     columnOrderList
     timelineZoomScale
+    projectLayout
+    projectGrouping
     showCompletedIssues
     showSubIssues
     fieldId
