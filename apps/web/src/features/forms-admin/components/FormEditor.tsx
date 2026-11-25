@@ -23,6 +23,9 @@ export default function FormEditor({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<FormEditorState>(initial);
+  // The template id once a save created it, so a retry after a failed settings save
+  // updates that template.
+  const [savedId, setSavedId] = useState(templateId);
   const [tried, setTried] = useState(false);
   const save = useSaveForm();
   const remove = useDeleteForm();
@@ -32,7 +35,10 @@ export default function FormEditor({
   function submit() {
     setTried(true);
     if (Object.keys(formEditorErrors(form)).length > 0) return;
-    save.mutate({ templateId, form, existing }, { onSuccess: onClose });
+    save.mutate(
+      { templateId: savedId, form, existing, onCreated: setSavedId },
+      { onSuccess: onClose },
+    );
   }
 
   function deleteForm() {
@@ -52,7 +58,7 @@ export default function FormEditor({
         submit();
       }}
     >
-      <FormIssueFields form={form} errors={errors} set={set} teamLocked={templateId != null} />
+      <FormIssueFields form={form} errors={errors} set={set} teamLocked={savedId != null} />
       <FormQuestions
         fields={form.fields}
         errors={errors}

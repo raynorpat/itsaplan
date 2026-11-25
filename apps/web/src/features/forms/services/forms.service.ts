@@ -16,6 +16,12 @@ export interface PublicForm {
   visitor: { id: string; displayName: string; avatarUrl: string | null } | null;
 }
 
+// What a confirmation carries, shown before the person confirms it.
+export interface FormConfirmInfo {
+  formName: string;
+  answers: { label: string; answer: string }[];
+}
+
 // The new issue, and the boards showing it that the person may read.
 export interface FormCreated {
   identifier: string;
@@ -45,7 +51,7 @@ export function useFormConfirmInfo(token: string) {
   return useQuery({
     queryKey: ['forms', 'confirm', token],
     queryFn: () =>
-      portalFetch<{ formName: string }>(`/forms/confirm-info?token=${encodeURIComponent(token)}`),
+      portalFetch<FormConfirmInfo>(`/forms/confirm-info?token=${encodeURIComponent(token)}`),
     retry: false,
     enabled: !!token,
   });

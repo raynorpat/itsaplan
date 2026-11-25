@@ -1,8 +1,10 @@
 import { Globe } from 'lucide-react';
 import { useIssuePortalBoards, useIssueSuggester } from '../../services/issuePortal.service';
+import { externalCreatorText } from '../../utils/externalCreator';
 
-// The portal boards showing the issue, each linking to its portal page, and the
-// visitor who suggested it there. Members only; renders nothing otherwise.
+// The portal boards showing the issue, each linking to its portal page, and the person
+// outside the workspace who created it (a portal suggestion or a form). Members only;
+// renders nothing otherwise.
 export default function IssuePortalInfo({
   issueId,
   identifier,
@@ -36,7 +38,7 @@ export default function IssuePortalInfo({
           </span>
         </div>
       )}
-      {suggester && <div>Suggested by {suggester.name} on the portal</div>}
+      {suggester && <div>{externalCreatorText(suggester.name, suggester.subtitles)}</div>}
     </div>
   );
 }

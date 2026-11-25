@@ -5,11 +5,8 @@ import { instanceFetch } from '@/lib/auth-client';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { fetchProjectsPage } from '@/services/projects.service';
-import {
-  templateDataFromEditor,
-  type FormEditorState,
-  type FormSettings,
-} from '../utils/formEditor';
+import { type FormEditorState, type FormSettings } from '../utils/formEditor';
+import { saveFormSteps, type SaveFormApi } from '../utils/saveForm';
 
 // Forms: the template through GraphQL (templateCreate / templateUpdate / template),
 // the publishing settings through /api/auth/instance/forms* (owners and admins), since
@@ -80,44 +77,37 @@ const UpdateTemplate = graphql(`
   }
 `);
 
-// Saves the template, then its publishing settings (replaced whole). `existing` is
-// the stored template data of an edited form, so its title and description stay.
+const saveFormApi: SaveFormApi = {
+  validate: async (body) => {
+    await instanceFetch('/instance/forms/settings', { method: 'POST', body });
+  },
+  createTemplate: async ({ name, teamId, templateData }) =>
+    (
+      await gqlRequest(CreateTemplate, {
+        input: { name, type: 'issue', teamId, templateData },
+      })
+    ).templateCreate.template.id,
+  updateTemplate: async (id, input) => {
+    await gqlRequest(UpdateTemplate, { id, input });
+  },
+  saveSettings: async (body) => {
+    await instanceFetch('/instance/forms/settings', { method: 'POST', body });
+  },
+};
+
+// Saves the template, then its publishing settings (replaced whole), after checking the
+// settings (`saveFormSteps`). `existing` is the stored template data of an edited form,
+// so its title and description stay; `onCreated` receives a new template's id.
 export function useSaveForm() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      templateId,
-      form,
-      existing,
-    }: {
+    mutationFn: (input: {
       templateId: string | null;
       form: FormEditorState;
       existing: unknown;
-    }) => {
-      const templateData = templateDataFromEditor(form, existing);
-      const name = form.name.trim();
-      let id = templateId;
-      if (id) {
-        await gqlRequest(UpdateTemplate, { id, input: { name, templateData } });
-      } else {
-        const created = await gqlRequest(CreateTemplate, {
-          input: { name, type: 'issue', teamId: form.teamId, templateData },
-        });
-        id = created.templateCreate.template.id;
-      }
-      await instanceFetch('/instance/forms/settings', {
-        method: 'POST',
-        body: {
-          templateId: id,
-          slug: form.slug,
-          intro: form.intro.trim(),
-          linkEnabled: form.linkEnabled,
-          boardIds: form.boardIds,
-        },
-      });
-      return id;
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: formsKey }),
+      onCreated: (id: string) => void;
+    }) => saveFormSteps(saveFormApi, input),
+    onSettled: () => void qc.invalidateQueries({ queryKey: formsKey }),
   });
 }
 

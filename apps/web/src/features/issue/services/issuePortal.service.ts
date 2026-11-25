@@ -25,6 +25,15 @@ const IssueSuggesterQuery = graphql(`
         id
         name
       }
+      attachments {
+        nodes {
+          sourceType
+          subtitle
+          externalUserCreator {
+            id
+          }
+        }
+      }
     }
   }
 `);
@@ -45,8 +54,18 @@ export function useIssuePortalBoards(issueId: string, enabled: boolean) {
 export function useIssueSuggester(issueId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...qk.issuePortalBoards(issueId), 'suggester'],
-    queryFn: async () =>
-      (await gqlRequest(IssueSuggesterQuery, { id: issueId })).issue.externalUserCreator,
+    queryFn: async () => {
+      const { issue } = await gqlRequest(IssueSuggesterQuery, { id: issueId });
+      const creator = issue.externalUserCreator;
+      if (!creator) return null;
+      // The creator's own feedback sources say where the issue came from.
+      const subtitles = issue.attachments.nodes.flatMap((a) =>
+        a.sourceType === 'feedback' && a.externalUserCreator?.id === creator.id && a.subtitle
+          ? [a.subtitle]
+          : [],
+      );
+      return { ...creator, subtitles };
+    },
     enabled,
   });
 }
