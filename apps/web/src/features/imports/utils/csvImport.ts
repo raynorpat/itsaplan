@@ -76,14 +76,23 @@ export function mappingFromChoices(choices: ColumnChoices, dateFormat: DateForma
 }
 
 // The statuses step: each distinct status value in the file, mapped to a state of the
-// destination team. "Automatic" leaves the value to the API's guess.
-export const AUTO_STATE = '__auto__';
-
+// destination team, starting on the state the API guessed.
 export interface StateChoice {
   id: string;
   name: string;
   type: string;
   position: number;
+  archivedAt?: string | null;
+}
+
+// Import files are always sent as text/csv: browsers report CSVs under several types
+// (or none) that the API would refuse.
+export const IMPORT_CONTENT_TYPE = 'text/csv';
+
+// The Jira site typed on the Jira form, or nothing when left empty.
+export function jiraHostInput(value: string): string | undefined {
+  const host = value.trim();
+  return host || undefined;
 }
 
 // The states a new team gets (apps/api src/teams/store.ts DEFAULT_COLUMNS); the API
@@ -94,7 +103,8 @@ const TYPE_ORDER = ['triage', 'backlog', 'unstarted', 'started', 'completed', 'c
 
 export function statusOptions(states: StateChoice[] | null): { value: string; label: string }[] {
   if (!states) return NEW_TEAM_STATES.map((name) => ({ value: name, label: name }));
-  return [...states]
+  return states
+    .filter((s) => !s.archivedAt)
     .sort(
       (a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.position - b.position,
     )
@@ -107,9 +117,26 @@ export function statusValues(serviceMetadata: Record<string, unknown>): string[]
   return raw.filter((s): s is string => typeof s === 'string' && s !== '');
 }
 
+// The API's guess for each status (serviceMetadata.statusGuesses: a state id, or a
+// default state name for a new team), as the step's starting choices.
+export function initialStatusChoices(
+  statuses: string[],
+  serviceMetadata: Record<string, unknown>,
+): Record<string, string> {
+  const raw = serviceMetadata.statusGuesses;
+  const guesses =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, string> = {};
+  for (const status of statuses) {
+    const guess = guesses[status];
+    if (typeof guess === 'string' && guess) out[status] = guess;
+  }
+  return out;
+}
+
 export function statusMappingInput(chosen: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [value, state] of Object.entries(chosen)) if (state !== AUTO_STATE) out[value] = state;
+  for (const [value, state] of Object.entries(chosen)) if (state) out[value] = state;
   return out;
 }
 

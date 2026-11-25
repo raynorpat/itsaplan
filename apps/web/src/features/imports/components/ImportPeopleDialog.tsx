@@ -9,7 +9,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useImportPeopleQuery, useProcessImport } from '../services/imports.service';
-import { isCsvImport, statusMappingInput, statusValues } from '../utils/csvImport';
+import {
+  initialStatusChoices,
+  isCsvImport,
+  statusMappingInput,
+  statusValues,
+} from '../utils/csvImport';
 import { peopleMappingInput, type ImportView } from '../utils/imports';
 import ImportStatusFields from './ImportStatusFields';
 
@@ -29,7 +34,9 @@ export default function ImportPeopleDialog({
   const { data, isPending, error } = useImportPeopleQuery(imp.id);
   const process = useProcessImport();
   const [chosen, setChosen] = useState<Record<string, string>>({});
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [statuses, setStatuses] = useState<Record<string, string>>(() =>
+    initialStatusChoices(statusValues(imp.serviceMetadata ?? {}), imp.serviceMetadata ?? {}),
+  );
   const csv = isCsvImport(imp);
 
   useEffect(() => {

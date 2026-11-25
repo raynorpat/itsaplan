@@ -11,6 +11,7 @@ import {
 import { useRefreshImports } from '../services/imports.service';
 import {
   columnChoices,
+  jiraHostInput,
   mappingFromChoices,
   validateColumns,
   type ColumnChoices,
@@ -19,6 +20,7 @@ import {
 import { destinationInput, type DestinationForm } from '../utils/imports';
 import CsvColumnsFields from './CsvColumnsFields';
 import CsvFileField from './CsvFileField';
+import CsvJiraHostField from './CsvJiraHostField';
 import CsvKindPicker from './CsvKindPicker';
 import ImportDestinationFields from './ImportDestinationFields';
 
@@ -38,6 +40,7 @@ export default function CsvImportForm() {
   const [choices, setChoices] = useState<ColumnChoices | null>(null);
   const [dateFormat, setDateFormat] = useState<DateFormat>('iso');
   const [destination, setDestination] = useState<DestinationForm>(EMPTY_DESTINATION);
+  const [jiraHost, setJiraHost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'reading' | 'starting' | null>(null);
   const refresh = useRefreshImports();
@@ -76,10 +79,12 @@ export default function CsvImportForm() {
         source: kind,
         mapping: kind === 'generic' && choices ? mappingFromChoices(choices, dateFormat) : null,
         destination: dest,
+        jiraHostname: kind === 'jira' ? jiraHostInput(jiraHost) : undefined,
       });
       await refresh();
       setFile(null);
       setDestination(EMPTY_DESTINATION);
+      setJiraHost('');
       toast.success('Import created. Match its statuses and people to start it.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The import could not start.');
@@ -111,6 +116,9 @@ export default function CsvImportForm() {
       {file && !notJira && (
         <>
           <ImportDestinationFields value={destination} onChange={setDestination} teamOnly />
+          {kind === 'jira' && (
+            <CsvJiraHostField value={jiraHost} disabled={busy != null} onChange={setJiraHost} />
+          )}
           <div className="flex items-center gap-3">
             <Button onClick={start} disabled={busy != null}>
               {busy === 'starting' ? 'Starting…' : 'Continue'}

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  AUTO_STATE,
   columnChoices,
+  IMPORT_CONTENT_TYPE,
+  initialStatusChoices,
+  jiraHostInput,
   isCsvImport,
   mappingFromChoices,
   statusMappingInput,
@@ -67,6 +69,27 @@ describe('status mapping', () => {
     assert.deepEqual(statusValues({}), []);
   });
 
+  it('leaves archived states out', () => {
+    const withArchived = [
+      ...states,
+      { id: 'sx', name: 'Old', type: 'started', position: 9, archivedAt: '2026-01-01' },
+    ];
+    assert.equal(
+      statusOptions(withArchived).some((o) => o.value === 'sx'),
+      false,
+    );
+  });
+
+  it('starts each status on the guessed state', () => {
+    assert.deepEqual(
+      initialStatusChoices(['Done', 'Parked'], {
+        statusGuesses: { Done: 's3', Parked: 's1' },
+      }),
+      { Done: 's3', Parked: 's1' },
+    );
+    assert.deepEqual(initialStatusChoices(['Done'], {}), {});
+  });
+
   it('offers states in workflow order', () => {
     assert.deepEqual(
       statusOptions(states).map((o) => o.label),
@@ -82,11 +105,22 @@ describe('status mapping', () => {
     );
   });
 
-  it('sends only the statuses the person chose, leaving the rest to the guess', () => {
-    assert.deepEqual(statusMappingInput({ Open: AUTO_STATE, Shipped: 's3', Doing: 's2' }), {
+  it('sends every chosen state', () => {
+    assert.deepEqual(statusMappingInput({ Open: 's1', Shipped: 's3', Empty: '' }), {
+      Open: 's1',
       Shipped: 's3',
-      Doing: 's2',
     });
+  });
+});
+
+describe('the upload and the Jira form', () => {
+  it('always uploads import files as text/csv', () => {
+    assert.equal(IMPORT_CONTENT_TYPE, 'text/csv');
+  });
+
+  it('sends a typed Jira host, or nothing when empty', () => {
+    assert.equal(jiraHostInput('  acme.atlassian.net '), 'acme.atlassian.net');
+    assert.equal(jiraHostInput('   '), undefined);
   });
 });
 

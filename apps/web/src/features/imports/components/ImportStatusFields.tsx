@@ -6,12 +6,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useImportTeamStatesQuery } from '../services/csvImport.service';
-import { AUTO_STATE, statusOptions } from '../utils/csvImport';
+import { statusOptions } from '../utils/csvImport';
 
 // The statuses step of a CSV import: each status value found in the file with the
-// destination team's state it becomes. "Automatic" leaves it to the API's guess (by
-// name, then by meaning, else the team's default state). An import into a new team
-// offers the states every new team starts with.
+// destination team's state it becomes, starting on the API's guess (by name, then by
+// meaning, else the team's default state). An import into a new team offers the states
+// every new team starts with.
 export default function ImportStatusFields({
   teamId,
   statuses,
@@ -39,14 +39,13 @@ export default function ImportStatusFields({
             <li key={status} className="flex items-center justify-between gap-4 py-2">
               <span className="min-w-0 truncate text-sm">{status}</span>
               <Select
-                value={chosen[status] ?? AUTO_STATE}
+                value={chosen[status] ?? ''}
                 onValueChange={(v) => onChange({ ...chosen, [status]: v })}
               >
                 <SelectTrigger aria-label={`State for ${status}`} className="w-48 shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={AUTO_STATE}>Automatic</SelectItem>
                   {options.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
