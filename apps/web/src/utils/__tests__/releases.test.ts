@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { openReleasesFor, releaseLabel, stageOrder } from '@/utils/releases';
+import { openReleasesFor, releaseLabel, shortCommit, stageOrder } from '@/utils/releases';
 import { pipelinePath, releasePath, teamReleasesPath } from '@/utils/paths';
 
 const stage = (id: string, type: string, position: number) => ({
@@ -95,5 +95,17 @@ describe('openReleasesFor', () => {
       openReleasesFor(list, new Set()).map((r) => r.id),
       ['a', 'c', 'b'],
     );
+  });
+});
+
+describe('shortCommit', () => {
+  it('shows the first 7 characters of the commit', () => {
+    assert.equal(shortCommit('0123456789abcdef', '2.3.0'), '0123456');
+  });
+  it('hides a commit that repeats the version', () => {
+    assert.equal(shortCommit('8d34b3e1234567890', '8d34b3e'), null);
+  });
+  it('hides a missing commit', () => {
+    assert.equal(shortCommit(null, '2.3.0'), null);
   });
 });

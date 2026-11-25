@@ -56,3 +56,11 @@ export function openReleasesFor<
         releaseLabel(a).localeCompare(releaseLabel(b)),
     );
 }
+
+// The commit shown beside a release's version: its first 7 characters, or null when
+// there is none or the version is already that commit (a continuous release's default).
+export function shortCommit(commitSha: string | null, version: string | null): string | null {
+  if (!commitSha) return null;
+  const short = commitSha.slice(0, 7);
+  return version && commitSha.startsWith(version) ? null : short;
+}

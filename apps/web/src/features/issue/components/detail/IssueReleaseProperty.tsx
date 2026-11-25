@@ -39,7 +39,7 @@ export default function IssueReleaseProperty({
   const trigger = (
     <Pill active={!!first}>
       {first ? dot(first.stage.color) : icon}
-      {first ? releaseLabel(first) : 'Release'}
+      {first ? itemLabel(first) : 'Release'}
       {current.length > 1 && <span className="text-muted-foreground">+{current.length - 1}</span>}
     </Pill>
   );

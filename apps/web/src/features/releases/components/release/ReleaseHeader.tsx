@@ -8,7 +8,7 @@ import DatePill from '@/components/common/fields/DatePill';
 import ConfirmDialog from '@/components/common/overlay/ConfirmDialog';
 import { useReleaseWrites, type ReleaseDetail } from '@/services/releases.service';
 import { pipelinePath } from '@/utils/paths';
-import { releaseLabel } from '@/utils/releases';
+import { releaseLabel, shortCommit } from '@/utils/releases';
 import ReleaseProgress from './ReleaseProgress';
 import ReleaseStageSelect from './ReleaseStageSelect';
 
@@ -29,6 +29,7 @@ export default function ReleaseHeader({
   const [archiving, setArchiving] = useState(false);
   const stageOf = (type: string) => release.pipeline.stages.find((s) => s.type === type);
   const done = release.stage.type === 'completed' || release.stage.type === 'canceled';
+  const commit = shortCommit(release.commitSha, release.version);
   const moveTo = (stageId: string | undefined) =>
     stageId && update.mutate({ id: release.id, input: { stageId } });
 
@@ -61,7 +62,7 @@ export default function ReleaseHeader({
       </div>
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {release.version && <span>Version {release.version}</span>}
-        {release.commitSha && <span className="font-mono">{release.commitSha.slice(0, 7)}</span>}
+        {commit && <span className="font-mono">{commit}</span>}
         <ReleaseStageSelect
           stages={release.pipeline.stages}
           value={release.stage}
