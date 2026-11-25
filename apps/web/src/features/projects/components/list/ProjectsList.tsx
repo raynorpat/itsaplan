@@ -4,6 +4,8 @@ import type { TeamDetail } from '@/types/team';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/page/EmptyState';
+import { useAllProjectRelations } from '@/services/projectRelations.service';
+import { conflictingProjectIds } from '@/utils/projectRelations';
 import { emptyTabText } from '../../utils/projectList';
 import ProjectRow from './ProjectRow';
 
@@ -45,6 +47,7 @@ export default function ProjectsList({
   onRestore?: (projectId: string) => void;
 }) {
   const ownerById = new Map(team.assignees.map((a) => [a.userId, a]));
+  const conflicts = conflictingProjectIds(useAllProjectRelations(!onRestore).data ?? []);
 
   if (isLoading) return <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>;
 
@@ -108,6 +111,7 @@ export default function ProjectsList({
               project={it}
               teamKey={team.team.key}
               owner={it.leadUserId ? (ownerById.get(it.leadUserId) ?? null) : null}
+              conflict={conflicts.has(it.id)}
               onRestore={onRestore && (() => onRestore(it.id))}
             />
           ))}

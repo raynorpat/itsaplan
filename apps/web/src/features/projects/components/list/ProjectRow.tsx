@@ -13,6 +13,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { STATUS_META } from '@/utils/projectMeta';
 import HealthBadge from '@/components/common/updates/HealthBadge';
 import ProgressRing from '../shared/ProgressRing';
+import DependencyConflictIcon from '../shared/DependencyConflictIcon';
 
 // The whole row navigates to the detail page; the title is also a real anchor so
 // middle/cmd-click opens it in a new tab.
@@ -20,11 +21,14 @@ export default function ProjectRow({
   project,
   teamKey,
   owner,
+  conflict = false,
   onRestore,
 }: {
   project: Project;
   teamKey: string;
   owner: Assignee | null;
+  // One of the project's dependencies has conflicting dates.
+  conflict?: boolean;
   // A deleted project's row: Restore takes the place of the health.
   onRestore?: () => void;
 }) {
@@ -37,13 +41,18 @@ export default function ProjectRow({
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="shrink-0">{colorDot(STATUS_META[project.status].color)}</span>
           <div className="min-w-0">
-            <Link
-              href={href}
-              onClick={(e) => e.stopPropagation()}
-              className="block truncate text-sm font-medium hover:underline"
-            >
-              {project.name}
-            </Link>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Link
+                href={href}
+                onClick={(e) => e.stopPropagation()}
+                className="block truncate text-sm font-medium hover:underline"
+              >
+                {project.name}
+              </Link>
+              {conflict && (
+                <DependencyConflictIcon label="A dependency of this project has conflicting dates" />
+              )}
+            </div>
             {project.content && (
               <span className="block truncate text-xs text-muted-foreground">
                 {project.content}

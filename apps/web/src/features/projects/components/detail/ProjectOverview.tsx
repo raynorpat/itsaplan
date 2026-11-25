@@ -5,6 +5,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import type { ProjectDetail } from '@/services/projects.service';
 import ProjectActivityFeed from './ProjectActivityFeed';
 import ProjectActiveWork from './ProjectActiveWork';
+import ProjectDependencies from './ProjectDependencies';
 import ProjectDescription from './ProjectDescription';
 import ProjectLatestUpdate from './ProjectLatestUpdate';
 import ProjectMilestones from './ProjectMilestones';
@@ -16,7 +17,7 @@ import ProjectFeedback from '@/components/common/feedback/ProjectFeedback';
 import { canSeeFeedback } from '@/utils/feedback';
 
 // The project overview: name, properties and description, progress, the latest
-// update and milestones in the content column, with the activity beside it,
+// update, milestones and dependencies in the content column, with the activity beside it,
 // stacking below it on a narrow screen.
 export default function ProjectOverview({
   project,
@@ -52,6 +53,10 @@ export default function ProjectOverview({
 
         <div className="mt-8">
           <ProjectMilestones project={project} canEdit={canEdit} />
+        </div>
+
+        <div className="mt-8">
+          <ProjectDependencies project={project} teamKey={team.team.key} canEdit={canEdit} />
         </div>
 
         {canSeeFeedback(permissions.workspaceRole) && (

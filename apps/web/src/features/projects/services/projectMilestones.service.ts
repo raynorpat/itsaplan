@@ -80,7 +80,11 @@ export function useUpdateMilestone(projectId: string) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.before) qc.setQueryData(key, ctx.before);
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: key }),
+    // A milestone's target date is a dependency anchor, so the relations refresh too.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: qk.projectRelations });
+    },
   });
 }
 
@@ -88,9 +92,11 @@ export function useDeleteMilestone(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => gqlRequest(MilestoneDelete, { id }),
-    // Deleting a milestone unsets it on its issues.
+    // Deleting a milestone unsets it on its issues and deletes the dependencies
+    // anchored to it.
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.project(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.projectRelations });
       void qc.invalidateQueries({ queryKey: ['boardIssues'] });
     },
   });

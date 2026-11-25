@@ -70,6 +70,9 @@ export const qk = {
   projects: (teamKey: string, params?: Record<string, unknown>) =>
     ['projects', teamKey, params ?? {}] as const,
   projectCounts: (teamKey: string) => ['projectCounts', teamKey] as const,
+  // Every project dependency the viewer can see. Under the projects prefix, so any
+  // project change (dates, delete, restore) refreshes the relations' dates too.
+  projectRelations: ['projects', 'relations'] as const,
   project: (id: string) => ['project', id] as const,
   projectActivity: (id: string) => ['projectActivity', id] as const,
   projectUpdates: (id: string) => ['projectUpdates', id] as const,
