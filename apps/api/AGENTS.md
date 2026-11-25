@@ -41,7 +41,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   bar's set with `apps/web/src/utils/viewFilters.ts`); the layout and display are the
   view's `view_preferences` (`organization` defaults, `user` overrides). A `user` row
   without a saved view is the user's own preferences for a list kind (`allIssues`,
-  `project`, `cycle`, `myIssues`; one per user and view type), read through
+  `project`, `cycle`, `myIssues`, `projects` for the projects list; one per user and view
+  type), read through
   `userViewPreferences(viewType)` and readable and changeable only by that user. A shared view
   is visible, and changeable, by anyone who can see its team; a non-shared view only by
   its owner, who is always its creator.
@@ -685,6 +686,16 @@ Rules and invariants for this package below; read the code for the walkthrough.
   that includes their team; a team with issues in a project cannot be removed from it.
   Project statuses are six seeded rows (`project_status`, ids in
   `packages/db/src/project-statuses.ts`); `resetDb` keeps them.
+- **Project relations** (`projects/relations.ts`, Linear's `ProjectRelation`): a
+  dependency (`type` always `dependency`) where the project's anchor blocks the related
+  project's anchor; an anchor is `start` (start date), `end` (target date) or
+  `milestone` (one of that project's milestones, required for it and refused for the
+  others). No relation to the same project, one per pair of anchors (CONFLICT), and no
+  cycle between projects (checked under an advisory lock; INVALID_INPUT). A relation is
+  visible when the viewer sees both projects and neither is archived or trashed
+  (`Project.relations` / `inverseRelations`, `projectRelations`); writing one needs
+  both projects visible and a role above guest. Deleting either project or an anchoring
+  milestone deletes it. No webhooks.
 - **Project trash** (`projects/store.ts`): `projectDelete` archives the project and
   sets `trashed`, as Linear does; `projectUnarchive` restores an archived or trashed
   project with its members, milestones, updates and initiative links. An issue cannot
@@ -837,7 +848,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, favorites, issue templates, `fileUpload` and `userUpdate` (name, time zone, avatar; a
+  views and view preferences, project relations, favorites, issue templates, `fileUpload` and `userUpdate` (name, time zone, avatar; a
   user without a name reads as its email's local part in `name` and `displayName`),
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,

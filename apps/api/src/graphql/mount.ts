@@ -20,6 +20,7 @@ import { reactionResolvers } from './resolvers/reaction';
 import { issueLabelResolvers } from './resolvers/issue-label';
 import { cycleResolvers } from './resolvers/cycle';
 import { issueRelationResolvers } from './resolvers/issue-relation';
+import { projectRelationResolvers } from './resolvers/project-relation';
 import { documentResolvers } from './resolvers/document';
 import { attachmentResolvers } from './resolvers/attachment';
 import { notificationResolvers } from './resolvers/notification';
@@ -63,6 +64,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   issueLabelResolvers,
   cycleResolvers,
   issueRelationResolvers,
+  projectRelationResolvers,
   documentResolvers,
   attachmentResolvers,
   notificationResolvers,

@@ -462,6 +462,56 @@ export const projectMilestone = pgTable(
   (t) => [index('project_milestone_project_idx').on(t.projectId, t.sortOrder)],
 );
 
+// Linear's ProjectRelation: a dependency where the project's anchor (its start date,
+// target date or one of its milestones) blocks the related project's anchor. Deleting
+// either project or an anchoring milestone deletes the relation.
+export const projectRelation = pgTable(
+  'project_relation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull().default('dependency'),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    anchorType: text('anchor_type').notNull(),
+    projectMilestoneId: uuid('project_milestone_id').references(() => projectMilestone.id, {
+      onDelete: 'cascade',
+    }),
+    relatedProjectId: uuid('related_project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    relatedAnchorType: text('related_anchor_type').notNull(),
+    relatedProjectMilestoneId: uuid('related_project_milestone_id').references(
+      () => projectMilestone.id,
+      { onDelete: 'cascade' },
+    ),
+    userId: uuid('user_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('project_relation_type_check', sql`${t.type} = 'dependency'`),
+    check(
+      'project_relation_anchor_check',
+      sql`${t.anchorType} IN ('start', 'end', 'milestone') AND ${t.relatedAnchorType} IN ('start', 'end', 'milestone')`,
+    ),
+    check(
+      'project_relation_milestone_check',
+      sql`(${t.anchorType} = 'milestone') = (${t.projectMilestoneId} IS NOT NULL) AND (${t.relatedAnchorType} = 'milestone') = (${t.relatedProjectMilestoneId} IS NOT NULL)`,
+    ),
+    check('project_relation_not_self', sql`${t.projectId} <> ${t.relatedProjectId}`),
+    uniqueIndex('project_relation_anchors_uq').on(
+      t.projectId,
+      t.anchorType,
+      sql`coalesce(${t.projectMilestoneId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      t.relatedProjectId,
+      t.relatedAnchorType,
+      sql`coalesce(${t.relatedProjectMilestoneId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+    ),
+    index('project_relation_related_idx').on(t.relatedProjectId),
+  ],
+);
+
 // A project update: a status post with a health reading. The newest one gives the
 // project its health.
 export const projectUpdate = pgTable(
@@ -1614,7 +1664,7 @@ export const viewPreferences = pgTable(
       .where(sql`${t.type} = 'user'`),
     check(
       'view_preferences_view_type_check',
-      sql`${t.customViewId} IS NOT NULL OR (${t.type} = 'user' AND ${t.viewType} IN ('allIssues', 'project', 'cycle', 'myIssues'))`,
+      sql`${t.customViewId} IS NOT NULL OR (${t.type} = 'user' AND ${t.viewType} IN ('allIssues', 'project', 'cycle', 'myIssues', 'projects'))`,
     ),
     uniqueIndex('view_preferences_user_view_type_uq')
       .on(t.userId, t.viewType)

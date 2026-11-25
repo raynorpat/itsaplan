@@ -213,7 +213,7 @@ export async function upsertViewPreferences(input: {
 
 // The list kinds whose preferences a user keeps without a saved view (Linear's
 // `userViewPreferences(viewType)`).
-export const LIST_VIEW_TYPES = ['allIssues', 'project', 'cycle', 'myIssues'] as const;
+export const LIST_VIEW_TYPES = ['allIssues', 'project', 'cycle', 'myIssues', 'projects'] as const;
 export type ListViewType = (typeof LIST_VIEW_TYPES)[number];
 
 // The user's own preferences for a list kind, or null.
