@@ -79,7 +79,7 @@ describe('graphql issue subscriptions', () => {
 
   it('filters issues by subscribers', async () => {
     const { owner, client, teamId } = await setup();
-    const mine = (await (await client.createIssue({ teamId, title: 'Mine' })).issue)!;
+    await client.createIssue({ teamId, title: 'Mine' });
     const other = (await (await client.createIssue({ teamId, title: 'Other' })).issue)!;
     await client.issueUnsubscribe(other.id);
     const q = async (filter: string) =>
@@ -93,7 +93,6 @@ describe('graphql issue subscriptions', () => {
     const none = await q('{ subscribers: { length: { eq: 0 } } }');
     expect(none).toContain('Other');
     expect(none).not.toContain('Mine');
-    expect(mine.id).toBeTruthy();
   });
 
   it('leaves subscribers alone when the rest of an update fails', async () => {
@@ -144,13 +143,16 @@ describe('graphql issue subscriptions', () => {
     const { owner, client, teamId } = await setup();
     const outsider = await signUpTestUser();
     const issue = (await (await client.createIssue({ teamId, title: 'T' })).issue)!;
-    const message = async (email: string) =>
-      (
-        await gql(
-          { cookie: owner.cookie },
-          `mutation { issueSubscribe(id: "${issue.id}", userEmail: "${email}") { success } }`,
-        )
-      ).body.errors?.[0]?.message;
-    expect(await message('nobody@example.com')).toBe(await message(outsider.email));
+    const subscribe = (email: string) =>
+      gql(
+        { cookie: owner.cookie },
+        `mutation { issueSubscribe(id: "${issue.id}", userEmail: "${email}") { success } }`,
+      );
+    const unknown = await subscribe('nobody@example.com');
+    const outside = await subscribe(outsider.email);
+    expect(errorCode(unknown)).toBe('INVALID_INPUT');
+    expect(errorCode(outside)).toBe('INVALID_INPUT');
+    expect(unknown.body.errors?.[0]?.message).toBe(outside.body.errors?.[0]?.message);
+    expect(await subscriberIdsOf(client, issue.id)).toEqual([owner.userId]);
   });
 });

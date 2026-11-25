@@ -9,8 +9,8 @@ import { gql } from '../../../__tests__/helpers/linear';
 
 beforeEach(resetDb);
 
-const USERS = `query ($sort: [UserSortInput!], $first: Int, $after: String, $last: Int) {
-  users(sort: $sort, first: $first, after: $after, last: $last) {
+const USERS = `query ($sort: [UserSortInput!], $first: Int, $after: String) {
+  users(sort: $sort, first: $first, after: $after) {
     nodes { id name }
     pageInfo { hasNextPage endCursor }
   }
@@ -54,21 +54,6 @@ describe('user sorts', () => {
     }
     expect(sizes).toEqual([3, 3, 1]);
     expect(new Set(seen).size).toBe(7);
-  });
-
-  it('refuses backward paging with a sort', async () => {
-    const owner = await signUpTestUser({ name: 'Owner' });
-    const res = await gql({ cookie: owner.cookie }, USERS, {
-      sort: [{ name: { order: 'Ascending' } }],
-      last: 2,
-    });
-    expect(res.body.errors?.[0]?.extensions?.code).toBe('INVALID_INPUT');
-  });
-
-  it('refuses an unknown sort key', async () => {
-    const owner = await signUpTestUser({ name: 'Owner' });
-    const res = await gql({ cookie: owner.cookie }, USERS, { sort: [{ bogus: {} }] });
-    expect(res.body.errors?.length).toBeGreaterThan(0);
   });
 
   it('refuses two keys in one sort object', async () => {

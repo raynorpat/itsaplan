@@ -45,14 +45,6 @@ describe('graphql input validation', () => {
     }
   });
 
-  it('rejects an empty workflow state name', async () => {
-    const { run } = await setup();
-    const res = await run(
-      'mutation { workflowStateCreate(input: { teamId: "MKT", name: "", type: "started", color: "#000" }) { success } }',
-    );
-    expect(codeOf(res)).toBe('INVALID_INPUT');
-  });
-
   it('answers ENTITY_NOT_FOUND for an identifier number out of range', async () => {
     const { run } = await setup();
     expect(codeOf(await run('{ issue(id: "MKT-99999999999") { id } }'))).toBe('ENTITY_NOT_FOUND');

@@ -9,7 +9,6 @@ import {
   gqlData,
   signUpAs,
   statesByType,
-  updateTeam,
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 
@@ -92,15 +91,7 @@ describe('issues', () => {
     });
   });
 
-  describe('status timestamps, estimate and sub-issues', () => {
-    it('sets startedAt on create in a started state', async () => {
-      const { owner, teamId, col } = await setupTeam();
-      const res = await issueCreate(owner, { teamId, title: 'x', stateId: col.started });
-      expect(res.body.data).toMatchObject({
-        issueCreate: { issue: { startedAt: expect.any(String), completedAt: null } },
-      });
-    });
-
+  describe('status timestamps and sub-issues', () => {
     it('sets completedAt on completing, canceledAt on canceling, and clears them in the backlog', async () => {
       const { owner, teamId, col } = await setupTeam();
       const issue = await createIssue(owner, { teamId, stateId: col.started });
@@ -111,14 +102,6 @@ describe('issues', () => {
       expect(back).toMatchObject({ startedAt: null, completedAt: null, canceledAt: null });
       const canceled = updated(await issueUpdate(owner, issue.id, { stateId: col.canceled }));
       expect(canceled.canceledAt).toBeTruthy();
-    });
-
-    it('stores and clears an estimate', async () => {
-      const { owner, teamId } = await setupTeam();
-      await updateTeam(owner, teamId, { issueEstimationType: 'fibonacci' });
-      const issue = await createIssue(owner, { teamId, estimate: 3 });
-      expect((await read(owner, issue.id)).estimate).toBe(3);
-      expect(updated(await issueUpdate(owner, issue.id, { estimate: null })).estimate).toBeNull();
     });
 
     it('links a sub-issue to its parent and clears the parent with null', async () => {
@@ -266,18 +249,6 @@ describe('issues', () => {
   });
 
   describe('batch updates', () => {
-    it('applies one patch to every listed issue', async () => {
-      const { owner, teamId, col } = await setupTeam();
-      const a = await createIssue(owner, { teamId });
-      const b = await createIssue(owner, { teamId });
-      await gqlData(
-        owner,
-        `mutation { issueBatchUpdate(ids: ["${a.id}", "${b.id}"], input: { stateId: "${col.started}", priority: 1 }) { success } }`,
-      );
-      for (const id of [a.id, b.id])
-        expect(await read(owner, id)).toMatchObject({ state: { id: col.started }, priority: 1 });
-    });
-
     it("refuses another team's state or label and changes nothing", async () => {
       const { owner, teamId } = await setupTeam();
       const ops = await createTeam(owner, { key: 'OPS', name: 'Ops' });

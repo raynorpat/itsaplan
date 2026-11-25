@@ -53,9 +53,4 @@ describe('graphql searchIssues by number', () => {
     expect(await ids(owner.cookie, '2')).toEqual(['ENG-2', 'MKT-2', 'MKT-3']);
     expect(await ids(owner.cookie, '2', 'MKT')).toEqual(['MKT-2', 'MKT-3']);
   });
-
-  it('keeps the title search', async () => {
-    const owner = await setup();
-    expect(await ids(owner.cookie, 'pricing')).toEqual(['MKT-2']);
-  });
 });

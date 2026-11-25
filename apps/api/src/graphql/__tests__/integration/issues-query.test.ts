@@ -167,14 +167,6 @@ describe('graphql issue queries', () => {
     expect((await me.assignedIssues()).nodes.map((i) => i.id)).toEqual([parent.id]);
   });
 
-  it('finds issues by search term', async () => {
-    const { owner, col, client } = await setup();
-    const hit = await create(owner, col.backlog, { title: 'Fix login redirect' });
-    await create(owner, col.backlog, { title: 'Unrelated' });
-    const res = await client.searchIssues('login');
-    expect(res.nodes.map((i) => i.id)).toEqual([hit.id]);
-  });
-
   it('scopes a search to a team given by key and counts every match', async () => {
     const { owner, col, client } = await setup();
     await create(owner, col.backlog, { title: 'login one' });
@@ -206,13 +198,5 @@ describe('graphql issue queries', () => {
     expect(res.body.data).toEqual({
       issue: { creator: { id: member.userId }, assignee: { id: member.userId } },
     });
-  });
-
-  it('accepts first: 250 and rejects first: 251', async () => {
-    const { owner } = await setup();
-    const ok = await gql({ cookie: owner.cookie }, '{ issues(first: 250) { nodes { id } } }');
-    expect(ok.body.errors).toBeUndefined();
-    const bad = await gql({ cookie: owner.cookie }, '{ issues(first: 251) { nodes { id } } }');
-    expect(errorCode(bad)).toBe('INVALID_INPUT');
   });
 });

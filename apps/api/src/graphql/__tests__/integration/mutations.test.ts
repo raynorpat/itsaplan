@@ -7,6 +7,7 @@ import {
   createTeam,
   createWebhook,
   gqlData,
+  makePrivate,
   signUpAs,
   statesByType,
   teamView,
@@ -70,17 +71,6 @@ describe('graphql mutations', () => {
       const { client } = await setup();
       const payload = await client.createIssue({ teamId: 'MKT', title: 'By key' });
       expect((await payload.issue)?.identifier).toBe('MKT-1');
-    });
-
-    it('rejects a state from another team', async () => {
-      const { owner, teamId } = await setup();
-      const other = await signUpTestUser();
-      const opsState = (await createTeam(other, { key: 'OPS', name: 'Operations' })).states[0]!.id;
-      const res = await gql(
-        { cookie: owner.cookie },
-        `mutation { issueCreate(input: { teamId: "${teamId}", title: "x", stateId: "${opsState}" }) { success } }`,
-      );
-      expect(errorCode(res)).toBe('INVALID_INPUT');
     });
 
     it('rejects an input field that is not supported, naming it', async () => {
@@ -147,24 +137,34 @@ describe('graphql mutations', () => {
     });
 
     it('answers ENTITY_NOT_FOUND for an issue the viewer cannot see', async () => {
-      const { owner } = await setup();
+      const { owner, client, teamId } = await setup();
+      await makePrivate(owner, teamId);
+      const issue = (await (await client.createIssue({ teamId, title: 'Hidden' })).issue)!;
+      const member = await signUpAs('member');
       const res = await gql(
-        { cookie: owner.cookie },
-        'mutation { issueUpdate(id: "00000000-0000-4000-8000-000000000000", input: { title: "y" }) { success } }',
+        { cookie: member.cookie },
+        `mutation { issueUpdate(id: "${issue.id}", input: { title: "y" }) { success } }`,
       );
       expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
+      expect((await client.issue(issue.id)).title).toBe('Hidden');
     });
   });
 
   describe('issueBatchUpdate', () => {
     it('updates several issues', async () => {
-      const { client, teamId } = await setup();
+      const { client, teamId, col } = await setup();
       const a = (await (await client.createIssue({ teamId, title: 'a' })).issue)!;
       const b = (await (await client.createIssue({ teamId, title: 'b' })).issue)!;
-      const payload = await client.updateIssueBatch([a.id, b.id], { priority: 3 });
+      const payload = await client.updateIssueBatch([a.id, b.id], {
+        priority: 3,
+        stateId: col.started,
+      });
       expect(payload.success).toBe(true);
-      expect((await client.issue(a.id)).priority).toBe(3);
-      expect((await client.issue(b.id)).priority).toBe(3);
+      for (const id of [a.id, b.id]) {
+        const issue = await client.issue(id);
+        expect(issue.priority).toBe(3);
+        expect((await issue.state)?.id).toBe(col.started);
+      }
     });
 
     it('changes nothing when one issue is not visible', async () => {

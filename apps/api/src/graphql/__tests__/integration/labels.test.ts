@@ -117,12 +117,14 @@ describe('graphql labels', () => {
   });
 
   it('updates and deletes a label', async () => {
-    const { teamId, client } = await setup();
+    const { owner, teamId, client } = await setup();
     const bug = (await (await client.createIssueLabel({ name: 'Bug', teamId })).issueLabel)!;
     await client.updateIssueLabel(bug.id, { name: 'Defect', description: 'broken' });
     const read = await client.issueLabel(bug.id);
     expect(read).toMatchObject({ name: 'Defect', description: 'broken' });
     expect((await client.deleteIssueLabel(bug.id)).success).toBe(true);
+    const gone = await gql({ cookie: owner.cookie }, `{ issueLabel(id: "${bug.id}") { id } }`);
+    expect(errorCode(gone)).toBe('ENTITY_NOT_FOUND');
   });
 
   it('refuses a workspace label from a user in no team', async () => {

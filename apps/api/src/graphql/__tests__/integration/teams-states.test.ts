@@ -196,6 +196,8 @@ describe('graphql teams, users and workflow states', () => {
       const last = await client.workflowStates({ last: 2 });
       expect(last.nodes.map((s) => s.id)).toEqual(all.nodes.slice(-2).map((s) => s.id));
       expect(last.pageInfo.hasPreviousPage).toBe(true);
+      const before = await client.workflowStates({ last: 2, before: last.pageInfo.startCursor });
+      expect(before.nodes.map((s) => s.id)).toEqual(all.nodes.slice(-4, -2).map((s) => s.id));
     });
 
     it('accepts first: 250 and rejects first: 251', async () => {

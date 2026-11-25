@@ -155,9 +155,7 @@ describe('graphql custom views', () => {
     const created = await run(owner.cookie, CREATE, { input: { name: 'Mine', teamId: mktId } });
     const viewId = (created.body.data as Data).customViewCreate.customView.id;
     const guest = await signUpAs('guest');
-    const ops = await signUpTestUser();
     await addMember(owner, 'OPS', guest.userId);
-    void ops;
     for (const q of [
       `{ customView(id: "${viewId}") { id } }`,
       `mutation { customViewUpdate(id: "${viewId}", input: { name: "x" }) { success } }`,

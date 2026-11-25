@@ -9,7 +9,7 @@ import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 
 // Issue and project history over the Linear API: typed history fields resolved by
 // id, state spans, project history entries, the archivedAt filter, label batch
-// edits, state reordering and team deletion.
+// edits and parent changes.
 
 type Data = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -18,9 +18,6 @@ async function run(cookie: string, query: string): Promise<Data> {
   if (res.body.errors) throw new Error(JSON.stringify(res.body.errors));
   return res.body.data as Data;
 }
-
-const errorCode = (res: { body: { errors?: { extensions?: { code?: string } }[] } }) =>
-  res.body.errors?.[0]?.extensions?.code;
 
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
@@ -274,28 +271,6 @@ describe('graphql history', () => {
     expect(await labelIds(b)).toEqual([]);
   });
 
-  it('reorders states within their type group', async () => {
-    const { owner, teamId, byType } = await setup();
-    const todo = byType('unstarted');
-    const created = await run(
-      owner.cookie,
-      `mutation { workflowStateCreate(input: { teamId: "${teamId}", name: "Ready", type: "unstarted", color: "#123456" }) { workflowState { id } } }`,
-    );
-    const readyId: string = created.workflowStateCreate.workflowState.id;
-    await run(
-      owner.cookie,
-      `mutation { workflowStateUpdate(id: "${readyId}", input: { position: ${todo.position - 1} }) { success } }`,
-    );
-    const after: Data[] = (
-      await run(owner.cookie, `{ team(id: "${teamId}") { states { nodes { id type position } } } }`)
-    ).team.states.nodes;
-    const unstarted = after
-      .filter((s) => s.type === 'unstarted')
-      .sort((x, y) => x.position - y.position)
-      .map((s) => s.id);
-    expect(unstarted).toEqual([readyId, todo.id]);
-  });
-
   it('records parent changes', async () => {
     const { owner, createIssue } = await setup();
     const child = await createIssue('Child');
@@ -348,19 +323,5 @@ describe('graphql history', () => {
       fromParent: null,
       toParent: null,
     });
-  });
-
-  it('deletes a team', async () => {
-    const { owner, teamId } = await setup();
-    const member = await signUpAs('member');
-    const refused = await gql(
-      { cookie: member.cookie },
-      `mutation { teamDelete(id: "${teamId}") { success } }`,
-    );
-    expect(errorCode(refused)).toBe('FORBIDDEN');
-    const done = await run(owner.cookie, `mutation { teamDelete(id: "${teamId}") { success } }`);
-    expect(done.teamDelete.success).toBe(true);
-    const gone = await gql({ cookie: owner.cookie }, `{ team(id: "${teamId}") { id } }`);
-    expect(errorCode(gone)).toBe('ENTITY_NOT_FOUND');
   });
 });

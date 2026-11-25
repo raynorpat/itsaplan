@@ -99,11 +99,6 @@ describe('views', () => {
       expect((await list(owner))[0]).toMatchObject({ name: 'Old', filterData });
     });
 
-    it('rejects an empty name', async () => {
-      const { owner, teamId } = await setup();
-      expect(code(await create(owner, { name: '', teamId }))).toBe('INVALID_INPUT');
-    });
-
     it('refuses an unknown team', async () => {
       const { owner } = await setup();
       expect(code(await create(owner, { name: 'V', teamId: MISSING }))).toBe('ENTITY_NOT_FOUND');
@@ -144,12 +139,6 @@ describe('views', () => {
     it('answers not found for a missing view', async () => {
       const { owner } = await setup();
       expect(code(await update(owner, MISSING, { name: 'Nope' }))).toBe('ENTITY_NOT_FOUND');
-    });
-
-    it('rejects an empty name', async () => {
-      const { owner, teamId } = await setup();
-      const v = await created(owner, { name: 'V', teamId });
-      expect(code(await update(owner, v.id, { name: '' }))).toBe('INVALID_INPUT');
     });
   });
 

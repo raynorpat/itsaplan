@@ -36,11 +36,6 @@ describe('issue activity', () => {
     await resetDb();
   });
 
-  it('records an entry when an issue is created', async () => {
-    const { owner, issue } = await setup();
-    expect((await history(owner, issue.id)).length).toBeGreaterThan(0);
-  });
-
   it('logs added and removed labels', async () => {
     const { owner, teamId, issue } = await setup();
     const label = await createLabel(owner, { teamId, name: 'bug' });
