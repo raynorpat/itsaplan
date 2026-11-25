@@ -235,6 +235,10 @@ export interface AccessKeysHandlers {
 export interface AuditHandlers {
   settings(headers: Headers): Promise<object>;
   saveSettings(headers: Headers, body: unknown): Promise<object>;
+  // The filtered audit log as a CSV download (owners and admins).
+  exportCsv(headers: Headers, query: Record<string, unknown>): Promise<Response>;
+  // Records a CSV export the web built (a dashboard or a widget).
+  exportRecorded(headers: Headers, body: unknown): Promise<object>;
 }
 
 // Release tracking reads Linear's schema has no operation for.
@@ -672,6 +676,17 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/audit-settings/save',
         options.trustedOrigins,
         (h, headers, body) => h.saveSettings(headers, body),
+      ),
+      instanceAuditExport: createAuthEndpoint(
+        '/instance/audit/export',
+        { method: 'GET' },
+        async (ctx) =>
+          run((h) => h.audit.exportCsv(ctx.headers ?? new Headers(), { ...ctx.query })),
+      ),
+      instanceAuditExportRecorded: auditWrite(
+        '/instance/audit/export-recorded',
+        options.trustedOrigins,
+        (h, headers, body) => h.exportRecorded(headers, body),
       ),
       instanceFavoritesDeleteFolder: favoritesWrite(
         '/instance/favorites/delete-folder',

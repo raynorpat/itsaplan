@@ -1,6 +1,7 @@
 import { customer, db, issue, label, portalBoard, project, team, workflowState } from '@repo/db';
 import { getActiveSession, type PortalHandlers } from '@repo/auth';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { createLabel } from '../labels/store';
 import { assertWorkspaceRole, canSeeTeam, workspaceRole } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
@@ -301,6 +302,28 @@ function rethrowSlug(err: unknown): never {
   throw err;
 }
 
+// A board in the audit log: its id, address and name.
+const boardAudit = (board: BoardRow) => ({
+  entityType: 'portalBoard',
+  entityId: board.id,
+  entityIdentifier: board.slug,
+  name: board.name,
+});
+
+// The board settings a save changed, `{ field: { from, to } }`. The allowed addresses
+// are people's emails, so only how many there are goes in the log.
+function boardChanges(before: BoardRow, after: BoardRow): Record<string, unknown> {
+  const shown = (key: string, value: unknown) =>
+    key === 'allowedEmails' && Array.isArray(value) ? value.length : value;
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  for (const key of Object.keys(after) as (keyof BoardRow)[]) {
+    if (key === 'updatedAt' || key === 'createdAt') continue;
+    if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+    changes[key] = { from: shown(key, before[key]), to: shown(key, after[key]) };
+  }
+  return changes;
+}
+
 async function findBoard(id: unknown): Promise<BoardRow> {
   const boardId = idOrNull(id, 'id');
   const [row] = boardId
@@ -321,12 +344,17 @@ export const portalHandlers: PortalHandlers = {
   createBoard: async (headers, body) => {
     const user = await admin(headers);
     const values = await validated(parseFields(fields(body)), user.id);
-    const [row] = await db
-      .insert(portalBoard)
-      .values({ ...(values as BoardFields), createdById: user.id })
-      .returning()
+    const row = await db
+      .transaction(async (tx) => {
+        const [made] = await tx
+          .insert(portalBoard)
+          .values({ ...(values as BoardFields), createdById: user.id })
+          .returning();
+        await recordAudit('portalBoardCreated', boardAudit(made!), { tx, actorId: user.id });
+        return made!;
+      })
       .catch(rethrowSlug);
-    return { board: await toDto(row!) };
+    return { board: await toDto(row) };
   },
   updateBoard: async (headers, body) => {
     const user = await admin(headers);
@@ -334,18 +362,32 @@ export const portalHandlers: PortalHandlers = {
     const current = await findBoard(input.id);
     const { id: _id, createdAt: _c, updatedAt: _u, createdById: _b, ...rest } = current;
     const values = await validated({ ...rest, ...parseFields(input) }, user.id);
-    const [row] = await db
-      .update(portalBoard)
-      .set({ ...values, updatedAt: new Date() })
-      .where(eq(portalBoard.id, current.id))
-      .returning()
+    const row = await db
+      .transaction(async (tx) => {
+        const [saved] = await tx
+          .update(portalBoard)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(portalBoard.id, current.id))
+          .returning();
+        const changes = boardChanges(current, saved!);
+        if (Object.keys(changes).length)
+          await recordAudit(
+            'portalBoardUpdated',
+            { ...boardAudit(saved!), changes },
+            { tx, actorId: user.id },
+          );
+        return saved!;
+      })
       .catch(rethrowSlug);
-    return { board: await toDto(row!) };
+    return { board: await toDto(row) };
   },
   deleteBoard: async (headers, body) => {
-    await admin(headers);
+    const user = await admin(headers);
     const board = await findBoard(fields(body).id);
-    await db.delete(portalBoard).where(eq(portalBoard.id, board.id));
+    await db.transaction(async (tx) => {
+      await tx.delete(portalBoard).where(eq(portalBoard.id, board.id));
+      await recordAudit('portalBoardDeleted', boardAudit(board), { tx, actorId: user.id });
+    });
     return { success: true };
   },
   block: async (headers, body) => {

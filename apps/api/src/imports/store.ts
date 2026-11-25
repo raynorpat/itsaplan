@@ -1,5 +1,6 @@
 import { db, issueImport } from '@repo/db';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { releaseImportFile } from './files';
 import type { ImportStatus, ImportSummary } from './types';
 
@@ -17,20 +18,34 @@ export async function createImport(input: {
   displayName: string;
   serviceMetadata: Record<string, unknown>;
 }): Promise<ImportRow> {
-  const [row] = await db
-    .insert(issueImport)
-    .values({
-      service: input.service,
-      status: 'inProgress',
-      progress: 0,
-      teamId: input.teamId ?? null,
-      teamName: input.teamId ? null : (input.teamName ?? null),
-      creatorId: input.creatorId,
-      displayName: input.displayName,
-      serviceMetadata: input.serviceMetadata,
-    })
-    .returning();
-  return row!;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(issueImport)
+      .values({
+        service: input.service,
+        status: 'inProgress',
+        progress: 0,
+        teamId: input.teamId ?? null,
+        teamName: input.teamId ? null : (input.teamName ?? null),
+        creatorId: input.creatorId,
+        displayName: input.displayName,
+        serviceMetadata: input.serviceMetadata,
+      })
+      .returning();
+    await recordAudit(
+      'importStarted',
+      {
+        entityType: 'issueImport',
+        entityId: row!.id,
+        service: row!.service,
+        name: row!.displayName,
+        teamId: row!.teamId,
+        teamName: row!.teamName,
+      },
+      { tx, actorId: input.creatorId },
+    );
+    return row!;
+  });
 }
 
 export async function getImport(id: string): Promise<ImportRow | null> {
@@ -54,18 +69,40 @@ export async function setImportStatus(
     teamId?: string;
   } = {},
 ): Promise<void> {
-  await db
-    .update(issueImport)
-    .set({
-      status,
-      ...(extra.error !== undefined ? { error: extra.error } : {}),
-      ...(extra.summary ? { summary: { ...extra.summary } } : {}),
-      ...(extra.mapping ? { mapping: extra.mapping } : {}),
-      ...(extra.progress !== undefined ? { progress: extra.progress } : {}),
-      ...(extra.teamId ? { teamId: extra.teamId } : {}),
-      updatedAt: sql`now()`,
-    })
-    .where(eq(issueImport.id, id));
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(issueImport)
+      .set({
+        status,
+        ...(extra.error !== undefined ? { error: extra.error } : {}),
+        ...(extra.summary ? { summary: { ...extra.summary } } : {}),
+        ...(extra.mapping ? { mapping: extra.mapping } : {}),
+        ...(extra.progress !== undefined ? { progress: extra.progress } : {}),
+        ...(extra.teamId ? { teamId: extra.teamId } : {}),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(issueImport.id, id))
+      .returning();
+    if (!row || (status !== 'complete' && status !== 'error')) return;
+    // A finished import runs in the background: it has no actor of its own.
+    const base = { entityType: 'issueImport', entityId: row.id, service: row.service };
+    if (status === 'complete') {
+      const summary = (row.summary ?? {}) as Partial<ImportSummary>;
+      await recordAudit(
+        'importCompleted',
+        {
+          ...base,
+          teamId: row.teamId,
+          issues: summary.issues ?? 0,
+          skippedExisting: summary.skippedExisting ?? 0,
+          comments: summary.comments ?? 0,
+        },
+        { tx, actorId: null },
+      );
+    } else {
+      await recordAudit('importFailed', { ...base, error: row.error }, { tx, actorId: null });
+    }
+  });
 }
 
 export async function setImportProgress(
@@ -127,10 +164,23 @@ export async function setWaitingUntil(id: string, until: Date | null): Promise<v
 // (its token was in memory), so it ends as an error; running it again skips what came
 // across.
 export async function sweepInterruptedImports(): Promise<void> {
-  const ended = await db
-    .update(issueImport)
-    .set({ status: 'error', error: INTERRUPTED, updatedAt: sql`now()` })
-    .where(inArray(issueImport.status, ['inProgress', 'inProcess']))
-    .returning({ serviceMetadata: issueImport.serviceMetadata });
+  const ended = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(issueImport)
+      .set({ status: 'error', error: INTERRUPTED, updatedAt: sql`now()` })
+      .where(inArray(issueImport.status, ['inProgress', 'inProcess']))
+      .returning({
+        id: issueImport.id,
+        service: issueImport.service,
+        serviceMetadata: issueImport.serviceMetadata,
+      });
+    for (const row of rows)
+      await recordAudit(
+        'importFailed',
+        { entityType: 'issueImport', entityId: row.id, service: row.service, error: INTERRUPTED },
+        { tx, actorId: null },
+      );
+    return rows;
+  });
   for (const row of ended) await releaseImportFile(row);
 }

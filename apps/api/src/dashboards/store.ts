@@ -1,5 +1,6 @@
 import { dashboard, db, team, teamMember, user } from '@repo/db';
 import { and, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { atLeast, memberTeamIds, workspaceRole, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { shownNameSql } from '../shared/user-name';
@@ -259,7 +260,14 @@ export async function updateDashboard(user: AuthUser, body: unknown): Promise<Da
 export async function deleteDashboard(user: AuthUser, body: unknown): Promise<void> {
   const v = await viewer(user);
   const found = await editable(v, fields(body).id);
-  await db.delete(dashboard).where(eq(dashboard.id, found.row.id));
+  await db.transaction(async (tx) => {
+    await tx.delete(dashboard).where(eq(dashboard.id, found.row.id));
+    await recordAudit(
+      'dashboardDeleted',
+      { entityType: 'dashboard', entityId: found.row.id, name: found.row.name },
+      { tx, actorId: user.id },
+    );
+  });
 }
 
 // A copy owned by the caller. A team dashboard's copy is shared with the original's

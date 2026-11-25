@@ -12,6 +12,7 @@ import {
 } from '@repo/db';
 import { randomBytes } from 'node:crypto';
 import { and, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { assertWorkspaceRole, visibleTeamIds, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
@@ -333,6 +334,11 @@ export async function deleteCustomer(actor: AuthUser, id: string): Promise<strin
       .where(eq(externalUser.customerId, row.id));
     await tx.delete(customer).where(eq(customer.id, row.id));
     await matchPeople(tx);
+    await recordAudit(
+      'customerDeleted',
+      { entityType: 'customer', entityId: row.id, entityIdentifier: row.slugId, name: row.name },
+      { tx, actorId: actor.id },
+    );
   });
   await sendEvent('remove', mapCustomer(row), actor.id);
   return row.id;
@@ -374,6 +380,18 @@ export async function mergeCustomers(
       .where(eq(customer.id, t.id))
       .returning();
     await matchPeople(tx);
+    await recordAudit(
+      'customerMerged',
+      {
+        entityType: 'customer',
+        entityId: t.id,
+        entityIdentifier: t.slugId,
+        name: t.name,
+        sourceId: s.id,
+        sourceName: s.name,
+      },
+      { tx, actorId: actor.id },
+    );
     return updated!;
   });
   const dto = mapCustomer(merged);

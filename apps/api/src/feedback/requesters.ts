@@ -10,6 +10,7 @@ import {
   workflowState,
 } from '@repo/db';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import {
   atLeast,
   canSeeTeam,
@@ -464,6 +465,18 @@ export async function mergeRequesters(
     // customer either way.
     await matchPeople(tx, { personIds: [into.id] });
     await syncNeedCustomers(tx, [into.id]);
+    // Names only: a person's email address stays out of the audit log.
+    await recordAudit(
+      'requesterMerged',
+      {
+        entityType: 'requester',
+        entityId: into.id,
+        name: lockedInto.name,
+        sourceId: from.id,
+        sourceName: lockedFrom.name,
+      },
+      { tx, actorId: user.id },
+    );
     return { kept: row!, announce: sendEvents };
   });
   await announce(user.id);

@@ -1,6 +1,7 @@
 import { db, formSettings, team, template } from '@repo/db';
 import { getActiveSession, type FormsHandlers } from '@repo/auth';
 import { asc, eq } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { assertWorkspaceRole } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
 import { getTemplate } from '../templates/store';
@@ -102,10 +103,11 @@ export const formsHandlers: FormsHandlers = {
   // yet it takes the team (`teamId`) instead of `templateId`, so the editor can check
   // the address and boards before it creates the template.
   saveSettings: async (headers, body) => {
-    await admin(headers);
+    const user = await admin(headers);
     const input = fields(body);
     const validateOnly = input.validateOnly === true;
     let id: string | null = null;
+    let name: string | null = null;
     let teamId: string;
     if (validateOnly && input.templateId === undefined) {
       if (typeof input.teamId !== 'string' || !UUID_RE.test(input.teamId))
@@ -116,6 +118,7 @@ export const formsHandlers: FormsHandlers = {
       if (!found) throw new HttpError(404, 'Template not found');
       if (!found.teamId) throw new HttpError(400, 'A form must be a team template');
       id = found.id;
+      name = found.name;
       teamId = found.teamId;
     }
     const [owner] = await db.select().from(team).where(eq(team.id, teamId));
@@ -131,25 +134,54 @@ export const formsHandlers: FormsHandlers = {
       return { success: true };
     }
     await db
-      .insert(formSettings)
-      .values({ templateId: id!, ...values })
-      .onConflictDoUpdate({
-        target: formSettings.templateId,
-        set: { ...values, updatedAt: new Date() },
+      .transaction(async (tx) => {
+        await tx
+          .insert(formSettings)
+          .values({ templateId: id!, ...values })
+          .onConflictDoUpdate({
+            target: formSettings.templateId,
+            set: { ...values, updatedAt: new Date() },
+          });
+        await recordAudit(
+          'formSettingsChanged',
+          {
+            entityType: 'form',
+            entityId: id,
+            entityIdentifier: values.slug,
+            name,
+            linkEnabled: values.linkEnabled,
+            boardIds: values.boardIds,
+          },
+          { tx, actorId: user.id },
+        );
       })
       .catch(rethrowSlug);
     return { success: true };
   },
   deleteForm: async (headers, body) => {
-    await admin(headers);
+    const user = await admin(headers);
     const id = templateId(fields(body).templateId);
     const [row] = await db
-      .select({ id: formSettings.templateId })
+      .select({ id: formSettings.templateId, slug: formSettings.slug, name: template.name })
       .from(formSettings)
+      .innerJoin(template, eq(template.id, formSettings.templateId))
       .where(eq(formSettings.templateId, id));
     if (!row) throw new HttpError(404, 'Form not found');
     // Deleting the template deletes its settings (and later its pending submissions).
-    await db.delete(template).where(eq(template.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(template).where(eq(template.id, id));
+      await recordAudit(
+        'formSettingsChanged',
+        {
+          entityType: 'form',
+          entityId: id,
+          entityIdentifier: row.slug,
+          name: row.name,
+          deleted: true,
+        },
+        { tx, actorId: user.id },
+      );
+    });
     return { success: true };
   },
 };

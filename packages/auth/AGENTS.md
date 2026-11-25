@@ -60,7 +60,10 @@ customers-settings/save` for owners and admins) are here because Linear's
 The audit log's retention period (`GET audit-settings` for owners and admins, `POST
 audit-settings/save { retention }` for owners: `30d`, `90d`, `1y`, `2y`, `3y` or
 `forever`) is here because Linear's schema has no field for it
-(`apps/api/src/audit/retention.ts`).
+(`apps/api/src/audit/retention.ts`), and so are the audit log's CSV export (`GET
+audit/export`, owners and admins; the handler returns the CSV `Response` itself) and
+the record of a dashboard or widget CSV the web built (`POST audit/export-recorded`,
+members and up) (`apps/api/src/audit/export.ts`).
 Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
 delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
 schema has no dashboard type (`apps/api/src/dashboards/`). `POST favorites/delete-folder

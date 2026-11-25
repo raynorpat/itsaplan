@@ -24,6 +24,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { iso, num, HttpError } from '../shared/lib';
+import { recordAudit } from '../audit/store';
 import { projectTeamIds } from '../projects/access';
 import { milestoneProjectId } from '../projects/milestones';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
@@ -986,6 +987,16 @@ export async function deleteIssue(
       .from(attachment)
       .where(and(eq(attachment.issueId, issueId), isNotNull(attachment.s3Key)));
     await tx.delete(issue).where(eq(issue.id, issueId));
+    await recordAudit(
+      'issueDeleted',
+      {
+        entityType: 'issue',
+        entityId: issueId,
+        entityIdentifier: `${rows[0].key}-${rows[0].seq}`,
+        teamId: rows[0].teamId,
+      },
+      { tx, actorId: actorUserId ?? null },
+    );
     return {
       attachments: attachmentRows.map(mapAttachment),
       teamId: rows[0].teamId,

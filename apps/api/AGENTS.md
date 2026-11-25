@@ -688,6 +688,20 @@ Rules and invariants for this package below; read the code for the walkthrough.
   or 90 days, 1, 2 or 3 years, or forever; owners and admins read it and owners change
   it through `/api/auth/instance/audit-settings*` (the change is recorded); the worker
   calls `/internal/audit/cleanup` on its cleanup interval, which deletes older entries.
+  Data events are written in the action's transaction: an import started
+  (`createImport`), finished or failed (`setImportStatus`, and the restart sweep), a
+  project trashed (`projectDeleted`) or purged by the worker (`projectPurged`, no
+  actor), an issue, dashboard or customer deleted, customers or requesters merged
+  (names only, never a requester's email), portal boards created, changed (the changed
+  settings; the allowed addresses only as a count) and deleted, requesters blocked or
+  unblocked, and a form's settings saved or the form deleted (`formSettingsChanged`).
+  Exports are `dataExported`: `audit/export.ts` builds the filtered audit log as CSV
+  (`GET /api/auth/instance/audit/export?type&actorId&ip&from&to`, owners and admins;
+  RFC 4180 with CRLF, every data cell quoted, a cell starting with `= + - @` or a tab
+  prefixed with `'`; newest first, at most 100,000 entries) and records it with its
+  filters and row count; `POST /api/auth/instance/audit/export-recorded { kind:
+  'dashboard' | 'widget', id, name, rows }` (members and up) records a CSV the web built
+  itself.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is

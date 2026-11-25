@@ -26,6 +26,7 @@ import { recordActivity as recordIssueActivity } from '../issues/activity';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
 import { initiativeData, issueData, projectData, type WebhookData } from '../webhooks/data';
 import { sendInitiativeEvent } from '../initiatives/store';
+import { recordAudit, type AuditTx } from '../audit/store';
 import { shownNameSql } from '../shared/user-name';
 
 // Data access for projects (Linear's Project): a body of work linked to teams
@@ -517,20 +518,31 @@ export async function setProjectArchived(
 // Moves a project to the trash (Linear's projectDelete): archived and trashed. Its
 // issues keep their project link until the project is purged.
 export async function trashProject(id: string, actorUserId: string | null): Promise<boolean> {
-  return setArchiveState(id, { archivedAt: sql`now()`, trashed: true }, actorUserId);
+  return setArchiveState(id, { archivedAt: sql`now()`, trashed: true }, actorUserId, (tx, row) =>
+    recordAudit(
+      'projectDeleted',
+      { entityType: 'project', entityId: row.id, entityIdentifier: row.slugId, name: row.name },
+      { tx, actorId: actorUserId },
+    ),
+  );
 }
 
 async function setArchiveState(
   id: string,
   values: { archivedAt: SQL | null; trashed?: true | null },
   actorUserId: string | null,
+  audit?: (tx: AuditTx, row: { id: string; name: string; slugId: string }) => Promise<void>,
 ): Promise<boolean> {
   const beforeData = await projectData(id);
-  const rows = await db
-    .update(project)
-    .set({ ...values, updatedAt: sql`now()` })
-    .where(eq(project.id, id))
-    .returning({ id: project.id });
+  const rows = await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(project)
+      .set({ ...values, updatedAt: sql`now()` })
+      .where(eq(project.id, id))
+      .returning({ id: project.id, name: project.name, slugId: project.slugId });
+    if (changed[0] && audit) await audit(tx, changed[0]);
+    return changed;
+  });
   if (rows.length && values.archivedAt !== null) await closeProjectHistory(id, new Date());
   if (rows.length) await emitProject('update', await projectData(id), actorUserId, beforeData);
   return rows.length > 0;
@@ -580,7 +592,24 @@ async function deleteProject(id: string, actorUserId: string | null): Promise<vo
   const initiativesBefore = await Promise.all(
     links.map(async (l) => [l.initiativeId, await initiativeData(l.initiativeId)] as const),
   );
-  await db.delete(project).where(eq(project.id, id));
+  await db.transaction(async (tx) => {
+    const [gone] = await tx
+      .delete(project)
+      .where(eq(project.id, id))
+      .returning({ slugId: project.slugId });
+    // Only the worker's purge deletes a project for good; it acts for no one.
+    if (gone)
+      await recordAudit(
+        'projectPurged',
+        {
+          entityType: 'project',
+          entityId: id,
+          entityIdentifier: gone.slugId,
+          name: named?.name ?? null,
+        },
+        { tx, actorId: actorUserId },
+      );
+  });
   for (const i of issuesBefore) {
     await recordIssueActivity(
       i.id,

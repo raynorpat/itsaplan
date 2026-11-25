@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { hasConfiguredEmailProvider, sendAuthEmail, trustedOrigins } from '@repo/auth';
 import { db, externalUser, portalSession, portalSignInToken } from '@repo/db';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { recordAudit } from '../audit/store';
 import { retitleFeedbackAttachments } from '../attachments/store';
 import { requesterByEmail } from '../feedback/requesters';
 import { activeRequester } from '../feedback/store';
@@ -311,5 +312,10 @@ export async function setPortalBlocked(requesterId: unknown, blocked: unknown): 
       .where(eq(externalUser.id, requester.id));
     if (blocked)
       await tx.delete(portalSession).where(eq(portalSession.externalUserId, requester.id));
+    await recordAudit(
+      blocked ? 'requesterBlocked' : 'requesterUnblocked',
+      { entityType: 'requester', entityId: requester.id, name: requester.name },
+      { tx },
+    );
   });
 }
