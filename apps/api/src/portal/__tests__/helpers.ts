@@ -42,15 +42,17 @@ export async function ok(res: Response): Promise<Json> {
 }
 
 // With no mail provider the API logs each portal sign-in link; this records the
-// latest one per address and keeps every other line printed.
-const links = new Map<string, string>();
+// latest one per address and keeps every other line printed. It is the one recorder
+// for every portal test file: a second console.info wrapper would hide the links from
+// whichever wrapper it encloses.
+export const portalLinks = new Map<string, string>();
 const PREFIX = '[portal] sign-in link for ';
 const previousInfo = console.info;
 console.info = (...args: unknown[]) => {
   const line = args.map(String).join(' ');
   if (line.startsWith(PREFIX)) {
     const [email, url] = line.slice(PREFIX.length).split(': ');
-    if (email && url) links.set(email, url);
+    if (email && url) portalLinks.set(email, url);
     return;
   }
   previousInfo(...args);
@@ -67,10 +69,10 @@ export async function visitor(
 ): Promise<{ cookie: string; requesterId: string; email: string }> {
   await ok(await portal('auth/link', { body: { email, board } }));
   // The link is mailed (here: logged) after the response.
-  let url = links.get(email.toLowerCase());
+  let url = portalLinks.get(email.toLowerCase());
   for (let i = 0; !url && i < 100; i++) {
     await Bun.sleep(10);
-    url = links.get(email.toLowerCase());
+    url = portalLinks.get(email.toLowerCase());
   }
   if (!url) throw new Error(`no sign-in link for ${email}`);
   const token = new URL(url).searchParams.get('token');

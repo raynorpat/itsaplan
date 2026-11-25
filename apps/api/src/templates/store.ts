@@ -1,4 +1,4 @@
-import { db, template } from '@repo/db';
+import { db, formSettings, template } from '@repo/db';
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import {
   assertTeamAccess,
@@ -22,10 +22,13 @@ export type TemplateRow = typeof template.$inferSelect;
 
 export const TEMPLATE_TYPES = ['issue'] as const;
 
-// Whether the template is a form (has form settings). Form settings come with forms/,
-// which reads them here; until then no template is a form.
-export async function isFormTemplate(_id: string): Promise<boolean> {
-  return false;
+// Whether the template is a form (has a form_settings row, forms/).
+export async function isFormTemplate(id: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: formSettings.templateId })
+    .from(formSettings)
+    .where(eq(formSettings.templateId, id));
+  return Boolean(row);
 }
 
 // Templates the user can see.

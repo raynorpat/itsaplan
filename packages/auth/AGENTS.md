@@ -41,7 +41,9 @@ for anyone who can see the issue, guests included) are here because Linear's sch
 portal/boards/{create, update, delete}`, `POST portal/block` for blocking a requester
 from the portal; owners and admins) and the boards showing an
 issue (`GET portal/issue-boards?issueId=`; members) are here because Linear has no
-portal (`apps/api/src/portal/admin.ts`). All but the first need the
+portal (`apps/api/src/portal/admin.ts`). A form's publishing settings (`GET forms`,
+`POST forms/settings`, `POST forms/delete`; owners and admins) are here because Linear's
+template has no place for them (`apps/api/src/forms/admin.ts`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

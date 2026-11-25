@@ -563,7 +563,12 @@ export {
 } from './instance';
 export { sendAuthEmail } from './mail';
 export { provideInstanceHandlers } from './instance-plugin';
-export type { InstanceHandlers, PortalHandlers, TeamOwnerChange } from './instance-plugin';
+export type {
+  FormsHandlers,
+  InstanceHandlers,
+  PortalHandlers,
+  TeamOwnerChange,
+} from './instance-plugin';
 export type { InstanceEmailDto, InstanceEmailConfig, InstanceGoogleConfig } from './instance';
 export {
   OAUTH_SCOPES,

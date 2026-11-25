@@ -107,12 +107,14 @@ export const activeRequester = (id: string) => followMerges(id, loadRequester);
 
 // Creates the source attachment that names a feedback item's requester, on the issue.
 // The caller checks the actor may add feedback there. `source` is where the feedback
-// came from: logged by a member, or (later) the portal or a form.
+// came from: logged by a member, the portal or a form.
 export async function createRequesterAttachment(
   issueId: string,
   requesterId: string,
   source: 'team' | 'portal' | 'form',
   actorId: string | null,
+  // A form's name: its feedback reads "Form: <name>".
+  formName?: string,
 ): Promise<{ attachmentId: string }> {
   const requester = await activeRequester(requesterId);
   if (!requester) throw new HttpError(404, 'Requester not found');
@@ -126,7 +128,8 @@ export async function createRequesterAttachment(
           .where(eq(user.id, actorId))
       : [];
     subtitle = actor ? `Logged by ${shownName(actor)}` : 'Logged by the team';
-  } else subtitle = SOURCE_SUBTITLE[source];
+  } else if (source === 'form' && formName) subtitle = `Form: ${formName}`;
+  else subtitle = SOURCE_SUBTITLE[source];
   const created = await createFeedbackAttachment({
     issueId,
     externalUserCreatorId: requester.id,

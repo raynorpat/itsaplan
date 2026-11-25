@@ -1,5 +1,5 @@
 import { db, workflowState, issue } from '@repo/db';
-import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { HttpError, iso } from '../shared/lib';
 
 // Data access for columns (kanban states). A column belongs to one team and
@@ -197,4 +197,22 @@ export async function reorderStates(teamId: string, orderedIds: string[]): Promi
         .where(and(eq(workflowState.id, id), eq(workflowState.teamId, teamId)));
     }
   });
+}
+
+// The column a new issue lands in when none is chosen: the team's first active backlog
+// column, else its first active unstarted column; null when it has neither.
+export async function defaultColumnId(teamId: string): Promise<string | null> {
+  const rows = await db
+    .select({ id: workflowState.id })
+    .from(workflowState)
+    .where(
+      and(
+        eq(workflowState.teamId, teamId),
+        isNull(workflowState.archivedAt),
+        sql`${workflowState.stateType} IN ('backlog', 'unstarted')`,
+      ),
+    )
+    .orderBy(sql`${workflowState.stateType} = 'unstarted'`, asc(workflowState.position))
+    .limit(1);
+  return rows[0]?.id ?? null;
 }

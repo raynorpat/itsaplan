@@ -143,6 +143,15 @@ export interface PortalHandlers {
   comment(headers: Headers, body: unknown): Promise<object>;
 }
 
+// Forms (team issue templates published to people outside the workspace): owners and
+// admins read and change their publishing settings and delete them. Each handler
+// checks the caller itself.
+export interface FormsHandlers {
+  list(headers: Headers): Promise<object>;
+  saveSettings(headers: Headers, body: unknown): Promise<object>;
+  deleteForm(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -154,6 +163,7 @@ export interface InstanceHandlers {
   imports: ImportsHandlers;
   requesters: RequestersHandlers;
   portal: PortalHandlers;
+  forms: FormsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -229,6 +239,12 @@ const portalWrite = (
   trusted: string[],
   call: (h: PortalHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.portal, headers, body));
+
+const formsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: FormsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.forms, headers, body));
 
 const importsWrite = (
   path: string,
@@ -401,6 +417,19 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
           ctx.json(
             await run((h) => h.portal.issueBoards(ctx.headers ?? new Headers(), { ...ctx.query })),
           ),
+      ),
+      instanceForms: createAuthEndpoint('/instance/forms', { method: 'GET' }, async (ctx) =>
+        ctx.json(await run((h) => h.forms.list(ctx.headers ?? new Headers()))),
+      ),
+      instanceFormSettings: formsWrite(
+        '/instance/forms/settings',
+        options.trustedOrigins,
+        (h, headers, body) => h.saveSettings(headers, body),
+      ),
+      instanceFormDelete: formsWrite(
+        '/instance/forms/delete',
+        options.trustedOrigins,
+        (h, headers, body) => h.deleteForm(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

@@ -52,9 +52,10 @@ function titleMatches(q: string): SQL | undefined {
 // Similar issues: the words of `q` of two or more characters.
 const similarWords = (q: string): string[] => q.split(/\s+/).filter((w) => w.length >= 2);
 
-// The visitor's own suggestions in the board's suggestion team (a public team).
+// The visitor's own issues submitted from this board (a suggestion or a form), in a
+// public team.
 async function ownSuggestionIds(board: BoardRow, visitor: Visitor | null): Promise<string[]> {
-  if (!visitor || !board.suggestionTeamId) return [];
+  if (!visitor) return [];
   const rows = await db
     .select({ id: issue.id })
     .from(issue)
@@ -62,7 +63,7 @@ async function ownSuggestionIds(board: BoardRow, visitor: Visitor | null): Promi
     .where(
       and(
         eq(issue.externalUserCreatorId, visitor.requesterId),
-        eq(issue.teamId, board.suggestionTeamId),
+        eq(issue.portalSourceBoardId, board.id),
         eq(team.visibility, 'public'),
         isNull(issue.archivedAt),
       ),

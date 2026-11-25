@@ -171,7 +171,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
   issue in the board's suggestion team, state and label with
   `issue.external_user_creator_id` (GraphQL `Issue.externalUserCreator`, null for
   guests) and no member creator, plus the visitor's portal feedback quoting the
-  details; it runs as any issue creation. Similar issues match any title word of two
+  details; it runs as any issue creation. An issue submitted from a board (a
+  suggestion or a form) records it in `issue.portal_source_board_id`; a visitor's
+  under-review issues are their own issues from that board in a public team. Similar issues match any title word of two
   characters or more, more matching words first. Votes 60 and suggestions 10 per
   visitor an hour.
 - **Portal comments** (`portal/comments.ts`): a visitor's comment is a `comment` with
@@ -200,9 +202,24 @@ Rules and invariants for this package below; read the code for the walkthrough.
   option may add a label and set a priority); unknown keys are refused. A team
   template is managed by the team's members and by workspace admins and owners, a
   workspace template by admins and owners; guests and app users manage none
-  (`assertTemplateManage`). `templates` is the viewer's whole list, `templateSearch`
-  takes the filter, `Team.templates` and `Organization.templates` (workspace templates)
-  page.
+  (`assertTemplateManage`); a template that is a form only by admins and owners.
+  `templates` is the viewer's whole list, `templateSearch` takes the filter,
+  `Team.templates` and `Organization.templates` (workspace templates) page.
+- **Forms** (`forms/`): a team issue template of a public team with a `form_settings`
+  row (slug for `/forms/<slug>`, intro, link on or off, the portal boards it is shown
+  on: team boards of its team or project boards whose project includes it). Owners and
+  admins manage the settings through `/api/auth/instance/forms*` (`forms/admin.ts`);
+  deleting the form deletes its template. A form whose template is archived or whose
+  team is private is not found (`getFormBySlug`). Answers (`validateAnswers`) are keyed
+  by field id: required questions answered, options only from the field, text at most
+  10,000 characters. `submitForm` creates the issue in the template's state (else the
+  team's default column), with the template's labels and the chosen options' labels
+  that still apply, the last chosen option's priority (else the template's), the title
+  answer (else "<form name> from <requester name>"; at most 255 characters), the
+  template description followed by each answered question (`formIssueDescription`), the
+  requester as `externalUserCreator`, the board's project and the source board; then the
+  requester's feedback (source `form`, subtitle "Form: <name>", quote = the quote
+  answer). It runs as any issue creation.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

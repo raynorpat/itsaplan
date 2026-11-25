@@ -1,6 +1,6 @@
 import { withRuleCache } from '../../shared/workflow-context';
 import { db, issueLabel, workflowState } from '@repo/db';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
   archiveIssue,
   createIssue,
@@ -11,7 +11,13 @@ import {
   validateIssuePatch,
   type IssuePatch,
 } from '../../issues/store';
-import { archiveState, createState, moveStateToPosition, updateState } from '../../states/store';
+import {
+  archiveState,
+  createState,
+  defaultColumnId,
+  moveStateToPosition,
+  updateState,
+} from '../../states/store';
 import { getTeamByKey } from '../../teams/store';
 import {
   nonMembers,
@@ -192,23 +198,11 @@ function toPatch(input: IssueInput): IssuePatch {
   return patch;
 }
 
-// The column a new issue lands in when no stateId is given: the first active
-// backlog column, else the first active unstarted column.
+// The column a new issue lands in when no stateId is given.
 async function defaultColumn(teamId: string): Promise<string> {
-  const rows = await db
-    .select({ id: workflowState.id })
-    .from(workflowState)
-    .where(
-      and(
-        eq(workflowState.teamId, teamId),
-        isNull(workflowState.archivedAt),
-        sql`${workflowState.stateType} IN ('backlog', 'unstarted')`,
-      ),
-    )
-    .orderBy(sql`${workflowState.stateType} = 'unstarted'`, asc(workflowState.position))
-    .limit(1);
-  if (!rows[0]) throw gqlError('INVALID_INPUT', 'The team has no backlog or unstarted state');
-  return rows[0].id;
+  const id = await defaultColumnId(teamId);
+  if (!id) throw gqlError('INVALID_INPUT', 'The team has no backlog or unstarted state');
+  return id;
 }
 
 export const mutationResolvers = {

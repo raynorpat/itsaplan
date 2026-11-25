@@ -1,6 +1,7 @@
 import { getActiveSession, provideInstanceHandlers } from '@repo/auth';
 import { accountEmailsHandlers } from '../accounts/handlers';
 import { requestersHandlers } from '../feedback/handlers';
+import { formsHandlers } from '../forms/admin';
 import { portalHandlers } from '../portal/admin';
 import { stopSession } from '../agents/store';
 import { importsHandlers } from '../imports/handlers';
@@ -64,5 +65,6 @@ export function registerInstanceHandlers(): void {
     imports: importsHandlers,
     requesters: requestersHandlers,
     portal: portalHandlers,
+    forms: formsHandlers,
   });
 }

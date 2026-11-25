@@ -10,27 +10,13 @@ import { ORIGIN } from '../../../__tests__/helpers/oauth';
 import { getBoardBySlug } from '../../boards';
 import { canReadBoard } from '../../access';
 import { visitorFromRequest } from '../../session';
+import { portalLinks as links } from '../helpers';
 
 // Portal sign-in: a visitor asks for a link on a board, confirms it on the confirm page
 // and gets a portal session (cookie `portal_session`) tied to their requester. The
 // session works only on /portal/*; access to restricted boards is checked per request.
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-// With no mail provider the API logs each portal sign-in link; this records them by
-// address and keeps every other line printed.
-const links = new Map<string, string>();
-const PREFIX = '[portal] sign-in link for ';
-const previousInfo = console.info;
-console.info = (...args: unknown[]) => {
-  const line = args.map(String).join(' ');
-  if (line.startsWith(PREFIX)) {
-    const [email, url] = line.slice(PREFIX.length).split(': ');
-    if (email && url) links.set(email, url);
-    return;
-  }
-  previousInfo(...args);
-};
 
 // Rate limits live in memory for the process, so each test uses its own addresses.
 let n = 0;

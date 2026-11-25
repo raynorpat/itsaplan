@@ -45,6 +45,7 @@ export async function createSuggestion(
       description: details,
       labelIds: board.suggestionLabelId ? [board.suggestionLabelId] : [],
       externalUserCreatorId: visitor.requesterId,
+      portalSourceBoardId: board.id,
     },
     null,
   );

@@ -725,6 +725,12 @@ export const issue = pgTable(
       (): AnyPgColumn => externalUser.id,
       { onDelete: 'set null' },
     ),
+    // The portal board the issue was submitted from (a suggestion or a form on a
+    // board): its author sees it there as under review until the board shows it.
+    portalSourceBoardId: uuid('portal_source_board_id').references(
+      (): AnyPgColumn => portalBoard.id,
+      { onDelete: 'set null' },
+    ),
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
     // Linear's priority scale: 0 none, 1 urgent, 2 high, 3 medium, 4 low.
@@ -986,6 +992,28 @@ export const template = pgTable(
     check('template_type_check', sql`${t.type} = 'issue'`),
     check('template_name_check', sql`btrim(${t.name}) <> ''`),
   ],
+);
+
+// A form (forms/): a team issue template published to people outside the workspace.
+// Linear's schema has no place for these settings: the link address (`/forms/<slug>`),
+// the intro, whether the link is on, and the portal boards the form is shown on.
+export const formSettings = pgTable(
+  'form_settings',
+  {
+    templateId: uuid('template_id')
+      .primaryKey()
+      .references(() => template.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull().unique(),
+    intro: text('intro').notNull().default(''),
+    linkEnabled: boolean('link_enabled').notNull().default(false),
+    boardIds: uuid('board_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('form_settings_slug_check', sql`${t.slug} ~ '^[a-z0-9-]{1,48}$'`)],
 );
 
 // A portal sign-in link sent to `email` from a board's sign-in form. Only the SHA-256
