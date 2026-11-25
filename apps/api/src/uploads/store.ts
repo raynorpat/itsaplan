@@ -12,7 +12,10 @@ import { AVATAR_IMAGE_TYPES, getStorageSettings, MB, mimeAllowed } from '../sett
 // stored object. The request accepts what either use allows; the use checks its own
 // limits (attachments: attachments/store, avatars: the userUpdate resolver) and claims
 // the upload, so one upload backs one attachment or one avatar. An upload nothing uses
-// within a day is deleted.
+// within a day is deleted. An import file (`metaData.purpose` `import`, a CSV for an
+// issue import; ./import-files.ts) is requested by owners and admins only, takes the
+// CSV types whatever the workspace's attachment types, is never served by the raw
+// route and is read back only by its uploader.
 
 export const UPLOAD_TTL_MS = 10 * 60 * 1000;
 const UNUSED_UPLOAD_MS = 24 * 60 * 60 * 1000;
@@ -30,6 +33,33 @@ export const assetPathOf = (row: Pick<UploadRow, 'id'>) => `/uploads/${row.id}/r
 export const assetUrlOf = (row: Pick<UploadRow, 'id'>) => `${apiOrigin()}${assetPathOf(row)}`;
 
 const baseType = (contentType: string) => contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+
+// The types an import file may have: browsers send a CSV as any of these.
+export const IMPORT_FILE_TYPES = [
+  'text/csv',
+  'application/vnd.ms-excel',
+  'text/plain',
+  'application/octet-stream',
+];
+
+// Linear's fileUpload `metaData` is JSON: an object, or an object encoded as a string.
+export function uploadMetaData(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new HttpError(400, 'metaData must be a JSON object');
+    }
+  }
+  if (parsed === null || parsed === undefined) return null;
+  if (typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new HttpError(400, 'metaData must be a JSON object');
+  return parsed as Record<string, unknown>;
+}
+
+export const isImportFile = (row: Pick<UploadRow, 'metaData'>): boolean =>
+  (row.metaData as Record<string, unknown> | null)?.purpose === 'import';
 
 // The id of the upload an asset URL names (absolute on the API origin, or the path),
 // or null when the URL is not an upload asset.
@@ -56,16 +86,23 @@ export async function requestUpload(input: {
   if (!Number.isInteger(input.size) || input.size <= 0)
     throw new HttpError(400, 'size must be a positive number of bytes');
   const limits = await getStorageSettings();
-  // A file either use accepts: the workspace's attachment types up to the attachment
-  // limit, or a raster image up to the avatar limit.
-  const avatarType = AVATAR_IMAGE_TYPES.test(contentType);
-  const attachmentType = mimeAllowed(contentType, limits.attachmentMimeTypes);
-  if (!avatarType && !attachmentType)
-    throw new HttpError(400, `Files of type ${contentType} are not allowed`);
-  const limitMb = Math.max(
-    avatarType ? limits.maxAvatarMb : 0,
-    attachmentType ? limits.maxAttachmentMb : 0,
-  );
+  let limitMb: number;
+  if (input.metaData?.purpose === 'import') {
+    if (!IMPORT_FILE_TYPES.includes(contentType))
+      throw new HttpError(400, 'An import file must be a CSV file');
+    limitMb = limits.maxAttachmentMb;
+  } else {
+    // A file either use accepts: the workspace's attachment types up to the attachment
+    // limit, or a raster image up to the avatar limit.
+    const avatarType = AVATAR_IMAGE_TYPES.test(contentType);
+    const attachmentType = mimeAllowed(contentType, limits.attachmentMimeTypes);
+    if (!avatarType && !attachmentType)
+      throw new HttpError(400, `Files of type ${contentType} are not allowed`);
+    limitMb = Math.max(
+      avatarType ? limits.maxAvatarMb : 0,
+      attachmentType ? limits.maxAttachmentMb : 0,
+    );
+  }
   if (input.size > limitMb * MB) throw new HttpError(400, `File exceeds the ${limitMb} MB limit`);
   const [unused] = await db
     .select({ total: sql<string>`coalesce(sum(${fileUpload.size}), 0)` })

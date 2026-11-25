@@ -3,11 +3,18 @@ import { workerTokenValid } from '../shared/http';
 import { HttpError } from '../shared/lib';
 import { rawObjectResponse } from '../shared/raw-object';
 import { getObject } from '../shared/s3';
-import { checkUploadRequest, deleteUnusedUploads, getUpload, receiveUpload } from './store';
+import {
+  checkUploadRequest,
+  deleteUnusedUploads,
+  getUpload,
+  isImportFile,
+  receiveUpload,
+} from './store';
 
 // Plain HTTP for Linear's fileUpload: the signed upload URL (PUT; the token in the URL
 // is the credential, as in Linear) and the asset URL (public GET, like the attachment
-// and avatar raw routes). The GraphQL `fileUpload` mutation creates the upload.
+// and avatar raw routes; import files excepted). The GraphQL `fileUpload` mutation
+// creates the upload.
 export const uploadRoutes = new Elysia({ name: 'uploads' })
   .put(
     '/uploads/:token',
@@ -32,7 +39,8 @@ export const uploadRoutes = new Elysia({ name: 'uploads' })
     '/uploads/:id/raw',
     async ({ params, query }) => {
       const row = await getUpload(params.id);
-      if (!row?.completedAt) throw new HttpError(404, 'Upload not found');
+      // An import file holds a whole export: only the import reads it (import-files.ts).
+      if (!row?.completedAt || isImportFile(row)) throw new HttpError(404, 'Upload not found');
       let obj;
       try {
         obj = await getObject(row.objectKey);

@@ -472,7 +472,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   within the avatar limit. Each use claims the upload, so one upload backs one
   attachment or one avatar; a replaced avatar is released (`avatars/release.ts`) by
   either avatar path. Uploads nothing used within a day are deleted
-  (`/internal/uploads/cleanup`, called by the worker).
+  (`/internal/uploads/cleanup`, called by the worker). An **import file** is an upload
+  with `metaData.purpose` `import` (`metaData` an object or a JSON string): owners and
+  admins only, a CSV type (`text/csv`, `application/vnd.ms-excel`, `text/plain`,
+  `application/octet-stream`) whatever the workspace's attachment types, up to
+  `MAX_ATTACHMENT_MB`; the raw route answers 404 for it, and only its uploader reads it
+  back (`uploads/import-files.ts` `readImportFile`, with the SHA-256 of its bytes)
+  until `deleteImportFile` removes it. CSV text is read by `imports/csv/parse.ts`
+  (comma or semicolon, RFC 4180 quoting, at most 10,000 rows).
 - **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
   Linear's issue subscribers. Creating an issue subscribes its creator and assignee;
   a new assignee, a comment's author and the members a comment mentions are

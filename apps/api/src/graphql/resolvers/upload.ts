@@ -8,8 +8,10 @@ import {
   claimUpload,
   ownStoredUpload,
   requestUpload,
+  uploadMetaData,
   uploadUrlOf,
 } from '../../uploads/store';
+import { assertWorkspaceRole } from '../../shared/access';
 import { getPreferences, isValidTimezone, updatePreferences } from '../../user-preferences/store';
 import type { GraphQLContext } from '../context';
 import { gqlError } from '../errors';
@@ -44,17 +46,20 @@ export const uploadResolvers = {
         filename: string;
         size: number;
         makePublic?: boolean | null;
-        metaData?: Record<string, unknown> | null;
+        metaData?: unknown;
       },
       ctx: GraphQLContext,
     ) =>
       guard(async () => {
+        const metaData = uploadMetaData(args.metaData);
+        // An import file is for an issue import, which owners and admins run.
+        if (metaData?.purpose === 'import') await assertWorkspaceRole(ctx.user, 'admin');
         const row = await requestUpload({
           userId: ctx.user.id,
           contentType: args.contentType,
           filename: args.filename,
           size: args.size,
-          metaData: args.metaData ?? null,
+          metaData,
         });
         return {
           success: true,
