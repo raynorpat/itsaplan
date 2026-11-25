@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime } from 'bun:test';
 import { db, externalUser, portalSummaryCache } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
@@ -350,6 +350,43 @@ describe('since your last visit', () => {
       .update(externalUser)
       .set({ lastVisitAt: new Date(Date.now() - hours * 3_600_000) })
       .where(eq(externalUser.id, requesterId));
+
+  // History and comments are stamped by the database's clock; the API's clock may run
+  // ahead or behind it. setSystemTime moves only the API's clock.
+  const withApiClockOffset = async (offsetMs: number, fn: () => Promise<void>) => {
+    setSystemTime(new Date(Date.now() + offsetMs));
+    try {
+      await fn();
+    } finally {
+      setSystemTime();
+    }
+  };
+
+  it('lists a change made just now when the API clock is behind the database', async () => {
+    const { member, states, issue, v } = await setup();
+    await sinceLastVisit(v.cookie);
+    await visitedHoursAgo(v.requesterId, 2);
+    await withApiClockOffset(-5_000, async () => {
+      await updateIssue(member, issue.id, { stateId: states.started });
+      expect((await sinceLastVisit(v.cookie)).lines).toEqual(['Dark mode moved to In progress']);
+    });
+  });
+
+  it('keeps a change made right after a visit when the API clock is ahead of the database', async () => {
+    const { member, states, issue, v } = await setup();
+    await withApiClockOffset(5_000, async () => {
+      // A new visit (the sign-in's is more than an hour old), recorded now.
+      await visitedHoursAgo(v.requesterId, 2);
+      await sinceLastVisit(v.cookie);
+      await updateIssue(member, issue.id, { stateId: states.started });
+    });
+    // Two hours pass for both the visit and the change.
+    await db.execute(
+      sql`UPDATE external_user SET last_visit_at = last_visit_at - interval '2 hours' WHERE id = ${v.requesterId}`,
+    );
+    await db.execute(sql`UPDATE issue_activity SET created_at = created_at - interval '2 hours'`);
+    expect((await sinceLastVisit(v.cookie)).lines).toEqual(['Dark mode moved to In progress']);
+  });
 
   it('is empty on the first visit', async () => {
     const { v } = await setup();

@@ -22,6 +22,7 @@ import {
   type Json,
 } from '../../../portal/__tests__/helpers';
 import { requesterChanges, requestersWithChangesSince, type Change } from '../../changes';
+import { dbNow } from '../../clock';
 
 // The "what changed since" lookup for a requester: status changes of the issues they
 // follow, replies in portal threads they wrote in, and project updates the team shared,
@@ -54,12 +55,14 @@ const rootComment = async (identifier: string, cookie: string, body: string, slu
 
 const tick = () => Bun.sleep(5);
 
+// Windows are cut on the database's clock, which stamps history, comments and shares (as
+// the runs do); the API's clock may differ from it.
 async function window<T>(fn: () => Promise<T>): Promise<{ since: Date; until: Date }> {
-  const since = new Date();
+  const since = await dbNow();
   await tick();
   await fn();
   await tick();
-  return { since, until: new Date() };
+  return { since, until: await dbNow() };
 }
 
 async function changesFor(requesterId: string, w: { since: Date; until: Date }): Promise<Change[]> {
@@ -340,7 +343,7 @@ describe('candidates', () => {
     await ok(
       await instance('portal/block', owner, { requesterId: blocked.requesterId, blocked: true }),
     );
-    const since = new Date();
+    const since = await dbNow();
     await tick();
     await updateIssue(member, issue.id, { stateId: states.started });
     const ids = await requestersWithChangesSince(since);

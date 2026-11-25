@@ -1,7 +1,8 @@
 import { db, externalUser, portalSummaryCache } from '@repo/db';
 import { createHash } from 'node:crypto';
-import { and, eq, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { aiConfigured, aiSummary } from './ai';
+import { dbNow } from './clock';
 import { requesterChanges, type Change } from './changes';
 import { roundUp, type SummaryText } from './render';
 
@@ -14,21 +15,22 @@ import { roundUp, type SummaryText } from './render';
 const VISIT_GAP_MS = 60 * 60_000;
 
 // Records a visit when the last one is an hour old or more. Reads only the row the caller
-// already loaded, so a request within the hour writes nothing.
-export async function recordVisit(
-  person: { id: string; lastVisitAt: Date | null },
-  now = new Date(),
-): Promise<void> {
-  const gapStart = new Date(now.getTime() - VISIT_GAP_MS);
+// already loaded, so a request within the hour writes nothing. The visit is stamped with
+// the database's clock, which stamps the changes it is compared with.
+export async function recordVisit(person: { id: string; lastVisitAt: Date | null }): Promise<void> {
+  const gapStart = new Date(Date.now() - VISIT_GAP_MS);
   if (person.lastVisitAt && person.lastVisitAt > gapStart) return;
   try {
     await db
       .update(externalUser)
-      .set({ previousVisitAt: externalUser.lastVisitAt, lastVisitAt: now })
+      .set({ previousVisitAt: externalUser.lastVisitAt, lastVisitAt: sql`now()` })
       .where(
         and(
           eq(externalUser.id, person.id),
-          or(isNull(externalUser.lastVisitAt), lt(externalUser.lastVisitAt, gapStart)),
+          or(
+            isNull(externalUser.lastVisitAt),
+            lt(externalUser.lastVisitAt, sql`now() - interval '1 hour'`),
+          ),
         ),
       );
   } catch (error) {
@@ -117,9 +119,10 @@ async function cachedParagraph(
 
 export async function sinceLastVisit(
   requesterId: string,
-  now = new Date(),
+  at?: Date,
   options: { waitMs?: number } = {},
 ): Promise<SummaryText> {
+  const now = at ?? (await dbNow());
   const [person] = await db
     .select({ displayName: externalUser.displayName, since: externalUser.previousVisitAt })
     .from(externalUser)
