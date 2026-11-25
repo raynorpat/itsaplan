@@ -2025,3 +2025,227 @@ export const favorite = pgTable(
     check('favorite_folder_parent_check', sql`${t.folderName} IS NULL OR ${t.parentId} IS NULL`),
   ],
 );
+
+// Release tracking (Linear's ReleasePipeline, ReleaseStage, Release, ReleaseNote): a
+// pipeline belongs to teams and is `continuous` (every sync is a completed release) or
+// `scheduled` (a release collects issues until completed); every pipeline has one
+// planned, one completed and one canceled stage and one or more started stages.
+export const releasePipeline = pgTable(
+  'release_pipeline',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id').notNull().unique(),
+    name: text('name').notNull(),
+    type: text('type').notNull().default('continuous'),
+    isProduction: boolean('is_production').notNull().default(true),
+    // Stored and returned; commits are not filtered by path here.
+    includePathPatterns: text('include_path_patterns')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    rolloverIssuesOnCompletion: boolean('rollover_issues_on_completion').notNull().default(true),
+    autoGenerateReleaseNotesOnCompletion: boolean('auto_generate_release_notes_on_completion')
+      .notNull()
+      .default(false),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    trashed: boolean('trashed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('release_pipeline_type_check', sql`${t.type} IN ('continuous', 'scheduled')`)],
+);
+
+export const releasePipelineTeam = pgTable(
+  'release_pipeline_team',
+  {
+    pipelineId: uuid('pipeline_id')
+      .notNull()
+      .references(() => releasePipeline.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => team.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.pipelineId, t.teamId] }),
+    index('release_pipeline_team_team_idx').on(t.teamId),
+  ],
+);
+
+export const releaseStage = pgTable(
+  'release_stage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pipelineId: uuid('pipeline_id')
+      .notNull()
+      .references(() => releasePipeline.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull(),
+    type: text('type').notNull(),
+    position: doublePrecision('position').notNull(),
+    // A frozen stage takes no new issues from syncs.
+    frozen: boolean('frozen').notNull().default(false),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('release_stage_pipeline_idx').on(t.pipelineId),
+    check(
+      'release_stage_type_check',
+      sql`${t.type} IN ('planned', 'started', 'completed', 'canceled')`,
+    ),
+  ],
+);
+
+export const release = pgTable(
+  'release',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id').notNull().unique(),
+    pipelineId: uuid('pipeline_id')
+      .notNull()
+      .references(() => releasePipeline.id, { onDelete: 'cascade' }),
+    stageId: uuid('stage_id')
+      .notNull()
+      .references(() => releaseStage.id),
+    name: text('name').notNull(),
+    version: text('version'),
+    description: text('description'),
+    commitSha: text('commit_sha'),
+    // Linear's RepositoryDataInput from the sync that made the release, kept as given.
+    repository: jsonb('repository'),
+    startDate: date('start_date'),
+    targetDate: date('target_date'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    trashed: boolean('trashed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('release_pipeline_idx').on(t.pipelineId),
+    uniqueIndex('release_pipeline_version_uq')
+      .on(t.pipelineId, t.version)
+      .where(sql`${t.version} IS NOT NULL`),
+  ],
+);
+
+export const issueToRelease = pgTable(
+  'issue_to_release',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => release.id, { onDelete: 'cascade' }),
+    // The commit a sync found the issue's identifier in.
+    commitSha: text('commit_sha'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('issue_to_release_uq').on(t.issueId, t.releaseId),
+    index('issue_to_release_release_idx').on(t.releaseId),
+  ],
+);
+
+export const releaseLink = pgTable(
+  'release_link',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => release.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    label: text('label'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('release_link_uq').on(t.releaseId, t.url)],
+);
+
+export const releaseDocument = pgTable(
+  'release_document',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => release.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('release_document_uq').on(t.releaseId, t.title)],
+);
+
+// A release note: Markdown covering one or more releases of one pipeline.
+export const releaseNote = pgTable(
+  'release_note',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id').notNull().unique(),
+    pipelineId: uuid('pipeline_id')
+      .notNull()
+      .references(() => releasePipeline.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    content: text('content').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('release_note_pipeline_idx').on(t.pipelineId)],
+);
+
+export const releaseNoteRelease = pgTable(
+  'release_note_release',
+  {
+    noteId: uuid('note_id')
+      .notNull()
+      .references(() => releaseNote.id, { onDelete: 'cascade' }),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => release.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.noteId, t.releaseId] }),
+    index('release_note_release_release_idx').on(t.releaseId),
+  ],
+);
+
+// A CI access key for one pipeline (Linear's AccessKey): only its SHA-256 is stored.
+export const releaseAccessKey = pgTable(
+  'release_access_key',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pipelineId: uuid('pipeline_id')
+      .notNull()
+      .references(() => releasePipeline.id, { onDelete: 'cascade' }),
+    keyHash: text('key_hash').notNull().unique(),
+    creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('release_access_key_pipeline_idx').on(t.pipelineId)],
+);
+
+// A "Shipped in <release>" update already sent to a requester for an issue.
+export const requesterShipped = pgTable(
+  'requester_shipped',
+  {
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => externalUser.id, { onDelete: 'cascade' }),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => release.id, { onDelete: 'cascade' }),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requesterId, t.issueId, t.releaseId] })],
+);

@@ -41,6 +41,7 @@ import { customerNeedResolvers } from './resolvers/customer-need';
 import { customerResolvers } from './resolvers/customer';
 import { templateResolvers } from './resolvers/template';
 import { favoriteResolvers } from './resolvers/favorite';
+import { releasePipelineResolvers } from './resolvers/release-pipeline';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
 const resolverModules: Record<string, Record<string, unknown>>[] = [
@@ -76,6 +77,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   customerResolvers,
   templateResolvers,
   favoriteResolvers,
+  releasePipelineResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
