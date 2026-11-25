@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { toast } from 'sonner';
 import type { Issue, IssuePatch } from '@/types/issue';
 import { buildGroups, buildMaps, sortIssues, type WorkItemsViewProps } from '@/utils/team';
+import { useIssueSortContext } from '@/hooks/useIssueSortContext';
 import { cyclesVisible } from '@/utils/cycles';
 import {
   buildListItems,
@@ -49,13 +50,14 @@ export function ListBody({
   const toggleCollapsed = (key: string) =>
     onSettingsChange({ ...settings, collapsedGroups: toggledKeys(settings.collapsedGroups, key) });
 
+  const sortContext = useIssueSortContext(team.team.key, settings.sort);
   const listId = useId();
   const grouped = settings.group !== 'none';
   const subgrouped = grouped && settings.subgroup !== 'none';
   // Everything derived from the issues and the Display settings, computed only when
   // they change, not on every key press, selection change or drag.
   const { items, rows, maps, properties } = useMemo(() => {
-    const sorted = sortIssues(team.issues, settings.sort, team);
+    const sorted = sortIssues(team.issues, settings.sort, team, sortContext);
     const groups = buildGroups(team, settings.group);
     const subGroups = subgrouped ? buildGroups(team, settings.subgroup) : [];
     const items = buildListItems({
@@ -73,7 +75,7 @@ export function ListBody({
       maps: buildMaps(team),
       properties: listRowProperties(settings.properties, cyclesVisible(team)),
     };
-  }, [team, settings, subgrouped, collapsed]);
+  }, [team, settings, subgrouped, collapsed, sortContext]);
 
   const order = useMemo(() => rows.map((r) => r.id), [rows]);
   // The issue page and the peek panel move through this list's rows (previous / next).

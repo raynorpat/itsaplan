@@ -41,6 +41,15 @@ const ORDERING: Record<SortField, string> = {
   created: 'createdAt',
   updated: 'updatedAt',
   requests: 'customerCount',
+  estimate: 'estimate',
+  completed: 'completedAt',
+  cycle: 'cycle',
+  project: 'project',
+  milestone: 'milestone',
+  label: 'label',
+  release: 'release',
+  linkCount: 'linkCount',
+  customerRevenue: 'customerRevenue',
 };
 
 // Linear's field toggle for each property. The delegate has none; it is saved by its

@@ -17,6 +17,7 @@ const MyIssuesPage = graphql(`
         completedAt
         canceledAt
         dueDate
+        estimate
         parent {
           id
         }
@@ -51,6 +52,7 @@ const MyIssuesPage = graphql(`
         cycle {
           number
           name
+          startsAt
         }
       }
       pageInfo {
@@ -81,7 +83,8 @@ export type MyIssue = {
   delegate: Person | null;
   labels: { id: string; name: string; color: string }[];
   project: { id: string; name: string; archivedAt?: string | null } | null;
-  cycle: { number: number; name: string | null } | null;
+  cycle: { number: number; name: string | null; startsAt: string | null } | null;
+  estimate: number | null;
 };
 
 // Issues per page: 50 when paging on request, the API's 250 when the whole set is
@@ -102,13 +105,14 @@ type MyIssueNode = {
   canceledAt?: string | null;
   parent?: { id: string } | null;
   dueDate?: string | null;
+  estimate?: number | null;
   team: { key: string };
   state: { name: string; type: string; color: string };
   assignee: NodePerson;
   delegate?: NodePerson;
   labels: { nodes: { id: string; name: string; color: string }[] };
   project?: { id: string; name: string; archivedAt?: string | null } | null;
-  cycle?: { number: number; name?: string | null } | null;
+  cycle?: { number: number; name?: string | null; startsAt?: unknown } | null;
 };
 
 const person = (p: NodePerson | undefined): Person | null =>
@@ -133,7 +137,14 @@ function toMyIssue(n: MyIssueNode): MyIssue {
     delegate: person(n.delegate),
     labels: n.labels.nodes,
     project: n.project ?? null,
-    cycle: n.cycle ? { number: n.cycle.number, name: n.cycle.name ?? null } : null,
+    cycle: n.cycle
+      ? {
+          number: n.cycle.number,
+          name: n.cycle.name ?? null,
+          startsAt: n.cycle.startsAt ? String(n.cycle.startsAt) : null,
+        }
+      : null,
+    estimate: n.estimate ?? null,
   };
 }
 

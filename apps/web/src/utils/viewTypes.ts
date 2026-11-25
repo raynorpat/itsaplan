@@ -19,18 +19,36 @@ export type SortField =
   | 'dueDate'
   | 'created'
   | 'updated'
-  | 'requests';
+  | 'requests'
+  | 'estimate'
+  | 'completed'
+  | 'cycle'
+  | 'project'
+  | 'milestone'
+  | 'label'
+  | 'release'
+  | 'linkCount'
+  | 'customerRevenue';
 
 export interface Sort {
   field: SortField;
   dir: 'asc' | 'desc';
 }
 
-// The order an ordering starts in when it is picked, as in Linear: the most requested,
-// newest created and most recently updated first; everything else ascending.
+// The orderings that start descending when picked, as in Linear: the most requested,
+// newest created, most recently updated or completed, most linked and largest customer
+// revenue first. Everything else starts ascending.
+const STARTS_DESC: ReadonlySet<SortField> = new Set<SortField>([
+  'requests',
+  'created',
+  'updated',
+  'completed',
+  'linkCount',
+  'customerRevenue',
+]);
+
 export function sortForField(field: SortField): Sort {
-  const desc = field === 'requests' || field === 'created' || field === 'updated';
-  return { field, dir: desc ? 'desc' : 'asc' };
+  return { field, dir: STARTS_DESC.has(field) ? 'desc' : 'asc' };
 }
 
 // The team's display modes: Linear's List and Board, plus Timeline and Calendar.
@@ -70,4 +88,13 @@ export const SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },
   { value: 'requests', label: 'Requests' },
+  { value: 'estimate', label: 'Estimate' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cycle', label: 'Cycle' },
+  { value: 'project', label: 'Project' },
+  { value: 'milestone', label: 'Milestone' },
+  { value: 'label', label: 'Label' },
+  { value: 'release', label: 'Release' },
+  { value: 'linkCount', label: 'Link count' },
+  { value: 'customerRevenue', label: 'Customer revenue' },
 ];

@@ -3,6 +3,7 @@ import { SORT_FIELDS, sortForField, type SortField, type WorkItemsView } from '@
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import { withoutCycleOptions } from '@/utils/cycles';
 import { requestOptions } from '@/utils/requests';
+import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
@@ -40,6 +41,7 @@ export default function DisplayGroupingRows({
   // Whether the list has feedback counts; ordering by Requests shows only then.
   requestsOn: boolean;
 }) {
+  const customersOn = useCustomersEnabled();
   // Changing the primary group clears a sub-group that would now duplicate it.
   const setGroup = (group: GroupField) =>
     onChange(group === settings.subgroup ? { group, subgroup: 'none' } : { group });
@@ -50,6 +52,10 @@ export default function DisplayGroupingRows({
     view === 'kanban' || view === 'timeline' ? options.filter((o) => o.value !== 'none') : options;
   // The sub-group never offers the field already used by the primary group.
   const subgroupOptions = options.filter((o) => o.value !== settings.group);
+  // Customer revenue is offered while Customers is on, cycle while the team uses cycles.
+  const sortOptions = requestOptions(SORT_FIELDS, requestsOn).filter(
+    (f) => (customersOn || f.value !== 'customerRevenue') && (cyclesOn || f.value !== 'cycle'),
+  );
   const showsGrouping = view === 'kanban' || view === 'list' || view === 'timeline';
   const showsSubgrouping = (view === 'kanban' || view === 'list') && settings.group !== 'none';
 
@@ -94,7 +100,7 @@ export default function DisplayGroupingRows({
           <DisplaySettingsSelect
             value={settings.sort.field}
             onChange={(v) => onChange({ sort: sortForField(v as SortField) })}
-            options={requestOptions(SORT_FIELDS, requestsOn)}
+            options={sortOptions}
           />
         </DisplaySettingsRow>
       )}

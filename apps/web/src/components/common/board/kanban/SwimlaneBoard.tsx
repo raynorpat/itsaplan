@@ -14,6 +14,7 @@ import {
   type WorkItemsViewProps,
   type IssueGroup,
 } from '@/utils/team';
+import { useIssueSortContext } from '@/hooks/useIssueSortContext';
 import { useBoardDnd } from '@/hooks/useBoardDnd';
 import { useSelection } from '@/context/useSelection';
 import { GroupDot } from '@/components/common/board/shared/GroupDot';
@@ -56,13 +57,14 @@ export default function SwimlaneBoard({
       collapsedSwimlanes: toggledKeys(settings.collapsedSwimlanes, key),
     });
 
+  const sortContext = useIssueSortContext(team.team.key, settings.sort);
   const maps = buildMaps(team);
   const columnGroups = buildGroups(team, settings.group);
   const swimlaneGroups = buildGroups(team, settings.subgroup);
   const nested = nestIssues(
     swimlaneGroups,
     columnGroups,
-    sortIssues(team.issues, settings.sort, team),
+    sortIssues(team.issues, settings.sort, team, sortContext),
     settings.subgroup,
     settings.group,
   );

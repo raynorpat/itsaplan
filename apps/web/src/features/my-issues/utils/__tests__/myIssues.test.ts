@@ -270,7 +270,8 @@ describe('myIssueRow', () => {
     delegate: null,
     labels: [{ id: 'l1', name: 'Bug', color: '#f00' }],
     project: { id: 'm', name: 'Mobile' },
-    cycle: { number: 3, name: null },
+    cycle: { number: 3, name: null, startsAt: null },
+    estimate: null,
     dueDate: '2020-01-01',
   };
 

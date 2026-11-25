@@ -9,7 +9,12 @@ import DisplayIssueRows from '@/components/layout/DisplayIssueRows';
 import DisplayPropertiesSection from '@/components/layout/DisplayPropertiesSection';
 import DisplaySettingsRow from '@/components/layout/DisplaySettingsRow';
 import DisplaySettingsSelect from '@/components/layout/DisplaySettingsSelect';
-import { myIssuesGrouping, myIssuesSort, type MyIssuesGroup } from '../utils/myIssues';
+import {
+  MY_ISSUES_ORDERINGS,
+  myIssuesGrouping,
+  myIssuesSort,
+  type MyIssuesGroup,
+} from '../utils/myIssues';
 
 const GROUP_OPTIONS: { value: MyIssuesGroup; label: string }[] = [
   { value: 'none', label: 'No grouping' },
@@ -20,7 +25,7 @@ const GROUP_OPTIONS: { value: MyIssuesGroup; label: string }[] = [
 
 // Its issues span teams, which share no manual order.
 // It loads no feedback counts, so it offers no Requests ordering.
-const ORDER_OPTIONS = SORT_FIELDS.filter((f) => f.value !== 'manual' && f.value !== 'requests');
+const ORDER_OPTIONS = SORT_FIELDS.filter((f) => MY_ISSUES_ORDERINGS.has(f.value));
 
 // Linear's Display menu for My issues: grouping and ordering (the Activity tab lists
 // by the newest change and ignores both), which issues show, and the row properties.

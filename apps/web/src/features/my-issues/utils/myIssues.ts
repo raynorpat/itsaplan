@@ -4,7 +4,8 @@ import { isDueOverdue } from '@/utils/dates';
 import { PRIORITY_ORDER, priorityLabel } from '@/utils/fieldOptions';
 import { projectDisplayName } from '@/utils/projectMeta';
 import type { GroupField } from '@/utils/viewSettings';
-import type { Sort } from '@/utils/viewTypes';
+import { compareKeys, extremeText } from '@/utils/team';
+import type { Sort, SortField } from '@/utils/viewTypes';
 import type { ListRowData } from '@/components/common/board/list/ListRowContent';
 import type { MyIssue } from '../services/myIssues.service';
 
@@ -186,10 +187,36 @@ interface SortableIssue {
   updatedAt: string;
   state: { type: string };
   assignee: { name: string } | null;
+  completedAt?: string | null;
+  estimate?: number | null;
+  project?: { name: string } | null;
+  cycle?: { startsAt: string | null } | null;
+  labels?: { name: string }[];
 }
 
-// Returns a new array in the chosen order. Missing values (no due date, no assignee)
-// sort last in both directions, as on a team's list; ties keep the loaded order.
+// The orderings My issues offers: the team list's, without manual order and the ones
+// that need one team's data (requests, milestone, release, link count, customer
+// revenue).
+export const MY_ISSUES_ORDERINGS: ReadonlySet<SortField> = new Set<SortField>([
+  'title',
+  'identifier',
+  'status',
+  'priority',
+  'assignee',
+  'dueDate',
+  'created',
+  'updated',
+  'estimate',
+  'completed',
+  'cycle',
+  'project',
+  'label',
+]);
+
+// Returns a new array in the chosen order, with the team list's value rules
+// (compareKeys): missing values last in both directions, text without regard to case,
+// several labels by the lowest name ascending and the highest descending; ties keep
+// the loaded order.
 export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): T[] {
   const { field, dir } = myIssuesSort(sort);
   const sign = dir === 'desc' ? -1 : 1;
@@ -211,22 +238,24 @@ export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): 
         return i.dueDate;
       case 'created':
         return i.createdAt;
+      case 'estimate':
+        return i.estimate ?? null;
+      case 'completed':
+        return i.completedAt ?? null;
+      case 'cycle':
+        return i.cycle?.startsAt ?? null;
+      case 'project':
+        return i.project?.name ?? null;
+      case 'label':
+        return extremeText(
+          (i.labels ?? []).map((l) => l.name),
+          dir,
+        );
       default:
         return i.updatedAt;
     }
   };
-  return [...issues].sort((a, b) => {
-    const ka = key(a);
-    const kb = key(b);
-    if (ka === kb) return 0;
-    if (ka == null || ka === '') return 1;
-    if (kb == null || kb === '') return -1;
-    const cmp =
-      typeof ka === 'number' && typeof kb === 'number'
-        ? ka - kb
-        : String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
-    return cmp * sign;
-  });
+  return [...issues].sort((a, b) => compareKeys(key(a), key(b), sign));
 }
 
 // A My issues issue as a row of the shared list. The identifier (KEY-N) names the

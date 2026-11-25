@@ -9,6 +9,7 @@ import {
   type WorkItemsViewProps,
   type IssueGroup,
 } from '@/utils/team';
+import { useIssueSortContext } from '@/hooks/useIssueSortContext';
 import { useBoardDnd } from '@/hooks/useBoardDnd';
 import { useSelection } from '@/context/useSelection';
 import { boardCollision, boardOrder } from '@/utils/kanban';
@@ -57,10 +58,11 @@ export default function FlatBoard({
         : settings.collapsedGroups.filter((k) => k !== key),
     });
 
+  const sortContext = useIssueSortContext(team.team.key, settings.sort);
   const groups = buildGroups(team, settings.group);
   const issuesByGroup = groupIssues(
     groups,
-    sortIssues(team.issues, settings.sort, team),
+    sortIssues(team.issues, settings.sort, team, sortContext),
     settings.group,
   );
   const maps = buildMaps(team);

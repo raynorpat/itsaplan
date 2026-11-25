@@ -8,7 +8,7 @@ import type { Issue, IssuePatch, NewIssueInput } from '@/types/issue';
 import { PRIORITIES } from '@/utils/fieldOptions';
 import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } from '@/utils/cycles';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
-import type { Sort } from '@/utils/viewTypes';
+import type { Sort, SortField } from '@/utils/viewTypes';
 import { projectDisplayName } from '@/utils/projectMeta';
 
 export type { Sort, SortField } from '@/utils/viewTypes';
@@ -68,24 +68,39 @@ export function issueColor(issue: Issue, maps: Maps): string {
   return maps.columnById.get(issue.stateId)?.color ?? DEFAULT_COLOR;
 }
 
-// Returns a new array sorted by the chosen field. Missing values (no assignee,
-// no due date, …) always sort last, regardless of direction, matching Linear.
-// Ties fall back to the manual position so the order is stable. 'manual' returns
-// the input unchanged (already position-ordered by the API).
-export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue[] {
+// What ordering needs beyond the issues: whether Customers is on (the requests and
+// customer revenue orderings follow it) and, for release and link count, each issue's
+// rank in the order the API returned (useIssueOrderRanks).
+export interface SortContext {
+  customersOn?: boolean;
+  ranks?: ReadonlyMap<string, number>;
+}
+
+// Orderings read from the API's ranks: the rank is already in the chosen direction.
+const RANKED: ReadonlySet<SortField> = new Set<SortField>(['release', 'linkCount']);
+
+// Returns a new array sorted by the chosen field, with the API's value rules
+// (graphql/issue-sort.ts): empty values (no estimate, no project, …) last in both
+// directions, text without regard to case, an issue with several labels by its lowest
+// name ascending and its highest descending. Ties go by manual position, then newest
+// created, then id, as on the API. 'manual' returns the input unchanged (already
+// position-ordered by the API).
+export function sortIssues(
+  issues: Issue[],
+  sort: Sort,
+  team: TeamDetail,
+  ctx: SortContext = {},
+): Issue[] {
   if (sort.field === 'manual') return issues;
 
   const columnIndex = new Map(team.states.map((c, i) => [c.id, i]));
   const assigneeName = new Map(team.assignees.map((a) => [a.userId, a.name]));
-  const dir = sort.dir === 'desc' ? -1 : 1;
+  const labelName = new Map((team.labels ?? []).map((l) => [l.id, l.name]));
+  const cycleStart = new Map((team.teamCycles ?? []).map((c) => [c.id, c.startsAt]));
+  const ranked = RANKED.has(sort.field);
+  const dir = sort.dir === 'desc' && !ranked ? -1 : 1;
 
-  const numericField =
-    sort.field === 'identifier' ||
-    sort.field === 'status' ||
-    sort.field === 'priority' ||
-    sort.field === 'requests';
-
-  const numKey = (t: Issue): number => {
+  const key = (t: Issue): number | string | null => {
     switch (sort.field) {
       case 'identifier':
         return Number(t.identifier.split('-').pop()) || 0;
@@ -94,45 +109,86 @@ export function sortIssues(issues: Issue[], sort: Sort, team: TeamDetail): Issue
       case 'priority':
         return t.priority === 0 ? 5 : t.priority;
       case 'requests':
-        return requesterCount(t);
-      default:
-        return 0;
-    }
-  };
-
-  const strKey = (t: Issue): string | null => {
-    switch (sort.field) {
+        return ctx.customersOn ? (t.requests?.customerKeys?.length ?? 0) : requesterCount(t);
       case 'title':
         return t.title;
       case 'assignee':
-        return t.assigneeUserId != null ? (assigneeName.get(t.assigneeUserId) ?? '') : null;
+        return t.assigneeUserId != null ? (assigneeName.get(t.assigneeUserId) ?? null) : null;
       case 'dueDate':
         return t.dueDate;
       case 'created':
         return t.createdAt;
       case 'updated':
         return t.updatedAt;
+      case 'estimate':
+        return t.estimate ?? null;
+      case 'completed':
+        return t.completedAt ?? null;
+      case 'cycle':
+        return t.cycle?.startsAt ?? (t.cycleId ? (cycleStart.get(t.cycleId) ?? null) : null);
+      case 'project':
+        return t.project?.title ?? null;
+      case 'milestone':
+        return t.milestoneTargetDate ?? null;
+      case 'label':
+        return extremeText(
+          t.labelIds.flatMap((id) => labelName.get(id) ?? []),
+          sort.dir,
+        );
+      case 'release':
+      case 'linkCount':
+        return ctx.ranks?.get(t.id) ?? null;
+      case 'customerRevenue': {
+        const values = Object.values(t.requests?.customerRevenue ?? {});
+        return ctx.customersOn && values.length > 0 ? Math.max(...values) : null;
+      }
       default:
         return null;
     }
   };
 
   return [...issues].sort((a, b) => {
-    let cmp: number;
-    if (numericField) {
-      cmp = numKey(a) - numKey(b);
-    } else {
-      const sa = strKey(a);
-      const sb = strKey(b);
-      if (!sa && !sb) cmp = 0;
-      else if (!sa)
-        return 1; // missing value last, unaffected by direction
-      else if (!sb) return -1;
-      else cmp = sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
-    }
-    if (cmp === 0) return a.position - b.position;
-    return cmp * dir;
+    const cmp = compareKeys(key(a), key(b), dir);
+    return cmp !== 0 ? cmp : tieBreak(a, b);
   });
+}
+
+// The lowest name ascending, the highest descending, without regard to case; null for
+// none.
+export function extremeText(names: string[], dir: 'asc' | 'desc'): string | null {
+  if (names.length === 0) return null;
+  return names.reduce((best, n) => {
+    const c = compareText(n, best);
+    return (dir === 'asc' ? c < 0 : c > 0) ? n : best;
+  });
+}
+
+const compareText = (a: string, b: string): number =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+// Compares two ordering values in direction `dir` (1 or -1); empty values (null or '')
+// go last whichever the direction.
+export function compareKeys(
+  a: number | string | null,
+  b: number | string | null,
+  dir: number,
+): number {
+  const emptyA = a == null || a === '';
+  const emptyB = b == null || b === '';
+  if (emptyA && emptyB) return 0;
+  if (emptyA) return 1;
+  if (emptyB) return -1;
+  const cmp =
+    typeof a === 'number' && typeof b === 'number' ? a - b : compareText(String(a), String(b));
+  return cmp * dir;
+}
+
+// The API's tie-break after the chosen keys: manual position, then newest created,
+// then id descending.
+function tieBreak(a: Issue, b: Issue): number {
+  return (
+    a.position - b.position || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+  );
 }
 
 // Position of a issue dropped at `index` within `issuesInColumn` — the

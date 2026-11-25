@@ -56,6 +56,7 @@ export const IssueFields = graphql(`
     }
     projectMilestone {
       id
+      targetDate
     }
     cycle {
       id
@@ -83,6 +84,7 @@ export function toIssue(data: FragmentOf<typeof IssueFields>): Issue {
     stateId: node.state.id,
     parentId: node.parent?.id ?? null,
     projectMilestoneId: node.projectMilestone?.id ?? null,
+    milestoneTargetDate: node.projectMilestone?.targetDate ?? null,
     cycleId: node.cycle?.id ?? null,
     cycle: node.cycle
       ? {
