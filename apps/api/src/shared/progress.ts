@@ -1,7 +1,7 @@
 // Linear's progress rule for cycles and projects: completed issues count 1, started
 // issues 0.25, canceled issues are left out. Weighted by estimate when any counted
-// issue has an estimate above 0 (an issue without an estimate then counts 1),
-// otherwise by issue count. 0 when nothing counts; 0.999 instead of 1 while open
+// issue has an estimate above 0 (an issue without an estimate then counts its team's
+// `defaultIssueEstimate`), otherwise by issue count. 0 when nothing counts; 0.999 instead of 1 while open
 // issues with a zero estimate remain.
 
 export interface Progress {
@@ -15,6 +15,8 @@ export interface Progress {
 
 export interface ProgressIssue {
   estimate: number | null;
+  // The issue's team's `default_issue_estimate`, counted when `estimate` is null.
+  defaultEstimate: number;
   // The workflow state's type: backlog, unstarted, started, completed, canceled.
   type: string;
 }
@@ -27,7 +29,8 @@ export interface ProgressTotals {
   startedCount: number;
   // Whether any counted issue has an estimate above 0.
   weighted: boolean;
-  // Sums of the estimates (an issue without one counts 1) of the same three sets.
+  // Sums of the estimates (an issue without one counts its team's default) of the same
+  // three sets.
   weight: number;
   completedWeight: number;
   startedWeight: number;
@@ -55,7 +58,8 @@ export function weighProgress(rows: ProgressIssue[]): Progress {
   const counted = rows.filter((r) => r.type !== 'canceled');
   const completed = counted.filter((r) => r.type === 'completed');
   const started = counted.filter((r) => r.type === 'started');
-  const sum = (list: ProgressIssue[]) => list.reduce((n, r) => n + (r.estimate ?? 1), 0);
+  const sum = (list: ProgressIssue[]) =>
+    list.reduce((n, r) => n + (r.estimate ?? r.defaultEstimate), 0);
   return weighTotals({
     count: counted.length,
     completedCount: completed.length,

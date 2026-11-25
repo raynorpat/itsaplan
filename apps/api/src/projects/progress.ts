@@ -1,4 +1,4 @@
-import { db, issue, issueActivity, project, projectStatus, workflowState } from '@repo/db';
+import { db, issue, issueActivity, project, projectStatus, team, workflowState } from '@repo/db';
 import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { weighProgress, weighTotals, type Progress, type ProgressIssue } from '../shared/progress';
 
@@ -76,7 +76,7 @@ const sameHistory = (a: ProjectHistory, b: ProjectHistory) =>
 export async function liveProgressMany(projectIds: string[]): Promise<Map<string, Progress>> {
   const out = new Map<string, Progress>();
   const counted = sql`${workflowState.stateType} <> 'canceled'`;
-  const weight = sql`coalesce(${issue.estimate}, 1)`;
+  const weight = sql`coalesce(${issue.estimate}, ${team.defaultIssueEstimate})`;
   const rows = await inBatches(projectIds, (batch) =>
     db
       .select({
@@ -92,6 +92,7 @@ export async function liveProgressMany(projectIds: string[]): Promise<Map<string
       })
       .from(issue)
       .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+      .innerJoin(team, eq(team.id, issue.teamId))
       .where(inArray(issue.projectId, batch))
       .groupBy(issue.projectId),
   );
@@ -191,6 +192,7 @@ interface Checkpoint {
 interface IssueTimeline {
   createdAt: number;
   estimate: number | null;
+  defaultEstimate: number;
   initial: { projectId: string | null; stateId: string };
   changes: Checkpoint[];
 }
@@ -221,9 +223,11 @@ async function loadTimelines(ids: string[]) {
         projectId: issue.projectId,
         stateId: issue.stateId,
         estimate: issue.estimate,
+        defaultEstimate: team.defaultIssueEstimate,
         createdAt: issue.createdAt,
       })
       .from(issue)
+      .innerJoin(team, eq(team.id, issue.teamId))
       .where(inArray(issue.id, batch)),
   );
   const activity = await inBatches(
@@ -287,6 +291,7 @@ async function loadTimelines(ids: string[]) {
     const timeline: IssueTimeline = {
       createdAt: i.createdAt.getTime(),
       estimate: i.estimate,
+      defaultEstimate: i.defaultEstimate,
       initial: cur,
       changes: changes.reverse(),
     };
@@ -322,6 +327,7 @@ function daysOf(
       if (value.projectId !== projectId) continue;
       rows[day - start]!.push({
         estimate: t.estimate,
+        defaultEstimate: t.defaultEstimate,
         type: stateTypes.get(value.stateId) ?? 'backlog',
       });
     }

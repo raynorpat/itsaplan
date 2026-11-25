@@ -1,4 +1,4 @@
-import { db, issue, workflowState } from '@repo/db';
+import { db, issue, team, workflowState } from '@repo/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { visibleTeamIds } from '../shared/access';
 import { weighProgress, type Progress } from '../shared/progress';
@@ -16,9 +16,14 @@ export async function releaseProgress(
   viewerId: string,
 ): Promise<ReleaseProgress> {
   const rows = await db
-    .select({ estimate: issue.estimate, type: workflowState.stateType })
+    .select({
+      estimate: issue.estimate,
+      defaultEstimate: team.defaultIssueEstimate,
+      type: workflowState.stateType,
+    })
     .from(issue)
     .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .innerJoin(team, eq(team.id, issue.teamId))
     .where(
       and(
         inReleaseSql(releaseId),

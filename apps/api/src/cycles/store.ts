@@ -313,9 +313,14 @@ export type CycleProgress = Progress;
 // Linear's cycle progress (shared/progress.ts) over the cycle's issues.
 export async function cycleProgress(cycleId: string): Promise<CycleProgress> {
   const rows = await db
-    .select({ estimate: issue.estimate, type: workflowState.stateType })
+    .select({
+      estimate: issue.estimate,
+      defaultEstimate: team.defaultIssueEstimate,
+      type: workflowState.stateType,
+    })
     .from(issue)
     .innerJoin(workflowState, eq(workflowState.id, issue.stateId))
+    .innerJoin(team, eq(team.id, issue.teamId))
     .where(eq(issue.cycleId, cycleId));
   return weighProgress(rows);
 }
