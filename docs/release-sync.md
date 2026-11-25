@@ -61,12 +61,16 @@ else
 fi
 
 # Each issue identifier (team key, dash, number) in those commit messages, once, with
-# the newest commit that mentions it. `|| true`: a commit that names no issue makes grep
-# exit 1, which would stop the script under `set -e`. The pattern has no `\b`, so
-# busybox grep (Alpine) reads it the same way as GNU grep.
+# the newest commit that mentions it. An identifier must end at a character that is not
+# a letter or digit, so a typo such as ENG-1O is sent whole (and reported as notFound)
+# instead of being read as ENG-1; sed then drops that ending character. `|| true`: a
+# commit that names no issue makes grep exit 1, which would stop the script under
+# `set -e`. The pattern has no `\b`, so busybox grep (Alpine) reads it the same way as
+# GNU grep.
 REFERENCES=$(for commit in $COMMITS; do
   git log -1 --format=%B "$commit" |
-    { grep -oE '[A-Z][A-Z0-9]+-[0-9]+' || true; } |
+    { grep -oE '[A-Z][A-Z0-9]+-[0-9]+[A-Za-z0-9]*([^A-Za-z0-9]|$)' || true; } |
+    sed -E 's/[^A-Za-z0-9]$//' |
     sort -u |
     sed "s/\$/\t$commit/"
 done | sort -s -u -t "$(printf '\t')" -k1,1 |
