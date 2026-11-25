@@ -50,6 +50,12 @@ describe('parseCsv', () => {
     expect(parseCsv('Title\n=SUM(A1:A2)\n').rows).toEqual([['=SUM(A1:A2)']]);
   });
 
+  it('refuses a quote that is never closed, naming its line', () => {
+    expect(() => parseCsv('Summary,Status\n"Broken,Done\nB,Done\nC,Done\n')).toThrow(
+      'Unclosed quote starting on line 2',
+    );
+  });
+
   it('refuses a file without a header line', () => {
     expect(() => parseCsv('')).toThrow('The file is empty');
   });

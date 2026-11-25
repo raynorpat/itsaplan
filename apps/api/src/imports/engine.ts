@@ -17,7 +17,13 @@ import { joinTeam } from '../members/store';
 import { HttpError } from '../shared/lib';
 import { runAsImport } from '../shared/workflow-context';
 import { isValidEstimate } from '../teams/estimates';
-import { createTeam, getTeamById, getTeamByKey, type TeamRow } from '../teams/store';
+import {
+  createTeam,
+  DEFAULT_COLUMNS,
+  getTeamById,
+  getTeamByKey,
+  type TeamRow,
+} from '../teams/store';
 import { guessStatusState, type StateOption } from './csv/guess';
 import { normalizeColor, pastDate, personName, splitTitle, teamKeyFor } from './normalize';
 import { releaseImportFile } from './files';
@@ -68,6 +74,40 @@ async function teamStates(teamId: string): Promise<StateIds> {
     canceled: first('canceled') ?? completed,
     all: rows.map((r) => ({ id: r.id, name: r.name, type: r.type, position: Number(r.position) })),
   };
+}
+
+// The states a CSV import's statuses map onto, with the default for unknown values: the
+// destination team's active states, or, for a team the import creates, its default
+// columns named by name (their ids do not exist yet).
+export async function destinationStates(
+  teamId: string | null,
+): Promise<{ states: StateOption[]; defaultId: string }> {
+  if (!teamId) {
+    const states = DEFAULT_COLUMNS.map((c, i) => ({
+      id: c.name,
+      name: c.name,
+      type: c.stateType,
+      position: i,
+    }));
+    return { states, defaultId: states.find((s) => s.type === 'unstarted')!.id };
+  }
+  const ids = await teamStates(teamId);
+  return { states: ids.all, defaultId: ids.open };
+}
+
+// Refuses a Statuses mapping whose target is not one of the destination's active
+// states (by id or name, ignoring case), naming the status value.
+export async function checkStatusTargets(
+  teamId: string | null,
+  statuses: Record<string, string>,
+): Promise<void> {
+  if (Object.keys(statuses).length === 0) return;
+  const { states } = await destinationStates(teamId);
+  for (const [value, target] of Object.entries(statuses)) {
+    const lower = target.toLowerCase();
+    if (!states.some((s) => s.id === target || s.name.trim().toLowerCase() === lower))
+      throw new HttpError(400, `Status "${value}" maps to a state the team does not have`);
+  }
 }
 
 // The state a CSV row's status maps to: the Statuses mapping's state (an id of the
@@ -418,7 +458,9 @@ async function importIssue(
       .update(issueImportSource)
       .set({ imported: true })
       .where(eq(issueImportSource.issueId, created.id));
-  else
+  // The link back to the source (always for API sources, a Jira CSV with a host) is
+  // marked complete too.
+  if (source.url)
     await db
       .update(attachment)
       .set({ metadata: sql`${attachment.metadata} || '{"imported": true}'::jsonb` })

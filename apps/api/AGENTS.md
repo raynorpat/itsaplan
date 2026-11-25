@@ -478,8 +478,10 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `application/octet-stream`) whatever the workspace's attachment types, up to
   `MAX_ATTACHMENT_MB`; the raw route answers 404 for it, and only its uploader reads it
   back (`uploads/import-files.ts` `readImportFile`, with the SHA-256 of its bytes)
-  until `deleteImportFile` removes it. CSV text is read by `imports/csv/parse.ts`
-  (comma or semicolon, RFC 4180 quoting, at most 10,000 rows).
+  until `deleteImportFile` removes it; it is never claimed as an attachment or an avatar
+  (`ownStoredUpload`). CSV text is read by `imports/csv/parse.ts` (comma or semicolon,
+  RFC 4180 quoting, at most 10,000 rows; a quote never closed is 400 "Unclosed quote
+  starting on line <n>").
 - **Notifications and subscriptions** (`notifications/`): `issue_subscription` holds
   Linear's issue subscribers. Creating an issue subscribes its creator and assignee;
   a new assignee, a comment's author and the members a comment mentions are
@@ -624,10 +626,17 @@ Rules and invariants for this package below; read the code for the walkthrough.
   **generic** CSV only through the Import page, with `source: generic` and the column
   mapping confirmed on its Columns step (`/api/auth/instance/imports/csv/preview` gives
   the headers, sample rows, guessed mapping and whether the file is a Jira export). The
-  import's `serviceMetadata.statuses` lists the file's distinct status values;
-  `issueImportProcess` (or `issueImportUpdate`, which saves the mapping without starting)
-  and the Import page's process endpoint take `statuses` (`{ "<value>": "<state id or
-  name>" }`) beside `people`; a value left out takes the guess (`csv/guess.ts`). A CSV
+  import's `serviceMetadata.statuses` lists the file's distinct status values and
+  `statusGuesses` the guessed state of each (`csv/guess.ts`: a state id, or a default
+  state name for a team the import creates); `issueImportProcess` (or
+  `issueImportUpdate`, which saves the mapping without starting, only while the import
+  waits for it, else CONFLICT) and the Import page's process endpoint take `statuses`
+  (`{ "<value>": "<state id or name>" }`) beside `people`; a value left out takes the
+  guess, and a target that is not one of the destination's active states is 400 naming
+  the status value, checked before the waiting rows are taken (`checkStatusTargets`).
+  One person has at most 3 CSV imports waiting for their mapping (409 "Finish or cancel
+  a waiting import first"), since each holds its rows in memory. The date format guess
+  reads every row. Jira wiki links keep only http, https and mailto targets. A CSV
   row's state type sets its completed or canceled date; its priority, due date and
   estimate (kept only on the team's scale, else counted) are imported. A CSV row has no
   source URL: its identity in the team (`jira:<Issue key>`, `csv:<ID column>`, else
@@ -635,8 +644,10 @@ Rules and invariants for this package below; read the code for the walkthrough.
   the identical file) is recorded in `issue_import_source` in the issue's transaction
   with the same `imported` flag as a link. Rows without a title and values that did not
   read are reported in the summary (`skipped` as "Row <n>", `counts`). The file is marked
-  used while the import runs and deleted when it ends (completed, error, expired or
-  interrupted; `imports/files.ts`).
+  used once the import exists (a refused create leaves it to the daily sweep) and
+  deleted when the import ends (completed, error, expired or interrupted;
+  `imports/files.ts`). A Jira link's key is URL-encoded, and the link is marked
+  imported once the issue's comments are in.
 - **Estimates** (`teams/estimates.ts`, Linear's `Team.issueEstimation*`): a team's
   scale is `issueEstimationType` (`notUsed`, the default for every team, `exponential`
   1, 2, 4, 8, 16, `fibonacci` 1, 2, 3, 5, 8, `linear` 1–5, `tShirt` stored as 1, 2, 3,

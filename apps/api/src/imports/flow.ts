@@ -3,7 +3,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm';
 import { memberEmails } from '../accounts/emails';
 import { HttpError, pgErrorCode, UUID_RE } from '../shared/lib';
 import { shownName } from '../shared/user-name';
-import { processImport, suggestPeople } from './engine';
+import { checkStatusTargets, processImport, suggestPeople } from './engine';
 import { releaseImportFile } from './files';
 import { withRateLimitNotice } from './sources/http';
 import {
@@ -204,6 +204,10 @@ export async function startProcessing(
   people: Record<string, string | null>,
   statuses: Record<string, string> = {},
 ): Promise<ImportRow> {
+  if (!fetched.has(row.id))
+    throw new HttpError(409, 'The import is not waiting for people matching');
+  // Checked before the fetched data is taken, so a mistyped target can be corrected.
+  await checkStatusTargets(row.teamId, statuses);
   const entry = fetched.get(row.id);
   if (!entry) throw new HttpError(409, 'The import is not waiting for people matching');
   fetched.delete(row.id);

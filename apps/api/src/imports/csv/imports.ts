@@ -2,11 +2,12 @@ import { HttpError } from '../../shared/lib';
 import { canSeeTeam } from '../../shared/access';
 import { readImportFile } from '../../uploads/import-files';
 import { getUpload, setUploadUsed, uploadIdFromAssetUrl } from '../../uploads/store';
-import { beginFetch } from '../flow';
-import { createImport, type ImportRow } from '../store';
+import { destinationStates } from '../engine';
+import { beginFetch, isAwaitingPeople } from '../flow';
+import { createImport, listImports, type ImportRow } from '../store';
 import type { SourceData } from '../types';
 import { readGenericCsv } from './generic';
-import { guessColumns, type ColumnMapping, type MappedField } from './guess';
+import { guessColumns, guessStatusState, type ColumnMapping, type MappedField } from './guess';
 import { isJiraCsv, readJiraCsv } from './jira';
 import { parseCsv } from './parse';
 import type { CsvSource } from './source';
@@ -21,6 +22,10 @@ export const NOT_JIRA = 'The file is not a Jira CSV export (no Summary column)';
 
 // Rows shown on the Columns step.
 const SAMPLE_ROWS = 5;
+
+// CSV imports one person may have waiting for their Statuses and People steps at once:
+// each holds its parsed rows in memory until processed or expired.
+const MAX_WAITING_CSV = 3;
 
 const FIELDS: MappedField[] = [
   'title',
@@ -57,7 +62,8 @@ export async function previewCsv(userId: string, assetUrl: unknown) {
     headers: parsed.headers,
     sample: parsed.rows.slice(0, SAMPLE_ROWS),
     rows: parsed.rows.length,
-    guess: guessColumns(parsed.headers, parsed.rows.slice(0, 50)),
+    // Every row, so evidence for the date format anywhere in the file counts.
+    guess: guessColumns(parsed.headers, parsed.rows),
     jira: isJiraCsv(parsed.headers),
   };
 }
@@ -122,6 +128,14 @@ async function destination(
 // People steps. The file is marked used so the daily upload sweep keeps it.
 export async function createCsvImport(input: CsvImportInput): Promise<ImportRow> {
   const team = await destination(input.userId, input.teamId, input.teamName);
+  const waiting = (await listImports()).filter(
+    (r) =>
+      r.creatorId === input.userId &&
+      (r.service === 'jira' || r.service === 'csv') &&
+      isAwaitingPeople(r),
+  );
+  if (waiting.length >= MAX_WAITING_CSV)
+    throw new HttpError(409, 'Finish or cancel a waiting import first');
   const host = input.source === 'jira' ? jiraHost(input.jiraHostname) : null;
   const { parsed, sha256 } = await readFile(input.userId, input.assetUrl);
   let source: CsvSource;
@@ -131,14 +145,17 @@ export async function createCsvImport(input: CsvImportInput): Promise<ImportRow>
     if (host)
       for (const issue of source.data.issues)
         if (issue.sourceKey?.startsWith('jira:'))
-          issue.url = `https://${host}/browse/${issue.sourceKey.slice('jira:'.length)}`;
+          issue.url = `https://${host}/browse/${encodeURIComponent(issue.sourceKey.slice('jira:'.length))}`;
   } else {
     source = readGenericCsv(parsed, columnMapping(input.mapping), sha256);
   }
   const assetUrl = input.assetUrl as string;
   const uploadId = uploadIdFromAssetUrl(assetUrl)!;
   const upload = await getUpload(uploadId);
-  await setUploadUsed(uploadId, true);
+  const { states, defaultId } = await destinationStates(team.teamId);
+  const statusGuesses = Object.fromEntries(
+    source.statuses.map((value) => [value, guessStatusState(value, states, defaultId)]),
+  );
   const data: SourceData = {
     ...source.data,
     csv: { skipped: source.skipped, counts: source.counts },
@@ -153,9 +170,14 @@ export async function createCsvImport(input: CsvImportInput): Promise<ImportRow>
       csvUrl: assetUrl,
       rows: parsed.rows.length,
       statuses: source.statuses,
+      // value → state id (an existing team) or default state name (a new team).
+      statusGuesses,
       ...(host ? { jiraHostname: host } : {}),
     },
   });
+  // Marked used only once the import exists, so a refused create leaves the file to the
+  // daily sweep of unused uploads.
+  await setUploadUsed(uploadId, true);
   beginFetch(row, async () => data);
   return row;
 }

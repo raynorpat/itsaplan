@@ -1,5 +1,11 @@
 import { checkJiraCsv, createCsvImport } from '../../imports/csv/imports';
-import { findImport, peopleMapping, startProcessing, statusMapping } from '../../imports/flow';
+import {
+  findImport,
+  isAwaitingPeople,
+  peopleMapping,
+  startProcessing,
+  statusMapping,
+} from '../../imports/flow';
 import {
   connectGithub,
   createGithubImport,
@@ -149,6 +155,9 @@ export const issueImportResolvers = {
       guard(async () => {
         await assertImporter(ctx);
         const row = await findImport(id);
+        // The mapping of an import that ran is the record of what was used.
+        if (!isAwaitingPeople(row))
+          throw new HttpError(409, 'The import is not waiting for its mapping');
         const parts = mappingParts(input.mapping);
         return importPayload(await setImportMapping(row.id, parts));
       }),

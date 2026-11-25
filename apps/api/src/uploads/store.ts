@@ -191,7 +191,11 @@ export async function ownStoredUpload(url: string, userId: string): Promise<Uplo
   const id = uploadIdFromAssetUrl(url);
   if (!id) return null;
   const row = await getUpload(id);
-  return row && row.userId === userId && row.completedAt && !row.usedAt ? row : null;
+  // An import file is never an attachment or an avatar: it is not served and is
+  // deleted when its import ends.
+  return row && row.userId === userId && row.completedAt && !row.usedAt && !isImportFile(row)
+    ? row
+    : null;
 }
 
 // Claims a stored upload of `userId` for one use (an attachment or an avatar). Returns

@@ -32,6 +32,9 @@ function* records(text: string, delimiter: string): Generator<string[]> {
   let field = '';
   let record: string[] = [];
   let quoted = false;
+  // The 1-based line where the open quote started, for the error on an unclosed one.
+  let line = 1;
+  let quoteLine = 0;
   let i = 0;
   while (i < text.length) {
     const ch = text[i]!;
@@ -44,6 +47,7 @@ function* records(text: string, delimiter: string): Generator<string[]> {
         }
         quoted = false;
       } else {
+        if (ch === '\n') line++;
         field += ch;
       }
       i++;
@@ -51,6 +55,7 @@ function* records(text: string, delimiter: string): Generator<string[]> {
     }
     if (ch === '"' && field === '') {
       quoted = true;
+      quoteLine = line;
     } else if (ch === delimiter) {
       record.push(field);
       field = '';
@@ -60,11 +65,14 @@ function* records(text: string, delimiter: string): Generator<string[]> {
       record = [];
       field = '';
       if (ch === '\r' && text[i + 1] === '\n') i++;
+      line++;
     } else {
       field += ch;
     }
     i++;
   }
+  // A quote never closed would swallow the rest of the file into one value.
+  if (quoted) throw new HttpError(400, `Unclosed quote starting on line ${quoteLine}`);
   if (field !== '' || record.length > 0) {
     record.push(field);
     yield record;

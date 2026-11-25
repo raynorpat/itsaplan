@@ -13,7 +13,11 @@ function inline(text: string): string {
   });
   out = out
     .replace(/!([^!\s|]+)(?:\|[^!]*)?!/g, '$1')
-    .replace(/\[([^\]|]+)\|([^\]]+)\]/g, '[$1]($2)')
+    // Only web and mail links stay links; any other target (javascript:, data:) is
+    // dropped and the text kept.
+    .replace(/\[([^\]|]+)\|([^\]]+)\]/g, (_, text: string, url: string) =>
+      /^(https?|mailto):/i.test(url.trim()) ? `[${text}](${url})` : text,
+    )
     .replace(/\[((?:https?|mailto):[^\]\s]+)\]/g, '<$1>')
     .replace(/(^|[^\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, '$1**$2**')
     .replace(/(^|[^\w_])_(?=\S)([^_\n]*?\S)_(?![\w_])/g, '$1*$2*');

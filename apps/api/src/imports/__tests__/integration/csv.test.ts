@@ -4,13 +4,19 @@ import { and, asc, eq } from 'drizzle-orm';
 import { app } from '../../../app';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createTeam, gqlData, signUpAs } from '../../../__tests__/helpers/graphql';
+import {
+  createIssue,
+  createState,
+  createTeam,
+  gqlData,
+  signUpAs,
+} from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 import { putObject } from '../../../shared/s3';
 import { uploadIdFromAssetUrl } from '../../../uploads/store';
 import { processImport } from '../../engine';
-import { isAwaitingPeople } from '../../flow';
-import { getImport, type ImportRow } from '../../store';
+import { expireWaitingImports, isAwaitingPeople } from '../../flow';
+import { getImport, sweepInterruptedImports, type ImportRow } from '../../store';
 
 // CSV imports end to end: a Jira export through Linear's issueImportCheckCSV /
 // issueImportCreateCSVJira / issueImportProcess, a generic CSV through the Import page's
@@ -359,5 +365,155 @@ describe('the import file', () => {
         .from(issue)
         .where(and(eq(issue.teamId, teamId))),
     ).toEqual([]);
+  });
+});
+
+// Review fixes: status guesses, status targets, mapping updates, waiting limits, file
+// lifetime on expiry and restart, the Jira link, and import files kept out of
+// attachments.
+describe('review fixes', () => {
+  const create = async (url: string, extra: Record<string, unknown> = {}) =>
+    plugin(owner, '/instance/imports/csv/create', {
+      assetUrl: url,
+      source: 'jira',
+      teamId,
+      ...extra,
+    });
+  const waiting = async (extra: Record<string, unknown> = {}) => {
+    const url = await upload(owner, JIRA);
+    const res = await create(url, extra);
+    expect(res.status).toBe(200);
+    const { import: row } = (await res.json()) as { import: { id: string } };
+    return { url, row: await waitFor(row.id, isAwaitingPeople) };
+  };
+
+  it('stores a guessed state for every status', async () => {
+    if (!storeAvailable) return;
+    const { row } = await waiting();
+    const guesses = (row.serviceMetadata as { statusGuesses: Record<string, string> })
+      .statusGuesses;
+    expect(guesses.Done).toBe(states.Done!);
+    expect(guesses['In Review']).toBe(states['In Progress']!);
+    expect(guesses["Won't Do"]).toBe(states.Canceled!);
+  });
+
+  it('guesses default state names for a new team', async () => {
+    if (!storeAvailable) return;
+    const { row } = await waiting({ teamId: undefined, teamName: 'Imported' });
+    const guesses = (row.serviceMetadata as { statusGuesses: Record<string, string> })
+      .statusGuesses;
+    expect(guesses.Done).toBe('Done');
+    expect(guesses["Won't Do"]).toBe('Canceled');
+  });
+
+  it('refuses a status mapped to a state the team does not have', async () => {
+    if (!storeAvailable) return;
+    const { row } = await waiting();
+    const res = await plugin(owner, '/instance/imports/process', {
+      id: row.id,
+      people: {},
+      statuses: { Done: 'Nope' },
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { message: string }).message).toContain('"Done"');
+    expect(isAwaitingPeople((await getImport(row.id))!)).toBe(true);
+  });
+
+  it('refuses a status mapped to an archived state', async () => {
+    if (!storeAvailable) return;
+    const old = (await createState(owner, { teamId, name: 'Old', type: 'started' })).id;
+    await gqlData(owner, `mutation($id: String!) { workflowStateArchive(id: $id) { success } }`, {
+      id: old,
+    });
+    const { row } = await waiting();
+    const res = await plugin(owner, '/instance/imports/process', {
+      id: row.id,
+      people: {},
+      statuses: { Done: old },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses issueImportUpdate once the import is no longer waiting', async () => {
+    if (!storeAvailable) return;
+    const { row } = await waiting();
+    await plugin(owner, '/instance/imports/process', { id: row.id, people: {} });
+    await waitFor(row.id, (r) => r.status === 'complete');
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation($id: String!, $mapping: JSONObject!) {
+         issueImportUpdate(id: $id, input: { mapping: $mapping }) { success }
+       }`,
+      { id: row.id, mapping: { statuses: { Done: 'Backlog' } } },
+    );
+    expect(res.body.errors?.[0]?.extensions?.code).toBe('CONFLICT');
+  });
+
+  it('allows at most three waiting CSV imports per person', async () => {
+    if (!storeAvailable) return;
+    for (let i = 0; i < 3; i += 1) await waiting();
+    const url = await upload(owner, JIRA);
+    const res = await create(url);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { message: string }).message).toBe(
+      'Finish or cancel a waiting import first',
+    );
+    // A refused create leaves the file unused, so the daily sweep removes it.
+    expect((await uploadRow(url))!.usedAt).toBeNull();
+  });
+
+  it('deletes the file when a waiting import expires', async () => {
+    if (!storeAvailable) return;
+    const { url } = await waiting();
+    await expireWaitingImports(new Date(Date.now() + 25 * 3_600_000));
+    expect(await uploadRow(url)).toBeUndefined();
+  });
+
+  it('deletes the file when an interrupted import is swept on restart', async () => {
+    if (!storeAvailable) return;
+    const { url } = await waiting();
+    await sweepInterruptedImports();
+    expect(await uploadRow(url)).toBeUndefined();
+  });
+
+  it('marks the Jira link imported and encodes the key', async () => {
+    if (!storeAvailable) return;
+    const rows = 'Summary,Issue key,Status\nOdd key,ENG 9#x,Done\n';
+    const url = await upload(owner, rows);
+    const res = await create(url, { jiraHostname: 'acme.atlassian.net' });
+    const { import: row } = (await res.json()) as { import: { id: string } };
+    await waitFor(row.id, isAwaitingPeople);
+    await plugin(owner, '/instance/imports/process', { id: row.id, people: {} });
+    await waitFor(row.id, (r) => r.status === 'complete');
+    const [link] = await db.select().from(attachment).where(eq(attachment.title, 'Jira ENG 9#x'));
+    expect(link!.url).toBe('https://acme.atlassian.net/browse/ENG%209%23x');
+    expect((link!.metadata as { imported: boolean }).imported).toBe(true);
+  });
+
+  it('guesses the date format from every row', async () => {
+    if (!storeAvailable) return;
+    const lines = ['Title,Due'];
+    for (let i = 0; i < 60; i += 1)
+      lines.push(`Row ${i},${i === 55 ? '25/03/2026' : '01/02/2026'}`);
+    const url = await upload(owner, lines.join('\n'));
+    const res = await plugin(owner, '/instance/imports/csv/preview', { assetUrl: url });
+    const view = (await res.json()) as { guess: { dateFormat: string } };
+    expect(view.guess.dateFormat).toBe('dayFirst');
+  });
+
+  it('does not let an import file become an attachment', async () => {
+    if (!storeAvailable) return;
+    const url = await upload(owner, JIRA);
+    const created = await createIssue(owner, { teamId, title: 'Target' });
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation($issueId: String!, $url: String!) {
+         attachmentCreate(input: { issueId: $issueId, url: $url, title: "csv" }) { success }
+       }`,
+      { issueId: created.id, url },
+    );
+    expect(res.body.errors?.[0]?.message).toBe(
+      'input.url must be one of your finished, unused uploads',
+    );
   });
 });

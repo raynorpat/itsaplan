@@ -28,6 +28,13 @@ describe('wikiToMarkdown', () => {
     );
   });
 
+  it('keeps only http, https and mailto link targets', () => {
+    expect(wikiToMarkdown('[click|javascript:alert(1)] [mail|mailto:a@b.c]')).toBe(
+      'click [mail](mailto:a@b.c)',
+    );
+    expect(wikiToMarkdown('[x|data:text/html,hi] [y|HTTPS://ok.io]')).toBe('x [y](HTTPS://ok.io)');
+  });
+
   it('converts bullet and numbered lists with nesting', () => {
     expect(wikiToMarkdown('* one\n** two\n# first\n## second')).toBe(
       '- one\n  - two\n1. first\n   1. second',
