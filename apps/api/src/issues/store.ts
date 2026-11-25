@@ -2,6 +2,7 @@ import {
   db,
   team as teamTable,
   issue,
+  issueImportSource,
   issueLabel,
   workflowState,
   attachment,
@@ -664,6 +665,9 @@ export interface IssueImportDates {
   completedAt?: Date;
   closedAt?: Date;
   link?: { url: string; title: string; metadata: Record<string, unknown> };
+  // A CSV import's row identity in the team (issue_import_source), recorded with
+  // `imported` false in the same transaction.
+  sourceKey?: string;
 }
 
 // Linear's rules for the import dates: each in the past, completedAt only with
@@ -759,6 +763,13 @@ export async function createIssue(
         ...(dates.createdAt ? { createdAt: dates.createdAt, updatedAt: dates.createdAt } : {}),
       })
       .returning({ id: issue.id });
+    if (dates.sourceKey)
+      await tx.insert(issueImportSource).values({
+        teamId: team.id,
+        sourceKey: dates.sourceKey,
+        issueId: row.id,
+        importId: currentImport() ?? null,
+      });
     if (dates.link)
       await tx.insert(attachment).values({
         issueId: row.id,

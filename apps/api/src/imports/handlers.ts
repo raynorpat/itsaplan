@@ -1,6 +1,7 @@
 import { getActiveSession, type ImportsHandlers } from '@repo/auth';
 import { atLeast, canSeeTeam, workspaceRole } from '../shared/access';
 import { HttpError, UUID_RE } from '../shared/lib';
+import { createCsvImport, previewCsv } from './csv/imports';
 import {
   beginFetch,
   findImport,
@@ -8,6 +9,7 @@ import {
   importView,
   peopleMapping,
   startProcessing,
+  statusMapping,
 } from './flow';
 import { disconnectGithub, githubRepositories, githubStatus } from './github';
 import { fetchGitea, listGiteaRepos, type SourceRepository } from './sources/gitea';
@@ -16,7 +18,8 @@ import { createImport, listImports } from './store';
 import type { SourceData } from './types';
 
 // The instance plugin's import endpoints (packages/auth src/instance-plugin.ts):
-// imports from GitLab, Gitea and Forgejo, which Linear's schema has no import for, and
+// imports from GitLab, Gitea and Forgejo and from a generic CSV file, which Linear's
+// schema has no import for (a Jira CSV too, the same as issueImportCreateCSVJira), and
 // what the Import page reads that Linear's schema has no query for (the imports, the
 // people step, the GitHub connection and its repositories). Workspace owners and
 // admins only. A pasted token is used by the fetch running in this process and
@@ -140,11 +143,42 @@ export const importsHandlers: ImportsHandlers = {
     return importPeople(await findImport(query.id));
   },
 
+  // The Columns step's data for an uploaded import file.
+  csvPreview: async (headers, body) => {
+    const userId = await adminId(headers);
+    return previewCsv(userId, fields(body).assetUrl);
+  },
+
+  // A CSV import: `source` jira (Jira's export) or generic (with `mapping`, the
+  // confirmed columns), into `teamId` or a new team named `teamName`.
+  csvCreate: async (headers, body) => {
+    const userId = await adminId(headers);
+    const b = fields(body);
+    if (b.source !== 'jira' && b.source !== 'generic')
+      throw new HttpError(400, 'source must be jira or generic');
+    const teamId = typeof b.teamId === 'string' && b.teamId ? b.teamId : null;
+    if (teamId && !UUID_RE.test(teamId)) throw new HttpError(404, 'Team not found');
+    const row = await createCsvImport({
+      userId,
+      assetUrl: b.assetUrl,
+      source: b.source,
+      mapping: b.mapping,
+      teamId,
+      teamName: typeof b.teamName === 'string' ? b.teamName : null,
+      jiraHostname: b.jiraHostname,
+    });
+    return { import: importView(row) };
+  },
+
   process: async (headers, body) => {
     await adminId(headers);
     const b = fields(body);
     const row = await findImport(b.id);
-    return { import: importView(await startProcessing(row, peopleMapping(b.people))) };
+    return {
+      import: importView(
+        await startProcessing(row, peopleMapping(b.people), statusMapping(b.statuses)),
+      ),
+    };
   },
 
   github: async (headers) => {

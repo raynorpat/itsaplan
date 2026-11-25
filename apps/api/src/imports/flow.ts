@@ -4,6 +4,7 @@ import { memberEmails } from '../accounts/emails';
 import { HttpError, pgErrorCode, UUID_RE } from '../shared/lib';
 import { shownName } from '../shared/user-name';
 import { processImport, suggestPeople } from './engine';
+import { releaseImportFile } from './files';
 import { withRateLimitNotice } from './sources/http';
 import {
   claimForProcessing,
@@ -94,6 +95,7 @@ export function beginFetch(
       await setImportStatus(row.id, 'error', {
         error: secret ? message.split(secret).join('***') : message,
       });
+      await releaseImportFile(row);
     }
   })();
 }
@@ -164,6 +166,21 @@ export async function importPeople(row: ImportRow) {
   };
 }
 
+// The Statuses mapping from a request (a CSV file's status value → a state id or name
+// of the destination team); values left out use the guess (engine.ts).
+export function statusMapping(value: unknown): Record<string, string> {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value))
+    throw new HttpError(400, 'statuses must map status values to states');
+  const out: Record<string, string> = {};
+  for (const [key, state] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof state !== 'string' || !state.trim())
+      throw new HttpError(400, 'statuses must map status values to state ids or names');
+    out[key] = state.trim();
+  }
+  return out;
+}
+
 // The people mapping from a request (source person key → member id or null).
 export function peopleMapping(value: unknown): Record<string, string | null> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -185,6 +202,7 @@ export function peopleMapping(value: unknown): Record<string, string | null> {
 export async function startProcessing(
   row: ImportRow,
   people: Record<string, string | null>,
+  statuses: Record<string, string> = {},
 ): Promise<ImportRow> {
   const entry = fetched.get(row.id);
   if (!entry) throw new HttpError(409, 'The import is not waiting for people matching');
@@ -204,7 +222,7 @@ export async function startProcessing(
     throw err;
   }
   if (!claimed) throw new HttpError(409, 'The import is not waiting for people matching');
-  void processImport(row.id, entry.data, allowed).catch(() => {
+  void processImport(row.id, entry.data, allowed, statuses).catch(() => {
     // processImport records the error on the import.
   });
   return claimed;
@@ -218,5 +236,6 @@ export async function expireWaitingImports(now: Date = new Date()): Promise<void
     fetched.delete(id);
     const row = await getImport(id);
     if (row?.status === 'inProgress') await setImportStatus(id, 'error', { error: EXPIRED });
+    if (row) await releaseImportFile(row);
   }
 }

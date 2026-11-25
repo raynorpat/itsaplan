@@ -46,6 +46,16 @@ export type ServiceLabel = 'GitHub' | 'GitLab' | 'Gitea' | 'Forgejo' | 'Jira' | 
 export interface SourceData {
   serviceLabel: ServiceLabel;
   issues: SourceIssue[];
+  // A CSV file's rows that were not read (no title) and the values left empty or
+  // replaced; the import's summary reports them.
+  csv?: { skipped: { row: number; reason: string }[]; counts: CsvCounts };
+}
+
+export interface CsvCounts {
+  badDates: number;
+  missingCreated: number;
+  badPriority: number;
+  badEstimate: number;
 }
 
 // The processing step's counts. `total` is the number of source issues, so the page
@@ -57,6 +67,9 @@ export interface ImportSummary {
   labelsCreated: number;
   total: number;
   skipped: { url: string; reason: string }[];
+  // CSV imports: values that did not read (csv/source.ts) and estimates off the team's
+  // scale, each left empty (a created date takes the import time).
+  counts?: CsvCounts;
 }
 
 // Linear's IssueImport.status values used here.

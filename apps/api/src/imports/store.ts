@@ -1,5 +1,6 @@
 import { db, issueImport } from '@repo/db';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { releaseImportFile } from './files';
 import type { ImportStatus, ImportSummary } from './types';
 
 // Import jobs (Linear's IssueImport). A row never holds a source token.
@@ -82,6 +83,19 @@ export async function setImportProgress(
     .where(eq(issueImport.id, id));
 }
 
+// Saves an import's mapping (Linear's issueImportUpdate, a full replacement).
+export async function setImportMapping(
+  id: string,
+  mapping: Record<string, unknown>,
+): Promise<ImportRow> {
+  const [row] = await db
+    .update(issueImport)
+    .set({ mapping, updatedAt: sql`now()` })
+    .where(eq(issueImport.id, id))
+    .returning();
+  return row!;
+}
+
 // Claims a fetched import for processing: `inProgress` → `inProcess` in one statement,
 // so only one request starts it. Null when it was not waiting. A second running import
 // into the same team fails on `issue_import_team_in_process_uq` (unique violation).
@@ -113,8 +127,10 @@ export async function setWaitingUntil(id: string, until: Date | null): Promise<v
 // (its token was in memory), so it ends as an error; running it again skips what came
 // across.
 export async function sweepInterruptedImports(): Promise<void> {
-  await db
+  const ended = await db
     .update(issueImport)
     .set({ status: 'error', error: INTERRUPTED, updatedAt: sql`now()` })
-    .where(inArray(issueImport.status, ['inProgress', 'inProcess']));
+    .where(inArray(issueImport.status, ['inProgress', 'inProcess']))
+    .returning({ serviceMetadata: issueImport.serviceMetadata });
+  for (const row of ended) await releaseImportFile(row);
 }

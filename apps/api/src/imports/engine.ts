@@ -1,4 +1,14 @@
-import { attachment, db, issue, label, teamMember, user, workflowState } from '@repo/db';
+import {
+  attachment,
+  db,
+  issue,
+  issueImportSource,
+  label,
+  team as teamTable,
+  teamMember,
+  user,
+  workflowState,
+} from '@repo/db';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { createComment } from '../comments/store';
 import { createIssue } from '../issues/store';
@@ -6,8 +16,11 @@ import { createLabel } from '../labels/store';
 import { joinTeam } from '../members/store';
 import { HttpError } from '../shared/lib';
 import { runAsImport } from '../shared/workflow-context';
+import { isValidEstimate } from '../teams/estimates';
 import { createTeam, getTeamById, getTeamByKey, type TeamRow } from '../teams/store';
+import { guessStatusState, type StateOption } from './csv/guess';
 import { normalizeColor, pastDate, personName, splitTitle, teamKeyFor } from './normalize';
+import { releaseImportFile } from './files';
 import { getImport, setImportProgress, setImportStatus } from './store';
 import type { ImportSummary, SourceData, SourceIssue, SourcePerson } from './types';
 
@@ -18,7 +31,11 @@ export { suggestPeople } from './normalize';
 // webhook follows from it. Each issue is written with its link back to the source in
 // the same transaction, marked `imported: false` until its comments are in; a rerun
 // skips an issue whose link says `imported: true` (or any link with that URL in the
-// team that an import did not write) and rebuilds one left half-written.
+// team that an import did not write) and rebuilds one left half-written. A CSV row has
+// no source URL: its identity in the team (`sourceKey`) is recorded in
+// issue_import_source in the issue's transaction, with the same `imported` flag; its
+// state comes from the Statuses mapping (source status → state id or name), else the
+// guess for the status (csv/guess.ts).
 
 // Linear's progress is updated at most this often (and at the end).
 const PROGRESS_EVERY_MS = 1000;
@@ -27,11 +44,17 @@ interface StateIds {
   open: string;
   completed: string;
   canceled: string;
+  all: StateOption[];
 }
 
 async function teamStates(teamId: string): Promise<StateIds> {
   const rows = await db
-    .select({ id: workflowState.id, type: workflowState.stateType })
+    .select({
+      id: workflowState.id,
+      name: workflowState.name,
+      type: workflowState.stateType,
+      position: workflowState.position,
+    })
     .from(workflowState)
     .where(and(eq(workflowState.teamId, teamId), isNull(workflowState.archivedAt)))
     .orderBy(asc(workflowState.position));
@@ -43,7 +66,50 @@ async function teamStates(teamId: string): Promise<StateIds> {
     open: first('unstarted') ?? first('backlog') ?? any,
     completed,
     canceled: first('canceled') ?? completed,
+    all: rows.map((r) => ({ id: r.id, name: r.name, type: r.type, position: Number(r.position) })),
   };
+}
+
+// The state a CSV row's status maps to: the Statuses mapping's state (an id of the
+// team's or a name, ignoring case), else the guess; an empty status is the default.
+function csvState(
+  status: string | null | undefined,
+  statuses: Record<string, string>,
+  states: StateIds,
+): StateOption {
+  const value = (status ?? '').trim();
+  const target = value ? statuses[value]?.trim() : undefined;
+  const chosen = target
+    ? (states.all.find((s) => s.id === target) ??
+      states.all.find((s) => s.name.trim().toLowerCase() === target.toLowerCase()))
+    : undefined;
+  const id = chosen?.id ?? guessStatusState(value, states.all, states.open);
+  return states.all.find((s) => s.id === id)!;
+}
+
+// CSV rows already in the team, by source key.
+async function existingSources(
+  teamId: string,
+  keys: string[],
+): Promise<Map<string, { issueId: string; imported: boolean }>> {
+  const out = new Map<string, { issueId: string; imported: boolean }>();
+  for (let i = 0; i < keys.length; i += 500) {
+    const rows = await db
+      .select({
+        key: issueImportSource.sourceKey,
+        issueId: issueImportSource.issueId,
+        imported: issueImportSource.imported,
+      })
+      .from(issueImportSource)
+      .where(
+        and(
+          eq(issueImportSource.teamId, teamId),
+          inArray(issueImportSource.sourceKey, keys.slice(i, i + 500)),
+        ),
+      );
+    for (const r of rows) out.set(r.key, { issueId: r.issueId, imported: r.imported });
+  }
+  return out;
 }
 
 // The destination team: the import's team, or a team created by name with Linear's
@@ -116,6 +182,7 @@ export async function processImport(
   importId: string,
   data: SourceData,
   people: Record<string, string | null>,
+  statuses: Record<string, string> = {},
 ): Promise<ImportSummary> {
   const job = await getImport(importId);
   if (!job) throw new HttpError(404, 'Import not found');
@@ -126,18 +193,21 @@ export async function processImport(
     skippedExisting: 0,
     comments: 0,
     labelsCreated: 0,
-    total: data.issues.length,
-    skipped: [],
+    total: data.issues.length + (data.csv?.skipped.length ?? 0),
+    skipped: (data.csv?.skipped ?? []).map((s) => ({ url: `Row ${s.row}`, reason: s.reason })),
+    ...(data.csv ? { counts: { ...data.csv.counts } } : {}),
   };
   try {
     const team = await destinationTeam(job, creatorId, people);
     await setImportStatus(importId, 'inProcess', {
       teamId: team.id,
-      mapping: { people },
+      mapping: data.csv ? { people, statuses } : { people },
       progress: 0,
       error: null,
     });
-    await runAsImport(importId, () => createAll(importId, team, creatorId, data, people, summary));
+    await runAsImport(importId, () =>
+      createAll(importId, team, creatorId, data, people, statuses, summary),
+    );
     await setImportStatus(importId, 'complete', { progress: 100, summary });
     return summary;
   } catch (err) {
@@ -146,6 +216,8 @@ export async function processImport(
       summary,
     });
     throw err;
+  } finally {
+    await releaseImportFile(job);
   }
 }
 
@@ -155,9 +227,18 @@ async function createAll(
   creatorId: string,
   data: SourceData,
   people: Record<string, string | null>,
+  statuses: Record<string, string>,
   summary: ImportSummary,
 ): Promise<void> {
   const states = await teamStates(team.id);
+  const [estimation] = await db
+    .select({
+      issueEstimationType: teamTable.issueEstimationType,
+      issueEstimationExtended: teamTable.issueEstimationExtended,
+      issueEstimationAllowZero: teamTable.issueEstimationAllowZero,
+    })
+    .from(teamTable)
+    .where(eq(teamTable.id, team.id));
   const members = new Set(
     (
       await db
@@ -176,8 +257,19 @@ async function createAll(
   const labels = await labelIndex(team.id);
   const existing = await existingLinks(
     team.id,
-    data.issues.map((i) => i.url),
+    data.issues.filter((i) => !i.sourceKey).map((i) => i.url),
   );
+  const existingRows = await existingSources(
+    team.id,
+    data.issues.flatMap((i) => (i.sourceKey ? [i.sourceKey] : [])),
+  );
+  // The estimate a CSV row keeps: one on the team's scale, else none (counted).
+  const estimateFor = (value: number | null | undefined): number | null => {
+    if (value === null || value === undefined) return null;
+    if (estimation && isValidEstimate(estimation, value)) return value;
+    if (summary.counts) summary.counts.badEstimate += 1;
+    return null;
+  };
 
   const labelIds = async (source: SourceIssue['labels']): Promise<string[]> => {
     const ids = new Set<string>();
@@ -204,7 +296,9 @@ async function createAll(
 
   let lastProgress = Date.now();
   for (const [index, source] of data.issues.entries()) {
-    const link = existing.get(source.url);
+    const known = source.sourceKey ? existingRows : existing;
+    const identity = source.sourceKey ?? source.url;
+    const link = known.get(identity);
     if (link?.imported) {
       summary.skippedExisting += 1;
     } else {
@@ -218,15 +312,17 @@ async function createAll(
           data,
           source,
           states,
+          statuses,
+          estimateFor,
           member,
           labelIds,
           summary,
         );
         // A source issue listed again later in the data is then skipped.
-        existing.set(source.url, { issueId, imported: true });
+        known.set(identity, { issueId, imported: true });
       } catch (err) {
         if (!(err instanceof HttpError)) throw err;
-        summary.skipped.push({ url: source.url, reason: err.message });
+        summary.skipped.push({ url: identity, reason: err.message });
       }
     }
     if (Date.now() - lastProgress >= PROGRESS_EVERY_MS) {
@@ -243,6 +339,8 @@ async function importIssue(
   data: SourceData,
   source: SourceIssue,
   states: StateIds,
+  statuses: Record<string, string>,
+  estimateFor: (value: number | null | undefined) => number | null,
   member: (p: SourcePerson | null) => string | null,
   labelIds: (source: SourceIssue['labels']) => Promise<string[]>,
   summary: ImportSummary,
@@ -251,28 +349,49 @@ async function importIssue(
   const closedAt = source.closedAt ? pastDate(source.closedAt) : createdAt;
   const closed = closedAt.getTime() < createdAt.getTime() ? createdAt : closedAt;
   const { title, description } = splitTitle(source.title, source.body);
-  const stateId =
-    source.state === 'open'
+  // A CSV row's state type decides its completed or canceled date; other sources'
+  // open / closed / not planned do.
+  const csv = source.sourceKey !== undefined;
+  const csvStateRow = csv ? csvState(source.status, statuses, states) : null;
+  const stateId = csvStateRow
+    ? csvStateRow.id
+    : source.state === 'open'
       ? states.open
       : source.state === 'closed'
         ? states.completed
         : states.canceled;
+  const completed = csvStateRow ? csvStateRow.type === 'completed' : source.state === 'closed';
+  const canceled = csvStateRow ? csvStateRow.type === 'canceled' : source.state === 'notPlanned';
   const assigneeUserId = member(source.assignee);
   const ids = await labelIds(source.labels);
+  const extra = csv
+    ? {
+        priority: source.priority ?? 0,
+        estimate: estimateFor(source.estimate),
+        dueDate: source.dueDate ?? null,
+      }
+    : {};
   const create = (assignee: string | null) =>
     createIssue(
       team,
-      { stateId, title, description, assigneeUserId: assignee, labelIds: ids },
+      { stateId, title, description, assigneeUserId: assignee, labelIds: ids, ...extra },
       member(source.author) ?? creatorId,
       {
         createdAt,
-        ...(source.state === 'closed' ? { completedAt: closed } : {}),
-        ...(source.state === 'notPlanned' ? { closedAt: closed } : {}),
-        link: {
-          url: source.url,
-          title: `${data.serviceLabel} #${source.number}`,
-          metadata: { issueImportId: importId, imported: false },
-        },
+        ...(completed ? { completedAt: closed } : {}),
+        ...(canceled ? { closedAt: closed } : {}),
+        ...(source.sourceKey ? { sourceKey: source.sourceKey } : {}),
+        ...(source.url
+          ? {
+              link: {
+                url: source.url,
+                title: source.sourceKey?.startsWith('jira:')
+                  ? `Jira ${source.sourceKey.slice('jira:'.length)}`
+                  : `${data.serviceLabel} #${source.number}`,
+                metadata: { issueImportId: importId, imported: false },
+              },
+            }
+          : {}),
       },
     );
   let created;
@@ -294,10 +413,16 @@ async function importIssue(
     });
     summary.comments += 1;
   }
-  await db
-    .update(attachment)
-    .set({ metadata: sql`${attachment.metadata} || '{"imported": true}'::jsonb` })
-    .where(and(eq(attachment.issueId, created.id), eq(attachment.url, source.url)));
+  if (csv)
+    await db
+      .update(issueImportSource)
+      .set({ imported: true })
+      .where(eq(issueImportSource.issueId, created.id));
+  else
+    await db
+      .update(attachment)
+      .set({ metadata: sql`${attachment.metadata} || '{"imported": true}'::jsonb` })
+      .where(and(eq(attachment.issueId, created.id), eq(attachment.url, source.url)));
   summary.issues += 1;
   return created.id;
 }

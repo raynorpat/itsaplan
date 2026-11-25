@@ -1,4 +1,5 @@
-import { findImport, peopleMapping, startProcessing } from '../../imports/flow';
+import { checkJiraCsv, createCsvImport } from '../../imports/csv/imports';
+import { findImport, peopleMapping, startProcessing, statusMapping } from '../../imports/flow';
 import {
   connectGithub,
   createGithubImport,
@@ -6,7 +7,7 @@ import {
   githubRepositories,
   type IntegrationRow,
 } from '../../imports/github';
-import type { ImportRow } from '../../imports/store';
+import { setImportMapping, type ImportRow } from '../../imports/store';
 import { atLeast, canSeeTeam, workspaceRole } from '../../shared/access';
 import { HttpError, UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
@@ -32,7 +33,7 @@ export function toIssueImport(row: ImportRow, full = true) {
     mapping: full ? (row.mapping ?? null) : null,
     error: full ? row.error : null,
     errorMetadata: null,
-    csvFileUrl: null,
+    csvFileUrl: full && typeof metadata?.csvUrl === 'string' ? metadata.csvUrl : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     archivedAt: null,
@@ -40,7 +41,7 @@ export function toIssueImport(row: ImportRow, full = true) {
 }
 
 function omitHost(metadata: Record<string, unknown>): Record<string, unknown> {
-  const { host: _host, ...rest } = metadata;
+  const { host: _host, csvUrl: _csvUrl, jiraHostname: _jiraHostname, ...rest } = metadata;
   return rest;
 }
 
@@ -79,6 +80,24 @@ const importPayload = (row: ImportRow) => ({
   issueImport: toIssueImport(row),
 });
 
+interface CreateCsvJiraArgs {
+  csvUrl: string;
+  jiraEmail?: string | null;
+  jiraHostname?: string | null;
+  jiraToken?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
+}
+
+// A mapping's parts this instance reads: `people` (source person key → user id or
+// null) and, for CSV imports, `statuses` (status value → state id or name).
+function mappingParts(mapping: Record<string, unknown> | null | undefined) {
+  return {
+    people: peopleMapping({ ...((mapping?.people as object | undefined) ?? {}) }),
+    statuses: statusMapping(mapping?.statuses),
+  };
+}
+
 interface CreateGithubArgs {
   githubRepoIds?: number[] | null;
   githubLabels?: string[] | null;
@@ -89,7 +108,51 @@ interface CreateGithubArgs {
 }
 
 export const issueImportResolvers = {
+  Query: {
+    // Linear's CSV check: only Jira exports are supported.
+    issueImportCheckCSV: (
+      _: unknown,
+      { csvUrl, service }: { csvUrl: string; service: string },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        await assertImporter(ctx);
+        if (service !== 'jira') throw new HttpError(400, 'Only jira CSV files are supported');
+        await checkJiraCsv(ctx.user.id, csvUrl);
+        return { success: true };
+      }),
+  },
   Mutation: {
+    // The Jira credentials are accepted and not used: this instance does not call
+    // Jira. The hostname, when given, links each issue back to its Jira page.
+    issueImportCreateCSVJira: (_: unknown, args: CreateCsvJiraArgs, ctx: GraphQLContext) =>
+      guard(async () => {
+        await assertImporter(ctx);
+        if (args.teamId && !UUID_RE.test(args.teamId)) throw new HttpError(404, 'Team not found');
+        const row = await createCsvImport({
+          userId: ctx.user.id,
+          assetUrl: args.csvUrl,
+          source: 'jira',
+          teamId: args.teamId ?? null,
+          teamName: args.teamName ?? null,
+          jiraHostname: args.jiraHostname,
+        });
+        return importPayload(row);
+      }),
+
+    // Saves the mapping (a full replacement) without starting the import.
+    issueImportUpdate: (
+      _: unknown,
+      { id, input }: { id: string; input: { mapping: Record<string, unknown> } },
+      ctx: GraphQLContext,
+    ) =>
+      guard(async () => {
+        await assertImporter(ctx);
+        const row = await findImport(id);
+        const parts = mappingParts(input.mapping);
+        return importPayload(await setImportMapping(row.id, parts));
+      }),
+
     integrationGithubImportConnect: (
       _: unknown,
       { code, installationId }: { code: string; installationId: string },
@@ -137,8 +200,8 @@ export const issueImportResolvers = {
         return importPayload(row);
       }),
 
-    // The mapping's `people` (source person key → user id or null) is the people
-    // matching; any other mapping key is ignored.
+    // The mapping's `people` and `statuses` (mappingParts); a part left out uses the
+    // one saved with issueImportUpdate. Any other mapping key is ignored.
     issueImportProcess: (
       _: unknown,
       { issueImportId, mapping }: { issueImportId: string; mapping: Record<string, unknown> },
@@ -147,8 +210,12 @@ export const issueImportResolvers = {
       guard(async () => {
         await assertImporter(ctx);
         const row = await findImport(issueImportId);
-        const people = peopleMapping({ ...((mapping?.people as object | undefined) ?? {}) });
-        return importPayload(await startProcessing(row, people));
+        const saved = row.mapping ?? {};
+        const { people, statuses } = mappingParts({
+          people: mapping?.people ?? saved.people,
+          statuses: mapping?.statuses ?? saved.statuses,
+        });
+        return importPayload(await startProcessing(row, people, statuses));
       }),
   },
   Integration: {

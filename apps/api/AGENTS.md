@@ -613,6 +613,30 @@ Rules and invariants for this package below; read the code for the walkthrough.
   every source (`imports/flow.ts`); the Import page reads imports, the people step and
   the GitHub connection and repositories through `/api/auth/instance/imports*`, since
   Linear's schema has no query for them.
+  **CSV imports** (`imports/csv/`): a CSV uploaded as an import file (Uploads) is read
+  and parsed when the import is created (`csv/imports.ts`; a file that does not read is
+  refused then) and its rows wait for the Statuses and People steps like a fetched
+  source. A **Jira** export (`csv/jira.ts`) goes through Linear's `issueImportCheckCSV`
+  (`service: "jira"`; INVALID_INPUT "The file is not a Jira CSV export (no Summary
+  column)") and `issueImportCreateCSVJira` (the Jira credentials are accepted and not
+  used; `jiraHostname`, when given, links each issue to `https://<host>/browse/<key>`),
+  or the Import page's `/api/auth/instance/imports/csv/create` with `source: jira`; a
+  **generic** CSV only through the Import page, with `source: generic` and the column
+  mapping confirmed on its Columns step (`/api/auth/instance/imports/csv/preview` gives
+  the headers, sample rows, guessed mapping and whether the file is a Jira export). The
+  import's `serviceMetadata.statuses` lists the file's distinct status values;
+  `issueImportProcess` (or `issueImportUpdate`, which saves the mapping without starting)
+  and the Import page's process endpoint take `statuses` (`{ "<value>": "<state id or
+  name>" }`) beside `people`; a value left out takes the guess (`csv/guess.ts`). A CSV
+  row's state type sets its completed or canceled date; its priority, due date and
+  estimate (kept only on the team's scale, else counted) are imported. A CSV row has no
+  source URL: its identity in the team (`jira:<Issue key>`, `csv:<ID column>`, else
+  `csv:<file sha256>:<row>`, so rows keyed by number are skipped only on a re-run of
+  the identical file) is recorded in `issue_import_source` in the issue's transaction
+  with the same `imported` flag as a link. Rows without a title and values that did not
+  read are reported in the summary (`skipped` as "Row <n>", `counts`). The file is marked
+  used while the import runs and deleted when it ends (completed, error, expired or
+  interrupted; `imports/files.ts`).
 - **Estimates** (`teams/estimates.ts`, Linear's `Team.issueEstimation*`): a team's
   scale is `issueEstimationType` (`notUsed`, the default for every team, `exponential`
   1, 2, 4, 8, 16, `fibonacci` 1, 2, 3, 5, 8, `linear` 1–5, `tShirt` stored as 1, 2, 3,

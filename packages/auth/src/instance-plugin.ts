@@ -127,6 +127,8 @@ export interface ImportsHandlers {
   start(headers: Headers, body: unknown): Promise<object>;
   people(headers: Headers, query: Record<string, unknown>): Promise<object>;
   process(headers: Headers, body: unknown): Promise<object>;
+  csvPreview(headers: Headers, body: unknown): Promise<object>;
+  csvCreate(headers: Headers, body: unknown): Promise<object>;
   github(headers: Headers): Promise<object>;
   githubRepositories(headers: Headers): Promise<object>;
   githubDisconnect(headers: Headers, body: unknown): Promise<object>;
@@ -735,6 +737,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/imports/process',
         options.trustedOrigins,
         (h, headers, body) => h.process(headers, body),
+      ),
+      instanceImportCsvPreview: importsWrite(
+        '/instance/imports/csv/preview',
+        options.trustedOrigins,
+        (h, headers, body) => h.csvPreview(headers, body),
+      ),
+      instanceImportCsvCreate: importsWrite(
+        '/instance/imports/csv/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.csvCreate(headers, body),
       ),
       instanceImportGithub: createAuthEndpoint(
         '/instance/imports/github',

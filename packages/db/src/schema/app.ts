@@ -1404,6 +1404,29 @@ export const issueImport = pgTable(
   ],
 );
 
+// An issue a CSV import created, by the source row's identity within the destination
+// team (`jira:<Issue key>`, `csv:<ID>` or `csv:<file sha256>:<row>`;
+// apps/api/src/imports/csv). Written in the issue's own transaction with `imported`
+// false, set true once its comments are in, so a rerun skips finished rows and rebuilds
+// a half-written one. Other sources use their link attachment's URL instead.
+export const issueImportSource = pgTable(
+  'issue_import_source',
+  {
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => team.id, { onDelete: 'cascade' }),
+    sourceKey: text('source_key').notNull(),
+    issueId: uuid('issue_id')
+      .notNull()
+      .unique()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    importId: uuid('import_id').references(() => issueImport.id, { onDelete: 'set null' }),
+    imported: boolean('imported').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.teamId, t.sourceKey] })],
+);
+
 // A workspace integration (Linear's Integration). Only `githubImport` is used: the
 // GitHub Import App installation that GitHub issue imports read through
 // (apps/api/src/imports/github.ts). `installation_id` is GitHub's installation id; no

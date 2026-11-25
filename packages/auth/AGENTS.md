@@ -28,7 +28,10 @@ issue import (`apps/api/src/accounts/emails.ts`); Linear's `User` has one `email
 imports from GitLab, Gitea and Forgejo (`GET imports`, `GET import?id=`, `GET
 import/people?id=`, `POST imports/{repositories, start, process}`; owners and admins)
 take a pasted access token that the API uses for the fetch and never stores
-(`apps/api/src/imports/handlers.ts`); Linear's schema imports GitHub only, through
+(`apps/api/src/imports/handlers.ts`); CSV imports use `POST imports/csv/preview`
+(`{ assetUrl }`: headers, sample rows, guessed column mapping, whether it is a Jira
+export) and `POST imports/csv/create` (`{ assetUrl, source: jira | generic, mapping?,
+teamId | teamName, jiraHostname? }`), and `process` takes `statuses` beside `people`; Linear's schema imports GitHub only, through
 its mutations, and the Import page reads the GitHub connection and its repositories
 here (`GET imports/github`, `GET imports/github/repositories`, `POST
 imports/github/disconnect`). The people who give feedback, Linear's `ExternalUser`
