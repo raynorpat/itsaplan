@@ -17,6 +17,7 @@ export default function ProjectsTimelineRows({
   teamKey,
   labelW,
   readOnly,
+  highlighted,
   onToggleGroup,
 }: {
   rows: TimelineRow[];
@@ -27,6 +28,7 @@ export default function ProjectsTimelineRows({
   teamKey: string;
   labelW: number;
   readOnly: boolean;
+  highlighted: Set<string>;
   onToggleGroup: (groupKey: string) => void;
 }) {
   return rows.map((row) => {
@@ -63,6 +65,7 @@ export default function ProjectsTimelineRows({
         todayInRange={scale.todayInRange}
         todayLeft={scale.todayLeft}
         active={drag.projectPreview(project.id) != null}
+        highlighted={highlighted.has(project.id)}
         activeMilestoneId={project.milestones.find((m) => drag.milestonePreview(m.id))?.id ?? null}
         readOnly={readOnly}
         onBeginDrag={(e, mode) => drag.beginProjectDrag(e, original, mode)}

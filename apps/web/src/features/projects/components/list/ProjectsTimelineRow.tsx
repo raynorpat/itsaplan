@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { projectPath } from '@/utils/paths';
 import { healthMeta, STATUS_META } from '@/utils/projectMeta';
 import { ROW_H, type DateDragMode } from '@/utils/timelineScale';
@@ -24,6 +25,7 @@ export default function ProjectsTimelineRow({
   todayInRange,
   todayLeft,
   active,
+  highlighted,
   activeMilestoneId,
   readOnly,
   onBeginDrag,
@@ -40,6 +42,7 @@ export default function ProjectsTimelineRow({
   todayInRange: boolean;
   todayLeft: number;
   active: boolean;
+  highlighted: boolean;
   activeMilestoneId: string | null;
   readOnly: boolean;
   onBeginDrag: (e: React.PointerEvent, mode: DateDragMode) => void;
@@ -47,7 +50,10 @@ export default function ProjectsTimelineRow({
 }) {
   const health = healthMeta(project.health);
   return (
-    <div className="flex border-b hover:bg-accent/20" style={{ height: ROW_H }}>
+    <div
+      className={cn('flex border-b hover:bg-accent/20', highlighted && 'bg-accent/40')}
+      style={{ height: ROW_H }}
+    >
       <div
         className="sticky left-0 z-30 flex shrink-0 items-center gap-2 overflow-hidden border-r bg-background px-3"
         style={{ width: labelW }}

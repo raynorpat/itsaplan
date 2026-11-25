@@ -23,6 +23,7 @@ import ProjectTabCount from './components/list/ProjectTabCount';
 import ProjectTeamFilter from './components/list/ProjectTeamFilter';
 import ProjectsLayoutSwitch from './components/list/ProjectsLayoutSwitch';
 import ProjectsTimeline from './components/list/ProjectsTimeline';
+import ProjectsTimelineDependencies from './components/list/ProjectsTimelineDependencies';
 import { timelineProjectsKey, useTimelineProjects } from './services/projectTimeline.service';
 import { useProjectsDisplay } from './hooks/useProjectsDisplay';
 import {
@@ -202,6 +203,7 @@ export default function ProjectsPage({ tab }: { tab: ProjectsTab }) {
             leadName={leadName}
             readOnly={!can('projects', 'edit')}
             queryKey={timelineProjectsKey(listFilters)}
+            overlay={(layer) => <ProjectsTimelineDependencies layer={layer} />}
           />
         )
       ) : (

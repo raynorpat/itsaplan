@@ -27,6 +27,8 @@ export interface ProjectsTimelineOverlay {
   positions: ProjectPositions;
   trackWidth: number;
   height: number;
+  // Highlights these projects' rows (null clears), e.g. while an arrow is hovered.
+  onHighlight: (projectIds: string[] | null) => void;
 }
 
 // The projects of the open tab as bars on a date track, grouped, with milestones and
@@ -63,6 +65,7 @@ export default function ProjectsTimeline({
     return () => ro.disconnect();
   }, []);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
   const labelW = viewportW < 640 ? 140 : LABEL_W;
   const { from, to } = timelineRange(projects);
@@ -122,6 +125,7 @@ export default function ProjectsTimeline({
               teamKey={teamKey}
               labelW={labelW}
               readOnly={readOnly}
+              highlighted={highlighted}
               onToggleGroup={toggleGroup}
             />
             {overlay && (
@@ -130,6 +134,7 @@ export default function ProjectsTimeline({
                   positions: projectPositions(rows, shown, scale.xOf, scale.dayWidth),
                   trackWidth: scale.trackWidth,
                   height: rowsHeight(rows),
+                  onHighlight: (ids) => setHighlighted(new Set(ids ?? [])),
                 })}
               </div>
             )}
