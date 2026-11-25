@@ -958,6 +958,36 @@ export const portalBoard = pgTable(
   ],
 );
 
+// Linear's Template: an issue template of a team, or of the workspace when team_id is
+// null. template_data is the type's configuration (templates/data.ts): for an issue
+// template the title, description, state, labels, priority and form fields.
+export const template = pgTable(
+  'template',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description'),
+    icon: text('icon'),
+    color: text('color'),
+    type: text('type').notNull().default('issue'),
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'cascade' }),
+    templateData: jsonb('template_data').notNull(),
+    sortOrder: doublePrecision('sort_order').notNull().default(0),
+    creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    lastUpdatedById: uuid('last_updated_by_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('template_team_idx').on(t.teamId),
+    check('template_type_check', sql`${t.type} = 'issue'`),
+    check('template_name_check', sql`btrim(${t.name}) <> ''`),
+  ],
+);
+
 // A portal sign-in link sent to `email` from a board's sign-in form. Only the SHA-256
 // of the token is stored; a token works once (`used_at`) until `expires_at`.
 export const portalSignInToken = pgTable(

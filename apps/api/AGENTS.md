@@ -188,6 +188,21 @@ Rules and invariants for this package below; read the code for the walkthrough.
   thread the board shows and edits or deletes only their own comments on issues the
   board still shows. A member without a name appears as "Team". At most 10,000
   characters, 30 comments per visitor an hour.
+- **Templates** (`templates/`, Linear's `Template`): issue templates only (`type`
+  `issue`; other types are INVALID_INPUT). A template belongs to a team or to the
+  workspace (no team); team templates are seen by whoever sees the team, workspace
+  templates by anyone who sees a team. `template_data` (`templates/data.ts`, checked on
+  every write) holds the title, Markdown description, state (team templates only),
+  labels (the team's or workspace labels; workspace labels only on a workspace
+  template), priority 0–4 and form fields (`shortText`, `longText`, `select`,
+  `multiSelect`, `checkbox`; at most 50 fields and 50 options each; unique ids; one
+  `title` role on a short text field and one `quote` role on a long text field; an
+  option may add a label and set a priority); unknown keys are refused. A team
+  template is managed by the team's members and by workspace admins and owners, a
+  workspace template by admins and owners; guests and app users manage none
+  (`assertTemplateManage`). `templates` is the viewer's whole list, `templateSearch`
+  takes the filter, `Team.templates` and `Organization.templates` (workspace templates)
+  page.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10
@@ -547,7 +562,7 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `User`), team visibility, team memberships, organization invites, `teamCreate` / `teamDelete`, issue and
   project history (`Issue.history`, `Issue.stateHistory`, `Project.history`, read from
   `issue_activity`, whose `from_id` / `to_id` carry the referenced rows' ids), custom
-  views and view preferences, `fileUpload` and `userUpdate` (name, time zone, avatar; a
+  views and view preferences, issue templates, `fileUpload` and `userUpdate` (name, time zone, avatar; a
   user without a name reads as its email's local part in `name` and `displayName`),
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
