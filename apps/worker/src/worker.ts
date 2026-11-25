@@ -42,7 +42,7 @@ async function tick(): Promise<void> {
     await Promise.all(claimed.map(processDelivery));
   }
   await processNotificationDeliveries();
-  await runRequesterUpdates();
+  runRequesterUpdates();
   if (++ticksSinceCleanup >= cfg.cleanupEveryTicks) {
     ticksSinceCleanup = 0;
     const removed = await cleanupOldDeliveries();

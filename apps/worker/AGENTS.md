@@ -33,7 +33,8 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
   (`/internal/requester-updates/changes`, every 2 minutes) and summaries
   (`/internal/requester-updates/summaries`, every 15 minutes) (`requester-updates.ts`);
   the API reads the changes and sends, a failed call is logged and retried when next
-  due.
+  due. The tick does not wait for these calls, so deliveries keep their pace, and a job
+  whose last call is still running is not started again.
 - On its cleanup interval calls the API's project purge
   (`/internal/projects/purge`), which deletes projects that have been in the trash
   for more than 30 days.
