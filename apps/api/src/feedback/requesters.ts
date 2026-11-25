@@ -38,6 +38,8 @@ export interface RequesterDto {
   createdAt: string;
   feedbackCount: number;
   lastFeedbackAt: string | null;
+  // The person's first active feedback (on an issue the user can see), for "new people".
+  firstFeedbackAt: string | null;
   // Blocked from the portal: no portal sign-in, sessions ended.
   portalBlocked: boolean;
   // Email updates: on, and whether the person unsubscribed (then only they turn it on).
@@ -96,18 +98,22 @@ export async function requesterByEmail(email: string) {
   return merged ? resolveRequester(merged.id) : null;
 }
 
+interface FeedbackStats {
+  count: number;
+  last: string | null;
+  first: string | null;
+}
+
 // Feedback counts per requester, over feedback on issues the user can see.
-async function feedbackStats(
-  userId: string,
-  ids: string[],
-): Promise<Map<string, { count: number; last: string | null }>> {
-  const out = new Map<string, { count: number; last: string | null }>();
+async function feedbackStats(userId: string, ids: string[]): Promise<Map<string, FeedbackStats>> {
+  const out = new Map<string, FeedbackStats>();
   if (ids.length === 0) return out;
   const rows = await db
     .select({
       requesterId: attachment.externalUserCreatorId,
       count: sql<number>`count(*)::int`,
       last: sql<Date | null>`max(${customerNeed.createdAt})`,
+      first: sql<Date | null>`min(${customerNeed.createdAt}) filter (where ${customerNeed.archivedAt} is null)`,
     })
     .from(customerNeed)
     .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
@@ -121,13 +127,17 @@ async function feedbackStats(
     .groupBy(attachment.externalUserCreatorId);
   for (const r of rows)
     if (r.requesterId)
-      out.set(r.requesterId, { count: r.count, last: r.last ? iso(new Date(r.last)) : null });
+      out.set(r.requesterId, {
+        count: r.count,
+        last: r.last ? iso(new Date(r.last)) : null,
+        first: r.first ? iso(new Date(r.first)) : null,
+      });
   return out;
 }
 
 function toDto(
   row: typeof externalUser.$inferSelect,
-  stats: { count: number; last: string | null } | undefined,
+  stats: FeedbackStats | undefined,
 ): RequesterDto {
   return {
     id: row.id,
@@ -138,6 +148,7 @@ function toDto(
     createdAt: iso(row.createdAt),
     feedbackCount: stats?.count ?? 0,
     lastFeedbackAt: stats?.last ?? null,
+    firstFeedbackAt: stats?.first ?? null,
     portalBlocked: row.portalBlockedAt != null,
     updates: { enabled: row.updatesEnabled, unsubscribed: row.updatesUnsubscribedAt != null },
   };

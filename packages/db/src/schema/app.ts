@@ -1827,3 +1827,35 @@ export const agentActivity = pgTable(
     ),
   ],
 );
+
+// A dashboard: a page of Insights widgets (`widgets`, the web's widget configuration,
+// checked only for shape by the API). Shared with the workspace (every owner, admin
+// and member) or with `team_ids` (their members, plus the workspace's owners and
+// admins); guests see none. `owner_id` null: owned by no one, edited by owners and
+// admins (the workspace feedback report, `system_key` 'feedback', or a dashboard whose
+// owner left).
+export const dashboard = pgTable(
+  'dashboard',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    ownerId: uuid('owner_id').references(() => user.id, { onDelete: 'set null' }),
+    systemKey: text('system_key'),
+    sharedWith: text('shared_with').notNull().default('workspace'),
+    teamIds: uuid('team_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    widgets: jsonb('widgets')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('dashboard_system_key_uq').on(t.systemKey),
+    check('dashboard_shared_with_check', sql`${t.sharedWith} IN ('workspace', 'teams')`),
+    check('dashboard_system_key_check', sql`${t.systemKey} IS NULL OR ${t.systemKey} = 'feedback'`),
+  ],
+);

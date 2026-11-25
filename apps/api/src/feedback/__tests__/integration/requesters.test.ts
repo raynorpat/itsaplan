@@ -188,6 +188,19 @@ describe('requesters', () => {
     expect(listed.lastFeedbackAt).toBeTruthy();
   });
 
+  it('lists the date of a person’s first feedback', async () => {
+    const { owner, issue } = await setup();
+    const jane = await create(owner, { name: 'Jane' });
+    const sam = await create(owner, { name: 'Sam' });
+    await addFeedback(owner, issue.id, jane.id, 'First');
+    await addFeedback(owner, issue.id, jane.id, 'Second');
+    const people = await list(owner);
+    const j = people.find((p) => p.id === jane.id)!;
+    expect(j.firstFeedbackAt).toBeTruthy();
+    expect(j.firstFeedbackAt <= j.lastFeedbackAt).toBe(true);
+    expect(people.find((p) => p.id === sam.id)!.firstFeedbackAt).toBeNull();
+  });
+
   it('merges one person into another (owners and admins only)', async () => {
     const { owner, member, issue } = await setup();
     const a = await create(owner, { name: 'J. Doe', email: 'jdoe@x.com' });

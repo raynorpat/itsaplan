@@ -3,6 +3,7 @@ import { accountEmailsHandlers } from '../accounts/handlers';
 import { requestersHandlers } from '../feedback/handlers';
 import { formsHandlers } from '../forms/admin';
 import { aiHandlers } from '../updates/ai';
+import { dashboardsHandlers } from '../dashboards/handlers';
 import { portalHandlers } from '../portal/admin';
 import { stopSession } from '../agents/store';
 import { importsHandlers } from '../imports/handlers';
@@ -68,5 +69,6 @@ export function registerInstanceHandlers(): void {
     portal: portalHandlers,
     forms: formsHandlers,
     ai: aiHandlers,
+    dashboards: dashboardsHandlers,
   });
 }

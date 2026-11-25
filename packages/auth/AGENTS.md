@@ -48,7 +48,10 @@ portal (`apps/api/src/portal/admin.ts`). A form's publishing settings (`GET form
 `POST forms/settings`, `POST forms/delete`; owners and admins) are here because Linear's
 template has no place for them (`apps/api/src/forms/admin.ts`). The AI endpoint for
 requester summaries (`GET ai` without the key, `POST ai/{save, delete, test}`; owners and
-admins) is here because Linear has no such setting (`apps/api/src/updates/ai.ts`). All but the first need the
+admins) is here because Linear has no such setting (`apps/api/src/updates/ai.ts`).
+Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
+delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
+schema has no dashboard type (`apps/api/src/dashboards/`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

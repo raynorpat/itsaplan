@@ -428,6 +428,13 @@
       "when": 1795577339011,
       "tag": "0060_next_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795579756546,
+      "tag": "0061_majestic_wonder_man",
+      "breakpoints": true
     }
   ]
 }

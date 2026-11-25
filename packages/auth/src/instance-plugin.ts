@@ -167,6 +167,19 @@ export interface AiHandlers {
   test(headers: Headers, body: unknown): Promise<object>;
 }
 
+// Dashboards (pages of Insights widgets): owners, admins and members list, read,
+// create, change, delete and duplicate them, and open the workspace feedback report.
+// Each handler checks the caller itself.
+export interface DashboardsHandlers {
+  list(headers: Headers): Promise<object>;
+  get(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  create(headers: Headers, body: unknown): Promise<object>;
+  update(headers: Headers, body: unknown): Promise<object>;
+  remove(headers: Headers, body: unknown): Promise<object>;
+  duplicate(headers: Headers, body: unknown): Promise<object>;
+  feedback(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -180,6 +193,7 @@ export interface InstanceHandlers {
   portal: PortalHandlers;
   forms: FormsHandlers;
   ai: AiHandlers;
+  dashboards: DashboardsHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -267,6 +281,12 @@ const aiWrite = (
   trusted: string[],
   call: (h: AiHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.ai, headers, body));
+
+const dashboardsWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: DashboardsHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.dashboards, headers, body));
 
 const importsWrite = (
   path: string,
@@ -484,6 +504,41 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
       ),
       instanceAiTest: aiWrite('/instance/ai/test', options.trustedOrigins, (h, headers, body) =>
         h.test(headers, body),
+      ),
+      instanceDashboards: createAuthEndpoint(
+        '/instance/dashboards',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.dashboards.list(ctx.headers ?? new Headers()))),
+      ),
+      instanceDashboard: createAuthEndpoint('/instance/dashboard', { method: 'GET' }, async (ctx) =>
+        ctx.json(
+          await run((h) => h.dashboards.get(ctx.headers ?? new Headers(), { ...ctx.query })),
+        ),
+      ),
+      instanceDashboardCreate: dashboardsWrite(
+        '/instance/dashboards/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.create(headers, body),
+      ),
+      instanceDashboardUpdate: dashboardsWrite(
+        '/instance/dashboards/update',
+        options.trustedOrigins,
+        (h, headers, body) => h.update(headers, body),
+      ),
+      instanceDashboardDelete: dashboardsWrite(
+        '/instance/dashboards/delete',
+        options.trustedOrigins,
+        (h, headers, body) => h.remove(headers, body),
+      ),
+      instanceDashboardDuplicate: dashboardsWrite(
+        '/instance/dashboards/duplicate',
+        options.trustedOrigins,
+        (h, headers, body) => h.duplicate(headers, body),
+      ),
+      instanceDashboardFeedback: dashboardsWrite(
+        '/instance/dashboards/feedback',
+        options.trustedOrigins,
+        (h, headers, body) => h.feedback(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',
