@@ -97,8 +97,10 @@ interface ResultBase {
 }
 
 export type WidgetResult = ResultBase &
+  // `shares` is true when each bar's share of the total means something (sums and
+  // distinct counts).
   (
-    | { kind: 'bars'; rows: BreakdownRow[] }
+    | { kind: 'bars'; rows: BreakdownRow[]; shares: boolean }
     | {
         kind: 'overTime';
         series: { key: string; label: string }[];
@@ -171,17 +173,20 @@ function sortedTable(rows: TableRow[], sort: string, limit: number): TableRow[] 
     .slice(0, limit);
 }
 
+const hasShares = (how: Aggregate) => how === 'sum' || how === 'distinct';
+
+// `unitLabels`: bars of several teams' scope, each labelled with its team's unit.
 function bars<R>(
   adapter: Adapter<R>,
   def: MeasureDef,
   config: WidgetConfig,
   items: Item<R>[],
   ctx: ComputeContext,
+  unitLabels = false,
 ): BreakdownRow[] {
   const how = adapter.aggregate(def.id);
   const total = aggregate(items, how);
-  const shareOf = (value: number) =>
-    (how === 'sum' || how === 'distinct') && total ? value / total : 0;
+  const shareOf = (value: number) => (hasShares(how) && total ? value / total : 0);
   const rows = uniqueRows(items);
   const segmentGroups = config.segment ? adapter.slice(rows, config.segment, ctx) : [];
   const segmentsOf = (inRow: Item<R>[]) =>
@@ -199,9 +204,10 @@ function bars<R>(
     const inRow = inGroup(items, group);
     const value = aggregate(inRow, how);
     if (value == null) continue;
+    const unit = unitLabels ? adapter.scopeUnit?.(uniqueRows(inRow)) : undefined;
     out.push({
       key: group.key,
-      label: group.label,
+      label: unit ? `${group.label} (${unit})` : group.label,
       value,
       share: shareOf(value),
       segments: segmentsOf(inRow),
@@ -347,7 +353,7 @@ export function computeWidget(widget: Widget, all: WidgetRows, ctx: ComputeConte
     const empty = config.chart === 'overTimeBars' || config.chart === 'overTimeLine';
     return empty
       ? { kind: 'overTime', series: [], weeks: [], ...base, note: MIXED_TEAMS }
-      : { kind: 'bars', rows: [], ...base, note: MIXED_TEAMS };
+      : { kind: 'bars', rows: [], shares: false, ...base, note: MIXED_TEAMS };
   }
   // A measure of the current state has no weeks to show; it is drawn as bars.
   const overTimeStyle = config.chart === 'overTimeBars' || config.chart === 'overTimeLine';
@@ -357,5 +363,10 @@ export function computeWidget(widget: Widget, all: WidgetRows, ctx: ComputeConte
       ...overTime(adapter, def, config, list, items, range, ctx),
       ...base,
     };
-  return { kind: 'bars', rows: bars(adapter, def, config, items, ctx), ...base };
+  return {
+    kind: 'bars',
+    rows: bars(adapter, def, config, items, ctx, mixed),
+    shares: hasShares(adapter.aggregate(def.id)),
+    ...base,
+  };
 }

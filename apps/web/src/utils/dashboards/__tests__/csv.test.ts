@@ -12,6 +12,7 @@ describe('toCsv', () => {
         { key: 'a', label: 'Say "hi", there', value: 3, share: 0.75, segments: [] },
         { key: 'b', label: 'Two\nlines', value: 1, share: 0.25, segments: [] },
       ],
+      shares: true,
       excluded: 0,
       capped: false,
     });
@@ -19,6 +20,18 @@ describe('toCsv', () => {
       csv,
       'Source,Requests,Share\r\n"Say ""hi"", there",3,75.0%\r\n"Two\nlines",1,25.0%\r\n',
     );
+  });
+
+  it('writes no share column for medians and other measures without shares', () => {
+    const w = widget('chart', { data: 'issues', measure: 'cycleTime', slice: 'team' });
+    const csv = toCsv(w, {
+      kind: 'bars',
+      rows: [{ key: 'a', label: 'Engineering', value: 2.5, share: 0, segments: [] }],
+      shares: false,
+      excluded: 0,
+      capped: false,
+    });
+    assert.equal(csv, 'Team,Cycle time\r\nEngineering,2.5\r\n');
   });
 
   it('writes one row per segment when a segment is set', () => {
@@ -39,6 +52,7 @@ describe('toCsv', () => {
           segments: [{ key: '1', label: 'Urgent', value: 2 }],
         },
       ],
+      shares: true,
       excluded: 0,
       capped: false,
     });

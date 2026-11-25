@@ -7,11 +7,11 @@ import { EMPTY_CONTEXT } from '@/utils/insights/context';
 import { widgetInsightsContext } from '../utils/context';
 
 // A widget's loaded rows and figures for the dashboard's period and team. "New people"
-// also needs each person's first request (the People list).
+// also needs the first request of the people who first asked recently.
 export function useWidgetResult(widget: Widget, dashboard: DashboardState, enabled: boolean) {
   const rows = useWidgetRows(widget, dashboard, enabled);
   const needsFirst = widget.config.data === 'requests' && widget.config.measure === 'newPeople';
-  const first = useFirstFeedback(enabled && needsFirst);
+  const first = useFirstFeedback(dashboard, enabled && needsFirst);
   const ready = rows.data && (!needsFirst || first.data);
   const ctx: ComputeContext | null = useMemo(
     () =>

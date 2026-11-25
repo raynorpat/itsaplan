@@ -44,6 +44,11 @@ describe('parseWidgets', () => {
     assert.deepEqual(parseWidgets('nope'), []);
   });
 
+  it('keeps the first of two widgets with the same id', () => {
+    const second = { ...good, config: { ...good.config, title: 'Second' } };
+    assert.deepEqual(parseWidgets([good, second]), [good]);
+  });
+
   it('clamps a table limit to 5–50', () => {
     const table = {
       ...good,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { csvFileName } from '../download';
-import { changeText, formatValue } from '../format';
+import { axisLabel, changeText, excludedText, formatValue } from '../format';
 
 describe('formatValue', () => {
   it('shows days with one decimal, percentages whole, counts rounded', () => {
@@ -27,5 +27,24 @@ describe('csvFileName', () => {
   it('keeps letters and digits', () => {
     assert.equal(csvFileName('Requests per week (by source)'), 'requests-per-week-by-source.csv');
     assert.equal(csvFileName('  '), 'widget.csv');
+  });
+});
+
+describe('excludedText', () => {
+  it('says why issues were left out, per measure', () => {
+    assert.equal(excludedText('cycleTime', 2), '2 left out (completed without being started)');
+    assert.equal(
+      excludedText('timeToStart', 1),
+      '1 left out (no start date, or started before the first request)',
+    );
+    assert.equal(excludedText('timeToDone', 3), '3 left out (completed before the first request)');
+    assert.equal(excludedText('other', 4), '4 left out (no date)');
+  });
+});
+
+describe('axisLabel', () => {
+  it('keeps short labels and cuts long ones with an ellipsis', () => {
+    assert.equal(axisLabel('Urgent'), 'Urgent');
+    assert.equal(axisLabel('A very long project name indeed'), 'A very long projec…');
   });
 });

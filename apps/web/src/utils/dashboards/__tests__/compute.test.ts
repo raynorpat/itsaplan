@@ -42,6 +42,21 @@ describe('issues', () => {
     assert.deepEqual(num(computeWidget(w, { issues }, ctx({ period: '90d' }))), [3, 0]);
   });
 
+  it('marks which bars have shares (sums and counts, not medians)', () => {
+    const count = computeWidget(
+      widget('chart', { data: 'issues', measure: 'open', slice: 'status' }),
+      { issues },
+      ctx(),
+    );
+    assert.ok(count.kind === 'bars' && count.shares === true);
+    const median = computeWidget(
+      widget('chart', { data: 'issues', measure: 'cycleTime', slice: 'status' }),
+      { issues },
+      ctx(),
+    );
+    assert.ok(median.kind === 'bars' && median.shares === false);
+  });
+
   it('reports cycle time over started issues and counts the never-started ones', () => {
     const w = widget('number', { data: 'issues', measure: 'cycleTime' });
     const r = computeWidget(w, { issues }, ctx());
@@ -258,6 +273,39 @@ describe('feedback requests', () => {
     );
   });
 
+  it('counts requests on archived issues as events, not as waiting', () => {
+    const shipped = issue({
+      id: 'z',
+      stateId: 's-done',
+      completedAt: '2026-11-12T00:00:00.000Z',
+    });
+    const parked = issue({ id: 'y', stateId: 's-todo' });
+    const archived = [
+      request('z1', shipped, { createdAt: '2026-11-05T00:00:00.000Z', issueArchived: true }),
+      request('y1', parked, { createdAt: '2026-11-05T00:00:00.000Z', issueArchived: true }),
+    ];
+    const count = (measure: string) =>
+      num(
+        computeWidget(
+          widget('number', { data: 'requests', measure }),
+          { requests: archived },
+          ctx(),
+        ),
+      )[0];
+    assert.equal(count('requests'), 2);
+    assert.equal(count('delivered'), 1);
+    const waiting = computeWidget(
+      widget('table', {
+        data: 'requests',
+        measure: 'waiting',
+        table: { columns: ['identifier'], limit: 10, sort: 'identifier:asc' },
+      }),
+      { requests: archived },
+      ctx(),
+    );
+    assert.ok(waiting.kind === 'table' && waiting.rows.length === 0);
+  });
+
   it('gives null time measures for no rows', () => {
     const r = computeWidget(
       widget('number', { data: 'requests', measure: 'timeToDone' }),
@@ -337,9 +385,27 @@ describe('cycles', () => {
       filter: {},
     });
     assert.deepEqual(bars(computeWidget(w, { cycles }, ctx())), [
-      ['DES · Cycle 1', 20],
+      ['DES · Cycle 1 (points)', 20],
+      ['ENG · Cycle 1 (issues)', 4],
+      ['ENG · Cycle 2 (issues)', 6],
+    ]);
+    const one = computeWidget(w, { cycles }, ctx({ teamId: 't-eng' }));
+    assert.deepEqual(bars(one), [
       ['ENG · Cycle 1', 4],
       ['ENG · Cycle 2', 6],
+    ]);
+  });
+
+  it('labels team groups with their unit when teams differ', () => {
+    const w = widget('chart', {
+      data: 'cycles',
+      measure: 'completedScope',
+      slice: 'team',
+      filter: {},
+    });
+    assert.deepEqual(bars(computeWidget(w, { cycles }, ctx())), [
+      ['Design (points)', 20],
+      ['Engineering (issues)', 10],
     ]);
   });
 

@@ -260,8 +260,14 @@ function parseWidget(raw: unknown): Widget | null {
 }
 
 // The valid widgets of a stored list, in order; anything else (an older or hand-edited
-// entry) is dropped so a dashboard never fails to render.
+// entry, or a second widget with an id already used) is dropped so a dashboard never
+// fails to render.
 export function parseWidgets(raw: unknown): Widget[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map(parseWidget).filter((w): w is Widget => w !== null);
+  const seen = new Set<string>();
+  return raw.map(parseWidget).filter((w): w is Widget => {
+    if (!w || seen.has(w.id)) return false;
+    seen.add(w.id);
+    return true;
+  });
 }

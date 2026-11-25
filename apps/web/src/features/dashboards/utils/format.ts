@@ -16,3 +16,22 @@ export function changeText(value: number | null, previous: number | null): strin
   if (change === 0) return 'Same as previous period';
   return `${change > 0 ? '▲' : '▼'} ${Math.abs(change)}% vs previous period`;
 }
+
+// Why a widget left issues out of a time measure.
+export function excludedText(measure: string, count: number): string {
+  switch (measure) {
+    case 'cycleTime':
+      return `${count} left out (completed without being started)`;
+    case 'timeToStart':
+      return `${count} left out (no start date, or started before the first request)`;
+    case 'timeToDone':
+      return `${count} left out (completed before the first request)`;
+    default:
+      return `${count} left out (no date)`;
+  }
+}
+
+// A bar's axis label: every label is drawn (none skipped on a narrow chart), so long
+// ones are cut to fit the axis; the list under the chart has them in full.
+export const axisLabel = (text: string, max = 18): string =>
+  text.length > max ? `${text.slice(0, max)}…` : text;

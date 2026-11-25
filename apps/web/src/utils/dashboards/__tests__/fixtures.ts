@@ -58,6 +58,7 @@ export function request(
     important: false,
     source: 'team',
     requesterId: `p-${id}`,
+    issueArchived: false,
     issue: of,
     ...over,
   };

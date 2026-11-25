@@ -79,8 +79,9 @@ describe('newWidget', () => {
 
 describe('dashboardFilterKey', () => {
   it('keys the period and team per dashboard', () => {
-    assert.equal(dashboardFilterKey('abc'), 'dashboard-filters:abc');
-    assert.notEqual(dashboardFilterKey('a'), dashboardFilterKey('b'));
+    assert.equal(dashboardFilterKey('u1', 'abc'), 'dashboard-filters:u1:abc');
+    assert.notEqual(dashboardFilterKey('u1', 'a'), dashboardFilterKey('u1', 'b'));
+    assert.notEqual(dashboardFilterKey('u1', 'a'), dashboardFilterKey('u2', 'a'));
   });
 });
 

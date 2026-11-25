@@ -1,3 +1,7 @@
+// How long the file URL stays valid after the click: revoking it at once can cancel the
+// download in Safari and Firefox.
+export const REVOKE_AFTER_MS = 1000;
+
 // Saves text as a file through a temporary link (the browser's download).
 export function downloadText(
   fileName: string,
@@ -9,7 +13,7 @@ export function downloadText(
   a.href = url;
   a.download = fileName;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }
 
 // A file name from a widget title: letters, digits and dashes only.

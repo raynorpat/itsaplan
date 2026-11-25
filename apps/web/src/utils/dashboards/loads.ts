@@ -21,7 +21,8 @@ export interface DashboardState {
 export type LoadSpec =
   // Issues: open ones for measures of the current state, otherwise those created or
   // completed since the start of the previous period (a number's comparison).
-  | { data: 'issues'; filter: IssueFilter }
+  // `requests`: the issues' feedback counts are loaded too.
+  | { data: 'issues'; filter: IssueFilter; requests: boolean }
   // Feedback requests: every active one on the matching issues, whatever the period,
   // since time to start and waiting count from an issue's first request.
   | { data: 'requests'; filter: IssueFilter }
@@ -32,6 +33,21 @@ export type LoadSpec =
   | { data: 'none' };
 
 const OPEN = { state: { type: { nin: ['completed', 'canceled'] } } };
+
+const REQUEST_MEASURES = new Set(['requests', 'requesters']);
+const REQUEST_COLUMNS = new Set(['requests', 'people']);
+
+// Whether an issue widget shows feedback counts (its measure, a table column or the
+// table's sort), which the issue load then fetches alongside.
+export function issueWidgetNeedsRequests(widget: Widget): boolean {
+  const { measure, table } = widget.config;
+  if (REQUEST_MEASURES.has(measure)) return true;
+  if (!table) return false;
+  return (
+    table.columns.some((c) => REQUEST_COLUMNS.has(c)) ||
+    REQUEST_COLUMNS.has(table.sort.split(':')[0] ?? '')
+  );
+}
 
 // The dashboard-only "team" condition of an issue or request widget, as Linear's
 // IssueFilter.team; null when it leaves no team beside the dashboard's own.
@@ -82,20 +98,27 @@ function sinceDay(period: DashboardPeriod, now: Date): string {
   return new Date(t - (t % 86_400_000)).toISOString();
 }
 
+// Where the "new people" lookup starts: the previous period, so the number's
+// comparison has its new people too.
+export const firstFeedbackSince = (period: DashboardPeriod, now: Date): string =>
+  sinceDay(period, now);
+
 export function loadSpecFor(widget: Widget, dashboard: DashboardState, now: Date): LoadSpec {
   const { config } = widget;
   switch (config.data) {
     case 'issues': {
       const scope = scopeFilter(config.filter as FilterCondition[], dashboard.teamId);
       if (!scope) return { data: 'none' };
+      const requests = issueWidgetNeedsRequests(widget);
       if (measureDef('issues', config.measure)?.basis === 'current')
-        return { data: 'issues', filter: and(scope, OPEN) };
+        return { data: 'issues', filter: and(scope, OPEN), requests };
       const since = sinceDay(dashboard.period, now);
       return {
         data: 'issues',
         filter: and(scope, {
           or: [{ createdAt: { gte: since } }, { completedAt: { gte: since } }],
         }),
+        requests,
       };
     }
     case 'requests': {

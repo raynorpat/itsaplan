@@ -10,7 +10,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import type { BreakdownRow } from '@/utils/insights/measures';
-import { formatValue } from '../utils/format';
+import { axisLabel, formatValue } from '../utils/format';
 
 const SEGMENT_COLORS = [
   'var(--chart-1)',
@@ -64,6 +64,8 @@ export default function WidgetBars({
             tickLine={false}
             axisLine={false}
             width={120}
+            interval={0}
+            tickFormatter={(v: string) => axisLabel(v)}
             tick={{ fontSize: 12 }}
           />
           <ChartTooltip cursor={false} content={<ChartTooltipContent />} />

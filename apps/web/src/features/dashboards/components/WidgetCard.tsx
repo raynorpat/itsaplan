@@ -8,6 +8,7 @@ import type { DashboardState } from '@/utils/dashboards/loads';
 import { cn } from '@/lib/utils';
 import { useWidgetResult } from '../hooks/useWidgetResult';
 import { csvFileName, downloadText } from '../utils/download';
+import { excludedText } from '../utils/format';
 import WidgetBody from './WidgetBody';
 import WidgetMenu, { type WidgetActions } from './WidgetMenu';
 import WidgetSlicePanel from './WidgetSlicePanel';
@@ -66,7 +67,7 @@ export default function WidgetCard({
         <p className="mt-2 text-xs text-muted-foreground">
           {[
             result.capped ? 'Showing the first 5,000' : null,
-            result.excluded > 0 ? `${result.excluded} left out (no start or end date)` : null,
+            result.excluded > 0 ? excludedText(widget.config.measure, result.excluded) : null,
           ]
             .filter(Boolean)
             .join(' · ')}

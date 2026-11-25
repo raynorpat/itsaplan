@@ -14,6 +14,9 @@ export interface RequestRow {
   important: boolean;
   source: RequestSource;
   requesterId: string | null;
+  // The issue is archived (auto-archive archives closed issues): its requests still
+  // count for what happened in a period, not for the current state.
+  issueArchived: boolean;
   issue: InsightIssue;
 }
 
@@ -120,7 +123,7 @@ function select(
     case 'waiting':
       return {
         items: issues
-          .filter((g) => isOpen(g.issue))
+          .filter((g) => isOpen(g.issue) && !g.first.issueArchived)
           .map((g) => issueItem(g, daysBetween(g.first.createdAt, ctx.now.getTime()), null)),
         excluded: 0,
       };

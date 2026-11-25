@@ -28,6 +28,12 @@ export function toCsv(widget: Widget, result: WidgetResult): string {
           for (const s of row.segments) out += line([row.label, s.label, s.value]);
         return out;
       }
+      // Only sums and counts have shares; a median's or a percentage's would read 0.0%.
+      if (!result.shares) {
+        let out = line([sliceLabel, measure]);
+        for (const row of result.rows) out += line([row.label, row.value]);
+        return out;
+      }
       let out = line([sliceLabel, measure, 'Share']);
       for (const row of result.rows)
         out += line([row.label, row.value, `${(row.share * 100).toFixed(1)}%`]);

@@ -67,8 +67,9 @@ export function newWidget(data: DataKind): Widget {
   };
 }
 
-export const dashboardFilterKey = (dashboardId: string): string =>
-  `dashboard-filters:${dashboardId}`;
+// Kept per user and dashboard, as Insights settings are.
+export const dashboardFilterKey = (userId: string, dashboardId: string): string =>
+  `dashboard-filters:${userId}:${dashboardId}`;
 
 // A table's starting columns (the first four of its data kind), 10 rows, sorted by the
 // last of them, highest first.

@@ -4,13 +4,16 @@ import FilterBar from '@/components/layout/FilterBar';
 import { useTeamScaffold } from '@/services/board.service';
 import { useTeamsQuery } from '@/services/teams.service';
 import type { FilterCondition } from '@/utils/filters';
+import { withTeam } from '../utils/filterChips';
 import DashboardSelect from './DashboardSelect';
+import WidgetFilterChips from './WidgetFilterChips';
 
 const ANY = 'all';
 
 // An issues or requests widget's filter: a team (the dashboard-only "team" condition),
 // then, once a team is picked, the issue view filter over that team's states, labels
-// and people.
+// and people. Changing the team keeps the other conditions; with "All teams" they are
+// listed and can be removed.
 export default function WidgetIssueFilter({
   conditions,
   onChange,
@@ -25,10 +28,7 @@ export default function WidgetIssueFilter({
   const scaffold = useTeamScaffold(teamKey).data;
   const rest = conditions.filter((c) => c.field !== 'team');
 
-  const setTeam = (value: string) =>
-    onChange(
-      value === ANY ? [] : [{ id: crypto.randomUUID(), field: 'team', op: 'is', values: [value] }],
-    );
+  const setTeam = (value: string) => onChange(withTeam(conditions, value === ANY ? null : value));
 
   return (
     <div className="grid gap-2">
@@ -50,9 +50,15 @@ export default function WidgetIssueFilter({
         />
       )}
       {!teamCondition && (
-        <p className="text-xs text-muted-foreground">
-          Pick a team to filter by state, label or people.
-        </p>
+        <>
+          <WidgetFilterChips
+            conditions={rest}
+            onRemove={(id) => onChange(conditions.filter((c) => c.id !== id))}
+          />
+          <p className="text-xs text-muted-foreground">
+            Pick a team to filter by state, label or people.
+          </p>
+        </>
       )}
     </div>
   );

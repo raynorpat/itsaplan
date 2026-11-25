@@ -33,7 +33,7 @@ export const qk = {
   feedbackDashboard: ['dashboards', 'feedback-report'] as const,
   labelChoices: ['dashboards', 'label-choices'] as const,
   dashboardRows: (loadKey: string) => ['dashboardRows', loadKey] as const,
-  dashboardFirstFeedback: ['dashboardFirstFeedback'] as const,
+  dashboardFirstFeedback: (since: string) => ['dashboardFirstFeedback', since] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
   allTeamsWebhooks: ['webhooks', 'all-teams'] as const,
   // A team's workflow automation rules, archived ones included (team settings →

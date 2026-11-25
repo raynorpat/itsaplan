@@ -51,6 +51,29 @@ describe('loadKeyFor', () => {
     assert.notEqual(loadKeyFor(current, board, NOW), key);
   });
 
+  it('asks for request counts only when an issue widget shows them', () => {
+    const counted = widget('chart', { data: 'issues', measure: 'requests', slice: 'project' });
+    const spec = loadSpecFor(counted, board, NOW);
+    assert.ok(spec.data === 'issues' && spec.requests === true);
+    const plain = loadSpecFor(widget('chart', { data: 'issues', measure: 'open' }), board, NOW);
+    assert.ok(plain.data === 'issues' && plain.requests === false);
+    const table = widget('table', {
+      data: 'issues',
+      measure: 'open',
+      table: { columns: ['title', 'people'], limit: 10, sort: 'title:asc' },
+    });
+    const tableSpec = loadSpecFor(table, board, NOW);
+    assert.ok(tableSpec.data === 'issues' && tableSpec.requests === true);
+    assert.notEqual(
+      loadKeyFor(counted, board, NOW),
+      loadKeyFor(
+        widget('chart', { data: 'issues', measure: 'open', slice: 'project' }),
+        board,
+        NOW,
+      ),
+    );
+  });
+
   it('shares one load per data kind for projects', () => {
     const a = widget('chart', { data: 'projects', measure: 'projects', slice: 'health' });
     const b = widget('number', { data: 'projects', measure: 'avgProgress', filter: {} });
@@ -100,6 +123,7 @@ describe('loadSpecFor', () => {
     assert.deepEqual(open, {
       data: 'issues',
       filter: { state: { type: { nin: ['completed', 'canceled'] } } },
+      requests: false,
     });
     const events = loadSpecFor(widget('chart', { data: 'issues', measure: 'created' }), board, NOW);
     // 30 days back from midnight, then the previous 30 days for the comparison.
@@ -111,6 +135,7 @@ describe('loadSpecFor', () => {
           { completedAt: { gte: '2026-09-24T00:00:00.000Z' } },
         ],
       },
+      requests: false,
     });
   });
 
