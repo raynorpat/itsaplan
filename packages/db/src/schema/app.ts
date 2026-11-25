@@ -1970,7 +1970,7 @@ export const favorite = pgTable(
       onDelete: 'cascade',
     }),
     folderName: text('folder_name'),
-    sortOrder: real('sort_order').notNull(),
+    sortOrder: doublePrecision('sort_order').notNull(),
     predefinedViewType: text('predefined_view_type'),
     issueId: uuid('issue_id').references(() => issue.id, { onDelete: 'cascade' }),
     projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),

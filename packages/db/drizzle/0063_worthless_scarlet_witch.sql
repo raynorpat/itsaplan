@@ -3,7 +3,7 @@ CREATE TABLE "favorite" (
 	"owner_id" uuid NOT NULL,
 	"parent_id" uuid,
 	"folder_name" text,
-	"sort_order" real NOT NULL,
+	"sort_order" double precision NOT NULL,
 	"predefined_view_type" text,
 	"issue_id" uuid,
 	"project_id" uuid,

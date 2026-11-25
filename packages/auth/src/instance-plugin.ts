@@ -54,6 +54,9 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   (apps/api src/customers/settings.ts); members read, owners and admins change.
 // - GET  /instance/customers/people-counts  { counts: { [customerId]: n } }  the number
 //   of people (not merged) of each customer; owners, admins and members, Customers on.
+// - POST /instance/favorites/delete-folder  { id }  deletes one of the caller's
+//   favorite folders and moves every favorite in it to the top level, after the
+//   existing ones (Linear's favoriteDelete deletes a folder's favorites with it).
 //   Same Origin rule for the POST.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
@@ -199,6 +202,12 @@ export interface CustomersHandlers {
   peopleCounts(headers: Headers): Promise<object>;
 }
 
+// Favorites: deleting a folder while keeping its favorites, which Linear's API has no
+// operation for. The handler acts only on the caller's own favorites.
+export interface FavoritesHandlers {
+  deleteFolder(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -214,6 +223,7 @@ export interface InstanceHandlers {
   ai: AiHandlers;
   dashboards: DashboardsHandlers;
   customers: CustomersHandlers;
+  favorites: FavoritesHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -313,6 +323,12 @@ const customersWrite = (
   trusted: string[],
   call: (h: CustomersHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.customers, headers, body));
+
+const favoritesWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: FavoritesHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.favorites, headers, body));
 
 const importsWrite = (
   path: string,
@@ -597,6 +613,11 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/customers-settings/save',
         options.trustedOrigins,
         (h, headers, body) => h.saveSettings(headers, body),
+      ),
+      instanceFavoritesDeleteFolder: favoritesWrite(
+        '/instance/favorites/delete-folder',
+        options.trustedOrigins,
+        (h, headers, body) => h.deleteFolder(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

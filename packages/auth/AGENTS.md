@@ -56,7 +56,9 @@ customers-settings/save` for owners and admins) are here because Linear's
 `OrganizationUpdateInput` has no field for them (`apps/api/src/customers/settings.ts`).
 Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
 delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
-schema has no dashboard type (`apps/api/src/dashboards/`). All but the first need the
+schema has no dashboard type (`apps/api/src/dashboards/`). `POST favorites/delete-folder
+{ id }` (the folder's owner) deletes a favorites folder and keeps its favorites, which
+Linear's API has no operation for (`apps/api/src/favorites/store.ts`). All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

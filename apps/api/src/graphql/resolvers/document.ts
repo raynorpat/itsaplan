@@ -35,7 +35,7 @@ export const toDocument = (row: DocumentRow) => ({ ...row, documentContentId: ro
 type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 
 // Without includeArchived: the document and its parent are not archived.
-const openOnly = and(
+export const openOnly = and(
   isNull(document.archivedAt),
   or(
     isNull(document.projectId),

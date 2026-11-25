@@ -1,72 +1,133 @@
 import { trustedOrigins } from '@repo/auth';
-import { db, favorite, team } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { db, favorite } from '@repo/db';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { customerUrl } from '../../customers/store';
-import { getDashboard } from '../../dashboards/store';
 import { documentUrl } from '../../documents/store';
+import { visibleFavoritesSql } from '../../favorites/access';
 import {
   createFavorite,
   deleteFavorite,
   getFavorite,
   mapFavorite,
   updateFavorite,
-  visibleFavoritesWhere,
   type FavoriteDto,
 } from '../../favorites/store';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
+import { loaders } from '../loaders';
 import { customViewResolvers } from './custom-view';
-import { customerResolvers } from './customer';
-import { cycleResolvers } from './cycle';
+import { toCustomer } from './customer';
+import { toCycle } from './cycle';
 import { documentResolvers } from './document';
-import { issueResolvers } from './issue';
-import { issueLabelResolvers } from './issue-label';
+import { toIssue } from './issue';
+import { toIssueLabel } from './issue-label';
 import { guard, lastSyncId } from './mutations';
-import { projectResolvers } from './project';
-import { teamResolvers } from './team';
+import { projectResolvers, toProject } from './project';
+import { toTeam } from './team';
+import { toGraphQLUser } from './user';
 
-// Linear's Favorite over GraphQL (favorites/store.ts). A favorite's target field reads
-// the item through that item's own query, so it follows the same access rules, and
-// reads null when the viewer can no longer see it or it is archived or trashed.
+// Linear's Favorite over GraphQL (favorites/store.ts). Per request, one query reads all
+// of the viewer's favorites with whether each is visible (favorites/access.ts), so the
+// list, its folders' children, `parent` and every target agree and the access
+// condition is built once. A target reads null unless its favorite is visible; the
+// common kinds load through the request loaders in batches, the rest through their
+// own root query (which applies the same access rules).
 
 type Input = Record<string, unknown>;
 type Resolver = (parent: unknown, args: { id: string }, ctx: GraphQLContext) => unknown;
+type Target = Record<string, unknown> & { id: string };
 
-// The root query that reads each kind of target.
+interface Favorites {
+  rows: Map<string, FavoriteDto>;
+  visible: Set<string>;
+}
+
+const perRequest = new WeakMap<GraphQLContext, Promise<Favorites>>();
+
+function viewerFavorites(ctx: GraphQLContext): Promise<Favorites> {
+  let found = perRequest.get(ctx);
+  if (!found) {
+    found = (async () => {
+      const visibleSql = await visibleFavoritesSql(ctx.user);
+      const rows = await db
+        .select({ row: favorite, visible: sql<boolean>`(${visibleSql})` })
+        .from(favorite)
+        .where(eq(favorite.ownerId, ctx.user.id));
+      return {
+        rows: new Map(rows.map((r) => [r.row.id, mapFavorite(r.row)])),
+        visible: new Set(rows.filter((r) => r.visible).map((r) => r.row.id)),
+      };
+    })();
+    perRequest.set(ctx, found);
+  }
+  return found;
+}
+
+// A mutation changes the viewer's favorites: later fields read them again.
+const forget = (ctx: GraphQLContext) => perRequest.delete(ctx);
+
+const isVisible = async (f: FavoriteDto, ctx: GraphQLContext) =>
+  (await viewerFavorites(ctx)).visible.has(f.id);
+
+// Kinds without a request loader, read through their root query.
 const QUERIES: Record<string, () => Resolver> = {
-  issue: () => issueResolvers.Query.issue as Resolver,
-  project: () => projectResolvers.Query.project as Resolver,
   customView: () => customViewResolvers.Query.customView as Resolver,
-  cycle: () => cycleResolvers.Query.cycle as Resolver,
   document: () => documentResolvers.Query.document as Resolver,
-  label: () => issueLabelResolvers.Query.issueLabel as Resolver,
   projectLabel: () => projectResolvers.Query.projectLabel as Resolver,
-  customer: () => customerResolvers.Query.customer as Resolver,
-  team: () => teamResolvers.Query.team as Resolver,
-  user: () => teamResolvers.Query.user as Resolver,
 };
 
-type Target = Record<string, unknown> & { id: string };
+async function loadTarget(f: FavoriteDto, ctx: GraphQLContext): Promise<Target | null> {
+  const id = f.targetId;
+  if (!id) return null;
+  const l = loaders(ctx);
+  switch (f.type) {
+    case 'issue': {
+      const row = await l.issue.load(id);
+      return row ? (toIssue(row) as Target) : null;
+    }
+    case 'project': {
+      const row = await l.project.load(id);
+      return row ? (toProject(row) as Target) : null;
+    }
+    case 'cycle': {
+      const row = await l.cycle.load(id);
+      return row ? (toCycle(row) as Target) : null;
+    }
+    case 'team': {
+      const row = await l.team.load(id);
+      return row ? (toTeam(row) as Target) : null;
+    }
+    case 'user': {
+      const row = await l.user.load(id);
+      return row ? (toGraphQLUser(row, ctx.user.id) as Target) : null;
+    }
+    case 'label': {
+      const row = await l.label.load(id);
+      return row ? (toIssueLabel(row) as Target) : null;
+    }
+    case 'customer': {
+      const row = await l.customer.load(id);
+      return row ? (toCustomer(row) as Target) : null;
+    }
+    default: {
+      const query = QUERIES[f.type];
+      if (!query) return null;
+      try {
+        return ((await query()(undefined, { id }, ctx)) as Target | null) ?? null;
+      } catch {
+        return null;
+      }
+    }
+  }
+}
 
 // One read of a favorite's target per request.
 const targets = new WeakMap<FavoriteDto, Promise<Target | null>>();
 
-async function readTarget(f: FavoriteDto, ctx: GraphQLContext): Promise<Target | null> {
-  const query = QUERIES[f.type];
-  if (!query || !f.targetId) return null;
-  try {
-    const found = (await query()(undefined, { id: f.targetId }, ctx)) as Target | null;
-    if (!found || found.archivedAt || found.trashed) return null;
-    return found;
-  } catch {
-    return null;
-  }
-}
-
 function target(f: FavoriteDto, ctx: GraphQLContext): Promise<Target | null> {
   let read = targets.get(f);
   if (!read) {
-    read = readTarget(f, ctx);
+    read = (async () => ((await isVisible(f, ctx)) ? loadTarget(f, ctx) : null))();
     targets.set(f, read);
   }
   return read;
@@ -78,10 +139,9 @@ const targetOfType =
 
 const origin = () => trustedOrigins[0] ?? '';
 
-async function teamKey(teamId: unknown): Promise<string | null> {
+async function teamKey(teamId: unknown, ctx: GraphQLContext): Promise<string | null> {
   if (typeof teamId !== 'string') return null;
-  const [row] = await db.select({ key: team.key }).from(team).where(eq(team.id, teamId));
-  return row?.key ?? null;
+  return (await loaders(ctx).team.load(teamId))?.key ?? null;
 }
 
 // The web page of a fixed view, by Linear's view type; a team's fixed view opens the
@@ -95,21 +155,18 @@ const PREDEFINED_PATHS: Record<string, string> = {
   dashboards: '/dashboards',
 };
 
+// The item's web page; null for a folder, a kind without a page, and a favorite whose
+// item the viewer cannot see.
 async function favoriteUrl(f: FavoriteDto, ctx: GraphQLContext): Promise<string | null> {
+  if (f.type === 'folder' || f.type === 'label' || f.type === 'projectLabel' || f.type === 'user')
+    return null;
+  if (!(await isVisible(f, ctx))) return null;
   switch (f.type) {
-    case 'folder':
-    case 'label':
-    case 'projectLabel':
-    case 'user':
-      return null;
-    case 'dashboard': {
-      if (!f.targetId) return null;
-      const found = await getDashboard(ctx.user, f.targetId).catch(() => null);
-      return found ? `${origin()}/dashboards/${found.id}` : null;
-    }
+    case 'dashboard':
+      return f.targetId ? `${origin()}/dashboards/${f.targetId}` : null;
     case 'predefinedView': {
       if (f.teamId) {
-        const key = await teamKey(f.teamId);
+        const key = await teamKey(f.teamId, ctx);
         return key ? `${origin()}/team/${encodeURIComponent(key)}` : null;
       }
       const path = PREDEFINED_PATHS[f.predefinedViewType ?? ''];
@@ -131,11 +188,11 @@ async function favoriteUrl(f: FavoriteDto, ctx: GraphQLContext): Promise<string 
     case 'team':
       return typeof t.key === 'string' ? `${origin()}/team/${encodeURIComponent(t.key)}` : null;
     case 'cycle': {
-      const key = await teamKey(t.teamId);
+      const key = await teamKey(t.teamId, ctx);
       return key ? `${origin()}/team/${encodeURIComponent(key)}/cycles/${t.number}` : null;
     }
     case 'customView': {
-      const key = await teamKey(t.teamId);
+      const key = await teamKey(t.teamId, ctx);
       return key ? `${origin()}/team/${encodeURIComponent(key)}/view/${t.id}` : null;
     }
     default:
@@ -144,14 +201,15 @@ async function favoriteUrl(f: FavoriteDto, ctx: GraphQLContext): Promise<string 
 }
 
 async function listFavorites(ctx: GraphQLContext, args: PageArgs, parentId?: string) {
-  const where = await visibleFavoritesWhere(
-    ctx.user,
-    parentId ? eq(favorite.parentId, parentId) : undefined,
-  );
+  const { visible } = await viewerFavorites(ctx);
+  const ids = [...visible];
   return paginate(
     args,
     { id: favorite.id, createdAt: favorite.createdAt, updatedAt: favorite.updatedAt },
-    where,
+    and(
+      ids.length ? inArray(favorite.id, ids) : sql`false`,
+      parentId ? eq(favorite.parentId, parentId) : undefined,
+    ),
     (w, order, limit) =>
       db
         .select()
@@ -174,23 +232,32 @@ export const favoriteResolvers = {
   },
   Mutation: {
     favoriteCreate: (_: unknown, { input }: { input: Input }, ctx: GraphQLContext) =>
-      guard(async () => payload(await createFavorite(ctx.user, { ...input }))),
+      guard(async () => {
+        const created = await createFavorite(ctx.user, { ...input });
+        forget(ctx);
+        return payload(created);
+      }),
     favoriteUpdate: (
       _: unknown,
       { id, input }: { id: string; input: Input },
       ctx: GraphQLContext,
-    ) => guard(async () => payload(await updateFavorite(ctx.user, id, { ...input }))),
+    ) =>
+      guard(async () => {
+        const updated = await updateFavorite(ctx.user, id, { ...input });
+        forget(ctx);
+        return payload(updated);
+      }),
     favoriteDelete: (_: unknown, { id }: { id: string }, ctx: GraphQLContext) =>
-      guard(async () => ({
-        success: true,
-        lastSyncId: lastSyncId(),
-        entityId: await deleteFavorite(ctx.user, id),
-      })),
+      guard(async () => {
+        const entityId = await deleteFavorite(ctx.user, id);
+        forget(ctx);
+        return { success: true, lastSyncId: lastSyncId(), entityId };
+      }),
   },
   Favorite: {
     archivedAt: () => null,
     parent: async (f: FavoriteDto, _: unknown, ctx: GraphQLContext) =>
-      f.parentId ? getFavorite(ctx.user, f.parentId).catch(() => null) : null,
+      f.parentId ? ((await viewerFavorites(ctx)).rows.get(f.parentId) ?? null) : null,
     children: (f: FavoriteDto, args: PageArgs, ctx: GraphQLContext) =>
       f.type === 'folder'
         ? listFavorites(ctx, args, f.id)
@@ -204,8 +271,10 @@ export const favoriteResolvers = {
               endCursor: null,
             },
           },
-    owner: (f: FavoriteDto, _: unknown, ctx: GraphQLContext) =>
-      (teamResolvers.Query.user as Resolver)(undefined, { id: f.ownerId }, ctx),
+    owner: async (f: FavoriteDto, _: unknown, ctx: GraphQLContext) => {
+      const row = await loaders(ctx).anyUser.load(f.ownerId);
+      return row ? toGraphQLUser(row, ctx.user.id) : null;
+    },
     url: (f: FavoriteDto, _: unknown, ctx: GraphQLContext) => favoriteUrl(f, ctx),
     issue: targetOfType('issue'),
     project: targetOfType('project'),
@@ -218,12 +287,9 @@ export const favoriteResolvers = {
     team: targetOfType('team'),
     user: targetOfType('user'),
     predefinedViewTeam: async (f: FavoriteDto, _: unknown, ctx: GraphQLContext) => {
-      if (f.type !== 'predefinedView' || !f.teamId) return null;
-      try {
-        return await (teamResolvers.Query.team as Resolver)(undefined, { id: f.teamId }, ctx);
-      } catch {
-        return null;
-      }
+      if (f.type !== 'predefinedView' || !f.teamId || !(await isVisible(f, ctx))) return null;
+      const row = await loaders(ctx).team.load(f.teamId);
+      return row ? toTeam(row) : null;
     },
   },
 };

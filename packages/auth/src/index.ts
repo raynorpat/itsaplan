@@ -566,6 +566,7 @@ export { provideInstanceHandlers } from './instance-plugin';
 export type {
   DashboardsHandlers,
   CustomersHandlers,
+  FavoritesHandlers,
   FormsHandlers,
   AiHandlers,
   InstanceHandlers,

@@ -1,5 +1,5 @@
 {
-  "id": "a73227eb-5fb6-4366-af02-f04be5e68251",
+  "id": "ecc77bf5-126f-40f2-8419-fa0744a8779e",
   "prevId": "3a6e0d28-a9a9-4c8a-b46c-4a22757b549a",
   "version": "7",
   "dialect": "postgresql",
@@ -3977,7 +3977,7 @@
         },
         "sort_order": {
           "name": "sort_order",
-          "type": "real",
+          "type": "double precision",
           "primaryKey": false,
           "notNull": true
         },

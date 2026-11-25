@@ -125,8 +125,13 @@ export async function documentPageUrl(row: DocumentRow): Promise<string> {
   return found ? `${origin}/team/${found.key}/issue/${found.seq}` : `${origin}`;
 }
 
+// The document's own link: a project document opens from the project's Documents tab,
+// an issue document from the issue page; the web opens the sheet from the fragment.
 export async function documentUrl(row: DocumentRow): Promise<string> {
-  return `${await documentPageUrl(row)}#document-${row.slugId}`;
+  const page = row.projectId
+    ? `${trustedOrigins[0]}/projects/${row.projectId}/documents`
+    : await documentPageUrl(row);
+  return `${page}#document-${row.slugId}`;
 }
 
 // The parent named by an input: exactly one of projectId / issueId (400 otherwise).

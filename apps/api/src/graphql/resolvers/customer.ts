@@ -108,7 +108,7 @@ const UPSERT_FIELDS = [
   'logoUrl',
 ];
 
-const toCustomer = (dto: CustomerDto) => ({
+export const toCustomer = (dto: CustomerDto) => ({
   ...dto,
   archivedAt: null,
   slackChannelId: null,

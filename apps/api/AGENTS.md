@@ -372,15 +372,21 @@ Rules and invariants for this package below; read the code for the walkthrough.
   reads or changes a favorite; another person's is not found (and `favoriteDelete`
   succeeds without touching it, as Linear's delete does for a missing favorite). One per
   person and target (partial unique indexes): `favoriteCreate` for an existing one
-  returns it, moved to the folder and `sortOrder` given. Folders are not nested; a
-  folder's delete deletes its favorites, and deleting a target deletes its favorites
-  (foreign keys). New favorites go after their siblings (`max(sort_order) + 1000`).
-  `favorites` and `Favorite.children` list only favorites whose target the viewer can
-  see now and is not archived or trashed (`favorites/access.ts`, one SQL condition;
-  customers only while Customers is on); a target field reads the item through its own
-  query and is null when it cannot be read. `url` is the item's web page (null for
-  folders, labels and users). Linear's create input has no initiative, so initiatives
-  cannot be favorited.
+  returns it, moved to the folder and `sortOrder` given (also when two creates race).
+  Folders are not nested. `favoriteDelete` of a folder deletes its favorites (Linear);
+  `/api/auth/instance/favorites/delete-folder` (the owner) moves all of them, including
+  those whose item is hidden now, to the top level after the existing ones, then
+  deletes the folder. Deleting a target deletes its favorites (foreign keys). New
+  favorites go after their siblings (`max(sort_order) + 1000`; `sort_order` is a
+  double). `favorites` and `Favorite.children` list only favorites whose target the
+  viewer can see now and is not archived, retired or trashed, and documents only
+  outside archived projects and issues (`favorites/access.ts`, one SQL condition;
+  customers only while Customers is on). A request reads the viewer's favorites once
+  with whether each is visible (`graphql/resolvers/favorite.ts`); target fields and
+  `url` are null for a favorite that is not visible, and the targets load through the
+  request loaders, so a list costs a fixed number of statements. `url` is the item's web
+  page (null for folders, labels, project labels and users). Linear's create input has
+  no initiative, so initiatives cannot be favorited.
 - **Dashboards** (`dashboards/`, `dashboard`): pages of Insights widgets, stored here
   since Linear's schema has no dashboard type, through `/api/auth/instance/dashboards*`.
   `widgets` is the web's configuration; the API checks only its shape (at most 24

@@ -17,6 +17,7 @@ import { and, eq, inArray, isNull, or, sql, type Column, type SQL } from 'drizzl
 import { readsCustomers } from '../customers/statuses';
 import { listDashboards } from '../dashboards/store';
 import { visibleDocumentsSql } from '../documents/access';
+import { openOnly as openDocuments } from '../graphql/resolvers/document';
 import { visibleLabels } from '../graphql/resolvers/issue-label';
 import { visibleUsers } from '../graphql/resolvers/team';
 import { projectsInTeams } from '../projects/access';
@@ -30,8 +31,9 @@ import {
 import { viewSharedWith } from '../views/store';
 
 // Which favorites a person sees: their own, whose target they can see now and is not
-// archived or trashed (a folder or a workspace-wide fixed view always). One SQL
-// condition over `favorite`, so the list and a lookup by id agree.
+// archived, retired or trashed, and not under an archived project or issue (a folder
+// or a workspace-wide fixed view always). One SQL condition over `favorite`, so the
+// list and a lookup by id agree.
 
 const notTrashed = (col: Column) => sql`coalesce(${col}, false) = false`;
 
@@ -95,14 +97,23 @@ export async function visibleFavoritesSql(viewer: AuthUser): Promise<SQL> {
         db
           .select({ id: document.id })
           .from(document)
-          .where(and(documents, isNull(document.archivedAt), notTrashed(document.trashed))),
+          .where(and(documents, openDocuments, notTrashed(document.trashed))),
       ),
       target(
         favorite.labelId,
-        db.select({ id: label.id }).from(label).where(visibleLabels(viewer.id)),
+        db
+          .select({ id: label.id })
+          .from(label)
+          .where(and(visibleLabels(viewer.id), isNull(label.retiredAt))),
       ),
       NON_GUEST_ROLES.includes(role)
-        ? target(favorite.projectLabelId, db.select({ id: projectLabel.id }).from(projectLabel))
+        ? target(
+            favorite.projectLabelId,
+            db
+              .select({ id: projectLabel.id })
+              .from(projectLabel)
+              .where(isNull(projectLabel.retiredAt)),
+          )
         : undefined,
       customers
         ? target(favorite.customerId, db.select({ id: customer.id }).from(customer))

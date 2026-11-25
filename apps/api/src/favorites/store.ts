@@ -9,8 +9,9 @@ import { visibleFavoritesSql } from './access';
 // them. A favorite points at exactly one target (an item, a fixed view, or a folder
 // name); one per person and target, so creating it again returns the existing one and
 // moves it to the folder and position given, as Linear does. Folders are not nested.
-// Deleting a folder deletes the favorites in it (Linear); deleting a target deletes
-// its favorites (foreign keys).
+// Deleting a folder through favoriteDelete deletes the favorites in it (Linear);
+// deleteFolderKeepingFavorites moves them to the top level first. Deleting a target
+// deletes its favorites (foreign keys).
 
 type Row = typeof favorite.$inferSelect;
 
@@ -214,11 +215,6 @@ async function isVisible(owner: AuthUser, id: string): Promise<boolean> {
   return !!row;
 }
 
-// The owner's favorites whose targets they can see (`where` narrows further).
-export async function visibleFavoritesWhere(owner: AuthUser, where?: SQL): Promise<SQL> {
-  return and(await visibleFavoritesSql(owner), where)!;
-}
-
 export async function getFavorite(owner: AuthUser, id: unknown): Promise<FavoriteDto> {
   return mapFavorite(await findOwn(owner, id));
 }
@@ -257,13 +253,14 @@ export async function createFavorite(
       .returning();
   } catch (err) {
     const code = pgErrorCode(err);
-    // A concurrent create of the same target: return the one that was stored.
+    // A concurrent create of the same target: move the one that was stored to the
+    // folder and position asked for, as the sequential path does.
     if (code === '23505' && same) {
       const [existing] = await db
         .select()
         .from(favorite)
         .where(and(eq(favorite.ownerId, owner.id), same));
-      if (existing) return mapFavorite(existing);
+      if (existing) return moveExisting(owner, existing, input, parentId, sortOrder);
     }
     if (code === '23505') throw new HttpError(409, 'The id is already used');
     if (code === '23503') throw new HttpError(404, 'The favorite target was not found');
@@ -329,4 +326,33 @@ export async function deleteFavorite(owner: AuthUser, id: unknown): Promise<stri
   if (typeof id !== 'string' || !UUID_RE.test(id)) throw new HttpError(400, 'id must be an id');
   await db.delete(favorite).where(own(owner, id));
   return id;
+}
+
+// Deletes one of the owner's folders and moves every favorite in it, including those
+// whose item the owner cannot see now, to the top level after the existing top-level
+// favorites, in their order. One transaction; the owner's row lock keeps two deletes
+// from interleaving.
+export async function deleteFolderKeepingFavorites(owner: AuthUser, id: unknown): Promise<void> {
+  const folder = await findOwn(owner, id);
+  if (folder.folderName === null) throw new HttpError(400, 'Only a folder can be deleted here');
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM "user" WHERE id = ${owner.id} FOR UPDATE`);
+    await tx.execute(sql`
+      UPDATE ${favorite} AS f
+      SET parent_id = NULL,
+          sort_order = base.max + ${SORT_STEP} * moved.n,
+          updated_at = now()
+      FROM (
+        SELECT id, row_number() OVER (ORDER BY sort_order, created_at, id) AS n
+        FROM ${favorite}
+        WHERE parent_id = ${folder.id}
+      ) AS moved,
+      (
+        SELECT coalesce(max(sort_order), 0) AS max
+        FROM ${favorite}
+        WHERE owner_id = ${owner.id} AND parent_id IS NULL AND id <> ${folder.id}
+      ) AS base
+      WHERE f.id = moved.id`);
+    await tx.delete(favorite).where(own(owner, folder.id));
+  });
 }

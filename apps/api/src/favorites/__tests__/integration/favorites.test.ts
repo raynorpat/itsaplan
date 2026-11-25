@@ -13,6 +13,7 @@ import {
   signUpAs,
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
+import { countStatements } from '../../../__tests__/helpers/statements';
 import { instance, ok } from '../../../portal/__tests__/helpers';
 
 // Linear's Favorite: a person's own sidebar bookmarks and folders, each favorite
@@ -330,5 +331,182 @@ describe('favorites', () => {
     expect(again.id).toBe(fav.id);
     expect(again.parent.id).toBe(folder.id);
     expect(again.sortOrder).toBe(7);
+  });
+  it('stores sortOrder in double precision', async () => {
+    const { owner, issue } = await setup();
+    const fav = await create(owner, { issueId: issue.id, sortOrder: 1234567.89 });
+    expect(fav.sortOrder).toBe(1234567.89);
+  });
+
+  it('the favorites list runs a bounded number of statements', async () => {
+    const { owner, eng } = await setup();
+    const project = await createProject(owner, { name: 'Launch', teamIds: [eng.id] });
+    const view = await createView(owner, { name: 'Bugs', teamId: eng.id, shared: true });
+    const doc = await createDocument(owner, { title: 'Spec', projectId: project.id });
+    const label = await createLabel(owner, { name: 'Bug', teamId: eng.id });
+    const folder = await create(owner, { folderName: 'Work' });
+    for (let i = 0; i < 12; i++) {
+      const issue = await createIssue(owner, { teamId: eng.id, title: `Issue ${i}` });
+      await create(owner, { issueId: issue.id, parentId: folder.id });
+    }
+    await create(owner, { projectId: project.id });
+    await create(owner, { customViewId: view.id });
+    await create(owner, { documentId: doc.id });
+    await create(owner, { labelId: label.id });
+    await create(owner, { teamId: eng.id });
+    await create(owner, { predefinedViewType: 'myIssues' });
+    // A fixed number, whatever the number of favorites (29 with these 19).
+    const statements = await countStatements(() => list(owner));
+    expect(statements).toBeLessThanOrEqual(30);
+  });
+
+  it('deleting a folder through the instance endpoint keeps its favorites, hidden ones too', async () => {
+    const { owner, eng, issue } = await setup();
+    const member = await signUpAs('member');
+    const ops = (await createTeam(owner, { key: 'OPS' })).team;
+    const hidden = await createIssue(owner, { teamId: ops.id, title: 'Secret' });
+    const top = await create(member, { issueId: issue.id });
+    const folder = await create(member, { folderName: 'Work' });
+    const second = await createIssue(owner, { teamId: eng.id, title: 'Second' });
+    const a = await create(member, { issueId: hidden.id, parentId: folder.id });
+    const b = await create(member, { issueId: second.id, parentId: folder.id });
+    await makePrivate(owner, ops.id);
+    await ok(await instance('favorites/delete-folder', member, { id: folder.id }));
+    const after = (await list(member)).map((f) => f.id);
+    expect(after).toEqual(expect.arrayContaining([top.id, b.id]));
+    expect(after).not.toContain(folder.id);
+    // The hidden favorite still exists, at the top level after the others.
+    await gqlData(
+      owner,
+      `mutation($id: String!) { teamUpdate(id: $id, input: { private: false }) { success } }`,
+      { id: ops.id },
+    );
+    const back = await list(member);
+    const order = back
+      .filter((f) => !f.parent)
+      .sort((x, y) => x.sortOrder - y.sortOrder)
+      .map((f) => f.id);
+    expect(order).toEqual([top.id, a.id, b.id]);
+  });
+
+  it("another person's folder cannot be deleted through the endpoint", async () => {
+    const { owner } = await setup();
+    const member = await signUpAs('member');
+    const folder = await create(owner, { folderName: 'Work' });
+    const res = await instance('favorites/delete-folder', member, { id: folder.id });
+    expect(res.status).toBe(404);
+    expect((await list(owner)).map((f) => f.id)).toEqual([folder.id]);
+  });
+
+  it("a retired label's favorite is left out", async () => {
+    const { owner, eng } = await setup();
+    const label = await createLabel(owner, { name: 'Old', teamId: eng.id });
+    await create(owner, { labelId: label.id });
+    await gqlData(owner, `mutation($id: String!) { issueLabelRetire(id: $id) { success } }`, {
+      id: label.id,
+    });
+    expect(await list(owner)).toEqual([]);
+  });
+
+  it('a document of an archived project is left out', async () => {
+    const { owner, eng } = await setup();
+    const project = await createProject(owner, { name: 'Launch', teamIds: [eng.id] });
+    const doc = await createDocument(owner, { title: 'Spec', projectId: project.id });
+    await create(owner, { documentId: doc.id });
+    await gqlData(owner, `mutation($id: String!) { projectArchive(id: $id) { success } }`, {
+      id: project.id,
+    });
+    expect(await list(owner)).toEqual([]);
+  });
+
+  it("a team fixed view's url is null once the team is hidden", async () => {
+    const { owner, eng } = await setup();
+    const member = await signUpAs('member');
+    const fav = await create(member, {
+      predefinedViewType: 'activeCycle',
+      predefinedViewTeamId: eng.id,
+    });
+    expect(fav.url).toEndWith('/team/ENG');
+    await makePrivate(owner, eng.id);
+    const one = (await gqlData(member, ONE, { id: fav.id })).favorite;
+    expect(one.url).toBeNull();
+    expect(one.predefinedViewTeam).toBeNull();
+  });
+
+  it('concurrent creates apply the requested folder and position', async () => {
+    const { owner, issue } = await setup();
+    const folder = await create(owner, { folderName: 'Work' });
+    const input = { issueId: issue.id, parentId: folder.id, sortOrder: 42 };
+    const results = await Promise.all([1, 2, 3, 4].map(() => create(owner, input)));
+    for (const r of results) {
+      expect(r.parent?.id).toBe(folder.id);
+      expect(r.sortOrder).toBe(42);
+    }
+  });
+
+  it('each kind has its url', async () => {
+    const { owner, eng, issue } = await setup();
+    await ok(await instance('customers-settings/save', owner, { enabled: true }));
+    const project = await createProject(owner, { name: 'Launch', teamIds: [eng.id] });
+    const view = await createView(owner, { name: 'Bugs', teamId: eng.id, shared: true });
+    const doc = await createDocument(owner, { title: 'Spec', projectId: project.id });
+    const label = await createLabel(owner, { name: 'Bug', teamId: eng.id });
+    const customer = (
+      await gqlData(
+        owner,
+        `mutation { customerCreate(input: { name: "Acme" }) { customer { id slugId } } }`,
+      )
+    ).customerCreate.customer;
+    const url = async (input: Record<string, unknown>) =>
+      (await create(owner, input)).url as string | null;
+    expect(await url({ issueId: issue.id })).toEndWith(`/team/ENG/issue/${issue.number}`);
+    expect(await url({ projectId: project.id })).toContain('/projects/');
+    expect(await url({ customViewId: view.id })).toEndWith(`/team/ENG/view/${view.id}`);
+    // The project's Documents tab, which opens the document from the fragment.
+    expect(await url({ documentId: doc.id })).toEndWith(
+      `/projects/${project.id}/documents#document-${doc.slugId}`,
+    );
+    expect(await url({ customerId: customer.id })).toEndWith(
+      `/feedback/customers/${customer.slugId}`,
+    );
+    expect(await url({ teamId: eng.id })).toEndWith('/team/ENG');
+    expect(await url({ predefinedViewType: 'myIssues' })).toEndWith('/my-issues');
+    expect(await url({ labelId: label.id })).toBeNull();
+    expect(await url({ folderName: 'Work' })).toBeNull();
+  });
+
+  it("a folder's children leave out favorites the viewer cannot see", async () => {
+    const { owner, eng, issue } = await setup();
+    const member = await signUpAs('member');
+    const ops = (await createTeam(owner, { key: 'OPS' })).team;
+    const hidden = await createIssue(owner, { teamId: ops.id, title: 'Secret' });
+    const folder = await create(member, { folderName: 'Work' });
+    const shown = await create(member, { issueId: issue.id, parentId: folder.id });
+    await create(member, { issueId: hidden.id, parentId: folder.id });
+    await makePrivate(owner, ops.id);
+    void eng;
+    const f = (await list(member)).find((x) => x.id === folder.id)!;
+    expect(f.children.nodes.map((c: Fav) => c.id)).toEqual([shown.id]);
+  });
+
+  it('a fixed view is created once per type and team', async () => {
+    const { owner, eng } = await setup();
+    const a = await create(owner, { predefinedViewType: 'myIssues' });
+    const b = await create(owner, { predefinedViewType: 'myIssues' });
+    expect(b.id).toBe(a.id);
+    const c = await create(owner, {
+      predefinedViewType: 'activeCycle',
+      predefinedViewTeamId: eng.id,
+    });
+    const d = await create(owner, {
+      predefinedViewType: 'activeCycle',
+      predefinedViewTeamId: eng.id,
+    });
+    expect(d.id).toBe(c.id);
+    expect(c.id).not.toBe(a.id);
+    expect(c.predefinedViewTeam.id).toBe(eng.id);
+    expect(await errorCode(owner, CREATE, { input: { predefinedViewType: 'my issues!' } })).toBe(
+      'INVALID_INPUT',
+    );
   });
 });
