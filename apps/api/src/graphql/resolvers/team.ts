@@ -1,6 +1,6 @@
 import { APP_ROLE } from '@repo/auth';
 import { db, team, teamMember, user } from '@repo/db';
-import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import {
   memberTeamIds,
   publicTeamAppUserIds,
@@ -11,6 +11,7 @@ import {
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
 import { gqlError } from '../errors';
+import { newestFirst, paginateSorted, parseSortInput, type SortBuilder } from '../sort';
 import { compare, compareId, filterSql, type FieldHandlers } from '../filter';
 import { getOrganization } from './organization';
 import { toGraphQLUser } from './user';
@@ -106,9 +107,37 @@ export const userFilter: FieldHandlers = {
   },
 };
 
-type ConnectionArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
+type ConnectionArgs = PageArgs & {
+  filter?: unknown;
+  includeArchived?: boolean | null;
+  sort?: unknown;
+};
+
+// Linear's UserSortInput. A user's name and display name are the same shown name here
+// (`shownNameSql`), so both keys order by it.
+const userSorts: Record<string, SortBuilder> = {
+  name: () => [{ sql: shownNameSql, type: 'text' }],
+  displayName: () => [{ sql: shownNameSql, type: 'text' }],
+};
 
 export function listUsers(where: SQL | undefined, args: ConnectionArgs, viewerId: string) {
+  const keys = parseSortInput(args.sort, userSorts);
+  if (keys)
+    return paginateSorted(
+      args,
+      keys,
+      newestFirst(sql`${user.createdAt}`),
+      sql`${user.id}`,
+      and(where, filterSql(args.filter, userFilter)),
+      (w, order, limit, select) =>
+        db
+          .select({ ...getTableColumns(user), sortValues: select })
+          .from(user)
+          .where(w)
+          .orderBy(...order)
+          .limit(limit),
+      (row) => toGraphQLUser(row, viewerId),
+    );
   return paginate(
     args,
     { id: user.id, createdAt: user.createdAt, updatedAt: user.updatedAt },
