@@ -132,6 +132,8 @@ export interface RequestersHandlers {
   sharedProjectUpdates(headers: Headers, query: Record<string, unknown>): Promise<object>;
   // The number of people asking on an issue, for anyone who can see it (guests too).
   feedbackCount(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  // The people whose first feedback is at or after `since` (ids and dates only).
+  firstRequests(headers: Headers, query: Record<string, unknown>): Promise<object>;
 }
 
 // Portal boards shown to people outside the workspace (Linear has no portal): owners
@@ -439,6 +441,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
           ctx.json(
             await run((h) =>
               h.requesters.feedbackCount(ctx.headers ?? new Headers(), { ...ctx.query }),
+            ),
+          ),
+      ),
+      instanceFeedbackFirstRequests: createAuthEndpoint(
+        '/instance/feedback/first-requests',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) =>
+              h.requesters.firstRequests(ctx.headers ?? new Headers(), { ...ctx.query }),
             ),
           ),
       ),

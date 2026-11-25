@@ -426,6 +426,38 @@ export async function createTeamFeedbackAttachment(
   return createRequesterAttachment(issueId, requesterId, 'team', user.id);
 }
 
+// The people whose first active feedback on issues the user can see is at or after
+// `since`, with that date: the dashboards' "new people". One query; no names or emails.
+export async function firstRequestsSince(
+  userId: string,
+  query: { since?: unknown },
+): Promise<{ people: { id: string; firstFeedbackAt: string }[] }> {
+  await assertMember(userId);
+  const since = typeof query.since === 'string' ? new Date(query.since) : null;
+  if (!since || Number.isNaN(since.getTime()))
+    throw new HttpError(400, 'since must be a date and time');
+  const first = sql<Date>`min(${customerNeed.createdAt})`;
+  const rows = await db
+    .select({ id: attachment.externalUserCreatorId, first })
+    .from(customerNeed)
+    .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
+    .innerJoin(issue, eq(issue.id, customerNeed.issueId))
+    .where(
+      and(
+        isNull(customerNeed.archivedAt),
+        sql`${attachment.externalUserCreatorId} IS NOT NULL`,
+        inArray(issue.teamId, visibleTeamIds(userId)),
+      ),
+    )
+    .groupBy(attachment.externalUserCreatorId)
+    .having(sql`${first} >= ${since.toISOString()}`);
+  return {
+    people: rows.flatMap((r) =>
+      r.id ? [{ id: r.id, firstFeedbackAt: iso(new Date(r.first)) }] : [],
+    ),
+  };
+}
+
 // The number of people asking on an issue (distinct requesters of its active feedback;
 // a merge points the feedback at the person kept), for anyone who can see the issue,
 // guests included. Guests read no feedback through GraphQL, and Linear's schema has no

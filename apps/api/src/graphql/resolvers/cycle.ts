@@ -112,8 +112,8 @@ export const cycleResolvers = {
     },
   },
   Cycle: {
-    team: async (c: GraphQLCycle) => {
-      const [row] = await db.select().from(team).where(eq(team.id, c.teamId));
+    team: async (c: GraphQLCycle, _: unknown, ctx: GraphQLContext) => {
+      const row = await loaders(ctx).team.load(c.teamId);
       return row ? toTeam(row) : null;
     },
     issues: (c: GraphQLCycle, args: ConnectionArgs, ctx: GraphQLContext) =>

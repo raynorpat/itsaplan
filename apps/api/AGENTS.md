@@ -318,17 +318,22 @@ Rules and invariants for this package below; read the code for the walkthrough.
 - **Dashboards** (`dashboards/`, `dashboard`): pages of Insights widgets, stored here
   since Linear's schema has no dashboard type, through `/api/auth/instance/dashboards*`.
   `widgets` is the web's configuration; the API checks only its shape (at most 24
-  widgets, each with an id, a kind `chart` / `number` / `table`, a width `half` / `full`
-  and a config object; at most 100 KB). A dashboard is shared with the workspace (every
-  owner, admin and member) or with teams (their members; a member names only teams they
-  are in); owners and admins see every dashboard; guests and app users have none (403).
-  The owner and owners / admins edit and delete it; anyone who sees one duplicates it
-  (the caller owns the copy). An owner who leaves leaves it with no owner. The workspace
-  feedback report is the one dashboard with `system_key` `feedback`, owned by no one and
-  shared with the workspace; `dashboards/feedback` creates it with the given widgets the
-  first time (`ON CONFLICT DO NOTHING`, so two first opens give one) and again after it
-  is deleted. A requester's `firstFeedbackAt` (requesters list) is their first active
-  feedback on an issue the user can see.
+  widgets, each with its own id, a kind `chart` / `number` / `table`, a width `half` /
+  `full` and a config object; at most 100 KB). A dashboard is shared with the workspace
+  (every owner, admin and member) or with teams (their members; a member names only teams
+  they are in, an admin any existing team; deleted teams drop out of `teamIds`); owners
+  and admins see every dashboard, and the owner always sees their own; guests and app
+  users have none (403). The owner and owners / admins edit and delete it; anyone who
+  sees one duplicates it (the caller owns the copy, shared with the original's teams the
+  caller may name, else the workspace). An owner who leaves (deleted or suspended) leaves
+  it with no owner. The workspace feedback report is the one dashboard with `system_key`
+  `feedback`, owned by no one and always shared with the workspace (its sharing cannot
+  change); `dashboards/feedback` creates it with the given widgets the first time (`ON
+  CONFLICT DO NOTHING`, so two first opens give one) and again after it is deleted. A
+  requester's `firstFeedbackAt` (requesters list) is their first active feedback on an
+  issue the user can see; `/api/auth/instance/feedback/first-requests?since=` lists the
+  people whose first one is at or after `since` (ids and dates only, one query), for the
+  dashboards' "new people".
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

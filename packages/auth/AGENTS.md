@@ -39,7 +39,8 @@ project-updates/share`, and `GET project-updates/shared?projectId=` for the ids 
 sent), and the attachment that
 names who gave a feedback item (`POST feedback/attachment { issueId, requesterId }`),
 and the number of people asking on an issue (`GET feedback/count?issueId=`, `{ people }`,
-for anyone who can see the issue, guests included) are here because Linear's schema has no mutation for them
+for anyone who can see the issue, guests included), and the people whose first feedback
+is at or after a date (`GET feedback/first-requests?since=`, ids and dates; members) are here because Linear's schema has no mutation for them
 (`apps/api/src/feedback/requesters.ts`). Portal boards (`GET portal/boards`, `POST
 portal/boards/{create, update, delete}`, `POST portal/block` for blocking a requester
 from the portal; owners and admins) and the boards showing an

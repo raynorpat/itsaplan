@@ -5,6 +5,7 @@ import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/line
 import { listCycles } from '../../../cycles/store';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 import { addMember, createTeam, createWebhook, teamView } from '../../../__tests__/helpers/graphql';
+import { countStatements } from '../../../__tests__/helpers/statements';
 
 // Cycles over the Linear API: team settings through teamUpdate, cycle CRUD,
 // closing by hand, archiving, progress, flags, the issue cycle filter, webhooks.
@@ -50,6 +51,34 @@ describe('graphql cycles', () => {
       `mutation { teamUpdate(id: "${teamId}", input: { cycleDuration: 3 }) { success } }`,
     );
     expect(errorCode(denied)).toBe('FORBIDDEN');
+  });
+
+  it('lists cycles with their team and histories in the same statements for more cycles', async () => {
+    const { owner, teamId, client } = await setup();
+    const query = `{ cycles(first: 50) { nodes { id number team { id key }
+      scopeHistory completedScopeHistory issueCountHistory completedIssueCountHistory } } }`;
+    const measure = async () => {
+      let res: Awaited<ReturnType<typeof gql>> | undefined;
+      const n = await countStatements(async () => {
+        res = await gql({ cookie: owner.cookie }, query);
+      });
+      expect(res!.body.errors).toBeUndefined();
+      return { n, count: (res!.body.data as { cycles: { nodes: unknown[] } }).cycles.nodes.length };
+    };
+    const before = await measure();
+    let last = (await listCycles(teamId)).at(-1)!;
+    for (let i = 0; i < 3; i++) {
+      const startsAt = new Date(new Date(last.endsAt).getTime() + DAY);
+      await client.createCycle({
+        teamId,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 7 * DAY),
+      });
+      last = (await listCycles(teamId)).at(-1)!;
+    }
+    const after = await measure();
+    expect(after.count).toBe(before.count + 3);
+    expect(after.n).toBe(before.n);
   });
 
   it('creates a cycle after the last one, rejects an overlap, and renames', async () => {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db, user as userTable } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { db, team as teamTable, teamMember, user as userTable } from '@repo/db';
+import { and, eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { addMember, createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
@@ -195,6 +195,94 @@ describe('dashboards', () => {
     expect(
       (await instance('dashboards/create', member, { name: '', sharedWith: 'workspace' })).status,
     ).toBe(400);
+  });
+
+  it('a copy of a team dashboard keeps the teams the caller is in', async () => {
+    const { owner, member, eng, ops } = await setup();
+    const made = await create(owner, {
+      name: 'Two teams',
+      sharedWith: 'teams',
+      teamIds: [eng.team.id, ops.team.id],
+      widgets: [],
+    });
+    const copy = (await ok(await instance('dashboards/duplicate', member, { id: made.id })))
+      .dashboard as Json;
+    expect(copy.sharedWith).toBe('teams');
+    expect(copy.teamIds).toEqual([eng.team.id]);
+  });
+
+  it('the owner keeps seeing their dashboard after leaving its team', async () => {
+    const { member, eng } = await setup();
+    const made = await create(member, {
+      name: 'ENG',
+      sharedWith: 'teams',
+      teamIds: [eng.team.id],
+      widgets: [],
+    });
+    await db
+      .delete(teamMember)
+      .where(and(eq(teamMember.teamId, eng.team.id), eq(teamMember.userId, member.userId)));
+    const seen = await ok(await read(member, made.id));
+    expect(seen.dashboard.canEdit).toBe(true);
+    expect((await list(member)).map((d) => d.id)).toEqual([made.id]);
+  });
+
+  it('the feedback report stays shared with the workspace', async () => {
+    const { admin, eng } = await setup();
+    const report = (await ok(await instance('dashboards/feedback', admin, { widgets: [] })))
+      .dashboard as Json;
+    const res = await instance('dashboards/update', admin, {
+      id: report.id,
+      sharedWith: 'teams',
+      teamIds: [eng.team.id],
+    });
+    expect(res.status).toBe(400);
+    expect((await ok(await read(admin, report.id))).dashboard.sharedWith).toBe('workspace');
+  });
+
+  it('team ids must name teams that exist, and deleted teams drop out', async () => {
+    const { admin, eng, ops } = await setup();
+    expect(
+      (
+        await instance('dashboards/create', admin, {
+          name: 'X',
+          sharedWith: 'teams',
+          teamIds: ['00000000-0000-4000-8000-000000000000'],
+          widgets: [],
+        })
+      ).status,
+    ).toBe(400);
+    const made = await create(admin, {
+      name: 'Both',
+      sharedWith: 'teams',
+      teamIds: [eng.team.id, ops.team.id],
+      widgets: [],
+    });
+    await db.delete(teamTable).where(eq(teamTable.id, ops.team.id));
+    expect((await ok(await read(admin, made.id))).dashboard.teamIds).toEqual([eng.team.id]);
+  });
+
+  it('a suspended owner reads as no owner', async () => {
+    const { member, other, admin } = await setup();
+    const made = await create(member, { name: 'X', sharedWith: 'workspace', widgets: [] });
+    await db
+      .update(userTable)
+      .set({ suspendedAt: new Date() })
+      .where(eq(userTable.id, member.userId));
+    const seen = await ok(await read(other, made.id));
+    expect(seen.dashboard.ownerId).toBeNull();
+    expect(seen.dashboard.ownerName).toBeNull();
+    expect((await ok(await read(admin, made.id))).dashboard.canEdit).toBe(true);
+  });
+
+  it('refuses two widgets with the same id', async () => {
+    const { member } = await setup();
+    const res = await instance('dashboards/create', member, {
+      name: 'X',
+      sharedWith: 'workspace',
+      widgets: [widget('a'), widget('a')],
+    });
+    expect(res.status).toBe(400);
   });
 
   it('the feedback report is one workspace dashboard with no owner', async () => {

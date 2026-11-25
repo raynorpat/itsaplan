@@ -201,6 +201,44 @@ describe('requesters', () => {
     expect(people.find((p) => p.id === sam.id)!.firstFeedbackAt).toBeNull();
   });
 
+  it('lists the people whose first feedback is on or after a date, without names', async () => {
+    const { owner, member, guest, issue } = await setup();
+    const jane = await create(owner, { name: 'Jane', email: 'jane@x.com' });
+    const sam = await create(owner, { name: 'Sam' });
+    await create(owner, { name: 'Nobody' });
+    await addFeedback(owner, issue.id, jane.id, 'First');
+    await addFeedback(owner, issue.id, sam.id, 'Hello');
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const res = await ok(await call('feedback/first-requests', { as: member, query: { since } }));
+    const people = res.people as Json[];
+    expect(people.map((p) => p.id).sort()).toEqual([jane.id, sam.id].sort());
+    for (const p of people) {
+      expect(Object.keys(p).sort()).toEqual(['firstFeedbackAt', 'id']);
+      expect(p.firstFeedbackAt >= since).toBe(true);
+    }
+    const later = new Date(Date.now() + 60_000).toISOString();
+    const none = await ok(
+      await call('feedback/first-requests', { as: member, query: { since: later } }),
+    );
+    expect(none.people).toEqual([]);
+    expect((await call('feedback/first-requests', { as: guest, query: { since } })).status).toBe(
+      403,
+    );
+    expect(
+      (await call('feedback/first-requests', { as: member, query: { since: 'soon' } })).status,
+    ).toBe(400);
+  });
+
+  it('first-requests leaves out feedback on teams the user cannot see', async () => {
+    const { owner, member, issue } = await setup();
+    const jane = await create(owner, { name: 'Jane' });
+    await addFeedback(owner, issue.id, jane.id, 'First');
+    await makePrivate(owner, 'MKT');
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const res = await ok(await call('feedback/first-requests', { as: member, query: { since } }));
+    expect(res.people).toEqual([]);
+  });
+
   it('merges one person into another (owners and admins only)', async () => {
     const { owner, member, issue } = await setup();
     const a = await create(owner, { name: 'J. Doe', email: 'jdoe@x.com' });
