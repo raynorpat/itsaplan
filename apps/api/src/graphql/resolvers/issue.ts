@@ -3,7 +3,7 @@ import { trustedOrigins } from '@repo/auth';
 import { and, eq, getTableColumns, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { GraphQLContext } from '../context';
 import { paginate, paginateByValue, type PageArgs } from '../connection';
-import { requesterCountSql } from '../../feedback/store';
+import { customerCountSql } from '../../feedback/store';
 import { gqlError } from '../errors';
 import { loaders } from '../loaders';
 import { issueFilterSql } from '../issue-filter';
@@ -104,8 +104,8 @@ type ConnectionArgs = PageArgs & {
   sort?: Record<string, { order?: string | null } | null>[] | null;
 };
 
-// Linear's IssueSortInput: only the counts of people asking (customerCount,
-// customerImportantCount; feedback/store.ts) are supported, one at a time. Null when
+// Linear's IssueSortInput: only customerCount and customerImportantCount
+// (feedback/store.ts customerCountSql) are supported, one at a time. Null when
 // no sort is given.
 function countSort(sort: ConnectionArgs['sort']) {
   if (!sort || sort.length === 0) return null;
@@ -118,7 +118,7 @@ function countSort(sort: ConnectionArgs['sort']) {
     );
   const order = sort.find((e) => e?.[key] != null)![key]!.order;
   return {
-    value: requesterCountSql(key === 'customerImportantCount'),
+    value: customerCountSql(key === 'customerImportantCount'),
     direction: order === 'Ascending' ? ('asc' as const) : ('desc' as const),
   };
 }

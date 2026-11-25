@@ -1,6 +1,6 @@
 import { customer, customerNeed, db, issue } from '@repo/db';
 import { and, eq, inArray, isNull, notInArray, sql, type SQL } from 'drizzle-orm';
-import { requesterCountSql } from '../feedback/store';
+import { customerCountSql, customersOnSql } from '../feedback/store';
 import { customerFilterSql } from './customer-filter';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { issueFilterSql } from './issue-filter';
@@ -23,17 +23,18 @@ function needHandlers(viewerId: string): FieldHandlers {
         ? inArray(customerNeed.issueId, db.select({ id: issue.id }).from(issue).where(match))
         : sql`true`;
     },
+    // Matches nothing while Customers is off: customer data is not served then.
     customer: (v, p) => {
       const { null: isNullFilter, ...rest } = v as Record<string, unknown>;
-      if (isNullFilter === true) return sql`${customerNeed.customerId} IS NULL`;
+      if (isNullFilter === true)
+        return and(customersOnSql, sql`${customerNeed.customerId} IS NULL`)!;
       const match = customerFilterSql(rest, viewerId, p);
       const ids = db.select({ id: customer.id }).from(customer).where(match);
-      return (
-        and(
-          isNullFilter === false ? sql`${customerNeed.customerId} IS NOT NULL` : undefined,
-          Object.keys(rest).length ? inArray(customerNeed.customerId, ids) : undefined,
-        ) ?? sql`true`
-      );
+      return and(
+        customersOnSql,
+        isNullFilter === false ? sql`${customerNeed.customerId} IS NOT NULL` : undefined,
+        Object.keys(rest).length ? inArray(customerNeed.customerId, ids) : undefined,
+      )!;
     },
   };
 }
@@ -76,9 +77,8 @@ export function needCollectionFilter(viewerId: string) {
   return (value: unknown, path: string): SQL => filterSql(value, collection, path) ?? sql`true`;
 }
 
-// IssueFilter.customerCount / customerImportantCount: the number of people asking
-// (feedback/store.ts requesterCountSql).
+// IssueFilter.customerCount / customerImportantCount (feedback/store.ts customerCountSql).
 export const customerCountFilter = (value: unknown, path: string): SQL =>
-  compare(requesterCountSql(), value, path);
+  compare(customerCountSql(), value, path);
 export const customerImportantCountFilter = (value: unknown, path: string): SQL =>
-  compare(requesterCountSql(true), value, path);
+  compare(customerCountSql(true), value, path);
