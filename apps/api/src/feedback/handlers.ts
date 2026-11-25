@@ -1,5 +1,6 @@
 import { getActiveSession, type RequestersHandlers } from '@repo/auth';
 import { HttpError } from '../shared/lib';
+import { shareProjectUpdate } from '../updates/share';
 import {
   createRequester,
   createTeamFeedbackAttachment,
@@ -41,6 +42,8 @@ export const requestersHandlers: RequestersHandlers = {
   updates: async (headers, body) => ({
     requester: await setRequesterUpdates((await signedIn(headers)).id, fields(body)),
   }),
+  shareProjectUpdate: async (headers, body) =>
+    shareProjectUpdate((await signedIn(headers)).id, fields(body)),
   feedbackAttachment: async (headers, body) =>
     createTeamFeedbackAttachment(await signedIn(headers), fields(body)),
   feedbackCount: async (headers, query) => feedbackPeopleCount((await signedIn(headers)).id, query),

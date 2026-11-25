@@ -126,6 +126,8 @@ export interface RequestersHandlers {
   // A member turning a person's email updates on or off.
   updates(headers: Headers, body: unknown): Promise<object>;
   feedbackAttachment(headers: Headers, body: unknown): Promise<object>;
+  // "Send to requesters" on a project update: the author or an admin marks it shared.
+  shareProjectUpdate(headers: Headers, body: unknown): Promise<object>;
   // The number of people asking on an issue, for anyone who can see it (guests too).
   feedbackCount(headers: Headers, query: Record<string, unknown>): Promise<object>;
 }
@@ -371,6 +373,11 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/requesters/updates',
         options.trustedOrigins,
         (h, headers, body) => h.updates(headers, body),
+      ),
+      instanceProjectUpdateShare: requestersWrite(
+        '/instance/project-updates/share',
+        options.trustedOrigins,
+        (h, headers, body) => h.shareProjectUpdate(headers, body),
       ),
       instanceFeedbackAttachment: requestersWrite(
         '/instance/feedback/attachment',

@@ -256,6 +256,22 @@ Rules and invariants for this package below; read the code for the walkthrough.
   cadence), and `POST /portal/unsubscribe/one-click` (RFC 8058) does the same without
   an Origin or cookie; unsubscribing records `updates_unsubscribed_at`, after which only
   the person turns updates on again.
+- **Requester changes** (`updates/changes.ts`): `requesterChanges(id, since, until)` is
+  the one "what changed" lookup, read from `issue_activity` (status changes by state
+  id: the status before the first and after the last change in the window, so a change
+  undone within it, or a move within one status, is nothing), `comment` (replies by
+  others in portal threads the person wrote in) and `project_update_share`. A person
+  follows the issues of their active feedback and of their portal threads, active and
+  in a public team. Access is the person's at `until`: a status change when an enabled
+  board their email may read covers the issue (its team or project and labels, whatever
+  the status) or when they have form or team-logged feedback on it; a reply only from a
+  thread of such a board. Statuses: planned, in progress, done (however long ago),
+  closed (canceled, with the duplicated issue when one is related). Links go to the
+  first readable board, by name, showing the issue. `requestersWithChangesSince` lists
+  the people with updates on, an email, not blocked or merged, who may have something
+  new. "Send to requesters" on a project update is
+  `/api/auth/instance/project-updates/share` (`updates/share.ts`; the author or an
+  admin, not guests; once).
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

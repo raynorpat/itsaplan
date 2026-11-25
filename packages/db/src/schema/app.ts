@@ -470,6 +470,21 @@ export const projectUpdate = pgTable(
   ],
 );
 
+// A project update the team chose to send to requesters ("Send to requesters"); Linear's
+// project update has no such field. The requester updates job sends it once, to the
+// people who follow an issue of the project.
+export const projectUpdateShare = pgTable(
+  'project_update_share',
+  {
+    projectUpdateId: uuid('project_update_id')
+      .primaryKey()
+      .references(() => projectUpdate.id, { onDelete: 'cascade' }),
+    sharedById: uuid('shared_by_id').references(() => user.id, { onDelete: 'set null' }),
+    sharedAt: timestamp('shared_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('project_update_share_shared_at_idx').on(t.sharedAt)],
+);
+
 // Workspace-level project labels (Linear's ProjectLabel), separate from issue
 // labels. A label with is_group holds child labels and cannot be applied itself.
 export const projectLabel = pgTable(
