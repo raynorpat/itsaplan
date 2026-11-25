@@ -123,8 +123,9 @@ export const qk = {
   anyRequesters: ['requesters'] as const,
   // Feedback summaries per issue: a team board's, and an Insights panel's scope.
   teamRequests: (teamKey: string) => ['requests', 'team', teamKey] as const,
-  issueOrderRanks: (teamKey: string, field: string, dir: string) =>
-    ['issues', 'orderRanks', teamKey, field, dir] as const,
+  issueOrderRanks: (teamKey: string, field: string, dir: string, version: string) =>
+    ['issues', 'orderRanks', teamKey, field, dir, version] as const,
+  anyIssueOrderRanks: ['issues', 'orderRanks'] as const,
   insightsRequests: (viewKey: string, scope: string) =>
     ['requests', 'insights', viewKey, scope] as const,
   anyRequests: ['requests'] as const,

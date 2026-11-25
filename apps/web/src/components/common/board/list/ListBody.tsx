@@ -50,7 +50,7 @@ export function ListBody({
   const toggleCollapsed = (key: string) =>
     onSettingsChange({ ...settings, collapsedGroups: toggledKeys(settings.collapsedGroups, key) });
 
-  const sortContext = useIssueSortContext(team.team.key, settings.sort);
+  const sortContext = useIssueSortContext(team.team.key, settings.sort, team.issues);
   const listId = useId();
   const grouped = settings.group !== 'none';
   const subgrouped = grouped && settings.subgroup !== 'none';

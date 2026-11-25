@@ -57,7 +57,7 @@ export default function SwimlaneBoard({
       collapsedSwimlanes: toggledKeys(settings.collapsedSwimlanes, key),
     });
 
-  const sortContext = useIssueSortContext(team.team.key, settings.sort);
+  const sortContext = useIssueSortContext(team.team.key, settings.sort, team.issues);
   const maps = buildMaps(team);
   const columnGroups = buildGroups(team, settings.group);
   const swimlaneGroups = buildGroups(team, settings.subgroup);

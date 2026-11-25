@@ -2,7 +2,7 @@
 // on the issue. A file is an attachment with sourceType `upload`; its filename,
 // content type and size come in `metadata`.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { Attachment } from '@/types/issue';
 import { gqlRequest, graphql, type ResultOf } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
@@ -122,9 +122,14 @@ export function useUploadAttachment({ inlineErrors = false }: { inlineErrors?: b
     meta: { suppressErrorToast: inlineErrors },
     mutationFn: ({ issueId, file }: { issueId: string; file: File }): Promise<UploadedAttachment> =>
       uploadFile(issueId, file),
-    onSuccess: (_data, { issueId }) =>
-      void qc.invalidateQueries({ queryKey: qk.attachments(issueId) }),
+    onSuccess: (_data, { issueId }) => invalidateLinks(qc, issueId),
   });
+}
+
+// An issue's attachments changed: its list, and the link count ordering's ranks.
+function invalidateLinks(qc: QueryClient, issueId: string): void {
+  void qc.invalidateQueries({ queryKey: qk.attachments(issueId) });
+  void qc.invalidateQueries({ queryKey: qk.anyIssueOrderRanks });
 }
 
 // The form shows its own error, so the global error toast is off.
@@ -134,7 +139,7 @@ export function useAddLink(issueId: string) {
     meta: { suppressErrorToast: true },
     mutationFn: ({ url, title }: { url: string; title?: string }) =>
       gqlRequest(AttachmentLinkMutation, { issueId, url, title: title || null }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.attachments(issueId) }),
+    onSuccess: () => invalidateLinks(qc, issueId),
   });
 }
 
@@ -154,7 +159,7 @@ export function useDeleteAttachment(issueId: string) {
     // Deleting a file also strips its embeds from the description, so refetch the
     // issue alongside the list.
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.attachments(issueId) });
+      invalidateLinks(qc, issueId);
       void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
     },
   });

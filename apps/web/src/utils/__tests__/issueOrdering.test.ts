@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Issue } from '@/types/issue';
 import type { TeamDetail } from '@/types/team';
-import { sortIssues } from '../team';
+import { issuesVersion, sortIssues } from '../team';
 import { SORT_FIELDS, sortForField } from '../viewTypes';
 import { sortMyIssues } from '@/features/my-issues/utils/myIssues';
 
@@ -222,6 +222,23 @@ describe('issue orderings', () => {
       ids(sortIssues(list, { field: 'requests', dir: 'desc' }, team, { customersOn: true })),
       ['b', 'a'],
     );
+  });
+
+  it('orders text by code point without regard to case, as the API does', () => {
+    const issues = ['b', '_x', 'C', 'Issue 10', 'Issue 9'].map((title, i) =>
+      issue(`i${i}`, { title, position: i }),
+    );
+    const byTitle = sortIssues(issues, { field: 'title', dir: 'asc' }, team).map((i) => i.title);
+    assert.deepEqual(byTitle, ['_x', 'b', 'C', 'Issue 10', 'Issue 9']);
+  });
+
+  it('changes the issues version when an issue is added or changed', () => {
+    const a = issue('a', { updatedAt: '2026-11-01T00:00:00Z' });
+    const b = issue('b', { updatedAt: '2026-11-02T00:00:00Z' });
+    const before = issuesVersion([a, b]);
+    assert.equal(issuesVersion([b, a]), before);
+    assert.notEqual(issuesVersion([a, b, issue('c')]), before);
+    assert.notEqual(issuesVersion([a, { ...b, updatedAt: '2026-11-03T00:00:00Z' }]), before);
   });
 
   it('breaks ties by manual position, then newest created, then id', () => {

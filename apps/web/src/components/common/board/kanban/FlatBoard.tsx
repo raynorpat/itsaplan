@@ -58,7 +58,7 @@ export default function FlatBoard({
         : settings.collapsedGroups.filter((k) => k !== key),
     });
 
-  const sortContext = useIssueSortContext(team.team.key, settings.sort);
+  const sortContext = useIssueSortContext(team.team.key, settings.sort, team.issues);
   const groups = buildGroups(team, settings.group);
   const issuesByGroup = groupIssues(
     groups,

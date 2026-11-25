@@ -26,7 +26,7 @@ describe('view preferences', () => {
   it("saves a display as Linear's view preferences", () => {
     assert.deepEqual(displayToPreferences(display), {
       layout: 'list',
-      viewOrdering: 'createdAt',
+      viewOrdering: 'dateCreated',
       viewOrderingDirection: 'desc',
       issueGrouping: 'assignee',
       issueSubGrouping: 'priority',
@@ -54,6 +54,17 @@ describe('view preferences', () => {
 
   it('reads back the saved display', () => {
     assert.deepEqual(preferencesToDisplay(displayToPreferences(display)), display);
+  });
+
+  it("uses Linear's viewOrdering names and reads the earlier date names", () => {
+    const saved = (field: SavedViewDisplay['sort']['field']) =>
+      displayToPreferences({ ...display, sort: { field, dir: 'asc' } }).viewOrdering;
+    assert.equal(saved('created'), 'dateCreated');
+    assert.equal(saved('updated'), 'dateUpdated');
+    assert.equal(saved('status'), 'workflowState');
+    assert.equal(saved('linkCount'), 'linkCount');
+    assert.equal(preferencesToDisplay({ viewOrdering: 'createdAt' }).sort?.field, 'created');
+    assert.equal(preferencesToDisplay({ viewOrdering: 'updatedAt' }).sort?.field, 'updated');
   });
 
   it('drops a property whose Linear field is off', () => {

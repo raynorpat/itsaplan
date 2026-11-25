@@ -30,6 +30,9 @@ const GROUPING: Record<GroupField, string> = {
   cycle: 'cycle',
 };
 
+// Linear's viewOrdering values where its schema names one (dateCreated, dateUpdated,
+// workflowState, estimate, linkCount, customerCount, customerRevenue, …); the orderings
+// Linear has no value for keep the IssueSortInput key's name.
 const ORDERING: Record<SortField, string> = {
   manual: 'manual',
   title: 'title',
@@ -38,8 +41,8 @@ const ORDERING: Record<SortField, string> = {
   priority: 'priority',
   assignee: 'assignee',
   dueDate: 'dueDate',
-  created: 'createdAt',
-  updated: 'updatedAt',
+  created: 'dateCreated',
+  updated: 'dateUpdated',
   requests: 'customerCount',
   estimate: 'estimate',
   completed: 'completedAt',
@@ -50,6 +53,12 @@ const ORDERING: Record<SortField, string> = {
   release: 'release',
   linkCount: 'linkCount',
   customerRevenue: 'customerRevenue',
+};
+
+// Names this app saved for the date orderings before it used Linear's.
+const EARLIER_ORDERING: Record<string, SortField | undefined> = {
+  createdAt: 'created',
+  updatedAt: 'updated',
 };
 
 // Linear's field toggle for each property. The delegate has none; it is saved by its
@@ -132,7 +141,8 @@ export function preferencesToDisplay(p: ViewPreferenceValues | null | undefined)
     const field = FIELD[key as PropertyKey];
     return field ? prefs[field as keyof ViewPreferenceValues] !== false : true;
   });
-  const sortField = from(ORDERING, prefs.viewOrdering);
+  const sortField =
+    from(ORDERING, prefs.viewOrdering) ?? EARLIER_ORDERING[prefs.viewOrdering ?? ''];
   const blob = {
     layout: from(LAYOUT, prefs.layout),
     sort: sortField ? { field: sortField, dir: prefs.viewOrderingDirection ?? 'asc' } : undefined,

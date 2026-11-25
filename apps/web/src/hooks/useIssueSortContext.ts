@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { graphql, gqlRequest } from '@/lib/graphql';
 import { qk } from '@/services/queryKeys';
 import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
 import { fetchAllPages } from '@/utils/fetchAllPages';
-import type { SortContext } from '@/utils/team';
+import type { Issue } from '@/types/issue';
+import { issuesVersion, type SortContext } from '@/utils/team';
 import type { Sort } from '@/utils/viewTypes';
 
 // The team's active issue ids in the order the API sorts them, for the two orderings
@@ -47,14 +48,19 @@ async function fetchRanks(teamKey: string, sort: Sort): Promise<Map<string, numb
 }
 
 // What sortIssues needs beyond the issues for a team's list: whether Customers is on,
-// and the API's ranks for the release and link count orderings.
-export function useIssueSortContext(teamKey: string, sort: Sort): SortContext {
+// and the API's ranks for the release and link count orderings. The ranks are asked
+// again whenever the loaded issues change (issuesVersion) and after a link or release
+// write (qk.anyIssueOrderRanks); the previous ranks stay in use meanwhile, so only the
+// first load shows the tie-break order.
+export function useIssueSortContext(teamKey: string, sort: Sort, issues: Issue[]): SortContext {
   const customersOn = useCustomersEnabled();
   const ranked = sort.field === 'release' || sort.field === 'linkCount';
+  const version = useMemo(() => issuesVersion(issues), [issues]);
   const ranks = useQuery({
-    queryKey: qk.issueOrderRanks(teamKey, sort.field, sort.dir),
+    queryKey: qk.issueOrderRanks(teamKey, sort.field, sort.dir, version),
     queryFn: () => fetchRanks(teamKey, sort),
     enabled: ranked,
+    placeholderData: keepPreviousData,
   });
   const data = ranked ? ranks.data : undefined;
   return useMemo(() => ({ customersOn, ranks: data }), [customersOn, data]);

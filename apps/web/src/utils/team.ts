@@ -76,6 +76,14 @@ export interface SortContext {
   ranks?: ReadonlyMap<string, number>;
 }
 
+// A key for the loaded issues that changes when one is added, removed or edited (by its
+// count and latest update), so orderings read from the API refresh with the list.
+export function issuesVersion(issues: Pick<Issue, 'updatedAt'>[]): string {
+  let latest = '';
+  for (const i of issues) if (i.updatedAt > latest) latest = i.updatedAt;
+  return `${issues.length}:${latest}`;
+}
+
 // Orderings read from the API's ranks: the rank is already in the chosen direction.
 const RANKED: ReadonlySet<SortField> = new Set<SortField>(['release', 'linkCount']);
 
@@ -163,8 +171,13 @@ export function extremeText(names: string[], dir: 'asc' | 'desc'): string | null
   });
 }
 
-const compareText = (a: string, b: string): number =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+// Lowercased, then by code point: the API's `lower(…) COLLATE "C"` (graphql/sort.ts),
+// so both order text identically whatever the browser's locale.
+function byCodePoint(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+const compareText = (a: string, b: string): number => byCodePoint(a.toLowerCase(), b.toLowerCase());
 
 // Compares two ordering values in direction `dir` (1 or -1); empty values (null or '')
 // go last whichever the direction.
@@ -187,7 +200,7 @@ export function compareKeys(
 // then id descending.
 function tieBreak(a: Issue, b: Issue): number {
   return (
-    a.position - b.position || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+    a.position - b.position || byCodePoint(b.createdAt, a.createdAt) || byCodePoint(b.id, a.id)
   );
 }
 

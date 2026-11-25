@@ -217,6 +217,13 @@ export const MY_ISSUES_ORDERINGS: ReadonlySet<SortField> = new Set<SortField>([
 // (compareKeys): missing values last in both directions, text without regard to case,
 // several labels by the lowest name ascending and the highest descending; ties keep
 // the loaded order.
+// An identifier (KEY-N) as text that orders by team key, then by number: text keys
+// compare by code point (utils/team.ts), so the number is zero-padded.
+function identifierKey(identifier: string): string {
+  const dash = identifier.lastIndexOf('-');
+  return `${identifier.slice(0, dash)}-${identifier.slice(dash + 1).padStart(10, '0')}`;
+}
+
 export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): T[] {
   const { field, dir } = myIssuesSort(sort);
   const sign = dir === 'desc' ? -1 : 1;
@@ -225,7 +232,7 @@ export function sortMyIssues<T extends SortableIssue>(issues: T[], sort: Sort): 
       case 'title':
         return i.title;
       case 'identifier':
-        return i.identifier;
+        return identifierKey(i.identifier);
       case 'status': {
         const index = TYPE_ORDER.indexOf(i.state.type);
         return index === -1 ? TYPE_ORDER.length : index;

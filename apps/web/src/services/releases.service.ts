@@ -422,6 +422,7 @@ function useInvalidateReleases() {
       qc.invalidateQueries({ queryKey: qk.anyReleases }),
       qc.invalidateQueries({ queryKey: qk.anyReleasePipelines }),
       qc.invalidateQueries({ queryKey: qk.anyIssueReleases }),
+      qc.invalidateQueries({ queryKey: qk.anyIssueOrderRanks }),
     ]);
 }
 
