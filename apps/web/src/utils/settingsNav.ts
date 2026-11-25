@@ -37,13 +37,15 @@ const WORKSPACE: [string, string, boolean][] = [
   ['portal', 'Portal', true],
   ['forms', 'Forms', true],
   ['ai', 'AI', true],
+  ['customers', 'Customers', false],
   ['mcp', 'MCP', false],
   ['labels', 'Labels', false],
   ['project-labels', 'Project labels', false],
 ];
 
 // The Settings area's sidebar, as in Linear: the account pages, the workspace pages
-// (General, Applications, Import, Portal, Forms and AI for owners and admins only; none for guests, who see only
+// (General, Applications, Import, Portal, Forms and AI for owners and admins only;
+// Customers for every member, read-only for members; none for guests, who see only
 // their account), then the teams.
 export function settingsNav({
   workspaceRole,

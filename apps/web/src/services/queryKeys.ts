@@ -135,6 +135,14 @@ export const qk = {
   issuePortalBoards: (issueId: string) => ['portal', 'issue', issueId] as const,
   // The AI endpoint for summaries (Settings → Workspace → AI, owners and admins).
   aiSettings: ['aiSettings'] as const,
+  // Customers: the settings (switch and currency), statuses, tiers, the list and one
+  // customer by id or slug.
+  customersSettings: ['customers', 'settings'] as const,
+  customerStatuses: ['customers', 'statuses'] as const,
+  customerTiers: ['customers', 'tiers'] as const,
+  customerList: (filter: string) => ['customers', 'list', filter] as const,
+  customer: (idOrSlug: string) => ['customers', 'one', idOrSlug] as const,
+  anyCustomers: ['customers'] as const,
   importPeople: (id: string) => ['imports', 'people', id] as const,
   githubImport: ['githubImport'] as const,
   githubImportRepositories: ['githubImport', 'repositories'] as const,

@@ -9,7 +9,7 @@ import { positionForMove } from '../../utils/statePosition';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { Button } from '@/components/ui/button';
 import { ItemGroup } from '@/components/ui/item';
-import SettingsColorField from '../crud/SettingsColorField';
+import ColorField from '@/components/common/fields/ColorField';
 import { SettingsEmpty } from '../crud/SettingsEmpty';
 import { SettingsInlineEditForm } from '../crud/SettingsInlineEditForm';
 import { useSettingsCan } from '../../context/settingsPermission';
@@ -137,7 +137,7 @@ export default function SettingsStates({ team }: { team: TeamDetail }) {
                           submitLabel="Save"
                           onSubmit={() => void saveEdit(c)}
                           onCancel={() => setEditingId(null)}
-                          leading={<SettingsColorField value={editColor} onChange={setEditColor} />}
+                          leading={<ColorField value={editColor} onChange={setEditColor} />}
                         />
                       ) : (
                         <SettingsStateRow
@@ -158,7 +158,7 @@ export default function SettingsStates({ team }: { team: TeamDetail }) {
                       submitLabel="Add"
                       onSubmit={() => void add(s)}
                       onCancel={() => setAddingType(null)}
-                      leading={<SettingsColorField value={color} onChange={setColor} />}
+                      leading={<ColorField value={color} onChange={setColor} />}
                     />
                   )}
                 </ItemGroup>

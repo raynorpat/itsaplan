@@ -43,6 +43,7 @@ describe('settingsNav', () => {
         'portal',
         'forms',
         'ai',
+        'customers',
         'mcp',
         'labels',
         'project-labels',
@@ -52,7 +53,13 @@ describe('settingsNav', () => {
 
   it('hides the admin-only workspace pages from members', () => {
     const nav = settingsNav({ workspaceRole: 'member', teams: [], pathname: '/settings' });
-    assert.deepEqual(keys(nav.workspace), ['members', 'mcp', 'labels', 'project-labels']);
+    assert.deepEqual(keys(nav.workspace), [
+      'members',
+      'customers',
+      'mcp',
+      'labels',
+      'project-labels',
+    ]);
   });
 
   it('shows a guest no workspace pages, as Linear does', () => {

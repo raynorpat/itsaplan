@@ -5,7 +5,7 @@ import type { Label as LabelRow, LabelGroup } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { colorDot } from '@/components/common/fields/colorDot';
-import SettingsColorField from '../crud/SettingsColorField';
+import ColorField from '@/components/common/fields/ColorField';
 import { SettingsInlineForm } from '../crud/SettingsInlineForm';
 import { useSettingsCan } from '../../context/settingsPermission';
 import {
@@ -175,7 +175,7 @@ export default function SettingsLabels({
       submitLabel={labelForm?.mode === 'edit' ? 'Save' : 'Add'}
       onSubmit={() => void submitLabel()}
       onCancel={() => setLabelForm(null)}
-      leading={<SettingsColorField value={lColor} onChange={setLColor} />}
+      leading={<ColorField value={lColor} onChange={setLColor} />}
     />
   );
 
@@ -211,7 +211,7 @@ export default function SettingsLabels({
       submitLabel={groupForm?.mode === 'edit' ? 'Save' : 'Add'}
       onSubmit={() => void submitGroup()}
       onCancel={() => setGroupForm(null)}
-      leading={<SettingsColorField value={gColor} onChange={setGColor} />}
+      leading={<ColorField value={gColor} onChange={setGColor} />}
     />
   );
 

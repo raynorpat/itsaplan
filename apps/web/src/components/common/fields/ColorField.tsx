@@ -32,7 +32,7 @@ const PRESET_COLORS = [
 ];
 
 // Built from the app's own tokens so it follows the light/dark theme.
-export default function SettingsColorField({
+export default function ColorField({
   value,
   onChange,
   className,

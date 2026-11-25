@@ -114,6 +114,11 @@ export const feedbackPeoplePath = () => '/feedback/people';
 // The workspace's Feedback dashboard.
 export const feedbackReportsPath = () => '/feedback/reports';
 export const feedbackPersonPath = (id: string) => `/feedback/people/${encodeURIComponent(id)}`;
+// The workspace's customers (when Customers is on) and one customer's page.
+export const feedbackCustomersPath = () => '/feedback/customers';
+export const feedbackCustomerPath = (slugId: string) =>
+  `/feedback/customers/${encodeURIComponent(slugId)}`;
+export const settingsWorkspaceCustomersPath = () => '/settings/workspace/customers';
 
 export const manageTeamsPath = () => '/settings/account/teams';
 export const workspaceMembersPath = () => '/settings/workspace/members';
