@@ -96,6 +96,10 @@ describe('groupMyIssues', () => {
       ['p0', ['a']],
     ]);
     assert.equal(groups[2]!.name, 'No priority');
+    assert.deepEqual(
+      groups.map((g) => g.priority),
+      [1, 3, 0],
+    );
   });
 
   it('groups by project, by name, issues without a project last', () => {
@@ -128,11 +132,6 @@ describe('groupMyIssues', () => {
       ['project:p1', ['a']],
       ['project:p2', ['b']],
     ]);
-  });
-
-  it('marks priority groups with their priority, for the priority icon', () => {
-    const groups = groupMyIssues([issue('a', 'started', { priority: 2 })], 'priority');
-    assert.equal(groups[0]!.priority, 2);
   });
 
   it('puts every issue in one group without grouping', () => {

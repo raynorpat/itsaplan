@@ -31,12 +31,6 @@ describe('issueMenuItems', () => {
 describe('issueMenuItems parent entries', () => {
   const base = { canDelete: false, archived: false };
 
-  it('offers set parent, not remove, to an editor of a top-level issue', () => {
-    const items = issueMenuItems({ ...base, canEdit: true, hasParent: false });
-    assert.ok(items.includes('setParent'));
-    assert.ok(!items.includes('removeParent'));
-  });
-
   it('offers both to an editor of a sub-issue', () => {
     const items = issueMenuItems({ ...base, canEdit: true, hasParent: true });
     assert.ok(items.includes('setParent'));

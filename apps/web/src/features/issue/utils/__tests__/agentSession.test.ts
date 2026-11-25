@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import type { FeedItem } from '@/types/issue';
 import {
   canStopSession,
-  isSessionLive,
   issueSessionStatus,
   pollDelay,
   sessionStatus,
@@ -132,14 +131,6 @@ describe('session status', () => {
     assert.equal(canStopSession('stopping'), false);
     assert.equal(canStopSession('stale'), false);
   });
-
-  it('polls only while the agent is expected to write', () => {
-    assert.equal(isSessionLive('pending'), true);
-    assert.equal(isSessionLive('active'), true);
-    assert.equal(isSessionLive('stopping'), true);
-    assert.equal(isSessionLive('awaitingInput'), false);
-    assert.equal(isSessionLive('complete'), false);
-  });
 });
 
 describe('sessions of a thread', () => {
@@ -179,6 +170,9 @@ describe('polling', () => {
   const minute = 60_000;
   it('polls a live session until it has not changed for ten minutes', () => {
     assert.equal(pollDelay('active', 0, 9 * minute), 4000);
+    assert.equal(pollDelay('pending', 0, 0), 4000);
+    assert.equal(pollDelay('stopping', 0, 0), 4000);
+    assert.equal(pollDelay('awaitingInput', 0, 0), false);
     assert.equal(pollDelay('active', 0, 11 * minute), false);
     assert.equal(pollDelay('complete', 0, 0), false);
   });

@@ -7,7 +7,6 @@ import {
   ownerName,
   reorderIds,
   reorderWrites,
-  sortOrderForMove,
   triggerSummary,
   type WorkflowRule,
 } from '../rules';
@@ -91,23 +90,16 @@ describe('reorderIds', () => {
   });
 });
 
-describe('sortOrderForMove', () => {
-  const rules = [rule('a', 1), rule('b', 2), rule('c', 4)];
-
-  it('places a rule between its new neighbours', () => {
-    assert.equal(sortOrderForMove(rules, ['a', 'c', 'b'], 'c'), 1.5);
-  });
-
-  it('places a rule before the first or after the last', () => {
-    assert.equal(sortOrderForMove(rules, ['c', 'a', 'b'], 'c'), 0);
-    assert.equal(sortOrderForMove(rules, ['b', 'c', 'a'], 'a'), 5);
-  });
-});
-
 describe('reorderWrites', () => {
   it('writes only the moved rule when its neighbours leave room', () => {
     const rules = [rule('a', 1), rule('b', 2), rule('c', 3)];
     assert.deepEqual(reorderWrites(rules, ['a', 'c', 'b'], 'c'), [{ id: 'c', sortOrder: 1.5 }]);
+  });
+
+  it('writes the moved rule one below the first or one above the last', () => {
+    const rules = [rule('a', 1), rule('b', 2), rule('c', 4)];
+    assert.deepEqual(reorderWrites(rules, ['c', 'a', 'b'], 'c'), [{ id: 'c', sortOrder: 0 }]);
+    assert.deepEqual(reorderWrites(rules, ['b', 'c', 'a'], 'a'), [{ id: 'a', sortOrder: 5 }]);
   });
 
   it('renumbers the rules whose place changes when the neighbours share a sortOrder', () => {

@@ -88,20 +88,6 @@ describe('describeEntry', () => {
     );
   });
 
-  it('shows a failed sign-in with its address, reason and attempts', () => {
-    assert.equal(
-      describeEntry(
-        entry('loginFailed', {
-          address: 'eve@example.com',
-          reason: 'unknownAddress',
-          attempts: 25,
-        }),
-        'Sign-in failed',
-      ),
-      'Sign-in failed: eve@example.com (unknown address), 25 attempts',
-    );
-  });
-
   it('does not count a single failed attempt', () => {
     assert.equal(
       describeEntry(

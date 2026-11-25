@@ -289,6 +289,6 @@ const IMPORT_SOURCES: Record<string, string> = {
   csv: 'a CSV file',
 };
 
-export function importSourceLabel(service: string): string {
+function importSourceLabel(service: string): string {
   return IMPORT_SOURCES[service] ?? service;
 }

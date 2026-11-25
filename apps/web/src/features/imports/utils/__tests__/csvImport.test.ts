@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   columnChoices,
-  IMPORT_CONTENT_TYPE,
   initialStatusChoices,
   jiraHostInput,
   isCsvImport,
@@ -114,10 +113,6 @@ describe('status mapping', () => {
 });
 
 describe('the upload and the Jira form', () => {
-  it('always uploads import files as text/csv', () => {
-    assert.equal(IMPORT_CONTENT_TYPE, 'text/csv');
-  });
-
   it('sends a typed Jira host, or nothing when empty', () => {
     assert.equal(jiraHostInput('  acme.atlassian.net '), 'acme.atlassian.net');
     assert.equal(jiraHostInput('   '), undefined);

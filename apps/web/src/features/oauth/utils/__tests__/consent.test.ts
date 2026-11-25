@@ -17,11 +17,15 @@ describe('requestedScopes', () => {
 });
 
 describe('consentBody', () => {
-  it('denies with the signed query only', () => {
-    assert.deepEqual(consentBody({ accept: false, oauthQuery: QUERY }), {
-      accept: false,
-      oauth_query: QUERY,
-    });
+  it('denies with the signed query only, even for an app install', () => {
+    assert.deepEqual(
+      consentBody({
+        accept: false,
+        oauthQuery: QUERY,
+        install: { publicTeams: false, teamIds: ['t1'] },
+      }),
+      { accept: false, oauth_query: QUERY },
+    );
   });
 
   it('accepts every requested scope and passes the team selection of an app install', () => {

@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import {
   deletedProjects,
   emptyTabText,
-  isDeletedProject,
   projectBannerText,
   sortProjects,
   sumStatusCounts,
@@ -82,13 +81,6 @@ describe('deletedProjects', () => {
       deletedProjects(rows).map((p) => p.id),
       ['c', 'b'],
     );
-  });
-});
-
-describe('isDeletedProject', () => {
-  it('is true for a trashed or an archived project (both have archivedAt)', () => {
-    assert.equal(isDeletedProject({ archivedAt: null }), false);
-    assert.equal(isDeletedProject({ archivedAt: '2026-11-01T00:00:00.000Z' }), true);
   });
 });
 

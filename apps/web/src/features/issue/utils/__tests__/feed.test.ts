@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { type FeedComment } from '@/utils/commentThreads';
-import { buildFeed, historyToFeedItems, importSourceLabel, type FeedHistory } from '../feed';
+import { buildFeed, historyToFeedItems, type FeedHistory } from '../feed';
 
 // buildFeed: the issue's comments and history (Linear's IssueHistory) as the feed the
 // issue page renders, newest first, with replies under their thread and resolved
@@ -161,10 +161,16 @@ describe('buildFeed', () => {
   });
 
   it("labels an imported issue's creation with its source", () => {
-    const rows = [history('created', 2, { issueImport: { service: 'gitea' } })];
-    const [entry] = buildFeed([], rows, ISSUE, { issueCreatedAt: at(2) });
-    assert.equal(entry.item.action, 'imported');
-    assert.equal(entry.item.toText, 'Gitea');
+    const source = (service: string) => {
+      const rows = [history('created', 2, { issueImport: { service } })];
+      const [entry] = buildFeed([], rows, ISSUE, { issueCreatedAt: at(2) });
+      assert.equal(entry.item.action, 'imported');
+      return entry.item.toText;
+    };
+    assert.equal(source('gitea'), 'Gitea');
+    assert.equal(source('github'), 'GitHub');
+    assert.equal(source('jira'), 'Jira');
+    assert.equal(source('csv'), 'a CSV file');
   });
 
   it('cuts the feed where a stream has more to load', () => {
@@ -215,13 +221,5 @@ describe('history made by a workflow', () => {
     );
     assert.equal(item!.actorName, 'Auto-close');
     assert.equal(item!.actorWorkflow, true);
-  });
-});
-
-describe('importSourceLabel', () => {
-  it('names every import source, CSV and Jira included', () => {
-    assert.equal(importSourceLabel('github'), 'GitHub');
-    assert.equal(importSourceLabel('jira'), 'Jira');
-    assert.equal(importSourceLabel('csv'), 'a CSV file');
   });
 });

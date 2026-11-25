@@ -108,7 +108,7 @@ export function reorderIds(rules: WorkflowRule[], activeId: string, overId: stri
 // The sortOrder that puts `movedId` at its place in `ids`: halfway between its new
 // neighbours, or one below the first / above the last. The API's reorder endpoint
 // takes one rule's sortOrder, so only the moved rule is written.
-export function sortOrderForMove(rules: WorkflowRule[], ids: string[], movedId: string): number {
+function sortOrderForMove(rules: WorkflowRule[], ids: string[], movedId: string): number {
   const order = new Map(rules.map((r) => [r.id, r.sortOrder]));
   const at = ids.indexOf(movedId);
   const before = at > 0 ? order.get(ids[at - 1]) : undefined;

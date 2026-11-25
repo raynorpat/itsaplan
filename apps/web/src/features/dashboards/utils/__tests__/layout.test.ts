@@ -60,7 +60,7 @@ describe('rowsOf', () => {
 
 describe('newWidget', () => {
   it('gives a valid widget for every data kind with a fresh id', () => {
-    for (const data of ['issues', 'requests', 'projects', 'cycles'] as const) {
+    for (const data of ['issues', 'requests', 'projects', 'cycles', 'customers'] as const) {
       const a = newWidget(data);
       const b = newWidget(data);
       assert.notEqual(a.id, b.id);
@@ -87,7 +87,7 @@ describe('dashboardFilterKey', () => {
 
 describe('withKind', () => {
   it('adds a table setup when a widget becomes a table, and keeps it valid', () => {
-    for (const data of ['issues', 'requests', 'projects', 'cycles'] as const) {
+    for (const data of ['issues', 'requests', 'projects', 'cycles', 'customers'] as const) {
       const table = withKind(newWidget(data), 'table');
       assert.equal(table.kind, 'table');
       assert.ok(table.config.table && table.config.table.columns.length > 0);

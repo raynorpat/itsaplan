@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Issue } from '@/types/issue';
-import { patchIssueInList } from '@/utils/boardCache';
 import {
   chartPoints,
   cycleDays,
@@ -22,19 +21,6 @@ describe('cycleIssues', () => {
     assert.deepEqual(
       cycleIssues(list, 'c1').map((i) => i.id),
       ['a'],
-    );
-  });
-
-  it('follows an issue moved to another cycle on the board', () => {
-    const list = [issue('a', 'c1'), issue('b', 'c1')];
-    const moved = patchIssueInList(list, issue('b', 'c2'));
-    assert.deepEqual(
-      cycleIssues(moved, 'c1').map((i) => i.id),
-      ['a'],
-    );
-    assert.deepEqual(
-      cycleIssues(moved, 'c2').map((i) => i.id),
-      ['b'],
     );
   });
 });

@@ -102,7 +102,7 @@ export const canStopSession = (status: AgentSessionStatus) =>
   status === 'pending' || status === 'active' || status === 'awaitingInput';
 
 // While the agent is expected to write, the session view refreshes every few seconds.
-export const isSessionLive = (status: AgentSessionStatus) =>
+const isSessionLive = (status: AgentSessionStatus) =>
   status === 'pending' || status === 'active' || status === 'stopping';
 
 // The agent sessions of a comment thread, in order: the root's session, then each

@@ -4,11 +4,13 @@ import { csvFileName } from '../download';
 import { axisLabel, cellText, changeText, excludedText, formatValue } from '../format';
 
 describe('formatValue', () => {
-  it('shows days with one decimal, percentages whole, counts rounded', () => {
+  it('shows days with one decimal, percentages whole, counts rounded, revenue compact', () => {
     assert.equal(formatValue(3.456, 'days'), '3.5 d');
     assert.equal(formatValue(41.6, 'percent'), '42%');
     assert.equal(formatValue(12.25, 'count'), '12.3');
     assert.equal(formatValue(null, 'count'), '–');
+    assert.equal(formatValue(1250000, 'revenue'), '1.3M');
+    assert.equal(formatValue(900, 'revenue'), '900');
   });
 });
 
@@ -46,13 +48,6 @@ describe('axisLabel', () => {
   it('keeps short labels and cuts long ones with an ellipsis', () => {
     assert.equal(axisLabel('Urgent'), 'Urgent');
     assert.equal(axisLabel('A very long project name indeed'), 'A very long projec…');
-  });
-});
-
-describe('formatValue revenue', () => {
-  it('shows revenue compact', () => {
-    assert.equal(formatValue(1250000, 'revenue'), '1.3M');
-    assert.equal(formatValue(900, 'revenue'), '900');
   });
 });
 

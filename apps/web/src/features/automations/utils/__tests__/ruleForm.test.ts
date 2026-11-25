@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { filterSetToIssueFilter } from '@/utils/viewFilters';
 import {
   actionSummary,
   conditionsHidden,
@@ -86,13 +85,15 @@ describe('ruleToForm / formToRuleInput', () => {
     assert.deepEqual(ok(formToRuleInput(form, 't1')).conditions, raw);
   });
 
-  it('converts edited filters with filterSetToIssueFilter', () => {
+  it("converts edited filters to Linear's IssueFilter", () => {
     const form = ruleToForm(rule());
     const filters = {
       conditions: [{ id: 'c', field: 'status', op: 'is' as const, values: [STATE] }],
     };
     const edited: RuleForm = { ...form, filters, filtersEdited: true };
-    assert.deepEqual(ok(formToRuleInput(edited, 't1')).conditions, filterSetToIssueFilter(filters));
+    assert.deepEqual(ok(formToRuleInput(edited, 't1')).conditions, {
+      and: [{ state: { id: { in: [STATE] } } }],
+    });
   });
 
   it('sets activationMode for an update rule', () => {

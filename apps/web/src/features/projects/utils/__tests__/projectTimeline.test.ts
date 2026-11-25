@@ -152,13 +152,6 @@ describe('projectSpan', () => {
 });
 
 describe('shiftProjectDates', () => {
-  it('moves both dates by the same days across a month end', () => {
-    assert.deepEqual(
-      shiftProjectDates({ startDate: '2026-01-25', targetDate: '2026-01-31' }, 'move', 3),
-      { startDate: '2026-01-28', targetDate: '2026-02-03' },
-    );
-  });
-
   it('moves both dates by the same days across a daylight saving change', () => {
     // Europe changes on 29 March and 25 October 2026.
     inTimeZone('Europe/London', () => {

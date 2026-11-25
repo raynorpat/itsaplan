@@ -66,7 +66,7 @@ export function sortProjects<T extends SortableProject>(
 
 // A project in the Deleted tab: trashed (projectDelete) or archived through the API
 // (projectArchive). Both are restored with projectUnarchive.
-export function isDeletedProject(p: { archivedAt: string | null }): boolean {
+function isDeletedProject(p: { archivedAt: string | null }): boolean {
   return p.archivedAt != null;
 }
 

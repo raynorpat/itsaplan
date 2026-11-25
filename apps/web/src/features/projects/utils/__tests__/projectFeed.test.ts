@@ -50,15 +50,13 @@ describe('buildProjectFeed', () => {
 
   it('orders history, threads and updates newest first', () => {
     assert.deepEqual(
-      feed.map((e) => e.id),
-      ['p1', 'h2', 'c1', 'h1'],
-    );
-  });
-
-  it('tells each entry kind apart', () => {
-    assert.deepEqual(
-      feed.map((e) => e.kind),
-      ['update', 'history', 'comment', 'history'],
+      feed.map((e) => [e.id, e.kind]),
+      [
+        ['p1', 'update'],
+        ['h2', 'history'],
+        ['c1', 'comment'],
+        ['h1', 'history'],
+      ],
     );
   });
 

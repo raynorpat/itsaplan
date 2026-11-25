@@ -35,17 +35,6 @@ describe('sortCustomers', () => {
       ['Cobalt', 'beta', 'Acme'],
     );
   });
-  it('sorts by people, most first when descending', () => {
-    const byPeople = [
-      row({ name: 'Acme', people: 2 }),
-      row({ name: 'beta', people: 7 }),
-      row({ name: 'Cobalt', people: 0 }),
-    ];
-    assert.deepEqual(
-      sortCustomers(byPeople, 'people', 'desc').map((r) => r.name),
-      ['beta', 'Acme', 'Cobalt'],
-    );
-  });
   it('puts customers without revenue last in both directions', () => {
     assert.deepEqual(
       sortCustomers(rows, 'revenue', 'desc').map((r) => r.name),

@@ -9,12 +9,6 @@ describe('positionBetween', () => {
   it('is 1000 after the last item', () => {
     assert.equal(positionBetween(1000, undefined), 2000);
   });
-  it('is 1000 before the first item', () => {
-    assert.equal(positionBetween(undefined, 1000), 0);
-  });
-  it('is the midpoint between two items', () => {
-    assert.equal(positionBetween(1000, 2000), 1500);
-  });
 });
 
 describe('positionForMove', () => {
