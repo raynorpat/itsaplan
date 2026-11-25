@@ -5,8 +5,6 @@ import {
   release,
   releaseDocument,
   releaseLink,
-  releaseNote,
-  releaseNoteRelease,
   releasePipeline,
   releaseStage,
   workflowState,
@@ -16,6 +14,7 @@ import { randomBytes } from 'node:crypto';
 import { type AuthUser } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
 import { assertPipelineRead, assertPipelineWrite, visiblePipelinesSql } from './access';
+import { autoDraftNote, upsertOwnNote } from './notes';
 import { firstTeamKey, pipelineUrl, slugBase } from './pipelines';
 import { type StageType } from './stages';
 
@@ -329,6 +328,7 @@ async function moveToStage(
   const completing = stage.type === 'completed' && current.completedAt === null;
   if (completing && pipeline.type === 'scheduled' && pipeline.rolloverIssuesOnCompletion)
     await rollover(tx, row!, pipeline);
+  if (completing) await autoDraftNote(tx, row!, pipeline);
   return row!;
 }
 
@@ -533,38 +533,7 @@ export async function applyReleaseContent(
         set: { content: d.content, updatedAt: new Date() },
       });
   }
-  const note = content.releaseNotes;
-  if (note && typeof note.content === 'string' && note.content.length <= 200_000) {
-    const title = typeof note.title === 'string' && note.title.trim() ? note.title.trim() : null;
-    // The note covering this release and no other.
-    const [own] = await tx
-      .select({ id: releaseNote.id })
-      .from(releaseNote)
-      .innerJoin(releaseNoteRelease, eq(releaseNoteRelease.noteId, releaseNote.id))
-      .where(eq(releaseNoteRelease.releaseId, releaseRow.id))
-      .groupBy(releaseNote.id)
-      .having(
-        sql`(SELECT count(*) FROM ${releaseNoteRelease} r2 WHERE r2.note_id = ${releaseNote.id}) = 1`,
-      )
-      .limit(1);
-    if (own) {
-      await tx
-        .update(releaseNote)
-        .set({ title, content: note.content, updatedAt: new Date() })
-        .where(eq(releaseNote.id, own.id));
-    } else {
-      const [created] = await tx
-        .insert(releaseNote)
-        .values({
-          slugId: randomBytes(6).toString('hex'),
-          pipelineId: releaseRow.pipelineId,
-          title,
-          content: note.content,
-        })
-        .returning({ id: releaseNote.id });
-      await tx.insert(releaseNoteRelease).values({ noteId: created!.id, releaseId: releaseRow.id });
-    }
-  }
+  if (content.releaseNotes) await upsertOwnNote(tx, releaseRow, content.releaseNotes);
 }
 
 export interface ByPipelineInput extends ReleaseContent {

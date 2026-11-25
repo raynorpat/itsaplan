@@ -568,6 +568,7 @@ export type {
   CustomersHandlers,
   FavoritesHandlers,
   AccessKeysHandlers,
+  ReleasesHandlers,
   FormsHandlers,
   AiHandlers,
   InstanceHandlers,

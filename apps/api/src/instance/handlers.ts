@@ -6,7 +6,7 @@ import { aiHandlers } from '../updates/ai';
 import { dashboardsHandlers } from '../dashboards/handlers';
 import { customersHandlers } from '../customers/handlers';
 import { favoritesHandlers } from '../favorites/handlers';
-import { accessKeysHandlers } from '../releases/handlers';
+import { accessKeysHandlers, releasesHandlers } from '../releases/handlers';
 import { portalHandlers } from '../portal/admin';
 import { stopSession } from '../agents/store';
 import { importsHandlers } from '../imports/handlers';
@@ -76,5 +76,6 @@ export function registerInstanceHandlers(): void {
     customers: customersHandlers,
     favorites: favoritesHandlers,
     accessKeys: accessKeysHandlers,
+    releases: releasesHandlers,
   });
 }

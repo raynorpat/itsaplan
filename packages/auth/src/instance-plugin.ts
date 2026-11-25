@@ -64,6 +64,9 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   key only here) and POST /instance/access-keys/revoke { id } (owners and admins).
 //   Linear's schema has no operation for access keys (apps/api src/releases/keys.ts).
 //   Same Origin rule for the POSTs.
+// - GET  /instance/releases/note-draft?releaseId=  { title, content }  the "Fill from
+//   issues" release note draft: the release's completed issues the caller can see, as
+//   Markdown grouped by label (anyone who reads the release; apps/api src/releases/notes.ts).
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -222,6 +225,11 @@ export interface AccessKeysHandlers {
   revoke(headers: Headers, body: unknown): Promise<object>;
 }
 
+// Release tracking reads Linear's schema has no operation for.
+export interface ReleasesHandlers {
+  noteDraft(headers: Headers, query: Record<string, unknown>): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -239,6 +247,7 @@ export interface InstanceHandlers {
   customers: CustomersHandlers;
   favorites: FavoritesHandlers;
   accessKeys: AccessKeysHandlers;
+  releases: ReleasesHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -646,6 +655,14 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         async (ctx) =>
           ctx.json(
             await run((h) => h.accessKeys.list(ctx.headers ?? new Headers(), { ...ctx.query })),
+          ),
+      ),
+      instanceReleaseNoteDraft: createAuthEndpoint(
+        '/instance/releases/note-draft',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) => h.releases.noteDraft(ctx.headers ?? new Headers(), { ...ctx.query })),
           ),
       ),
       instanceAccessKeyCreate: accessKeysWrite(

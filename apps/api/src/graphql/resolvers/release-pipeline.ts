@@ -233,7 +233,6 @@ export const releasePipelineResolvers = {
     },
     stages: async (p: PipelineDto) => wholeConnection(await pipelineStages(p.id)),
     approximateReleaseCount: (p: PipelineDto) => pipelineReleaseCount(p.id),
-    latestReleaseNote: () => null,
     releaseNoteTemplate: () => null,
   },
   ReleaseStage: {

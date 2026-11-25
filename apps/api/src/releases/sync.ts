@@ -22,6 +22,7 @@ import {
   type ReleaseRow,
   type Tx,
 } from './store';
+import { autoDraftNote } from './notes';
 
 // Linear's releaseSync (and releaseSyncByAccessKey): what a CI job sends for a deploy.
 //
@@ -363,6 +364,7 @@ export async function syncRelease(
           );
     }
     await applyReleaseContent(tx, target, input);
+    await autoDraftNote(tx, target, pipeline);
     return result;
   });
 }

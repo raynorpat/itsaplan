@@ -44,6 +44,7 @@ import { templateResolvers } from './resolvers/template';
 import { favoriteResolvers } from './resolvers/favorite';
 import { releasePipelineResolvers } from './resolvers/release-pipeline';
 import { releaseResolvers } from './resolvers/release';
+import { releaseNoteResolvers } from './resolvers/release-note';
 import { releaseSyncResolvers } from './resolvers/release-sync';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
@@ -82,6 +83,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   favoriteResolvers,
   releasePipelineResolvers,
   releaseResolvers,
+  releaseNoteResolvers,
   releaseSyncResolvers,
 ];
 

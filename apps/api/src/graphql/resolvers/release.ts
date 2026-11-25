@@ -88,7 +88,7 @@ const COMPLETE_FIELDS = ['pipelineId', 'commitSha', ...CONTENT_FIELDS];
 
 // ReleaseFilter: id, name, version, completedAt, createdAt, updatedAt,
 // hasReleaseNotes, pipeline, stage, and / or.
-function releaseFilterSql(filter: unknown): SQL | undefined {
+export function releaseFilterSql(filter: unknown): SQL | undefined {
   return filterSql(filter, {
     id: (v, p) => compareId(release.id, v, p),
     name: (v, p) => compare(release.name, v, p),
@@ -337,8 +337,6 @@ export const releaseResolvers = {
         })),
       );
     },
-    // Release notes are served from releases/notes.ts.
-    releaseNotes: () => [],
   },
   IssueToRelease: {
     issue: (l: IssueToReleaseDto) => issueById(l.issueId),
