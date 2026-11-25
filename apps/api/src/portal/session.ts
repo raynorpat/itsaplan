@@ -7,6 +7,7 @@ import { requesterByEmail } from '../feedback/requesters';
 import { activeRequester } from '../feedback/store';
 import { HttpError, UUID_RE } from '../shared/lib';
 import { optIn } from '../updates/preferences';
+import { recordVisit } from '../updates/visits';
 import { emailMayRead } from './access';
 import { getBoardBySlug } from './boards';
 import { allow, LIMITS } from './rate-limit';
@@ -259,6 +260,7 @@ export async function visitorFromRequest(request: Request): Promise<Visitor | nu
   if (!session) return null;
   const requester = await activeRequester(session.externalUserId);
   if (!requester || requester.portalBlockedAt) return null;
+  await recordVisit(requester);
   return toVisitor(requester, session.email);
 }
 

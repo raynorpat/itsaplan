@@ -914,6 +914,33 @@ export const externalUser = pgTable(
   ],
 );
 
+// The instance's AI endpoint (an OpenAI-compatible chat completions server) that writes
+// requester summaries; one row at most (`id` is always 'instance'). The API key is
+// sealed (apps/api src/shared/secret-box.ts) and never returned.
+export const aiSettings = pgTable(
+  'ai_settings',
+  {
+    id: text('id').primaryKey().default('instance'),
+    baseUrl: text('base_url').notNull(),
+    model: text('model').notNull(),
+    apiKeyCiphertext: text('api_key_ciphertext').notNull(),
+    updatedById: uuid('updated_by_id').references(() => user.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('ai_settings_single_check', sql`${t.id} = 'instance'`)],
+);
+
+// The AI-written "Since your last visit" paragraph of a requester, kept for one UTC day
+// so the model is asked at most once a day per person. `text` is null when the model
+// gave no usable answer that day.
+export const portalSummaryCache = pgTable('portal_summary_cache', {
+  requesterId: uuid('requester_id')
+    .primaryKey()
+    .references(() => externalUser.id, { onDelete: 'cascade' }),
+  day: date('day').notNull(),
+  text: text('text'),
+});
+
 // Feedback on an issue (Linear's CustomerNeed): `body` is the quote, `priority` 1 marks
 // it important, `attachment_id` its source attachment (whose external creator is the
 // requester), `creator_id` the member who logged it.

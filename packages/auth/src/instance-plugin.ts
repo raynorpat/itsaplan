@@ -156,6 +156,15 @@ export interface FormsHandlers {
   deleteForm(headers: Headers, body: unknown): Promise<object>;
 }
 
+// The AI endpoint that writes requester summaries (owners and admins): read without the
+// key, save, delete and test. Each handler checks the caller itself.
+export interface AiHandlers {
+  get(headers: Headers): Promise<object>;
+  save(headers: Headers, body: unknown): Promise<object>;
+  remove(headers: Headers, body: unknown): Promise<object>;
+  test(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -168,6 +177,7 @@ export interface InstanceHandlers {
   requesters: RequestersHandlers;
   portal: PortalHandlers;
   forms: FormsHandlers;
+  ai: AiHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -249,6 +259,12 @@ const formsWrite = (
   trusted: string[],
   call: (h: FormsHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.forms, headers, body));
+
+const aiWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: AiHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.ai, headers, body));
 
 const importsWrite = (
   path: string,
@@ -444,6 +460,18 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/forms/delete',
         options.trustedOrigins,
         (h, headers, body) => h.deleteForm(headers, body),
+      ),
+      instanceAi: createAuthEndpoint('/instance/ai', { method: 'GET' }, async (ctx) =>
+        ctx.json(await run((h) => h.ai.get(ctx.headers ?? new Headers()))),
+      ),
+      instanceAiSave: aiWrite('/instance/ai/save', options.trustedOrigins, (h, headers, body) =>
+        h.save(headers, body),
+      ),
+      instanceAiDelete: aiWrite('/instance/ai/delete', options.trustedOrigins, (h, headers, body) =>
+        h.remove(headers, body),
+      ),
+      instanceAiTest: aiWrite('/instance/ai/test', options.trustedOrigins, (h, headers, body) =>
+        h.test(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

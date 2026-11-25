@@ -3,6 +3,7 @@ import { getNotificationEmailConfig } from '@repo/auth';
 import { sendEmail, type EmailConfig } from '@repo/mailer';
 import { and, eq, isNotNull, isNull, lt, lte, min, or, type SQL } from 'drizzle-orm';
 import { webOrigin } from '../portal/session';
+import { aiSummary } from './ai';
 import { requesterChanges, requestersWithChangesSince, type Change } from './changes';
 import { renderChangeEmail, renderSummaryEmail, roundUp, type SummaryText } from './render';
 import { unsubscribeToken } from './unsubscribe';
@@ -28,12 +29,13 @@ const reachable: SQL = and(
   isNull(externalUser.mergedIntoId),
 )!;
 
-// The text of a summary. Without an AI endpoint, the round-up alone.
+// The text of a summary: the paragraph the AI endpoint writes (null without one, or when
+// it fails) above the round-up.
 export async function summaryText(
   changes: Change[],
-  _person: { displayName: string },
+  person: { displayName: string },
 ): Promise<SummaryText> {
-  return { paragraph: null, lines: roundUp(changes) };
+  return { paragraph: await aiSummary(changes, person), lines: roundUp(changes) };
 }
 
 async function workspaceName(): Promise<string> {

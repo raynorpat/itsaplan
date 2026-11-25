@@ -565,6 +565,7 @@ export { sendAuthEmail } from './mail';
 export { provideInstanceHandlers } from './instance-plugin';
 export type {
   FormsHandlers,
+  AiHandlers,
   InstanceHandlers,
   PortalHandlers,
   TeamOwnerChange,

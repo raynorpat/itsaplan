@@ -285,6 +285,20 @@ Rules and invariants for this package below; read the code for the walkthrough.
   sent or marked. Every email carries the unsubscribe page link and the RFC 8058
   `List-Unsubscribe` / `List-Unsubscribe-Post` headers (the one-click URL on `API_URL`),
   is sent with the workspace name as the sender name, and has no images.
+- **AI summaries and "Since your last visit"** (`updates/ai.ts`, `visits.ts`): owners
+  and admins set an OpenAI-compatible chat completions endpoint (base URL, model, API
+  key) through `/api/auth/instance/ai` (GET, without the key), `/ai/save` (an empty key
+  keeps the stored one), `/ai/delete` and `/ai/test`. One `ai_settings` row; the key is
+  sealed with AES-256-GCM under a key derived from `BETTER_AUTH_SECRET`
+  (`shared/secret-box.ts`; rotating the secret means entering the key again) and never
+  returned. `aiSummary` sends the model only the `Change` facts (titles, public statuses,
+  the person's portal-thread replies, shared project updates) and the display name,
+  never emails or internal comments; an error, a reply outside 1–2,000 characters or 20
+  seconds without an answer gives null, and the summary is the round-up alone. A visit
+  is recorded by `visitorFromRequest` at most once an hour per person (a request within
+  the hour writes nothing): `last_visit_at` moves to `previous_visit_at`. `GET
+  /portal/me/since-last-visit` is the round-up of changes since the previous visit and
+  the AI paragraph, written at most once per UTC day per person (`portal_summary_cache`).
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

@@ -32,6 +32,7 @@ import {
 } from '../forms/public';
 import { castVote, removeVote } from './votes';
 import { getPrefs, parsePatch, setPrefs } from '../updates/preferences';
+import { sinceLastVisit } from '../updates/visits';
 import { unsubscribeFromPage, unsubscribeInfo, unsubscribeOneClick } from '../updates/unsubscribe';
 
 // The portal's own routes (/portal/*), for people outside the workspace. They accept
@@ -113,6 +114,9 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
     const visitor = await signedInVisitor(request);
     return setPrefs(visitor.requesterId, parsePatch(fields(body), 'person'), 'person');
   })
+  .get('/me/since-last-visit', async ({ request }) =>
+    sinceLastVisit((await signedInVisitor(request)).requesterId),
+  )
   .get('/unsubscribe', ({ query }) => unsubscribeInfo(query.token))
   .post('/unsubscribe', async ({ body }) => {
     const input = fields(body);
