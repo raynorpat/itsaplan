@@ -5,7 +5,6 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronRight, Folder, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDragClickGuard } from '@/hooks/useDragClickGuard';
 import type { Favorite } from '@/services/favorites.service';
 import {
   DropdownMenu,
@@ -44,7 +43,6 @@ export default function SidebarFavoriteFolder({
     id: folder.id,
     disabled: !draggable,
   });
-  const guard = useDragClickGuard();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const name = folder.folderName ?? 'Folder';
@@ -61,10 +59,6 @@ export default function SidebarFavoriteFolder({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(isDragging && 'opacity-40')}
       {...(editing ? {} : listeners)}
-      onPointerDown={(e) => {
-        guard.onPointerDown(e);
-        if (!editing) listeners?.onPointerDown?.(e);
-      }}
       onContextMenu={(e) => {
         if (editing) return;
         e.preventDefault();
@@ -88,9 +82,7 @@ export default function SidebarFavoriteFolder({
         <SidebarMenuButton
           tooltip={name}
           aria-expanded={open}
-          onClick={(e) => {
-            if (guard.isClick(e)) onToggle();
-          }}
+          onClick={onToggle}
           className={cn(isOver && 'bg-sidebar-accent')}
         >
           <Folder />

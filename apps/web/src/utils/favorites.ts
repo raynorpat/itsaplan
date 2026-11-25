@@ -147,6 +147,13 @@ export function dropZone(row: { top: number; height: number }, pointerY: number)
   return 'into';
 }
 
+// Whether the sidebar's rows stay in place during a drag: while a favorite (not a
+// folder) is over a folder's row, so the folder does not slide away from the pointer
+// and the favorite can be dropped into it. `types` are the shown rows' types in order.
+export function holdsStill(types: string[], activeIndex: number, overIndex: number): boolean {
+  return types[overIndex] === 'folder' && types[activeIndex] !== 'folder';
+}
+
 // Where a favorite dragged onto `overId` lands. Within one list it takes the target's
 // place (dnd-kit's arrayMove); into another list it goes before the target. Dropped
 // on the middle of a folder's row (`zone` 'into', the default), a favorite goes to the

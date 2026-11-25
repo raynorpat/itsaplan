@@ -6,7 +6,6 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MoreHorizontal, StarOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDragClickGuard } from '@/hooks/useDragClickGuard';
 import type { Favorite } from '@/services/favorites.service';
 import { favoriteHref } from '@/utils/favorites';
 import {
@@ -49,7 +48,6 @@ export default function SidebarFavoriteRow({
     id: favorite.id,
     disabled: !draggable,
   });
-  const guard = useDragClickGuard();
   const [menuOpen, setMenuOpen] = useState(false);
   const Icon = favoriteIcon(favorite.type);
   const href = favoriteHref(favorite);
@@ -66,28 +64,13 @@ export default function SidebarFavoriteRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(nested && 'pl-4', isDragging && 'opacity-40')}
       {...listeners}
-      onPointerDown={(e) => {
-        guard.onPointerDown(e);
-        listeners?.onPointerDown?.(e);
-      }}
       onContextMenu={(e) => {
         e.preventDefault();
         setMenuOpen(true);
       }}
     >
       <SidebarMenuButton asChild isActive={active} tooltip={label}>
-        {href ? (
-          <Link
-            href={href}
-            onClick={(e) => {
-              if (!guard.isClick(e)) e.preventDefault();
-            }}
-          >
-            {content}
-          </Link>
-        ) : (
-          <span>{content}</span>
-        )}
+        {href ? <Link href={href}>{content}</Link> : <span>{content}</span>}
       </SidebarMenuButton>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>

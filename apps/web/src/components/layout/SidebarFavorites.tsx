@@ -3,9 +3,14 @@
 import { Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  type SortingStrategy,
+} from '@dnd-kit/sortable';
 import { FolderPlus } from 'lucide-react';
 import { useDndSensors } from '@/lib/dnd';
+import { suppressNextClick } from '@/utils/dragClick';
 import { useCollapsedFavoriteFolders } from '@/hooks/useCollapsedFavoriteFolders';
 import { useIsPhone } from '@/hooks/useIsPhone';
 import {
@@ -25,6 +30,7 @@ import {
   favoriteHref,
   favoriteLabel,
   favoriteTree,
+  holdsStill,
   outOfFolderTarget,
   stepTarget,
   type DropTarget,
@@ -65,7 +71,14 @@ export default function SidebarFavorites() {
   const moveTarget = (id: string) => (target: DropTarget | null) =>
     target ? () => move.mutate({ id, ...moveTo(target) }) : undefined;
 
+  const shownTypes = shown.map((f) => f.type);
+  const strategy: SortingStrategy = (args) =>
+    holdsStill(shownTypes, args.activeIndex, args.overIndex)
+      ? null
+      : verticalListSortingStrategy(args);
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
+    suppressNextClick();
     if (!over) return;
     const dragged = active.rect.current.translated;
     const zone = dragged ? dropZone(over.rect, dragged.top + dragged.height / 2) : 'into';
@@ -103,8 +116,13 @@ export default function SidebarFavorites() {
         <FolderPlus />
       </SidebarGroupAction>
       <SidebarGroupContent>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={shown.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => suppressNextClick()}
+        >
+          <SortableContext items={shown.map((f) => f.id)} strategy={strategy}>
             <SidebarMenu>
               {tree.map((node) => {
                 const f = node.favorite;

@@ -9,6 +9,7 @@ import {
   favoriteHref,
   favoriteLabel,
   favoriteTree,
+  holdsStill,
   sortOrderForDrop,
   type FavoriteItem,
 } from '@/utils/favorites';
@@ -255,5 +256,18 @@ describe('applyMove', () => {
       ],
     );
     assert.equal(list[1]!.parentId, null);
+  });
+});
+
+describe('holdsStill', () => {
+  const types = ['folder', 'issue', 'issue', 'folder', 'project'];
+  it('keeps rows still while a favorite is over a folder', () => {
+    assert.equal(holdsStill(types, 4, 0), true);
+    assert.equal(holdsStill(types, 1, 3), true);
+  });
+  it('lets rows shift over any other row, and when a folder is dragged', () => {
+    assert.equal(holdsStill(types, 4, 1), false);
+    assert.equal(holdsStill(types, 0, 3), false);
+    assert.equal(holdsStill(types, 1, -1), false);
   });
 });

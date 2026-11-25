@@ -66,7 +66,8 @@ export default function DocumentSheet({
       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle className="sr-only">{documentTitle(document.title)}</SheetTitle>
-          <div className="flex items-center gap-2">
+          {/* pr-8 keeps the star and delete buttons clear of the sheet's close button. */}
+          <div className="flex items-center gap-2 pr-8">
             <input
               className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
               placeholder="Document title"
