@@ -23,8 +23,13 @@ describe('sidebarModel', () => {
     );
     assert.deepEqual(
       model.workspace.map((i) => i.key),
-      ['projects', 'views', 'initiatives', 'feedback'],
+      ['projects', 'views', 'initiatives', 'dashboards', 'feedback'],
     );
+  });
+
+  it('links Dashboards to the dashboards list', () => {
+    const model = sidebarModel({ workspaceRole: 'member', teams: [] });
+    assert.equal(model.workspace.find((i) => i.key === 'dashboards')?.href, '/dashboards');
   });
 
   it('links Feedback to the People page', () => {
@@ -32,7 +37,7 @@ describe('sidebarModel', () => {
     assert.equal(model.workspace.find((i) => i.key === 'feedback')?.href, '/feedback/people');
   });
 
-  it('hides Initiatives and Feedback from guests', () => {
+  it('hides Initiatives, Dashboards and Feedback from guests', () => {
     const model = sidebarModel({ workspaceRole: 'guest', teams: [team('ENG')] });
     assert.deepEqual(
       model.workspace.map((i) => i.key),

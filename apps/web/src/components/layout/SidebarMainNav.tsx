@@ -3,6 +3,7 @@ import {
   CircleUserRound,
   Inbox,
   Layers,
+  LayoutDashboard,
   MessageSquareQuote,
   Milestone,
   Target,
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   projects: Target,
   views: Layers,
   initiatives: Milestone,
+  dashboards: LayoutDashboard,
   feedback: MessageSquareQuote,
 };
 

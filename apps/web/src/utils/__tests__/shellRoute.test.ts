@@ -49,6 +49,15 @@ describe('parseShellRoute', () => {
     assert.equal(r.sub, 'feedback');
   });
 
+  it('reads the dashboards pages as a workspace area needing no team', () => {
+    for (const path of ['/dashboards', '/dashboards/abc']) {
+      const r = parse(path);
+      assert.equal(r.workspace, true, path);
+      assert.equal(r.sub, 'dashboards', path);
+      assert.equal(r.needsTeam, false, path);
+    }
+  });
+
   it('needs no team on the inbox, My issues, feedback and the account and workspace settings', () => {
     for (const path of [
       '/feedback/people',

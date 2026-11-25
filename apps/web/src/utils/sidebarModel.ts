@@ -4,6 +4,7 @@ import { canSeeInitiatives } from '@/utils/workspaceRoles';
 import { canSeeFeedback } from '@/utils/feedback';
 import {
   cyclesPath,
+  dashboardsPath,
   feedbackPeoplePath,
   inboxPath,
   initiativesPath,
@@ -47,6 +48,10 @@ export function sidebarModel({
   ];
   if (canSeeInitiatives(workspaceRole)) {
     workspace.push({ key: 'initiatives', label: 'Initiatives', href: initiativesPath() });
+  }
+  // Dashboards and Feedback are for members, admins and owners (the API refuses guests).
+  if (canSeeFeedback(workspaceRole)) {
+    workspace.push({ key: 'dashboards', label: 'Dashboards', href: dashboardsPath() });
   }
   if (canSeeFeedback(workspaceRole)) {
     workspace.push({ key: 'feedback', label: 'Feedback', href: feedbackPeoplePath() });

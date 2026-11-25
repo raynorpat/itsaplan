@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { computeWidget } from '../compute';
+import { computeWidget, sliceItems } from '../compute';
 import { ctx, cycle, issue, NOW, project, request, widget } from './fixtures';
 
 const bars = (r: ReturnType<typeof computeWidget>) => {
@@ -378,5 +378,27 @@ describe('capping', () => {
       ctx(),
     );
     assert.equal(r.capped, true);
+  });
+});
+
+describe('sliceItems', () => {
+  const issues = [
+    issue({ id: '1', stateId: 's-todo' }),
+    issue({ id: '2', stateId: 's-doing' }),
+    issue({ id: '3', stateId: 's-todo' }),
+  ];
+
+  it('lists the rows behind one bar, with links', () => {
+    const w = widget('chart', { data: 'issues', measure: 'open', slice: 'status' });
+    const rows = sliceItems(w, { issues }, ctx(), 's-todo');
+    assert.deepEqual(rows.map((r) => r.id).sort(), ['1', '3']);
+    assert.ok(rows.every((r) => typeof r.href === 'string'));
+  });
+
+  it('lists every counted row for the whole-widget bar and nothing for an unknown slice', () => {
+    const w = widget('chart', { data: 'issues', measure: 'open', slice: null });
+    assert.equal(sliceItems(w, { issues }, ctx(), 'all').length, 3);
+    const sliced = widget('chart', { data: 'issues', measure: 'open', slice: 'status' });
+    assert.deepEqual(sliceItems(sliced, { issues }, ctx(), 'nope'), []);
   });
 });

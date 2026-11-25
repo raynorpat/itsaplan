@@ -260,22 +260,54 @@ function resultUnit<R>(adapter: Adapter<R>, def: MeasureDef, rows: R[]): ResultU
   return adapter.scopeUnit?.(rows) ?? 'issues';
 }
 
-export function computeWidget(widget: Widget, all: WidgetRows, ctx: ComputeContext): WidgetResult {
+function measureOf(config: WidgetConfig): MeasureDef {
+  return (
+    measureDef(config.data, config.measure) ?? {
+      id: config.measure,
+      label: config.measure,
+      basis: 'current',
+      unit: 'count',
+    }
+  );
+}
+
+// The rows a widget counts (dashboard team, widget filter) and what its measure picks
+// from them in the period.
+function selected(widget: Widget, all: WidgetRows, ctx: ComputeContext) {
   const { config } = widget;
   const adapter = ADAPTERS[config.data];
-  const def = measureDef(config.data, config.measure) ?? {
-    id: config.measure,
-    label: config.measure,
-    basis: 'current',
-    unit: 'count',
-  };
-  const capped = all.capped ?? false;
+  const def = measureOf(config);
   let list = adapter.rows(all);
   if (ctx.teamId) list = list.filter((r) => adapter.inTeam(r, ctx.teamId!));
   list = list.filter((r) => adapter.matches(r, config.filter, ctx.now));
   const range = periodRange(ctx.period, ctx.now);
   const selection = adapter.select(list, def.id, range.start, range.end, ctx);
-  const { items, excluded } = selection;
+  return { adapter, def, list, range, ...selection };
+}
+
+// The items behind one bar or slice of a chart ("all" for a chart without a slice), as
+// table rows with their links, for the dashboard's side panel.
+export function sliceItems(
+  widget: Widget,
+  all: WidgetRows,
+  ctx: ComputeContext,
+  sliceKey: string,
+): TableRow[] {
+  const { adapter, list, items } = selected(widget, all, ctx);
+  const slice = widget.config.slice;
+  let picked = items;
+  if (slice && sliceKey !== 'all') {
+    const group = adapter.slice(uniqueRows(items), slice, ctx).find((g) => g.key === sliceKey);
+    if (!group) return [];
+    picked = inGroup(items, group);
+  }
+  return adapter.table(picked, list, ctx);
+}
+
+export function computeWidget(widget: Widget, all: WidgetRows, ctx: ComputeContext): WidgetResult {
+  const { config } = widget;
+  const { adapter, def, list, range, items, excluded } = selected(widget, all, ctx);
+  const capped = all.capped ?? false;
   const base = { excluded, capped };
   // Scope is in each team's own unit; with several teams only per-cycle or per-team
   // groups are meaningful.

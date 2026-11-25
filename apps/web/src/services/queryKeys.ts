@@ -28,6 +28,8 @@ export const qk = {
   insightsCompleted: (viewKey: string, filter: string, since: string) =>
     ['insightsCompleted', viewKey, filter, since] as const,
   insightsOpen: (viewKey: string, filter: string) => ['insightsOpen', viewKey, filter] as const,
+  dashboards: ['dashboards'] as const,
+  dashboard: (id: string) => ['dashboard', id] as const,
   dashboardRows: (loadKey: string) => ['dashboardRows', loadKey] as const,
   dashboardFirstFeedback: ['dashboardFirstFeedback'] as const,
   webhooks: (teamKey: string) => ['webhooks', teamKey] as const,
