@@ -77,8 +77,8 @@ actions with who did them, from where and how they were authenticated.
 
 ### Retention
 
-- Owners choose how long entries are kept: 90 days, 1 year (default), 2 years, 3 years
-  or forever (through `/api/auth/instance/audit-settings`; Linear's schema has no field
+- Owners choose how long entries are kept: 30 days (default, user's choice), 90 days,
+  1 year, 2 years, 3 years or forever (through `/api/auth/instance/audit-settings`; Linear's schema has no field
   for it). The worker deletes older entries daily. Changing the period is itself
   recorded.
 
