@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UPDATES_NOTICE } from '@/utils/updatesNotice';
 import { useConfirmForm, useFormConfirmInfo } from './services/forms.service';
 import FormsMessage from './components/FormsMessage';
 import FormsSubmitted from './components/FormsSubmitted';
@@ -45,6 +46,7 @@ export default function FormsConfirmPage() {
           {confirm.error.message}
         </p>
       )}
+      <p className="text-xs text-muted-foreground">{UPDATES_NOTICE}</p>
       <Button disabled={confirm.isPending} onClick={() => confirm.mutate(token)}>
         Confirm request
       </Button>

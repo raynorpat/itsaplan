@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { portalFetch } from '@/services/portalFetch.service';
 import type { Answers, PublicFormField } from '@/utils/formAnswers';
 import { optimisticVote, type PortalIssue } from '../utils/portal';
+import type { SummaryCadence, UpdatePrefs } from '../utils/updates';
 
 // The portal boards' queries and mutations, on the portal's own API routes
 // (portalFetch). Members' sessions and /graphql are never used here.
@@ -64,6 +65,9 @@ export const portalKeys = {
     ['portal', slug, 'issue', identifier, 'comments'] as const,
   forms: (slug: string) => ['portal', slug, 'forms'] as const,
   linkInfo: (token: string) => ['portal', 'link', token] as const,
+  updates: ['portal', 'me', 'updates'] as const,
+  sinceLastVisit: ['portal', 'me', 'since-last-visit'] as const,
+  unsubscribe: (token: string) => ['portal', 'unsubscribe', token] as const,
 };
 
 export function usePortalBoard(slug: string) {
@@ -243,5 +247,68 @@ export function useUpdateDisplayName(slug: string) {
     mutationFn: (displayName: string) =>
       portalFetch<PortalVisitor>('/me', { method: 'POST', body: { displayName } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: portalKeys.board(slug) }),
+  });
+}
+
+// The signed-in visitor's email update preferences.
+export function usePortalUpdates(enabled: boolean) {
+  return useQuery({
+    queryKey: portalKeys.updates,
+    queryFn: () => portalFetch<UpdatePrefs>('/me/updates'),
+    enabled,
+  });
+}
+
+export type UpdatesPatch = Partial<Pick<UpdatePrefs, 'enabled' | 'changeEmails' | 'summary'>>;
+
+export function useSetPortalUpdates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: UpdatesPatch) =>
+      portalFetch<UpdatePrefs>('/me/updates', { method: 'POST', body: patch }),
+    onSuccess: (prefs) => qc.setQueryData(portalKeys.updates, prefs),
+  });
+}
+
+export interface SinceLastVisit {
+  paragraph: string | null;
+  lines: string[];
+}
+
+export function useSinceLastVisit(enabled: boolean) {
+  return useQuery({
+    queryKey: portalKeys.sinceLastVisit,
+    queryFn: () => portalFetch<SinceLastVisit>('/me/since-last-visit'),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
+export function useUnsubscribeInfo(token: string) {
+  return useQuery({
+    queryKey: portalKeys.unsubscribe(token),
+    queryFn: () =>
+      portalFetch<{ email: string | null; prefs: UpdatePrefs }>(
+        `/unsubscribe?token=${encodeURIComponent(token)}`,
+      ),
+    retry: false,
+    enabled: !!token,
+  });
+}
+
+// Without `summary`, every update off; with it, only the summary cadence changes.
+export function useUnsubscribe(token: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (summary?: SummaryCadence) =>
+      portalFetch<{ prefs: UpdatePrefs }>('/unsubscribe', {
+        method: 'POST',
+        body: summary ? { token, summary } : { token },
+      }),
+    onSuccess: ({ prefs }) =>
+      qc.setQueryData<{ email: string | null; prefs: UpdatePrefs }>(
+        portalKeys.unsubscribe(token),
+        (info) => (info ? { ...info, prefs } : info),
+      ),
   });
 }

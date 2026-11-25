@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UPDATES_NOTICE } from '@/utils/updatesNotice';
 import { useConfirmSignIn, useLinkInfo } from '../../services/portal.service';
 import PortalSignInForm from './PortalSignInForm';
 
@@ -45,6 +46,7 @@ export default function PortalConfirmSignIn({ slug, token }: { slug: string; tok
           <Input autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
         </label>
       )}
+      <p className="text-xs text-muted-foreground">{UPDATES_NOTICE}</p>
       <Button type="submit" disabled={confirm.isPending || (needsName && !name.trim())}>
         Sign in
       </Button>

@@ -14,6 +14,7 @@ import PortalIssueRow from './components/PortalIssueRow';
 import PortalMessage from './components/PortalMessage';
 import PortalRequestsToolbar from './components/requests/PortalRequestsToolbar';
 import PortalRequestActions from './components/requests/PortalRequestActions';
+import PortalSinceLastVisit from './components/requests/PortalSinceLastVisit';
 
 // /portal/<slug>: the board's issues by votes or by date, with search, and the board's
 // forms or its Suggest box.
@@ -47,6 +48,7 @@ export default function PortalRequestsPage() {
 
   return (
     <section className="flex flex-col gap-4">
+      {signedIn && <PortalSinceLastVisit />}
       {(board.intro || board.suggestionsEnabled || forms.length > 0) && (
         <div className="flex items-start gap-4">
           {board.intro && (
