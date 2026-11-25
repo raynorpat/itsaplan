@@ -18,7 +18,7 @@ export interface PortalVisitor {
 export interface PortalBoard {
   name: string;
   intro?: string | null;
-  access: 'public' | 'restricted';
+  access: 'public' | 'restricted' | 'customer';
   comments?: 'portal' | 'all';
   suggestionsEnabled?: boolean;
   showDescription?: boolean;

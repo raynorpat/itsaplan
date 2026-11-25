@@ -27,6 +27,12 @@ describe('measure and slice options', () => {
     assert.ok(!measureOptions({ hasEstimates: false, hasRequests: false }).includes('points'));
     assert.ok(measureOptions({ hasEstimates: true, hasRequests: false }).includes('points'));
   });
+  it('falls back from a stored customer measure while Customers is off', () => {
+    const opts = { hasEstimates: false, hasRequests: true, spansTeams: false };
+    const stored = { ...DEFAULT_INSIGHTS_SETTINGS, measure: 'customers' as const };
+    assert.equal(effectiveSettings(stored, { ...opts, hasCustomers: false }).measure, 'count');
+    assert.equal(effectiveSettings(stored, { ...opts, hasCustomers: true }).measure, 'customers');
+  });
   it('offers team only where the view spans teams', () => {
     assert.ok(!sliceOptions({ spansTeams: false }).includes('team'));
     assert.ok(sliceOptions({ spansTeams: true }).includes('team'));

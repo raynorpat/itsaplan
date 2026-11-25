@@ -12,6 +12,7 @@ import {
 const row = (over: Partial<CustomerSortRow>): CustomerSortRow => ({
   name: 'Acme',
   requests: 0,
+  people: 0,
   revenue: null,
   ...over,
 });
@@ -32,6 +33,17 @@ describe('sortCustomers', () => {
     assert.deepEqual(
       sortCustomers(rows, 'requests', 'desc').map((r) => r.name),
       ['Cobalt', 'beta', 'Acme'],
+    );
+  });
+  it('sorts by people, most first when descending', () => {
+    const byPeople = [
+      row({ name: 'Acme', people: 2 }),
+      row({ name: 'beta', people: 7 }),
+      row({ name: 'Cobalt', people: 0 }),
+    ];
+    assert.deepEqual(
+      sortCustomers(byPeople, 'people', 'desc').map((r) => r.name),
+      ['beta', 'Acme', 'Cobalt'],
     );
   });
   it('puts customers without revenue last in both directions', () => {

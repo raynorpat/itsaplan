@@ -8,15 +8,16 @@ import { feedbackCustomerPath } from '@/utils/paths';
 import { formatRevenue, type CustomerSortKey, type SortDir } from '../utils/customers';
 import CustomerSortHeader from './CustomerSortHeader';
 
-// The Customers list: logo and name, status, tier, owner, requests and revenue, one row
-// each, with sortable name, requests and revenue columns.
+// The Customers list: logo and name, status, tier, owner, people, the issues their people
+// asked for and revenue, one row each, with sortable name, people, issues and revenue
+// columns.
 export default function CustomersList({
   customers,
   currency,
   sort,
   onSort,
 }: {
-  customers: Customer[];
+  customers: (Customer & { people: number })[];
   currency: string;
   sort: { key: CustomerSortKey; dir: SortDir };
   onSort: (key: CustomerSortKey) => void;
@@ -35,7 +36,15 @@ export default function CustomersList({
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Tier</span>
         <span className="w-32 shrink-0 text-xs text-muted-foreground">Owner</span>
         <span className="w-20 shrink-0 text-right">
-          <CustomerSortHeader label="Requests" column="requests" sort={sort} onSort={onSort} />
+          <CustomerSortHeader label="People" column="people" sort={sort} onSort={onSort} />
+        </span>
+        <span className="w-28 shrink-0 text-right">
+          <CustomerSortHeader
+            label="Issues requested"
+            column="requests"
+            sort={sort}
+            onSort={onSort}
+          />
         </span>
         <span className="w-20 shrink-0 text-right">
           <CustomerSortHeader label="Revenue" column="revenue" sort={sort} onSort={onSort} />
@@ -64,6 +73,9 @@ export default function CustomersList({
                 {c.owner?.displayName ?? c.owner?.name ?? '—'}
               </span>
               <span className="w-20 shrink-0 text-right text-muted-foreground tabular-nums">
+                {c.people}
+              </span>
+              <span className="w-28 shrink-0 text-right text-muted-foreground tabular-nums">
                 {c.approximateNeedCount}
               </span>
               <span className="w-20 shrink-0 text-right text-muted-foreground tabular-nums">

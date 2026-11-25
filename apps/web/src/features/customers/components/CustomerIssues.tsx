@@ -15,7 +15,7 @@ export default function CustomerIssues({ customerId }: { customerId: string }) {
   const groups = issuesOfCustomer(query.data ?? []);
   return (
     <section className="pb-6">
-      <h2 className="px-4 pb-1.5 text-sm font-medium">Requests</h2>
+      <h2 className="px-4 pb-1.5 text-sm font-medium">Requested issues</h2>
       {query.isPending ? (
         <p className="px-4 text-sm text-muted-foreground">Loading…</p>
       ) : groups.length === 0 ? (

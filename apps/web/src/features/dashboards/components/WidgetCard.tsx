@@ -36,6 +36,9 @@ export default function WidgetCard({
     dashboard,
     !needsCustomers || settings.data?.enabled === true,
   );
+  // A customer widget waits for the Customers switch; when it cannot be read the widget
+  // cannot load either.
+  const failed = error || (needsCustomers && settings.isError);
   const [panel, setPanel] = useState<{ title: string; rows: TableRow[] } | null>(null);
 
   const openSlice = (key: string, label: string) => {
@@ -65,7 +68,7 @@ export default function WidgetCard({
       </header>
       {customersOff ? (
         <p className="py-6 text-sm text-muted-foreground">Customers are off</p>
-      ) : error ? (
+      ) : failed ? (
         <p className="py-6 text-sm text-destructive">This widget could not be loaded.</p>
       ) : isPending || !result ? (
         <p className="py-6 text-sm text-muted-foreground">Loading…</p>

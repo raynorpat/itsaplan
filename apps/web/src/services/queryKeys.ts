@@ -138,6 +138,7 @@ export const qk = {
   // Customers: the settings (switch and currency), statuses, tiers, the list and one
   // customer by id or slug.
   customersSettings: ['customers', 'settings'] as const,
+  customerPeopleCounts: ['customers', 'people-counts'] as const,
   customerStatuses: ['customers', 'statuses'] as const,
   customerTiers: ['customers', 'tiers'] as const,
   customerList: (filter: string) => ['customers', 'list', filter] as const,

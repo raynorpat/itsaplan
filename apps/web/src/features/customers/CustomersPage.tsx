@@ -7,7 +7,11 @@ import FeedbackNav from '@/components/common/page/FeedbackNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
-import { useCustomers, useCustomersSettings } from '@/services/customers.service';
+import {
+  useCustomerPeopleCounts,
+  useCustomers,
+  useCustomersSettings,
+} from '@/services/customers.service';
 import { useViewerWorkspaceQuery } from '@/services/viewer.service';
 import { canSeeFeedback } from '@/utils/feedback';
 import { feedbackCustomerPath } from '@/utils/paths';
@@ -25,6 +29,7 @@ export default function CustomersPage() {
   const enabled = useCustomersEnabled();
   const visible = canSeeFeedback(viewer.data?.workspaceRole ?? null) && enabled;
   const query = useCustomers(undefined, visible);
+  const people = useCustomerPeopleCounts(visible);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: CustomerSortKey; dir: SortDir }>({
     key: 'name',
@@ -36,11 +41,16 @@ export default function CustomersPage() {
     const term = search.trim().toLowerCase();
     const found = (query.data ?? []).filter((c) => c.name.toLowerCase().includes(term));
     return sortCustomers(
-      found.map((c) => ({ ...c, requests: c.approximateNeedCount, revenue: c.revenue ?? null })),
+      found.map((c) => ({
+        ...c,
+        requests: c.approximateNeedCount,
+        people: people.data?.[c.id] ?? 0,
+        revenue: c.revenue ?? null,
+      })),
       sort.key,
       sort.dir,
     );
-  }, [query.data, search, sort]);
+  }, [query.data, people.data, search, sort]);
 
   if (viewer.isPending || settings.isPending) return null;
   if (!visible) return <p className="px-6 py-8 text-sm text-muted-foreground">Page not found.</p>;

@@ -25,6 +25,17 @@ const CustomersSwitch = graphql(`
   }
 `);
 
+// The number of people of each customer (Linear's Customer has no such field).
+export function useCustomerPeopleCounts(enabled = true) {
+  return useQuery({
+    queryKey: qk.customerPeopleCounts,
+    queryFn: async () =>
+      (await instanceFetch<{ counts: Record<string, number> }>('/instance/customers/people-counts'))
+        .counts,
+    enabled,
+  });
+}
+
 // Whether Customers is on, and the revenue currency, for any signed-in user.
 export function useCustomersSettings() {
   const { data: session } = useSession();

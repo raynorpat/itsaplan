@@ -1,11 +1,13 @@
 import type { StateType } from '@/types/team';
 
-export type CustomerSortKey = 'name' | 'requests' | 'revenue';
+export type CustomerSortKey = 'name' | 'requests' | 'people' | 'revenue';
 export type SortDir = 'asc' | 'desc';
 
 export interface CustomerSortRow {
   name: string;
+  // The issues the customer's people asked for (Linear's approximateNeedCount).
   requests: number;
+  people: number;
   revenue: number | null;
 }
 
