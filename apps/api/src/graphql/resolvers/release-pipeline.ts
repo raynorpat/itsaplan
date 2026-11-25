@@ -56,7 +56,7 @@ const STAGE_UPDATE_FIELDS = ['name', 'color', 'position', 'frozen'];
 
 // ReleasePipelineFilter: id, name, type, isProduction, teams (some), createdAt,
 // updatedAt, and / or.
-function pipelineFilterSql(filter: unknown): SQL | undefined {
+export function pipelineFilterSql(filter: unknown): SQL | undefined {
   const handlers: FieldHandlers = {
     id: (v, p) => compareId(releasePipeline.id, v, p),
     name: (v, p) => compare(releasePipeline.name, v, p),
@@ -78,7 +78,7 @@ function pipelineFilterSql(filter: unknown): SQL | undefined {
 }
 
 // ReleaseStageFilter: id, name, type, createdAt, updatedAt, and / or.
-function stageFilterSql(filter: unknown): SQL | undefined {
+export function stageFilterSql(filter: unknown): SQL | undefined {
   return filterSql(filter, {
     id: (v, p) => compareId(releaseStage.id, v, p),
     name: (v, p) => compare(releaseStage.name, v, p),
@@ -134,7 +134,7 @@ function listStages(where: SQL | undefined, args: ListArgs, ctx: GraphQLContext)
 }
 
 // A list shown whole, in its own order, as one connection page.
-function wholeConnection<T extends { id: string }>(nodes: T[]) {
+export function wholeConnection<T extends { id: string }>(nodes: T[]) {
   const edges = nodes.map((node) => ({ node, cursor: node.id }));
   return {
     nodes,

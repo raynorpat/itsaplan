@@ -146,7 +146,8 @@ export const documentResolvers = {
       listDocuments(undefined, args, ctx),
   },
   Document: {
-    url: async (d: GraphQLDocument) => documentUrl(d),
+    // A release document (resolvers/release.ts) carries its release page's URL.
+    url: async (d: GraphQLDocument & { releaseUrl?: string }) => d.releaseUrl ?? documentUrl(d),
     creator: (d: GraphQLDocument, _: unknown, ctx: GraphQLContext) =>
       userById(d.creatorUserId, ctx.user.id),
     updatedBy: (d: GraphQLDocument, _: unknown, ctx: GraphQLContext) =>
