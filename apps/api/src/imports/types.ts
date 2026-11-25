@@ -29,9 +29,19 @@ export interface SourceIssue {
   createdAt: string;
   closedAt: string | null;
   comments: SourceComment[];
+  // CSV sources (csv/): the row's identity within the destination team (`jira:<key>`,
+  // `csv:<id>` or `csv:<file sha256>:<row>`), used instead of `url`, which is empty;
+  // the source status text the Statuses step maps to a state; priority 0–4; the
+  // estimate as written (checked against the team's scale on import); the due date as
+  // YYYY-MM-DD.
+  sourceKey?: string;
+  status?: string | null;
+  priority?: number;
+  estimate?: number | null;
+  dueDate?: string | null;
 }
 
-export type ServiceLabel = 'GitHub' | 'GitLab' | 'Gitea' | 'Forgejo';
+export type ServiceLabel = 'GitHub' | 'GitLab' | 'Gitea' | 'Forgejo' | 'Jira' | 'CSV';
 
 export interface SourceData {
   serviceLabel: ServiceLabel;
