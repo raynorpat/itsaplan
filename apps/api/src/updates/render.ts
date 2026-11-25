@@ -21,6 +21,9 @@ const HEALTH_LABEL = { onTrack: 'On track', atRisk: 'At risk', offTrack: 'Off tr
 
 type StatusChange = Extract<Change, { kind: 'status' }>;
 type UpdateChange = Extract<Change, { kind: 'projectUpdate' }>;
+type ShippedChange = Extract<Change, { kind: 'shipped' }>;
+
+const shippedLine = (c: ShippedChange): string => `${c.title} shipped in ${c.releaseName}`;
 
 function statusLine(c: StatusChange): string {
   if (c.to === 'closed') {
@@ -52,6 +55,7 @@ export function roundUp(changes: Change[]): string[] {
   for (const c of changes) {
     if (c.kind === 'status') lines.push(statusLine(c));
     else if (c.kind === 'projectUpdate') lines.push(updateLine(c));
+    else if (c.kind === 'shipped') lines.push(shippedLine(c));
     else if (!counted.has(c.issueId)) {
       counted.add(c.issueId);
       const n = replyCounts.get(c.issueId)!;
@@ -96,6 +100,11 @@ const quote = (s: string): Block => ({
 function changeBlocks(c: Change): Block[] {
   if (c.kind === 'status') {
     const blocks = [para(statusLine(c))];
+    if (c.url) blocks.push(link(c.url));
+    return blocks;
+  }
+  if (c.kind === 'shipped') {
+    const blocks = [para(shippedLine(c))];
     if (c.url) blocks.push(link(c.url));
     return blocks;
   }

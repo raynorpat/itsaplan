@@ -58,7 +58,14 @@ Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, upd
 delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
 schema has no dashboard type (`apps/api/src/dashboards/`). `POST favorites/delete-folder
 { id }` (the folder's owner) deletes a favorites folder and keeps its favorites, which
-Linear's API has no operation for (`apps/api/src/favorites/store.ts`). All but the first need the
+Linear's API has no operation for (`apps/api/src/favorites/store.ts`). A release
+pipeline's access keys (`GET access-keys?pipelineId=` for members who can see the
+pipeline, without the keys; `POST access-keys/create { pipelineId }`, which returns the
+key once, and `POST access-keys/revoke { id }` for workspace owners and admins) are here
+because Linear's schema has no mutation that creates one (`apps/api/src/releases/keys.ts`).
+`GET releases/note-draft?releaseId=` (`{ title, content }`, members who can read the
+release) is the "Fill from issues" draft of a release note (`apps/api/src/releases/notes.ts`).
+All but the first need the
 API's session and access rules, which this package cannot import, so `apps/api` registers them at startup with `provideInstanceHandlers`
 (`apps/api/src/instance/handlers.ts`). A handler refuses by throwing an error with an
 HTTP `status`, which the plugin turns into better-auth's error of that status. A

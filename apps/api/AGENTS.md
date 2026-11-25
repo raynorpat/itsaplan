@@ -312,9 +312,14 @@ Rules and invariants for this package below; read the code for the walkthrough.
   the one "what changed" lookup, read from `issue_activity` (status changes by state
   id: the status before the first and after the last change in the window, so a change
   undone within it, or a move within one status, is nothing), `comment` (replies by
-  others in portal threads the person wrote in) and `project_update_share`. A person
+  others in portal threads the person wrote in), `project_update_share` and
+  `issue_to_release` (an issue that shipped in the window, "Shipped in <release>",
+  from production pipelines only; a shipment already sent at or before the window's
+  start, recorded in `requester_shipped` when a change email or summary with it is
+  marked sent, is not news again, so a reopened and completed issue ships once). A person
   follows the issues of their active feedback and of their portal threads, active and
-  in a public team. Access is the person's at `until`: a status change when an enabled
+  in a public team. Access is the person's at `until`: a status change or a shipment
+  when an enabled
   board their email may read covers the issue (its team or project and labels, whatever
   the status) or when they have form or team-logged feedback on it; a reply only from a
   thread of such a board, and only one the board shows (`boardCommentsSql`: on a board
@@ -387,6 +392,41 @@ Rules and invariants for this package below; read the code for the walkthrough.
   request loaders, so a list costs a fixed number of statements. `url` is the item's web
   page (null for folders, labels, project labels and users). Linear's create input has
   no initiative, so initiatives cannot be favorited.
+- **Releases** (`releases/`, Linear's `ReleasePipeline`, `ReleaseStage`, `Release`,
+  `ReleaseNote`): a pipeline belongs to one or more teams and is `continuous` (each sync
+  is a release, completed at once, versioned by the first 7 characters of the commit
+  SHA unless given; a version is kept for one full SHA) or `scheduled` (a release
+  collects issues until completed). It is visible to whoever sees one of its teams;
+  owners, admins and members who see a team edit it, guests only read; delete trashes.
+  Each pipeline gets Planned, In progress, Completed and Canceled stages; a scheduled
+  pipeline renames, recolours and orders them, adds `started` stages and freezes them (a
+  sync aimed at a frozen release puts its issues in the next open release); a continuous
+  pipeline's stages do not change; a stage with active releases cannot be archived. A
+  release's stage sets its `startedAt`, `completedAt` (cleared when reopened) and
+  `canceledAt`. An issue joins a release by hand (`issueToReleaseCreate`, its team must
+  be one of the pipeline's) or by a sync; completing a scheduled release with
+  `rolloverIssuesOnCompletion` moves its unfinished issues to the planned release with
+  the earliest target date, or a new "Next". `currentProgress` follows the projects'
+  progress rule. Links and documents are upserted by URL and title; release documents
+  are served as `Document`. `includePathPatterns` is stored, not applied; pull-request
+  references are ignored; no release webhooks are sent. **CI sync** (`sync.ts`):
+  `releaseSync` (a team member's session or API key) and the `*ByAccessKey` operations
+  take Linear's input; issue references match identifiers case-insensitively, and
+  unknown, archived and other-team issues are skipped; a repeated sync adds nothing
+  twice. **Access keys** (`keys.ts`): `itpr_` keys stored as SHA-256, created and revoked
+  by workspace owners and admins through `/api/auth/instance/access-keys*`, shown once;
+  `graphql/context.ts` resolves one to its pipeline without better-auth, and it may run
+  only the six `*ByAccessKey` operations (any other field is AUTHENTICATION_ERROR); a
+  revoked key, or one of an archived or trashed pipeline, is refused. **Release notes**
+  (`notes.ts`): Markdown for one or more releases of a pipeline (exactly one on a
+  scheduled pipeline); "Fill from issues"
+  (`/api/auth/instance/releases/note-draft?releaseId=`) lists the release's completed
+  issues under Features, Bug fixes and Other by label name; with
+  `autoGenerateReleaseNotesOnCompletion` a completed release with completed issues and
+  no note gets that draft. An issue **ships** (`shipped.ts`) when it is in a completed,
+  not canceled release of a production pipeline and is completed itself, at the latest
+  of the three times (Requester changes above; the portal issue page's `shipped`, the
+  latest such release).
 - **Dashboards** (`dashboards/`, `dashboard`): pages of Insights widgets, stored here
   since Linear's schema has no dashboard type, through `/api/auth/instance/dashboards*`.
   `widgets` is the web's configuration; the API checks only its shape (at most 24
@@ -771,8 +811,9 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
   updates), webhooks
   feedback (`customerNeed*`, `Issue.needs`, `ExternalUser` through attachments) and
-  customers (`customer*`, `customerStatus*`, `customerTier*`; not `customerUnsync`)
-  have resolvers; `sort` arguments are INVALID_INPUT, except one `customerCount` or
+  customers (`customer*`, `customerStatus*`, `customerTier*`; not `customerUnsync`) and
+  releases (`releasePipeline*`, `releaseStage*`, `release*`, `releaseNote*`,
+  `issueToRelease*`, `Issue.releases`) have resolvers; `sort` arguments are INVALID_INPUT, except one `customerCount` or
   `customerImportantCount` sort on issue lists (forward paging only); the rest of the
   schema is neutral or NOT_IMPLEMENTED.
 - **Filters and pagination:** `filter.ts` and `issue-filter.ts` list the supported

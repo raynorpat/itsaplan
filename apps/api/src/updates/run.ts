@@ -3,6 +3,7 @@ import { getNotificationEmailConfig } from '@repo/auth';
 import { sendEmail, type EmailConfig } from '@repo/mailer';
 import { and, eq, isNotNull, isNull, lt, lte, min, notInArray, or, type SQL } from 'drizzle-orm';
 import { webOrigin } from '../portal/session';
+import { recordShipped } from '../releases/shipped';
 import { aiConfigured, aiSummary } from './ai';
 import { requesterChanges, requestersWithChangesSince, type Change } from './changes';
 import { renderChangeEmail, renderSummaryEmail, roundUp, type SummaryText } from './render';
@@ -214,7 +215,7 @@ async function changeEmailFor(
       await release();
       return false;
     }
-    await markSent(id, { changesSentUntil: until });
+    await markSent(id, { changesSentUntil: until }, changes, until);
     return true;
   } catch (error) {
     await release();
@@ -222,11 +223,26 @@ async function changeEmailFor(
   }
 }
 
-// After a sent email: a failed write here means the same changes go out again later, so
-// it is logged.
-async function markSent(id: string, values: Partial<Person>): Promise<void> {
+// The shipments an email told the person about.
+const shipmentsIn = (changes: Change[]) =>
+  changes.flatMap((c) =>
+    c.kind === 'shipped' ? [{ issueId: c.issueId, releaseId: c.releaseId }] : [],
+  );
+
+// After a sent email: the person's marker (when given) and the shipments it told them
+// about, at the run's `until`. A failed write here means the same changes go out again
+// later, so it is logged.
+async function markSent(
+  id: string,
+  values: Partial<Person> | null,
+  changes: Change[],
+  until: Date,
+): Promise<void> {
   try {
-    await db.update(externalUser).set(values).where(eq(externalUser.id, id));
+    await db.transaction(async (tx) => {
+      if (values) await tx.update(externalUser).set(values).where(eq(externalUser.id, id));
+      await recordShipped(id, shipmentsIn(changes), until, tx);
+    });
   } catch (error) {
     console.error(
       '[updates] recording a sent requester email failed; it may be sent again:',
@@ -314,8 +330,13 @@ async function summaryFor(
       renderSummaryEmail(text, claimed, m.workspace, links.page, cadence),
       links.headers,
     );
-    if (!ok) await release();
-    return ok;
+    if (!ok) {
+      await release();
+      return false;
+    }
+    // The summary's marker was moved by the claim.
+    await markSent(id, null, changes, until);
+    return true;
   } catch (error) {
     await release();
     throw error;

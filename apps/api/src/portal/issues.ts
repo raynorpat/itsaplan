@@ -10,6 +10,7 @@ import {
 } from '@repo/db';
 import { and, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { requesterCountSql } from '../feedback/store';
+import { latestShipment } from '../releases/shipped';
 import { boardCustomer, boardIssueIds, boardShowsIssue, type BoardRow } from './boards';
 import type { Visitor } from './session';
 import { publicStatus, type PublicStatus } from './status';
@@ -31,6 +32,9 @@ export interface PortalIssue {
 
 export interface PortalIssueDetail extends PortalIssue {
   description: string | null;
+  // The latest production release the issue shipped in (releases/shipped.ts), read on
+  // the issue page only.
+  shipped: { releaseName: string; at: string } | null;
 }
 
 export type PortalSort = 'top' | 'new';
@@ -183,12 +187,13 @@ async function readIssues(
       voted: row.voted,
       underReview,
       description: board.showDescription ? row.description : null,
+      shipped: null,
     });
   }
   return out;
 }
 
-const listItem = ({ description: _, ...item }: PortalIssueDetail): PortalIssue => item;
+const listItem = ({ description: _, shipped: __, ...item }: PortalIssueDetail): PortalIssue => item;
 
 // The board's issues ordered by votes (top) or creation (new), narrowed by title words,
 // with the visitor's own suggestions under review.
@@ -253,5 +258,10 @@ export async function findBoardIssue(
   const shown = await boardShowsIssue(board, row.id, now);
   if (!shown && !(await ownSuggestionIds(board, visitor)).includes(row.id)) return null;
   const [detail] = await readIssues(board, visitor, [row.id], new Set(shown ? [row.id] : []), now);
-  return detail ? { id: row.id, detail } : null;
+  if (!detail) return null;
+  const shipment = await latestShipment(row.id);
+  detail.shipped = shipment
+    ? { releaseName: shipment.releaseName, at: shipment.shippedAt.toISOString() }
+    : null;
+  return { id: row.id, detail };
 }

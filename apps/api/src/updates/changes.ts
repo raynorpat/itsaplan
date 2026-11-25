@@ -23,15 +23,17 @@ import { boardCommentsSql } from '../portal/issues';
 import type { PublicStatus } from '../portal/status';
 import { webOrigin } from '../portal/session';
 import { customersOnSql } from '../feedback/store';
+import { shipmentsFor, shippedAfterSql } from '../releases/shipped';
 
 // What changed for a requester between two moments (feedback project 4): status changes
-// of the issues they follow, replies by others in portal threads they wrote in, and
-// project updates the team shared. Read from what the app already records
-// (issue_activity, comment, project_update_share), within the person's access at
-// `until`:
+// of the issues they follow, replies by others in portal threads they wrote in, project
+// updates the team shared, and issues that shipped in a release (releases/shipped.ts).
+// Read from what the app already records (issue_activity, comment, project_update_share,
+// issue_to_release), within the person's access at `until`:
 // - only active issues of public teams;
-// - a status change when a board the person may read covers the issue, or when the
-//   person has form or team-logged feedback on it (then possibly without a link);
+// - a status change or a shipment when a board the person may read covers the issue, or
+//   when the person has form or team-logged feedback on it (then possibly without a
+//   link);
 // - a reply only from a thread of a board the person may read that covers the issue.
 // One lookup serves the change emails, the summaries and the portal's "Since your last
 // visit".
@@ -66,6 +68,16 @@ export type Change =
       projectName: string;
       health: 'onTrack' | 'atRisk' | 'offTrack' | null;
       body: string;
+      at: Date;
+    }
+  | {
+      kind: 'shipped';
+      issueId: string;
+      releaseId: string;
+      identifier: string;
+      title: string;
+      releaseName: string;
+      url: string | null;
       at: Date;
     };
 
@@ -383,6 +395,36 @@ async function replies(
   return out;
 }
 
+async function shipped(
+  requesterId: string,
+  issues: FollowedIssue[],
+  boards: BoardRow[],
+  since: Date,
+  until: Date,
+): Promise<Change[]> {
+  const rows = await shipmentsFor(
+    requesterId,
+    issues.map((i) => i.id),
+    since,
+    until,
+  );
+  const out: Change[] = [];
+  for (const r of rows) {
+    const i = issues.find((x) => x.id === r.issueId)!;
+    out.push({
+      kind: 'shipped',
+      issueId: i.id,
+      releaseId: r.releaseId,
+      identifier: i.identifier,
+      title: i.title,
+      releaseName: r.releaseName,
+      url: await linkFor(boards, i, until),
+      at: r.shippedAt,
+    });
+  }
+  return out;
+}
+
 async function projectUpdates(projectIds: string[], since: Date, until: Date): Promise<Change[]> {
   if (projectIds.length === 0) return [];
   const rows = await db
@@ -439,6 +481,7 @@ export async function requesterChanges(
   const changes = [
     ...(await statusChanges(statusIssues, boards, since, until)),
     ...(await replies(requesterId, threads, infos, boards, since, until)),
+    ...(await shipped(requesterId, statusIssues, boards, since, until)),
     ...(await projectUpdates(
       [...new Set(statusIssues.map((i) => i.projectId).filter((p): p is string => !!p))],
       since,
@@ -449,8 +492,8 @@ export async function requesterChanges(
 }
 
 // Requesters who may have something new after `since`: updates on, an email, not
-// blocked or merged, and following an issue with a status change, a portal thread with
-// a new comment, or a project with a newly shared update. requesterChanges decides what
+// blocked or merged, and following an issue with a status change or a shipment, a
+// portal thread with a new comment, or a project with a newly shared update. requesterChanges decides what
 // each of them gets.
 export async function requestersWithChangesSince(since: Date): Promise<string[]> {
   // Raw SQL parameters are sent as text.
@@ -467,6 +510,7 @@ export async function requestersWithChangesSince(since: Date): Promise<string[]>
         or(
           sql`EXISTS (SELECT 1 FROM issue_activity a WHERE a.issue_id = ${issue.id}
             AND a.action = 'status' AND a.created_at > ${after})`,
+          shippedAfterSql(sql`${issue.id}`, after),
           sql`${issue.projectId} IN (SELECT pu.project_id FROM project_update_share s
             JOIN project_update pu ON pu.id = s.project_update_id WHERE s.shared_at > ${after})`,
         ),
@@ -487,6 +531,7 @@ export async function requestersWithChangesSince(since: Date): Promise<string[]>
             AND coalesce(c.parent_id, c.id) = coalesce(${comment.parentId}, ${comment.id}))`,
           sql`EXISTS (SELECT 1 FROM issue_activity a WHERE a.issue_id = ${comment.issueId}
             AND a.action = 'status' AND a.created_at > ${after})`,
+          shippedAfterSql(sql`${comment.issueId}`, after),
           sql`EXISTS (SELECT 1 FROM issue i JOIN project_update pu ON pu.project_id = i.project_id
             JOIN project_update_share s ON s.project_update_id = pu.id
             WHERE i.id = ${comment.issueId} AND s.shared_at > ${after})`,

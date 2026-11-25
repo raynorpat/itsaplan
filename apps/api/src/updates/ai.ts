@@ -72,6 +72,8 @@ function facts(change: Change): Record<string, unknown> {
       };
     case 'reply':
       return { type: 'reply', issue: change.title, author: change.author, text: change.body };
+    case 'shipped':
+      return { type: 'shipped', issue: change.title, release: change.releaseName };
     case 'projectUpdate':
       return {
         type: 'project update',
