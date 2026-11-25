@@ -870,6 +870,19 @@ export const externalUser = pgTable(
     lastSeen: timestamp('last_seen', { withTimezone: true }).notNull().defaultNow(),
     // Set when an owner or admin blocks the person from the portal.
     portalBlockedAt: timestamp('portal_blocked_at', { withTimezone: true }),
+    // Email updates (apps/api src/updates/): the main switch, set when the person
+    // confirms a portal sign-in or a form or a member turns it on; once the person
+    // unsubscribes only they can turn it on again.
+    updatesEnabled: boolean('updates_enabled').notNull().default(false),
+    updatesUnsubscribedAt: timestamp('updates_unsubscribed_at', { withTimezone: true }),
+    changeEmails: boolean('change_emails').notNull().default(true),
+    summaryCadence: text('summary_cadence').notNull().default('weekly'),
+    // What change emails and summaries have covered: changes after these are new.
+    changesSentUntil: timestamp('changes_sent_until', { withTimezone: true }),
+    lastChangeEmailAt: timestamp('last_change_email_at', { withTimezone: true }),
+    summarySentUntil: timestamp('summary_sent_until', { withTimezone: true }),
+    lastVisitAt: timestamp('last_visit_at', { withTimezone: true }),
+    previousVisitAt: timestamp('previous_visit_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -878,6 +891,10 @@ export const externalUser = pgTable(
       .on(t.email)
       .where(sql`${t.email} IS NOT NULL AND ${t.mergedIntoId} IS NULL`),
     check('external_user_email_lower_check', sql`${t.email} = lower(${t.email})`),
+    check(
+      'external_user_summary_cadence_check',
+      sql`${t.summaryCadence} IN ('weekly', 'daily', 'off')`,
+    ),
     check('external_user_name_check', sql`btrim(${t.name}) <> ''`),
   ],
 );

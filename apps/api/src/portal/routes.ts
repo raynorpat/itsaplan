@@ -31,6 +31,8 @@ import {
   submitOnLink,
 } from '../forms/public';
 import { castVote, removeVote } from './votes';
+import { getPrefs, parsePatch, setPrefs } from '../updates/preferences';
+import { unsubscribeFromPage, unsubscribeInfo, unsubscribeOneClick } from '../updates/unsubscribe';
 
 // The portal's own routes (/portal/*), for people outside the workspace. They accept
 // only the portal session cookie (session.ts): a better-auth session or API key means
@@ -81,6 +83,9 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
   .onBeforeHandle(({ request }) => {
     if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')
       return;
+    // RFC 8058 one-click unsubscribe is POSTed by the mail provider, with no Origin and
+    // no cookie; the signed token in the URL is its only credential.
+    if (new URL(request.url).pathname === '/portal/unsubscribe/one-click') return;
     const origin = request.headers.get('origin');
     if (!origin || !trustedOrigins.includes(origin))
       throw new HttpError(403, 'This request must come from the portal');
@@ -103,6 +108,20 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
     return { ok: true };
   })
   .get('/me', async ({ request }) => visitorDto(await signedInVisitor(request)))
+  .get('/me/updates', async ({ request }) => getPrefs((await signedInVisitor(request)).requesterId))
+  .post('/me/updates', async ({ request, body }) => {
+    const visitor = await signedInVisitor(request);
+    return setPrefs(visitor.requesterId, parsePatch(fields(body), 'person'), 'person');
+  })
+  .get('/unsubscribe', ({ query }) => unsubscribeInfo(query.token))
+  .post('/unsubscribe', async ({ body }) => {
+    const input = fields(body);
+    return { prefs: await unsubscribeFromPage(input.token, input.summary) };
+  })
+  .post('/unsubscribe/one-click', async ({ query }) => {
+    await unsubscribeOneClick(query.token);
+    return {};
+  })
   .post('/me', async ({ request, body }) =>
     visitorDto(await updateDisplayName(await signedInVisitor(request), fields(body).displayName)),
   )

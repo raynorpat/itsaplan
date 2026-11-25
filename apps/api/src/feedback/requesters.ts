@@ -17,6 +17,7 @@ import {
   type AuthUser,
 } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
+import { parsePatch, setPrefs } from '../updates/preferences';
 import { assertFeedbackWrite, readsFeedback } from './access';
 import { retitleFeedbackAttachments } from '../attachments/store';
 import { activeRequester, createRequesterAttachment } from './store';
@@ -39,6 +40,8 @@ export interface RequesterDto {
   lastFeedbackAt: string | null;
   // Blocked from the portal: no portal sign-in, sessions ended.
   portalBlocked: boolean;
+  // Email updates: on, and whether the person unsubscribed (then only they turn it on).
+  updates: { enabled: boolean; unsubscribed: boolean };
 }
 
 const PAGE = 50;
@@ -136,6 +139,7 @@ function toDto(
     feedbackCount: stats?.count ?? 0,
     lastFeedbackAt: stats?.last ?? null,
     portalBlocked: row.portalBlockedAt != null,
+    updates: { enabled: row.updatesEnabled, unsubscribed: row.updatesUnsubscribedAt != null },
   };
 }
 
@@ -422,4 +426,18 @@ export async function feedbackPeopleCount(
       ),
     );
   return { people: count?.people ?? 0 };
+}
+
+// A member turning a person's email updates on or off ("Keep this person updated").
+// Refused (409) when turning on for a person who unsubscribed.
+export async function setRequesterUpdates(
+  userId: string,
+  body: { requesterId?: unknown; enabled?: unknown },
+): Promise<RequesterDto> {
+  await assertMember(userId);
+  const row = await resolveRequester(requireId(body.requesterId, 'requesterId'));
+  if (!row) throw new HttpError(404, 'Requester not found');
+  await setPrefs(row.id, parsePatch({ enabled: body.enabled }, 'team'), 'team');
+  const [updated] = await db.select().from(externalUser).where(eq(externalUser.id, row.id));
+  return dtoOf(userId, updated!);
 }

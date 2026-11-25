@@ -244,6 +244,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   board and a project board's project). Signed-in submissions share the suggestions
   limit. Expired submissions are deleted when a new one is stored. The slugs `confirm`
   and `confirm-info` are reserved.
+- **Requester email updates** (`updates/`): a requester gets email updates only while
+  `updates_enabled` is on. Confirming a portal sign-in or a form turns it on
+  (`optIn`); a member turns it on or off (`/api/auth/instance/requesters/updates`), but
+  not on for a person who unsubscribed (409). Turning it on starts the change and
+  summary windows at that moment. The person sets `change_emails` and the summary
+  cadence (`weekly`, `daily`, `off`) on `/portal/me/updates`. Unsubscribe links carry
+  `<requesterId>.<HMAC-SHA256(BETTER_AUTH_SECRET)>` (`updates/unsubscribe.ts`, no
+  expiry): `GET /portal/unsubscribe` shows the masked address and preferences, `POST
+  /portal/unsubscribe` turns everything off (or, with `summary`, changes only the
+  cadence), and `POST /portal/unsubscribe/one-click` (RFC 8058) does the same without
+  an Origin or cookie; unsubscribing records `updates_unsubscribed_at`, after which only
+  the person turns updates on again.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

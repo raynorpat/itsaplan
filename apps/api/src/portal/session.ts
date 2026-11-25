@@ -6,6 +6,7 @@ import { retitleFeedbackAttachments } from '../attachments/store';
 import { requesterByEmail } from '../feedback/requesters';
 import { activeRequester } from '../feedback/store';
 import { HttpError, UUID_RE } from '../shared/lib';
+import { optIn } from '../updates/preferences';
 import { emailMayRead } from './access';
 import { getBoardBySlug } from './boards';
 import { allow, LIMITS } from './rate-limit';
@@ -222,6 +223,8 @@ export async function confirmSignIn(
   requester ??= await requesterFor(pending.email, newName!);
   if (requester.portalBlockedAt) throw new HttpError(400, 'This link is not valid or has expired');
 
+  // The person came to the team themselves: email updates on (unless they unsubscribed).
+  await optIn(requester.id);
   const sessionToken = await startSession(requester.id, pending.email);
   return { sessionToken, visitor: toVisitor(requester, pending.email) };
 }

@@ -7,6 +7,7 @@ import {
   getRequester,
   listRequesters,
   mergeRequesters,
+  setRequesterUpdates,
   updateRequester,
 } from './requesters';
 
@@ -36,6 +37,9 @@ export const requestersHandlers: RequestersHandlers = {
   }),
   merge: async (headers, body) => ({
     requester: await mergeRequesters(await signedIn(headers), fields(body)),
+  }),
+  updates: async (headers, body) => ({
+    requester: await setRequesterUpdates((await signedIn(headers)).id, fields(body)),
   }),
   feedbackAttachment: async (headers, body) =>
     createTeamFeedbackAttachment(await signedIn(headers), fields(body)),

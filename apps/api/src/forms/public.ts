@@ -16,6 +16,7 @@ import {
   type Visitor,
 } from '../portal/session';
 import { HttpError } from '../shared/lib';
+import { optIn } from '../updates/preferences';
 import type { FormField, IssueTemplateData } from '../templates/data';
 import {
   answerList,
@@ -265,6 +266,7 @@ export async function confirmSubmission(
     if (isNew && requester) await dropUnusedRequester(requester.id);
     throw err;
   }
+  await optIn(requester.id);
   const sessionToken = await startSession(requester.id, pending.email);
   const visitor: Visitor = {
     requesterId: requester.id,
