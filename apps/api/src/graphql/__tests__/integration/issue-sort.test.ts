@@ -95,6 +95,7 @@ describe('issue sorts', () => {
 
   it('sorts by title, estimate, created, updated and completed dates', async () => {
     const { owner, eng, states } = await setup();
+    await updateTeam(owner, eng.team.id, { issueEstimationType: 'fibonacci' });
     const b = await createIssue(owner, { teamId: eng.team.id, title: 'Bravo', estimate: 3 });
     const a = await createIssue(owner, { teamId: eng.team.id, title: 'alpha', estimate: 5 });
     await createIssue(owner, { teamId: eng.team.id, title: 'Charlie', estimate: 1 });

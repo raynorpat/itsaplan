@@ -44,6 +44,12 @@ export function toTeam(row: TeamRecord) {
     cycleIssueAutoAssignStarted: row.cycleIssueAutoAssignStarted,
     cycleIssueAutoAssignCompleted: row.cycleIssueAutoAssignCompleted,
     autoArchivePeriod: row.autoArchivePeriod,
+    issueEstimationType: row.issueEstimationType,
+    issueEstimationExtended: row.issueEstimationExtended,
+    issueEstimationAllowZero: row.issueEstimationAllowZero,
+    defaultIssueEstimate: row.defaultIssueEstimate,
+    // Sub-teams are not implemented.
+    inheritIssueEstimation: false,
     // Auto-close is not offered.
     autoClosePeriod: 0,
     autoCloseStateId: null,

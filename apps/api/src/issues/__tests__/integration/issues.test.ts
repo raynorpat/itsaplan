@@ -9,6 +9,7 @@ import {
   gqlData,
   signUpAs,
   statesByType,
+  updateTeam,
 } from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 
@@ -114,6 +115,7 @@ describe('issues', () => {
 
     it('stores and clears an estimate', async () => {
       const { owner, teamId } = await setupTeam();
+      await updateTeam(owner, teamId, { issueEstimationType: 'fibonacci' });
       const issue = await createIssue(owner, { teamId, estimate: 3 });
       expect((await read(owner, issue.id)).estimate).toBe(3);
       expect(updated(await issueUpdate(owner, issue.id, { estimate: null })).estimate).toBeNull();

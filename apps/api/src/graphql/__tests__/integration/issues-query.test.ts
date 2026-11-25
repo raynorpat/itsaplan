@@ -45,6 +45,7 @@ describe('graphql issue queries', () => {
 
   it('returns the full SDK issue fragment', async () => {
     const { owner, col, client } = await setup();
+    await client.updateTeam('MKT', { issueEstimationType: 'fibonacci' });
     const parent = await create(owner, col.backlog, { title: 'Parent' });
     const rest = await create(owner, col.started, {
       title: 'Ship docs',

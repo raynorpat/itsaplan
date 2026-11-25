@@ -98,11 +98,23 @@ export const team = pgTable(
     // Linear's Team.autoArchivePeriod: completed and canceled issues closed longer than
     // this many months are archived by the worker; 0 turns it off.
     autoArchivePeriod: integer('auto_archive_period').notNull().default(6),
+    // Linear's estimate scale (apps/api src/teams/estimates.ts): `notUsed` turns
+    // estimates off; extended adds the larger points, allow zero adds 0. An issue
+    // without an estimate counts as `default_issue_estimate` in progress.
+    issueEstimationType: text('issue_estimation_type').notNull().default('notUsed'),
+    issueEstimationExtended: boolean('issue_estimation_extended').notNull().default(false),
+    issueEstimationAllowZero: boolean('issue_estimation_allow_zero').notNull().default(false),
+    defaultIssueEstimate: doublePrecision('default_issue_estimate').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     check('team_visibility_check', sql`${t.visibility} IN ('public', 'private')`),
     check('team_auto_archive_period_check', sql`${t.autoArchivePeriod} IN (0, 1, 3, 6, 9, 12)`),
+    check(
+      'team_issue_estimation_type_check',
+      sql`${t.issueEstimationType} IN ('notUsed', 'exponential', 'fibonacci', 'linear', 'tShirt')`,
+    ),
+    check('team_default_issue_estimate_check', sql`${t.defaultIssueEstimate} >= 0`),
   ],
 );
 

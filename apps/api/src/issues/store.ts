@@ -27,6 +27,7 @@ import { projectTeamIds } from '../projects/access';
 import { milestoneProjectId } from '../projects/milestones';
 import { nextStatusTimestamps, type StateType } from './status-timestamps';
 import type { TeamRow } from '../teams/store';
+import { assertEstimate } from '../teams/estimates';
 import {
   recordActivity,
   logIssueUpdate,
@@ -714,6 +715,7 @@ export async function createIssue(
     input.cycleId ??
     null;
   await assertParent(team.id, null, input.parentId);
+  await assertEstimate(team.id, input.estimate);
   const timestamps = nextStatusTimestamps(
     { startedAt: null, completedAt: null, canceledAt: null },
     stateType,
@@ -848,6 +850,7 @@ async function checkPatch(
   await assertMilestone(projectAfter, patch.projectMilestoneId);
   const stateType = await assertColumn(before.teamId, patch.stateId);
   await assertParent(before.teamId, id, patch.parentId);
+  await assertEstimate(before.teamId, patch.estimate);
   return stateType;
 }
 

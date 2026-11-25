@@ -45,6 +45,7 @@ describe('graphql mutations', () => {
 
     it('honours the supported input fields', async () => {
       const { owner, client, teamId, col } = await setup();
+      await client.updateTeam(teamId, { issueEstimationType: 'fibonacci' });
       const parent = (await (await client.createIssue({ teamId, title: 'Parent' })).issue)!;
       const issue = (await (
         await client.createIssue({

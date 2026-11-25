@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
+  updateTeam,
   createIssue,
   createProject,
   createTeam,
@@ -30,6 +31,7 @@ const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
 async function setup() {
   const owner = await signUpTestUser({ name: 'Owner' });
   const view = await createTeam(owner, { key: 'MKT', name: 'Marketing' });
+  await updateTeam(owner, 'MKT', { issueEstimationType: 'linear', issueEstimationAllowZero: true });
   return { owner, teamId: view.team.id, states: statesByType(view) };
 }
 

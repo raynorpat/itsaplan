@@ -148,6 +148,7 @@ describe('graphql cycles', () => {
 
   it("follows Linear's progress formula", async () => {
     const { teamId, client, state } = await setup();
+    await client.updateTeam(teamId, { issueEstimationType: 'fibonacci' });
     const [active] = await listCycles(teamId);
     const make = (stateType: string, estimate?: number) =>
       client.createIssue({

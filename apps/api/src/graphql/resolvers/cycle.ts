@@ -23,6 +23,7 @@ import { gqlError } from '../errors';
 import { listIssues } from './issue';
 import { guard, lastSyncId, onlySupported } from './mutations';
 import { findTeam, toTeam } from './team';
+import { setEstimateSettings, validateEstimateSettings } from '../../teams/estimates';
 
 // Linear's Cycle over the cycle table, the team cycle fields, and teamUpdate.
 // Cycles are visible to members of their team; writes need work_items.<action>.
@@ -217,8 +218,8 @@ export const cycleResolvers = {
         const archived = await archiveCycle(id, ctx.user.id, new Date());
         return { success: true, lastSyncId: lastSyncId(), entity: toCycle(archived) };
       }),
-    // Name, description, visibility (Linear's `private`) and the cycle settings; team
-    // managers only.
+    // Name, description, visibility (Linear's `private`), the cycle settings and the
+    // estimate scale; team managers only.
     teamUpdate: (
       _: unknown,
       { id, input }: { id: string; input: Record<string, unknown> },
@@ -233,6 +234,11 @@ export const cycleResolvers = {
             'private',
             'autoArchivePeriod',
             'autoClosePeriod',
+            'issueEstimationType',
+            'issueEstimationExtended',
+            'issueEstimationAllowZero',
+            'defaultIssueEstimate',
+            'inheritIssueEstimation',
             ...Object.keys(TEAM_CYCLE_FIELDS),
           ],
           'input',
@@ -261,6 +267,7 @@ export const cycleResolvers = {
             'INVALID_INPUT',
             'input.autoClosePeriod is not supported (auto-close is off)',
           );
+        const estimates = validateEstimateSettings(input);
         if (input.name !== undefined || input.description !== undefined || input.private != null)
           await updateTeam(found.id, {
             name: input.name as string | undefined,
@@ -272,6 +279,7 @@ export const cycleResolvers = {
         if (Object.keys(settings).length) await setTeamCycleSettings(found.id, settings);
         if (input.autoArchivePeriod != null)
           await setAutoArchivePeriod(found.id, input.autoArchivePeriod as number);
+        await setEstimateSettings(found.id, estimates);
         const [row] = await db.select().from(team).where(eq(team.id, found.id));
         return { success: true, lastSyncId: lastSyncId(), team: toTeam(row!) };
       }),

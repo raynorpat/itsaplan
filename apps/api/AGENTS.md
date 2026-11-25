@@ -605,6 +605,18 @@ Rules and invariants for this package below; read the code for the walkthrough.
   every source (`imports/flow.ts`); the Import page reads imports, the people step and
   the GitHub connection and repositories through `/api/auth/instance/imports*`, since
   Linear's schema has no query for them.
+- **Estimates** (`teams/estimates.ts`, Linear's `Team.issueEstimation*`): a team's
+  scale is `issueEstimationType` (`notUsed`, the default for every team, `exponential`
+  1, 2, 4, 8, 16, `fibonacci` 1, 2, 3, 5, 8, `linear` 1–5, `tShirt` stored as 1, 2, 3,
+  5, 8), `issueEstimationExtended` (adds 32, 64 / 13, 21 / 6, 7 / 13, 21) and
+  `issueEstimationAllowZero` (adds 0), set by team managers through `teamUpdate`;
+  `defaultIssueEstimate` (at least 0, default 1) is stored for progress;
+  `inheritIssueEstimation` reads false and true is INVALID_INPUT (no sub-teams).
+  `createIssue` and every `updateIssue` path (`checkPatch`, so a batch is refused
+  before its first write) refuse an estimate off the team's scale, or any estimate
+  while the team does not use estimates; `null` clears. Changing the scale keeps stored
+  estimates. Issues do not move between teams, and workflows and imports set no
+  estimate, so these are the only write paths.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is
