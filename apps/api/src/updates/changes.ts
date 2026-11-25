@@ -17,10 +17,11 @@ import {
   workflowState,
 } from '@repo/db';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
-import { emailMayRead } from '../portal/access';
+import { personMayRead, type PersonAccess } from '../portal/access';
 import { boardShowsIssue, type BoardRow } from '../portal/boards';
 import type { PublicStatus } from '../portal/status';
 import { webOrigin } from '../portal/session';
+import { customersOnSql } from '../feedback/store';
 
 // What changed for a requester between two moments (feedback project 4): status changes
 // of the issues they follow, replies by others in portal threads they wrote in, and
@@ -94,24 +95,34 @@ interface FollowedIssue {
   teamId: string;
   projectId: string | null;
   labelIds: string[];
+  // The customers with active feedback on the issue (boards of a customer's requests).
+  customerIds: string[];
   // Has form or team-logged feedback: status is sent even when no readable board covers it.
   direct: boolean;
 }
 
-// The enabled boards the address may read, by name.
-async function readableBoards(email: string | null): Promise<BoardRow[]> {
+// The enabled boards the person may read, by name (customer boards only while Customers
+// is on).
+async function readableBoards(person: PersonAccess): Promise<BoardRow[]> {
   const boards = await db
     .select()
     .from(portalBoard)
-    .where(eq(portalBoard.enabled, true))
+    .where(
+      and(eq(portalBoard.enabled, true), or(ne(portalBoard.access, 'customer'), customersOnSql)),
+    )
     .orderBy(asc(portalBoard.name));
-  return boards.filter((b) => emailMayRead(b, email));
+  return boards.filter((b) => personMayRead(b, person));
 }
 
-// Whether a board's scope (team or project, labels) includes the issue, whatever its
-// status: a closed issue is still the board's for its followers.
+// Whether a board's scope (team or project, or its customer's requests; labels) includes
+// the issue, whatever its status: a closed issue is still the board's for its followers.
 function covers(board: BoardRow, i: FollowedIssue): boolean {
-  const inScope = board.teamId ? board.teamId === i.teamId : board.projectId === i.projectId;
+  const inScope =
+    board.shows === 'customerRequests'
+      ? board.customerId != null && i.customerIds.includes(board.customerId)
+      : board.teamId
+        ? board.teamId === i.teamId
+        : board.projectId === i.projectId;
   if (!inScope) return false;
   return board.labelIds.length === 0 || board.labelIds.some((l) => i.labelIds.includes(l));
 }
@@ -147,6 +158,19 @@ async function issueInfo(ids: string[]): Promise<Map<string, Omit<FollowedIssue,
     .from(issue)
     .innerJoin(team, eq(team.id, issue.teamId))
     .where(and(inArray(issue.id, ids), isNull(issue.archivedAt), eq(team.visibility, 'public')));
+  const asked = await db
+    .selectDistinct({ issueId: customerNeed.issueId, customerId: customerNeed.customerId })
+    .from(customerNeed)
+    .where(
+      and(
+        inArray(
+          customerNeed.issueId,
+          rows.map((r) => r.id),
+        ),
+        isNull(customerNeed.archivedAt),
+        isNotNull(customerNeed.customerId),
+      ),
+    );
   const labels = await db
     .select({ issueId: issueLabel.issueId, labelId: issueLabel.labelId })
     .from(issueLabel)
@@ -164,6 +188,7 @@ async function issueInfo(ids: string[]): Promise<Map<string, Omit<FollowedIssue,
       teamId: r.teamId,
       projectId: r.projectId,
       labelIds: labels.filter((l) => l.issueId === r.id).map((l) => l.labelId),
+      customerIds: asked.filter((a) => a.issueId === r.id).map((a) => a.customerId!),
     });
   return out;
 }
@@ -385,11 +410,11 @@ export async function requesterChanges(
   until: Date,
 ): Promise<Change[]> {
   const [person] = await db
-    .select({ email: externalUser.email })
+    .select({ email: externalUser.email, customerId: externalUser.customerId })
     .from(externalUser)
     .where(eq(externalUser.id, requesterId));
   if (!person) return [];
-  const boards = await readableBoards(person.email);
+  const boards = await readableBoards(person);
   const { needs, threads } = await followed(requesterId);
   const infos = await issueInfo([
     ...new Set([...needs.map((n) => n.issueId), ...threads.map((t) => t.issueId)]),

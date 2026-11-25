@@ -273,6 +273,7 @@ export async function confirmSubmission(
     email: pending.email,
     displayName: requester.displayName,
     avatarUrl: requester.avatarUrl,
+    customerId: requester.customerId,
   };
   return { sessionToken, ...(await created(issue.identifier, issue.issueId, visitor)) };
 }

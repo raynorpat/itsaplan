@@ -1,10 +1,11 @@
-import { db, issue, label, portalBoard, project, team, workflowState } from '@repo/db';
+import { customer, db, issue, label, portalBoard, project, team, workflowState } from '@repo/db';
 import { getActiveSession, type PortalHandlers } from '@repo/auth';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { createLabel } from '../labels/store';
 import { assertWorkspaceRole, canSeeTeam, workspaceRole } from '../shared/access';
 import { HttpError, iso, pgErrorCode, UUID_RE } from '../shared/lib';
 import { assertParentAccess } from '../comments/store';
+import { assertCustomersEnabled } from '../customers/settings';
 import { boardIssueIds, boardShowsIssue, boardsShowingIssue, type BoardRow } from './boards';
 import { startPortalThread } from './comments';
 import { setPortalBlocked } from './session';
@@ -21,7 +22,14 @@ export interface BoardDto {
   teamId: string | null;
   projectId: string | null;
   labelIds: string[];
-  access: 'public' | 'restricted';
+  // 'issues': the team's or project's issues; 'customerRequests': the issues the
+  // board's customer asked for (Customer access only).
+  shows: 'issues' | 'customerRequests';
+  access: 'public' | 'restricted' | 'customer';
+  // The customer whose people read a board with Customer access; null when that
+  // customer was deleted (then no one reads the board).
+  customerId: string | null;
+  customer: { id: string; name: string } | null;
   allowedDomains: string[];
   allowedEmails: string[];
   showDescription: boolean;
@@ -57,6 +65,12 @@ async function admin(headers: Headers) {
 }
 
 async function toDto(row: BoardRow): Promise<BoardDto> {
+  const [owner] = row.customerId
+    ? await db
+        .select({ id: customer.id, name: customer.name })
+        .from(customer)
+        .where(eq(customer.id, row.customerId))
+    : [];
   return {
     id: row.id,
     slug: row.slug,
@@ -65,7 +79,10 @@ async function toDto(row: BoardRow): Promise<BoardDto> {
     teamId: row.teamId,
     projectId: row.projectId,
     labelIds: row.labelIds,
+    shows: row.shows as BoardDto['shows'],
     access: row.access as BoardDto['access'],
+    customerId: row.customerId,
+    customer: owner ?? null,
     allowedDomains: row.allowedDomains,
     allowedEmails: row.allowedEmails,
     showDescription: row.showDescription,
@@ -142,10 +159,16 @@ function parseFields(body: Record<string, unknown>): Partial<BoardFields> {
     out.labelIds = [...new Set(body.labelIds.map((id) => idOrNull(id, 'labelIds')!))];
   }
   if ('access' in body) {
-    if (body.access !== 'public' && body.access !== 'restricted')
-      throw new HttpError(400, 'access must be public or restricted');
+    if (body.access !== 'public' && body.access !== 'restricted' && body.access !== 'customer')
+      throw new HttpError(400, 'access must be public, restricted or customer');
     out.access = body.access;
   }
+  if ('shows' in body) {
+    if (body.shows !== 'issues' && body.shows !== 'customerRequests')
+      throw new HttpError(400, 'shows must be issues or customerRequests');
+    out.shows = body.shows;
+  }
+  if ('customerId' in body) out.customerId = idOrNull(body.customerId, 'customerId');
   if ('allowedDomains' in body)
     out.allowedDomains = list(body.allowedDomains, 'allowedDomains', DOMAIN_RE);
   if ('allowedEmails' in body)
@@ -213,8 +236,22 @@ async function validated(
 ): Promise<Partial<BoardFields>> {
   if (!board.slug) throw new HttpError(400, 'slug is required');
   if (!board.name) throw new HttpError(400, 'name is required');
-  if (!board.teamId === !board.projectId)
+  if (board.shows === 'customerRequests') {
+    if (board.access !== 'customer')
+      throw new HttpError(400, "A board of a customer's requests needs Customer access");
+    if (board.teamId || board.projectId)
+      throw new HttpError(400, "A board of a customer's requests has no team or project");
+  } else if (!board.teamId === !board.projectId)
     throw new HttpError(400, 'A board shows exactly one team or one project');
+  if (board.access === 'customer') {
+    await assertCustomersEnabled();
+    if (!board.customerId) throw new HttpError(400, 'customerId is required for Customer access');
+    const [row] = await db
+      .select({ id: customer.id })
+      .from(customer)
+      .where(eq(customer.id, board.customerId));
+    if (!row) throw new HttpError(400, 'customerId is not a customer');
+  } else board = { ...board, customerId: null };
   if (board.teamId) await assertPublicTeam(board.teamId, 'teamId');
   if (board.projectId) {
     const [row] = await db

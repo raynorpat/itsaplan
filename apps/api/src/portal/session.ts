@@ -8,7 +8,7 @@ import { activeRequester } from '../feedback/store';
 import { HttpError, UUID_RE } from '../shared/lib';
 import { optIn } from '../updates/preferences';
 import { recordVisit } from '../updates/visits';
-import { emailMayRead } from './access';
+import { addressMayRead } from './access';
 import { getBoardBySlug } from './boards';
 import { allow, LIMITS } from './rate-limit';
 import { matchPeople } from '../customers/domains';
@@ -33,6 +33,8 @@ export interface Visitor {
   email: string;
   displayName: string;
   avatarUrl: string | null;
+  // The person's current customer (customer boards are checked against it).
+  customerId: string | null;
 }
 
 export interface VisitorDto {
@@ -79,6 +81,7 @@ const toVisitor = (row: typeof externalUser.$inferSelect, email: string): Visito
   email,
   displayName: row.displayName,
   avatarUrl: row.avatarUrl,
+  customerId: row.customerId,
 });
 
 // --- Links -----------------------------------------------------------------------
@@ -141,7 +144,7 @@ export async function requestSignInLink(
   if (!allow(`link:${email}`, linksPerAddress.limit, linksPerAddress.windowMs)) return;
 
   const board = typeof slug === 'string' ? await getBoardBySlug(slug) : null;
-  if (!board || !emailMayRead(board, email)) return;
+  if (!board || !(await addressMayRead(board, email))) return;
   const known = await requesterByEmail(email);
   if (known?.portalBlockedAt) return;
 

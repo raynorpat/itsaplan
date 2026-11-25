@@ -1,13 +1,23 @@
-import { attachment, comment, customerNeed, db, issue, team, workflowState } from '@repo/db';
+import {
+  attachment,
+  comment,
+  customerNeed,
+  db,
+  externalUser,
+  issue,
+  team,
+  workflowState,
+} from '@repo/db';
 import { and, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { requesterCountSql } from '../feedback/store';
-import { boardIssueIds, boardShowsIssue, type BoardRow } from './boards';
+import { boardCustomer, boardIssueIds, boardShowsIssue, type BoardRow } from './boards';
 import type { Visitor } from './session';
 import { publicStatus, type PublicStatus } from './status';
 
 // The issues a visitor reads on a board: the board's own (boards.ts) plus, for a
 // signed-in visitor, their own suggestions the board does not show yet ("under
-// review"). Votes are the issue's people asking (project 1's customerCount).
+// review"). Votes are the issue's people asking (project 1's customerCount); on a board
+// with Customer access, only the board customer's people.
 
 export interface PortalIssue {
   identifier: string;
@@ -29,14 +39,42 @@ export type PortalSort = 'top' | 'new';
 // root names (replies are stored under the root). "portal": the board's own threads;
 // "all": every comment except portal threads of other boards, including threads of a
 // deleted board (their root keeps `portal_thread`).
+// On a board with Customer access, only threads whose root a member wrote or one of the
+// customer's people (by their current customer) wrote, and within them no comment by a
+// person outside the customer.
 export function boardCommentsSql(board: BoardRow): SQL {
   const root = sql`(CASE WHEN ${comment.parentId} IS NULL THEN ${comment.id} ELSE ${comment.parentId} END)`;
   const ownThread = sql`EXISTS (SELECT 1 FROM ${comment} r
     WHERE r.id = ${root} AND r.portal_board_id = ${board.id})`;
-  if (board.comments !== 'all') return ownThread;
   const portalThread = sql`EXISTS (SELECT 1 FROM ${comment} r
     WHERE r.id = ${root} AND r.portal_thread)`;
-  return sql`(NOT ${portalThread} OR ${ownThread})`;
+  const shown = board.comments === 'all' ? sql`(NOT ${portalThread} OR ${ownThread})` : ownThread;
+  const customerId = boardCustomer(board);
+  if (board.access !== 'customer') return shown;
+  if (!customerId) return sql`false`;
+  const people = sql`(SELECT ${externalUser.id} FROM ${externalUser}
+    WHERE ${externalUser.customerId} = ${customerId})`;
+  const rootByCustomer = sql`EXISTS (SELECT 1 FROM ${comment} r
+    WHERE r.id = ${root} AND (r.external_user_id IS NULL OR r.external_user_id IN ${people}))`;
+  const byCustomer = sql`(${comment.externalUserId} IS NULL OR ${comment.externalUserId} IN ${people})`;
+  return sql`(${shown} AND ${rootByCustomer} AND ${byCustomer})`;
+}
+
+// The vote count of the outer `issue` row on the board: the people asking, or on a board
+// with Customer access the board customer's people asking.
+export function boardVotesSql(board: BoardRow): SQL<number> {
+  const customerId = boardCustomer(board);
+  if (board.access !== 'customer') return requesterCountSql();
+  if (!customerId) return sql<number>`0`;
+  return sql<number>`(
+    SELECT count(DISTINCT ${attachment.externalUserCreatorId})::int
+    FROM ${customerNeed}
+    JOIN ${attachment} ON ${attachment.id} = ${customerNeed.attachmentId}
+    WHERE ${customerNeed.issueId} = ${issue.id}
+      AND ${customerNeed.archivedAt} IS NULL
+      AND ${customerNeed.customerId} = ${customerId}
+      AND ${attachment.externalUserCreatorId} IS NOT NULL
+  )`;
 }
 
 const titleHas = (word: string): SQL =>
@@ -90,7 +128,7 @@ async function readIssues(
           AND ${customerNeed.archivedAt} IS NULL
           AND ${attachment.externalUserCreatorId} = ${visitor.requesterId})`
     : sql<boolean>`false`;
-  const votes = requesterCountSql();
+  const votes = boardVotesSql(board);
   // With `anyOf`, titles holding any of the words, those holding more of them first.
   const anyOf = options.anyOf ?? [];
   const matched = sql`(${sql.join(

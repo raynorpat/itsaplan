@@ -109,9 +109,12 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `IssueFilter.attachments`, `feedbackAttachmentsVisibleSql`) and cannot write it, but
   get the counts: the filters and sorts, and the number of people asking on an issue
   from `/api/auth/instance/feedback/count` (`feedbackPeopleCount`; anyone who can see
-  the issue; the number only). A quote is at most 10,000 characters. `customerCount` / `customerImportantCount` (filter and `sort`) count the
-  distinct requesters of an issue's active feedback (with important feedback);
-  feedback without a requester is not a person. Moving feedback to another issue moves
+  the issue; the number only). A quote is at most 10,000 characters. `customerCount` /
+  `customerImportantCount` (filter and `sort`, `customerCountSql`) count, while
+  Customers is on, the distinct customers of an issue's active feedback (with
+  important feedback), each person without a customer once and each feedback item with
+  neither once; while Customers is off, the distinct requesters (feedback without a
+  requester is not a person). Moving feedback to another issue moves
   its attachment in the same transaction; deleting it deletes the attachment unless
   kept; deleting its source attachment (`attachmentDelete`) deletes the feedback;
   deleting the issue deletes its feedback and sends a `CustomerNeed` remove event for
@@ -126,17 +129,54 @@ Rules and invariants for this package below; read the code for the walkthrough.
   merge) returns that requester. Merging A into B points A's feedback attachments at B
   (so B counts once per issue) and keeps A's row with `merged_into_id`, so a link or
   email of A leads to B; B takes A's email when it has none.
-- **Portal boards** (`portal/`, `portal_board`): a board shows the active issues of
-  one public team or one project (its public-team issues only), narrowed to any of its
-  labels when it has some, whose state has a public status (`portal/status.ts`:
-  planned, in progress, done; triage and canceled issues and issues completed more
-  than 30 days ago are not shown). A board cannot target a private team. Owners and admins manage
+- **Customers** (`customers/`, Linear's `Customer`, `CustomerStatus`, `CustomerTier`):
+  an optional feature, off by default (`organization.customers_enabled`, set with the
+  revenue currency through `/api/auth/instance/customers-settings*`, owners and admins;
+  `Organization.customersEnabled` / `customersConfiguration`). The first time it is
+  turned on, the statuses Active (the default), Prospect and Churned are created. While
+  off, customer queries return nothing, `CustomerNeed.customer` and a requester's
+  customer read null, the `customer` need filter matches nothing, customer mutations are
+  INVALID_INPUT "Customers are not enabled", and boards with Customer access are not
+  served; the data is kept. Owners, admins and members create, edit, merge and delete
+  customers; owners and admins manage statuses and tiers; guests and app users see
+  none. Domains are lowercased, unique across customers and never a public email domain
+  (`customers/domains.ts`); external ids are unique; uniqueness is checked under an
+  advisory lock. There is no archive (`archivedAt` is always null). Deleting a status
+  moves its customers to the default status (lowest position; the last status cannot be
+  deleted); deleting a tier clears it. `customerMerge` moves the source's requests,
+  people, domains, external ids and portal boards to the target and deletes the source;
+  deleting a customer clears it from its people, requests and boards. `Customer`
+  webhooks go to all-teams webhooks. A requester belongs to at most one customer
+  (`external_user.customer_id`, with `customer_source` `domain` or `manual`, set and
+  cleared together): a member's pick (`/api/auth/instance/requesters/customer`) wins;
+  otherwise the customer whose domains hold the email's domain exactly (`matchPeople`,
+  run on every person and customer write and when Customers is turned on). A request
+  (`customer_need.customer_id`) with a requester always has the requester's customer
+  (a different `customerId` is INVALID_INPUT) and moves with it; one without a
+  requester keeps the customer it was given. These moves are one UPDATE
+  (`syncNeedCustomers`): no `CustomerNeed` webhooks, `updated_at` unchanged.
+- **Portal boards** (`portal/`, `portal_board`): a board shows (`shows`) either the
+  active issues of one public team or one project (its public-team issues only)
+  (`issues`), or the active issues of public teams with an active request from the
+  board's customer (`customerRequests`, Customer access only, no team or project);
+  narrowed to any of its labels when it has some, whose state has a public status
+  (`portal/status.ts`: planned, in progress, done; triage and canceled issues and issues
+  completed more than 30 days ago are not shown). A board cannot target a private team.
+  Access (`portal/access.ts`) is `public`, `restricted` (email domains and addresses)
+  or `customer` (`customer_id`: people whose current customer it is; a board whose
+  customer was deleted is read by no one; Customers must be on to set it). On a board
+  with Customer access the vote count is the board customer's people asking
+  (`boardVotesSql`), and threads show only when their root is by a member or one of the
+  customer's people, without comments by people outside the customer
+  (`boardCommentsSql`). Owners and admins manage
   boards through `/api/auth/instance/portal/*` (`portal/admin.ts`); a board with
   suggestions gets the suggestion team's "Portal" label unless another is chosen.
 - **Portal visitors** (`portal/session.ts`, `portal/routes.ts`): people outside the
   workspace use the boards through the API's own `/portal/*` routes, not better-auth.
   A visitor asks for a link on a board (`POST /portal/auth/link`, always `{ ok: true }`;
-  mailed only when the address may read the board and its requester is not blocked;
+  mailed only when the address may read the board (`addressMayRead`: on a customer
+  board, the email's domain is one of the customer's or the address's person is linked
+  to it) and its requester is not blocked;
   logged as `[portal] sign-in link for` when no mail provider sends it). The mail is
   sent after the response, so its timing tells nothing either. Limits
   (`portal/rate-limit.ts`, in memory per process): 5 links per address an hour (over
@@ -153,8 +193,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
   site (e.g. app.example.com and api.example.com). A visitor changes only their
   `displayName` (the team's `name` stays). Restricted board access
   (`portal/access.ts`) is checked on every request against the session's address, not
-  the requester's current email; changing a requester's email or merging requesters
-  ends the sessions of the people involved. Blocking a requester
+  the requester's current email, and Customer access against the requester's current
+  customer; changing a requester's email or merging requesters ends the sessions of the
+  people involved. Blocking a requester
   (`/api/auth/instance/portal/block`, owners and admins) ends their sessions and stops
   their links. Every `/portal/*` POST needs an `Origin` in `trustedOrigins` (403).
 - **Portal board actions** (`portal/issues.ts`, `votes.ts`, `suggestions.ts`): a
@@ -629,7 +670,7 @@ receiver works against the instance.
   one people have only authorized as themselves receives public teams' events; an
   archived or uninstalled one nothing. A webhook lists resource types:
   `Issue`, `Comment`, `IssueLabel`, `Project`, `ProjectUpdate`, `Reaction`, `Cycle`,
-  `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`, `CustomerNeed`. Initiative events go to the lead team's
+  `Initiative`, `InitiativeUpdate`, `Document`, `Attachment`, `CustomerNeed`, `Customer`. Initiative events go to the lead team's
   webhooks, or only to all-teams webhooks for a workspace initiative. Webhooks are
   managed by workspace admins and owners: a team webhook by one who can see the team,
   an all-teams webhook by any (`webhooks/access.ts`, checked on every operation). An
@@ -698,7 +739,8 @@ against the instance. Code is in `src/graphql/`; it is mounted in `app.ts` with
   `userSettings` / `userSettingsUpdate` (email notification categories),
   `organizationInviteDetails`, project progress and scope, cycles, initiatives (project links, sub-initiatives,
   updates), webhooks
-  and feedback (`customerNeed*`, `Issue.needs`, `ExternalUser` through attachments)
+  feedback (`customerNeed*`, `Issue.needs`, `ExternalUser` through attachments) and
+  customers (`customer*`, `customerStatus*`, `customerTier*`; not `customerUnsync`)
   have resolvers; `sort` arguments are INVALID_INPUT, except one `customerCount` or
   `customerImportantCount` sort on issue lists (forward paging only); the rest of the
   schema is neutral or NOT_IMPLEMENTED.

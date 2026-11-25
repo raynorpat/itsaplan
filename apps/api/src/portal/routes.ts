@@ -165,13 +165,13 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
   })
   .post('/boards/:slug/issues/:identifier/vote', async ({ request, params }) => {
     const visitor = await signedInVisitor(request);
-    const { id } = await readableIssue(params.slug, params.identifier, visitor);
-    return castVote(id, visitor);
+    const { board, id } = await readableIssue(params.slug, params.identifier, visitor);
+    return castVote(board, id, visitor);
   })
   .delete('/boards/:slug/issues/:identifier/vote', async ({ request, params }) => {
     const visitor = await signedInVisitor(request);
-    const { id } = await readableIssue(params.slug, params.identifier, visitor);
-    return removeVote(id, visitor);
+    const { board, id } = await readableIssue(params.slug, params.identifier, visitor);
+    return removeVote(board, id, visitor);
   })
   .get('/boards/:slug/issues/:identifier/comments', async ({ request, params }) => {
     const visitor = await visitorFromRequest(request);

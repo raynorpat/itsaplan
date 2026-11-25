@@ -32,8 +32,9 @@ take a pasted access token that the API uses for the fetch and never stores
 its mutations, and the Import page reads the GitHub connection and its repositories
 here (`GET imports/github`, `GET imports/github/repositories`, `POST
 imports/github/disconnect`). The people who give feedback, Linear's `ExternalUser`
-(`GET requesters?q=&cursor=`, `GET requester?id=`, `POST requesters/{create, update,
-merge}`; members, merge for owners and admins, never guests), a person's email updates
+(`GET requesters?q=&cursor=&customerId=`, `GET requester?id=`, `POST requesters/{create, update,
+merge}`; members, merge for owners and admins, never guests), a person's customer
+(`POST requesters/customer { id, customerId }`; members; null clears a member's pick), a person's email updates
 (`POST requesters/updates`), "Send to requesters" on a project update (`POST
 project-updates/share`, and `GET project-updates/shared?projectId=` for the ids already
 sent), and the attachment that
@@ -50,6 +51,9 @@ portal (`apps/api/src/portal/admin.ts`). A form's publishing settings (`GET form
 template has no place for them (`apps/api/src/forms/admin.ts`). The AI endpoint for
 requester summaries (`GET ai` without the key, `POST ai/{save, delete, test}`; owners and
 admins) is here because Linear has no such setting (`apps/api/src/updates/ai.ts`).
+The Customers switch and revenue currency (`GET customers-settings` for members, `POST
+customers-settings/save` for owners and admins) are here because Linear's
+`OrganizationUpdateInput` has no field for them (`apps/api/src/customers/settings.ts`).
 Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
 delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
 schema has no dashboard type (`apps/api/src/dashboards/`). All but the first need the
