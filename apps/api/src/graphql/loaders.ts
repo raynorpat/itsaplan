@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import {
   attachment,
+  customer,
   cycle,
   db,
   externalUser,
@@ -18,6 +19,8 @@ import {
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { sessionsOfComments } from '../agents/store';
 import { mapAttachment } from '../attachments/store';
+import { readsCustomers } from '../customers/statuses';
+import { mapCustomer } from '../customers/store';
 import { readsFeedback } from '../feedback/access';
 import { mapCycle } from '../cycles/store';
 import { projectsInTeams } from '../projects/access';
@@ -83,10 +86,24 @@ function createLoaders(ctx: GraphQLContext) {
   });
 
   let feedbackReader: Promise<boolean> | null = null;
+  let customersReader: Promise<boolean> | null = null;
 
   return {
     // Whether the viewer reads feedback and requesters (feedback/access.ts), asked once.
     readsFeedback: () => (feedbackReader ??= readsFeedback(viewerId)),
+    // Whether the viewer reads customers (Customers on, not a guest), asked once.
+    readsCustomers: () => (customersReader ??= readsCustomers(viewerId)),
+    customer: new DataLoader(async (keys: readonly string[]) =>
+      byId(
+        (
+          await db
+            .select()
+            .from(customer)
+            .where(inArray(customer.id, [...keys]))
+        ).map(mapCustomer),
+        keys,
+      ),
+    ),
     attachment: new DataLoader(async (keys: readonly string[]) =>
       byId(
         (

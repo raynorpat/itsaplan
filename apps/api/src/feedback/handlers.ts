@@ -9,6 +9,7 @@ import {
   getRequester,
   listRequesters,
   mergeRequesters,
+  setPersonCustomer,
   setRequesterUpdates,
   updateRequester,
 } from './requesters';
@@ -42,6 +43,9 @@ export const requestersHandlers: RequestersHandlers = {
   }),
   updates: async (headers, body) => ({
     requester: await setRequesterUpdates((await signedIn(headers)).id, fields(body)),
+  }),
+  customer: async (headers, body) => ({
+    requester: await setPersonCustomer((await signedIn(headers)).id, fields(body)),
   }),
   shareProjectUpdate: async (headers, body) =>
     shareProjectUpdate((await signedIn(headers)).id, fields(body)),

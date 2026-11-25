@@ -11,6 +11,8 @@ import {
   updateNeed,
   type NeedRow,
 } from '../../feedback/store';
+import { assertCustomersEnabled } from '../../customers/settings';
+import { customerByExternalId } from '../../customers/store';
 import { UUID_RE } from '../../shared/lib';
 import type { GraphQLContext } from '../context';
 import { paginate, type PageArgs } from '../connection';
@@ -32,7 +34,6 @@ export const toNeed = (row: NeedRow) => ({
   // Linear's content is the feedback's text.
   content: row.body,
   url: `${trustedOrigins[0]}/issue/${row.issueId}?feedback=${row.attachmentId ?? row.id}`,
-  customer: null,
   project: null,
   projectAttachment: null,
   comment: null,
@@ -40,6 +41,25 @@ export const toNeed = (row: NeedRow) => ({
 });
 
 type GraphQLNeed = ReturnType<typeof toNeed>;
+
+// The customer named by `customerId` or `customerExternalId` (not both); undefined when
+// neither is given, null when `customerId` is null.
+async function customerInput(input: Input): Promise<string | null | undefined> {
+  const hasId = input.customerId !== undefined;
+  const hasExternal = input.customerExternalId != null;
+  if (hasId && hasExternal)
+    throw gqlError('INVALID_INPUT', 'Give customerId or customerExternalId, not both');
+  if (hasExternal) {
+    await assertCustomersEnabled();
+    const found = await customerByExternalId(String(input.customerExternalId));
+    if (!found) throw gqlError('ENTITY_NOT_FOUND', 'Customer not found');
+    return found;
+  }
+  if (!hasId || input.customerId === null) return input.customerId as null | undefined;
+  if (!UUID_RE.test(String(input.customerId)))
+    throw gqlError('INVALID_INPUT', 'input.customerId is not a valid id');
+  return String(input.customerId);
+}
 type ListArgs = PageArgs & { filter?: unknown; includeArchived?: boolean | null };
 type Input = Record<string, unknown>;
 
@@ -181,7 +201,16 @@ export const customerNeedResolvers = {
       guard(async () => {
         onlySupported(
           input,
-          ['issueId', 'attachmentId', 'body', 'priority', 'createdAt', 'id'],
+          [
+            'issueId',
+            'attachmentId',
+            'body',
+            'priority',
+            'createdAt',
+            'id',
+            'customerId',
+            'customerExternalId',
+          ],
           'input',
         );
         if (input.issueId == null)
@@ -203,6 +232,7 @@ export const customerNeedResolvers = {
           priority: priorityInput(input.priority),
           creatorId: ctx.user.id,
           createdAt: dateTimeInput(input.createdAt, 'input.createdAt'),
+          customerId: await customerInput(input),
         });
         return needPayload(created);
       }),
@@ -214,7 +244,14 @@ export const customerNeedResolvers = {
       guard(async () => {
         onlySupported(
           input,
-          ['body', 'priority', 'issueId', 'applyPriorityToRelatedNeeds'],
+          [
+            'body',
+            'priority',
+            'issueId',
+            'applyPriorityToRelatedNeeds',
+            'customerId',
+            'customerExternalId',
+          ],
           'input',
         );
         if (clearAttachment) throw gqlError('INVALID_INPUT', 'clearAttachment is not supported');
@@ -227,7 +264,12 @@ export const customerNeedResolvers = {
         }
         const updated = await updateNeed(
           found.id,
-          { body: bodyInput(input.body), priority: priorityInput(input.priority), issueId },
+          {
+            body: bodyInput(input.body),
+            priority: priorityInput(input.priority),
+            issueId,
+            customerId: await customerInput(input),
+          },
           ctx.user.id,
         );
         return { ...needPayload(updated), updatedRelatedNeeds: [] };

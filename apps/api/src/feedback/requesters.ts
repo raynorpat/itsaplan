@@ -1,5 +1,6 @@
 import {
   attachment,
+  customer,
   customerNeed,
   db,
   externalUser,
@@ -21,6 +22,8 @@ import { parsePatch, setPrefs } from '../updates/preferences';
 import { assertFeedbackWrite, readsFeedback } from './access';
 import { retitleFeedbackAttachments } from '../attachments/store';
 import { activeRequester, createRequesterAttachment } from './store';
+import { matchPeople, syncNeedCustomers } from '../customers/domains';
+import { assertCustomersEnabled, customersEnabled } from '../customers/settings';
 
 // Requesters (Linear's ExternalUser): people outside the workspace who give feedback.
 // Linear's schema has no mutation for them, so the web manages them through the
@@ -44,7 +47,12 @@ export interface RequesterDto {
   portalBlocked: boolean;
   // Email updates: on, and whether the person unsubscribed (then only they turn it on).
   updates: { enabled: boolean; unsubscribed: boolean };
+  // The person's customer and how it was set; null while Customers is off.
+  customer: { id: string; name: string; source: 'domain' | 'manual' } | null;
 }
+
+type PersonRow = typeof externalUser.$inferSelect;
+type CustomerNames = Map<string, string> | null;
 
 const PAGE = 50;
 const MAX_NAME = 255;
@@ -135,9 +143,32 @@ async function feedbackStats(userId: string, ids: string[]): Promise<Map<string,
   return out;
 }
 
+// The names of the people's customers, or null while Customers is off.
+async function customerNames(rows: PersonRow[]): Promise<CustomerNames> {
+  if (!(await customersEnabled())) return null;
+  const ids = [...new Set(rows.flatMap((r) => (r.customerId ? [r.customerId] : [])))];
+  if (ids.length === 0) return new Map();
+  const found = await db
+    .select({ id: customer.id, name: customer.name })
+    .from(customer)
+    .where(inArray(customer.id, ids));
+  return new Map(found.map((c) => [c.id, c.name]));
+}
+
+function customerOf(row: PersonRow, names: CustomerNames): RequesterDto['customer'] {
+  const name = row.customerId ? names?.get(row.customerId) : undefined;
+  if (!row.customerId || name === undefined) return null;
+  return {
+    id: row.customerId,
+    name,
+    source: row.customerSource === 'manual' ? 'manual' : 'domain',
+  };
+}
+
 function toDto(
-  row: typeof externalUser.$inferSelect,
+  row: PersonRow,
   stats: FeedbackStats | undefined,
+  names: CustomerNames,
 ): RequesterDto {
   return {
     id: row.id,
@@ -151,20 +182,30 @@ function toDto(
     firstFeedbackAt: stats?.first ?? null,
     portalBlocked: row.portalBlockedAt != null,
     updates: { enabled: row.updatesEnabled, unsubscribed: row.updatesUnsubscribedAt != null },
+    customer: customerOf(row, names),
   };
 }
 
-async function dtoOf(userId: string, row: typeof externalUser.$inferSelect) {
-  return toDto(row, (await feedbackStats(userId, [row.id])).get(row.id));
+// Read again by id, since matching may have changed the row's customer.
+async function dtoOf(userId: string, { id }: { id: string }) {
+  const [row] = await db.select().from(externalUser).where(eq(externalUser.id, id));
+  if (!row) throw new HttpError(404, 'Requester not found');
+  return toDto(
+    row,
+    (await feedbackStats(userId, [row.id])).get(row.id),
+    await customerNames([row]),
+  );
 }
 
-// Active requesters ordered by name, searched by name or email, paged by `cursor`
-// (the offset of the next page).
+// Active requesters ordered by name, searched by name or email, narrowed to one
+// customer's people by `customerId`, paged by `cursor` (the offset of the next page).
 export async function listRequesters(
   userId: string,
-  query: { q?: unknown; cursor?: unknown },
+  query: { q?: unknown; cursor?: unknown; customerId?: unknown },
 ): Promise<{ requesters: RequesterDto[]; nextCursor: string | null }> {
   await assertMember(userId);
+  const customerId =
+    query.customerId === undefined ? null : requireId(query.customerId, 'customerId');
   const offset =
     typeof query.cursor === 'string' && /^\d+$/.test(query.cursor) ? Number(query.cursor) : 0;
   const q = typeof query.q === 'string' ? query.q.trim() : '';
@@ -176,6 +217,7 @@ export async function listRequesters(
       and(
         isNull(externalUser.mergedIntoId),
         q ? or(ilike(externalUser.name, pattern), ilike(externalUser.email, pattern)) : undefined,
+        customerId ? eq(externalUser.customerId, customerId) : undefined,
       ),
     )
     .orderBy(asc(sql`lower(${externalUser.name})`), asc(externalUser.id))
@@ -186,8 +228,9 @@ export async function listRequesters(
     userId,
     page.map((r) => r.id),
   );
+  const names = await customerNames(page);
   return {
-    requesters: page.map((r) => toDto(r, stats.get(r.id))),
+    requesters: page.map((r) => toDto(r, stats.get(r.id), names)),
     nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
   };
 }
@@ -286,11 +329,15 @@ export async function createRequester(
     if (existing) return dtoOf(userId, existing);
   }
   try {
-    const [row] = await db
-      .insert(externalUser)
-      .values({ name, displayName: name, email, createdById: userId })
-      .returning();
-    return dtoOf(userId, row!);
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(externalUser)
+        .values({ name, displayName: name, email, createdById: userId })
+        .returning();
+      await matchPeople(tx, { personIds: [created!.id] });
+      return created!;
+    });
+    return dtoOf(userId, row);
   } catch (err) {
     // Another request created the same email in the meantime.
     if (email && isUniqueViolation(err)) {
@@ -332,8 +379,10 @@ export async function updateRequester(
         .returning();
       // A portal session stands for the address that signed in; a changed email ends
       // the person's sessions.
-      if (patch.email !== undefined && patch.email !== row.email)
+      if (patch.email !== undefined && patch.email !== row.email) {
         await tx.delete(portalSession).where(eq(portalSession.externalUserId, row.id));
+        await matchPeople(tx, { personIds: [row.id] });
+      }
       // The feedback attachments show the requester's name as their title.
       const sendEvents = patch.displayName
         ? await retitleFeedbackAttachments(tx, row.id, { title: patch.displayName })
@@ -409,6 +458,10 @@ export async function mergeRequesters(
       })
       .where(eq(externalUser.id, into.id))
       .returning();
+    // The person kept may have taken A's email; A's requests take the kept person's
+    // customer either way.
+    await matchPeople(tx, { personIds: [into.id] });
+    await syncNeedCustomers(tx, [into.id]);
     return { kept: row!, announce: sendEvents };
   });
   await announce(user.id);
@@ -495,4 +548,38 @@ export async function setRequesterUpdates(
   await setPrefs(row.id, parsePatch({ enabled: body.enabled }, 'team'), 'team');
   const [updated] = await db.select().from(externalUser).where(eq(externalUser.id, row.id));
   return dtoOf(userId, updated!);
+}
+
+// A member picking a person's customer by hand (`customerId`), or clearing the pick
+// (`customerId` null), after which the email domain decides again. The person's
+// requests move with them.
+export async function setPersonCustomer(
+  userId: string,
+  body: { id?: unknown; customerId?: unknown },
+): Promise<RequesterDto> {
+  await assertMember(userId);
+  await assertCustomersEnabled();
+  const row = await resolveRequester(requireId(body.id, 'id'));
+  if (!row) throw new HttpError(404, 'Requester not found');
+  const customerId = body.customerId == null ? null : requireId(body.customerId, 'customerId');
+  if (customerId) {
+    const [found] = await db
+      .select({ id: customer.id })
+      .from(customer)
+      .where(eq(customer.id, customerId));
+    if (!found) throw new HttpError(404, 'Customer not found');
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .update(externalUser)
+      .set(
+        customerId
+          ? { customerId, customerSource: 'manual' }
+          : { customerId: null, customerSource: null },
+      )
+      .where(eq(externalUser.id, row.id));
+    await syncNeedCustomers(tx, [row.id]);
+    if (!customerId) await matchPeople(tx, { personIds: [row.id] });
+  });
+  return dtoOf(userId, row);
 }

@@ -8,6 +8,7 @@ import {
   type AuthUser,
 } from '../shared/access';
 import { HttpError } from '../shared/lib';
+import { matchPeople } from './domains';
 
 // The Customers switch (Linear's Organization.customersEnabled) and the revenue
 // currency (customersConfiguration). Linear's OrganizationUpdateInput has neither, so
@@ -82,6 +83,8 @@ export async function saveCustomersSettings(
       await tx
         .insert(customerStatus)
         .values(DEFAULT_STATUSES.map((s, i) => ({ ...s, position: i * 1000 })));
+    // Every write keeps people matched; turning Customers on checks everyone once more.
+    if (patch.customersEnabled === true) await matchPeople(tx);
   });
   return settingsOf(await getOrganization());
 }

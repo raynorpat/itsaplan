@@ -14,7 +14,7 @@ import { and, eq, ne, or, sql, type SQL } from 'drizzle-orm';
 import { assertWorkspaceRole, type AuthUser } from '../shared/access';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
-import { cleanDomains } from './domains';
+import { cleanDomains, matchPeople } from './domains';
 import { assertCustomersEnabled } from './settings';
 import { defaultStatusId, readsCustomers, tierIdByName } from './statuses';
 
@@ -284,6 +284,7 @@ export async function createCustomer(
   const row = await db.transaction(async (tx) => {
     await assertKeysFree(tx, values, []);
     const [created] = await tx.insert(customer).values(values).returning();
+    if (values.domains.length) await matchPeople(tx);
     return created!;
   });
   const dto = mapCustomer(row);
@@ -309,6 +310,7 @@ export async function updateCustomer(
       .set({ ...patch, updatedAt: new Date() })
       .where(eq(customer.id, before.id))
       .returning();
+    if (patch.domains) await matchPeople(tx);
     return updated;
   });
   if (!row) throw new HttpError(404, 'Customer not found');
@@ -328,6 +330,7 @@ export async function deleteCustomer(actor: AuthUser, id: string): Promise<strin
       .set({ customerId: null, customerSource: null })
       .where(eq(externalUser.customerId, row.id));
     await tx.delete(customer).where(eq(customer.id, row.id));
+    await matchPeople(tx);
   });
   await sendEvent('remove', mapCustomer(row), actor.id);
   return row.id;
@@ -368,6 +371,7 @@ export async function mergeCustomers(
       })
       .where(eq(customer.id, t.id))
       .returning();
+    await matchPeople(tx);
     return updated!;
   });
   const dto = mapCustomer(merged);
@@ -439,4 +443,13 @@ export async function customerIssueCount(customerId: string): Promise<number> {
     .from(customerNeed)
     .where(and(eq(customerNeed.customerId, customerId), sql`${customerNeed.archivedAt} IS NULL`));
   return row?.n ?? 0;
+}
+
+// The id of the customer with this external id, or null.
+export async function customerByExternalId(externalId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: customer.id })
+    .from(customer)
+    .where(sql`${customer.externalIds} @> ARRAY[${externalId.trim()}]::text[]`);
+  return row?.id ?? null;
 }

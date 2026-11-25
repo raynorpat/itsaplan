@@ -1,3 +1,5 @@
+import { db } from '@repo/db';
+import { sql, type SQL } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
 
 // Customer email domains. A person belongs to the customer whose domains hold their
@@ -53,4 +55,56 @@ export function cleanDomains(value: unknown): string[] {
   if (out.length > MAX_DOMAINS)
     throw new HttpError(400, `A customer has at most ${MAX_DOMAINS} domains`);
   return out;
+}
+
+// --- Matching ---------------------------------------------------------------------
+
+// `db` or a transaction: matching runs inside the writer's transaction.
+type Runner = Pick<typeof db, 'execute'>;
+
+const idList = (ids: string[]) =>
+  sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+
+const emailDomain = sql`lower(split_part(p.email, '@', 2))`;
+
+// Applies the domain rule to the people in scope (every person when `personIds` is
+// omitted): a person not picked by hand belongs to the customer whose domains hold
+// their email's domain, and loses a domain link that no longer matches. People picked
+// by hand keep their customer. The changed people's requests move with them.
+export async function matchPeople(tx: Runner, scope: { personIds?: string[] } = {}): Promise<void> {
+  if (scope.personIds && scope.personIds.length === 0) return;
+  const inScope: SQL = scope.personIds ? sql`AND p.id IN (${idList(scope.personIds)})` : sql``;
+  const unlinked = await tx.execute<{ id: string }>(sql`
+    UPDATE external_user p SET customer_id = NULL, customer_source = NULL
+    WHERE p.customer_source = 'domain' ${inScope}
+      AND NOT EXISTS (
+        SELECT 1 FROM customer c
+        WHERE c.id = p.customer_id AND c.domains @> ARRAY[${emailDomain}]::text[]
+      )
+    RETURNING p.id`);
+  const linked = await tx.execute<{ id: string }>(sql`
+    UPDATE external_user p SET customer_id = c.id, customer_source = 'domain'
+    FROM customer c
+    WHERE p.merged_into_id IS NULL AND p.email IS NOT NULL
+      AND (p.customer_id IS NULL OR p.customer_source IS DISTINCT FROM 'manual')
+      AND p.customer_id IS DISTINCT FROM c.id
+      AND c.domains @> ARRAY[${emailDomain}]::text[]
+      ${inScope}
+    RETURNING p.id`);
+  const changed = [...new Set([...unlinked, ...linked].map((r) => r.id))];
+  await syncNeedCustomers(tx, changed);
+}
+
+// Gives the people's requests their person's customer: one statement, no webhooks and
+// no `updated_at` change, since only the grouping changed.
+export async function syncNeedCustomers(tx: Runner, personIds: string[]): Promise<void> {
+  if (personIds.length === 0) return;
+  await tx.execute(sql`
+    UPDATE customer_need n SET customer_id = p.customer_id
+    FROM attachment a JOIN external_user p ON p.id = a.external_user_creator_id
+    WHERE a.id = n.attachment_id AND p.id IN (${idList(personIds)})
+      AND n.customer_id IS DISTINCT FROM p.customer_id`);
 }

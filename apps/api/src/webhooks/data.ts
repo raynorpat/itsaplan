@@ -246,8 +246,8 @@ export function attachmentData(row: AttachmentRow): WebhookData {
   };
 }
 
-// Linear's CustomerNeedWebhookPayload: feedback on an issue (customers, comments and
-// projects are not used here).
+// Linear's CustomerNeedWebhookPayload: feedback on an issue (comments and projects are
+// not used here).
 export function customerNeedData(row: NeedRow): WebhookData {
   return {
     id: row.id,
@@ -259,7 +259,7 @@ export function customerNeedData(row: NeedRow): WebhookData {
     issueId: row.issueId,
     attachmentId: row.attachmentId,
     creatorId: row.creatorId,
-    customerId: null,
+    customerId: row.customerId,
     commentId: null,
     projectId: null,
     projectAttachmentId: null,

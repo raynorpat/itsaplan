@@ -26,6 +26,7 @@ import {
   type ListKind,
 } from '../../customers/statuses';
 import type { GraphQLContext } from '../context';
+import { loaders } from '../loaders';
 import { paginate, type PageArgs } from '../connection';
 import { customerFilterSql } from '../customer-filter';
 import { gqlError } from '../errors';
@@ -199,6 +200,14 @@ export const customerResolvers = {
     customerTierCreate: tierMutations.create,
     customerTierUpdate: tierMutations.update,
     customerTierDelete: tierMutations.remove,
+  },
+  CustomerNeed: {
+    // Null while Customers is off and for guests.
+    customer: async (n: { customerId: string | null }, _: unknown, ctx: GraphQLContext) => {
+      if (!n.customerId || !(await loaders(ctx).readsCustomers())) return null;
+      const dto = await loaders(ctx).customer.load(n.customerId);
+      return dto ? toCustomer(dto) : null;
+    },
   },
   Customer: {
     status: (c: CustomerDto) => itemById('status', c.statusId),

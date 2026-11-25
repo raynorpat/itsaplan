@@ -1,4 +1,4 @@
-import { attachment, customerNeed, db, externalUser, issue, user } from '@repo/db';
+import { attachment, customer, customerNeed, db, externalUser, issue, user } from '@repo/db';
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   announceAttachment,
@@ -10,6 +10,7 @@ import {
   getAttachment,
   moveAttachmentRow,
 } from '../attachments/store';
+import { assertCustomersEnabled } from '../customers/settings';
 import { HttpError, iso } from '../shared/lib';
 import { shownName } from '../shared/user-name';
 import { emitEvent, isWatched, type WebhookAction } from '../webhooks/event';
@@ -28,6 +29,8 @@ export interface NeedRow {
   body: string | null;
   priority: number;
   creatorId: string | null;
+  // The customer: the requester's, or the one given for feedback without a requester.
+  customerId: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +44,7 @@ export function mapNeed(row: typeof customerNeed.$inferSelect): NeedRow {
     body: row.body,
     priority: row.priority,
     creatorId: row.creatorId,
+    customerId: row.customerId,
     archivedAt: row.archivedAt ? iso(row.archivedAt) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
@@ -187,7 +191,13 @@ export async function addPortalVote(issueId: string, requesterId: string): Promi
     const [source] = await tx.insert(attachment).values(values).returning();
     const [need] = await tx
       .insert(customerNeed)
-      .values({ issueId, attachmentId: source!.id, body: null, creatorId: null })
+      .values({
+        issueId,
+        attachmentId: source!.id,
+        body: null,
+        creatorId: null,
+        customerId: requester.customerId,
+      })
       .returning();
     return { source: mapAttachment(source!), need: mapNeed(need!) };
   });
@@ -241,6 +251,9 @@ export interface NeedInput {
   priority?: number;
   creatorId: string | null;
   createdAt?: Date;
+  // Omitted: the requester's customer, or none. Given for feedback with a requester, it
+  // must be the requester's customer.
+  customerId?: string | null;
 }
 
 // Linear caps long text inputs; a quote longer than this is refused.
@@ -256,6 +269,41 @@ function checkBody(body: string | null | undefined): void {
     throw new HttpError(400, `body must be at most ${MAX_FEEDBACK_BODY} characters`);
 }
 
+// The customer of the person who gave the feedback in `attachmentId`, or undefined when
+// the attachment names no person.
+async function requesterCustomer(attachmentId: string | null): Promise<string | null | undefined> {
+  if (!attachmentId) return undefined;
+  const [row] = await db
+    .select({ personId: externalUser.id, customerId: externalUser.customerId })
+    .from(attachment)
+    .innerJoin(externalUser, eq(externalUser.id, attachment.externalUserCreatorId))
+    .where(eq(attachment.id, attachmentId));
+  return row ? row.customerId : undefined;
+}
+
+// The customer a feedback item gets: a requester's customer always wins (a different
+// `given` one is refused); without a requester, the `given` customer, which must exist.
+async function needCustomer(
+  attachmentId: string | null,
+  given: string | null | undefined,
+): Promise<string | null | undefined> {
+  const ofRequester = await requesterCustomer(attachmentId);
+  if (ofRequester !== undefined) {
+    if (given !== undefined && given !== ofRequester)
+      throw new HttpError(400, 'The customer of a request follows its requester');
+    return ofRequester;
+  }
+  if (given) {
+    await assertCustomersEnabled();
+    const [found] = await db
+      .select({ id: customer.id })
+      .from(customer)
+      .where(eq(customer.id, given));
+    if (!found) throw new HttpError(404, 'Customer not found');
+  }
+  return given;
+}
+
 // Linear's customerNeedCreate on an issue. A source attachment must be on the same
 // issue and not already the source of another feedback item.
 export async function createNeed(input: NeedInput): Promise<NeedRow> {
@@ -268,6 +316,7 @@ export async function createNeed(input: NeedInput): Promise<NeedRow> {
     if (!source || source.issueId !== input.issueId)
       throw new HttpError(400, 'attachmentId must name an attachment on the issue');
   }
+  const customerId = (await needCustomer(input.attachmentId ?? null, input.customerId)) ?? null;
   let row;
   try {
     [row] = await db
@@ -279,6 +328,7 @@ export async function createNeed(input: NeedInput): Promise<NeedRow> {
         body: input.body ?? null,
         priority: input.priority ?? 0,
         creatorId: input.creatorId,
+        customerId,
         ...(input.createdAt ? { createdAt: input.createdAt, updatedAt: input.createdAt } : {}),
       })
       .returning();
@@ -298,13 +348,17 @@ export async function createNeed(input: NeedInput): Promise<NeedRow> {
 // attachment moves with it). The caller checks access to both issues.
 export async function updateNeed(
   id: string,
-  patch: { body?: string | null; priority?: number; issueId?: string },
+  patch: { body?: string | null; priority?: number; issueId?: string; customerId?: string | null },
   actorId: string | null,
 ): Promise<NeedRow> {
   checkPriority(patch.priority);
   checkBody(patch.body);
   const current = await getNeed(id);
   if (!current) throw new HttpError(404, 'Feedback not found');
+  const customerId =
+    patch.customerId === undefined
+      ? undefined
+      : await needCustomer(current.attachmentId, patch.customerId);
   const moving = patch.issueId !== undefined && patch.issueId !== current.issueId;
   // The feedback and its source attachment move together or not at all.
   const { row, attachmentMove } = await db.transaction(async (tx) => {
@@ -314,6 +368,7 @@ export async function updateNeed(
         ...(patch.body !== undefined ? { body: patch.body } : {}),
         ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
         ...(moving ? { issueId: patch.issueId } : {}),
+        ...(customerId !== undefined ? { customerId } : {}),
         updatedAt: sql`now()`,
       })
       .where(eq(customerNeed.id, id))

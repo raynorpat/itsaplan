@@ -1,12 +1,13 @@
-import { customerNeed, db, issue } from '@repo/db';
+import { customer, customerNeed, db, issue } from '@repo/db';
 import { and, eq, inArray, isNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import { requesterCountSql } from '../feedback/store';
+import { customerFilterSql } from './customer-filter';
 import { compare, compareId, filterSql, type FieldHandlers } from './filter';
 import { issueFilterSql } from './issue-filter';
 
-// CustomerNeedFilter as SQL over `customer_need`: id, createdAt, updatedAt, priority
-// and issue (a NullableIssueFilter), and / or. Customers, comments and projects are
-// not used here, so filtering on them is INVALID_INPUT.
+// CustomerNeedFilter as SQL over `customer_need`: id, createdAt, updatedAt, priority,
+// issue (a NullableIssueFilter) and customer (a NullableCustomerFilter), and / or.
+// Comments and projects are not used here, so filtering on them is INVALID_INPUT.
 function needHandlers(viewerId: string): FieldHandlers {
   return {
     id: (v, p) => compareId(customerNeed.id, v, p),
@@ -21,6 +22,18 @@ function needHandlers(viewerId: string): FieldHandlers {
       return match
         ? inArray(customerNeed.issueId, db.select({ id: issue.id }).from(issue).where(match))
         : sql`true`;
+    },
+    customer: (v, p) => {
+      const { null: isNullFilter, ...rest } = v as Record<string, unknown>;
+      if (isNullFilter === true) return sql`${customerNeed.customerId} IS NULL`;
+      const match = customerFilterSql(rest, viewerId, p);
+      const ids = db.select({ id: customer.id }).from(customer).where(match);
+      return (
+        and(
+          isNullFilter === false ? sql`${customerNeed.customerId} IS NOT NULL` : undefined,
+          Object.keys(rest).length ? inArray(customerNeed.customerId, ids) : undefined,
+        ) ?? sql`true`
+      );
     },
   };
 }

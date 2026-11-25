@@ -11,6 +11,7 @@ import { recordVisit } from '../updates/visits';
 import { emailMayRead } from './access';
 import { getBoardBySlug } from './boards';
 import { allow, LIMITS } from './rate-limit';
+import { matchPeople } from '../customers/domains';
 
 // Portal visitors sign in with a link mailed from a board's sign-in form. The link
 // opens the web's confirm page; its button posts the token (a mail scanner opening the
@@ -186,11 +187,15 @@ export async function signInLinkInfo(token: unknown): Promise<{ needsName: boole
 // same address finds the one created first).
 export async function requesterFor(email: string, name: string) {
   try {
-    const [row] = await db
-      .insert(externalUser)
-      .values({ name, displayName: name, email })
-      .returning();
-    return row!;
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(externalUser)
+        .values({ name, displayName: name, email })
+        .returning();
+      await matchPeople(tx, { personIds: [row!.id] });
+      const [matched] = await tx.select().from(externalUser).where(eq(externalUser.id, row!.id));
+      return matched!;
+    });
   } catch (err) {
     const existing = await requesterByEmail(email);
     if (existing) return existing;
