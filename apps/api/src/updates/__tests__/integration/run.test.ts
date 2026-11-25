@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime } from 'bun:test';
 import { db, externalUser } from '@repo/db';
 import { eq, sql } from 'drizzle-orm';
 import { app } from '../../../app';
@@ -306,6 +306,42 @@ describe('internal routes', () => {
   afterAll(() => {
     if (previous === undefined) delete process.env.WORKER_INTERNAL_TOKEN;
     else process.env.WORKER_INTERNAL_TOKEN = previous;
+  });
+
+  it('mails a change made just after opting in while the API clock runs ahead', async () => {
+    // Opting in starts the windows on the database's clock, which stamps the history; an
+    // API clock ahead of it must not hide the first change. setSystemTime moves only the
+    // API's clock.
+    const owner = await signUpTestUser({ name: 'Owner' });
+    const member = await signUpAs('member', { name: 'Mia' });
+    const eng = await createTeam(owner, { key: 'ENG', name: 'Engineering' });
+    await addMember(owner, 'ENG', member.userId);
+    const states = statesByType(eng);
+    await createBoard(owner, { slug: 'acme', name: 'Acme', teamId: eng.team.id });
+    const issue = await createIssue(member, {
+      teamId: 'ENG',
+      title: 'Dark mode',
+      stateId: states.unstarted,
+    });
+    setSystemTime(new Date(Date.now() + 5_000));
+    let email: string;
+    try {
+      const v = await visitor('acme', 'Jo');
+      email = v.email;
+      await ok(
+        await portal(`boards/acme/issues/${issue.identifier}/vote`, {
+          cookie: v.cookie,
+          body: {},
+        }),
+      );
+    } finally {
+      setSystemTime();
+    }
+    sink.use();
+    await updateIssue(member, issue.id, { stateId: states.started });
+    await later(6);
+    expect(await runChangeEmails(new Date())).toEqual({ sent: 1 });
+    expect(mailsTo(email)[0]!.text).toContain('Dark mode moved to In progress');
   });
 
   it('need the worker token', async () => {

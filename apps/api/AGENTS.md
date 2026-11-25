@@ -297,7 +297,8 @@ Rules and invariants for this package below; read the code for the walkthrough.
   `updates_enabled` is on. Confirming a portal sign-in or a form turns it on
   (`optIn`); a member turns it on or off (`/api/auth/instance/requesters/updates`), but
   not on for a person who unsubscribed (409). Turning it on starts the change and
-  summary windows at that moment. The person sets `change_emails` and the summary
+  summary windows at that moment, on the database's clock (which stamps history and
+  comments). The person sets `change_emails` and the summary
   cadence (`weekly`, `daily`, `off`) on `/portal/me/updates`; the person turning updates
   off there counts as unsubscribing. Unsubscribe links carry `<requesterId>.<HMAC-SHA256>`
   under a key derived from `BETTER_AUTH_SECRET` with HKDF (info `unsubscribe`;

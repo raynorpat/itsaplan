@@ -1,5 +1,5 @@
 import { db, externalUser } from '@repo/db';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { HttpError } from '../shared/lib';
 
 // A requester's email update preferences (spec: requester updates). The main switch
@@ -37,9 +37,11 @@ export async function getPrefs(requesterId: string): Promise<UpdatePrefs> {
 }
 
 // Turning updates on starts the change and summary windows now, so nothing that
-// happened while they were off is sent.
-function turnedOn(now: Date) {
-  return { updatesEnabled: true, changesSentUntil: now, summarySentUntil: now };
+// happened while they were off is sent. "Now" is the database's clock, which stamps the
+// history and comments the windows are compared with (updates/clock.ts); the API's clock
+// may run ahead of it, which would hide a change made just after opting in.
+function turnedOn(): { updatesEnabled: true; changesSentUntil: SQL; summarySentUntil: SQL } {
+  return { updatesEnabled: true, changesSentUntil: sql`now()`, summarySentUntil: sql`now()` };
 }
 
 // The person came to the team themselves (portal sign-in or form confirmed): updates
@@ -47,7 +49,7 @@ function turnedOn(now: Date) {
 export async function optIn(requesterId: string): Promise<void> {
   await db
     .update(externalUser)
-    .set(turnedOn(new Date()))
+    .set(turnedOn())
     .where(
       and(
         eq(externalUser.id, requesterId),
@@ -99,8 +101,8 @@ export async function setPrefs(
     throw new HttpError(400, 'Only the person can change these preferences');
   if (by === 'team' && patch.enabled && row.updatesUnsubscribedAt) throw unsubscribedError();
   const now = new Date();
-  const values: Partial<Row> = { updatedAt: now };
-  if (patch.enabled === true && !row.updatesEnabled) Object.assign(values, turnedOn(now));
+  const values: { [K in keyof Row]?: Row[K] | SQL } = { updatedAt: now };
+  if (patch.enabled === true && !row.updatesEnabled) Object.assign(values, turnedOn());
   if (patch.enabled === true && by === 'person') values.updatesUnsubscribedAt = null;
   if (patch.enabled === false) values.updatesEnabled = false;
   // The person turning updates off is their choice, kept like an unsubscribe: a later
