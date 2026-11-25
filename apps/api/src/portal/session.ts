@@ -38,7 +38,7 @@ export interface VisitorDto {
   avatarUrl: string | null;
 }
 
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export const visitorDto = (v: Visitor): VisitorDto => ({
   id: v.requesterId,
@@ -46,7 +46,7 @@ export const visitorDto = (v: Visitor): VisitorDto => ({
   avatarUrl: v.avatarUrl,
 });
 
-function cleanName(value: unknown, what: string): string {
+export function cleanName(value: unknown, what: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new HttpError(400, `${what} required`);
   const name = value.trim();
   if (name.length > MAX_NAME) throw new HttpError(400, `${what} is at most ${MAX_NAME} characters`);
@@ -80,19 +80,45 @@ const toVisitor = (row: typeof externalUser.$inferSelect, email: string): Visito
 
 // --- Links -----------------------------------------------------------------------
 
-async function mailLink(email: string, url: string): Promise<void> {
-  const logLink = () => console.info(`[portal] sign-in link for ${email}: ${url}`);
-  if (!(await hasConfiguredEmailProvider())) {
-    logLink();
-    return;
-  }
-  const sent = await sendAuthEmail({
-    to: email,
-    subject: 'Your sign-in link',
-    text: 'Use the link below to sign in to the board. It works once and expires in 15 minutes.',
-    url,
-  }).catch(() => false);
-  if (!sent) logLink();
+// Mails a portal link (a sign-in link, a form confirmation) after the caller's
+// response; with no mail provider, or when sending fails, it is logged as
+// `<logPrefix> <email>: <url>`.
+export function mailPortalLink(input: {
+  to: string;
+  subject: string;
+  text: string;
+  url: string;
+  logPrefix: string;
+}): void {
+  const logLink = () => console.info(`${input.logPrefix} ${input.to}: ${input.url}`);
+  const send = async () => {
+    if (!(await hasConfiguredEmailProvider())) {
+      logLink();
+      return;
+    }
+    const sent = await sendAuthEmail({
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      url: input.url,
+    }).catch(() => false);
+    if (!sent) logLink();
+  };
+  void send().catch((err) =>
+    console.error('[portal] mail failed:', err instanceof Error ? err.message : err),
+  );
+}
+
+// The web app's origin, which the mailed links open.
+export const webOrigin = () => (trustedOrigins[0] ?? '').replace(/\/+$/, '');
+
+// Normalises an email address (trimmed, lowercased); 400 when it is not one.
+export function cleanEmail(raw: unknown): string {
+  if (typeof raw !== 'string') throw new HttpError(400, 'email is required');
+  const email = raw.trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 320)
+    throw new HttpError(400, 'Enter a valid email address');
+  return email;
 }
 
 // Sends a sign-in link when the address may read the board and is not blocked. The
@@ -105,10 +131,7 @@ export async function requestSignInLink(
   slug: unknown,
   ip: string | null,
 ): Promise<void> {
-  if (typeof rawEmail !== 'string') throw new HttpError(400, 'email is required');
-  const email = rawEmail.trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 320)
-    throw new HttpError(400, 'Enter a valid email address');
+  const email = cleanEmail(rawEmail);
   const { linksPerAddress, linksPerIp } = LIMITS;
   if (ip && !allow(`link-ip:${ip}`, linksPerIp.limit, linksPerIp.windowMs))
     throw new HttpError(429, 'Too many sign-in links. Try again later.');
@@ -126,10 +149,13 @@ export async function requestSignInLink(
     boardId: board.id,
     expiresAt: new Date(Date.now() + LINK_TTL_MS),
   });
-  const origin = (trustedOrigins[0] ?? '').replace(/\/+$/, '');
-  void mailLink(email, `${origin}/portal/${board.slug}/sign-in?token=${token}`).catch((err) =>
-    console.error('[portal] sign-in mail failed:', err instanceof Error ? err.message : err),
-  );
+  mailPortalLink({
+    to: email,
+    subject: 'Your sign-in link',
+    text: 'Use the link below to sign in to the board. It works once and expires in 15 minutes.',
+    url: `${webOrigin()}/portal/${board.slug}/sign-in?token=${token}`,
+    logPrefix: '[portal] sign-in link for',
+  });
 }
 
 async function usableToken(token: unknown) {
@@ -156,7 +182,7 @@ export async function signInLinkInfo(token: unknown): Promise<{ needsName: boole
 
 // The address's requester, or a new one named `name` (a concurrent sign-in with the
 // same address finds the one created first).
-async function requesterFor(email: string, name: string) {
+export async function requesterFor(email: string, name: string) {
   try {
     const [row] = await db
       .insert(externalUser)
@@ -196,14 +222,21 @@ export async function confirmSignIn(
   requester ??= await requesterFor(pending.email, newName!);
   if (requester.portalBlockedAt) throw new HttpError(400, 'This link is not valid or has expired');
 
+  const sessionToken = await startSession(requester.id, pending.email);
+  return { sessionToken, visitor: toVisitor(requester, pending.email) };
+}
+
+// A new portal session for `requesterId`, signed in with the confirmed `email`; returns
+// the cookie value.
+export async function startSession(requesterId: string, email: string): Promise<string> {
   const sessionToken = randomBytes(32).toString('base64url');
   await db.insert(portalSession).values({
     tokenHash: hashToken(sessionToken),
-    externalUserId: requester.id,
-    email: pending.email,
+    externalUserId: requesterId,
+    email,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
-  return { sessionToken, visitor: toVisitor(requester, pending.email) };
+  return sessionToken;
 }
 
 // --- Sessions --------------------------------------------------------------------

@@ -11,6 +11,7 @@ export const LIMITS = {
   votes: { limit: 60, windowMs: 60 * 60_000 },
   comments: { limit: 30, windowMs: 60 * 60_000 },
   suggestions: { limit: 10, windowMs: 60 * 60_000 },
+  formSubmissions: { limit: 20, windowMs: 60 * 60_000 },
 } as const;
 
 // Counts one request for `key`; false once `limit` requests fell in the current window.

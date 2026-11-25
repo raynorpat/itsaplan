@@ -41,18 +41,23 @@ export async function ok(res: Response): Promise<Json> {
   return JSON.parse(text) as Json;
 }
 
-// With no mail provider the API logs each portal sign-in link; this records the
-// latest one per address and keeps every other line printed. It is the one recorder
-// for every portal test file: a second console.info wrapper would hide the links from
-// whichever wrapper it encloses.
+// With no mail provider the API logs each portal sign-in link and each form
+// confirmation link; this records the latest one per address and keeps every other
+// line printed. It is the one recorder for every portal and form test file: a second
+// console.info wrapper would hide the links from whichever wrapper it encloses.
 export const portalLinks = new Map<string, string>();
-const PREFIX = '[portal] sign-in link for ';
+export const formLinks = new Map<string, string>();
+const RECORDERS: [string, Map<string, string>][] = [
+  ['[portal] sign-in link for ', portalLinks],
+  ['[portal] form confirmation link for ', formLinks],
+];
 const previousInfo = console.info;
 console.info = (...args: unknown[]) => {
   const line = args.map(String).join(' ');
-  if (line.startsWith(PREFIX)) {
-    const [email, url] = line.slice(PREFIX.length).split(': ');
-    if (email && url) portalLinks.set(email, url);
+  for (const [prefix, links] of RECORDERS) {
+    if (!line.startsWith(prefix)) continue;
+    const [email, url] = line.slice(prefix.length).split(': ');
+    if (email && url) links.set(email, url);
     return;
   }
   previousInfo(...args);

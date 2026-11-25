@@ -1016,6 +1016,31 @@ export const formSettings = pgTable(
   (t) => [check('form_settings_slug_check', sql`${t.slug} ~ '^[a-z0-9-]{1,48}$'`)],
 );
 
+// A form submitted on its link by someone not signed in to the portal, waiting until
+// they confirm `email` through the mailed link. Only the SHA-256 of the token is
+// stored; a token works once (`used_at`) until `expires_at` (24 hours). `answers` are
+// keyed by form field id; `name` names a new requester.
+export const formSubmission = pgTable(
+  'form_submission',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tokenHash: text('token_hash').notNull(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => template.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    answers: jsonb('answers').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('form_submission_token_hash_uq').on(t.tokenHash),
+    check('form_submission_email_lower_check', sql`${t.email} = lower(${t.email})`),
+  ],
+);
+
 // A portal sign-in link sent to `email` from a board's sign-in form. Only the SHA-256
 // of the token is stored; a token works once (`used_at`) until `expires_at`.
 export const portalSignInToken = pgTable(

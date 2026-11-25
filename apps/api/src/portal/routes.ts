@@ -22,6 +22,14 @@ import {
   listPortalComments,
 } from './comments';
 import { createSuggestion } from './suggestions';
+import {
+  boardForms,
+  confirmInfo,
+  confirmSubmission,
+  linkForm,
+  submitOnBoard,
+  submitOnLink,
+} from '../forms/public';
 import { castVote, removeVote } from './votes';
 
 // The portal's own routes (/portal/*), for people outside the workspace. They accept
@@ -167,4 +175,32 @@ export const portalRoutes = new Elysia({ name: 'portal', prefix: '/portal' })
     const visitor = await signedInVisitor(request);
     const board = await readableBoard(params.slug, visitor);
     return createSuggestion(board, visitor, fields(body));
+  })
+  // Forms (forms/public.ts): on their link, and on the boards they are placed on.
+  .get('/forms/confirm-info', ({ query }) => confirmInfo(query.token))
+  .post('/forms/confirm', async ({ body, set }) => {
+    const { sessionToken, ...result } = await confirmSubmission(fields(body).token);
+    set.headers['set-cookie'] = sessionCookie(sessionToken);
+    return result;
+  })
+  .get('/forms/:slug', async ({ request, params }) => {
+    const visitor = await visitorFromRequest(request);
+    return { ...(await linkForm(params.slug)), visitor: visitor ? visitorDto(visitor) : null };
+  })
+  .post('/forms/:slug', async ({ request, params, body, server }) =>
+    submitOnLink(
+      params.slug,
+      fields(body),
+      await visitorFromRequest(request),
+      clientIp(request, server),
+    ),
+  )
+  .get('/boards/:slug/forms', async ({ request, params }) => {
+    const board = await readableBoard(params.slug, await visitorFromRequest(request));
+    return { forms: await boardForms(board) };
+  })
+  .post('/boards/:slug/forms/:formSlug', async ({ request, params, body }) => {
+    const visitor = await signedInVisitor(request);
+    const board = await readableBoard(params.slug, visitor);
+    return submitOnBoard(board, params.formSlug, visitor, fields(body));
   });

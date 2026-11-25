@@ -220,6 +220,24 @@ Rules and invariants for this package below; read the code for the walkthrough.
   requester as `externalUserCreator`, the board's project and the source board; then the
   requester's feedback (source `form`, subtitle "Form: <name>", quote = the quote
   answer). It runs as any issue creation.
+- **Public forms** (`forms/public.ts`, under the portal routes): `GET /portal/forms/:slug`
+  serves a form whose link is on (options without their labels and priority). Someone
+  not signed in to the portal submits with email and name (`POST /portal/forms/:slug`):
+  the answer is always `{ status: 'pending' }`, and only an address that is not blocked
+  and within the sign-in link limit (shared with portal sign-in links) gets a
+  `form_submission` row (token stored hashed, 24 hours, once) and the mailed link
+  (logged as `[portal] form confirmation link for` when no mail provider sends it); 20
+  submissions per client address an hour (429). The link opens the web's confirm page,
+  whose button posts the token (`/portal/forms/confirm`): it checks the form still takes
+  requests (link on, team public), the stored answers still fit it and the requester
+  is not blocked before claiming the token, then creates the requester when new, the
+  issue and its feedback, and a portal session for the address. A signed-in visitor's
+  submission is created at once. On a board, `GET /portal/boards/:slug/forms` lists the
+  forms placed on it that still fit it (`boardMayShowForm`), and only signed-in
+  visitors submit (`POST /portal/boards/:slug/forms/:formSlug`; the issue records the
+  board and a project board's project). Signed-in submissions share the suggestions
+  limit. Expired submissions are deleted when a new one is stored. The slugs `confirm`
+  and `confirm-info` are reserved.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

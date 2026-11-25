@@ -23,6 +23,8 @@ export interface FormDto {
 }
 
 const SLUG_RE = /^[a-z0-9-]{1,48}$/;
+// Paths of the confirmation step under /portal/forms/ and /forms/<slug>/.
+const RESERVED_SLUGS = new Set(['confirm', 'confirm-info']);
 const MAX_INTRO = 10_000;
 const MAX_BOARDS = 100;
 
@@ -47,6 +49,7 @@ async function parseSettings(input: Record<string, unknown>, teamId: string) {
   const { slug, intro = '', linkEnabled = false, boardIds = [] } = input;
   if (typeof slug !== 'string' || !SLUG_RE.test(slug))
     throw new HttpError(400, 'slug must be 1–48 lowercase letters, digits or dashes');
+  if (RESERVED_SLUGS.has(slug)) throw new HttpError(400, 'This form address is reserved');
   if (typeof intro !== 'string' || intro.length > MAX_INTRO)
     throw new HttpError(400, `intro must be text of at most ${MAX_INTRO} characters`);
   if (typeof linkEnabled !== 'boolean') throw new HttpError(400, 'linkEnabled must be a boolean');
