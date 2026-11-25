@@ -49,6 +49,8 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   GET /instance/imports/github and /instance/imports/github/repositories and POST
 //   /instance/imports/github/disconnect: the GitHub Import App connection the GitHub
 //   imports read through (Linear's GraphQL mutations start and process those).
+// - GET  /instance/audit-settings and POST /instance/audit-settings/save { retention }
+//   how long audit log entries are kept (owners and admins read, owners change)
 // - GET  /instance/customers-settings and POST /instance/customers-settings/save
 //   { enabled?, revenueCurrency? }  Customers on or off and the revenue currency
 //   (apps/api src/customers/settings.ts); members read, owners and admins change.
@@ -227,6 +229,13 @@ export interface AccessKeysHandlers {
   revoke(headers: Headers, body: unknown): Promise<object>;
 }
 
+// The audit log's retention period, which Linear's schema has no field for. Owners and
+// admins read it, owners change it. Each handler checks the caller itself.
+export interface AuditHandlers {
+  settings(headers: Headers): Promise<object>;
+  saveSettings(headers: Headers, body: unknown): Promise<object>;
+}
+
 // Release tracking reads Linear's schema has no operation for.
 export interface ReleasesHandlers {
   noteDraft(headers: Headers, query: Record<string, unknown>): Promise<object>;
@@ -250,6 +259,7 @@ export interface InstanceHandlers {
   favorites: FavoritesHandlers;
   accessKeys: AccessKeysHandlers;
   releases: ReleasesHandlers;
+  audit: AuditHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -349,6 +359,12 @@ const customersWrite = (
   trusted: string[],
   call: (h: CustomersHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.customers, headers, body));
+
+const auditWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: AuditHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.audit, headers, body));
 
 const favoritesWrite = (
   path: string,
@@ -643,6 +659,16 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
       ),
       instanceCustomersSettingsSave: customersWrite(
         '/instance/customers-settings/save',
+        options.trustedOrigins,
+        (h, headers, body) => h.saveSettings(headers, body),
+      ),
+      instanceAuditSettings: createAuthEndpoint(
+        '/instance/audit-settings',
+        { method: 'GET' },
+        async (ctx) => ctx.json(await run((h) => h.audit.settings(ctx.headers ?? new Headers()))),
+      ),
+      instanceAuditSettingsSave: auditWrite(
+        '/instance/audit-settings/save',
         options.trustedOrigins,
         (h, headers, body) => h.saveSettings(headers, body),
       ),

@@ -19,6 +19,7 @@ import { accessKeysHandlers, releasesHandlers } from '../../releases/handlers';
 import { portalHandlers } from '../../portal/admin';
 import { workflowsHandlers } from '../../workflows/handlers';
 import { accountEmailsHandlers } from '../../accounts/handlers';
+import { auditHandlers } from '../../audit/handlers';
 
 // The instance endpoints served by the better-auth plugin under /api/auth/instance/*:
 // sign-in options (public), the app version and upload limits (signed in), and the
@@ -170,6 +171,7 @@ describe('instance plugin errors and origin checks', () => {
       favorites: favoritesHandlers,
       accessKeys: accessKeysHandlers,
       releases: releasesHandlers,
+      audit: auditHandlers,
     });
     try {
       const res = await call('version');

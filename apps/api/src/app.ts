@@ -1,3 +1,5 @@
+import { auditRequestFrom, withAuditRequest } from './audit/context';
+import { internalAuditRoutes } from './audit/internal-routes';
 import { auth, trustedOrigins } from '@repo/auth';
 import { cors } from '@elysiajs/cors';
 import { Elysia } from 'elysia';
@@ -41,8 +43,11 @@ export const app = new Elysia()
     }),
   )
   .use(httpErrors)
-  // better-auth: forward every /api/auth/* request to its handler.
-  .all('/api/auth/*', ({ request }) => auth.handler(request))
+  // better-auth: forward every /api/auth/* request to its handler, with the request's
+  // details readable by the audit log (sign-ins and the instance endpoints record there).
+  .all('/api/auth/*', ({ request, server }) =>
+    withAuditRequest(auditRequestFrom(request, server), () => auth.handler(request)),
+  )
   // Root doubles as the liveness/health endpoint.
   .get('/', () => ({ name: "It's a Plan api", status: 'ok' }))
   .use(uploadRoutes)
@@ -54,6 +59,7 @@ export const app = new Elysia()
   .use(internalProjectRoutes)
   .use(internalRequesterUpdateRoutes)
   .use(internalUploadRoutes)
+  .use(internalAuditRoutes)
   .use(portalRoutes);
 
 // MCP endpoints (POST /mcp, POST /mcp/readonly). Its tools run GraphQL in process as

@@ -6,6 +6,7 @@ import {
   notifyIssuesArchived,
   runCycleUpkeep,
   runProjectPurge,
+  runAuditCleanup,
   runProjectSnapshot,
   runUploadCleanup,
 } from './internal-api';
@@ -32,7 +33,7 @@ export function startWorker(): WorkerHandle {
 
 // One poll: claim a batch of due deliveries, send them concurrently, record each
 // outcome, ask the api for requester change emails and summaries when due, then run
-// the delivery, upload and trashed-project cleanup, the
+// the delivery, upload, trashed-project and audit log cleanup, the
 // auto-archive sweep and the cycle upkeep with the project progress snapshot on
 // their own tick intervals.
 async function tick(): Promise<void> {
@@ -59,6 +60,12 @@ async function tick(): Promise<void> {
       if (projects > 0) console.log(`[worker] deleted ${projects} trashed projects`);
     } catch (error) {
       console.error('[worker] project purge failed:', error);
+    }
+    try {
+      const entries = await runAuditCleanup();
+      if (entries > 0) console.log(`[worker] deleted ${entries} expired audit log entries`);
+    } catch (error) {
+      console.error('[worker] audit log cleanup failed:', error);
     }
   }
   if (++ticksSinceAutoArchive >= cfg.autoArchiveEveryTicks) {

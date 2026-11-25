@@ -50,6 +50,14 @@ export async function runUploadCleanup(): Promise<number> {
   return body.removed ?? 0;
 }
 
+// Deletes audit log entries older than the workspace's retention period.
+export async function runAuditCleanup(): Promise<number> {
+  const response = await postInternal('/internal/audit/cleanup', {}, 60_000);
+  if (!response.ok) throw new Error(`Audit cleanup API returned ${response.status}`);
+  const body = (await response.json()) as { removed?: number };
+  return body.removed ?? 0;
+}
+
 // Deletes projects that have been in the trash longer than the API's trash period.
 export async function runProjectPurge(): Promise<number> {
   const response = await postInternal('/internal/projects/purge', {}, 60_000);

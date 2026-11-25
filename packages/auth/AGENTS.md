@@ -57,6 +57,10 @@ admins) is here because Linear has no such setting (`apps/api/src/updates/ai.ts`
 The Customers switch and revenue currency (`GET customers-settings` for members, `POST
 customers-settings/save` for owners and admins) are here because Linear's
 `OrganizationUpdateInput` has no field for them (`apps/api/src/customers/settings.ts`).
+The audit log's retention period (`GET audit-settings` for owners and admins, `POST
+audit-settings/save { retention }` for owners: `30d`, `90d`, `1y`, `2y`, `3y` or
+`forever`) is here because Linear's schema has no field for it
+(`apps/api/src/audit/retention.ts`).
 Dashboards (`GET dashboards`, `GET dashboard?id=`, `POST dashboards/{create, update,
 delete, duplicate, feedback}`; owners, admins and members) are here because Linear's
 schema has no dashboard type (`apps/api/src/dashboards/`). `POST favorites/delete-folder

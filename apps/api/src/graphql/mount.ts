@@ -5,6 +5,8 @@ import type { SessionUser } from './context';
 import { accessKeyCredential, resolveGraphQLAuth, type GraphQLContext } from './context';
 import { scopeCheck } from './scopes';
 import { runWithAuth, type RequestAuth } from '../shared/request-auth';
+import { auditRequestFrom, withAuditRequest } from '../audit/context';
+import type { ConnectionInfo } from '../shared/client-ip';
 import { isAccessKeyRequest, isAnonymousRequest } from './anonymous';
 import { resolveAccessKey, touchAccessKey, type ResolvedAccessKey } from '../releases/keys';
 import { buildSchema } from './schema';
@@ -47,6 +49,7 @@ import { releasePipelineResolvers } from './resolvers/release-pipeline';
 import { releaseResolvers } from './resolvers/release';
 import { releaseNoteResolvers } from './resolvers/release-note';
 import { releaseSyncResolvers } from './resolvers/release-sync';
+import { auditResolvers } from './resolvers/audit';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
 const resolverModules: Record<string, Record<string, unknown>>[] = [
@@ -86,6 +89,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   releasePipelineResolvers,
   releaseResolvers,
   releaseNoteResolvers,
+  auditResolvers,
   releaseSyncResolvers,
 ];
 
@@ -163,7 +167,7 @@ export function mountGraphql(app: any): void {
 
   app.all(
     '/graphql',
-    async ({ request }: { request: Request }) => {
+    async ({ request, server }: { request: Request; server: ConnectionInfo }) => {
       // Only JSON bodies: a form-encoded or text POST is what a cross-site HTML form
       // can send with the session cookie, so refusing it closes that CSRF path.
       if (request.method === 'POST' && !request.headers.get('content-type')?.includes('json'))
@@ -178,11 +182,18 @@ export function mountGraphql(app: any): void {
         const key = await resolveAccessKey(keyCredential);
         if (!key || !(await isAccessKeyRequest(request))) return unauthenticated();
         await touchAccessKey(key.id);
-        return yoga.fetch(request, {
-          user: null as unknown as SessionUser,
-          auth: null as unknown as RequestAuth,
-          accessKey: key,
-        });
+        const keyDetails = {
+          ...auditRequestFrom(request, server, 'accessKey'),
+          operation: await operationName(request),
+          pipelineId: key.pipelineId,
+        };
+        return withAuditRequest(keyDetails, () =>
+          yoga.fetch(request, {
+            user: null as unknown as SessionUser,
+            auth: null as unknown as RequestAuth,
+            accessKey: key,
+          }),
+        );
       }
       const resolved = await resolveGraphQLAuth(request);
       // Without credentials only the invite lookup is answered; its resolver does not
@@ -195,9 +206,31 @@ export function mountGraphql(app: any): void {
       if (!resolved) return unauthenticated();
       // The request's credentials stay readable for the whole execution (the role
       // checks apply an OAuth token's scopes, shared/request-auth.ts).
-      return runWithAuth(resolved.auth, () => yoga.fetch(request, resolved));
+      const details = {
+        ...auditRequestFrom(request, server, resolved.auth.kind),
+        operation: await operationName(request),
+        ...(resolved.auth.kind === 'oauth'
+          ? { oauthApp: { id: resolved.auth.clientId, name: null } }
+          : {}),
+      };
+      return withAuditRequest(details, () =>
+        runWithAuth(resolved.auth, () => yoga.fetch(request, resolved)),
+      );
     },
     // Yoga reads the raw request body itself.
     { parse: 'none', detail: { hide: true } },
   );
+}
+
+// The GraphQL operation name of a request, for the audit log: from the query string of
+// a GET, else from a copy of the JSON body (Yoga reads the original). Null when the
+// request names none or the body is not an object.
+async function operationName(request: Request): Promise<string | null> {
+  if (request.method === 'GET') return new URL(request.url).searchParams.get('operationName');
+  try {
+    const body = (await request.clone().json()) as { operationName?: unknown };
+    return typeof body?.operationName === 'string' ? body.operationName : null;
+  } catch {
+    return null;
+  }
 }

@@ -53,11 +53,17 @@ export const organization = pgTable(
     customersEnabled: boolean('customers_enabled').notNull().default(false),
     customersRevenueCurrency: text('customers_revenue_currency').notNull().default('USD'),
     customersSeeded: boolean('customers_seeded').notNull().default(false),
+    // How long audit log entries are kept (apps/api src/audit/retention.ts).
+    auditRetention: text('audit_retention').notNull().default('30d'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     check('organization_singleton_check', sql`${t.singleton}`),
+    check(
+      'organization_audit_retention_check',
+      sql`${t.auditRetention} IN ('30d', '90d', '1y', '2y', '3y', 'forever')`,
+    ),
     check(
       'organization_roles_check',
       sql`${t.teamCreationRole} IN ('owner', 'admin', 'member') AND ${t.labelManagementRole} IN ('owner', 'admin', 'member') AND ${t.invitationsRole} IN ('owner', 'admin', 'member')`,
@@ -2333,4 +2339,30 @@ export const requesterShipped = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.requesterId, t.issueId, t.releaseId] })],
+);
+
+// The workspace audit log (Linear's AuditEntry; apps/api src/audit/): one row per
+// security-relevant action, never edited or deleted except by the retention clean-up
+// (and a failed sign-in's attempt count, folded within 10 minutes). `actor_id` is null
+// for an unauthenticated attempt or a system action; `metadata` holds ids, names and
+// what changed, never secrets; `request_information` the user agent, how the request
+// authenticated and the route or operation.
+export const auditEntry = pgTable(
+  'audit_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull(),
+    actorId: uuid('actor_id').references(() => user.id, { onDelete: 'set null' }),
+    ip: text('ip'),
+    countryCode: text('country_code'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    requestInformation: jsonb('request_information').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('audit_entry_created_idx').on(t.createdAt),
+    index('audit_entry_type_created_idx').on(t.type, t.createdAt),
+    index('audit_entry_actor_created_idx').on(t.actorId, t.createdAt),
+  ],
 );

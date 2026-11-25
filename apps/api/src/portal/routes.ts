@@ -2,6 +2,7 @@ import { trustedOrigins } from '@repo/auth';
 import { Elysia } from 'elysia';
 import { HttpError } from '../shared/lib';
 import { canReadBoard } from './access';
+import { clientIp } from '../shared/client-ip';
 import { getBoardBySlug, type BoardRow } from './boards';
 import { findBoardIssue, listBoardIssues, similarIssues } from './issues';
 import {
@@ -43,20 +44,6 @@ import { unsubscribeFromPage, unsubscribeInfo, unsubscribeOneClick } from '../up
 
 const fields = (body: unknown): Record<string, unknown> =>
   body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
-
-// The client address: from the proxy headers when TRUST_PROXY=true (the API runs behind
-// a proxy that sets them), otherwise the connection's own address. Without a trusted
-// proxy the headers are ignored, since any client can send them.
-function clientIp(
-  request: Request,
-  server: { requestIP(r: Request): { address: string } | null } | null,
-): string | null {
-  if (process.env.TRUST_PROXY === 'true') {
-    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-    return forwarded || request.headers.get('x-real-ip') || null;
-  }
-  return server?.requestIP(request)?.address ?? null;
-}
 
 export async function signedInVisitor(request: Request): Promise<Visitor> {
   const visitor = await visitorFromRequest(request);

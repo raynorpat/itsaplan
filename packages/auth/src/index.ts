@@ -569,6 +569,7 @@ export type {
   FavoritesHandlers,
   AccessKeysHandlers,
   ReleasesHandlers,
+  AuditHandlers,
   FormsHandlers,
   AiHandlers,
   InstanceHandlers,

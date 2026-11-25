@@ -1,0 +1,73 @@
+// The audit log's action identifiers (Linear's AuditEntry.type) with the description
+// `auditEntryTypes` returns for each.
+export const AUDIT_TYPES = {
+  // Sign-in and account
+  login: 'Signed in',
+  loginFailed: 'A sign-in attempt was refused',
+  logout: 'Signed out',
+  sessionRevoked: 'A sign-in session was revoked',
+  passkeyAdded: 'Added a passkey',
+  passkeyRemoved: 'Removed a passkey',
+  emailAdded: 'Added an extra email address',
+  emailConfirmed: 'Confirmed an extra email address',
+  emailRemoved: 'Removed an extra email address',
+  apiKeyCreated: 'Created a personal API key',
+  apiKeyDeleted: 'Deleted a personal API key',
+  // People and roles
+  inviteCreated: 'Invited someone to the workspace',
+  inviteRevoked: 'Revoked a workspace invite',
+  inviteAccepted: 'Joined the workspace through an invite',
+  userRoleChanged: "Changed a person's workspace role",
+  userSuspended: 'Suspended a person',
+  userUnsuspended: 'Restored a suspended person',
+  ownerAdded: 'Made a person a workspace owner',
+  ownerRemoved: 'Removed a workspace owner',
+  teamMemberAdded: 'Added a person to a team',
+  teamMemberRemoved: 'Removed a person from a team',
+  teamOwnerChanged: "Changed a team's owner",
+  // Teams
+  teamCreated: 'Created a team',
+  teamDeleted: 'Deleted a team',
+  teamVisibilityChanged: 'Made a team public or private',
+  // Integrations and keys
+  oauthAppCreated: 'Created an OAuth application',
+  oauthAppUpdated: 'Changed an OAuth application',
+  oauthAppDeleted: 'Deleted an OAuth application',
+  oauthAppSecretRotated: "Rotated an OAuth application's secret",
+  oauthAuthorized: 'Authorized an OAuth application',
+  oauthRevoked: "Revoked an OAuth application's access",
+  appInstalled: 'Installed an application in the workspace',
+  appUninstalled: 'Uninstalled an application from the workspace',
+  webhookCreated: 'Created a webhook',
+  webhookUpdated: 'Changed a webhook',
+  webhookDeleted: 'Deleted a webhook',
+  releaseAccessKeyCreated: 'Created a release pipeline access key',
+  releaseAccessKeyRevoked: 'Revoked a release pipeline access key',
+  aiSettingsChanged: 'Changed the AI endpoint',
+  // Workspace settings
+  organizationUpdated: "Changed the workspace's name, URL key or logo",
+  securitySettingsChanged: "Changed the workspace's security settings",
+  customersSettingsChanged: 'Changed the Customers settings',
+  auditRetentionChanged: 'Changed how long audit log entries are kept',
+  // Exports
+  dataExported: 'Exported data',
+  // Data
+  importStarted: 'Started an issue import',
+  importCompleted: 'An issue import finished',
+  importFailed: 'An issue import failed',
+  projectDeleted: 'Deleted a project',
+  projectPurged: 'A trashed project was deleted for good',
+  issueDeleted: 'Deleted an issue',
+  dashboardDeleted: 'Deleted a dashboard',
+  customerDeleted: 'Deleted a customer',
+  customerMerged: 'Merged two customers',
+  requesterMerged: 'Merged two requesters',
+  portalBoardCreated: 'Created a portal board',
+  portalBoardUpdated: 'Changed a portal board',
+  portalBoardDeleted: 'Deleted a portal board',
+  requesterBlocked: 'Blocked a requester from the portal',
+  requesterUnblocked: 'Unblocked a requester from the portal',
+  formSettingsChanged: "Changed a form's settings",
+} as const;
+
+export type AuditType = keyof typeof AUDIT_TYPES;

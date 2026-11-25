@@ -4,6 +4,7 @@ import { requestersHandlers } from '../feedback/handlers';
 import { formsHandlers } from '../forms/admin';
 import { aiHandlers } from '../updates/ai';
 import { dashboardsHandlers } from '../dashboards/handlers';
+import { auditHandlers } from '../audit/handlers';
 import { customersHandlers } from '../customers/handlers';
 import { favoritesHandlers } from '../favorites/handlers';
 import { accessKeysHandlers, releasesHandlers } from '../releases/handlers';
@@ -76,6 +77,7 @@ export function registerInstanceHandlers(): void {
     customers: customersHandlers,
     favorites: favoritesHandlers,
     accessKeys: accessKeysHandlers,
+    audit: auditHandlers,
     releases: releasesHandlers,
   });
 }

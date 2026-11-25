@@ -666,6 +666,28 @@ Rules and invariants for this package below; read the code for the walkthrough.
   while the team does not use estimates; `null` clears. Changing the scale keeps stored
   estimates. Issues do not move between teams, and workflows and imports set no
   estimate, so these are the only write paths.
+- **Audit log** (`audit/`, Linear's `AuditEntry`): one `audit_entry` row per
+  security-relevant action (`audit/types.ts` lists the types and their descriptions).
+  Owners and admins read it through `auditEntries` (Linear's `AuditEntryFilter`; the
+  entity filters read `entityType` / `entityId` / `entityIdentifier` from the metadata)
+  and `auditEntryTypes`; everyone else, and an OAuth token without `admin`, gets
+  FORBIDDEN. Nothing edits or deletes an entry except the retention clean-up and the
+  fold of failed sign-ins below. `recordAudit(type, metadata, { tx?, actorId? })` writes
+  inside the action's transaction when it has one (the action and its entry succeed or
+  fail together); without one a failed write is logged (`[audit] entry not written`)
+  and the action goes ahead, and the next entry the process writes carries
+  `metadata.missedEntries`. `recordLoginFailed(address, reason)` folds attempts for one
+  address and IP within 10 minutes into one entry (`metadata.attempts`). The actor is the
+  request's user unless given; the request details (`audit/context.ts`: IP and country,
+  user agent, how the request authenticated, the route or GraphQL operation, the OAuth
+  application or release pipeline) are set around GraphQL, every `/api/auth/*` request
+  and the worker's audit route. The IP follows the portal's rule (`shared/client-ip.ts`:
+  proxy headers only when `TRUST_PROXY=true`), and the country is `CF-IPCountry` only
+  then. Metadata holds ids, names and what changed, never secrets or issue content.
+  Retention (`audit/retention.ts`, `organization.audit_retention`): 30 days by default,
+  or 90 days, 1, 2 or 3 years, or forever; owners and admins read it and owners change
+  it through `/api/auth/instance/audit-settings*` (the change is recorded); the worker
+  calls `/internal/audit/cleanup` on its cleanup interval, which deletes older entries.
 - **Auto-archive** (Linear's `Team.autoArchivePeriod`): `team.auto_archive_period` in
   months (0, 1, 3, 6, 9 or 12; 0 = off; new teams 6). The worker archives completed and
   canceled issues closed longer than that (`apps/worker/src/store.ts`). Auto-close is
