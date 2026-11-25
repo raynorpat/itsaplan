@@ -12,10 +12,14 @@ export interface BoardInput {
   name: string;
   slug: string;
   intro: string;
+  // `customerRequests`: the active issues the board's customer asked for (Customer
+  // access only, no team or project).
+  shows: 'issues' | 'customerRequests';
   teamId: string | null;
   projectId: string | null;
   labelIds: string[];
-  access: 'public' | 'restricted';
+  access: 'public' | 'restricted' | 'customer';
+  customerId: string | null;
   allowedDomains: string[];
   allowedEmails: string[];
   showDescription: boolean;
@@ -29,6 +33,8 @@ export interface BoardInput {
 
 export interface BoardDto extends BoardInput {
   id: string;
+  // Null for a Customer-access board whose customer was deleted: no one reads it.
+  customer: { id: string; name: string } | null;
   issueCount: number;
 }
 

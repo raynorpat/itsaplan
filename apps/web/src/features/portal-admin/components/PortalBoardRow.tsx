@@ -1,14 +1,14 @@
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import type { BoardDto } from '../services/portalAdmin.service';
-import { portalUrl } from '../utils/board';
+import { boardAccessLabel, portalUrl } from '../utils/board';
 
 // One board in the list: name, address, access and how many issues it shows, with
 // Copy link and Edit.
 export default function PortalBoardRow({ board, onEdit }: { board: BoardDto; onEdit: () => void }) {
   const url = portalUrl(board.slug);
   const facts = [
-    board.access === 'public' ? 'Public' : 'Restricted',
+    boardAccessLabel(board),
     board.issueCount === 1 ? '1 issue' : `${board.issueCount} issues`,
     ...(board.enabled ? [] : ['Disabled']),
   ];

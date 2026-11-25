@@ -14,7 +14,8 @@ import PortalBoardField from './PortalBoardField';
 import PortalBoardTeamSelect from './PortalBoardTeamSelect';
 
 // Which issues the board shows: a public team's or a project's, optionally only those
-// with one of chosen labels (offered from the team's labels on a team board).
+// with one of chosen labels (offered from the team's labels on a team board), or, on a
+// Customer-access board, the issues the customer asked for.
 export default function PortalBoardSourceFields({
   form,
   errors,
@@ -36,27 +37,31 @@ export default function PortalBoardSourceFields({
 
   return (
     <div className="grid gap-4">
-      <PortalBoardField id="board-source" label="Shows issues of" error={errors.source}>
+      <PortalBoardField id="board-source" label="Shows" error={errors.source}>
         <div className="flex flex-wrap gap-2">
           <Select
             value={form.source}
             onValueChange={(v) => set({ source: v as BoardForm['source'], labelIds: [] })}
           >
-            <SelectTrigger id="board-source" className="w-32">
+            <SelectTrigger id="board-source" className="w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="team">A team</SelectItem>
-              <SelectItem value="project">A project</SelectItem>
+              <SelectItem value="team">Issues of a team</SelectItem>
+              <SelectItem value="project">Issues of a project</SelectItem>
+              {(form.access === 'customer' || form.source === 'customerRequests') && (
+                <SelectItem value="customerRequests">This customer&apos;s requests</SelectItem>
+              )}
             </SelectContent>
           </Select>
-          {form.source === 'team' ? (
+          {form.source === 'team' && (
             <PortalBoardTeamSelect
               id="board-team"
               value={form.teamId}
               onChange={(teamId) => set({ teamId, labelIds: [] })}
             />
-          ) : (
+          )}
+          {form.source === 'project' && (
             <Select value={form.projectId} onValueChange={(projectId) => set({ projectId })}>
               <SelectTrigger aria-label="Project" className="w-full sm:w-72">
                 <SelectValue placeholder="Choose a project" />
