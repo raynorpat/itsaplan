@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import FormFieldInput from '@/components/common/inputs/FormFieldInput';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { answerErrors, emptyAnswers } from '@/utils/formAnswers';
 import { useSubmitForm, type PublicForm } from '../services/forms.service';
+import { contactErrors } from '../utils/contact';
+import FormsContactFields from './FormsContactFields';
 import FormsSubmitted from './FormsSubmitted';
 
 // The questions of a form's link, plus email and name for someone not signed in to the
@@ -19,6 +20,7 @@ export default function FormsPublicForm({ form }: { form: PublicForm }) {
   const submit = useSubmitForm(form.slug);
   const errors = answerErrors(form.fields, answers);
   const signedIn = !!form.visitor;
+  const contact = signedIn ? {} : contactErrors(email, name);
 
   if (submit.data?.status === 'pending')
     return (
@@ -38,8 +40,7 @@ export default function FormsPublicForm({ form }: { form: PublicForm }) {
       onSubmit={(e) => {
         e.preventDefault();
         setShowErrors(true);
-        if (Object.keys(errors).length > 0) return;
-        if (!signedIn && (!email.trim() || !name.trim())) return;
+        if (Object.keys(errors).length > 0 || Object.keys(contact).length > 0) return;
         submit.mutate(signedIn ? { answers } : { answers, email: email.trim(), name: name.trim() });
       }}
     >
@@ -55,29 +56,13 @@ export default function FormsPublicForm({ form }: { form: PublicForm }) {
       {signedIn ? (
         <p className="text-sm text-muted-foreground">Sending as {form.visitor!.displayName}.</p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Your email
-            <Input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              aria-invalid={showErrors && !email.trim()}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Your name
-            <Input
-              autoComplete="name"
-              required
-              value={name}
-              aria-invalid={showErrors && !name.trim()}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-        </div>
+        <FormsContactFields
+          email={email}
+          name={name}
+          errors={showErrors ? contact : {}}
+          onEmail={setEmail}
+          onName={setName}
+        />
       )}
       {submit.error && (
         <p className="text-sm text-destructive" role="alert">
