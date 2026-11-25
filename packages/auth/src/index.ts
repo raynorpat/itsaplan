@@ -62,7 +62,8 @@ const cookieDomain = process.env.COOKIE_DOMAIN || parentDomain(trustedOrigins[0]
 // is the frontend origin(s) — the same trustedOrigins list. On localhost this all
 // works over http (localhost is a secure context). In prod set PASSKEY_RP_ID to the
 // public frontend hostname.
-const passkeyRpID = process.env.PASSKEY_RP_ID ?? new URL(trustedOrigins[0]).hostname;
+// `||`, not `??`: the compose files pass an unset variable through as an empty string.
+const passkeyRpID = process.env.PASSKEY_RP_ID || new URL(trustedOrigins[0]).hostname;
 
 // Backend origin where the better-auth handler is mounted (/api/auth/*). Mandatory:
 // every link in an authentication email and the Google redirect URI are built from it.
@@ -456,7 +457,7 @@ export const auth = betterAuth({
     // then used to sign in (signIn.passkey). Adds the `passkey` table.
     passkey({
       rpID: passkeyRpID,
-      rpName: process.env.PASSKEY_RP_NAME ?? "It's a Plan",
+      rpName: process.env.PASSKEY_RP_NAME || "It's a Plan",
       // Expected origin(s) of the WebAuthn ceremony — the frontend origins.
       origin: trustedOrigins,
     }),

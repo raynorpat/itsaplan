@@ -95,6 +95,8 @@ services:
       # Coolify's proxy sets X-Forwarded-For in front of the api.
       TRUST_PROXY: ${TRUST_PROXY:-true}
       AUDIT_COUNTRY_HEADER: ${AUDIT_COUNTRY_HEADER:-CF-IPCountry}
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-}
       # To override the cookie parent domain (multi-label TLDs / deep subdomains),
       # add a COOKIE_DOMAIN env in Coolify — the code reads it if present.
       # Outbound email (magic links, invites, notifications): SMTP or Resend. Unset
