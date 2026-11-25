@@ -68,7 +68,10 @@ export interface StateOption {
 }
 
 const MEANINGS: [RegExp, string][] = [
-  [/\b(done|closed|resolved|complete|completed|fixed|shipped)\b/, 'completed'],
+  [
+    /\b(done|closed|resolved|complete|completed|finished|fixed|shipped|released|delivered|merged|deployed)\b/,
+    'completed',
+  ],
   [/\b(cancel+ed|cancel|won'?t (do|fix)|wontfix|duplicate|rejected|invalid)\b/, 'canceled'],
   [/\b(in progress|progress|review|doing|started|testing|qa|in development)\b/, 'started'],
 ];

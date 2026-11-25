@@ -20,6 +20,11 @@ describe('guessStatusState', () => {
     expect(guessStatusState('In Review', states, 'todo')).toBe('doing');
   });
 
+  it('reads common finished words as completed', () => {
+    for (const word of ['Finished', 'Released', 'Delivered', 'Merged', 'Deployed'])
+      expect(guessStatusState(word, states, 'todo')).toBe('done');
+  });
+
   it('falls back to the default state', () => {
     expect(guessStatusState('Parked', states, 'todo')).toBe('todo');
     expect(guessStatusState('', states, 'todo')).toBe('todo');

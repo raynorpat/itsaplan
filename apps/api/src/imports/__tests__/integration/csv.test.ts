@@ -293,6 +293,31 @@ describe('generic CSV through the Import page', () => {
     expect(summary.skipped).toEqual([{ url: 'Row 4', reason: 'No title' }]);
   });
 
+  it('counts each person once per row in the people step', async () => {
+    if (!storeAvailable) return;
+    const text = ['Name,Owner', 'First,Ann Lee', 'Second,Ann Lee', 'Third,Bob Ray'].join('\n');
+    const url = await upload(owner, text, 'people.csv');
+    const create = await plugin(owner, '/instance/imports/csv/create', {
+      assetUrl: url,
+      source: 'generic',
+      mapping: { title: 0, assignee: 1, dateFormat: 'iso' },
+      teamId,
+    });
+    expect(create.status).toBe(200);
+    const { import: job } = (await create.json()) as { import: { id: string } };
+    await waitFor(job.id, isAwaitingPeople);
+    const res = await app.handle(
+      new Request(`http://localhost/api/auth/instance/import/people?id=${job.id}`, {
+        headers: { cookie: owner.cookie, Origin: ORIGIN },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { people: { name: string | null; issues: number }[] };
+    const counts = Object.fromEntries(body.people.map((p) => [p.name, p.issues]));
+    expect(counts['Ann Lee']).toBe(2);
+    expect(counts['Bob Ray']).toBe(1);
+  });
+
   it('refuses members', async () => {
     const member = await signUpAs('member');
     const res = await plugin(member, '/instance/imports/csv/preview', { assetUrl: 'x' });

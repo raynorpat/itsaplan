@@ -128,16 +128,18 @@ async function peopleOf(row: ImportRow) {
   const data = fetched.get(row.id)?.data;
   if (!data) throw new HttpError(409, 'The import is not waiting for people matching');
   const byKey = new Map<string, { person: SourcePerson; issues: Set<string> }>();
-  const note = (p: SourcePerson | null, issueUrl: string) => {
+  const note = (p: SourcePerson | null, issueId: string) => {
     if (!p) return;
     const entry = byKey.get(p.key) ?? { person: p, issues: new Set<string>() };
-    entry.issues.add(issueUrl);
+    entry.issues.add(issueId);
     byKey.set(p.key, entry);
   };
+  // A CSV row has no URL; its source key identifies it instead.
   for (const i of data.issues) {
-    note(i.author, i.url);
-    note(i.assignee, i.url);
-    for (const c of i.comments) note(c.author, i.url);
+    const id = i.sourceKey ?? i.url;
+    note(i.author, id);
+    note(i.assignee, id);
+    for (const c of i.comments) note(c.author, id);
   }
   return {
     people: [...byKey.values()].map((e) => ({ person: e.person, issues: e.issues.size })),
