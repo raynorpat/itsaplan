@@ -7,6 +7,7 @@ import {
 } from '@repo/auth';
 import { db, user as userTable } from '@repo/db';
 import { eq } from 'drizzle-orm';
+import { ACCESS_KEY_PREFIX, type ResolvedAccessKey } from '../releases/keys';
 import type { RequestAuth } from '../shared/request-auth';
 
 // The authenticated user of a request (a better-auth session user).
@@ -15,6 +16,20 @@ export type SessionUser = NonNullable<Awaited<ReturnType<typeof auth.api.getSess
 export interface GraphQLContext {
   user: SessionUser;
   auth: RequestAuth;
+  // Set instead of a user for a request made with a release pipeline access key, which
+  // reaches only the access key operations (anonymous.ts ACCESS_KEY_FIELDS).
+  accessKey?: ResolvedAccessKey;
+}
+
+// The release pipeline access key a request carries (`Authorization: Bearer itpr_…`,
+// or as `x-api-key`), or null. Such a credential never goes to better-auth's API key
+// lookup.
+export function accessKeyCredential(request: Request): string | null {
+  const authorization = request.headers.get('authorization');
+  const credential = authorization
+    ? authorization.replace(/^Bearer\s+/i, '').trim()
+    : (request.headers.get('x-api-key') ?? '').trim();
+  return credential.startsWith(ACCESS_KEY_PREFIX) ? credential : null;
 }
 
 export interface ResolvedAuth {

@@ -15,6 +15,7 @@ import { aiHandlers } from '../../updates/ai';
 import { dashboardsHandlers } from '../../dashboards/handlers';
 import { customersHandlers } from '../../customers/handlers';
 import { favoritesHandlers } from '../../favorites/handlers';
+import { accessKeysHandlers } from '../../releases/handlers';
 import { portalHandlers } from '../../portal/admin';
 import { workflowsHandlers } from '../../workflows/handlers';
 import { accountEmailsHandlers } from '../../accounts/handlers';
@@ -167,6 +168,7 @@ describe('instance plugin errors and origin checks', () => {
       dashboards: dashboardsHandlers,
       customers: customersHandlers,
       favorites: favoritesHandlers,
+      accessKeys: accessKeysHandlers,
     });
     try {
       const res = await call('version');

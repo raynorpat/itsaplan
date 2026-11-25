@@ -58,6 +58,12 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   favorite folders and moves every favorite in it to the top level, after the
 //   existing ones (Linear's favoriteDelete deletes a folder's favorites with it).
 //   Same Origin rule for the POST.
+// - GET  /instance/access-keys?pipelineId=  { accessKeys }  a release pipeline's access
+//   keys, without the keys (owners, admins and members who see the pipeline);
+//   POST /instance/access-keys/create { pipelineId } returns { accessKey, key } (the
+//   key only here) and POST /instance/access-keys/revoke { id } (owners and admins).
+//   Linear's schema has no operation for access keys (apps/api src/releases/keys.ts).
+//   Same Origin rule for the POSTs.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -208,6 +214,14 @@ export interface FavoritesHandlers {
   deleteFolder(headers: Headers, body: unknown): Promise<object>;
 }
 
+// Release pipeline access keys, which Linear's schema has no operation for. Each
+// handler checks the caller itself.
+export interface AccessKeysHandlers {
+  list(headers: Headers, query: Record<string, unknown>): Promise<object>;
+  create(headers: Headers, body: unknown): Promise<object>;
+  revoke(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -224,6 +238,7 @@ export interface InstanceHandlers {
   dashboards: DashboardsHandlers;
   customers: CustomersHandlers;
   favorites: FavoritesHandlers;
+  accessKeys: AccessKeysHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -329,6 +344,12 @@ const favoritesWrite = (
   trusted: string[],
   call: (h: FavoritesHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.favorites, headers, body));
+
+const accessKeysWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: AccessKeysHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.accessKeys, headers, body));
 
 const importsWrite = (
   path: string,
@@ -618,6 +639,24 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/favorites/delete-folder',
         options.trustedOrigins,
         (h, headers, body) => h.deleteFolder(headers, body),
+      ),
+      instanceAccessKeys: createAuthEndpoint(
+        '/instance/access-keys',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(
+            await run((h) => h.accessKeys.list(ctx.headers ?? new Headers(), { ...ctx.query })),
+          ),
+      ),
+      instanceAccessKeyCreate: accessKeysWrite(
+        '/instance/access-keys/create',
+        options.trustedOrigins,
+        (h, headers, body) => h.create(headers, body),
+      ),
+      instanceAccessKeyRevoke: accessKeysWrite(
+        '/instance/access-keys/revoke',
+        options.trustedOrigins,
+        (h, headers, body) => h.revoke(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',

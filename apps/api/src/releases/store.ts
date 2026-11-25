@@ -72,9 +72,10 @@ export interface ReleaseContent {
 }
 
 type Row = typeof release.$inferSelect;
+export type ReleaseRow = Row;
 type PipelineRow = typeof releasePipeline.$inferSelect;
 type StageRow = typeof releaseStage.$inferSelect;
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const isoOrNull = (d: Date | null) => (d ? iso(d) : null);
 
@@ -152,13 +153,13 @@ export async function getRelease(user: AuthUser | undefined | null, id: string) 
   return mapRelease(await assertReleaseRead(user, id));
 }
 
-function cleanName(value: unknown): string {
+export function cleanName(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) throw new HttpError(400, 'name is required');
   if (value.trim().length > 255) throw new HttpError(400, 'name is at most 255 characters');
   return value.trim();
 }
 
-function cleanText(value: unknown, what: string, max: number): string | null {
+export function cleanText(value: unknown, what: string, max: number): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string') throw new HttpError(400, `${what} must be a string`);
   if (value.length > max) throw new HttpError(400, `${what} is at most ${max} characters`);
@@ -181,7 +182,7 @@ function cleanTime(value: unknown, what: string): Date | null {
 }
 
 // The release slug: the name's, with a 6-character suffix when it is taken.
-async function freeReleaseSlug(name: string, runner: Tx | typeof db = db): Promise<string> {
+export async function freeReleaseSlug(name: string, runner: Tx | typeof db = db): Promise<string> {
   const wanted = slugBase(name, 'release');
   const [taken] = await runner
     .select({ id: release.id })
@@ -190,7 +191,10 @@ async function freeReleaseSlug(name: string, runner: Tx | typeof db = db): Promi
   return taken ? `${wanted}-${randomBytes(3).toString('hex')}` : wanted;
 }
 
-async function stagesOf(pipelineId: string, runner: Tx | typeof db = db): Promise<StageRow[]> {
+export async function stagesOf(
+  pipelineId: string,
+  runner: Tx | typeof db = db,
+): Promise<StageRow[]> {
   return runner
     .select()
     .from(releaseStage)

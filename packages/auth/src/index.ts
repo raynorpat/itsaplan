@@ -567,6 +567,7 @@ export type {
   DashboardsHandlers,
   CustomersHandlers,
   FavoritesHandlers,
+  AccessKeysHandlers,
   FormsHandlers,
   AiHandlers,
   InstanceHandlers,

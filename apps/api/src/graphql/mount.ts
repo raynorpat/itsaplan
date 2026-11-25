@@ -2,10 +2,11 @@ import { createYoga, maskError, type Plugin } from 'graphql-yoga';
 import { GraphQLError } from 'graphql';
 import { PG_INVALID_INPUT_CODES, pgErrorCode } from '../shared/lib';
 import type { SessionUser } from './context';
-import { resolveGraphQLAuth, type GraphQLContext } from './context';
+import { accessKeyCredential, resolveGraphQLAuth, type GraphQLContext } from './context';
 import { scopeCheck } from './scopes';
 import { runWithAuth, type RequestAuth } from '../shared/request-auth';
-import { isAnonymousRequest } from './anonymous';
+import { isAccessKeyRequest, isAnonymousRequest } from './anonymous';
+import { resolveAccessKey, touchAccessKey, type ResolvedAccessKey } from '../releases/keys';
 import { buildSchema } from './schema';
 import { maxDepthRule } from './depth';
 import { gqlError } from './errors';
@@ -43,6 +44,7 @@ import { templateResolvers } from './resolvers/template';
 import { favoriteResolvers } from './resolvers/favorite';
 import { releasePipelineResolvers } from './resolvers/release-pipeline';
 import { releaseResolvers } from './resolvers/release';
+import { releaseSyncResolvers } from './resolvers/release-sync';
 
 // Each resolver module contributes Query / Mutation / type maps; merged per key.
 const resolverModules: Record<string, Record<string, unknown>>[] = [
@@ -80,6 +82,7 @@ const resolverModules: Record<string, Record<string, unknown>>[] = [
   favoriteResolvers,
   releasePipelineResolvers,
   releaseResolvers,
+  releaseSyncResolvers,
 ];
 
 function mergeResolvers(modules: Record<string, Record<string, unknown>>[]) {
@@ -96,6 +99,19 @@ const depthLimit: Plugin = {
 
 const AUTH_MESSAGE = 'Authentication required, not authenticated';
 
+const unauthenticated = () =>
+  Response.json(
+    {
+      errors: [
+        {
+          message: AUTH_MESSAGE,
+          extensions: { code: 'AUTHENTICATION_ERROR', userPresentableMessage: AUTH_MESSAGE },
+        },
+      ],
+    },
+    { status: 401 },
+  );
+
 // Adds the Linear-compatible GraphQL endpoint (/graphql) to the app. Mounted on the
 // root app after the chain, like the MCP endpoint. Authentication is resolved before
 // Yoga runs: a request without valid
@@ -104,12 +120,15 @@ const AUTH_MESSAGE = 'Authentication required, not authenticated';
 // Typed as `any` for the same reason as mountMcp: Elysia's generics are invariant.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mountGraphql(app: any): void {
-  const yoga = createYoga<{ user: SessionUser; auth: RequestAuth }, GraphQLContext>({
+  const yoga = createYoga<
+    { user: SessionUser; auth: RequestAuth; accessKey?: ResolvedAccessKey },
+    GraphQLContext
+  >({
     schema: buildSchema(mergeResolvers(resolverModules)),
     graphqlEndpoint: '/graphql',
     graphiql: false,
     landingPage: false,
-    context: ({ user, auth }) => ({ user, auth }),
+    context: ({ user, auth, accessKey }) => ({ user, auth, accessKey }),
     plugins: [depthLimit, scopeCheck],
     maskedErrors: {
       // A value Postgres cannot store or read (bad uuid/date/number text, a value
@@ -135,6 +154,19 @@ export function mountGraphql(app: any): void {
           { errors: [{ message: 'POST requests must use Content-Type: application/json' }] },
           { status: 415 },
         );
+      // A release pipeline access key reaches only the access key operations, and
+      // nothing else in the request may ask for more (anonymous.ts).
+      const keyCredential = accessKeyCredential(request);
+      if (keyCredential) {
+        const key = await resolveAccessKey(keyCredential);
+        if (!key || !(await isAccessKeyRequest(request))) return unauthenticated();
+        await touchAccessKey(key.id);
+        return yoga.fetch(request, {
+          user: null as unknown as SessionUser,
+          auth: null as unknown as RequestAuth,
+          accessKey: key,
+        });
+      }
       const resolved = await resolveGraphQLAuth(request);
       // Without credentials only the invite lookup is answered; its resolver does not
       // read the user.
@@ -143,18 +175,7 @@ export function mountGraphql(app: any): void {
           user: null as unknown as SessionUser,
           auth: null as unknown as RequestAuth,
         });
-      if (!resolved)
-        return Response.json(
-          {
-            errors: [
-              {
-                message: AUTH_MESSAGE,
-                extensions: { code: 'AUTHENTICATION_ERROR', userPresentableMessage: AUTH_MESSAGE },
-              },
-            ],
-          },
-          { status: 401 },
-        );
+      if (!resolved) return unauthenticated();
       // The request's credentials stay readable for the whole execution (the role
       // checks apply an OAuth token's scopes, shared/request-auth.ts).
       return runWithAuth(resolved.auth, () => yoga.fetch(request, resolved));
