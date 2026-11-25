@@ -14,6 +14,20 @@ const entry = (type: string, metadata: Record<string, unknown> | null) => ({
 });
 
 describe('describeEntry', () => {
+  it('writes export kinds and retention periods in words', () => {
+    assert.equal(
+      describeEntry(entry('dataExported', { kind: 'auditLog', rows: 17 }), 'Exported data'),
+      'Exported data: audit log, 17 rows',
+    );
+    assert.equal(
+      describeEntry(
+        entry('auditRetentionChanged', { from: '30d', to: '90d' }),
+        'Changed retention',
+      ),
+      'Changed retention: 30 days → 90 days',
+    );
+  });
+
   it('names the person whose role changed', () => {
     const people = new Map([['u1', 'Milo Member']]);
     assert.equal(

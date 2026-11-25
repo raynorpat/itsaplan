@@ -101,7 +101,8 @@ function details(
     return method ? (SIGN_IN_METHODS[method] ?? words(method)) : null;
   }
   if (type === 'dataExported') {
-    const what = [text(m.kind), text(m.name)].filter(Boolean).join(' ');
+    const kind = text(m.kind);
+    const what = [kind ? words(kind) : null, text(m.name)].filter(Boolean).join(' ');
     const rows = typeof m.rows === 'number' ? `${m.rows} ${m.rows === 1 ? 'row' : 'rows'}` : null;
     return [what || null, rows].filter(Boolean).join(', ') || null;
   }
@@ -115,8 +116,12 @@ function details(
     m.entityType === 'user' && typeof m.entityId === 'string'
       ? (people?.get(m.entityId) ?? null)
       : null;
-  const from = text(m.from);
-  const to = text(m.to);
+  const period = (v: string | null) =>
+    type === 'auditRetentionChanged'
+      ? (AUDIT_RETENTIONS.find((r) => r.value === v)?.label.toLowerCase() ?? v)
+      : v;
+  const from = period(text(m.from));
+  const to = period(text(m.to));
   if (from != null && to != null) return `${person ? `${person}, ` : ''}${from} → ${to}`;
   return person ?? text(m.name) ?? text(m.entityIdentifier);
 }
