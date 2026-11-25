@@ -1,4 +1,5 @@
 import { auditRequestFrom, withAuditRequest } from './audit/context';
+import { registerAuditHook } from './audit/auth-hook';
 import { internalAuditRoutes } from './audit/internal-routes';
 import { auth, trustedOrigins } from '@repo/auth';
 import { cors } from '@elysiajs/cors';
@@ -32,6 +33,8 @@ import './workflows/engine';
 // The better-auth instance endpoints (/api/auth/instance/*) run the API's session and
 // access rules through these handlers.
 registerInstanceHandlers();
+// better-auth's sign-in and account hooks write the audit log through these.
+registerAuditHook();
 
 export const app = new Elysia()
   .use(

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { db } from '@repo/db';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { betterAuth } from 'better-auth';
-import { createAuthMiddleware, APIError } from 'better-auth/api';
+import { createAuthMiddleware, APIError, getSessionFromCtx } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { passkey } from '@better-auth/passkey';
 import { apiKey, defaultKeyHasher } from '@better-auth/api-key';
@@ -21,6 +21,7 @@ import { sendAuthEmail } from './mail';
 import { instancePlugin } from './instance-plugin';
 import { OAUTH_DISABLED_PATHS, oauthAfterHook, oauthBeforeHook, oauthPlugins } from './oauth';
 import { APP_ROLE, isAppUser } from './oauth-install';
+import { auditAfterHook, auditBeforeHook, auditRefusal } from './audit-hooks';
 
 // Frontend origins allowed to call the auth handler. Mandatory config: cookies, the
 // WebAuthn relying party and the cookie domain are all derived from it, so a deploy
@@ -116,7 +117,7 @@ async function magicLinkRefusal(
     findVerificationValue: (identifier: string) => Promise<{ value: string } | null>;
   },
   token: string | undefined,
-): Promise<'NOT_INVITED' | 'ACCOUNT_SUSPENDED' | null> {
+): Promise<{ code: 'NOT_INVITED' | 'ACCOUNT_SUSPENDED'; email: string } | null> {
   if (!token) return null;
   const identifier = createHash('sha256').update(token).digest('base64url');
   const stored = await adapter.findVerificationValue(identifier);
@@ -126,8 +127,8 @@ async function magicLinkRefusal(
     .select({ id: schema.user.id, suspendedAt: schema.user.suspendedAt })
     .from(schema.user)
     .where(eq(schema.user.email, email.toLowerCase()));
-  if (!existing) return (await mayJoin(email)) ? null : 'NOT_INVITED';
-  return existing.suspendedAt ? 'ACCOUNT_SUSPENDED' : null;
+  if (!existing) return (await mayJoin(email)) ? null : { code: 'NOT_INVITED', email };
+  return existing.suspendedAt ? { code: 'ACCOUNT_SUSPENDED', email } : null;
 }
 
 // A plain shape check for an email address: one @, no spaces, a dot in the domain.
@@ -181,6 +182,15 @@ async function isSuspended(userId: string): Promise<boolean> {
 
 // Whether an address is an application's app user (oauth-install.ts), which never
 // signs in.
+// A user's sign-in address, for the audit entry of a refused session ('' when gone).
+async function emailOf(userId: string): Promise<string> {
+  const [row] = await db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId));
+  return row?.email ?? '';
+}
+
 async function isAppUserAddress(email: string): Promise<boolean> {
   const address = email.trim().toLowerCase();
   return (
@@ -261,6 +271,9 @@ export const auth = betterAuth({
       // (src/oauth.ts).
       await oauthBeforeHook(ctx, trustedOrigins);
 
+      // Sign-out and session revokes, recorded while the session is still readable.
+      await auditBeforeHook(ctx, getSessionFromCtx);
+
       // A magic link for an address with no account is sent only when the address
       // may join (./instance.ts mayJoin). Otherwise nothing is stored or sent, and the
       // request answers exactly as a sent one does, so it reveals nothing.
@@ -270,12 +283,20 @@ export const auth = betterAuth({
         const email = (ctx.body as { email?: unknown } | undefined)?.email;
         if (typeof email !== 'string' || !EMAIL_RE.test(email.trim()))
           throw new APIError('BAD_REQUEST', { message: 'A valid email address is required' });
-        if (!(await isAuthServiceAllowed('email')) && !(await isOwnerAddress(email)))
+        // Each silent refusal is a refused sign-in in the audit log.
+        if (!(await isAuthServiceAllowed('email')) && !(await isOwnerAddress(email))) {
+          await auditRefusal(email, 'EMAIL_SIGN_IN_DISABLED');
           return ctx.json({ status: true });
-        if (!(await hasAccount(email)) && !(await mayJoin(email)))
+        }
+        if (!(await hasAccount(email)) && !(await mayJoin(email))) {
+          await auditRefusal(email, 'NOT_INVITED');
           return ctx.json({ status: true });
+        }
         // An application's app user never signs in.
-        if (await isAppUserAddress(email)) return ctx.json({ status: true });
+        if (await isAppUserAddress(email)) {
+          await auditRefusal(email, 'APP_USER');
+          return ctx.json({ status: true });
+        }
         return;
       }
 
@@ -290,8 +311,10 @@ export const auth = betterAuth({
           callbackURL?: string;
           errorCallbackURL?: string;
         };
-        const refusal = await magicLinkRefusal(ctx.context.internalAdapter, query.token);
-        if (!refusal) return;
+        const refused = await magicLinkRefusal(ctx.context.internalAdapter, query.token);
+        if (!refused) return;
+        const refusal = refused.code;
+        await auditRefusal(refused.email, refusal);
         const target = query.errorCallbackURL ?? query.callbackURL;
         if (!target) throw new APIError('FORBIDDEN', { code: refusal, message: refusal });
         const url = new URL(decodeURIComponent(target), ctx.context.baseURL);
@@ -329,7 +352,13 @@ export const auth = betterAuth({
       }
     }),
     // OAuth applications created by an admin (src/oauth.ts).
-    after: createAuthMiddleware(async (ctx) => oauthAfterHook(ctx)),
+    // OAuth applications created by an admin (src/oauth.ts), then the audit log's
+    // sign-in and account entries (src/audit-hooks.ts).
+    after: createAuthMiddleware(async (ctx) => {
+      const result = await oauthAfterHook(ctx);
+      await auditAfterHook(ctx, getSessionFromCtx);
+      return result;
+    }),
   },
 
   databaseHooks: {
@@ -339,12 +368,14 @@ export const auth = betterAuth({
       create: {
         before: async (session) => {
           if (await isAppUser(session.userId)) {
+            await auditRefusal(await emailOf(session.userId), 'APP_USER');
             throw new APIError('FORBIDDEN', {
               code: 'APP_USER',
               message: 'An application cannot sign in',
             });
           }
           if (await isSuspended(session.userId)) {
+            await auditRefusal(await emailOf(session.userId), 'ACCOUNT_SUSPENDED');
             throw new APIError('FORBIDDEN', {
               code: 'ACCOUNT_SUSPENDED',
               message: 'This account is suspended',
@@ -363,6 +394,7 @@ export const auth = betterAuth({
           // Only a verified address may claim an invite or an approved domain. A used
           // magic link always verifies it; Google reports its own email_verified claim.
           if (user.emailVerified !== true) {
+            await auditRefusal(user.email, 'EMAIL_NOT_VERIFIED');
             throw new APIError('FORBIDDEN', {
               code: 'EMAIL_NOT_VERIFIED',
               message: 'The address must be verified to join the workspace',
@@ -370,6 +402,7 @@ export const auth = betterAuth({
           }
           const join = await mayJoin(user.email);
           if (!join) {
+            await auditRefusal(user.email, 'NOT_INVITED');
             throw new APIError('FORBIDDEN', {
               code: 'NOT_INVITED',
               message: 'This address has not been invited to the workspace',
@@ -562,6 +595,8 @@ export {
   signInOptions,
 } from './instance';
 export { sendAuthEmail } from './mail';
+export { setAuditHook } from './audit';
+export type { AuditHook } from './audit';
 export { provideInstanceHandlers } from './instance-plugin';
 export type {
   DashboardsHandlers,

@@ -79,6 +79,20 @@ HTTP `status`, which the plugin turns into better-auth's error of that status. A
 `POST` that carries the session cookie must send an `Origin` from
 `trustedOrigins` (CSRF); better-auth does not check the origin on plugin endpoints.
 
+## Audit log hooks (`src/audit.ts`, `src/audit-hooks.ts`)
+
+The API writes the audit log; this package cannot import it, so `apps/api` registers its
+writers at startup with `setAuditHook` (`apps/api/src/audit/auth-hook.ts`). The hooks
+record a `login` (with `metadata.method`: `magicLink`, `google`, `passkey`) when a
+sign-in endpoint creates a session, a `loginFailed` for every refusal (the magic-link
+request's silent refusals, the verify refusals, and the user- and session-create
+refusals record it with the address; the after hook records refusals with no address
+at hand, such as a bad link or passkey, and skips the codes already recorded), `logout`
+and `sessionRevoked` in `hooks.before` while the session is still readable, and
+`passkeyAdded` / `passkeyRemoved` and `apiKeyCreated` / `apiKeyDeleted` (ids and names,
+never the key). The writers are fail open: an entry that cannot be written never fails
+the request.
+
 ## OAuth server (`src/oauth.ts`)
 
 `@better-auth/oauth-provider` (pinned to the better-auth version) is the OAuth server,

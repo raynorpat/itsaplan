@@ -3,6 +3,7 @@ import { hasConfiguredEmailProvider, sendAuthEmail } from '@repo/auth';
 import { db, user, userEmail } from '@repo/db';
 import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { normalizeEmail } from '../invites/store';
+import { recordAudit } from '../audit/store';
 import { HttpError, iso, UUID_RE } from '../shared/lib';
 
 // A user's extra email addresses (`user_email`), used only to match people during an
@@ -113,6 +114,13 @@ export async function addEmail(userId: string, rawEmail: unknown): Promise<Extra
         .onConflictDoUpdate({ target: [userEmail.userId, userEmail.email], set: fields })
         .returning();
   await sendConfirmation(email, token);
+  await recordAudit(
+    'emailAdded',
+    { entityType: 'userEmail', entityId: row!.id, email },
+    {
+      actorId: userId,
+    },
+  );
   return { id: row!.id, email, verified: false, createdAt: iso(row!.createdAt) };
 }
 
@@ -150,6 +158,11 @@ export async function confirmEmail(token: unknown): Promise<{ email: string }> {
     await tx
       .delete(userEmail)
       .where(and(eq(userEmail.email, row.email), ne(userEmail.userId, row.userId)));
+    await recordAudit(
+      'emailConfirmed',
+      { entityType: 'userEmail', entityId: row.id, email: row.email },
+      { tx, actorId: row.userId },
+    );
   });
   return { email: row.email };
 }
@@ -159,8 +172,13 @@ export async function removeEmail(userId: string, id: unknown): Promise<void> {
   const removed = await db
     .delete(userEmail)
     .where(and(eq(userEmail.id, id), eq(userEmail.userId, userId)))
-    .returning({ id: userEmail.id });
+    .returning({ id: userEmail.id, email: userEmail.email });
   if (removed.length === 0) throw new HttpError(404, 'Address not found');
+  await recordAudit(
+    'emailRemoved',
+    { entityType: 'userEmail', entityId: removed[0]!.id, email: removed[0]!.email },
+    { actorId: userId },
+  );
 }
 
 // Each user's sign-in address and confirmed extra addresses, lowercased: the addresses

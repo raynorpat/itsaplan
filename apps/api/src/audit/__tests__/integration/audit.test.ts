@@ -65,6 +65,9 @@ function settingsRequest(
 
 const system = { ip: null, countryCode: null, userAgent: null, method: 'system' as const };
 
+// Signing test users up records their sign-ins; tests that count entries start empty.
+const clearEntries = () => db.delete(auditEntry);
+
 describe('audit log', () => {
   beforeEach(resetDb);
 
@@ -76,6 +79,7 @@ describe('audit log', () => {
   it('owners and admins read entries newest first', async () => {
     const owner = await signUpTestUser();
     const admin = await signUpAs('admin');
+    await clearEntries();
     await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'One' }));
     await withAuditRequest(system, () => recordAudit('teamDeleted', { name: 'Two' }));
     for (const as of [owner, admin]) {
@@ -89,6 +93,7 @@ describe('audit log', () => {
   it('filters by type, actor, date and IP', async () => {
     const owner = await signUpTestUser();
     const other = await signUpAs('admin');
+    await clearEntries();
     const details = { ...system, ip: '203.0.113.9', method: 'session' as const };
     await withAuditRequest(details, () =>
       recordAudit('teamCreated', { name: 'Mine' }, { actorId: owner.userId }),
@@ -231,6 +236,7 @@ describe('audit log', () => {
 
   it('lets an action go ahead when its entry cannot be written, and says so next time', async () => {
     const owner = await signUpTestUser();
+    await clearEntries();
     // A BigInt cannot be stored as JSON, so this write fails.
     await withAuditRequest(system, () => recordAudit('teamCreated', { size: 1n }));
     await withAuditRequest(system, () => recordAudit('teamDeleted', { name: 'After' }));
