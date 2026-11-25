@@ -48,6 +48,11 @@ export const organization = pgTable(
     teamCreationRole: text('team_creation_role').notNull().default('member'),
     labelManagementRole: text('label_management_role').notNull().default('member'),
     invitationsRole: text('invitations_role').notNull().default('member'),
+    // Customers (Linear's Organization.customersEnabled / customersConfiguration):
+    // off by default; `customers_seeded` records that the default statuses were made.
+    customersEnabled: boolean('customers_enabled').notNull().default(false),
+    customersRevenueCurrency: text('customers_revenue_currency').notNull().default('USD'),
+    customersSeeded: boolean('customers_seeded').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -867,6 +872,66 @@ export const attachment = pgTable(
   ],
 );
 
+// Linear's CustomerStatus and CustomerTier: workspace lists ordered by `position`
+// (sparse floats). The lowest-positioned status is the default for new customers.
+// `display_name` null reads as `name`.
+const customerListColumns = () => ({
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  displayName: text('display_name'),
+  color: text('color').notNull(),
+  description: text('description'),
+  position: real('position').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const customerStatus = pgTable('customer_status', customerListColumns(), (t) => [
+  check('customer_status_name_check', sql`btrim(${t.name}) <> ''`),
+]);
+
+export const customerTier = pgTable('customer_tier', customerListColumns(), (t) => [
+  check('customer_tier_name_check', sql`btrim(${t.name}) <> ''`),
+]);
+
+// A company the workspace hears from (Linear's Customer). `domains` (lowercased) and
+// `external_ids` are unique across customers; arrays cannot carry a unique index, so
+// the store checks them under an advisory lock.
+export const customer = pgTable(
+  'customer',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slugId: text('slug_id').notNull(),
+    name: text('name').notNull(),
+    domains: text('domains')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    externalIds: text('external_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    mainSourceId: text('main_source_id'),
+    ownerId: uuid('owner_id').references(() => user.id, { onDelete: 'set null' }),
+    statusId: uuid('status_id')
+      .notNull()
+      .references(() => customerStatus.id, { onDelete: 'restrict' }),
+    tierId: uuid('tier_id').references(() => customerTier.id, { onDelete: 'set null' }),
+    revenue: integer('revenue'),
+    size: integer('size'),
+    logoUrl: text('logo_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('customer_slug_id_uq').on(t.slugId),
+    index('customer_domains_idx').using('gin', t.domains),
+    check('customer_name_check', sql`btrim(${t.name}) <> ''`),
+    check('customer_revenue_check', sql`${t.revenue} IS NULL OR ${t.revenue} >= 0`),
+    check('customer_size_check', sql`${t.size} IS NULL OR ${t.size} >= 0`),
+  ],
+);
+
 // A person outside the workspace (Linear's ExternalUser): someone who gave feedback.
 // `email` is stored lowercased and is unique when set. A requester merged into another
 // keeps its row with `merged_into_id` set, so old references still resolve.
@@ -898,6 +963,13 @@ export const externalUser = pgTable(
     summarySentUntil: timestamp('summary_sent_until', { withTimezone: true }),
     lastVisitAt: timestamp('last_visit_at', { withTimezone: true }),
     previousVisitAt: timestamp('previous_visit_at', { withTimezone: true }),
+    // The person's customer, matched by email domain (`domain`) or picked by a member
+    // (`manual`). The store sets both together; `customer_source` means nothing while
+    // `customer_id` is null (a deleted customer's set-null leaves it behind).
+    customerId: uuid('customer_id').references((): AnyPgColumn => customer.id, {
+      onDelete: 'set null',
+    }),
+    customerSource: text('customer_source'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -911,6 +983,11 @@ export const externalUser = pgTable(
       sql`${t.summaryCadence} IN ('weekly', 'daily', 'off')`,
     ),
     check('external_user_name_check', sql`btrim(${t.name}) <> ''`),
+    index('external_user_customer_idx').on(t.customerId),
+    check(
+      'external_user_customer_source_check',
+      sql`${t.customerSource} IS NULL OR ${t.customerSource} IN ('domain', 'manual')`,
+    ),
   ],
 );
 
@@ -960,12 +1037,16 @@ export const customerNeed = pgTable(
     body: text('body'),
     priority: integer('priority').notNull().default(0),
     creatorId: uuid('creator_id').references(() => user.id, { onDelete: 'set null' }),
+    // The request's customer: its requester's customer, or the one given for a request
+    // without a requester.
+    customerId: uuid('customer_id').references(() => customer.id, { onDelete: 'set null' }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('customer_need_issue_idx').on(t.issueId),
+    index('customer_need_customer_idx').on(t.customerId),
     uniqueIndex('customer_need_attachment_uq').on(t.attachmentId),
     check('customer_need_priority_check', sql`${t.priority} IN (0, 1)`),
   ],
@@ -992,6 +1073,12 @@ export const portalBoard = pgTable(
       .notNull()
       .default(sql`'{}'::uuid[]`),
     access: text('access').notNull().default('public'),
+    // Customer access: only the people of this customer read the board. A deleted
+    // customer leaves it null, and then nobody does.
+    customerId: uuid('customer_id').references(() => customer.id, { onDelete: 'set null' }),
+    // `issues` (the team's or project's issues) or `customerRequests` (the issues the
+    // board's customer asked for; needs customer access).
+    shows: text('shows').notNull().default('issues'),
     allowedDomains: text('allowed_domains')
       .array()
       .notNull()
@@ -1020,8 +1107,15 @@ export const portalBoard = pgTable(
   (t) => [
     uniqueIndex('portal_board_slug_uq').on(t.slug),
     check('portal_board_slug_check', sql`${t.slug} ~ '^[a-z0-9-]{1,48}$'`),
-    check('portal_board_scope_check', sql`(${t.teamId} IS NULL) <> (${t.projectId} IS NULL)`),
-    check('portal_board_access_check', sql`${t.access} IN ('public', 'restricted')`),
+    check(
+      'portal_board_scope_check',
+      sql`(${t.shows} = 'customerRequests' AND ${t.teamId} IS NULL AND ${t.projectId} IS NULL) OR (${t.shows} = 'issues' AND (${t.teamId} IS NULL) <> (${t.projectId} IS NULL))`,
+    ),
+    check('portal_board_access_check', sql`${t.access} IN ('public', 'restricted', 'customer')`),
+    check(
+      'portal_board_shows_check',
+      sql`${t.shows} = 'issues' OR (${t.shows} = 'customerRequests' AND ${t.access} = 'customer')`,
+    ),
     check('portal_board_comments_check', sql`${t.comments} IN ('portal', 'all')`),
   ],
 );

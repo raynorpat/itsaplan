@@ -54,6 +54,9 @@ export async function getOrganization() {
     restrictTeamCreationToAdmins: org.teamCreationRole !== 'member',
     restrictLabelManagementToAdmins: org.labelManagementRole !== 'member',
     allowMembersToInvite: org.invitationsRole === 'member',
+    // Customers (customers/settings.ts): on or off, and the revenue currency.
+    customersEnabled: org.customersEnabled,
+    customersConfiguration: { revenueCurrency: org.customersRevenueCurrency },
   };
 }
 

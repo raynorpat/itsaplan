@@ -49,6 +49,10 @@ import { isWorkspaceAdmin, uninstallApplication } from './oauth-install';
 //   GET /instance/imports/github and /instance/imports/github/repositories and POST
 //   /instance/imports/github/disconnect: the GitHub Import App connection the GitHub
 //   imports read through (Linear's GraphQL mutations start and process those).
+// - GET  /instance/customers-settings and POST /instance/customers-settings/save
+//   { enabled?, revenueCurrency? }  Customers on or off and the revenue currency
+//   (apps/api src/customers/settings.ts); members read, owners and admins change.
+//   Same Origin rule for the POST.
 //
 // Linear's schema exposes TeamMembership.owner but no input that sets it, and the
 // vendored schema is never edited, so the owner change lives here too.
@@ -182,6 +186,14 @@ export interface DashboardsHandlers {
   feedback(headers: Headers, body: unknown): Promise<object>;
 }
 
+// Customers (Linear's Customers): the switch and the revenue currency, which Linear's
+// OrganizationUpdateInput has no field for. Owners, admins and members read them,
+// owners and admins change them. Each handler checks the caller itself.
+export interface CustomersHandlers {
+  settings(headers: Headers): Promise<object>;
+  saveSettings(headers: Headers, body: unknown): Promise<object>;
+}
+
 export interface InstanceHandlers {
   version(headers: Headers): Promise<{ version: string }>;
   uploadLimits(headers: Headers): Promise<object>;
@@ -196,6 +208,7 @@ export interface InstanceHandlers {
   forms: FormsHandlers;
   ai: AiHandlers;
   dashboards: DashboardsHandlers;
+  customers: CustomersHandlers;
 }
 
 let handlers: InstanceHandlers | null = null;
@@ -289,6 +302,12 @@ const dashboardsWrite = (
   trusted: string[],
   call: (h: DashboardsHandlers, headers: Headers, body: unknown) => Promise<object>,
 ) => write(path, trusted, (h, headers, body) => call(h.dashboards, headers, body));
+
+const customersWrite = (
+  path: string,
+  trusted: string[],
+  call: (h: CustomersHandlers, headers: Headers, body: unknown) => Promise<object>,
+) => write(path, trusted, (h, headers, body) => call(h.customers, headers, body));
 
 const importsWrite = (
   path: string,
@@ -551,6 +570,17 @@ export const instancePlugin = (options: { trustedOrigins: string[] }) =>
         '/instance/dashboards/feedback',
         options.trustedOrigins,
         (h, headers, body) => h.feedback(headers, body),
+      ),
+      instanceCustomersSettings: createAuthEndpoint(
+        '/instance/customers-settings',
+        { method: 'GET' },
+        async (ctx) =>
+          ctx.json(await run((h) => h.customers.settings(ctx.headers ?? new Headers()))),
+      ),
+      instanceCustomersSettingsSave: customersWrite(
+        '/instance/customers-settings/save',
+        options.trustedOrigins,
+        (h, headers, body) => h.saveSettings(headers, body),
       ),
       instanceAccountEmails: createAuthEndpoint(
         '/instance/account/emails',
