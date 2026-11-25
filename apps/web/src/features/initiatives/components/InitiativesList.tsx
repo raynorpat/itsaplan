@@ -1,14 +1,25 @@
 'use client';
 
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/page/EmptyState';
 import { type InitiativeSummary } from '../services/initiatives.service';
+import { firstDirection, sortInitiatives, type InitiativeSortKey } from '../utils/sortInitiatives';
 import InitiativeRow from './InitiativeRow';
+import InitiativeSortHead from './InitiativeSortHead';
+
+const COLUMNS: { label: string; key: InitiativeSortKey }[] = [
+  { label: 'Name', key: 'name' },
+  { label: 'Health', key: 'health' },
+  { label: 'Owner', key: 'owner' },
+  { label: 'Target date', key: 'targetDate' },
+  { label: 'Projects', key: 'projects' },
+];
 
 // The initiatives table: name and status, health, owner, target date and the number
-// of projects.
+// of projects. Every column sorts in the browser; a second click reverses it.
 export default function InitiativesList({
   initiatives,
   teamKey,
@@ -20,6 +31,16 @@ export default function InitiativesList({
   isLoading: boolean;
   onCreate: () => void;
 }) {
+  const [sort, setSort] = useState<InitiativeSortKey | undefined>(undefined);
+  const [dir, setDir] = useState<'asc' | 'desc'>('asc');
+  const onSort = (key: InitiativeSortKey) => {
+    if (key === sort) setDir(dir === 'asc' ? 'desc' : 'asc');
+    else {
+      setSort(key);
+      setDir(firstDirection(key));
+    }
+  };
+
   if (isLoading) return <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>;
   if (initiatives.length === 0)
     return (
@@ -45,16 +66,21 @@ export default function InitiativesList({
           <col className="w-[12%]" />
         </colgroup>
         <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Health</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead>Target date</TableHead>
-            <TableHead>Projects</TableHead>
+          <TableRow className="hover:bg-transparent">
+            {COLUMNS.map((col) => (
+              <InitiativeSortHead
+                key={col.key}
+                label={col.label}
+                column={col.key}
+                sort={sort}
+                dir={dir}
+                onSort={onSort}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {initiatives.map((i) => (
+          {sortInitiatives(initiatives, sort, dir).map((i) => (
             <InitiativeRow key={i.id} initiative={i} teamKey={teamKey} />
           ))}
         </TableBody>
