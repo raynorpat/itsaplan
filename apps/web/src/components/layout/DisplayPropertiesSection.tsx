@@ -1,6 +1,7 @@
 import { DISPLAY_PROPERTIES, type PropertyKey, type ViewSettings } from '@/utils/viewSettings';
 import { withoutCycleOptions } from '@/utils/cycles';
 import { requestOptions } from '@/utils/requests';
+import { withoutEstimateOptions } from '@/utils/estimates';
 import PropertyChip from '@/components/layout/PropertyChip';
 
 // The Display properties block: one on/off chip per property. The List and the
@@ -10,6 +11,7 @@ export default function DisplayPropertiesSection({
   onChange,
   cyclesOn,
   requestsOn,
+  estimatesOn = true,
 }: {
   settings: ViewSettings;
   onChange: (patch: Partial<ViewSettings>) => void;
@@ -17,8 +19,13 @@ export default function DisplayPropertiesSection({
   // Whether the list has feedback counts (members of a team list); Requests shows
   // only then.
   requestsOn: boolean;
+  // Whether the team estimates; Estimate shows only then.
+  estimatesOn?: boolean;
 }) {
-  const properties = requestOptions(withoutCycleOptions(DISPLAY_PROPERTIES, cyclesOn), requestsOn);
+  const properties = withoutEstimateOptions(
+    requestOptions(withoutCycleOptions(DISPLAY_PROPERTIES, cyclesOn), requestsOn),
+    estimatesOn,
+  );
 
   // Enabling appends; disabling removes.
   const toggleProperty = (property: PropertyKey) =>

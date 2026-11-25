@@ -12,6 +12,7 @@ import {
   SquareArrowOutUpRight,
   Tag,
   Trash2,
+  Triangle,
   User,
   X,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ import { useSession } from '@/lib/auth-client';
 import { useShell } from '@/context/shellContext';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
+import { estimateOptions } from '@/utils/estimates';
 import type { Command, CommandSection } from '@/utils/commands';
 import { DeleteIssueDialog } from '@/components/common/issue/IssueActions';
 import { StateIcon } from '@/components/common/issue/IssueIcons';
@@ -149,6 +151,37 @@ export function useIssueCommands(
         })),
       },
     });
+
+    // Guests read the estimate but do not set it.
+    const estimates = team.viewer.workspaceRole === 'guest' ? [] : estimateOptions(team.estimates);
+    if (estimates.length > 0) {
+      items.push({
+        id: 'issue.estimate',
+        label: 'Set estimate',
+        icon: <Triangle />,
+        keywords: 'points size effort',
+        submenu: {
+          heading: 'Set estimate',
+          placeholder: 'Set estimate to…',
+          items: [
+            {
+              id: 'issue.estimate.none',
+              label: 'No estimate',
+              icon: <CircleDashed />,
+              checked: issue.estimate == null,
+              run: () => patch({ estimate: null }),
+            },
+            ...estimates.map((o) => ({
+              id: `issue.estimate.${o.value}`,
+              label: o.label,
+              icon: <Triangle />,
+              checked: o.value === issue.estimate,
+              run: () => patch({ estimate: o.value }),
+            })),
+          ],
+        },
+      });
+    }
 
     if (members.length > 0) {
       items.push({

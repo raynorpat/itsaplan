@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { TeamDetail } from '@/types/team';
 import type { Issue } from '@/types/issue';
@@ -11,12 +11,13 @@ import { useIsPhone } from '@/hooks/useIsPhone';
 import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
 import IssueContextMenu from '@/components/common/issue/IssueContextMenu';
+import IssueEstimateChip from '@/components/common/issue/IssueEstimateChip';
 import { DropLine } from '@/components/common/board/shared/DropLine';
 import { ListRowContent, type ListRowData } from './ListRowContent';
 import { projectDisplayName } from '@/utils/projectMeta';
 
 // The display data of a team issue, resolved through the team's lookup maps.
-function rowData(issue: Issue, maps: Maps): ListRowData {
+function rowData(issue: Issue, maps: Maps, estimateChip: ReactNode): ListRowData {
   const state = maps.columnById.get(issue.stateId);
   const person = (id: string | null | undefined) => {
     const u = id != null ? maps.assigneeById.get(id) : undefined;
@@ -35,6 +36,7 @@ function rowData(issue: Issue, maps: Maps): ListRowData {
     project: issue.project ? projectDisplayName(issue.project) : null,
     cycle: cycle ? cycleLabel(cycle) : null,
     estimate: issue.estimate,
+    estimateChip,
     dueDate: issue.dueDate
       ? { date: issue.dueDate, overdue: isDueOverdue(issue.dueDate, state?.stateType) }
       : null,
@@ -155,7 +157,11 @@ export function ListRow({
       >
         {showDropLine && <DropLine className="top-0" />}
         <ListRowContent
-          data={rowData(issue, maps)}
+          data={rowData(
+            issue,
+            maps,
+            <IssueEstimateChip team={team} issue={issue} readOnly={readOnly} />,
+          )}
           properties={properties}
           indented={indented}
           selected={selected}

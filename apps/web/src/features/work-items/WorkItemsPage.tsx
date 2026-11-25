@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { estimatesUsed } from '@/utils/estimates';
 import { PreferencesError } from '@/components/common/page/PreferencesError';
 import { useShell } from '@/context/shellContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -152,6 +153,7 @@ export default function WorkItemsPage() {
     onSettingsChange: changeSettings,
     cyclesOn: cyclesVisible(team),
     requestsOn: team.viewer.workspaceRole !== 'guest',
+    estimatesOn: estimatesUsed(team.estimates),
   };
 
   return (

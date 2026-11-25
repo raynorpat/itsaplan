@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { estimatesUsed } from '@/utils/estimates';
 import { useShell } from '@/context/shellContext';
 import { useListBoardSettings } from '@/hooks/useListBoardSettings';
 import { PreferencesError } from '@/components/common/page/PreferencesError';
@@ -103,6 +104,7 @@ export default function CycleIssuesBoard({
             onSettingsChange={board.changeSettings}
             cyclesOn
             requestsOn={team.viewer.workspaceRole !== 'guest'}
+            estimatesOn={estimatesUsed(team.estimates)}
           />
         </div>
       </div>

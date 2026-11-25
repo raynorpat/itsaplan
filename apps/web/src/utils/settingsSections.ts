@@ -6,6 +6,7 @@ import {
   RefreshCcw,
   Rocket,
   Tags,
+  Triangle,
   Webhook,
   Workflow,
 } from 'lucide-react';
@@ -60,6 +61,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Cycles',
     description: "Repeating, time-boxed cycles to plan the team's work in.",
     icon: RefreshCcw,
+    resource: 'work_items',
+    group: 'configuration',
+  },
+  {
+    slug: 'estimates',
+    label: 'Estimates',
+    description: 'The scale issues are estimated on, and what an unestimated issue counts as.',
+    icon: Triangle,
     resource: 'work_items',
     group: 'configuration',
   },

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Issue } from '@/types/issue';
 import type { StateType } from '@/types/team';
 import type { ListField, ListRowProperties } from '@/utils/list';
@@ -16,6 +17,8 @@ export interface ListRowData {
   project: string | null;
   cycle: string | null;
   estimate: number | null;
+  // Shown in place of the plain estimate chip (a team row's picker chip).
+  estimateChip?: ReactNode;
   dueDate: { date: string; overdue: boolean } | null;
   assignee: { name: string; image: string | null } | null;
   delegate: { name: string; image: string | null } | null;

@@ -2,6 +2,7 @@ import { ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import { SORT_FIELDS, sortForField, type SortField, type WorkItemsView } from '@/utils/viewTypes';
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import { withoutCycleOptions } from '@/utils/cycles';
+import { withoutEstimateOptions } from '@/utils/estimates';
 import { requestOptions } from '@/utils/requests';
 import { useCustomersEnabled } from '@/hooks/useCustomersEnabled';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ export default function DisplayGroupingRows({
   onChange,
   cyclesOn,
   requestsOn,
+  estimatesOn = true,
 }: {
   view: WorkItemsView;
   settings: ViewSettings;
@@ -40,6 +42,8 @@ export default function DisplayGroupingRows({
   cyclesOn: boolean;
   // Whether the list has feedback counts; ordering by Requests shows only then.
   requestsOn: boolean;
+  // Whether the team estimates; ordering by Estimate shows only then.
+  estimatesOn?: boolean;
 }) {
   const customersOn = useCustomersEnabled();
   // Changing the primary group clears a sub-group that would now duplicate it.
@@ -53,7 +57,10 @@ export default function DisplayGroupingRows({
   // The sub-group never offers the field already used by the primary group.
   const subgroupOptions = options.filter((o) => o.value !== settings.group);
   // Customer revenue is offered while Customers is on, cycle while the team uses cycles.
-  const sortOptions = requestOptions(SORT_FIELDS, requestsOn).filter(
+  const sortOptions = withoutEstimateOptions(
+    requestOptions(SORT_FIELDS, requestsOn),
+    estimatesOn,
+  ).filter(
     (f) => (customersOn || f.value !== 'customerRevenue') && (cyclesOn || f.value !== 'cycle'),
   );
   const showsGrouping = view === 'kanban' || view === 'list' || view === 'timeline';

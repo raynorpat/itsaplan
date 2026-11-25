@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-// One labelled row of the cycle settings, with its control on the right.
-export default function CycleSettingRow({
+// One labelled row of a settings section, with its control on the right.
+export default function SettingRow({
   label,
   hint,
   children,

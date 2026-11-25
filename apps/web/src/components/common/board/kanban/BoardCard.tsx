@@ -11,6 +11,8 @@ import type { PropertyKey } from '@/utils/viewSettings';
 import IssueContextMenu from '@/components/common/issue/IssueContextMenu';
 import { useSelection } from '@/context/useSelection';
 import { IssueCardBody } from './IssueCardBody';
+import IssueEstimateChip from '@/components/common/issue/IssueEstimateChip';
+import { estimatesUsed } from '@/utils/estimates';
 
 // A draggable board card. Dragging it starts a move; the drop target that inserts
 // before it is its wrapping CardDropSlot. A plain click opens it, but with a
@@ -87,7 +89,16 @@ export function BoardCard({
           selected && 'kanban-card-selected',
         )}
       >
-        <IssueCardBody issue={issue} maps={maps} properties={properties} />
+        <IssueCardBody
+          issue={issue}
+          maps={maps}
+          properties={properties}
+          estimateChip={
+            estimatesUsed(team.estimates) ? (
+              <IssueEstimateChip team={team} issue={issue} readOnly={readOnly} />
+            ) : null
+          }
+        />
       </div>
     </IssueContextMenu>
   );

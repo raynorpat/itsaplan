@@ -9,6 +9,8 @@ import { Pill } from '@/components/common/fields/Pill';
 import ReadOnlyPill from '@/components/common/fields/ReadOnlyPill';
 import LabelsSelect from '@/components/common/fields/LabelsSelect';
 import PrioritySelect from '@/components/common/fields/PrioritySelect';
+import EstimateSelect from '@/components/common/fields/EstimateSelect';
+import { estimatesUsed } from '@/utils/estimates';
 import StatusSelect from '@/components/common/fields/StatusSelect';
 import CycleSelect from '@/components/common/fields/CycleSelect';
 import { cyclesVisible, knownCycles } from '@/utils/cycles';
@@ -29,8 +31,8 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-// The issue's properties as Linear lists them: status, assignee, delegate, priority,
-// project and milestone, cycle, release, due date and labels, each editable inline. In a
+// The issue's properties as Linear lists them: status, priority, estimate, assignee,
+// delegate, project and milestone, cycle, release, due date and labels, each editable inline. In a
 // sidebar they are one flat column; in the panel a wrapping row under the content.
 export default function IssueProperties({
   team,
@@ -71,6 +73,17 @@ export default function IssueProperties({
           readOnly={readOnly}
         />
       </PropertyRow>
+
+      {estimatesUsed(team.estimates) && (
+        <PropertyRow label="Estimate">
+          <EstimateSelect
+            settings={team.estimates}
+            value={issue.estimate}
+            onChange={(v) => onPatch({ estimate: v })}
+            readOnly={readOnly || team.viewer.workspaceRole === 'guest'}
+          />
+        </PropertyRow>
+      )}
 
       {hasMembers && (
         <PropertyRow label="Assignee">

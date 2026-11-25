@@ -15,6 +15,7 @@ export default function DisplayPopover({
   onSettingsChange,
   cyclesOn,
   requestsOn,
+  estimatesOn,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
@@ -24,6 +25,8 @@ export default function DisplayPopover({
   cyclesOn: boolean;
   // Whether the list has feedback counts (not for guests); Requests shows only then.
   requestsOn: boolean;
+  // Whether the team estimates; the Estimate property and ordering show only then.
+  estimatesOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -48,6 +51,7 @@ export default function DisplayPopover({
           onSettingsChange={onSettingsChange}
           cyclesOn={cyclesOn}
           requestsOn={requestsOn}
+          estimatesOn={estimatesOn}
         />
       </PopoverContent>
     </Popover>

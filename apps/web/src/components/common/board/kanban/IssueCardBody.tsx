@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { CalendarClock, CalendarPlus, History, RefreshCcw, Target } from 'lucide-react';
 import { RequestsBadge } from '@/components/common/issue/RequestsBadge';
 import { EstimateBadge } from '@/components/common/issue/EstimateBadge';
@@ -28,10 +29,14 @@ export function IssueCardBody({
   issue,
   maps,
   properties,
+  estimateChip,
 }: {
   issue: Issue;
   maps: Maps;
   properties: PropertyKey[];
+  // The team's estimate chip (a picker for members); null hides the estimate (the team
+  // does not estimate). Without it the plain chip shows.
+  estimateChip?: ReactNode;
 }) {
   const has = (p: DisplayProperty) => properties.includes(p);
   const assignee =
@@ -45,7 +50,7 @@ export function IssueCardBody({
   const showDelegate = has('delegate') && delegate;
   const propertiesShown =
     (has('priority') && issue.priority > 0) ||
-    (has('estimate') && issue.estimate != null) ||
+    (has('estimate') && issue.estimate != null && estimateChip !== null) ||
     (has('dueDate') && issue.dueDate) ||
     (has('project') && project) ||
     (has('cycle') && cycle) ||
@@ -99,7 +104,12 @@ export function IssueCardBody({
       {propertiesShown && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {has('priority') && issue.priority > 0 && <PriorityBadge priority={issue.priority} />}
-          {has('estimate') && <EstimateBadge estimate={issue.estimate} />}
+          {has('estimate') &&
+            (estimateChip !== undefined ? (
+              estimateChip
+            ) : (
+              <EstimateBadge estimate={issue.estimate} />
+            ))}
           {has('dueDate') && issue.dueDate && (
             <DateBadge
               icon={<CalendarClock className="size-2.5" />}

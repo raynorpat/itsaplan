@@ -1,3 +1,4 @@
+import type { TeamEstimateSettings } from '@/utils/estimates';
 import type { WorkspaceRole } from '@/types/workspace';
 import type { Issue } from '@/types/issue';
 import type { FilterSet } from '@/utils/filters';
@@ -131,6 +132,8 @@ export interface Cycle {
 export interface TeamScaffold {
   team: Team;
   cycles: TeamCycleSettings;
+  // How the team estimates (Linear's Team.issueEstimation*).
+  estimates: TeamEstimateSettings;
   // The team's current and upcoming cycles, for the cycle pickers. Past cycles come
   // with their issues (Issue.cycle).
   teamCycles: Cycle[];

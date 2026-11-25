@@ -15,6 +15,7 @@ import {
   Tag,
   Target,
   Trash2,
+  Triangle,
   User,
   X,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ import { useSession } from '@/lib/auth-client';
 import { toDateStr } from '@/utils/dates';
 import { colorDot } from '@/components/common/fields/colorDot';
 import { PRIORITY_FIELDS } from '@/components/common/fields/priorityFields';
+import { estimateOptions } from '@/utils/estimates';
 import { StateIcon } from './IssueIcons';
 import FavoriteMenuItem from '@/components/common/favorites/FavoriteMenuItem';
 import { dueDatePresets, formatPreset } from '@/utils/dueDatePresets';
@@ -53,7 +55,7 @@ function SelectedCheck({ selected }: { selected: boolean }) {
 }
 
 // Wraps a issue card/row (any single element) so a right-click opens a context
-// menu that changes its status, priority, assignee, project, labels or due
+// menu that changes its status, priority, estimate, assignee, project, labels or due
 // date, or deletes it. Shared by every team view (Kanban, Table, Calendar, Timeline).
 // onDeleted lets a host that is showing this one issue (the detail panel/page)
 // leave after deletion; the team views leave it unset — the card just
@@ -75,6 +77,8 @@ export default function IssueContextMenu({
   const shell = useContext(ShellCtx);
   const { data: session } = useSession();
   const canEdit = can('work_items', 'edit');
+  // Guests read the estimate but do not set it.
+  const estimates = team.viewer.workspaceRole === 'guest' ? [] : estimateOptions(team.estimates);
   const canDelete = can('work_items', 'delete');
   const updateIssue = useUpdateIssueDetail(team.team.key);
   const archiveIssue = useArchiveIssue(team.team.key);
@@ -178,6 +182,29 @@ export default function IssueContextMenu({
                   ))}
                 </ContextMenuSubContent>
               </ContextMenuSub>
+
+              {estimates.length > 0 && (
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger>
+                    <Triangle />
+                    Estimate
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-44">
+                    <ContextMenuItem onSelect={() => patch({ estimate: null })}>
+                      <CircleDashed />
+                      <span className="flex-1">No estimate</span>
+                      <SelectedCheck selected={issue.estimate == null} />
+                    </ContextMenuItem>
+                    {estimates.map((o) => (
+                      <ContextMenuItem key={o.value} onSelect={() => patch({ estimate: o.value })}>
+                        <Triangle />
+                        <span className="flex-1">{o.label}</span>
+                        <SelectedCheck selected={o.value === issue.estimate} />
+                      </ContextMenuItem>
+                    ))}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+              )}
 
               {members.length > 0 && (
                 <ContextMenuSub>

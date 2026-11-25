@@ -176,6 +176,7 @@ function toUpdateInput(patch: IssuePatch) {
   if (patch.title !== undefined) input.title = patch.title;
   if (patch.description !== undefined) input.description = patch.description;
   if (patch.priority !== undefined) input.priority = patch.priority;
+  if (patch.estimate !== undefined) input.estimate = patch.estimate;
   if (patch.dueDate !== undefined) input.dueDate = patch.dueDate;
   if (patch.labelIds !== undefined) input.labelIds = patch.labelIds;
   return input;

@@ -1,6 +1,6 @@
 import { Switch } from '@/components/ui/switch';
 import type { CycleSettingsFormState } from '../../hooks/useCycleSettingsForm';
-import CycleSettingRow from './CycleSettingRow';
+import SettingRow from '../SettingRow';
 import CycleNumberSelect from './CycleNumberSelect';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -14,17 +14,17 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
   const { values, set, editable } = form;
   return (
     <section className="flex flex-col gap-4">
-      <CycleSettingRow label="Enable cycles" hint="Plan work in repeating, time-boxed cycles.">
+      <SettingRow label="Enable cycles" hint="Plan work in repeating, time-boxed cycles.">
         <Switch
           checked={values.enabled}
           onCheckedChange={(enabled) => set({ enabled })}
           disabled={!editable}
           aria-label="Enable cycles"
         />
-      </CycleSettingRow>
+      </SettingRow>
       {values.enabled && (
         <>
-          <CycleSettingRow label="Cycle length">
+          <SettingRow label="Cycle length">
             <CycleNumberSelect
               label="Cycle length"
               value={values.duration}
@@ -33,8 +33,8 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               onChange={(duration) => set({ duration })}
               disabled={!editable}
             />
-          </CycleSettingRow>
-          <CycleSettingRow label="Cycle starts on" hint="Cycles start and end on UTC days.">
+          </SettingRow>
+          <SettingRow label="Cycle starts on" hint="Cycles start and end on UTC days.">
             <CycleNumberSelect
               label="Cycle start day"
               value={values.startDay}
@@ -43,8 +43,8 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               onChange={(startDay) => set({ startDay })}
               disabled={!editable}
             />
-          </CycleSettingRow>
-          <CycleSettingRow label="Cooldown" hint="A break between one cycle and the next.">
+          </SettingRow>
+          <SettingRow label="Cooldown" hint="A break between one cycle and the next.">
             <CycleNumberSelect
               label="Cooldown"
               value={values.cooldown}
@@ -53,8 +53,8 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               onChange={(cooldown) => set({ cooldown })}
               disabled={!editable}
             />
-          </CycleSettingRow>
-          <CycleSettingRow
+          </SettingRow>
+          <SettingRow
             label="Upcoming cycles"
             hint="How many cycles are created ahead of the current one."
           >
@@ -66,8 +66,8 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               onChange={(upcomingCount) => set({ upcomingCount })}
               disabled={!editable}
             />
-          </CycleSettingRow>
-          <CycleSettingRow
+          </SettingRow>
+          <SettingRow
             label="Add started issues to the current cycle"
             hint="An issue moved to a started state joins the current cycle."
           >
@@ -77,8 +77,8 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               disabled={!editable}
               aria-label="Add started issues to the current cycle"
             />
-          </CycleSettingRow>
-          <CycleSettingRow
+          </SettingRow>
+          <SettingRow
             label="Add completed issues to the current cycle"
             hint="An issue completed outside a cycle joins the current cycle."
           >
@@ -88,7 +88,7 @@ export default function SettingsCycles({ form }: { form: CycleSettingsFormState 
               disabled={!editable}
               aria-label="Add completed issues to the current cycle"
             />
-          </CycleSettingRow>
+          </SettingRow>
         </>
       )}
     </section>

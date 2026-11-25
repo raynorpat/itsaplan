@@ -5,6 +5,8 @@
 // writes put the stored result straight into the cache.
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import type { EstimationType } from '@/utils/estimates';
+import type { estimateSettingsInput } from '../utils/estimateSettings';
 import type { Issue } from '@/types/issue';
 import type { Label, LabelGroup, StateType, TeamScaffold } from '@/types/team';
 import type { NotificationPreferences } from '@/features/settings/utils/notificationPreferences';
@@ -433,6 +435,47 @@ export function useUpdateTeamCycles(teamKey: string, teamId: string) {
       // The sidebar shows a team's Cycles entry from the teams list.
       void qc.invalidateQueries({ queryKey: qk.teams });
       void qc.invalidateQueries({ queryKey: qk.anyCycle });
+    },
+  });
+}
+
+const TeamEstimatesUpdate = graphql(`
+  mutation TeamEstimatesUpdate($id: String!, $input: TeamUpdateInput!) {
+    teamUpdate(id: $id, input: $input) {
+      team {
+        issueEstimationType
+        issueEstimationExtended
+        issueEstimationAllowZero
+        defaultIssueEstimate
+      }
+    }
+  }
+`);
+
+// Estimates section: writes the team's estimate scale through teamUpdate and puts the
+// stored values into the team scaffold, which the pickers, chips and Display menu read.
+export function useUpdateTeamEstimates(teamKey: string, teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ReturnType<typeof estimateSettingsInput>) =>
+      gqlRequest(TeamEstimatesUpdate, { id: teamId, input }),
+    onSuccess: ({ teamUpdate: { team } }) => {
+      if (!team) return;
+      qc.setQueryData<TeamScaffold>(qk.team(teamKey), (old) =>
+        old
+          ? {
+              ...old,
+              estimates: {
+                type: team.issueEstimationType as EstimationType,
+                extended: team.issueEstimationExtended,
+                allowZero: team.issueEstimationAllowZero,
+                defaultEstimate: team.defaultIssueEstimate,
+              },
+            }
+          : old,
+      );
+      // Progress counts unestimated issues as the default estimate.
+      void qc.invalidateQueries({ queryKey: qk.team(teamKey) });
     },
   });
 }

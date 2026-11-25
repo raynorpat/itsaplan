@@ -172,6 +172,8 @@ export interface IssuePatch {
   title?: string;
   description?: string;
   priority?: number;
+  // On the team's estimate scale; null clears it.
+  estimate?: number | null;
   dueDate?: string | null;
   labelIds?: string[];
 }

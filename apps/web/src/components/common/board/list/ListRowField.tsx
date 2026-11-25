@@ -40,7 +40,11 @@ export function ListRowField({ field, data }: { field: ListField; data: ListRowD
         </span>
       ) : null;
     case 'estimate':
-      return <EstimateBadge estimate={data.estimate} />;
+      return data.estimateChip !== undefined ? (
+        data.estimateChip
+      ) : (
+        <EstimateBadge estimate={data.estimate} />
+      );
     case 'dueDate':
       return data.dueDate ? (
         <span className="shrink-0">

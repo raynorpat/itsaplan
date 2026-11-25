@@ -19,6 +19,7 @@ export default function DisplaySettingsBody({
   onSettingsChange,
   cyclesOn,
   requestsOn,
+  estimatesOn,
 }: {
   view: WorkItemsView;
   onViewChange: (view: WorkItemsView) => void;
@@ -26,6 +27,7 @@ export default function DisplaySettingsBody({
   onSettingsChange: (settings: ViewSettings) => void;
   cyclesOn: boolean;
   requestsOn: boolean;
+  estimatesOn?: boolean;
 }) {
   const set = (patch: Partial<ViewSettings>) => onSettingsChange({ ...settings, ...patch });
 
@@ -39,6 +41,7 @@ export default function DisplaySettingsBody({
         onChange={set}
         cyclesOn={cyclesOn}
         requestsOn={requestsOn}
+        estimatesOn={estimatesOn}
       />
 
       <DisplayIssueRows settings={settings} onChange={set} />
@@ -53,6 +56,7 @@ export default function DisplaySettingsBody({
           onChange={set}
           cyclesOn={cyclesOn}
           requestsOn={requestsOn}
+          estimatesOn={estimatesOn}
         />
       )}
     </div>

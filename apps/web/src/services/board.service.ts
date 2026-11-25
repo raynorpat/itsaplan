@@ -18,6 +18,11 @@ import { fetchAllPages } from '@/utils/fetchAllPages';
 import { teamAccess } from '@/utils/members';
 import { mentionCandidates } from '@/utils/mentionCandidates';
 import { delegateCandidates } from '@/utils/delegates';
+import {
+  ESTIMATION_TYPES,
+  type EstimationType,
+  type TeamEstimateSettings,
+} from '@/utils/estimates';
 
 // The board over GraphQL: the team scaffold (states, labels, members, the viewer's
 // access) and every active issue of the team. The board, table, calendar and
@@ -45,6 +50,10 @@ const ScaffoldQuery = graphql(`
       upcomingCycleCount
       cycleIssueAutoAssignStarted
       cycleIssueAutoAssignCompleted
+      issueEstimationType
+      issueEstimationExtended
+      issueEstimationAllowZero
+      defaultIssueEstimate
       cycles(first: 50, filter: { isPast: { eq: false } }) {
         nodes {
           id
@@ -234,6 +243,14 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
     autoAssignStarted: team.cycleIssueAutoAssignStarted,
     autoAssignCompleted: team.cycleIssueAutoAssignCompleted,
   };
+  const estimates: TeamEstimateSettings = {
+    type: ESTIMATION_TYPES.some((t) => t.value === team.issueEstimationType)
+      ? (team.issueEstimationType as EstimationType)
+      : 'notUsed',
+    extended: team.issueEstimationExtended,
+    allowZero: team.issueEstimationAllowZero,
+    defaultEstimate: team.defaultIssueEstimate,
+  };
   const teamCycles: Cycle[] = team.cycles.nodes.map((c) => ({
     id: c.id,
     number: c.number,
@@ -252,6 +269,7 @@ export async function fetchTeamScaffold(teamKey: string): Promise<TeamScaffold> 
   return {
     team: teamRow,
     cycles,
+    estimates,
     teamCycles,
     states,
     labels,
