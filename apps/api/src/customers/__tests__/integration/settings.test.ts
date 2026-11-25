@@ -182,7 +182,10 @@ describe('customers settings', () => {
   it('with Customers off, statuses and tiers read as empty', async () => {
     const owner = await signUpTestUser();
     await turnOn(owner);
+    await gqlData(owner, CREATE_TIER, { input: { name: 'Enterprise', color: '#5e6ad2' } });
     await ok(await save(owner, { enabled: false }));
     expect(await statusNames(owner)).toEqual([]);
+    const tiers = await gqlData(owner, `{ customerTiers { nodes { id } } }`);
+    expect(tiers.customerTiers.nodes).toEqual([]);
   });
 });

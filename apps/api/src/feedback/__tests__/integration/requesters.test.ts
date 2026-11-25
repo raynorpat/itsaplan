@@ -192,13 +192,27 @@ describe('requesters', () => {
     const { owner, issue } = await setup();
     const jane = await create(owner, { name: 'Jane' });
     const sam = await create(owner, { name: 'Sam' });
-    await addFeedback(owner, issue.id, jane.id, 'First');
+    const first = await addFeedback(owner, issue.id, jane.id, 'First');
     await addFeedback(owner, issue.id, jane.id, 'Second');
-    const people = await list(owner);
-    const j = people.find((p) => p.id === jane.id)!;
-    expect(j.firstFeedbackAt).toBeTruthy();
-    expect(j.firstFeedbackAt <= j.lastFeedbackAt).toBe(true);
-    expect(people.find((p) => p.id === sam.id)!.firstFeedbackAt).toBeNull();
+    const data = await gqlData(
+      owner,
+      `query ($id: String!) { issue(id: $id) { needs { nodes { body createdAt } } } }`,
+      { id: issue.id },
+    );
+    const createdAt = (body: string) =>
+      new Date(
+        (data.issue.needs.nodes as Json[]).find((n) => n.body === body)!.createdAt,
+      ).getTime();
+    const firstOf = async (id: string) =>
+      new Date((await list(owner)).find((p) => p.id === id)!.firstFeedbackAt).getTime();
+    expect(await firstOf(jane.id)).toBe(createdAt('First'));
+    expect(createdAt('First')).toBeLessThan(createdAt('Second'));
+    expect((await list(owner)).find((p) => p.id === sam.id)!.firstFeedbackAt).toBeNull();
+    // Archived feedback does not count.
+    await gqlData(owner, `mutation ($id: String!) { customerNeedArchive(id: $id) { success } }`, {
+      id: first,
+    });
+    expect(await firstOf(jane.id)).toBe(createdAt('Second'));
   });
 
   it('lists the people whose first feedback is on or after a date, without names', async () => {

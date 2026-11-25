@@ -30,7 +30,7 @@ import { sinceLastVisit as sinceLastVisitOf } from '../../visits';
 // writes the summaries' paragraph; any failure falls back to the round-up. The portal
 // shows "Since your last visit" from the same changes.
 
-type Mode = 'ok' | 'error' | 'hang' | 'notJson' | 'long';
+type Mode = 'ok' | 'slow' | 'error' | 'hang' | 'notJson' | 'long';
 
 interface Stub {
   mode: Mode;
@@ -70,6 +70,9 @@ function startStub(): Stub {
           });
         case 'long':
           return Response.json({ choices: [{ message: { content: 'x'.repeat(3_000) } }] });
+        case 'slow':
+          await Bun.sleep(500);
+          return Response.json({ choices: [{ message: { content: stub.reply } }] });
         case 'ok':
           return Response.json({ choices: [{ message: { content: `  ${stub.reply}  ` } }] });
       }
@@ -447,13 +450,20 @@ describe('since your last visit', () => {
     await updateIssue(member, issue.id, { stateId: states.started });
     await visitedHoursAgo(v.requesterId, 2);
     await sinceLastVisit(v.cookie);
-    stub.mode = 'hang';
+    stub.mode = 'slow';
+    stub.requests = [];
     await db.delete(portalSummaryCache);
     const started = Date.now();
-    const quick = await sinceLastVisitOf(v.requesterId, new Date(), { waitMs: 100 });
-    expect(Date.now() - started).toBeLessThan(1_500);
+    const quick = await sinceLastVisitOf(v.requesterId, undefined, { waitMs: 100 });
+    expect(Date.now() - started).toBeLessThan(400);
     expect(quick.paragraph).toBeNull();
     expect(quick.lines).toEqual(['Dark mode moved to In progress']);
+    await Bun.sleep(600);
+    expect(await sinceLastVisit(v.cookie)).toEqual({
+      paragraph: 'Dark mode is now being worked on.',
+      lines: ['Dark mode moved to In progress'],
+    });
+    expect(stub.requests).toHaveLength(1);
   });
 
   it('needs a signed-in visitor', async () => {

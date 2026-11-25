@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
+  createLabel,
   createProject,
   createTeam,
   gqlData,
@@ -108,11 +109,32 @@ beforeEach(async () => {
 describe('a form on its link', () => {
   it('shows the form while the link is on, without option mappings', async () => {
     const { owner, template } = await setup();
+    const bug = await createLabel(owner, { name: 'bug', teamId: 'ENG' });
+    const kind = {
+      id: 'kind',
+      type: 'select',
+      label: 'Type',
+      required: false,
+      options: [
+        { id: 'bug', label: 'Bug', labelId: bug.id },
+        { id: 'idea', label: 'Idea', priority: 3 },
+      ],
+    };
+    await gqlData(
+      owner,
+      `mutation ($id: String!, $input: TemplateUpdateInput!) {
+        templateUpdate(id: $id, input: $input) { success } }`,
+      { id: template.id, input: { templateData: { formFields: [...FIELDS, kind] } } },
+    );
     await settings(owner, template.id, { intro: 'Tell us what broke.' });
     const body = await ok(await portal('forms/bugs'));
     expect(body.name).toBe('Bug report');
     expect(body.intro).toBe('Tell us what broke.');
-    expect(body.fields.map((f: Json) => f.id)).toEqual(['title', 'details']);
+    expect(body.fields.map((f: Json) => f.id)).toEqual(['title', 'details', 'kind']);
+    expect(body.fields[2].options).toEqual([
+      { id: 'bug', label: 'Bug' },
+      { id: 'idea', label: 'Idea' },
+    ]);
     expect(body.visitor).toBeNull();
     await settings(owner, template.id, { linkEnabled: false });
     expect((await portal('forms/bugs')).status).toBe(404);

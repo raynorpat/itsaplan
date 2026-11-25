@@ -392,7 +392,7 @@ describe('graphql customer needs (feedback)', () => {
     expect(actions).toEqual([`create:${need.id}`, `remove:${need.id}`]);
   });
 
-  it('sends no notification and runs no automation', async () => {
+  it('sends no notification', async () => {
     const { owner, stateId, jane } = await setup();
     const member = await signUpAs('member');
     await addMember(owner, 'MKT', member.userId);

@@ -7,9 +7,6 @@ import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
 import { ORIGIN } from '../../../__tests__/helpers/oauth';
-import { getBoardBySlug } from '../../boards';
-import { canReadBoard } from '../../access';
-import { visitorFromRequest } from '../../session';
 import { portalLinks as links } from '../helpers';
 
 // Portal sign-in: a visitor asks for a link on a board, confirms it on the confirm page
@@ -307,16 +304,14 @@ describe('portal sign-in', () => {
   it('checks a restricted board on every request', async () => {
     const { owner, acme } = await setup();
     const cookie = await signIn(address('acme.test'), 'acme');
-    const request = () => new Request('http://localhost/portal/me', { headers: { cookie } });
-    const board = (await getBoardBySlug('acme'))!;
-    expect(canReadBoard(board, await visitorFromRequest(request()))).toBe(true);
-    expect(canReadBoard((await getBoardBySlug('open'))!, null)).toBe(true);
-    expect(canReadBoard(board, null)).toBe(false);
+    const issues = (board: string, cookie?: string) => portal(`boards/${board}/issues`, { cookie });
+    expect((await issues('acme', cookie)).status).toBe(200);
+    expect((await issues('open')).status).toBe(200);
+    expect((await issues('acme')).status).toBe(404);
     await ok(
       await instance('portal/boards/update', owner, { id: acme.id, allowedDomains: ['else.test'] }),
     );
-    const changed = (await getBoardBySlug('acme'))!;
-    expect(canReadBoard(changed, await visitorFromRequest(request()))).toBe(false);
+    expect((await issues('acme', cookie)).status).toBe(404);
   });
 
   it('blocks a requester: sessions end, links stop, owners and admins only', async () => {

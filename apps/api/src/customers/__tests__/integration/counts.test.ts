@@ -169,23 +169,28 @@ describe('customer counts', () => {
       owner,
       `mutation { customerTierCreate(input: { name: "Enterprise", color: "#ff0000" }) { tier { id } } }`,
     );
-    for (const name of ['A', 'B', 'C', 'D', 'E', 'F']) {
-      const id = await customer(owner, name, [`${name.toLowerCase()}.com`]);
-      await gqlData(
-        owner,
-        `mutation($id: String!, $tierId: String) { customerUpdate(id: $id, input: { tierId: $tierId }) { success } }`,
-        { id, tierId: tier.customerTierCreate.tier.id },
-      );
-      await feedback(owner, issue.id, await person(owner, name, `x@${name.toLowerCase()}.com`));
-    }
+    const add = async (names: string[]) => {
+      for (const name of names) {
+        const id = await customer(owner, name, [`${name.toLowerCase()}.com`]);
+        await gqlData(
+          owner,
+          `mutation($id: String!, $tierId: String) { customerUpdate(id: $id, input: { tierId: $tierId }) { success } }`,
+          { id, tierId: tier.customerTierCreate.tier.id },
+        );
+        await feedback(owner, issue.id, await person(owner, name, `x@${name.toLowerCase()}.com`));
+      }
+    };
     const list = () =>
       gqlData(
         owner,
         `{ customers { nodes { id status { name } tier { name } approximateNeedCount } } }`,
       );
+    await add(['A', 'B']);
     const few = await countStatements(list);
-    expect((await list()).customers.nodes).toHaveLength(6);
-    expect(few).toBeLessThanOrEqual(12);
+    await add(['C', 'D', 'E', 'F', 'G', 'H']);
+    const many = await countStatements(list);
+    expect((await list()).customers.nodes).toHaveLength(8);
+    expect(many).toBe(few);
   });
 
   it('the customer need filter matches nothing while Customers is off', async () => {
