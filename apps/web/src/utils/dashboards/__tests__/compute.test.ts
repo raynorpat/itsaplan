@@ -565,6 +565,27 @@ describe('customers', () => {
     }
   });
 
+  it('breaks ties in a table by its first column', () => {
+    const customers = [
+      customer({ id: 'z', name: 'Zeta', requests: 3 }),
+      customer({ id: 'a', name: 'Acme', requests: 3 }),
+      customer({ id: 'm', name: 'Mid', requests: 7 }),
+    ];
+    const t = widget('table', {
+      data: 'customers',
+      measure: 'customers',
+      filter: {},
+      table: { columns: ['requests'], limit: 10, sort: 'requests:desc' },
+    });
+    const r = computeWidget(t, { customers }, ctx());
+    assert.equal(r.kind, 'table');
+    if (r.kind === 'table')
+      assert.deepEqual(
+        r.rows.map((x) => x.id),
+        ['m', 'a', 'z'],
+      );
+  });
+
   it('keeps customers when a dashboard team is picked and filters by tier', () => {
     const customers = [customer({ id: 'a', tierId: 't1' }), customer({ id: 'b' })];
     const w = widget('number', {

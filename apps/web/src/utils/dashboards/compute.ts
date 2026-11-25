@@ -168,17 +168,23 @@ function compareCells(a: Cell, b: Cell): number {
   return String(a).localeCompare(String(b));
 }
 
-function sortedTable(rows: TableRow[], sort: string, limit: number): TableRow[] {
+// Ties are broken by the data kind's first column (a name or identifier), ascending,
+// so equal rows keep one order between loads.
+function sortedTable(rows: TableRow[], sort: string, limit: number, tieColumn: string): TableRow[] {
   const [column = '', direction] = sort.split(':');
   const sign = direction === 'asc' ? 1 : -1;
+  const byColumn = (x: TableRow, y: TableRow): number => {
+    const a = x.cells[column] ?? null;
+    const b = y.cells[column] ?? null;
+    // Empty cells go last whichever way the column is sorted.
+    if (a == null || b == null) return compareCells(a, b);
+    return sign * compareCells(a, b);
+  };
   return [...rows]
-    .sort((x, y) => {
-      const a = x.cells[column] ?? null;
-      const b = y.cells[column] ?? null;
-      // Empty cells go last whichever way the column is sorted.
-      if (a == null || b == null) return compareCells(a, b);
-      return sign * compareCells(a, b);
-    })
+    .sort(
+      (x, y) =>
+        byColumn(x, y) || compareCells(x.cells[tieColumn] ?? null, y.cells[tieColumn] ?? null),
+    )
     .slice(0, limit);
 }
 
@@ -351,7 +357,12 @@ export function computeWidget(widget: Widget, all: WidgetRows, ctx: ComputeConte
     const table = config.table ?? { columns: [], limit: 10, sort: '' };
     const known = new Map(TABLE_COLUMNS[config.data].map((c) => [c.id, c]));
     const columns = table.columns.map((id) => known.get(id)).filter((c): c is ColumnDef => !!c);
-    const rows = sortedTable(adapter.table(items, list, ctx), table.sort, table.limit).map((r) => ({
+    const rows = sortedTable(
+      adapter.table(items, list, ctx),
+      table.sort,
+      table.limit,
+      TABLE_COLUMNS[config.data][0]?.id ?? '',
+    ).map((r) => ({
       ...r,
       cells: Object.fromEntries(columns.map((c) => [c.id, r.cells[c.id] ?? null])),
     }));

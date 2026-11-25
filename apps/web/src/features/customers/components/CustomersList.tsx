@@ -35,10 +35,10 @@ export default function CustomersList({
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Status</span>
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Tier</span>
         <span className="w-32 shrink-0 text-xs text-muted-foreground">Owner</span>
-        <span className="w-20 shrink-0 text-right">
+        <span className="flex w-20 shrink-0 justify-end">
           <CustomerSortHeader label="People" column="people" sort={sort} onSort={onSort} />
         </span>
-        <span className="w-28 shrink-0 text-right">
+        <span className="flex w-28 shrink-0 justify-end">
           <CustomerSortHeader
             label="Issues requested"
             column="requests"
@@ -46,7 +46,7 @@ export default function CustomersList({
             onSort={onSort}
           />
         </span>
-        <span className="w-20 shrink-0 text-right">
+        <span className="flex w-20 shrink-0 justify-end">
           <CustomerSortHeader label="Revenue" column="revenue" sort={sort} onSort={onSort} />
         </span>
       </div>
