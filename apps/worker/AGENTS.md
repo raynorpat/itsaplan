@@ -29,6 +29,11 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
 - With the cycle upkeep it calls the API's project progress snapshot
   (`/internal/projects/snapshot`), which appends the missing days to each open
   project's progress history.
+- Every tick, when due, asks the API to send requester change emails
+  (`/internal/requester-updates/changes`, every 2 minutes) and summaries
+  (`/internal/requester-updates/summaries`, every 15 minutes) (`requester-updates.ts`);
+  the API reads the changes and sends, a failed call is logged and retried when next
+  due.
 - On its cleanup interval calls the API's project purge
   (`/internal/projects/purge`), which deletes projects that have been in the trash
   for more than 30 days.
@@ -54,7 +59,7 @@ own service (own Dockerfile), separate from `apps/api`. See root `AGENTS.md`.
 All via env with defaults (see `src/config.ts`): `WEBHOOK_POLL_INTERVAL_MS`,
 `WEBHOOK_BATCH_SIZE`, `WEBHOOK_TIMEOUT_MS`, `WEBHOOK_DISABLE_THRESHOLD`, `WEBHOOK_LEASE_SECONDS`, `WEBHOOK_CLEANUP_DAYS`,
 `WEBHOOK_CLEANUP_EVERY_TICKS`. Only `DATABASE_URL` is required for webhook
-delivery. Notification delivery, the auto-archive report, cycle upkeep, the project snapshot and the project purge additionally need
+delivery. Notification delivery, requester updates, the auto-archive report, cycle upkeep, the project snapshot and the project purge additionally need
 `WORKER_INTERNAL_TOKEN` and an api origin (`SERVICE_URL_API`, else
 `API_URL`); `internal-api.ts` throws when either is missing, no fallback
 origin.

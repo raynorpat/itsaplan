@@ -12,6 +12,7 @@ import { internalNotificationRoutes } from './notifications/internal-routes';
 import { internalWebhookRoutes } from './webhooks/internal-routes';
 import { internalCycleRoutes } from './cycles/internal-routes';
 import { internalProjectRoutes } from './projects/internal-routes';
+import { internalRequesterUpdateRoutes } from './updates/internal-routes';
 import { registerInstanceHandlers } from './instance/handlers';
 import { portalRoutes } from './portal/routes';
 // Registers the AgentSessionEvent webhook on the agent session events.
@@ -51,6 +52,7 @@ export const app = new Elysia()
   .use(internalWebhookRoutes)
   .use(internalCycleRoutes)
   .use(internalProjectRoutes)
+  .use(internalRequesterUpdateRoutes)
   .use(internalUploadRoutes)
   .use(portalRoutes);
 

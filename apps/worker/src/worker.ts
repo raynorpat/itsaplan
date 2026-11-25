@@ -10,6 +10,7 @@ import {
   runUploadCleanup,
 } from './internal-api';
 import { startPollLoop, type WorkerHandle } from './poll-loop';
+import { runRequesterUpdates } from './requester-updates';
 import {
   type ClaimedDelivery,
   claimDueDeliveries,
@@ -30,7 +31,8 @@ export function startWorker(): WorkerHandle {
 }
 
 // One poll: claim a batch of due deliveries, send them concurrently, record each
-// outcome, then run the delivery, upload and trashed-project cleanup, the
+// outcome, ask the api for requester change emails and summaries when due, then run
+// the delivery, upload and trashed-project cleanup, the
 // auto-archive sweep and the cycle upkeep with the project progress snapshot on
 // their own tick intervals.
 async function tick(): Promise<void> {
@@ -40,6 +42,7 @@ async function tick(): Promise<void> {
     await Promise.all(claimed.map(processDelivery));
   }
   await processNotificationDeliveries();
+  await runRequesterUpdates();
   if (++ticksSinceCleanup >= cfg.cleanupEveryTicks) {
     ticksSinceCleanup = 0;
     const removed = await cleanupOldDeliveries();

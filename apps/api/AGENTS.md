@@ -272,6 +272,19 @@ Rules and invariants for this package below; read the code for the walkthrough.
   new. "Send to requesters" on a project update is
   `/api/auth/instance/project-updates/share` (`updates/share.ts`; the author or an
   admin, not guests; once).
+- **Requester change emails and summaries** (`updates/run.ts`, `render.ts`): the worker
+  calls `/internal/requester-updates/changes` every 2 minutes and
+  `/internal/requester-updates/summaries` every 15. A change email lists every change
+  since the person's `changes_sent_until`, at most one per person per 10 minutes
+  (`last_change_email_at`); a summary (weekly: Mondays, daily: every day, 08:00 UTC) the
+  round-up since `summary_sent_until`, including changes a change email already sent,
+  and only when there is something. Each person is claimed by a conditional UPDATE on
+  their own marker before anything is sent, no transaction is held while sending, and
+  a failed send puts the claim back so the next run sends the same changes. A crash
+  between a send and its mark can repeat that email. Without a mail provider nothing is
+  sent or marked. Every email carries the unsubscribe page link and the RFC 8058
+  `List-Unsubscribe` / `List-Unsubscribe-Post` headers (the one-click URL on `API_URL`),
+  is sent with the workspace name as the sender name, and has no images.
 - **Uploads** (`uploads/`, Linear's `fileUpload`): `file_upload` reserves one file for
   one user (content type, size, object key) and returns a signed URL; the bytes are a
   plain HTTP `PUT /uploads/<token>` with the declared `Content-Type`, once, within 10

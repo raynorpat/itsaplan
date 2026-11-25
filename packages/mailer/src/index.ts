@@ -34,6 +34,8 @@ export interface EmailMessage {
   subject: string;
   text: string;
   html: string;
+  // Extra headers, such as List-Unsubscribe.
+  headers?: Record<string, string>;
 }
 
 export interface SendResult {
@@ -79,6 +81,7 @@ async function sendSmtp(
       subject: message.subject,
       text: message.text,
       html: message.html,
+      headers: message.headers,
     });
     return { ok: true };
   } catch (err) {
@@ -109,6 +112,7 @@ async function sendResend(
         subject: message.subject,
         text: message.text,
         html: message.html,
+        ...(message.headers ? { headers: message.headers } : {}),
       }),
     });
     if (res.ok) return { ok: true };
