@@ -33,7 +33,8 @@ export default function AuditEntryDetail({
     <Sheet open={entry != null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>{summary}</SheetTitle>
+          {/* pr-8 keeps a long summary clear of the sheet's close button. */}
+          <SheetTitle className="pr-8">{summary}</SheetTitle>
         </SheetHeader>
         {entry && (
           <div className="grid gap-4 px-4 pb-6 text-sm">
