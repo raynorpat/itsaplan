@@ -217,6 +217,25 @@ describe('requesters', () => {
     expect(await firstOf(jane.id)).toBe(createdAt('Second'));
   });
 
+  it('leaves archived feedback out of a person’s count and latest date', async () => {
+    const { owner, issue } = await setup();
+    const jane = await create(owner, { name: 'Jane' });
+    await addFeedback(owner, issue.id, jane.id, 'First');
+    const second = await addFeedback(owner, issue.id, jane.id, 'Second');
+    const data = await gqlData(
+      owner,
+      `query ($id: String!) { issue(id: $id) { needs { nodes { body createdAt } } } }`,
+      { id: issue.id },
+    );
+    const firstAt = (data.issue.needs.nodes as Json[]).find((n) => n.body === 'First')!.createdAt;
+    await gqlData(owner, `mutation ($id: String!) { customerNeedArchive(id: $id) { success } }`, {
+      id: second,
+    });
+    const listed = (await list(owner)).find((p) => p.id === jane.id)!;
+    expect(listed.feedbackCount).toBe(1);
+    expect(new Date(listed.lastFeedbackAt).getTime()).toBe(new Date(firstAt).getTime());
+  });
+
   it('lists the people whose first feedback is on or after a date, without names', async () => {
     const { owner, member, guest, issue } = await setup();
     const jane = await create(owner, { name: 'Jane', email: 'jane@x.com' });

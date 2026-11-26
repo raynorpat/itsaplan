@@ -113,7 +113,7 @@ interface FeedbackStats {
   first: string | null;
 }
 
-// Feedback counts per requester, over feedback on issues the user can see.
+// Feedback counts per requester, over active feedback on issues the user can see.
 async function feedbackStats(userId: string, ids: string[]): Promise<Map<string, FeedbackStats>> {
   const out = new Map<string, FeedbackStats>();
   if (ids.length === 0) return out;
@@ -122,7 +122,7 @@ async function feedbackStats(userId: string, ids: string[]): Promise<Map<string,
       requesterId: attachment.externalUserCreatorId,
       count: sql<number>`count(*)::int`,
       last: sql<Date | null>`max(${customerNeed.createdAt})`,
-      first: sql<Date | null>`min(${customerNeed.createdAt}) filter (where ${customerNeed.archivedAt} is null)`,
+      first: sql<Date | null>`min(${customerNeed.createdAt})`,
     })
     .from(customerNeed)
     .innerJoin(attachment, eq(attachment.id, customerNeed.attachmentId))
@@ -131,6 +131,7 @@ async function feedbackStats(userId: string, ids: string[]): Promise<Map<string,
       and(
         inArray(attachment.externalUserCreatorId, ids),
         inArray(issue.teamId, visibleTeamIds(userId)),
+        isNull(customerNeed.archivedAt),
       ),
     )
     .groupBy(attachment.externalUserCreatorId);

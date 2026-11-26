@@ -129,7 +129,9 @@ Rules and invariants for this package below; read the code for the walkthrough.
   Creating a requester with an email that a requester already has (or had before a
   merge) returns that requester. Merging A into B points A's feedback attachments at B
   (so B counts once per issue) and keeps A's row with `merged_into_id`, so a link or
-  email of A leads to B; B takes A's email when it has none.
+  email of A leads to B; B takes A's email when it has none. A requester's numbers
+  (`feedbackCount`, `lastFeedbackAt`, `firstFeedbackAt`) count only their active
+  (non-archived) feedback on issues the user can see.
 - **Customers** (`customers/`, Linear's `Customer`, `CustomerStatus`, `CustomerTier`):
   an optional feature, off by default (`organization.customers_enabled`, set with the
   revenue currency through `/api/auth/instance/customers-settings*`, owners and admins;
