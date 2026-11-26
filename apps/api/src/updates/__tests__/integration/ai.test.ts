@@ -454,7 +454,7 @@ describe('since your last visit', () => {
     stub.requests = [];
     await db.delete(portalSummaryCache);
     const started = Date.now();
-    const quick = await sinceLastVisitOf(v.requesterId, undefined, { waitMs: 100 });
+    const quick = await sinceLastVisitOf(v.requesterId, { waitMs: 100 });
     expect(Date.now() - started).toBeLessThan(400);
     expect(quick.paragraph).toBeNull();
     expect(quick.lines).toEqual(['Dark mode moved to In progress']);

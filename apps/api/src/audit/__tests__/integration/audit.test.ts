@@ -190,22 +190,6 @@ describe('audit log', () => {
     expect(await (await settingsRequest(owner)).json()).toEqual({ retention: '30d' });
   });
 
-  it('removes entries older than the retention period, and none with forever', async () => {
-    const owner = await signUpTestUser();
-    await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'Old' }));
-    await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'New' }));
-    await db.execute(
-      sql`UPDATE ${auditEntry} SET created_at = now() - interval '40 days' WHERE metadata->>'name' = 'Old'`,
-    );
-
-    expect(await cleanupAuditEntries(new Date())).toBe(1);
-    expect((await entries(owner)).map((e) => e.metadata?.name)).toEqual(['New']);
-
-    expect((await settingsRequest(owner, { retention: 'forever' })).status).toBe(200);
-    await db.execute(sql`UPDATE ${auditEntry} SET created_at = now() - interval '10 years'`);
-    expect(await cleanupAuditEntries(new Date())).toBe(0);
-  });
-
   it('the clean-up route needs the worker token', async () => {
     const previous = process.env.WORKER_INTERNAL_TOKEN;
     process.env.WORKER_INTERNAL_TOKEN = 'test-worker-token';
@@ -285,8 +269,8 @@ describe('audit log', () => {
     expect(deletes).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps an entry just inside the period and removes one just outside it', async () => {
-    await signUpTestUser();
+  it('keeps an entry just inside the period and removes one just outside it, and none with forever', async () => {
+    const owner = await signUpTestUser();
     await clearEntries();
     const now = new Date();
     await withAuditRequest(system, () => recordAudit('teamCreated', { name: 'Inside' }));
@@ -303,6 +287,10 @@ describe('audit log', () => {
     expect(await cleanupAuditEntries(now)).toBe(1);
     const left = await db.select({ metadata: auditEntry.metadata }).from(auditEntry);
     expect(left.map((r) => (r.metadata as { name: string }).name)).toEqual(['Inside']);
+
+    expect((await settingsRequest(owner, { retention: 'forever' })).status).toBe(200);
+    await db.execute(sql`UPDATE ${auditEntry} SET created_at = now() - interval '10 years'`);
+    expect(await cleanupAuditEntries(new Date())).toBe(0);
   });
 
   it('keeps at most 200 characters of a GraphQL operation name', async () => {

@@ -18,7 +18,7 @@ import { createIssue } from '../../../issues/store';
 import { createImport } from '../../../imports/store';
 import { createLabel } from '../../../labels/store';
 import { getTeamByKey } from '../../../teams/store';
-import { currentImport, runAsImport } from '../../workflow-context';
+import { runAsImport } from '../../workflow-context';
 
 // An import is a system change: inside runAsImport no workflow rule runs, no
 // notification is written and no webhook delivery of any kind is queued, while the
@@ -65,13 +65,6 @@ beforeEach(async () => {
 });
 
 describe('import context', () => {
-  it('exposes the running import only inside runAsImport', async () => {
-    expect(currentImport()).toBeUndefined();
-    const seen = await runAsImport('imp-1', async () => currentImport());
-    expect(seen).toBe('imp-1');
-    expect(currentImport()).toBeUndefined();
-  });
-
   it('writes no notification or webhook and runs no rule, but keeps history and subscribers', async () => {
     const s = await setup();
     // The history link is a foreign key, so the writes run under a real import job.

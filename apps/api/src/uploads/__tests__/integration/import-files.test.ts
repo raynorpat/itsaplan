@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { app } from '../../../app';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { signUpAs } from '../../../__tests__/helpers/graphql';
@@ -11,17 +11,14 @@ import { deleteImportFile, readImportFile } from '../../import-files';
 // attachment type list does not apply, the public raw route never serves them, and
 // only the uploader reads them back.
 
-let storeAvailable = false;
-
-beforeAll(async () => {
-  storeAvailable = await Promise.race([
-    putObject('healthcheck/import-files-test', Buffer.from('ok'), 'text/plain').then(
-      () => true,
-      () => false,
-    ),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
-  ]);
-});
+// The cases that need stored bytes are skipped when the object store does not answer.
+const storeAvailable = await Promise.race([
+  putObject('healthcheck/import-files-test', Buffer.from('ok'), 'text/plain').then(
+    () => true,
+    () => false,
+  ),
+  new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+]);
 
 type Session = { cookie: string; userId: string };
 
@@ -106,8 +103,7 @@ describe('import files', () => {
     expect((await requestImportUpload(member, 'text/csv', 10)).code).toBe('FORBIDDEN');
   });
 
-  it('is never served by the public raw route', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('is never served by the public raw route', async () => {
     const owner = await signUpAs('owner');
     const { file } = await requestImportUpload(owner, 'text/csv', 12);
     expect((await put(file!, 'Title\nOne\nT')).status).toBe(200);
@@ -115,27 +111,28 @@ describe('import files', () => {
     expect(res.status).toBe(404);
   });
 
-  it('is read back only by its uploader, with its hash, and deleted after', async () => {
-    if (!storeAvailable) return;
-    const owner = await signUpAs('owner');
-    const admin = await signUpAs('admin');
-    const body = 'Title\nOne\n';
-    const { file } = await requestImportUpload(owner, 'text/csv', body.length);
-    expect((await put(file!, body)).status).toBe(200);
-    const read = await readImportFile(owner.userId, file!.assetUrl);
-    expect(read.text).toBe(body);
-    expect(read.sha256).toBe(new Bun.CryptoHasher('sha256').update(body).digest('hex'));
-    await expect(readImportFile(admin.userId, file!.assetUrl)).rejects.toThrow(
-      'Import file not found',
-    );
-    await deleteImportFile(file!.assetUrl);
-    await expect(readImportFile(owner.userId, file!.assetUrl)).rejects.toThrow(
-      'Import file not found',
-    );
-  });
+  it.skipIf(!storeAvailable)(
+    'is read back only by its uploader, with its hash, and deleted after',
+    async () => {
+      const owner = await signUpAs('owner');
+      const admin = await signUpAs('admin');
+      const body = 'Title\nOne\n';
+      const { file } = await requestImportUpload(owner, 'text/csv', body.length);
+      expect((await put(file!, body)).status).toBe(200);
+      const read = await readImportFile(owner.userId, file!.assetUrl);
+      expect(read.text).toBe(body);
+      expect(read.sha256).toBe(new Bun.CryptoHasher('sha256').update(body).digest('hex'));
+      await expect(readImportFile(admin.userId, file!.assetUrl)).rejects.toThrow(
+        'Import file not found',
+      );
+      await deleteImportFile(file!.assetUrl);
+      await expect(readImportFile(owner.userId, file!.assetUrl)).rejects.toThrow(
+        'Import file not found',
+      );
+    },
+  );
 
-  it('does not read an ordinary upload as an import file', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('does not read an ordinary upload as an import file', async () => {
     const owner = await signUpAs('owner');
     const { file } = await requestImportUpload(owner, 'text/plain', 3, null);
     expect((await put(file!, 'abc')).status).toBe(200);

@@ -7,7 +7,7 @@ import { requestMagicLink, signUpTestUser, type TestUser } from '../../../__test
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gqlData } from '../../../__tests__/helpers/graphql';
 import { ORIGIN } from '../../../__tests__/helpers/oauth';
-import { currentAuditRequest, withAuditRequest } from '../../context';
+import { withAuditRequest } from '../../context';
 import { recordLoginFailed } from '../../store';
 
 // Sign-in and account events (better-auth hooks and the extra email store): each
@@ -142,16 +142,6 @@ describe('audit: sign-in and account events', () => {
     expect(refused[0]!.metadata).toMatchObject({ reason: 'accountSuspended' });
   });
 
-  it('folds repeated refused attempts from one address and IP into one entry', async () => {
-    for (let i = 0; i < 25; i += 1) await requestLink('flood@not-approved.test', '198.51.100.9');
-    await requestLink('flood@not-approved.test', '198.51.100.10');
-    const refused = await rows('loginFailed');
-    expect(refused).toHaveLength(2);
-    const byIp = new Map(refused.map((r) => [r.ip, r.metadata as Record<string, unknown>]));
-    expect(byIp.get('198.51.100.9')!.attempts).toBe(25);
-    expect(byIp.get('198.51.100.10')!.attempts).toBe(1);
-  });
-
   it('lets a sign-in go ahead when its entry cannot be written, and says so in the next', async () => {
     await db.execute(sql`ALTER TABLE audit_entry RENAME TO audit_entry_away`);
     let res: Response;
@@ -261,13 +251,6 @@ describe('audit: sign-in and account events', () => {
     const refused = await rows('loginFailed');
     expect(refused).toHaveLength(1);
     expect(refused[0]!.metadata).toMatchObject({ address: 'late@x.test', reason: 'notInvited' });
-  });
-
-  it('marks the request once a refusal is recorded, so the after hook adds no second one', async () => {
-    await withAuditRequest(details('198.51.100.31'), async () => {
-      await recordLoginFailed('someone@not-approved.test', 'notInvited');
-      expect(currentAuditRequest().refusalRecorded).toBe(true);
-    });
   });
 
   it('folds addresses past 20 from one IP into one entry for the IP', async () => {

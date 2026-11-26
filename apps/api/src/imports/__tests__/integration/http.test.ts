@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, it } from 'bun:test';
-import { getJson, sourceUrl, withRateLimitNotice } from '../../sources/http';
+import { getJson, sourceUrl } from '../../sources/http';
 
-// The import sources' HTTP helper against a stub server: response size limits, rate
-// limits (waited out up to a limit, then reported as such), and source URLs.
-
-let limitedOnce = true;
+// The import sources' HTTP helper against a stub server: response size limits, a
+// rate limit that resets too late (reported as such), and source URLs. Waiting out a
+// short rate limit is covered by flow.test.ts.
 
 const server = Bun.serve({
   port: 0,
@@ -24,13 +23,6 @@ const server = Bun.serve({
           'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 2 * 3600),
         },
       });
-    if (url.pathname === '/limited-once') {
-      if (limitedOnce) {
-        limitedOnce = false;
-        return new Response('slow down', { status: 429, headers: { 'retry-after': '1' } });
-      }
-      return Response.json({ ok: true });
-    }
     return new Response('not found', { status: 404 });
   },
 });
@@ -55,19 +47,6 @@ describe('import source HTTP', () => {
     expect(err.message).toMatch(/rate limit/i);
     expect(err.message).not.toMatch(/not allowed/i);
     expect(Date.now() - started).toBeLessThan(5000);
-  });
-
-  it('tells the caller how long it waits for a rate limit', async () => {
-    const waits: Date[] = [];
-    const res = await withRateLimitNotice(
-      (until) => {
-        waits.push(until);
-      },
-      () => getJson<{ ok: boolean }>(`${base}/limited-once`, {}, ''),
-    );
-    expect(res.data).toEqual({ ok: true });
-    expect(waits).toHaveLength(1);
-    expect(waits[0]!.getTime()).toBeGreaterThan(Date.now() - 2000);
   });
 
   it('keeps only http(s) source URLs on the source origin', () => {

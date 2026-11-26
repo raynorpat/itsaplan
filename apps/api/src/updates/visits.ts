@@ -120,10 +120,9 @@ async function cachedParagraph(
 
 export async function sinceLastVisit(
   requesterId: string,
-  at?: Date,
   options: { waitMs?: number } = {},
 ): Promise<SummaryText> {
-  const now = at ?? (await dbNow());
+  const now = await dbNow();
   const [person] = await db
     .select({
       displayName: externalUser.displayName,

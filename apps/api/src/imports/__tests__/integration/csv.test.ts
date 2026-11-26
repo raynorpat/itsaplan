@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { attachment, db, fileUpload, issue, issueImportSource } from '@repo/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { app } from '../../../app';
@@ -22,16 +22,14 @@ import { getImport, sweepInterruptedImports, type ImportRow } from '../../store'
 // issueImportCreateCSVJira / issueImportProcess, a generic CSV through the Import page's
 // endpoints, re-runs by source key, and the import file's lifetime.
 
-let storeAvailable = false;
-beforeAll(async () => {
-  storeAvailable = await Promise.race([
-    putObject('healthcheck/csv-import-test', Buffer.from('ok'), 'text/plain').then(
-      () => true,
-      () => false,
-    ),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
-  ]);
-});
+// The cases that need stored bytes are skipped when the object store does not answer.
+const storeAvailable = await Promise.race([
+  putObject('healthcheck/csv-import-test', Buffer.from('ok'), 'text/plain').then(
+    () => true,
+    () => false,
+  ),
+  new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+]);
 
 const ORIGIN = process.env.APP_URL ?? 'http://localhost:3001';
 
@@ -121,75 +119,76 @@ beforeEach(async () => {
 });
 
 describe('Jira CSV through Linear operations', () => {
-  it('checks the file, then imports it with the status mapping', async () => {
-    if (!storeAvailable) return;
-    const url = await upload(owner, JIRA);
-    const check = await gqlData(
-      owner,
-      `query($url: String!) { issueImportCheckCSV(csvUrl: $url, service: "jira") { success } }`,
-      { url },
-    );
-    expect(check.issueImportCheckCSV.success).toBe(true);
+  it.skipIf(!storeAvailable)(
+    'checks the file, then imports it with the status mapping',
+    async () => {
+      const url = await upload(owner, JIRA);
+      const check = await gqlData(
+        owner,
+        `query($url: String!) { issueImportCheckCSV(csvUrl: $url, service: "jira") { success } }`,
+        { url },
+      );
+      expect(check.issueImportCheckCSV.success).toBe(true);
 
-    const created = await gqlData(
-      owner,
-      `mutation($url: String!, $team: String!) {
+      const created = await gqlData(
+        owner,
+        `mutation($url: String!, $team: String!) {
          issueImportCreateCSVJira(csvUrl: $url, teamId: $team, jiraHostname: "acme.atlassian.net",
            jiraToken: "unused") {
            issueImport { id service status serviceMetadata csvFileUrl }
          }
        }`,
-      { url, team: teamId },
-    );
-    const job = created.issueImportCreateCSVJira.issueImport;
-    expect(job.service).toBe('jira');
-    expect(job.serviceMetadata.statuses).toEqual(['Done', 'In Review', "Won't Do"]);
-    expect(job.csvFileUrl).toBe(url);
-    await waitFor(job.id, isAwaitingPeople);
-    // The file is kept while the import waits.
-    expect((await uploadRow(url))?.usedAt).not.toBeNull();
+        { url, team: teamId },
+      );
+      const job = created.issueImportCreateCSVJira.issueImport;
+      expect(job.service).toBe('jira');
+      expect(job.serviceMetadata.statuses).toEqual(['Done', 'In Review', "Won't Do"]);
+      expect(job.csvFileUrl).toBe(url);
+      await waitFor(job.id, isAwaitingPeople);
+      // The file is kept while the import waits.
+      expect((await uploadRow(url))?.usedAt).not.toBeNull();
 
-    const processed = await gqlData(
-      owner,
-      `mutation($id: String!, $mapping: JSONObject!) {
+      const processed = await gqlData(
+        owner,
+        `mutation($id: String!, $mapping: JSONObject!) {
          issueImportProcess(issueImportId: $id, mapping: $mapping) { success }
        }`,
-      { id: job.id, mapping: { people: {}, statuses: { 'In Review': 'In Progress' } } },
-    );
-    expect(processed.issueImportProcess.success).toBe(true);
-    const done = await waitFor(job.id, (r) => r.status === 'complete' || r.status === 'error');
-    expect(done.error).toBeNull();
+        { id: job.id, mapping: { people: {}, statuses: { 'In Review': 'In Progress' } } },
+      );
+      expect(processed.issueImportProcess.success).toBe(true);
+      const done = await waitFor(job.id, (r) => r.status === 'complete' || r.status === 'error');
+      expect(done.error).toBeNull();
 
-    const rows = await teamIssues();
-    expect(rows.map((r) => r.title)).toEqual(['Export to CSV', 'Dark mode', 'Old idea']);
-    const [first, second, third] = rows;
-    expect(first!.stateId).toBe(states.Done!);
-    expect(first!.priority).toBe(1);
-    expect(first!.completedAt?.toISOString()).toBe('2024-02-03T09:00:00.000Z');
-    expect(first!.createdAt.toISOString()).toBe('2024-02-01T10:15:00.000Z');
-    expect(first!.description).toContain('## Why');
-    expect(first!.description).toContain('**Customers** ask');
-    // Estimates are off for the team: the Story Points are left empty and counted.
-    expect(first!.estimate).toBeNull();
-    expect(second!.stateId).toBe(states['In Progress']!);
-    expect(third!.stateId).toBe(states.Canceled!);
-    const [link] = await db.select().from(attachment).where(eq(attachment.issueId, first!.id));
-    expect(link!.url).toBe('https://acme.atlassian.net/browse/ENG-1');
-    expect(link!.title).toBe('Jira ENG-1');
-    const summary = done.summary as {
-      issues: number;
-      comments: number;
-      counts: { badEstimate: number };
-    };
-    expect(summary.issues).toBe(3);
-    expect(summary.comments).toBe(1);
-    expect(summary.counts.badEstimate).toBe(2);
-    // The file is deleted once the import ends.
-    expect(await uploadRow(url)).toBeUndefined();
-  });
+      const rows = await teamIssues();
+      expect(rows.map((r) => r.title)).toEqual(['Export to CSV', 'Dark mode', 'Old idea']);
+      const [first, second, third] = rows;
+      expect(first!.stateId).toBe(states.Done!);
+      expect(first!.priority).toBe(1);
+      expect(first!.completedAt?.toISOString()).toBe('2024-02-03T09:00:00.000Z');
+      expect(first!.createdAt.toISOString()).toBe('2024-02-01T10:15:00.000Z');
+      expect(first!.description).toContain('## Why');
+      expect(first!.description).toContain('**Customers** ask');
+      // Estimates are off for the team: the Story Points are left empty and counted.
+      expect(first!.estimate).toBeNull();
+      expect(second!.stateId).toBe(states['In Progress']!);
+      expect(third!.stateId).toBe(states.Canceled!);
+      const [link] = await db.select().from(attachment).where(eq(attachment.issueId, first!.id));
+      expect(link!.url).toBe('https://acme.atlassian.net/browse/ENG-1');
+      expect(link!.title).toBe('Jira ENG-1');
+      const summary = done.summary as {
+        issues: number;
+        comments: number;
+        counts: { badEstimate: number };
+      };
+      expect(summary.issues).toBe(3);
+      expect(summary.comments).toBe(1);
+      expect(summary.counts.badEstimate).toBe(2);
+      // The file is deleted once the import ends.
+      expect(await uploadRow(url)).toBeUndefined();
+    },
+  );
 
-  it('refuses a file that is not a Jira export', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('refuses a file that is not a Jira export', async () => {
     const url = await upload(owner, GENERIC);
     const res = await gql(
       { cookie: owner.cookie },
@@ -202,8 +201,7 @@ describe('Jira CSV through Linear operations', () => {
     );
   });
 
-  it('lets only owners and admins import', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('lets only owners and admins import', async () => {
     const url = await upload(owner, JIRA);
     const member = await signUpAs('member');
     const res = await gql(
@@ -216,8 +214,7 @@ describe('Jira CSV through Linear operations', () => {
     expect(res.body.errors?.[0]?.extensions?.code).toBe('FORBIDDEN');
   });
 
-  it('uses the mapping saved with issueImportUpdate', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('uses the mapping saved with issueImportUpdate', async () => {
     const url = await upload(owner, JIRA);
     const created = await gqlData(
       owner,
@@ -247,8 +244,7 @@ describe('Jira CSV through Linear operations', () => {
 });
 
 describe('generic CSV through the Import page', () => {
-  it('previews, then imports with the confirmed columns', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('previews, then imports with the confirmed columns', async () => {
     const url = await upload(owner, GENERIC, 'tasks.csv');
     const preview = await plugin(owner, '/instance/imports/csv/preview', { assetUrl: url });
     expect(preview.status).toBe(200);
@@ -293,8 +289,7 @@ describe('generic CSV through the Import page', () => {
     expect(summary.skipped).toEqual([{ url: 'Row 4', reason: 'No title' }]);
   });
 
-  it('counts each person once per row in the people step', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('counts each person once per row in the people step', async () => {
     const text = ['Name,Owner', 'First,Ann Lee', 'Second,Ann Lee', 'Third,Bob Ray'].join('\n');
     const url = await upload(owner, text, 'people.csv');
     const create = await plugin(owner, '/instance/imports/csv/create', {
@@ -339,8 +334,7 @@ describe('re-runs', () => {
     return waitFor(row.id, (r) => r.status === 'complete');
   };
 
-  it('skips finished rows and rebuilds a half-written one', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('skips finished rows and rebuilds a half-written one', async () => {
     await job(JIRA);
     const [first, second] = await teamIssues();
     // A run stopped while ENG-2 was half written.
@@ -356,19 +350,23 @@ describe('re-runs', () => {
     expect((again.summary as { skippedExisting: number }).skippedExisting).toBe(2);
   });
 
-  it('does not skip rows of a different file keyed by row number', async () => {
-    if (!storeAvailable) return;
-    const noKeys = (title: string) => `Summary,Status\n${title},Done\n`;
-    await job(noKeys('First file row'));
-    const second = await job(noKeys('Second file row'));
-    expect((await teamIssues()).map((r) => r.title)).toEqual(['First file row', 'Second file row']);
-    expect((second.summary as { skippedExisting: number }).skippedExisting).toBe(0);
-  });
+  it.skipIf(!storeAvailable)(
+    'does not skip rows of a different file keyed by row number',
+    async () => {
+      const noKeys = (title: string) => `Summary,Status\n${title},Done\n`;
+      await job(noKeys('First file row'));
+      const second = await job(noKeys('Second file row'));
+      expect((await teamIssues()).map((r) => r.title)).toEqual([
+        'First file row',
+        'Second file row',
+      ]);
+      expect((second.summary as { skippedExisting: number }).skippedExisting).toBe(0);
+    },
+  );
 });
 
 describe('the import file', () => {
-  it('is deleted when processing fails', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('is deleted when processing fails', async () => {
     const url = await upload(owner, JIRA);
     const res = await plugin(owner, '/instance/imports/csv/create', {
       assetUrl: url,
@@ -412,8 +410,7 @@ describe('review fixes', () => {
     return { url, row: await waitFor(row.id, isAwaitingPeople) };
   };
 
-  it('stores a guessed state for every status', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('stores a guessed state for every status', async () => {
     const { row } = await waiting();
     const guesses = (row.serviceMetadata as { statusGuesses: Record<string, string> })
       .statusGuesses;
@@ -422,8 +419,7 @@ describe('review fixes', () => {
     expect(guesses["Won't Do"]).toBe(states.Canceled!);
   });
 
-  it('guesses default state names for a new team', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('guesses default state names for a new team', async () => {
     const { row } = await waiting({ teamId: undefined, teamName: 'Imported' });
     const guesses = (row.serviceMetadata as { statusGuesses: Record<string, string> })
       .statusGuesses;
@@ -431,21 +427,22 @@ describe('review fixes', () => {
     expect(guesses["Won't Do"]).toBe('Canceled');
   });
 
-  it('refuses a status mapped to a state the team does not have', async () => {
-    if (!storeAvailable) return;
-    const { row } = await waiting();
-    const res = await plugin(owner, '/instance/imports/process', {
-      id: row.id,
-      people: {},
-      statuses: { Done: 'Nope' },
-    });
-    expect(res.status).toBe(400);
-    expect(((await res.json()) as { message: string }).message).toContain('"Done"');
-    expect(isAwaitingPeople((await getImport(row.id))!)).toBe(true);
-  });
+  it.skipIf(!storeAvailable)(
+    'refuses a status mapped to a state the team does not have',
+    async () => {
+      const { row } = await waiting();
+      const res = await plugin(owner, '/instance/imports/process', {
+        id: row.id,
+        people: {},
+        statuses: { Done: 'Nope' },
+      });
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { message: string }).message).toContain('"Done"');
+      expect(isAwaitingPeople((await getImport(row.id))!)).toBe(true);
+    },
+  );
 
-  it('refuses a status mapped to an archived state', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('refuses a status mapped to an archived state', async () => {
     const old = (await createState(owner, { teamId, name: 'Old', type: 'started' })).id;
     await gqlData(owner, `mutation($id: String!) { workflowStateArchive(id: $id) { success } }`, {
       id: old,
@@ -459,23 +456,24 @@ describe('review fixes', () => {
     expect(res.status).toBe(400);
   });
 
-  it('refuses issueImportUpdate once the import is no longer waiting', async () => {
-    if (!storeAvailable) return;
-    const { row } = await waiting();
-    await plugin(owner, '/instance/imports/process', { id: row.id, people: {} });
-    await waitFor(row.id, (r) => r.status === 'complete');
-    const res = await gql(
-      { cookie: owner.cookie },
-      `mutation($id: String!, $mapping: JSONObject!) {
+  it.skipIf(!storeAvailable)(
+    'refuses issueImportUpdate once the import is no longer waiting',
+    async () => {
+      const { row } = await waiting();
+      await plugin(owner, '/instance/imports/process', { id: row.id, people: {} });
+      await waitFor(row.id, (r) => r.status === 'complete');
+      const res = await gql(
+        { cookie: owner.cookie },
+        `mutation($id: String!, $mapping: JSONObject!) {
          issueImportUpdate(id: $id, input: { mapping: $mapping }) { success }
        }`,
-      { id: row.id, mapping: { statuses: { Done: 'Backlog' } } },
-    );
-    expect(res.body.errors?.[0]?.extensions?.code).toBe('CONFLICT');
-  });
+        { id: row.id, mapping: { statuses: { Done: 'Backlog' } } },
+      );
+      expect(res.body.errors?.[0]?.extensions?.code).toBe('CONFLICT');
+    },
+  );
 
-  it('allows at most three waiting CSV imports per person', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('allows at most three waiting CSV imports per person', async () => {
     for (let i = 0; i < 3; i += 1) await waiting();
     const url = await upload(owner, JIRA);
     const res = await create(url);
@@ -487,22 +485,22 @@ describe('review fixes', () => {
     expect((await uploadRow(url))!.usedAt).toBeNull();
   });
 
-  it('deletes the file when a waiting import expires', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('deletes the file when a waiting import expires', async () => {
     const { url } = await waiting();
     await expireWaitingImports(new Date(Date.now() + 25 * 3_600_000));
     expect(await uploadRow(url)).toBeUndefined();
   });
 
-  it('deletes the file when an interrupted import is swept on restart', async () => {
-    if (!storeAvailable) return;
-    const { url } = await waiting();
-    await sweepInterruptedImports();
-    expect(await uploadRow(url)).toBeUndefined();
-  });
+  it.skipIf(!storeAvailable)(
+    'deletes the file when an interrupted import is swept on restart',
+    async () => {
+      const { url } = await waiting();
+      await sweepInterruptedImports();
+      expect(await uploadRow(url)).toBeUndefined();
+    },
+  );
 
-  it('marks the Jira link imported and encodes the key', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('marks the Jira link imported and encodes the key', async () => {
     const rows = 'Summary,Issue key,Status\nOdd key,ENG 9#x,Done\n';
     const url = await upload(owner, rows);
     const res = await create(url, { jiraHostname: 'acme.atlassian.net' });
@@ -515,8 +513,7 @@ describe('review fixes', () => {
     expect((link!.metadata as { imported: boolean }).imported).toBe(true);
   });
 
-  it('guesses the date format from every row', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('guesses the date format from every row', async () => {
     const lines = ['Title,Due'];
     for (let i = 0; i < 60; i += 1)
       lines.push(`Row ${i},${i === 55 ? '25/03/2026' : '01/02/2026'}`);
@@ -526,8 +523,7 @@ describe('review fixes', () => {
     expect(view.guess.dateFormat).toBe('dayFirst');
   });
 
-  it('does not let an import file become an attachment', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('does not let an import file become an attachment', async () => {
     const url = await upload(owner, JIRA);
     const created = await createIssue(owner, { teamId, title: 'Target' });
     const res = await gql(

@@ -253,7 +253,7 @@ describe('portal comments', () => {
   });
 
   it('refuses a portal thread on a board that does not show the issue', async () => {
-    const { owner, member, eng, issue } = await setup();
+    const { owner, member, issue } = await setup();
     const other = await createTeam(owner, { key: 'OPS', name: 'Operations' });
     const opsBoard = await createBoard(owner, { slug: 'ops', name: 'Ops', teamId: other.team.id });
     const res = await instance('portal/comment', member, {
@@ -262,7 +262,6 @@ describe('portal comments', () => {
       body: 'Hi',
     });
     expect(res.status).toBe(400);
-    expect(eng.team.id).not.toBe(other.team.id);
   });
 
   it("keeps a deleted board's threads off the other boards", async () => {

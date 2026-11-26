@@ -74,6 +74,11 @@ describe('issue webhooks', () => {
     const res = await webhookDeliveries(hookId);
     expect(res.data!.items).toHaveLength(1);
     expect(res.data!.items[0]!.eventType).toBe('Issue');
+    expect(res.data!.items[0]).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+      responseStatus: null,
+    });
     const [p] = await payloads(hookId);
     expect(p).toMatchObject({
       action: 'create',
@@ -128,13 +133,17 @@ describe('issue webhooks', () => {
   it('sends archive and restore as Issue updates with archivedAt', async () => {
     const { asOwner, team, hookId } = await setup();
     const issue = await createIssue(asOwner, team.states[0].id);
+    await Bun.sleep(5);
     await archive(asOwner, issue.id);
+    await Bun.sleep(5);
     await restore(asOwner, issue.id);
     const [, archived, restored] = await payloads(hookId);
     expect(archived).toMatchObject({ action: 'update', updatedFrom: { archivedAt: null } });
     expect(archived!.data.archivedAt).toBeTruthy();
     expect(restored!.data.archivedAt).toBeNull();
     expect(restored!.updatedFrom!.archivedAt).toBeTruthy();
+    for (const p of [archived!, restored!])
+      expect(time(p.data.updatedAt)).toBeGreaterThan(time(p.updatedFrom!.updatedAt));
   });
 
   it('sends Issue remove with the data before deletion', async () => {
@@ -191,18 +200,6 @@ describe('issue webhooks', () => {
     await createIssue(asOwner, team.states[0].id);
     expect(await payloads(off.id)).toEqual([]);
     expect(await payloads(other.id)).toEqual([]);
-  });
-
-  it('bumps updatedAt on archive and restore', async () => {
-    const { asOwner, team, hookId } = await setup();
-    const issue = await createIssue(asOwner, team.states[0].id);
-    await Bun.sleep(5);
-    await archive(asOwner, issue.id);
-    await Bun.sleep(5);
-    await restore(asOwner, issue.id);
-    const [, archived, restored] = await payloads(hookId);
-    for (const p of [archived!, restored!])
-      expect(time(p.data.updatedAt)).toBeGreaterThan(time(p.updatedFrom!.updatedAt));
   });
 
   it('sends one Issue update for a PATCH that changes fields and labels', async () => {

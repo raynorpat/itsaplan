@@ -208,13 +208,15 @@ describe('workflow rules', () => {
         body: { teamId: s.teamId, userId: teamOwner.userId, owner: true },
       }),
     );
+    const update = (as: TestUser, id: string, name: string) =>
+      call('workflows/update', { cookie: as.cookie, body: { id, name } });
+    // The team owner edits a rule left at the default teamOwners access.
+    const open = (await ok(await create(s.owner, rule(s)))).workflow;
+    expect((await update(teamOwner, open.id, 'Mine')).status).toBe(200);
     const w = (await ok(await create(s.owner, rule(s, { editAccess: 'workspaceAdmins' }))))
       .workflow;
-    const res = await call('workflows/update', {
-      cookie: teamOwner.cookie,
-      body: { id: w.id, name: 'Nope' },
-    });
-    expect(res.status).toBe(403);
+    expect((await update(teamOwner, w.id, 'Nope')).status).toBe(403);
+    expect((await update(s.owner, w.id, 'Admins only')).status).toBe(200);
   });
 
   it("lets the rule's owner and admins edit an owner-only rule, and no one else", async () => {

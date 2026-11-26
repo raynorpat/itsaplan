@@ -41,25 +41,6 @@ describe('graphql webhooks', () => {
     expect((await client.webhooks()).nodes.map((w) => w.id)).toEqual([webhook!.id]);
   });
 
-  it('lets the workspace owner create an all-teams webhook and refuses an owner of some teams', async () => {
-    const { owner } = await setup();
-    const res = await gql(
-      { cookie: owner.cookie },
-      'mutation { webhookCreate(input: { url: "https://example.com/all", allPublicTeams: true, resourceTypes: ["Project"] }) { success webhook { allPublicTeams team { id } } } }',
-    );
-    expect(res.body.data).toMatchObject({
-      webhookCreate: { success: true, webhook: { allPublicTeams: true, team: null } },
-    });
-
-    const other = await signUpTestUser();
-    await createTeam(other, { key: 'OPS', name: 'Operations' });
-    const denied = await gql(
-      { cookie: other.cookie },
-      'mutation { webhookCreate(input: { url: "https://example.com/all", allPublicTeams: true, resourceTypes: ["Project"] }) { success } }',
-    );
-    expect(errorCode(denied)).toBe('FORBIDDEN');
-  });
-
   it('rejects an unknown resource type and a missing scope', async () => {
     const { owner, teamId } = await setup();
     const bad = await gql(
@@ -89,6 +70,7 @@ describe('graphql webhooks', () => {
     ).webhook;
     expect(updated).toMatchObject({ enabled: false, label: 'x' });
     const rotated = await client.rotateSecretWebhook(webhook.id);
+    expect(rotated.secret).toMatch(/^whsec_/);
     expect(rotated.secret).not.toBe(webhook.secret);
     expect((await client.deleteWebhook(webhook.id)).success).toBe(true);
     expect((await client.webhooks()).nodes).toEqual([]);

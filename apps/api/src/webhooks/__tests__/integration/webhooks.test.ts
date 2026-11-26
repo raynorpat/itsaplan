@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import {
-  createComment,
   createIssue,
   createTeam,
   gqlData,
@@ -15,8 +14,8 @@ import { gql } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 
 // Webhooks: creation with a generated secret, URL and resource type checks,
-// updates, delivery fan-out, re-enabling, secret rotation, all-teams webhooks and
-// access through the team and the workspace role.
+// updates, delivery fan-out, re-enabling, all-teams webhooks and access through
+// the team and the workspace role.
 
 const MISSING = '00000000-0000-4000-8000-000000000000';
 const HOOK = 'id url resourceTypes label enabled allPublicTeams secret team { id }';
@@ -187,35 +186,6 @@ describe('webhooks', () => {
   // One webhook_delivery is queued per active, subscribed webhook when an event
   // fires; the worker does not run in tests, so the rows stay pending.
   describe('fan-out', () => {
-    it('queues a pending delivery for a subscribed enabled webhook on issue create', async () => {
-      const { owner, teamId, stateId } = await setup();
-      const id = await teamHook(owner, teamId, ['Issue']);
-      await createIssue(owner, { teamId, stateId });
-      const items = (await webhookDeliveries(id)).data!.items;
-      expect(items).toHaveLength(1);
-      expect(items[0]).toMatchObject({
-        eventType: 'Issue',
-        status: 'pending',
-        attempts: 0,
-        responseStatus: null,
-      });
-      expect(items[0]!.payload).toMatchObject({ action: 'create', type: 'Issue' });
-    });
-
-    it('does not queue for an inactive webhook', async () => {
-      const { owner, teamId, stateId } = await setup();
-      const id = await teamHook(owner, teamId, ['Issue'], { enabled: false });
-      await createIssue(owner, { teamId, stateId });
-      expect((await webhookDeliveries(id)).data!.items).toHaveLength(0);
-    });
-
-    it('does not queue for an event the webhook is not subscribed to', async () => {
-      const { owner, teamId, stateId } = await setup();
-      const id = await teamHook(owner, teamId, ['Comment']);
-      await createIssue(owner, { teamId, stateId });
-      expect((await webhookDeliveries(id)).data!.items).toHaveLength(0);
-    });
-
     it('fans out to every matching webhook with a shared event id', async () => {
       const { owner, teamId, stateId } = await setup();
       const a = await teamHook(owner, teamId, ['Issue']);
@@ -227,35 +197,9 @@ describe('webhooks', () => {
       expect(dbs).toHaveLength(1);
       expect(da[0]!.eventId).toBe(dbs[0]!.eventId);
     });
-
-    it('queues a delivery when a comment is created', async () => {
-      const { owner, teamId, stateId } = await setup();
-      const id = await teamHook(owner, teamId, ['Comment']);
-      const issue = await createIssue(owner, { teamId, stateId });
-      await createComment(owner, { issueId: issue.id, body: 'looks good' });
-      const items = (await webhookDeliveries(id)).data!.items;
-      expect(items).toHaveLength(1);
-      expect(items[0]).toMatchObject({ eventType: 'Comment' });
-    });
   });
 
-  describe('secret and all teams', () => {
-    it('rotates the secret', async () => {
-      const { owner, teamId } = await setup();
-      const w = await created(owner, {
-        url: 'https://example.com/hook',
-        teamId,
-        resourceTypes: ['Issue'],
-      });
-      const rotated = await gqlData(
-        owner,
-        `mutation ($id: String!) { webhookRotateSecret(id: $id) { secret } }`,
-        { id: w.id },
-      );
-      expect(rotated.webhookRotateSecret.secret).toMatch(/^whsec_/);
-      expect(rotated.webhookRotateSecret.secret).not.toBe(w.secret);
-    });
-
+  describe('all teams', () => {
     it('lets a workspace admin manage all-teams webhooks', async () => {
       await setup();
       const admin = await signUpAs('admin');

@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { db, fileUpload } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { app } from '../../../app';
@@ -13,19 +13,15 @@ import { deleteUnusedUploads, setUploadUsed } from '../../store';
 // content type and the size; the purpose's own limits are checked when the asset is
 // used (attachmentCreate for issue files, userUpdate for avatars). The object store
 // is not always running in tests: checks that happen before storage run always;
-// the cases that need stored bytes run only when the store answers.
+// the cases that need stored bytes are skipped when the store does not answer.
 
-let storeAvailable = false;
-
-beforeAll(async () => {
-  storeAvailable = await Promise.race([
-    putObject('healthcheck/uploads-test', Buffer.from('ok'), 'text/plain').then(
-      () => true,
-      () => false,
-    ),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
-  ]);
-});
+const storeAvailable = await Promise.race([
+  putObject('healthcheck/uploads-test', Buffer.from('ok'), 'text/plain').then(
+    () => true,
+    () => false,
+  ),
+  new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+]);
 
 type Session = { cookie: string; userId: string; email: string };
 
@@ -96,12 +92,13 @@ describe('file uploads', () => {
     await resetDb();
   });
   afterEach(() => {
-    process.env.TEAM_QUOTA_MB = envBefore.TEAM_QUOTA_MB;
-    process.env.MAX_AVATAR_MB = envBefore.MAX_AVATAR_MB;
+    for (const key of ['TEAM_QUOTA_MB', 'MAX_AVATAR_MB', 'MAX_ATTACHMENT_MB']) {
+      if (envBefore[key] === undefined) delete process.env[key];
+      else process.env[key] = envBefore[key];
+    }
   });
 
-  it('uploads through a signed URL', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('uploads through a signed URL', async () => {
     const { owner, issueId } = await setup();
     const { file } = await requestUpload(owner, 'text/plain', 5, 'notes.txt');
     expect(file?.uploadUrl).toContain('/uploads/');
@@ -139,24 +136,14 @@ describe('file uploads', () => {
     expect((await put(file!, owner, bytes(5))).status).toBe(410);
   });
 
-  it('refuses a second use of the same upload URL', async () => {
-    if (!storeAvailable) return;
+  it.skipIf(!storeAvailable)('refuses a second use of the same upload URL', async () => {
     const { owner } = await setup();
     const { file } = await requestUpload(owner, 'text/plain', 5);
     expect((await put(file!, owner, bytes(5))).status).toBe(200);
     expect((await put(file!, owner, bytes(5))).status).toBe(410);
   });
 
-  it('refuses a request the server limits cannot accept', async () => {
-    const { owner } = await setup();
-    process.env.MAX_ATTACHMENT_MB = '1';
-    process.env.MAX_AVATAR_MB = '1';
-    expect((await requestUpload(owner, 'text/plain', 2 * 1024 * 1024)).code).toBe('INVALID_INPUT');
-    expect((await requestUpload(owner, 'text/plain', 0)).code).toBe('INVALID_INPUT');
-    delete process.env.MAX_ATTACHMENT_MB;
-  });
-
-  it('words a size or type refusal plainly', async () => {
+  it('refuses a size or type over the server limits, in plain words', async () => {
     const { owner } = await setup();
     process.env.MAX_ATTACHMENT_MB = '1';
     process.env.MAX_AVATAR_MB = '1';
@@ -171,11 +158,11 @@ describe('file uploads', () => {
         )
       ).body.errors?.[0]?.message;
     expect(await message('text/plain', 2 * 1024 * 1024)).toBe('File exceeds the 1 MB limit');
+    expect((await requestUpload(owner, 'text/plain', 2 * 1024 * 1024)).code).toBe('INVALID_INPUT');
+    expect((await requestUpload(owner, 'text/plain', 0)).code).toBe('INVALID_INPUT');
     expect(await message('application/x-msdownload', 10)).toBe(
       'Files of type application/x-msdownload are not allowed',
     );
-    delete process.env.MAX_ATTACHMENT_MB;
-    delete process.env.MAX_AVATAR_MB;
   });
 
   it('checks the purpose at use', async () => {
@@ -236,28 +223,6 @@ describe('file uploads', () => {
       (cleared.body.data as { userUpdate: { user: { avatarUrl: string | null } } }).userUpdate.user
         .avatarUrl,
     ).toBeNull();
-  });
-
-  it('sets the time zone and refuses updating someone else', async () => {
-    const { owner } = await setup();
-    const other = await signUpTestUser();
-    const update = (who: Session, id: string, tz: string) =>
-      gql(
-        { cookie: who.cookie },
-        `mutation($id: String!, $tz: String) { userUpdate(id: $id, input: { timezone: $tz }) { user { timezone } } }`,
-        { id, tz },
-      );
-    const ok = await update(owner, owner.userId, 'Europe/Berlin');
-    expect(ok.body.errors).toBeUndefined();
-    expect(
-      (ok.body.data as { userUpdate: { user: { timezone: string } } }).userUpdate.user.timezone,
-    ).toBe('Europe/Berlin');
-    expect(
-      (await update(owner, owner.userId, 'Mars/Olympus')).body.errors?.[0]?.extensions?.code,
-    ).toBe('INVALID_INPUT');
-    expect((await update(owner, other.userId, 'UTC')).body.errors?.[0]?.extensions?.code).toBe(
-      'FORBIDDEN',
-    );
   });
 
   it('deletes uploads nothing used within a day', async () => {

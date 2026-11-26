@@ -85,7 +85,7 @@ const gitea = Bun.serve({
       return new Response(`bad token ${req.headers.get('authorization')}`, { status: 401 });
     if (url.pathname === '/redirect/api/v1/user/repos')
       return new Response(null, { status: 302, headers: { location: 'http://elsewhere.test/' } });
-    if (url.pathname === '/broken/api/v1/user/repos')
+    if (url.pathname.startsWith('/broken/'))
       return new Response(`internal error, token was ${TOKEN}`, { status: 500 });
     if (url.pathname === '/api/v1/user/repos') {
       const page = Number(url.searchParams.get('page'));

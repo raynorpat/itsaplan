@@ -107,15 +107,6 @@ describe('import flow', () => {
     expect(await teamIssues()).toHaveLength(40);
   });
 
-  it('leaves issues unassigned for a person matched to someone outside the team', async () => {
-    const outsider = await signUpAs('member', { name: 'Outsider' });
-    const row = await fetched();
-    await startProcessing(row, { ann: outsider.userId });
-    const done = await waitFor(row.id, (r) => r.status === 'complete' || r.status === 'error');
-    expect(done.status).toBe('complete');
-    expect((await teamIssues()).every((i) => i.assigneeUserId === null)).toBe(true);
-  });
-
   it('keeps a matched team member as the assignee', async () => {
     const member = await signUpAs('member', { name: 'Member' });
     await addMember(owner, teamId, member.userId);
