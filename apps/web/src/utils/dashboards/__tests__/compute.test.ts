@@ -325,6 +325,24 @@ describe('projects', () => {
     project({ id: '3', health: null, progress: 1, status: 'completed' }),
   ];
 
+  it("shows a project row's progress rounded down, 100 only when complete", () => {
+    const w = widget('table', {
+      data: 'projects',
+      measure: 'projects',
+      table: { columns: ['name', 'progress'], limit: 10, sort: 'name:asc' },
+    });
+    const r = computeWidget(
+      w,
+      { projects: [project({ id: 'a', progress: 0.996 }), project({ id: 'b', progress: 1 })] },
+      ctx(),
+    );
+    assert.ok(r.kind === 'table');
+    assert.deepEqual(
+      r.rows.map((x) => x.cells.progress),
+      [99, 100],
+    );
+  });
+
   it('groups projects by health, none last', () => {
     const w = widget('chart', {
       data: 'projects',

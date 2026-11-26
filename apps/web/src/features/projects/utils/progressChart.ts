@@ -1,5 +1,7 @@
+import { progressPercent } from '@/utils/progress';
+
 // The project progress chart's data: Linear's daily history arrays (oldest first) as
-// dated points, the header figures, and the percentage the list shows.
+// dated points and the header figures.
 
 export interface ProgressPoint {
   date: string;
@@ -61,7 +63,7 @@ export function progressUnit(h: {
 
 const amount = (value: number) => Number(value.toFixed(1)).toString();
 
-const share = (value: number, scope: number) => (scope > 0 ? Math.round((value / scope) * 100) : 0);
+const share = (value: number, scope: number) => (scope > 0 ? progressPercent(value / scope) : 0);
 
 export function progressHeader(
   last: { scope: number; started: number; completed: number },
@@ -72,13 +74,6 @@ export function progressHeader(
   const started = `Started ${amount(last.started)} (${share(last.started, last.scope)}%)`;
   const completed = `Completed ${amount(last.completed)} (${share(last.completed, last.scope)}%)`;
   return `${scope} · ${started} · ${completed}`;
-}
-
-// Linear's progress (0–1) as a whole percent, rounded down as the cycle pages do. The
-// API serves 0.999 while open issues remain, which stays below 100%.
-export function progressPercent(progress: number): number {
-  if (progress >= 1) return 100;
-  return Math.min(99, Math.floor(progress * 100));
 }
 
 // The chart's days: the series, then empty days up to a target date after it, so the

@@ -1,12 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  chartDays,
-  progressHeader,
-  progressPercent,
-  progressSeries,
-  progressUnit,
-} from '../progressChart';
+import { chartDays, progressHeader, progressSeries, progressUnit } from '../progressChart';
 
 // The project progress chart: one point per day of Linear's history arrays, the
 // header figures, and the list's percentage.
@@ -117,10 +111,17 @@ describe('progressUnit', () => {
 });
 
 describe('progressHeader', () => {
-  it('shows the scope and the started and completed shares', () => {
+  it('shows the scope and the started and completed shares, rounded down', () => {
     assert.equal(
       progressHeader({ scope: 42, started: 12, completed: 18 }, 'points'),
-      'Scope 42 points · Started 12 (29%) · Completed 18 (43%)',
+      'Scope 42 points · Started 12 (28%) · Completed 18 (42%)',
+    );
+  });
+
+  it('shows 99% for an unfinished project at 0.996, as its row does', () => {
+    assert.equal(
+      progressHeader({ scope: 250, started: 1, completed: 249 }, 'issues'),
+      'Scope 250 issues · Started 1 (0%) · Completed 249 (99%)',
     );
   });
 
@@ -133,19 +134,6 @@ describe('progressHeader', () => {
       progressHeader({ scope: 0, started: 0, completed: 0 }, 'issues'),
       'Scope 0 issues · Started 0 (0%) · Completed 0 (0%)',
     );
-  });
-});
-
-describe('progressPercent', () => {
-  it('rounds down to a whole percent, as the cycle pages do', () => {
-    assert.equal(progressPercent(0), 0);
-    assert.equal(progressPercent(0.006), 0);
-    assert.equal(progressPercent(0.4286), 42);
-    assert.equal(progressPercent(1), 100);
-  });
-
-  it('never shows 100% for an unfinished project', () => {
-    assert.equal(progressPercent(0.999), 99);
   });
 });
 

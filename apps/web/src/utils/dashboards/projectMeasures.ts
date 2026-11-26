@@ -1,3 +1,4 @@
+import { progressPercent } from '@/utils/progress';
 import type { Adapter, ComputeContext, Item, Selection, SliceGroup, TableRow } from './compute';
 import type { ProjectFilter, ProjectHealth, WidgetConfig } from './config';
 import { projectHref } from './links';
@@ -112,7 +113,7 @@ function table(items: Item<ProjectRow>[]): TableRow[] {
       name: p.name,
       status: labelIn(STATUSES, p.status),
       health: labelIn(HEALTH, p.health ?? 'none'),
-      progress: Math.round(p.progress * 100),
+      progress: progressPercent(p.progress),
       targetDate: p.targetDate,
       lead: p.leadName,
     },

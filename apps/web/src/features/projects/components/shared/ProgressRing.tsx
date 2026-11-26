@@ -1,4 +1,4 @@
-import { progressPercent } from '../../utils/progressChart';
+import { progressPercent } from '@/utils/progress';
 
 const SIZE = 14;
 const STROKE = 2;
