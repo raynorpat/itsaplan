@@ -241,6 +241,6 @@ tidy moves the code. This is separate from the CI gate (`format:check` + `lint` 
   setup and the rules for writing tests are in `apps/api/AGENTS.md`. They are
   integration tests against a real test Postgres (`.env.test`), not mocks.
 - `bun --filter` needs the `=` form: `bun --filter='@repo/db' run <script>`. The space form
-  `bun --filter <name> run <script>` matches no packages in Bun 1.3.9.
+  `bun --filter <name> run <script>` fails in Bun 1.4.5: it reads `run` as the script name.
 
 Per-package details are in each package's `AGENTS.md`.
