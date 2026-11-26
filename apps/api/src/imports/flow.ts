@@ -199,8 +199,10 @@ export function peopleMapping(value: unknown): Record<string, string | null> {
 // Starts processing a fetched import with the people mapping. The fetched data is
 // taken before anything else, so a second request for the same import finds none; the
 // import is then claimed in one statement, and the database allows one running import
-// per team. A person matched to someone who may not be chosen (not, or no longer, a
-// member of the team) is left unmatched.
+// per team. A person matched to someone who may not be chosen (`candidates`: not, or
+// no longer, an active member of the team, or of the workspace for a team the import
+// creates) is left unmatched. The engine drops non-members too, but only after a new
+// team exists: this check keeps such people from joining the team it creates.
 export async function startProcessing(
   row: ImportRow,
   people: Record<string, string | null>,

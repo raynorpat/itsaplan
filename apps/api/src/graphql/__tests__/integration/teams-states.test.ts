@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { setWorkspaceRole } from '../../../shared/access';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
 import {
   addMember,
   createIssue,
   createState,
   createTeam,
+  setWorkspaceRole,
   teamView,
 } from '../../../__tests__/helpers/graphql';
 

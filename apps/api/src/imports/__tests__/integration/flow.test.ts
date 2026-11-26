@@ -3,7 +3,7 @@ import { db, issue } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { addMember, createTeam, signUpAs } from '../../../__tests__/helpers/graphql';
+import { addMember, createTeam, gqlData, signUpAs } from '../../../__tests__/helpers/graphql';
 import { beginFetch, expireWaitingImports, isAwaitingPeople, startProcessing } from '../../flow';
 import { getJson } from '../../sources/http';
 import { createImport, getImport, type ImportRow } from '../../store';
@@ -114,6 +114,42 @@ describe('import flow', () => {
     await startProcessing(row, { ann: member.userId });
     await waitFor(row.id, (r) => r.status === 'complete');
     expect((await teamIssues())[0]!.assigneeUserId).toBe(member.userId);
+  });
+
+  it('adds only people who may be chosen to a team the import creates', async () => {
+    const active = await signUpAs('member', { name: 'Active' });
+    const suspended = await signUpAs('member', { name: 'Suspended' });
+    const suspend = (action: 'userSuspend' | 'userUnsuspend') =>
+      gqlData(owner, `mutation($id: String!) { ${action}(id: $id) { success } }`, {
+        id: suspended.userId,
+      });
+    await suspend('userSuspend');
+    const bob: SourcePerson = { key: 'bob', login: 'bob', name: 'Bob', email: null };
+    const created = await createImport({
+      service: 'gitea',
+      teamName: 'Imported',
+      creatorId: owner.userId,
+      displayName: 'acme/app',
+      serviceMetadata: { repository: 'acme/app' },
+    });
+    beginFetch(created, async () => ({
+      serviceLabel: 'Gitea',
+      issues: [sourceIssue(1), sourceIssue(2, { author: bob, assignee: bob })],
+    }));
+    const row = await waitFor(created.id, (r) => isAwaitingPeople(r));
+    await startProcessing(row, { ann: suspended.userId, bob: active.userId });
+    const done = await waitFor(row.id, (r) => r.status === 'complete');
+    await suspend('userUnsuspend');
+    const team = await gqlData(
+      owner,
+      `query($id: String!) { team(id: $id) { members { nodes { id } } } }`,
+      {
+        id: done.teamId,
+      },
+    );
+    const memberIds = (team.team.members.nodes as { id: string }[]).map((n) => n.id);
+    expect(memberIds).toContain(active.userId);
+    expect(memberIds).not.toContain(suspended.userId);
   });
 
   it('expires fetched data that waits too long for the people matching', async () => {

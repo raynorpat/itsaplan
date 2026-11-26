@@ -248,12 +248,13 @@ export async function addActivity(input: {
         return { row: existing, repeated: true };
       }
     }
-    const [locked] = await tx
-      .select({ status: agentSession.status })
+    // Activities of one session apply one at a time.
+    await tx
+      .select({ id: agentSession.id })
       .from(agentSession)
       .where(eq(agentSession.id, input.session.id))
       .for('update');
-    status = sessionStatusAfter((locked?.status ?? input.session.status) as SessionStatus, input);
+    status = sessionStatusAfter(input);
     const [created] = await tx
       .insert(agentActivity)
       .values({

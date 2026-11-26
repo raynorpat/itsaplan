@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { IssueRelationType } from '@linear/sdk';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { setWorkspaceRole } from '../../../shared/access';
 import { createApiKey, gql, linearClient } from '../../../__tests__/helpers/linear';
-import { addMember, createIssue, createTeam, teamView } from '../../../__tests__/helpers/graphql';
+import {
+  addMember,
+  createIssue,
+  createTeam,
+  setWorkspaceRole,
+  teamView,
+} from '../../../__tests__/helpers/graphql';
 
 // Issue relations over the Linear API: CRUD, Issue.relations / inverseRelations,
 // the duplicate rule, visibility, the has*Relations filters, access errors.

@@ -68,10 +68,6 @@ export async function workspaceRole(userId: string): Promise<WorkspaceRole> {
 // The roles that see every public team.
 export const NON_GUEST_ROLES: WorkspaceRole[] = ['owner', 'admin', 'member'];
 
-export async function setWorkspaceRole(userId: string, role: WorkspaceRole): Promise<void> {
-  await db.update(userTable).set({ workspaceRole: role }).where(eq(userTable.id, userId));
-}
-
 // Asserts the user's workspace role is at least `minimum` (403 otherwise).
 export async function assertWorkspaceRole(
   user: AuthUser | undefined | null,

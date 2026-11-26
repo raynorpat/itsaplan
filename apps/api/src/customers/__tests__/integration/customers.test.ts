@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser, type TestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
-import { createWebhook, gqlData, signUpAs } from '../../../__tests__/helpers/graphql';
+import {
+  createWebhook,
+  gqlData,
+  setWorkspaceRole,
+  signUpAs,
+} from '../../../__tests__/helpers/graphql';
 import { gql } from '../../../__tests__/helpers/linear';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 import { instance, ok } from '../../../portal/__tests__/helpers';
-import { setWorkspaceRole } from '../../../shared/access';
 import type { WorkspaceRole } from '../../../shared/access';
 
 // Linear's Customer in GraphQL: create, update, delete, merge, upsert, the list with

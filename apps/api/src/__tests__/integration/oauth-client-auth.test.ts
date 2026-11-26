@@ -4,7 +4,6 @@ import { oauthIssuer } from '@repo/auth';
 import { db } from '@repo/db';
 import * as schema from '@repo/db/schema';
 import { app } from '../../app';
-import { setWorkspaceRole } from '../../shared/access';
 import { signUpTestUser } from '../helpers/auth';
 import { resetDb } from '../helpers/db';
 import { gql } from '../helpers/linear';
@@ -20,7 +19,7 @@ import {
   tokenRequest,
   uninstall,
 } from '../helpers/oauth';
-import { addMember, createTeam, makePrivate, signUpAs } from '../helpers/graphql';
+import { addMember, createTeam, makePrivate, setWorkspaceRole, signUpAs } from '../helpers/graphql';
 
 // How the OAuth endpoints identify the client of a request, and the install checks
 // that depend on it: client credentials are read exactly as the OAuth plugin reads

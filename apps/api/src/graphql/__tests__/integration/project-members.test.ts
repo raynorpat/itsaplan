@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { signUpTestUser } from '../../../__tests__/helpers/auth';
 import { resetDb } from '../../../__tests__/helpers/db';
 import { gql } from '../../../__tests__/helpers/linear';
-import { setWorkspaceRole } from '../../../shared/access';
 import { webhookDeliveries } from '../../../__tests__/helpers/webhooks';
 import {
   addMember,
   createTeam,
   createWebhook,
   makePrivate,
+  setWorkspaceRole,
   signUpAs,
   teamView,
 } from '../../../__tests__/helpers/graphql';

@@ -94,6 +94,26 @@ describe('graphql initiatives', () => {
     expect(errorCode(res)).toBe('ENTITY_NOT_FOUND');
   });
 
+  it('refuses a guest creating an initiative, even led by a team the guest is in', async () => {
+    const { owner, mkt } = await setup();
+    const guest = await signUpAs('guest');
+    await addMember(owner, 'MKT', guest.userId);
+    const member = await signUpAs('member');
+    const create = (as: TestUser, leadTeam: string) =>
+      gql(
+        { cookie: as.cookie },
+        `mutation { initiativeCreate(input: { name: "X"${leadTeam} }) { success } }`,
+      );
+    for (const leadTeam of [`, leadTeamId: "${mkt}"`, '']) {
+      const refused = await create(guest, leadTeam);
+      expect(errorCode(refused)).toBe('FORBIDDEN');
+      expect(errorMessage(refused)).toContain('permission to create this initiative');
+      expect((await create(member, leadTeam)).body.data).toEqual({
+        initiativeCreate: { success: true },
+      });
+    }
+  });
+
   it('filters initiatives', async () => {
     const { owner, client, mkt } = await setup();
     await client.createInitiative({ name: 'P', status: InitiativeStatus.Planned });

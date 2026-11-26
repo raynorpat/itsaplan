@@ -1,4 +1,6 @@
-import { setWorkspaceRole, type WorkspaceRole } from '../../shared/access';
+import { db, user as userTable } from '@repo/db';
+import { eq } from 'drizzle-orm';
+import type { WorkspaceRole } from '../../shared/access';
 import { signUpTestUser, type TestUser } from './auth';
 import { gql, type GqlError } from './linear';
 
@@ -338,6 +340,12 @@ export async function createWebhook(
     { input },
   );
   return data.webhookCreate.webhook;
+}
+
+// Writes a user's workspace role directly, for roles a test cannot reach through
+// GraphQL in its setup (an app user's `app`, a role without an owner acting).
+export async function setWorkspaceRole(userId: string, role: WorkspaceRole): Promise<void> {
+  await db.update(userTable).set({ workspaceRole: role }).where(eq(userTable.id, userId));
 }
 
 // Signs up a user and gives them a workspace role (the role is set directly, as

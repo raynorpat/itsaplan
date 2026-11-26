@@ -29,10 +29,10 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 export const OPEN_STATUSES: SessionStatus[] = ['pending', 'active', 'awaitingInput', 'stopping'];
 
 // The session status after an activity of this type (and signal) is published.
-export function sessionStatusAfter(
-  _from: SessionStatus,
-  activity: { type: ActivityType; signal?: string | null },
-): SessionStatus {
+export function sessionStatusAfter(activity: {
+  type: ActivityType;
+  signal?: string | null;
+}): SessionStatus {
   switch (activity.type) {
     case 'thought':
     case 'action':

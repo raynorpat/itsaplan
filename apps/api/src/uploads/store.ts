@@ -227,13 +227,13 @@ export async function setUploadUsed(id: string, used: boolean): Promise<void> {
 
 // Deletes uploads nothing used within a day of their request; their objects go
 // best-effort. Returns how many were removed.
-export async function deleteUnusedUploads(now = new Date()): Promise<number> {
+export async function deleteUnusedUploads(): Promise<number> {
   const stale = await db
     .delete(fileUpload)
     .where(
       and(
         isNull(fileUpload.usedAt),
-        lt(fileUpload.createdAt, new Date(now.getTime() - UNUSED_UPLOAD_MS)),
+        lt(fileUpload.createdAt, new Date(Date.now() - UNUSED_UPLOAD_MS)),
       ),
     )
     .returning();
