@@ -204,6 +204,7 @@ describe('feedback requests', () => {
       ctx(),
     );
     assert.deepEqual(num(start), [10, null]);
+    assert.ok(start.kind === 'number' && start.unit === 'days');
     const done = computeWidget(
       widget('number', { data: 'requests', measure: 'timeToDone' }),
       { requests: rows },

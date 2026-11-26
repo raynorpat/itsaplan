@@ -142,4 +142,15 @@ describe('team members', () => {
       );
     }
   });
+
+  it('refuses a sortOrder on teamMembershipUpdate, which this instance does not keep', async () => {
+    const { owner } = await setupOwner();
+    const [own] = (await teamView(owner, 'MKT')).members;
+    const res = await gql(
+      { cookie: owner.cookie },
+      `mutation { teamMembershipUpdate(id: "${own!.id}", input: { sortOrder: 1 }) { success } }`,
+    );
+    expect(code(res)).toBe('INVALID_INPUT');
+    expect(res.body.errors?.[0]?.message).toBe('input.sortOrder is not supported');
+  });
 });

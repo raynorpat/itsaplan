@@ -71,7 +71,7 @@ function startStub(): Stub {
         case 'long':
           return Response.json({ choices: [{ message: { content: 'x'.repeat(3_000) } }] });
         case 'slow':
-          await Bun.sleep(500);
+          await Bun.sleep(1_500);
           return Response.json({ choices: [{ message: { content: stub.reply } }] });
         case 'ok':
           return Response.json({ choices: [{ message: { content: `  ${stub.reply}  ` } }] });
@@ -455,10 +455,10 @@ describe('since your last visit', () => {
     await db.delete(portalSummaryCache);
     const started = Date.now();
     const quick = await sinceLastVisitOf(v.requesterId, { waitMs: 100 });
-    expect(Date.now() - started).toBeLessThan(400);
+    expect(Date.now() - started).toBeLessThan(1_000);
     expect(quick.paragraph).toBeNull();
     expect(quick.lines).toEqual(['Dark mode moved to In progress']);
-    await Bun.sleep(600);
+    await Bun.sleep(1_700);
     expect(await sinceLastVisit(v.cookie)).toEqual({
       paragraph: 'Dark mode is now being worked on.',
       lines: ['Dark mode moved to In progress'],

@@ -185,6 +185,7 @@ describe('initiatives', () => {
     expect(new Date(archived.updatedAt).getTime()).toBeGreaterThan(
       new Date(created.updatedAt).getTime(),
     );
+    expect(archived.trashed).toBeNull();
     await Bun.sleep(5);
     const again = await archiveInitiative(created.id, owner.userId, { trash: true });
     expect(again.archivedAt).toBe(archived.archivedAt);

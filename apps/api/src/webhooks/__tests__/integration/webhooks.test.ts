@@ -221,6 +221,7 @@ describe('webhooks', () => {
         allPublicTeams: true,
       });
       const member = await signUpAs('member');
+      await createTeam(member, { key: 'OPS', name: 'Operations' });
       const res = await create(member, {
         url: 'https://example.com/all',
         resourceTypes: ['Issue'],
