@@ -863,6 +863,17 @@ tests that bound a request's SQL statements).
   ENTITY_NOT_FOUND, CONFLICT), and the feature's own access (who succeeds; a user who
   cannot see the team gets ENTITY_NOT_FOUND).
 - Confirm each case goes red when the behavior is broken.
+- A refusal asserts its error code (and the message when several guards share a code).
+  `errors.length > 0` or a bare `.rejects.toThrow()` also passes when an unrelated
+  guard refuses, or when a test-setup mistake throws.
+- A refusal gets a positive control in the same test: the same call succeeding for
+  someone allowed. Without it the case may never reach the guard it names.
+- A test that needs RustFS uses `it.skipIf(!storeAvailable)`. Returning early from the
+  test body reports a pass with no assertions when the store is down.
+- A time window a test hands to the code (`since`, `until`, `at`) is cut on the
+  database's clock (`dbNow()`), as production does: the host's clock and the database's
+  differ by tens of milliseconds, so a change made just before a host-clock `until`
+  can fall outside it.
 - Don't hardcode ids or the "-42" sequence — read them from the create response.
 
 ## Webhooks (Linear-compatible)
