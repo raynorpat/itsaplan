@@ -45,4 +45,4 @@ jobs:
 
       - name: Move the release branch
         if: ${{ steps.release.outputs.release_created }}
-        run: git push origin HEAD:release
+        run: git push origin HEAD:refs/heads/release
