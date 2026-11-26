@@ -19,8 +19,7 @@ import type { WorkflowAction } from './validate';
 // issue update attributed to the rule, then adds its comments; a later rule runs only
 // if the issue still matches it after the earlier rules' changes. A rule's own
 // changes run no rules (runAsWorkflow). An action that no longer fits is skipped and
-// recorded in the rule's stats; nothing here fails the person's change (the issues
-// store runs the hook as best effort).
+// recorded in the rule's stats; nothing here fails the person's change.
 
 // Stands in for a rule without an owner where a condition reads "me".
 const NO_USER = '00000000-0000-0000-0000-000000000000';
@@ -146,27 +145,31 @@ async function recordRun(ruleId: string, errors: string[]): Promise<void> {
     .where(eq(workflowDefinition.id, ruleId));
 }
 
-// Runs one rule on the issue. An action that no longer passes the issue checks is
-// skipped, logged and recorded. The field and label actions are checked before the
-// update, so the update itself fails only on a database error or a concurrent change;
-// that error goes up to the issues store, which logs it without failing the person's
-// change.
+// Runs one rule on the issue. Never throws: an error is logged and recorded. An action
+// that no longer passes the issue checks is skipped before the update, so the outer
+// catch is reached only by a database error or a concurrent change (a label deleted
+// between the check and the write); it keeps that rule's error in its stats and lets
+// the later rules run.
 async function runRule(rule: WorkflowRow, issueId: string): Promise<void> {
   const errors: string[] = [];
-  await runAsWorkflow({ id: rule.id, name: rule.name, ownerId: rule.ownerId }, async () => {
-    const patch = await fieldPatch(issueId, rule.activities, errors);
-    const labelIds = await labelSet(issueId, rule.activities, errors);
-    if (Object.keys(patch).length > 0 || labelIds)
-      await updateIssue(issueId, patch, null, labelIds ? { labelIds } : {});
-    for (const action of rule.activities) {
-      if (action.type !== 'addComment') continue;
-      try {
-        await createComment({ parent: { issueId }, body: action.body, actorUserId: null });
-      } catch (err) {
-        errors.push(`addComment: ${message(err)}`);
+  try {
+    await runAsWorkflow({ id: rule.id, name: rule.name, ownerId: rule.ownerId }, async () => {
+      const patch = await fieldPatch(issueId, rule.activities, errors);
+      const labelIds = await labelSet(issueId, rule.activities, errors);
+      if (Object.keys(patch).length > 0 || labelIds)
+        await updateIssue(issueId, patch, null, labelIds ? { labelIds } : {});
+      for (const action of rule.activities) {
+        if (action.type !== 'addComment') continue;
+        try {
+          await createComment({ parent: { issueId }, body: action.body, actorUserId: null });
+        } catch (err) {
+          errors.push(`addComment: ${message(err)}`);
+        }
       }
-    }
-  });
+    });
+  } catch (err) {
+    errors.push(message(err));
+  }
   if (errors.length) console.error(`[workflows] rule ${rule.id} on ${issueId}:`, errors.join('; '));
   try {
     await recordRun(rule.id, errors);
