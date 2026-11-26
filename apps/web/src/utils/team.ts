@@ -10,6 +10,7 @@ import { cycleLabel, cycleOptions, cyclesVisible, knownCycles, sortedCycles } fr
 import type { GroupField, ViewSettings } from '@/utils/viewSettings';
 import type { Sort, SortField } from '@/utils/viewTypes';
 import { projectDisplayName } from '@/utils/projectMeta';
+import { positionBetween } from '@/utils/position';
 
 export type { Sort, SortField } from '@/utils/viewTypes';
 
@@ -208,12 +209,7 @@ function tieBreak(a: Issue, b: Issue): number {
 // midpoint of its new neighbors, so inserting never requires renumbering the
 // rest of the column (the same fractional-index trick Linear's sortOrder uses).
 export function positionAt(issuesInColumn: Issue[], index: number): number {
-  const before = issuesInColumn[index - 1]?.position;
-  const at = issuesInColumn[index]?.position;
-  if (before == null && at == null) return 1000;
-  if (before == null) return at! - 1000;
-  if (at == null) return before + 1000;
-  return (before + at) / 2;
+  return positionBetween(issuesInColumn[index - 1]?.position, issuesInColumn[index]?.position);
 }
 
 // Groups a team's issues by column id, preserving each column's ordering. The

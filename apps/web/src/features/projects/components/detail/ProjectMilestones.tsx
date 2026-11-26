@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { ProjectDetail } from '@/services/projects.service';
 import { Button } from '@/components/ui/button';
-import { sortOrderForMove } from '../../utils/milestoneOrder';
+import { positionForMove } from '@/utils/position';
 import ProjectMilestoneForm from './ProjectMilestoneForm';
 import ProjectMilestoneRow from './ProjectMilestoneRow';
 import { useCreateMilestone, useUpdateMilestone } from '../../services/projectMilestones.service';
@@ -23,11 +23,12 @@ export default function ProjectMilestones({
   const update = useUpdateMilestone(project.id);
   const milestones = [...project.milestones].sort((a, b) => a.sortOrder - b.sortOrder);
   if (!canEdit && milestones.length === 0) return null;
+  const sortOrders = milestones.map((m) => m.sortOrder);
 
   const move = (from: number, to: number) =>
     update.mutate({
       id: milestones[from]!.id,
-      input: { sortOrder: sortOrderForMove(milestones, from, to) },
+      input: { sortOrder: positionForMove(sortOrders, from, to, 1) },
     });
 
   return (
@@ -62,7 +63,7 @@ export default function ProjectMilestones({
           onSave={async (fields) => {
             await create.mutateAsync({
               ...fields,
-              sortOrder: sortOrderForMove(milestones, milestones.length, milestones.length),
+              sortOrder: positionForMove(sortOrders, milestones.length, milestones.length, 1),
             });
             setAdding(false);
           }}

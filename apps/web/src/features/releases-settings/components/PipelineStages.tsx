@@ -1,11 +1,12 @@
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { stageOrder } from '@/utils/releases';
+import { positionForMove } from '@/utils/position';
 import {
   usePipelineSettingsWrites,
   type PipelineSettings,
 } from '../services/releasesSettings.service';
-import { movedPosition, newStagePosition } from '../utils/pipelineForm';
+import { newStagePosition } from '../utils/pipelineForm';
 import PipelineStageRow from './PipelineStageRow';
 
 // A scheduled pipeline's stages in workflow order. Every stage can be renamed,
@@ -27,7 +28,7 @@ export default function PipelineStages({
     const from = started.findIndex((s) => s.id === id);
     const to = from + by;
     if (to < 0 || to >= started.length) return;
-    updateStage.mutate({ id, input: { position: movedPosition(startedPositions, from, to) } });
+    updateStage.mutate({ id, input: { position: positionForMove(startedPositions, from, to, 1) } });
   };
 
   return (

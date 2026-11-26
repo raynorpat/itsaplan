@@ -5,11 +5,11 @@ import { Plus } from 'lucide-react';
 import type { Column, TeamDetail, StateType } from '@/types/team';
 import { useDndSensors } from '@/lib/dnd';
 import { STATE_TYPES } from '@/utils/fieldOptions';
-import { positionForMove } from '../../utils/statePosition';
 import { DEFAULT_COLOR } from '@/utils/team';
 import { Button } from '@/components/ui/button';
 import { ItemGroup } from '@/components/ui/item';
 import ColorField from '@/components/common/fields/ColorField';
+import { positionForMove } from '@/utils/position';
 import { SettingsEmpty } from '../crud/SettingsEmpty';
 import { SettingsInlineEditForm } from '../crud/SettingsInlineEditForm';
 import { useSettingsCan } from '../../context/settingsPermission';
@@ -52,13 +52,20 @@ export default function SettingsStates({ team }: { team: TeamDetail }) {
   }
 
   // Moves the dragged state to the drop target's place within its state type. Only the
-  // moved state is written; its position lies between its new neighbours.
+  // moved state is written; its position lies between its new neighbours, in steps of 1
+  // as the API numbers new states.
   async function reorderWithinGroup(draggedId: string, targetId: string, stateType: StateType) {
     const group = team.states.filter((c) => c.stateType === stateType);
     const from = group.findIndex((c) => c.id === draggedId);
     const to = group.findIndex((c) => c.id === targetId);
     if (from < 0 || to < 0) return;
-    await reorderStates.mutateAsync({ id: draggedId, position: positionForMove(group, from, to) });
+    const position = positionForMove(
+      group.map((c) => c.position),
+      from,
+      to,
+      1,
+    );
+    await reorderStates.mutateAsync({ id: draggedId, position });
   }
 
   function startAdd(s: StateType) {

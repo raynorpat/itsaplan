@@ -8,6 +8,7 @@ import { useDndSensors } from '@/lib/dnd';
 import { Button } from '@/components/ui/button';
 import { ItemGroup } from '@/components/ui/item';
 import SettingsSection from '@/components/common/page/SettingsSection';
+import { positionBetween, positionForMove } from '@/utils/position';
 import {
   type CustomerListItem,
   type CustomerListKind,
@@ -15,7 +16,6 @@ import {
   useCustomerStatuses,
   useCustomerTiers,
 } from '@/services/customers.service';
-import { positionBetween, positionForMove } from '../utils/order';
 import CustomersSettingsRow from './CustomersSettingsRow';
 import CustomersSettingsItemForm, { type ItemFormValue } from './CustomersSettingsItemForm';
 import CustomersSettingsDeleteDialog from './CustomersSettingsDeleteDialog';
@@ -48,7 +48,12 @@ export default function CustomersSettingsList({
     const from = items.findIndex((i) => i.id === String(e.active.id));
     const to = items.findIndex((i) => i.id === String(e.over?.id));
     if (from < 0 || to < 0 || from === to) return;
-    update.mutate({ id: items[from].id, input: { position: positionForMove(items, from, to) } });
+    const position = positionForMove(
+      items.map((i) => i.position),
+      from,
+      to,
+    );
+    update.mutate({ id: items[from].id, input: { position } });
   }
 
   async function add(value: ItemFormValue) {
