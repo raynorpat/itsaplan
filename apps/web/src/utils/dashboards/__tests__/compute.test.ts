@@ -436,6 +436,24 @@ describe('cycles', () => {
     assert.ok(eng.kind === 'number' && eng.value === 10 && eng.unit === 'issues');
   });
 
+  it("shows a cycle row's progress rounded down, as the cycle page does", () => {
+    const w = widget('table', {
+      data: 'cycles',
+      measure: 'scope',
+      table: { columns: ['cycle', 'progress'], limit: 10, sort: 'cycle:asc' },
+    });
+    const r = computeWidget(
+      w,
+      { cycles: [cycle({ id: 'a', progress: 0.996 }), cycle({ id: 'b', number: 2, progress: 1 })] },
+      ctx(),
+    );
+    assert.ok(r.kind === 'table');
+    assert.deepEqual(
+      r.rows.map((x) => x.cells.progress),
+      [99, 100],
+    );
+  });
+
   it('reads the current cycle progress', () => {
     const w = widget('number', { data: 'cycles', measure: 'currentProgress', filter: {} });
     assert.deepEqual(num(computeWidget(w, { cycles }, ctx())), [30, null]);

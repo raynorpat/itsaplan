@@ -3,8 +3,8 @@ import { sessionStatusAfter } from '../../status';
 
 // Linear's session lifecycle: thoughts and actions mark the agent working. A person's
 // prompt starts a new turn the agent has not acknowledged yet; a stop prompt asks the
-// agent to stop. The agent's own activities (elicitation,
-// response, error) are covered by agent-sessions.test.ts.
+// agent to stop. The agent's own activities (elicitation, response, error) are covered
+// by agent-sessions.test.ts.
 
 describe('sessionStatusAfter', () => {
   it('moves to active on a thought or an action', () => {

@@ -349,7 +349,7 @@ export async function setWorkspaceRole(userId: string, role: WorkspaceRole): Pro
 }
 
 // Signs up a user and gives them a workspace role (the role is set directly, as
-// signUpWithRole does, since the first user is the only owner who could grant it).
+// setWorkspaceRole does, since the first user is the only owner who could grant it).
 export async function signUpAs(
   role: WorkspaceRole,
   overrides: { email?: string; name?: string } = {},

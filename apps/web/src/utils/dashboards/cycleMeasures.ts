@@ -2,6 +2,7 @@ import type { Adapter, ComputeContext, Item, Selection, SliceGroup, TableRow } f
 import type { CycleFilter, WidgetConfig } from './config';
 import { cycleHref, dateCell } from './links';
 import { inRange } from './periods';
+import { progressPercent } from '@/utils/progress';
 
 // Cycles as a widget's data. A team's cycles are measured in its own unit (points or
 // issues, the cycles' scope rule), so cycles of different teams are never added up.
@@ -129,7 +130,7 @@ function table(items: Item<CycleRow>[]): TableRow[] {
       scope: c.scope,
       completedScope: c.completedScope,
       carriedOver: c.carriedOver,
-      progress: Math.round(c.progress * 100),
+      progress: progressPercent(c.progress),
     },
   }));
 }
