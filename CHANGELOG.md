@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/raynorpat/itsaplan/compare/v0.5.0...v0.5.1) (2026-11-26)
+
+
+### CI
+
+* name the release branch in full so the first release can create it ([3a44c8f](https://github.com/raynorpat/itsaplan/commit/3a44c8f099f40bd66e547f7669f103d59e711dcd))
+
 ## [0.5.0](https://github.com/raynorpat/itsaplan/compare/v0.4.0...v0.5.0) (2026-11-26)
 
 
